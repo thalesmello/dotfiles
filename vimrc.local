@@ -1,1 +1,2 @@
 nnoremap <leader>elv :vsplit ~/.vimrc.local<cr>
+set wildmode=list:longest,full
