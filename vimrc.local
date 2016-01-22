@@ -1,4 +1,7 @@
+" Mappings
 nnoremap <leader>elv :vsplit ~/.vimrc.local<cr>
+nnoremap <leader>slv :source ~/.vimrc.local<cr>
+" Map multicursors
+nmap <c-n> :call multiple_cursors#new("n", 1)<CR>
 set wildmode=list:longest,full
-
 let g:multi_cursor_exit_from_insert_mode=0
