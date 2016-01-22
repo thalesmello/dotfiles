@@ -1,6 +1,7 @@
 " Mappings
 nnoremap <leader>elv :vsplit ~/.vimrc.local<cr>
 nnoremap <leader>slv :source ~/.vimrc.local<cr>
+nmap <C-S-M> <Plug>yankstack_substitute_newer_paste
 " Map multicursors
 nmap <c-n> :call multiple_cursors#new("n", 1)<CR>
 set wildmode=list:longest,full
