@@ -1,6 +1,8 @@
 " Mappings
 nnoremap <leader>elv :vsplit ~/.vimrc.local<cr>
 nnoremap <leader>slv :source ~/.vimrc.local<cr>
+nnoremap <leader>; :
+nnoremap <leader>> `>
 nmap <leader><C-n> <Plug>yankstack_substitute_newer_paste
 inoremap <C-@> <C-n>
 " Map multicursors
