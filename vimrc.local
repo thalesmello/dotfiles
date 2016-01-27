@@ -13,4 +13,6 @@ set wildmode=list:longest,full
 autocmd BufEnter * highlight multiple_cursors_cursor term=reverse cterm=reverse gui=reverse
 autocmd BufEnter * highlight link multiple_cursors_visual Visual
 set listchars=tab:▸\ ,eol:¬
-
+set ignorecase
+set infercase
+set wildignorecase
