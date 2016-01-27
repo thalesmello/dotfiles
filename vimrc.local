@@ -10,4 +10,3 @@ nmap <c-n> :call multiple_cursors#new("n", 1)<CR>
 set wildmode=list:longest,full
 autocmd BufEnter * highlight multiple_cursors_cursor term=reverse cterm=reverse gui=reverse
 autocmd BufEnter * highlight link multiple_cursors_visual Visual
-let g:airline_powerline_fonts = 0
