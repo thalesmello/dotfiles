@@ -10,6 +10,8 @@ nmap <leader><C-n> <Plug>yankstack_substitute_newer_paste
 inoremap <C-@> <C-n>
 " Map multicursors
 nmap <c-n> :call multiple_cursors#new("n", 1)<CR>
+highlight multiple_cursors_cursor term=reverse cterm=reverse gui=reverse
+highlight link multiple_cursors_visual Visual
 set wildmode=list:longest,full
 
 set listchars=tab:▸\ ,eol:¬
@@ -38,3 +40,7 @@ omap T <Plug>Sneak_T
 let g:sneak#streak = 1
 let g:sneak#s_next = 1
 
+map <F6> :resize -5<CR>
+map <F7> :resize +5<CR>
+map <F8> :vertical resize -5<CR>
+map <F9> :vertical resize +5<CR>
