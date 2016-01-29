@@ -46,3 +46,7 @@ nnoremap <F8> :vertical resize -5<CR>
 nnoremap <F9> :vertical resize +5<CR>
 
 set lazyredraw
+
+" Don't wait for ESC to timeout
+set timeoutlen=1000 ttimeoutlen=0
+
