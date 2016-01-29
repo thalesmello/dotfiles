@@ -106,8 +106,8 @@ tmux_conf_new_session_prompt=false
 # ------------------------------------------------------------------------------
 # this is the place to further customize tmux's configuration
 
-#set -g history-limit 10000
-unbind-key C-a
+# Urlview shortcut
+bind u run "cut -c3- ~/.tmux.conf | sh -s urlview #{pane_id}"
 
 bind-key -t vi-copy y copy-pipe "reattach-to-user-namespace pbcopy"
 unbind -t vi-copy Enter
