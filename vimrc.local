@@ -44,3 +44,5 @@ nnoremap <F6> :resize -5<CR>
 nnoremap <F7> :resize +5<CR>
 nnoremap <F8> :vertical resize -5<CR>
 nnoremap <F9> :vertical resize +5<CR>
+
+set lazyredraw
