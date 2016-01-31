@@ -3,6 +3,7 @@ nnoremap <leader>elv :vsplit ~/.vimrc.local<cr>
 nnoremap <leader>slv :source ~/.vimrc.local<cr>
 nnoremap <leader>. `>
 nnoremap <leader>/ :CtrlPTag<CR>
+nnoremap <leader>ss :w<cr>
 nmap <leader>tb :TagbarToggle<CR>
 map ; :
 noremap ;; ;
@@ -45,4 +46,12 @@ set lazyredraw
 
 " Don't wait for ESC to timeout
 set timeoutlen=1000 ttimeoutlen=0
+
+" Vim Tmux Navigator
+let g:tmux_navigator_no_mappings = 1
+nnoremap <silent> <C-H> :TmuxNavigateLeft<cr>
+nnoremap <silent> <C-J> :TmuxNavigateDown<cr>
+nnoremap <silent> <C-K> :TmuxNavigateUp<cr>
+nnoremap <silent> <C-L> :TmuxNavigateRight<cr>
+nnoremap <silent> <C-\> :TmuxNavigatePrevious<cr>
 
