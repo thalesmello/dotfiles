@@ -125,6 +125,17 @@ bind -n C-k if-shell "$is_vim" "send-keys C-k" "select-pane -U"
 bind -n C-l if-shell "$is_vim" "send-keys C-l" "select-pane -R"
 bind -n C-\ if-shell "$is_vim" "send-keys C-\\" "select-pane -l"
 
+# Move window to the right or left
+bind-key -r < swap-window -t -1
+bind-key -r > swap-window -t +1
+
+# Move panes
+bind -r } swap-pane -D       # swap current pane with the next one
+bind -r { swap-pane -U       # swap current pane with the previous one
+
+# Cycle layouts
+bind-key -r C-Space next-layout
+
 set -g @continuum-restore 'on'
 
 set -g @tpm_plugins '          \
