@@ -4,6 +4,7 @@ nnoremap <leader>slv :source ~/.vimrc.local<cr>
 nnoremap <leader>. `>
 nnoremap <leader>/ :CtrlPTag<CR>
 nnoremap <leader>ss :w<cr>
+noremap <leader>c :!
 nmap <leader>tb :TagbarToggle<CR>
 map ; :
 noremap ;; ;
@@ -65,3 +66,16 @@ augroup plugin-devdocs
   autocmd FileType * nmap <buffer>gK <Plug>(devdocs-under-cursor-all)
   autocmd FileType * vmap <buffer><silent>gK y:DevDocsAll <C-R>"<CR>
 augroup END
+
+" Remove yankstack enter mapping
+nunmap <cr>
+
+" Semantic highlighting
+let g:semanticTermColors = [28,1,2,3,87,5,6,7,81,9,10,34,11,13,14,15,165,154,49,139]
+nnoremap <Leader>sh :SemanticHighlightToggle<cr>
+
+" Automatic variable highlighting
+augroup color-variable
+	autocmd!
+	autocmd CursorMoved * exe printf('match Label /\V\<%s\>/', escape(expand('<cword>'), '/\'))
+augroup end
