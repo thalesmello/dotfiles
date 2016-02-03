@@ -75,7 +75,7 @@ let g:semanticTermColors = [28,1,2,3,87,5,6,7,81,9,10,34,11,13,14,15,165,154,49,
 nnoremap <Leader>sh :SemanticHighlightToggle<cr>
 
 " Automatic variable highlighting
-augroup color-variable
-	autocmd!
-	autocmd CursorMoved * exe printf('match Label /\V\<%s\>/', escape(expand('<cword>'), '/\'))
-augroup end
+" augroup color-variable
+" 	autocmd!
+" 	autocmd CursorMoved * exe printf('match Label /\V\<%s\>/', escape(expand('<cword>'), '/\'))
+" augroup end
