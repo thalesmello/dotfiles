@@ -56,3 +56,12 @@ nnoremap <silent> <C-L> :TmuxNavigateRight<cr>
 nnoremap <silent> <C-\> :TmuxNavigatePrevious<cr>
 
 set linebreak
+
+" Devdocs
+augroup plugin-devdocs
+  autocmd!
+  autocmd FileType c,cpp,rust,haskell,python,javascript,html,eruby nmap <buffer>K <Plug>(devdocs-under-cursor)
+  autocmd FileType c,cpp,rust,haskell,python,javascript,html,eruby vmap <buffer>K y:DevDocs <C-R>"<CR>
+  autocmd FileType * nmap <buffer>gK <Plug>(devdocs-under-cursor-all)
+  autocmd FileType * vmap <buffer><silent>gK y:DevDocsAll <C-R>"<CR>
+augroup END
