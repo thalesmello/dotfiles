@@ -82,3 +82,11 @@ nnoremap <Leader>sh :SemanticHighlightToggle<cr>
 " 	autocmd!
 " 	autocmd CursorMoved * exe printf('match Label /\V\<%s\>/', escape(expand('<cword>'), '/\'))
 " augroup end
+
+" Greplace options
+set grepprg=ack
+let g:grep_cmd_opts = '--noheading'
+
+" Go to file ctrlp
+nmap <leader>gf <c-p><c-\>w
+vmap <leader>gf <esc><c-p><c-\>v
