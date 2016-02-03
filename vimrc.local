@@ -88,5 +88,5 @@ set grepprg=ack
 let g:grep_cmd_opts = '--noheading'
 
 " Go to file ctrlp
-nmap <leader>gf <c-p><c-\>w
-vmap <leader>gf <esc><c-p><c-\>v
+nmap gf <c-p><c-\>w
+vmap gf <esc><c-p><c-\>v
