@@ -90,3 +90,8 @@ let g:grep_cmd_opts = '--noheading'
 " Go to file ctrlp
 nmap gf <c-p><c-\>w
 vmap gf <esc><c-p><c-\>v
+
+" Ack Options
+if executable('ag')
+    let g:ackprg = 'ag --nogroup --nocolor --column'
+endif
