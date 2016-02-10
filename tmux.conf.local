@@ -137,6 +137,7 @@ bind -r { swap-pane -U       # swap current pane with the previous one
 bind-key -r C-Space next-layout
 
 set -g @continuum-restore 'on'
+set -g @scroll-down-exit-copy-mode "off"
 
 set -g @tpm_plugins '          \
   tmux-plugins/tpm             \
