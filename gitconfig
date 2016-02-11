@@ -1,0 +1,18 @@
+[push]
+	default = current
+[user]
+	name = Thales Mello
+	email = thalesmello@gmail.com
+[color]
+	branch = auto
+	diff = auto
+	status = auto
+[alias]
+	lg = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
+[merge]
+	tool = kdiff3
+[mergetool "kdiff3"]
+	path = /Applications/kdiff3.app/Contents/MacOS/kdiff3
+[core]
+	excludesfile = ~/.gitignore
+	pager = diff-so-fancy | less --tabs=1,5 -R
