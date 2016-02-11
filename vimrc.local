@@ -4,11 +4,11 @@ nnoremap <leader>slv :source ~/.vimrc.local<cr>
 nnoremap <leader>. `>
 nnoremap <leader>/ :CtrlPTag<CR>
 nnoremap <leader>ss :w<cr>
-noremap <leader>c :!
 nmap <leader>tb :TagbarToggle<CR>
 map ; :
 noremap ;; ;
-nmap <leader><C-n> <Plug>yankstack_substitute_newer_paste
+" nmap <leader><C-n> <Plug>yankstack_substitute_newer_paste
+let g:yankring_replace_n_nkey = '<leader><c-n>'
 inoremap <C-@> <C-n>
 " Map multicursors
 nmap <c-n> :call multiple_cursors#new("n", 1)<CR>
@@ -95,3 +95,28 @@ vmap gf <esc><c-p><c-\>v
 if executable('ag')
     let g:ackprg ='ag --vimgrep'
 endif
+
+" By Xolox @ http://stackoverflow.com/questions/1533565/how-to-get-visually-selected-text-in-vimscript
+function! s:get_visual_selection()
+  " Why is this not a built-in Vim script function?!
+  let [lnum1, col1] = getpos("'<")[1:2]
+  let [lnum2, col2] = getpos("'>")[1:2]
+  let lines = getline(lnum1, lnum2)
+  let lines[-1] = lines[-1][: col2 - (&selection == 'inclusive' ? 1 : 2)]
+  let lines[0] = lines[0][col1 - 1:]
+  return join(lines, "\n")
+endfunction
+
+function! s:Chomp(string)
+    return substitute(a:string, '\n\+$', '', '')
+endfunction
+
+function! s:visual_command() range
+   let text = s:get_visual_selection() 
+   let cmd = input('Pipe: ')
+   let out = s:Chomp(system(cmd, text))
+   execute "normal! gvc\<C-R>=out\<CR>"
+endfunction
+
+command! -range VisualCommand <line1>,<line2>call s:visual_command()
+vnoremap <leader>c :VisualCommand<CR>
