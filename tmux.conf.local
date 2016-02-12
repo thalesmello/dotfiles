@@ -109,6 +109,9 @@ tmux_conf_new_session_prompt=false
 # Urlview shortcut
 bind u run "cut -c3- ~/.tmux.conf | sh -s urlview #{pane_id}"
 
+# Enter copy mode shortcut
+bind v copy-mode
+
 # Shortcut to clear history
 bind C send-keys C-l \; run 'tmux clear-history'
 
