@@ -8,6 +8,10 @@ Create a symbolic links for your files:
 	ln -s $(pwd)/editrc ~/.editrc
 	ln -s $(pwd)/inputrc ~/.inputrc
 
+Include the local bin folder in the PATH
+
+	echo "\n# Dotfiles bin folder\nexport PATH="'$PATH'":$(pwd)/bin" >> ~/.zshrc.local
+
 Copy this right before `source $ZSH/oh-my-zsh.sh` in your `.zshrc`
 
 	source ~/.zshrc.plugins
