@@ -119,4 +119,5 @@ function! s:visual_command() range
 endfunction
 
 command! -range VisualCommand <line1>,<line2>call s:visual_command()
-vnoremap <leader>c :VisualCommand<CR>
+vnoremap <leader>\| :VisualCommand<CR>
+
