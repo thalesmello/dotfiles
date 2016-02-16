@@ -139,9 +139,13 @@ bind -r { swap-pane -U       # swap current pane with the previous one
 # Cycle layouts
 bind-key -r C-Space next-layout
 
-set -g @continuum-restore 'on'
+# Plugin Configurations
 set -g @scroll-down-exit-copy-mode "off"
+set -g @continuum-restore 'on'
+set -g @resurrect-save-bash-history 'on'
+set -g @resurrect-capture-pane-contents 'on'
 
+# List of installed plugins
 set -g @tpm_plugins '          \
   tmux-plugins/tpm             \
   tmux-plugins/tmux-sensible   \
