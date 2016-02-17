@@ -7,6 +7,10 @@ nnoremap <leader>ss :w<cr>
 nmap <leader>tb :TagbarToggle<CR>
 map ; :
 noremap ;; ;
+
+" Set unnamed register as default clipboard
+set clipboard=unnamed
+
 " nmap <leader><C-n> <Plug>yankstack_substitute_newer_paste
 let g:yankring_replace_n_nkey = '<leader><c-n>'
 inoremap <C-@> <C-n>
