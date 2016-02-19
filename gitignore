@@ -2,3 +2,4 @@ tags
 *.swp
 .byebug_history
 *.swn
+.swl
