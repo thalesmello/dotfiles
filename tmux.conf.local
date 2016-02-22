@@ -145,6 +145,7 @@ set -g @continuum-restore 'on'
 set -g @resurrect-save-bash-history 'on'
 set -g @resurrect-capture-pane-contents 'on'
 set -g default-command "reattach-to-user-namespace -l $SHELL"
+set -g focus-events on
 
 # List of installed plugins
 set -g @tpm_plugins '          \
