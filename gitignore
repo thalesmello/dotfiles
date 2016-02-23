@@ -3,3 +3,5 @@ tags
 .byebug_history
 *.swn
 .swl
+*.swo
+.swo

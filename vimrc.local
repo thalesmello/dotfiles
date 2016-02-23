@@ -139,3 +139,6 @@ endfunction
 command! -range VisualCommand <line1>,<line2>call s:visual_command()
 vnoremap <leader>\| :VisualCommand<CR>
 
+" Airline
+let g:airline_section_b = ''
+
