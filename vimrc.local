@@ -142,3 +142,5 @@ vnoremap <leader>\| :VisualCommand<CR>
 " Airline
 let g:airline_section_b = ''
 
+" Gutentags
+let g:gutentags_exclude = ['node_modules', '.git']
