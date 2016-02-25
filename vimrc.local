@@ -13,7 +13,7 @@ set clipboard=unnamed
 
 " nmap <leader><C-n> <Plug>yankstack_substitute_newer_paste
 let g:yankring_replace_n_nkey = '<leader><c-n>'
-inoremap <C-@> <C-x><C-o>
+" inoremap <C-@> <C-x><C-o>
 inoremap <C-l> <C-x><C-l>
 inoremap <C-f> <C-x><C-f>
 inoremap <C-j> <C-x><C-u>
@@ -144,3 +144,15 @@ let g:airline_section_b = ''
 
 " Gutentags
 let g:gutentags_exclude = ['node_modules', '.git']
+
+" YouCompleteMe
+let g:ycm_auto_trigger = 0
+nmap <leader>gd :YcmCompleter GoToDefinition<cr>
+nmap <leader>gr :YcmCompleter GoToReferences<cr>
+nmap <leader>gk :YcmCompleter GetDoc<cr>
+nmap <leader>gt :YcmCompleter GetType<cr>
+nmap <leader>q :pclose<cr>:cclose<cr>
+" Snipmate
+imap <C-K> <Plug>snipMateNextOrTrigger
+smap <C-K> <Plug>snipMateNextOrTrigger
+
