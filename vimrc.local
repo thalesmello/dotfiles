@@ -4,6 +4,7 @@ nnoremap <leader>slv :source ~/.vimrc.local<cr>
 nnoremap <leader>. `>
 nnoremap <leader>/ :CtrlPTag<CR>
 nnoremap <leader>ss :w<cr>
+nnoremap <leader>sa ggVG
 nmap <leader>tb :TagbarToggle<CR>
 map ; :
 noremap ;; ;
