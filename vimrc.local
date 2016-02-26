@@ -157,3 +157,5 @@ nmap <leader>q :pclose<cr>:cclose<cr>
 imap <C-K> <Plug>snipMateNextOrTrigger
 smap <C-K> <Plug>snipMateNextOrTrigger
 
+" ToggleList
+let g:toggle_list_no_mappings = 1
