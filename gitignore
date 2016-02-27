@@ -6,3 +6,5 @@ tags
 *.swo
 .swo
 .tern-project
+.idea
+.rbenv-gemsets
