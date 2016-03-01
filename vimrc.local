@@ -8,6 +8,7 @@ nnoremap <leader>sa ggVG
 nmap <leader>tb :TagbarToggle<CR>
 map ; :
 noremap ;; ;
+vmap <leader>* *Ncgn
 
 " Set unnamed register as default clipboard
 set clipboard=unnamed
@@ -159,3 +160,12 @@ smap <C-K> <Plug>snipMateNextOrTrigger
 
 " ToggleList
 let g:toggle_list_no_mappings = 1
+
+" Yankring
+let g:yankring_replace_n_pkey = '<leader>yp'
+let g:yankring_replace_n_nkey = '<leader>yn'
+
+call submode#enter_with('yank_p/n', 'n', 'r', '<leader><', '<leader>yp')
+call submode#enter_with('yank_p/n', 'n', 'r', '<leader>>', '<leader>yn')
+call submode#map('yank_p/n', 'n', 'r', '<', '<leader>yp')
+call submode#map('yank_p/n', 'n', 'r', '>', '<leader>yn')
