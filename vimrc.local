@@ -6,8 +6,7 @@ nnoremap <leader>/ :CtrlPTag<CR>
 nnoremap <leader>ss :w<cr>
 nnoremap <leader>sa ggVG
 nmap <leader>tb :TagbarToggle<CR>
-map ; :
-noremap ;; ;
+nmap ; :
 vmap <leader>* *Ncgn
 
 " Set unnamed register as default clipboard
@@ -49,6 +48,7 @@ if &term =~ '^screen'
     set ttymouse=xterm2
 endif
 
+" Sneak
 nmap f <Plug>Sneak_s
 nmap F <Plug>Sneak_S
 xmap f <Plug>Sneak_s
@@ -56,7 +56,7 @@ xmap F <Plug>Sneak_S
 omap f <Plug>Sneak_s
 omap F <Plug>Sneak_S
 let g:sneak#streak = 1
-let g:sneak#s_next = 1
+nmap ;; <Plug>SneakNext
 
 nnoremap <F6> :resize -5<CR>
 nnoremap <F7> :resize +5<CR>
