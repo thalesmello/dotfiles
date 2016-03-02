@@ -149,11 +149,13 @@ let g:gutentags_exclude = ['node_modules', '.git']
 
 " YouCompleteMe
 let g:ycm_auto_trigger = 0
-nmap <leader>gd :YcmCompleter GoToDefinition<cr>
-nmap <leader>gr :YcmCompleter GoToReferences<cr>
-nmap <leader>gk :YcmCompleter GetDoc<cr>
-nmap <leader>gt :YcmCompleter GetType<cr>
-nmap <leader>q :pclose<cr>:cclose<cr>
+nnoremap <leader>gd :YcmCompleter GoToDefinition<cr>
+nnoremap <leader>gr :YcmCompleter GoToReferences<cr>:cclose<cr>:copen<cr>
+nnoremap <leader>gk :YcmCompleter GetDoc<cr>
+nnoremap <leader>gt :YcmCompleter GetType<cr>
+nnoremap <leader>rv :YcmCompleter RefactorRename 
+nnoremap <leader>q :pclose<cr>:cclose<cr>
+
 " Snipmate
 imap <C-K> <Plug>snipMateNextOrTrigger
 smap <C-K> <Plug>snipMateNextOrTrigger
