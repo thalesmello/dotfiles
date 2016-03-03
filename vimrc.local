@@ -171,3 +171,6 @@ call submode#enter_with('yank_p/n', 'n', 'r', '<leader><', '<leader>yp')
 call submode#enter_with('yank_p/n', 'n', 'r', '<leader>>', '<leader>yn')
 call submode#map('yank_p/n', 'n', 'r', '<', '<leader>yp')
 call submode#map('yank_p/n', 'n', 'r', '>', '<leader>yn')
+
+" NerdTREE
+let NERDTreeIgnore=['*.pyc']
