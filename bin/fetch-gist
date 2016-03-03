@@ -1,1 +1,2 @@
+#!/bin/sh
 gist -l | grep $1 | head -n 1 | sed -r 's|^.*gist.github.com/(\w+) .*$|\1|' | xargs gist -r
