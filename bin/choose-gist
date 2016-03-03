@@ -1,0 +1,2 @@
+#!/bin/sh
+gist -l | fzf | sed -r 's|^.*gist.github.com/(\w+) .*$|\1|' | xargs gist -r
