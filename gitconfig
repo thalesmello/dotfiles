@@ -15,9 +15,16 @@
 	path = /Applications/kdiff3.app/Contents/MacOS/kdiff3
 [core]
 	excludesfile = ~/.gitignore
-	pager = diff-so-fancy | less --tabs=1,5 -R
+	pager = diff-highlight | diff-so-fancy | less --tabs=1,5 -R
 [color "diff-highlight"]
 	oldNormal = red bold
 	oldHighlight = red bold 52
 	newNormal = green bold
 	newHighlight = green bold 22
+[color "diff"]
+	meta = yellow bold
+	commit = green bold
+	frag = magenta bold
+	old = red bold
+	new = green bold
+	whitespace = red reverse
