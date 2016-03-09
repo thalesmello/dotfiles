@@ -7,6 +7,7 @@ nnoremap <leader>ss :w<cr>
 nnoremap <leader>sa ggVG
 nmap <leader>tb :TagbarToggle<CR>
 vmap <leader>* *Ncgn
+nmap <leader>* *Ncgn
 
 " Set unnamed register as default clipboard
 set clipboard=unnamed
@@ -171,7 +172,7 @@ call submode#map('yank_p/n', 'n', 'r', '<', '<leader>yp')
 call submode#map('yank_p/n', 'n', 'r', '>', '<leader>yn')
 
 " NerdTREE
-let NERDTreeIgnore=['*.pyc']
+let NERDTreeIgnore=['\.pyc$']
 
 " Ruby
 let g:rubycomplete_buffer_loading = 1
