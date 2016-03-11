@@ -5,6 +5,7 @@ nnoremap <leader>. `>
 nnoremap <leader>/ :CtrlPTag<CR>
 nnoremap <leader>ss :w<cr>
 nnoremap <leader>sa ggVG
+nnoremap <leader>sb V$%
 nmap <leader>tb :TagbarToggle<CR>
 vmap <leader>* *Ncgn
 nmap <leader>* *Ncgn
