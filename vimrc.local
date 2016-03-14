@@ -55,6 +55,10 @@ endif
 " Sneak
 nmap f <Plug>(SneakStreak)
 nmap F <Plug>(SneakStreakBackward)
+xmap f <Plug>(SneakStreak)
+xmap F <Plug>(SneakStreakBackward)
+omap f <Plug>(SneakStreak)
+omap F <Plug>(SneakStreakBackward)
 let g:sneak#use_ic_scs = 1
 
 nnoremap <F6> :resize -5<CR>
