@@ -165,6 +165,7 @@ smap <C-K> <Plug>snipMateNextOrTrigger
 let g:toggle_list_no_mappings = 1
 
 " Yankring
+nnoremap <leader>yr :YRToggle
 let g:yankring_replace_n_pkey = '<leader>yp'
 let g:yankring_replace_n_nkey = '<leader>yn'
 
