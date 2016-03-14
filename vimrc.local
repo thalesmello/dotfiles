@@ -13,9 +13,6 @@ nmap <leader>* *Ncgn
 " Set unnamed register as default clipboard
 set clipboard=unnamed
 
-" nmap <leader><C-n> <Plug>yankstack_substitute_newer_paste
-let g:yankring_replace_n_nkey = '<leader><c-n>'
-" inoremap <C-@> <C-x><C-o>
 inoremap <C-l> <C-x><C-l>
 inoremap <C-f> <C-x><C-f>
 inoremap <C-j> <C-x><C-u>
