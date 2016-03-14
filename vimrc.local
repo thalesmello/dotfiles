@@ -31,7 +31,7 @@ endfunction
 " Called once only when the multiple selection is canceled (default <Esc>)
 function! Multiple_cursors_after()
 	execute 'YRToggle 1'
-	let g:ycm_auto_trigger = g:old_ycm_auto_trigger
+	let g:ycm_auto_trigger = s:old_ycm_auto_trigger
 endfunction
 
 nmap <c-n> :call multiple_cursors#new("n", 1)<CR>
@@ -147,10 +147,9 @@ let g:airline_section_b = ''
 let g:gutentags_exclude = ['node_modules', '.git']
 
 " YouCompleteMe
-let g:ycm_min_num_identifier_candidate_chars = 2
 nnoremap <leader>ycm :let g:ycm_auto_trigger = !g:ycm_auto_trigger<cr>
 
-nnoremap <leader>gd :YcmCompleter GoToDefinition<cr>
+nnoremap <leader>gd :YcmCompleter GoToDeclaration<cr>
 nnoremap <leader>gr :YcmCompleter GoToReferences<cr>:cclose<cr>:copen<cr>
 nnoremap <leader>gk :YcmCompleter GetDoc<cr>
 nnoremap <leader>gt :YcmCompleter GetType<cr>
