@@ -135,7 +135,7 @@ function! s:Chomp(string)
 endfunction
 
 function! s:visual_command() range
-   let text = s:get_visual_selection() 
+   let text = s:get_visual_selection()
    let cmd = input('Pipe: ', '', 'shellcmd')
    let out = s:Chomp(system(cmd, text))
    execute "normal! gvc\<C-R>=out\<CR>"
