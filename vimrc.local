@@ -9,6 +9,8 @@ nnoremap <leader>sb V$%
 nmap <leader>tb :TagbarToggle<CR>
 vmap <leader>* *Ncgn
 nmap <leader>* *Ncgn
+noremap <leader>ut :set completefunc=tmuxcomplete#complete<cr>
+noremap <leader>uy :set completefunc=youcompleteme#OmniComplete<cr>
 
 " Set unnamed register as default clipboard
 set clipboard=unnamed
@@ -20,14 +22,12 @@ inoremap <C-j> <C-x><C-u>
 
 " Called once right before you start selecting multiple cursors
 function! Multiple_cursors_before()
-	execute "YRToggle 0"
 	let s:old_ycm_auto_trigger = g:ycm_auto_trigger
 	let g:ycm_auto_trigger = 0
 endfunction
 
 " Called once only when the multiple selection is canceled (default <Esc>)
 function! Multiple_cursors_after()
-	execute 'YRToggle 1'
 	let g:ycm_auto_trigger = s:old_ycm_auto_trigger
 endfunction
 
@@ -164,19 +164,10 @@ smap <C-K> <Plug>snipMateNextOrTrigger
 " ToggleList
 let g:toggle_list_no_mappings = 1
 
-" Yankring
-nnoremap <leader>yr :YRToggle
-let g:yankring_replace_n_pkey = '<leader>yp'
-let g:yankring_replace_n_nkey = '<leader>yn'
-
-call submode#enter_with('yank_p/n', 'n', 'r', '<leader><', '<leader>yp')
-call submode#enter_with('yank_p/n', 'n', 'r', '<leader>>', '<leader>yn')
-call submode#map('yank_p/n', 'n', 'r', '<', '<leader>yp')
-call submode#map('yank_p/n', 'n', 'r', '>', '<leader>yn')
-
 " NerdTREE
 let NERDTreeIgnore=['\.pyc$']
 
 " Ruby
 let g:rubycomplete_buffer_loading = 1
 let g:rubycomplete_classes_in_global = 1
+
