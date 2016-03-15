@@ -20,6 +20,22 @@ inoremap <C-f> <C-x><C-f>
 inoremap <C-j> <C-x><C-u>
 " Map multicursors
 
+" Easyclip
+let g:EasyClipEnableBlackHoleRedirect = 0
+let g:EasyClipUsePasteToggleDefaults = 0
+let g:EasyClipUseCutDefaults = 0
+nmap <c-m> <plug>EasyClipSwapPasteForward
+nmap <c-n> <plug>EasyClipSwapPasteBackwards
+nmap d <Plug>MoveMotionPlug
+xmap d <Plug>MoveMotionXPlug
+nmap dd <Plug>MoveMotionLinePlug
+
+" Submode yank toggle
+call submode#enter_with('yank_p/n', 'n', 'r', '<leader><', '<leader>yp')
+call submode#enter_with('yank_p/n', 'n', 'r', '<leader>>', '<leader>yn')
+call submode#map('yank_p/n', 'n', 'r', '<', '<leader>yp')
+call submode#map('yank_p/n', 'n', 'r', '>', '<leader>yn')
+
 " Called once right before you start selecting multiple cursors
 function! Multiple_cursors_before()
 	let s:old_ycm_auto_trigger = g:ycm_auto_trigger
@@ -62,6 +78,7 @@ nnoremap <F6> :resize -5<CR>
 nnoremap <F7> :resize +5<CR>
 nnoremap <F8> :vertical resize -5<CR>
 nnoremap <F9> :vertical resize +5<CR>
+
 
 set lazyredraw
 
