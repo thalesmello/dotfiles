@@ -246,7 +246,6 @@ nnoremap <leader>gw :Gwrite<cr>
 nnoremap <leader>ga :Gadd<cr>
 nnoremap <leader>gb :Gblame<cr>
 nnoremap <leader>gci :Gcommit<cr>
-nnoremap <leader>ge :Gedit<cr>
 nnoremap <leader>gm :Gmove
 nnoremap <leader>gr :Gread<cr>
 nnoremap <leader>grm :Gremove<cr>
