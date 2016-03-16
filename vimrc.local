@@ -167,10 +167,10 @@ let g:gutentags_exclude = ['node_modules', '.git']
 " YouCompleteMe
 nnoremap <leader>ycm :let g:ycm_auto_trigger = !g:ycm_auto_trigger<cr>
 
-nnoremap <leader>gd :YcmCompleter GoToDeclaration<cr>
-nnoremap <leader>gr :YcmCompleter GoToReferences<cr>:cclose<cr>:copen<cr>
-nnoremap <leader>gk :YcmCompleter GetDoc<cr>
-nnoremap <leader>gt :YcmCompleter GetType<cr>
+nnoremap <leader>gtd :YcmCompleter GoToDeclaration<cr>
+nnoremap <leader>gtr :YcmCompleter GoToReferences<cr>:cclose<cr>:copen<cr>
+nnoremap <leader>gtk :YcmCompleter GetDoc<cr>
+nnoremap <leader>gtt :YcmCompleter GetType<cr>
 nnoremap <leader>rv :YcmCompleter RefactorRename<space>
 nnoremap <leader>q :pclose<cr>:cclose<cr>
 
