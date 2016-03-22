@@ -204,6 +204,7 @@ nnoremap <leader>d <C-w>q
 " ##### Folding {{{
 " Toggles folding with space
 nnoremap <Space> za
+vnoremap <Space> zA
 " Open all folds
 nnoremap zO zR
 " Close all folds
