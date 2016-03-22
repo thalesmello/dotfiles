@@ -9,8 +9,9 @@ nnoremap <leader>sp V$%
 nmap <leader>tb :TagbarToggle<CR>
 vmap <leader>* *Ncgn
 nmap <leader>* *Ncgn
-noremap <leader>ut :set completefunc=tmuxcomplete#complete<cr>
-noremap <leader>uy :set completefunc=youcompleteme#OmniComplete<cr>
+nnoremap <leader>ut :set completefunc=tmuxcomplete#complete<cr>
+nnoremap <leader>uy :set completefunc=youcompleteme#OmniComplete<cr>
+nmap <leader>of vafzO
 
 " Set unnamed register as default clipboard
 set clipboard=unnamed
