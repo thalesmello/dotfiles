@@ -180,6 +180,7 @@ nnoremap <leader>gtk :YcmCompleter GetDoc<cr>
 nnoremap <leader>gtt :YcmCompleter GetType<cr>
 nnoremap <leader>rv :YcmCompleter RefactorRename<space>
 nnoremap <leader>q :pclose<cr>:cclose<cr>
+let g:ycm_path_to_python_interpreter = '/usr/bin/python2.7'
 
 " Snipmate
 imap <C-K> <Plug>snipMateNextOrTrigger
