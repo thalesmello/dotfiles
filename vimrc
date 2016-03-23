@@ -66,7 +66,6 @@ Plugin 'teranex/jk-jumps.vim'
 Plugin 'tpope/vim-dispatch'
 " Expand html easily: div > 3*li then Ctrl+e in an html file
 Plugin 'rstacruz/sparkup'
-Plugin 'haya14busa/incsearch.vim'
 " Use the Molokay font in Vim
 Plugin 'tomasr/molokai'
 " Puppet support for Vim
@@ -213,11 +212,6 @@ nnoremap zC zM
 nnoremap zc zc
 " Close all folds except the current one
 nnoremap zf mzzMzvzz
-" }}}
-" ##### Search {{{
-map /  <Plug>(incsearch-forward)
-map ?  <Plug>(incsearch-backward)
-map g/ <Plug>(incsearch-stay)
 " }}}
 " ##### Misc {{{
 " Edit and load vimrc
