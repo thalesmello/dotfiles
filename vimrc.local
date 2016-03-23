@@ -226,19 +226,14 @@ au FileType python call TextEnableCodeSnip('sql', "'''", "'''", 'SpecialComment'
 " Vimux
 " Prompt for a command to run
 map <localleader>vp :VimuxPromptCommand<CR>
-
 " Run last command executed by VimuxRunCommand
 map <localleader>vl :VimuxRunLastCommand<CR>
-
 " Inspect runner pane
 map <localleader>vi :VimuxInspectRunner<CR>
-
 " Close vim tmux runner opened by VimuxRunCommand
 map <localleader>vq :VimuxCloseRunner<CR>
-
 " Interrupt any command running in the runner pane
 map <localleader>vx :VimuxInterruptRunner<CR>
-
 " Zoom the runner pane (use <bind-key> z to restore runner pane)
 map <localleader>vz :call VimuxZoomRunner()<CR>
 
@@ -248,7 +243,7 @@ function! VimuxSlime()
 endfunction
 
 " If text is selected, save it in the v buffer and send that buffer it to tmux
-vmap <LocalLeader>vs "vy :call VimuxSlime()<CR>
+vmap <localleader>vs "vy:call VimuxSlime()<CR>
 
 " Select current paragraph and send it to tmux
-nmap <LocalLeader>vs vip<LocalLeader>vs<CR>
+nmap <localleader>vs vip<LocalLeader>vs<CR>
