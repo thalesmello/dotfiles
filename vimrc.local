@@ -219,3 +219,6 @@ vmap <localleader>vs "vy:call VimuxSlime()<CR>
 
 " Select current paragraph and send it to tmux
 nmap <localleader>vs vip<LocalLeader>vs<CR>
+
+" Ctrlp
+let g:ctrlp_custom_ignore = '\v([\/]\.(git|hg|svn)$)|\.pyc$'
