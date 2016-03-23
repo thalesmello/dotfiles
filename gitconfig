@@ -7,6 +7,7 @@
 	branch = auto
 	diff = auto
 	status = auto
+	ui = always
 [alias]
 	lg = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
 [merge]
@@ -15,7 +16,6 @@
 	path = /Applications/kdiff3.app/Contents/MacOS/kdiff3
 [core]
 	excludesfile = ~/.gitignore
-	pager = diff-highlight | diff-so-fancy | less --tabs=1,5 -R
 [color "diff-highlight"]
 	oldNormal = red bold
 	oldHighlight = red bold 52
@@ -28,3 +28,6 @@
 	old = red bold
 	new = green bold
 	whitespace = red reverse
+[pager]
+	diff = diff-highlight | diff-so-fancy | less --tabs=4 -RFX
+	show = diff-highlight | diff-so-fancy | less --tabs=4 -RFX
