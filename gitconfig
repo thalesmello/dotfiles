@@ -16,6 +16,7 @@
 	path = /Applications/kdiff3.app/Contents/MacOS/kdiff3
 [core]
 	excludesfile = ~/.gitignore
+	whitespace = fix,-indent-with-non-tab,trailing-space,cr-at-eol
 [color "diff-highlight"]
 	oldNormal = red bold
 	oldHighlight = red bold 52
@@ -29,5 +30,5 @@
 	new = green bold
 	whitespace = red reverse
 [pager]
-	diff = diff-highlight | diff-so-fancy | less --tabs=4 -RFX
-	show = diff-highlight | diff-so-fancy | less --tabs=4 -RFX
+	diff = diff-highlight | less --tabs=4 -RFX
+	show = diff-highlight | less --tabs=4 -RFX
