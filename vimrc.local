@@ -222,3 +222,6 @@ nmap <localleader>vs vip<LocalLeader>vs<CR>
 
 " Ctrlp
 let g:ctrlp_custom_ignore = '\v([\/]\.(git|hg|svn)$)|\.pyc$'
+
+" Localvimrc
+let g:localvimrc_persistent = 1
