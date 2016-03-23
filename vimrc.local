@@ -11,6 +11,8 @@ nmap <leader>tb :TagbarToggle<CR>
 vmap <leader>* *Ncgn
 nmap <leader>* *Ncgn
 nmap <leader>of vafzO
+inoremap <c-u> <c-g>u<c-u>
+inoremap <c-w> <c-g>u<c-w>
 
 " Set unnamed register as default clipboard
 set clipboard=unnamed
