@@ -166,7 +166,21 @@ command! -range VisualCommand <line1>,<line2>call s:visual_command()
 vnoremap <leader>\| :VisualCommand<CR>
 
 " Airline
-let g:airline_section_b = ''
+let g:airline#extensions#tagbar#enabled = 1
+let g:airline#extensions#tagbar#flags = 'f'
+let g:airline#extensions#branch#displayed_head_limit = 15
+let g:airline#extensions#ycm#enabled = 1
+let g:airline#extensions#virtualenv#enabled = 0
+let g:airline#extensions#default#section_truncate_width = {}
+function! AirlineInit()
+	let g:airline_section_a = airline#section#create(['mode'])
+	let g:airline_section_b = airline#section#create(['file', ' ', 'readonly'])
+	let g:airline_section_c = airline#section#create(['tagbar'])
+	let g:airline_section_x = airline#section#create([])
+	let g:airline_section_y = airline#section#create(['%<', 'branch'])
+	let g:airline_section_z = airline#section#create(['%p%% ', '%{g:airline_symbols.linenr}%#__accent_bold#%l%#__restore__#:%v'])
+endfunction
+autocmd User AirlineAfterInit call AirlineInit()
 
 " Gutentags
 let g:gutentags_exclude = ['node_modules', '.git']
