@@ -228,13 +228,22 @@ map <localleader>vx :VimuxInterruptRunner<CR>
 " Zoom the runner pane (use <bind-key> z to restore runner pane)
 map <localleader>vz :call VimuxZoomRunner()<CR>
 
-function! VimuxSlime()
-	call VimuxSendText(@v)
+function! VimuxSlime() range
+	let text = s:get_visual_selection()
+	call VimuxSendText(text)
+	call VimuxSendKeys("Enter")
+endfunction
+
+function! VimuxSlimeSemicolon() range
+	let text = s:get_visual_selection() . '\;'
+	call VimuxSendText(text)
 	call VimuxSendKeys("Enter")
 endfunction
 
 " If text is selected, save it in the v buffer and send that buffer it to tmux
-vmap <localleader>vs "vy:call VimuxSlime()<CR>
+vmap <localleader>vs :call VimuxSlime()<CR>
+vmap <localleader>vj Jgv:call VimuxSlime()<CR>u
+vmap <localleader>v; Jgv:call VimuxSlimeSemicolon()<CR>u
 
 " Select current paragraph and send it to tmux
 nmap <localleader>vs vip<LocalLeader>vs<CR>
