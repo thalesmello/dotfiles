@@ -3,14 +3,16 @@ let maplocalleader = "'"
 nnoremap <leader>elv :vsplit ~/.vimrc.local<cr>
 nnoremap <leader>slv :source ~/.vimrc.local<cr>
 nnoremap <leader>. `>
-nnoremap <leader>/ :CtrlPTag<CR>
 nnoremap <leader>ss :w<cr>
-nnoremap <leader>sa ggVG
+nnoremap <leader>saa ggVG
 nnoremap <leader>sp V$%
-nnoremap <leader>sq ?\v('''\|""")<CR>vw//e<CR>
+nnoremap <leader>saq ?\v('''\|""")<CR>vw//e<CR>
+nnoremap <leader>siq ?\v('''\|""")<CR>wv//e<CR>ge
 nmap <leader>tb :TagbarToggle<CR>
-vmap <leader>* *Ncgn
-nmap <leader>* *Ncgn
+nmap <leader>/ *N
+vmap <leader>/ *N
+vmap <leader>c/ *Ncgn
+nmap <leader>c/ *Ncgn
 nmap <leader>of vafzO
 inoremap <c-u> <c-g>u<c-u>
 inoremap <c-w> <c-g>u<c-w>
@@ -252,4 +254,4 @@ nmap <localleader>vs vip<LocalLeader>vs<CR>
 let g:ctrlp_custom_ignore = '\v([\/]\.(git|hg|svn)$)|\.pyc$'
 
 " Localvimrc
-let g:localvimrc_persistent = 1
+:let g:localvimrc_persistent = 1
