@@ -7,7 +7,7 @@ nnoremap <leader>/ :CtrlPTag<CR>
 nnoremap <leader>ss :w<cr>
 nnoremap <leader>sa ggVG
 nnoremap <leader>sp V$%
-nnoremap <leader>sq ?\v('''\|""")<CR>v/\v('''\|""")/<CR>//e<CR>
+nnoremap <leader>sq ?\v('''\|""")<CR>vw//e<CR>
 nmap <leader>tb :TagbarToggle<CR>
 vmap <leader>* *Ncgn
 nmap <leader>* *Ncgn
