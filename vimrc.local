@@ -264,5 +264,5 @@ let g:ctrlp_custom_ignore = '\v([\/]\.(git|hg|svn)$)|\.pyc$'
 
 " Autoformat
 noremap <leader>sb :Autoformat<cr>
-let g:formatdef_sqlformat = '"sqlformat -k upper -r --indent_width=4 " . bufname("%")'
+let g:formatdef_sqlformat = '"sqlformat -k upper -r --indent_width=4 -"'
 let g:formatters_sql = ['sqlformat']
