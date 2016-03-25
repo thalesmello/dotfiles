@@ -35,8 +35,6 @@ Plugin 'kana/vim-textobj-user'
 Plugin 'rhysd/vim-textobj-ruby'
 " Git bindings for VIM
 Plugin 'tpope/vim-fugitive'
-" Some useful keybindings
-Plugin 'tpope/vim-unimpaired'
 " Surround utils for vim
 Plugin 'tpope/vim-surround'
 " Automatic closing of brackets
