@@ -169,11 +169,11 @@ let mapleader = ","
 " }}}
 " ##### General mappings  {{{
 " ##### Tabs {{{
-nnoremap <leader>t :tabnew<cr>
-nnoremap <leader>e :tabedit
-nnoremap <leader>c :tabclose<cr>
-nnoremap <leader>n :tabnext<cr>
-nnoremap <leader>p :tabprevious<cr>
+nnoremap <leader>tn :tabnew<cr>
+nnoremap <leader>te :tabedit
+nnoremap <leader>tc :tabclose<cr>
+nnoremap [t :tabprevious<cr>
+nnoremap ]t :tabnext<cr>
 " }}}
 " ##### Line movement {{{
 " Go to start of line with H and to the end with $
