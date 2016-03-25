@@ -21,6 +21,7 @@ nmap <leader>tn :tabnew<cr>
 vmap <leader>tn y:tabnew<cr>p
 nmap <leader>bn :vnew<cr>
 vmap <leader>bn y:vnew<cr>p
+nmap <leader>bc :bw<cr>
 
 " Set unnamed register as default clipboard
 set clipboard=unnamed
@@ -260,3 +261,8 @@ let g:ctrlp_custom_ignore = '\v([\/]\.(git|hg|svn)$)|\.pyc$'
 
 " Localvimrc
 :let g:localvimrc_persistent = 1
+
+" Autoformat
+noremap <leader>sb :Autoformat<cr>
+let g:formatdef_sqlformat = '"sqlformat -k upper -r --indent_width=4 " . bufname("%")'
+let g:formatters_sql = ['sqlformat']
