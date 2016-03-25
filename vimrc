@@ -53,10 +53,6 @@ Plugin 'milkypostman/vim-togglelist'
 Plugin 'jeffkreeftmeijer/vim-numbertoggle'
 " File explorer for VIM. <leader>ft to activate
 Plugin 'scrooloose/nerdtree'
-Plugin 'michalliu/jsruntime.vim'
-Plugin 'michalliu/jsoncodecs.vim'
-" Source beautify: <leader>sb to activate
-Plugin 'michalliu/sourcebeautify.vim'
 " Golang support for vim
 Plugin 'jnwhiteh/vim-golang'
 " Make jk behave as jumps in Vim
