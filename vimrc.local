@@ -266,3 +266,12 @@ let g:ctrlp_custom_ignore = '\v([\/]\.(git|hg|svn)$)|\.pyc$'
 noremap <leader>sb :Autoformat<cr>
 let g:formatdef_sqlformat = '"sqlformat -k upper -r --indent_width=4 -"'
 let g:formatters_sql = ['sqlformat']
+
+" Autoft
+let g:autoft_config = [
+			\ { 'filetype': 'html' , 'pattern': '<\%(!DOCTYPE\|html\|head\|script\)' },
+			\ { 'filetype': 'c'    , 'pattern': '^\s*#\s*\%(include\|define\)\>' },
+			\ { 'filetype': 'diff' , 'pattern': '^diff -' },
+			\ { 'filetype': 'sh'   , 'pattern': '^#!.*\%(\<sh\>\|\<bash\>\)\s*$' },
+			\ { 'filetype': 'sql'  , 'pattern': '^\s*SELECT.*$' },
+			\ ]
