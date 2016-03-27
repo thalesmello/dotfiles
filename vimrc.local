@@ -169,8 +169,8 @@ endfunction
 function! s:visual_command() range
    let text = s:get_visual_selection()
    let cmd = input('Pipe: ', '', 'shellcmd')
-   let out = s:Chomp(system(cmd, text))
-   execute "normal! gvc\<C-R>=out\<CR>"
+   let @v = s:Chomp(system(cmd, text))
+   execute 'normal! gv"vp'
 endfunction
 
 command! -range VisualCommand <line1>,<line2>call s:visual_command()
