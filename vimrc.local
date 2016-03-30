@@ -254,7 +254,9 @@ vmap <localleader>vj Jgv:call VimuxSlime()<CR>u
 vmap <localleader>v; Jgv:call VimuxSlimeSemicolon()<CR>u
 
 " Select current paragraph and send it to tmux
-nmap <localleader>vs vip<LocalLeader>vs<CR>
+nmap <localleader>vs vip<localleader>vs<CR>
+nmap <localleader>vj vip<localleader>vj<CR>
+nmap <localleader>v; vip<localleader>v;<CR>
 
 " Ctrlp
 let g:ctrlp_custom_ignore = '\v([\/]\.(git|hg|svn)$)|\.pyc$'
