@@ -225,6 +225,7 @@ let g:rubycomplete_use_bundler = 1
 let g:rubycomplete_load_gemfile = 1
 
 " Vimux
+let VimuxResetSequence = "q q C-u"
 " Prompt for a command to run
 map <localleader>vp :VimuxPromptCommand<CR>
 " Run last command executed by VimuxRunCommand
