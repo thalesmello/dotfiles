@@ -239,18 +239,6 @@ map <localleader>vx :VimuxInterruptRunner<CR>
 " Zoom the runner pane (use <bind-key> z to restore runner pane)
 map <localleader>vz :call VimuxZoomRunner()<CR>
 
-" function! VimuxSlime() range
-" 	let text = s:get_visual_selection()
-" 	call VimuxSendText(text)
-" 	call VimuxSendKeys("Enter")
-" endfunction
-"
-" function! VimuxSlimeSemicolon() range
-" 	let text = s:get_visual_selection() . '\;'
-" 	call VimuxSendText(text)
-" 	call VimuxSendKeys("Enter")
-" endfunction
-
 function! VimuxSlime() range
 	let text = s:get_visual_selection()
 	call VimuxRunCommand(text)
