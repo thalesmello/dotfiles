@@ -79,8 +79,8 @@ let g:tagbar_autofocus = 1
 set updatetime=500
 
 if &term =~ '^screen'
-    " tmux knows the extended mouse mode
-    set ttymouse=xterm2
+	" tmux knows the extended mouse mode
+	set ttymouse=xterm2
 endif
 
 " Sneak
@@ -115,15 +115,15 @@ set linebreak
 
 " Devdocs
 augroup plugin-devdocs
-  autocmd!
-  autocmd FileType c,cpp,rust,haskell,python,javascript,html,eruby,ruby nmap <buffer>K <Plug>(devdocs-under-cursor)
-  autocmd FileType c,cpp,rust,haskell,python,javascript,html,eruby,ruby vmap <buffer>K y:DevDocs <C-R>"<CR>
-  autocmd FileType * nmap <buffer>gK <Plug>(devdocs-under-cursor-all)
-  autocmd FileType * vmap <buffer><silent>gK y:DevDocsAll <C-R>"<CR>
+	autocmd!
+	autocmd FileType c,cpp,rust,haskell,python,javascript,html,eruby,ruby nmap <buffer>K <Plug>(devdocs-under-cursor)
+	autocmd FileType c,cpp,rust,haskell,python,javascript,html,eruby,ruby vmap <buffer>K y:DevDocs <C-R>"<CR>
+	autocmd FileType * nmap <buffer>gK <Plug>(devdocs-under-cursor-all)
+	autocmd FileType * vmap <buffer><silent>gK y:DevDocsAll <C-R>"<CR>
 augroup END
 let g:devdocs_filetype_map = {
-    \   'ruby': 'ruby',
-    \ }
+			\   'ruby': 'ruby',
+			\ }
 
 " Remove yankstack enter mapping
 " nunmap <cr>
@@ -134,8 +134,8 @@ nnoremap <Leader>sh :SemanticHighlightToggle<cr>
 
 " Automatic variable highlighting
 " augroup color-variable
-" 	autocmd!
-" 	autocmd CursorMoved * exe printf('match Label /\V\<%s\>/', escape(expand('<cword>'), '/\'))
+"	autocmd!
+"	autocmd CursorMoved * exe printf('match Label /\V\<%s\>/', escape(expand('<cword>'), '/\'))
 " augroup end
 
 " Greplace options
@@ -148,29 +148,29 @@ vmap gf <esc><c-p><c-\>v
 
 " Ack Options
 if executable('ag')
-    let g:ackprg ='ag --vimgrep'
+	let g:ackprg ='ag --vimgrep'
 endif
 
 " By Xolox @ http://stackoverflow.com/questions/1533565/how-to-get-visually-selected-text-in-vimscript
 function! s:get_visual_selection()
-  " Why is this not a built-in Vim script function?!
-  let [lnum1, col1] = getpos("'<")[1:2]
-  let [lnum2, col2] = getpos("'>")[1:2]
-  let lines = getline(lnum1, lnum2)
-  let lines[-1] = lines[-1][: col2 - (&selection == 'inclusive' ? 1 : 2)]
-  let lines[0] = lines[0][col1 - 1:]
-  return join(lines, "\n")
+	" Why is this not a built-in Vim script function?!
+	let [lnum1, col1] = getpos("'<")[1:2]
+	let [lnum2, col2] = getpos("'>")[1:2]
+	let lines = getline(lnum1, lnum2)
+	let lines[-1] = lines[-1][: col2 - (&selection == 'inclusive' ? 1 : 2)]
+	let lines[0] = lines[0][col1 - 1:]
+	return join(lines, "\n")
 endfunction
 
 function! s:Chomp(string)
-    return substitute(a:string, '\n\+$', '', '')
+	return substitute(a:string, '\n\+$', '', '')
 endfunction
 
 function! s:visual_command() range
-   let text = s:get_visual_selection()
-   let cmd = input('Pipe: ', '', 'shellcmd')
-   let @v = s:Chomp(system(cmd, text))
-   execute 'normal! gv"vp'
+	let text = s:get_visual_selection()
+	let cmd = input('Pipe: ', '', 'shellcmd')
+	let @v = s:Chomp(system(cmd, text))
+	execute 'normal! gv"vp'
 endfunction
 
 command! -range VisualCommand <line1>,<line2>call s:visual_command()
@@ -251,28 +251,28 @@ function! VimuxSlimeSemicolon() range
 endfunction
 
 function! GetExecuteCommand()
-  let filetype_to_command = {
-  \   'javascript': 'node',
-  \   'coffee': 'coffee',
-  \   'python': 'python',
-  \   'html': 'open',
-  \   'ruby': 'ruby',
-  \   'sh': 'sh'
-  \ }
-  let cmd = get(filetype_to_command, &filetype, &filetype)
-  return cmd . " " . expand("%")
+	let filetype_to_command = {
+				\   'javascript': 'node',
+				\   'coffee': 'coffee',
+				\   'python': 'python',
+				\   'html': 'open',
+				\   'ruby': 'ruby',
+				\   'sh': 'sh'
+				\ }
+	let cmd = get(filetype_to_command, &filetype, &filetype)
+	return cmd . " " . expand("%")
 endfunction
 
 function! GetNodemonCommand()
-  let filetype_to_extension = {
-  \   'javascript': 'js',
-  \   'coffee': 'coffee',
-  \   'python': 'py',
-  \   'ruby': 'rb'
-  \ }
-  let extension = get(filetype_to_extension, &filetype, &filetype)
-  let cmd = GetExecuteCommand()
-  return  'nodemon -L -e "' . extension . '" -x "' . cmd . '"'
+	let filetype_to_extension = {
+				\   'javascript': 'js',
+				\   'coffee': 'coffee',
+				\   'python': 'py',
+				\   'ruby': 'rb'
+				\ }
+	let extension = get(filetype_to_extension, &filetype, &filetype)
+	let cmd = GetExecuteCommand()
+	return  'nodemon -L -e "' . extension . '" -x "' . cmd . '"'
 endfunction
 
 " If text is selected, save it in the v buffer and send that buffer it to tmux
@@ -300,7 +300,9 @@ let g:ctrlp_custom_ignore = '\v([\/]\.(git|hg|svn)$)|\.pyc$'
 " Autoformat
 noremap <leader>sb :Autoformat<cr>
 let g:formatdef_sqlformat = '"sqlformat -k upper -r --indent_width=4 -"'
+let g:formatdef_rubocop = '"rubocop --auto-correct " . expand("%") . " -o /dev/null || cat " . expand("%")'
 let g:formatters_sql = ['sqlformat']
+let g:formatters_ruby = ['rubocop']
 
 " Autoft
 let g:autoft_config = [
