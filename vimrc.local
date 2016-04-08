@@ -184,6 +184,7 @@ let g:airline#extensions#ycm#enabled = 1
 let g:airline#extensions#virtualenv#enabled = 0
 let g:airline#extensions#default#section_truncate_width = {}
 let g:airline#extensions#tabline#enabled = 1
+let g:airline#extensions#syntastic#enabled = 1
 function! AirlineInit()
 	let g:airline_section_a = airline#section#create(['mode'])
 	let g:airline_section_b = airline#section#create(['file', ' ', 'readonly'])
@@ -205,7 +206,7 @@ nnoremap <leader>gtr :YcmCompleter GoToReferences<cr>:cclose<cr>:copen<cr>
 nnoremap <leader>gtk :YcmCompleter GetDoc<cr>
 nnoremap <leader>gtt :YcmCompleter GetType<cr>
 nnoremap <leader>rv :YcmCompleter RefactorRename<space>
-nnoremap <leader>q :pclose<cr>:cclose<cr>
+nnoremap <leader>q :pclose<cr>:cclose<cr>:lclose<cr>
 let g:ycm_path_to_python_interpreter = '/usr/bin/python2.7'
 
 " Snipmate
@@ -309,3 +310,9 @@ let g:autoft_config = [
 			\ { 'filetype': 'sh'   , 'pattern': '^#!.*\%(\<sh\>\|\<bash\>\)\s*$' },
 			\ { 'filetype': 'sql'  , 'pattern': '^\s*SELECT.*$' },
 			\ ]
+
+" Syntastic
+let g:syntastic_always_populate_loc_list = 1
+let g:syntastic_auto_loc_list = 3
+let g:syntastic_check_on_open = 1
+let g:syntastic_check_on_wq = 0
