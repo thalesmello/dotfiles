@@ -369,7 +369,13 @@ autocmd BufRead,BufNewFile *.lookml setlocal filetype=yaml
 " }}}
 " ##### Local Vim Configurations {{{
 " Sets YAML syntax for *.lookml files.
+nnoremap <leader>elv :vsplit ~/.vimrc.local<cr>
 if filereadable(glob("~/.vimrc.local"))
     source ~/.vimrc.local
+endif
+
+nnoremap <leader>esv :vsplit ~/.vimrc.secrets<cr>
+if filereadable(glob("~/.vimrc.secrets"))
+    source ~/.vimrc.secrets
 endif
 " }}}
