@@ -10,3 +10,5 @@ tags
 .rbenv-gemsets
 .sw*
 _test.sh
+tags.lock
+tags.temp
