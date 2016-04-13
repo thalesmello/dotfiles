@@ -319,3 +319,28 @@ let g:winresizer_start_key = '<leader>wr'
 
 " Tabularize
 noremap <leader>tb :Tabularize /
+
+" SQLComplete
+function! MyOwnSqlComplete(findstart, base)
+	if a:findstart
+		return sqlcomplete#Complete(a:findstart, a:base)
+	else
+		" find months matching with "a:base"
+		let original = sqlcomplete#Complete(a:findstart, a:base)
+		let res = []
+		for m in original
+			let cur = m
+			let pattern = '\C\([a-z]\+\).\(\([A-Z][a-z]*\)\+\)'
+			if cur =~ pattern
+				let cur = substitute(cur, pattern, '\1."\2"', '')
+			endif
+			call add(res, cur)
+		endfor
+		return res
+	endif
+endfun
+
+augroup my-sql-complete
+	autocmd!
+	autocmd FileType sql set omnifunc=MyOwnSqlComplete
+augroup END
