@@ -1,7 +1,7 @@
 Plugin 'terryma/vim-multiple-cursors'
 Plugin 'christoomey/vim-tmux-navigator'
 Plugin 'danro/rename.vim'
-Plugin 'airblade/vim-gitgutter'
+Plugin 'mhinz/vim-signify'
 Plugin 'sheerun/vim-polyglot'
 Plugin 'tpope/vim-endwise'
 Plugin 'majutsushi/tagbar'
