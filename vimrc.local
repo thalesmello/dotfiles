@@ -1,7 +1,6 @@
 let maplocalleader = "'"
 " Mappings
 nnoremap <leader>elv :vsplit ~/.vimrc.local<cr>
-nnoremap <leader>slv :source ~/.vimrc.local<cr>
 nnoremap <leader>. `>
 nnoremap <leader>ss :w<cr>
 nnoremap <leader>saa ggVG
