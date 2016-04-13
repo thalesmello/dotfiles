@@ -320,3 +320,9 @@ let g:syntastic_check_on_wq = 0
 
 " GUndo
 nnoremap <leader>gu :GundoToggle<CR>
+
+" Winresizer
+let g:winresizer_start_key = '<leader>wr'
+
+" Tabularize
+noremap <leader>tb :Tabularize /
