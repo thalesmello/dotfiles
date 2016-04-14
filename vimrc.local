@@ -318,7 +318,7 @@ nnoremap <leader>gu :GundoToggle<CR>
 let g:winresizer_start_key = '<leader>wr'
 
 " Tabularize
-noremap <leader>tb :Tabularize /
+noremap <leader>ta :Tabularize /
 
 " SQLComplete
 function! MyOwnSqlComplete(findstart, base)
