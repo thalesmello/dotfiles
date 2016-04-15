@@ -231,6 +231,8 @@ map <localleader>vq :VimuxCloseRunner<CR>
 map <localleader>vx :VimuxInterruptRunner<CR>
 " Zoom the runner pane (use <bind-key> z to restore runner pane)
 map <localleader>vz :call VimuxZoomRunner()<CR>
+" Open Vimux Page if it's closed
+map <localleader>vo :call VimuxOpenRunner()<CR>
 
 function! VimuxSlime() range
 	let text = s:get_visual_selection()
@@ -293,7 +295,7 @@ nmap <localleader><CR> V<localleader>vs
 " Execute current file in the interpreter
 nnoremap <localleader>vf :call VimuxRunCommand(GetExecuteCommand())<CR>
 nnoremap <localleader>vw :call VimuxRunCommand(GetNodemonCommand())<CR>
-nnoremap <localleader>vr :call VimuxRunCommand(GetReplCommand())<CR>
+nmap <localleader>vr <localleader>vq:call VimuxRunCommand(GetReplCommand())<CR>
 
 " Ctrlp
 let g:ctrlp_custom_ignore = '\v([\/]\.(git|hg|svn)$)|\.pyc$'
