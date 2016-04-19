@@ -29,11 +29,6 @@ nnoremap <leader>ut :set completefunc=tmuxcomplete#complete<cr>
 nnoremap <leader>uy :set completefunc=youcompleteme#Complete<cr>
 let g:tmuxcomplete#capture_args = '-J -S -'
 
-inoremap <C-l> <C-x><C-l>
-inoremap <C-f> <C-x><C-f>
-inoremap <C-j> <C-x><C-u>
-" Map multicursors
-
 " Easyclip
 let g:EasyClipEnableBlackHoleRedirect = 0
 let g:EasyClipUsePasteToggleDefaults = 0
@@ -201,9 +196,14 @@ nnoremap <leader>rv :YcmCompleter RefactorRename<space>
 nnoremap <leader>q :pclose<cr>:cclose<cr>:lclose<cr>
 let g:ycm_path_to_python_interpreter = '/usr/bin/python2.7'
 
-" Snipmate
-imap <C-K> <Plug>snipMateNextOrTrigger
-smap <C-K> <Plug>snipMateNextOrTrigger
+" UltiSnips
+let g:UltiSnipsExpandTrigger       = "<c-j>"
+let g:UltiSnipsEditSplit           = "vertical"
+let g:UltiSnipsJumpForwardTrigger  = "<c-j>"
+let g:UltiSnipsJumpBackwardTrigger = "<c-k>"
+let g:UltiSnipsListSnippets        = "<leader><c-j>"
+let g:UltiSnipsSnippetsDir         = '~/.snips'
+inoremap <c-x><c-k> <c-x><c-k>
 
 " ToggleList
 let g:toggle_list_no_mappings = 1

@@ -7,6 +7,7 @@ Create a symbolic links for your files:
 	ln -s $(pwd)/zshrc.config ~/.zshrc.config
 	ln -s $(pwd)/editrc ~/.editrc
 	ln -s $(pwd)/inputrc ~/.inputrc
+	ln -s $(pwd)/snips ~/.snips
 
 Include the local bin folder in the PATH
 
