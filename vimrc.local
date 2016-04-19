@@ -300,6 +300,7 @@ nmap <localleader>va ggVG<localleader>vs
 augroup python-vimux-shortuts
 	autocmd!
 	autocmd FileType python vmap <buffer> <localleader>vs :call VimuxSlimeLineBreak()<CR>`>j^
+	autocmd FileType python nmap <localleader><CR> V:call VimuxSlime()<CR>`>j^
 augroup END
 
 " Execute current file in the interpreter
