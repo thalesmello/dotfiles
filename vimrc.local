@@ -204,6 +204,7 @@ let g:UltiSnipsJumpBackwardTrigger = "<c-k>"
 let g:UltiSnipsListSnippets        = "<leader><c-j>"
 let g:UltiSnipsSnippetsDir         = '~/.snips'
 inoremap <c-x><c-k> <c-x><c-k>
+nmap <leader>esp :UltiSnipsEdit<cr>
 
 " ToggleList
 let g:toggle_list_no_mappings = 1
