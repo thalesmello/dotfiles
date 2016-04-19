@@ -304,7 +304,7 @@ augroup python-vimux-shortuts
 augroup END
 
 " Execute current file in the interpreter
-nnoremap <localleader>vf :call VimuxRunCommand(GetExecuteCommand())<CR>
+nnoremap <localleader>vf :w<CR>:call VimuxRunCommand(GetExecuteCommand())<CR>
 nnoremap <localleader>vw :call VimuxRunCommand(GetNodemonCommand())<CR>
 nmap <localleader>vr <localleader>vq:call VimuxRunCommand(GetReplCommand())<CR>
 
