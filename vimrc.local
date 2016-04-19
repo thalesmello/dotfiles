@@ -291,6 +291,7 @@ nmap <localleader>vs vip<localleader>vs
 nmap <localleader>vj vip<localleader>vj
 nmap <localleader>v; vip<localleader>v;
 nmap <localleader><CR> V<localleader>vs
+nmap <localleader>va ggVG<localleader>vs
 
 " Execute current file in the interpreter
 nnoremap <localleader>vf :call VimuxRunCommand(GetExecuteCommand())<CR>
