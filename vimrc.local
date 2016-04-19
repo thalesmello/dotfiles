@@ -235,13 +235,16 @@ map <localleader>vz :call VimuxZoomRunner()<CR>
 map <localleader>vo :call VimuxOpenRunner()<CR>
 
 function! VimuxSlime() range
-	let text = s:get_visual_selection()
-	call VimuxRunCommand(text)
+	call VimuxRunCommand(s:get_visual_selection())
+endfunction
+
+function! VimuxSlimeLineBreak() range
+	call VimuxSlime()
+	call VimuxSendKeys('Enter')
 endfunction
 
 function! VimuxSlimeSemicolon() range
-	let text = s:get_visual_selection() . '\;'
-	call VimuxRunCommand(text)
+	call VimuxRunCommand(s:get_visual_selection() . '\;')
 endfunction
 
 function! GetExecuteCommand()
@@ -292,6 +295,12 @@ nmap <localleader>vj vip<localleader>vj
 nmap <localleader>v; vip<localleader>v;
 nmap <localleader><CR> V<localleader>vs
 nmap <localleader>va ggVG<localleader>vs
+
+" Python specific shortcuts
+augroup python-vimux-shortuts
+	autocmd!
+	autocmd FileType python vmap <buffer> <localleader>vs :call VimuxSlimeLineBreak()<CR>`>j^
+augroup END
 
 " Execute current file in the interpreter
 nnoremap <localleader>vf :call VimuxRunCommand(GetExecuteCommand())<CR>
