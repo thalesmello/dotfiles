@@ -219,7 +219,7 @@ let VimuxResetSequence = "q q C-u"
 " Prompt for a command to run
 map <localleader>vp :VimuxPromptCommand<CR>
 " Run last command executed by VimuxRunCommand
-map <localleader>vl :VimuxRunLastCommand<CR>
+map <localleader>vl :call VimuxSendKeys('up Enter')<CR>
 " Inspect runner pane
 map <localleader>vi :VimuxInspectRunner<CR>
 " Close vim tmux runner opened by VimuxRunCommand
