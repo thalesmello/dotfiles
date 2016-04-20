@@ -38,6 +38,7 @@ nmap <leader>yn <plug>EasyClipSwapPasteBackwards
 nmap d <Plug>MoveMotionPlug
 xmap d <Plug>MoveMotionXPlug
 nmap dd <Plug>MoveMotionLinePlug
+vmap p "_di<c-g>u<esc>p
 
 " Submode yank toggle
 call submode#enter_with('yank_p/n', 'n', 'r', '<leader><', '<leader>yp')
