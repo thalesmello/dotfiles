@@ -366,3 +366,8 @@ augroup my-sql-complete
 	autocmd!
 	autocmd FileType sql set omnifunc=MyOwnSqlComplete
 augroup END
+
+" Vim Signify
+let g:signify_cursorhold_insert     = 1
+let g:signify_cursorhold_normal     = 1
+let g:signify_update_on_focusgained = 1
