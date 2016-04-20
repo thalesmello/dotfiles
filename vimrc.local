@@ -85,12 +85,6 @@ omap f <Plug>(SneakStreak)
 omap F <Plug>(SneakStreakBackward)
 let g:sneak#use_ic_scs = 1
 
-nnoremap <F6> :resize -5<CR>
-nnoremap <F7> :resize +5<CR>
-nnoremap <F8> :vertical resize -5<CR>
-nnoremap <F9> :vertical resize +5<CR>
-
-
 set lazyredraw
 
 " Don't wait for ESC to timeout
