@@ -375,3 +375,10 @@ augroup END
 
 " Vim Signify
 let g:signify_update_on_focusgained = 1
+
+" R specific
+augroup R-specific-settings
+	" this one is which you're most likely to use?
+	au!
+	au FileType R,rmd let b:delimitMate_matchpairs = "(:),[:],{:}"
+augroup end
