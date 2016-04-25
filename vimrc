@@ -18,13 +18,6 @@ Plugin 'kien/ctrlp.vim'
 Plugin 'bling/vim-airline'
 Plugin 'vim-airline/vim-airline-themes'
 Plugin 'b4winckler/vim-objc'
-" Snipmate dependencies
-Plugin 'MarcWeber/vim-addon-mw-utils'
-Plugin 'tomtom/tlib_vim'
-" Enables the usage of snippets in vim. Use tab to complete.
-Plugin 'garbas/vim-snipmate'
-" Collection of snipmate snippets
-Plugin 'honza/vim-snippets'
 " Comment toggling: use `gc` to toggle comments in visual mode
 Plugin 'tomtom/tcomment_vim'
 " Keybidings to use Ack in Vim. Use `<leader>a` in visual mode to search a
