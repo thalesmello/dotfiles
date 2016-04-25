@@ -64,6 +64,7 @@ Plugin 'vim-ruby/vim-ruby'
 
 " The following loads a local bundles file, in case
 " you wish to install local plugins
+nnoremap <leader>elb :vsplit ~/.vimrc.bundles.local<CR>
 if filereadable(glob("~/.vimrc.bundles.local"))
     source ~/.vimrc.bundles.local
 endif
