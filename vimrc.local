@@ -244,6 +244,10 @@ function! VimuxSlimeSemicolon() range
 	call VimuxRunCommand(s:get_visual_selection() . '\;')
 endfunction
 
+function! VimuxCopyPostres() range
+	call VimuxRunCommand('\COPY (' . s:get_visual_selection() . ") TO PROGRAM 'pbcopy' DELIMITER e'\\t' CSV HEADER\;")
+endfunction
+
 function! GetExecuteCommand()
 	let filetype_to_command = {
 				\   'javascript': 'node',
@@ -283,12 +287,14 @@ endfunction
 " If text is selected, save it in the v buffer and send that buffer it to tmux
 vmap <localleader>vs :call VimuxSlime()<CR>`>j^
 vmap <localleader>vj Jgv:call VimuxSlime()<CR>u`>j^
+vmap <localleader>vyp Jgv:call VimuxCopyPostres()<CR>u`>j^
 vmap <localleader>v; Jgv:call VimuxSlimeSemicolon()<CR>u`>j^
 vmap <localleader><CR> <localleader>vs
 
 " Select current paragraph and send it to tmux
 nmap <localleader>vs vip<localleader>vs
 nmap <localleader>vj vip<localleader>vj
+nmap <localleader>vyp vip<localleader>vyp
 nmap <localleader>v; vip<localleader>v;
 nmap <localleader><CR> V<localleader>vs
 nmap <localleader>va ggVG<localleader>vs
