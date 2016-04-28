@@ -21,6 +21,12 @@ nmap <leader>bn :vnew<cr>
 vmap <leader>bn y:vnew<cr>p
 nmap <leader>bc :bw<cr>
 
+" Move around text objects
+nnoremap <localleader>s :exec "normal vi".nr2char(getchar())."\e`<"<CR>
+nnoremap <localleader>e :exec "normal vi".nr2char(getchar())."\e`>"<CR>
+nnoremap <localleader>S :exec "normal va".nr2char(getchar())."\e`<"<CR>
+nnoremap <localleader>E :exec "normal va".nr2char(getchar())."\e`>"<CR>
+
 " Set unnamed register as default clipboard
 set clipboard=unnamed
 
