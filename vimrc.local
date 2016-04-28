@@ -192,7 +192,7 @@ nnoremap <leader>q :pclose<cr>:cclose<cr>:lclose<cr>
 let g:ycm_path_to_python_interpreter = '/usr/bin/python2.7'
 
 " UltiSnips
-let g:UltiSnipsExpandTrigger       = "<c-j>"
+let g:UltiSnipsExpandTrigger       = "<c-h>"
 let g:UltiSnipsEditSplit           = "vertical"
 let g:UltiSnipsJumpForwardTrigger  = "<c-j>"
 let g:UltiSnipsJumpBackwardTrigger = "<c-k>"
@@ -312,7 +312,7 @@ nnoremap <localleader>vw :call VimuxRunCommand(GetNodemonCommand())<CR>
 nmap <localleader>vr <localleader>vq:call VimuxRunCommand(GetReplCommand())<CR>
 
 " Ctrlp
-let g:ctrlp_custom_ignore = '\v([\/]\.(git|hg|svn)$)|\.pyc$'
+let g:ctrlp_custom_ignore = '\v([\/]\.(git|hg|svn)$)|\.pyc$|node_modules/'
 
 " Localvimrc
 :let g:localvimrc_persistent = 1
@@ -375,6 +375,7 @@ augroup END
 
 " Vim Signify
 let g:signify_update_on_focusgained = 1
+let g:signify_update_on_bufenter = 1
 
 " R specific
 augroup R-specific-settings
@@ -382,3 +383,31 @@ augroup R-specific-settings
 	au!
 	au FileType R,rmd let b:delimitMate_matchpairs = "(:),[:],{:}"
 augroup end
+
+" Textobj User
+
+call textobj#user#plugin('javascriptchunck', {
+\   '-': {
+\     'select-a-function': 'JavaScriptChuncklock',
+\     'select-a': 'aj',
+\     'select-i-function': 'JavaScriptChuncklock',
+\     'select-i': 'ij',
+\   },
+\ })
+
+function! JavaScriptChuncklock()
+  normal! $va{g$
+  let tail_pos = getpos('.')
+  normal! F}%g0
+  let head_pos = getpos('.')
+  return ['v', head_pos, tail_pos]
+endfunction
+
+let g:textobj_python_no_default_key_mappings = 1
+
+call textobj#user#map('python', {
+      \   'class': {
+      \     'select-a': '<buffer>aP',
+      \     'select-i': '<buffer>iP',
+      \   },
+      \ })
