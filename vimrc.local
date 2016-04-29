@@ -231,6 +231,7 @@ let g:toggle_list_no_mappings = 1
 
 " NerdTREE
 let NERDTreeIgnore=['\.pyc$']
+nnoremap <leader>ff :NERDTreeFind<cr>
 
 " Ruby
 let g:rubycomplete_buffer_loading = 1
