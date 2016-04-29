@@ -91,6 +91,7 @@ xmap F <Plug>(SneakStreakBackward)
 omap f <Plug>(SneakStreak)
 omap F <Plug>(SneakStreakBackward)
 let g:sneak#use_ic_scs = 1
+let g:sneak#target_labels = "sfghjkl;qwertyuiopzxvbnm/SFGHJKL:QWERTYUOPZXCVBNM?"
 
 set lazyredraw
 
@@ -188,7 +189,6 @@ let g:gutentags_exclude = ['node_modules', '.git']
 
 " YouCompleteMe
 nnoremap <leader>ycm :let g:ycm_auto_trigger = !g:ycm_auto_trigger<cr>
-
 nnoremap <leader>gtd :YcmCompleter GoToDefinition<cr>
 nnoremap <leader>gtr :YcmCompleter GoToReferences<cr>:cclose<cr>:copen<cr>
 nnoremap <leader>gtk :YcmCompleter GetDoc<cr>
@@ -196,13 +196,27 @@ nnoremap <leader>gtt :YcmCompleter GetType<cr>
 nnoremap <leader>rv :YcmCompleter RefactorRename<space>
 nnoremap <leader>q :pclose<cr>:cclose<cr>:lclose<cr>
 let g:ycm_path_to_python_interpreter = '/usr/bin/python2.7'
+let g:ycm_key_list_select_completion = ['<Down>']
+let g:ycm_key_list_previous_completion = ['<Up>']
 
 " UltiSnips
-let g:UltiSnipsExpandTrigger       = "<c-h>"
+
+let g:ulti_expand_res = 0
+let g:ulti_jump_forwards_res = 0
+function! JumpOrExpandSnippet()
+	call UltiSnips#JumpForwards()
+	if g:ulti_jump_forwards_res == 0
+		call UltiSnips#ExpandSnippet()
+	endif
+	return ''
+endfunction
+
+let g:UltiSnipsExpandTrigger       = "<Tab>"
 let g:UltiSnipsEditSplit           = "vertical"
-let g:UltiSnipsJumpForwardTrigger  = "<c-j>"
+" let g:UltiSnipsJumpForwardTrigger  = "<c-j>"
+inoremap <silent> <c-j> <c-r>=JumpOrExpandSnippet()<cr>
 let g:UltiSnipsJumpBackwardTrigger = "<c-k>"
-let g:UltiSnipsListSnippets        = "<c-l>"
+let g:UltiSnipsListSnippets        = "<c-tab>"
 let g:UltiSnipsSnippetsDir         = '~/.snips'
 let g:UltiSnipsSnippetDirectories  = ["UltiSnips", $HOME . "/.snips"]
 inoremap <c-x><c-k> <c-x><c-k>
@@ -321,12 +335,14 @@ nmap <localleader>vr <localleader>vq:call VimuxRunCommand(GetReplCommand())<CR>
 let g:ctrlp_custom_ignore = '\v([\/]\.(git|hg|svn)$)|\.pyc$|node_modules/'
 
 " Localvimrc
-:let g:localvimrc_persistent = 1
+let g:localvimrc_persistent = 1
+let g:avoid_standard_js_autowriter = 1
 
 " Autoformat
 noremap <leader>sb :Autoformat<cr>
 let g:formatdef_sqlformat = '"sqlformat -k upper -r --indent_width=4 -"'
 let g:formatdef_rubocop = '"rubocop --auto-correct " . expand("%") . " -o /dev/null || cat " . expand("%")'
+let g:formatdef_standardjs = '"standard-format -"'
 let g:formatters_sql = ['sqlformat']
 let g:formatters_ruby = ['rubocop']
 
@@ -350,6 +366,14 @@ nnoremap <leader>gu :GundoToggle<CR>
 
 " Winresizer
 let g:winresizer_start_key = '<leader>wr'
+let g:winresizer_keycode_left = 72
+let g:winresizer_keycode_right = 76
+let g:winresizer_keycode_down = 74
+let g:winresizer_keycode_up = 75
+nmap <leader>H <leader>wrH
+nmap <leader>J <leader>wrJ
+nmap <leader>K <leader>wrK
+nmap <leader>L <leader>wrL
 
 " Tabularize
 noremap <leader>ta :Tabularize /
@@ -417,3 +441,6 @@ call textobj#user#map('python', {
       \     'select-i': '<buffer>iP',
       \   },
       \ })
+
+" Tcommenter
+let g:tcommentTextObjectInlineComment = ''
