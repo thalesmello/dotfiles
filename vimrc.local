@@ -20,6 +20,10 @@ vmap <leader>tn y:tabnew<cr>p
 nmap <leader>bn :vnew<cr>
 vmap <leader>bn y:vnew<cr>p
 nmap <leader>bc :bw<cr>
+noremap <c-e> 2<c-e>
+noremap <c-y> 2<c-y>
+noremap gH H
+noremap gL L
 
 " Move around text objects
 nnoremap <localleader>s :exec "normal vi".nr2char(getchar())."\e`<"<CR>
