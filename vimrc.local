@@ -1,4 +1,5 @@
 let maplocalleader = "'"
+set cursorline
 " Mappings
 nnoremap <leader>. `>
 nnoremap <leader>ss :w<cr>
