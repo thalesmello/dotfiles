@@ -40,23 +40,6 @@ nnoremap <leader>ut :set completefunc=tmuxcomplete#complete<cr>
 nnoremap <leader>uy :set completefunc=youcompleteme#Complete<cr>
 let g:tmuxcomplete#capture_args = '-J -S -'
 
-" Easyclip
-let g:EasyClipEnableBlackHoleRedirect = 0
-let g:EasyClipUsePasteToggleDefaults = 0
-let g:EasyClipUseCutDefaults = 0
-nmap <leader>yp <plug>EasyClipSwapPasteForward
-nmap <leader>yn <plug>EasyClipSwapPasteBackwards
-nmap d <Plug>MoveMotionPlug
-xmap d <Plug>MoveMotionXPlug
-nmap dd <Plug>MoveMotionLinePlug
-vmap p "_di<c-g>u<esc>p
-
-" Submode yank toggle
-call submode#enter_with('yank_p/n', 'n', 'r', '<leader><', '<leader>yp')
-call submode#enter_with('yank_p/n', 'n', 'r', '<leader>>', '<leader>yn')
-call submode#map('yank_p/n', 'n', 'r', '<', '<leader>yp')
-call submode#map('yank_p/n', 'n', 'r', '>', '<leader>yn')
-
 " Called once right before you start selecting multiple cursors
 function! Multiple_cursors_before()
 	let s:old_ycm_auto_trigger = g:ycm_auto_trigger
@@ -453,3 +436,16 @@ call textobj#user#map('python', {
 
 " Tcommenter
 let g:tcommentTextObjectInlineComment = ''
+
+" Unite.vim
+noremap <leader>< :<c-u>Unite history/yank -default-action=append<CR>
+noremap <space>s :Unite -quick-match buffer<cr>
+" Using ag as recursive command.
+let g:unite_source_rec_async_command =
+\ ['ag', '--follow', '--nocolor', '--nogroup',
+\  '--hidden', '-g', '']
+let g:unite_source_grep_command = 'ag'
+let g:unite_source_grep_default_opts =
+\ '-i --vimgrep --hidden --ignore ' .
+\ '''.hg'' --ignore ''.svn'' --ignore ''.git'' --ignore ''.bzr'''
+let g:unite_source_grep_recursive_opt = ''
