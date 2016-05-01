@@ -439,7 +439,7 @@ let g:tcommentTextObjectInlineComment = ''
 
 " Unite.vim
 noremap <leader>< :<c-u>Unite history/yank -default-action=append<CR>
-noremap <space>s :Unite -quick-match buffer<cr>
+noremap <leader>bb :Unite -quick-match buffer<cr>
 " Using ag as recursive command.
 let g:unite_source_rec_async_command =
 \ ['ag', '--follow', '--nocolor', '--nogroup',
