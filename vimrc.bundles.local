@@ -16,8 +16,7 @@ call dein#add('tmux-plugins/vim-tmux-focus-events')
 call dein#add('Valloric/YouCompleteMe', {
 			\ 'build': './install.py --all',
 			\ 'timeout': '1500',
-			\ 'lazy': 1,
-			\ 'depends': 'vimproc.vim'})
+			\ 'depends': 'vimproc.vim' })
 call dein#add('Olical/vim-enmasse')
 call dein#add('kana/vim-submode')
 call dein#add('bronson/vim-trailing-whitespace')
