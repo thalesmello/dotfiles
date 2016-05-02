@@ -204,7 +204,7 @@ let g:UltiSnipsEditSplit           = "vertical"
 " let g:UltiSnipsJumpForwardTrigger  = "<c-j>"
 inoremap <silent> <c-j> <c-r>=JumpOrExpandSnippet()<cr>
 let g:UltiSnipsJumpBackwardTrigger = "<c-k>"
-let g:UltiSnipsListSnippets        = "<c-tab>"
+let g:UltiSnipsListSnippets        = "<c-l>"
 let g:UltiSnipsSnippetsDir         = '~/.snips'
 let g:UltiSnipsSnippetDirectories  = ["UltiSnips", $HOME . "/.snips"]
 inoremap <c-x><c-k> <c-x><c-k>
