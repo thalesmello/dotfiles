@@ -67,8 +67,8 @@ let g:tagbar_autofocus = 1
 set updatetime=500
 
 if &term =~ '^screen'
-	" tmux knows the extended mouse mode
-	set ttymouse=xterm2
+  " tmux knows the extended mouse mode
+  set ttymouse=xterm2
 endif
 
 " Sneak
