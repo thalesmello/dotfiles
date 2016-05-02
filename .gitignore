@@ -1,5 +1,5 @@
 tmp/
-bundle/
-!bundle/Vundle.vim
+repos/
+!repos/github.com/Shougo/dein.vim/
 *.swp
 .netrwhist

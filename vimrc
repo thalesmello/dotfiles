@@ -2,65 +2,79 @@
 " Author: Pedro Franceschi <pedrohfranceschi@gmail.com>
 " Source: http://github.com/pedrofranceschi/vimfiles
 
-" ##### Vundle setup  {{{
-set nocompatible              " be iMproved, required
-filetype off                  " required
-" Set the runtime path to include Vundle and initialize
-set rtp+=~/.vim/bundle/Vundle.vim
-call vundle#begin()
+" ##### Dein setup  {{{
+set nocompatible " Be iMproved
+filetype off     " required
+
+" Required:
+set runtimepath^=~/.vim/repos/github.com/Shougo/dein.vim
+
+" Required:
+call dein#begin(expand('.'))
+
+" Let dein manage dein
+" Required:
+call dein#add('Shougo/dein.vim')
+
 " "}}}
-" ##### Bundles  {{{
+" ##### Plugins  {{{
+
+" Plugin to load tasks asynchronously
+call dein#add('Shougo/vimproc.vim', {'build' : 'make'})
 " Theme of this vimfiles
-Plugin 'sjl/badwolf'
+call dein#add('sjl/badwolf')
 " Fuzzy search file swithing with Ctrl+P
-Plugin 'kien/ctrlp.vim'
+call dein#add('kien/ctrlp.vim')
 " Useful statusbar in your vim
-Plugin 'bling/vim-airline'
-Plugin 'vim-airline/vim-airline-themes'
-Plugin 'b4winckler/vim-objc'
+call dein#add('bling/vim-airline')
+call dein#add('vim-airline/vim-airline-themes')
+call dein#add('b4winckler/vim-objc')
 " Comment toggling: use `gc` to toggle comments in visual mode
-Plugin 'tomtom/tcomment_vim'
+call dein#add('tomtom/tcomment_vim')
 " Keybidings to use Ack in Vim. Use `<leader>a` in visual mode to search a
 " text in the tree.
-Plugin 'mileszs/ack.vim'
+call dein#add('mileszs/ack.vim')
 " Makes vim understand ruby blocks
-Plugin 'kana/vim-textobj-user'
-Plugin 'rhysd/vim-textobj-ruby'
+call dein#add('kana/vim-textobj-user')
+call dein#add('rhysd/vim-textobj-ruby')
 " Git bindings for VIM
-Plugin 'tpope/vim-fugitive'
+call dein#add('tpope/vim-fugitive')
 " Surround utils for vim
-Plugin 'tpope/vim-surround'
+call dein#add('tpope/vim-surround')
 " Automatic closing of brackets
-Plugin 'Raimondi/delimitMate'
+call dein#add('Raimondi/delimitMate')
 " Makes vim understand markdown folding
-Plugin 'nelstrom/vim-markdown-folding'
+call dein#add('nelstrom/vim-markdown-folding')
 " Makes the repeat command `.` work in more cases
-Plugin 'tpope/vim-repeat'
+call dein#add('tpope/vim-repeat')
 " Vim support for Js handlebars
-Plugin 'nono/vim-handlebars'
-Plugin 'nathanaelkane/vim-indent-guides'
+call dein#add('nono/vim-handlebars')
+call dein#add('nathanaelkane/vim-indent-guides')
 " Javascript support for vim
-Plugin 'pangloss/vim-javascript'
-Plugin 'milkypostman/vim-togglelist'
+call dein#add('pangloss/vim-javascript')
+call dein#add('milkypostman/vim-togglelist')
 " Relative line number
-Plugin 'jeffkreeftmeijer/vim-numbertoggle'
+call dein#add('jeffkreeftmeijer/vim-numbertoggle')
 " File explorer for VIM. <leader>ft to activate
-Plugin 'scrooloose/nerdtree'
+call dein#add('scrooloose/nerdtree')
 " Golang support for vim
-Plugin 'jnwhiteh/vim-golang'
+call dein#add('jnwhiteh/vim-golang')
 " Make jk behave as jumps in Vim
-Plugin 'teranex/jk-jumps.vim'
-Plugin 'tpope/vim-dispatch'
+call dein#add('teranex/jk-jumps.vim')
+call dein#add('tpope/vim-dispatch')
 " Expand html easily: div > 3*li then Ctrl+e in an html file
-Plugin 'rstacruz/sparkup'
+call dein#add('rstacruz/sparkup')
 " Use the Molokay font in Vim
-Plugin 'tomasr/molokai'
+call dein#add('tomasr/molokai')
 " Puppet support for Vim
-Plugin 'rodjek/vim-puppet'
+call dein#add('rodjek/vim-puppet')
 " Elixir support for Vim
-Plugin 'elixir-lang/vim-elixir'
+call dein#add('elixir-lang/vim-elixir')
 " Ruby support for Vim
-Plugin 'vim-ruby/vim-ruby'
+call dein#add('vim-ruby/vim-ruby')
+
+" }}}
+" ##### Load local Plugins  {{{
 
 " The following loads a local bundles file, in case
 " you wish to install local plugins
@@ -69,9 +83,19 @@ if filereadable(glob("~/.vimrc.bundles.local"))
 endif
 
 " }}}
-" ##### Vundle post-setup {{{
-call vundle#end()            " required
-filetype plugin indent on    " required
+" ##### Finish loading Dein  {{{
+
+" Required:
+call dein#end()
+
+" Required:
+filetype plugin indent on
+
+" If you want to install not installed plugins on startup.
+if dein#check_install()
+  call dein#install()
+endif
+
 " }}}
 " ##### Basic options  {{{
 " Display incomplete commands.
@@ -258,7 +282,6 @@ let g:ctrlp_working_path_mode = 'a'
 " Custom ignores
 let g:ctrlp_custom_ignore = 'node_modules\|DS_Store'
 " }}}
-" }}}
 " ##### Ack  {{{
 noremap <C-F> :Ack!<space>
 " }}}
@@ -267,7 +290,6 @@ let g:NumberToggleTrigger="<leader>ll"
 "}}}
 " ##### togglelist {{{
 let g:toggle_list_copen_command="Copen"
-" }}}
 " }}}
 " ##### Ack motions {{{
 " (from Steve Losh's vimrc)
@@ -300,6 +322,7 @@ function! s:AckMotion(type) abort
 
     let @@ = reg_save
 endfunction
+" }}}
 " }}}
 " ##### Filetype-specific  {{{
 " ##### Ruby  {{{
