@@ -1,10 +1,7 @@
 tmp/
-temp/
 repos/
 !repos/github.com/Shougo/dein.vim/
 *.swp
 .netrwhist
-.dein/
+dein/
 .init.vim-rplugin~
-merged
-rollbacks/

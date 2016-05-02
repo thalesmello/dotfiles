@@ -10,7 +10,7 @@ filetype off     " required
 set runtimepath^=~/.vim/repos/github.com/Shougo/dein.vim
 
 " Required:
-call dein#begin(expand('.'))
+call dein#begin('~/.vim/dein')
 
 " Let dein manage dein
 " Required:
@@ -18,7 +18,6 @@ call dein#add('Shougo/dein.vim')
 
 " "}}}
 " ##### Plugins  {{{
-
 " Plugin to load tasks asynchronously
 call dein#add('Shougo/vimproc.vim', {'build' : 'make'})
 " Theme of this vimfiles
