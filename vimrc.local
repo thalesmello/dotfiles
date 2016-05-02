@@ -72,6 +72,7 @@ if &term =~ '^screen'
 endif
 
 " Sneak
+nnoremap s s
 nmap f <Plug>(SneakStreak)
 nmap F <Plug>(SneakStreakBackward)
 xmap f <Plug>(SneakStreak)
@@ -80,6 +81,7 @@ omap f <Plug>(SneakStreak)
 omap F <Plug>(SneakStreakBackward)
 let g:sneak#use_ic_scs = 1
 let g:sneak#target_labels = "sfghjkl;qwertyuiopzxvbnm/SFGHJKL:QWERTYUOPZXCVBNM?"
+let g:sneak#textobject_z = 0
 
 set lazyredraw
 
@@ -438,8 +440,12 @@ call textobj#user#map('python', {
 let g:tcommentTextObjectInlineComment = ''
 
 " Unite.vim
-noremap <leader>< :<c-u>Unite history/yank -default-action=append<CR>
-noremap <leader>bb :Unite -quick-match buffer<cr>
+nnoremap <leader>< :<c-u>Unite history/yank -default-action=append<CR>
+vmap <leader>< d:<c-u>Unite history/yank<CR>
+nnoremap <leader>bb :Unite -quick-match buffer<cr>
+nnoremap stt :<c-u>Unite tmuxcomplete -default-action=append<cr>
+nnoremap stl :<c-u>Unite tmuxcomplete/lines -default-action=append<cr>
+nnoremap sl :<c-u>Unite line<cr>
 " Using ag as recursive command.
 let g:unite_source_rec_async_command =
 \ ['ag', '--follow', '--nocolor', '--nogroup',
