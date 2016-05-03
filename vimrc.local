@@ -177,6 +177,7 @@ autocmd User AirlineAfterInit call AirlineInit()
 
 " Gutentags
 let g:gutentags_exclude = ['node_modules', '.git']
+let g:gutentags_ctags_executable_javascript = 'jsctags -f'
 
 " YouCompleteMe
 nnoremap <leader>ycm :let g:ycm_auto_trigger = !g:ycm_auto_trigger<cr>
