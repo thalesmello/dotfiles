@@ -1,4 +1,4 @@
-
+call dein#add('terryma/vim-multiple-cursors')
 call dein#add('christoomey/vim-tmux-navigator')
 call dein#add('danro/rename.vim')
 call dein#add('mhinz/vim-signify')
