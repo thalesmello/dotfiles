@@ -358,9 +358,6 @@ autocmd BufRead,BufNewFile *.md setlocal wrap
 autocmd BufEnter *.md colorscheme badwolf
 " }}}
 " ##### JavaScript  {{{
-" Sets javascript syntax for *.json files.
-autocmd BufRead,BufNewFile *.json setlocal filetype=javascript
-
 " Sets html syntax for *.ejs files.
 autocmd BufRead,BufNewFile *.ejs setlocal filetype=html
 " }}}
