@@ -465,6 +465,11 @@ nnoremap <leader>bb :Unite -quick-match buffer<cr>
 " Cmd completion
 cm <c-o> <Plug>(unite_cmdmatch_complete)
 
+" Localvimrc
+nmap <leader>epv :<c-u>Unite -input=.lvimrc file_rec/async<cr>
+nmap <leader>spv :<c-u>LocalVimRC<cr>
+
+
 " The prefix key.
 nnoremap [unite] <Nop>
 nmap s [unite]
