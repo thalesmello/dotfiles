@@ -504,3 +504,7 @@ function! s:unite_my_settings()
   imap <buffer> <C-@> <Plug>(unite_complete)
 endfunction
 
+" Indent guides for Neovim
+let g:indent_guides_auto_colors = 0
+hi IndentGuidesOdd  guibg=black ctermbg=0
+hi IndentGuidesEven guibg=white ctermbg=7
