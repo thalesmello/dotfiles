@@ -330,6 +330,7 @@ let g:ctrlp_custom_ignore = '\v([\/]\.(git|hg|svn)$)|\.pyc$|node_modules/'
 " Localvimrc
 let g:localvimrc_persistent = 1
 let g:avoid_standard_js_autowriter = 1
+let g:localvimrc_event = ['VimEnter']
 
 " Autoformat
 noremap <leader>sb :Autoformat<cr>
@@ -508,3 +509,4 @@ endfunction
 let g:indent_guides_auto_colors = 0
 hi IndentGuidesOdd  guibg=black ctermbg=0
 hi IndentGuidesEven guibg=white ctermbg=7
+
