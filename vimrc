@@ -71,6 +71,8 @@ call dein#add('rodjek/vim-puppet')
 call dein#add('elixir-lang/vim-elixir')
 " Ruby support for Vim
 call dein#add('vim-ruby/vim-ruby')
+" Automatically recognize indentation
+call dein#add('thalesmello/vim-sleuth')
 
 " }}}
 " ##### Load local Plugins  {{{
@@ -377,6 +379,12 @@ nnoremap <leader>csv ggV/^+-<cr>dGV?^+-<cr>dgg:g/^+-/d<cr>:%s/^<bar> \<bar> <bar
 " ##### LookML {{{
 " Sets YAML syntax for *.lookml files.
 autocmd BufRead,BufNewFile *.lookml setlocal filetype=yaml
+" }}}
+" ##### Reload Vim Sleuth {{{
+augroup sleuth
+  autocmd!
+  autocmd FileType * VimSleuthReload
+augroup END
 " }}}
 " }}}
 " ##### Local Vim Configurations {{{
