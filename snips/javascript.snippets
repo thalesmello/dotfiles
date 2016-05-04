@@ -1,5 +1,21 @@
 snippet desc "Describe block" b
-describe('${1:description}', function () {
+describe('${1:description}', function (${2}) {
+	${VISUAL}${0}
+})
+endsnippet
+
+snippet it "It assertion block" b
+it('${1:it does...}', function (${2}) {
+	${VISUAL}${0}
+})
+endsnippet
+
+snippet before "Before test block" b
+before('${1:before...}', function (${2}) {
 	${0:${VISUAL}}
 })
+endsnippet
+
+snippet req "Require module" b
+var ${1:moduleName} = require('${2:$1}')${0}
 endsnippet
