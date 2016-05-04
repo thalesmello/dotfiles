@@ -25,7 +25,9 @@ noremap <c-e> 2<c-e>
 noremap <c-y> 2<c-y>
 noremap gH H
 noremap gL L
-nnoremap <leader>dc :call map(dein#check_clean(), "system('rm -rf ' . v:val)")<cr>
+
+" Dein
+command! DeinClean call map(dein#check_clean(), "system('rm -rf ' . v:val)")
 
 " Move around text objects
 nnoremap <localleader>s :exec "normal vi".nr2char(getchar())."\e`<"<CR>
@@ -439,6 +441,9 @@ call textobj#user#map('python', {
             \   },
             \ })
 
+let g:textobj#methodcall#select_a = 'am'
+let g:textobj#methodcall#select_i = 'im'
+
 " Tcommenter
 let g:tcommentTextObjectInlineComment = ''
 
@@ -467,13 +472,14 @@ nnoremap <leader>bb :Unite -quick-match buffer<cr>
 cm <c-o> <Plug>(unite_cmdmatch_complete)
 
 " Localvimrc
-nmap <leader>epv :<c-u>Unite -input=.lvimrc file_rec/async<cr>
+nmap <leader>epv :<c-u>Unite -input=.lvimrc file_rec/neovim<cr>
 nmap <leader>spv :<c-u>LocalVimRC<cr>
 
 
 " The prefix key.
 nnoremap [unite] <Nop>
 nmap s [unite]
+
 nnoremap <silent> [unite]r :<C-u>UniteResume<CR>
 nnoremap <silent> [unite]ma :<C-u>Unite mapping<CR>
 nnoremap <silent> [unite]me :<C-u>Unite output:message<CR>
@@ -484,7 +490,7 @@ nnoremap <silent> [unite]l :<c-u>Unite line<cr>
 nnoremap <silent> [unite]l :<c-u>Unite line<cr>
 
 nnoremap <silent> [unite]f
-            \ :<C-u>Unite -buffer-name=files jump_point file_point buffer_tab file_rec:! file file/new<CR>
+            \ :<C-u>Unite -buffer-name=files jump_point file_point buffer_tab file_rec/neovim:! file file/new<CR>
 
 " Like ctrlp.vim settings.
 call unite#custom#profile('default', 'context', {
@@ -510,3 +516,22 @@ let g:indent_guides_auto_colors = 0
 hi IndentGuidesOdd  guibg=black ctermbg=0
 hi IndentGuidesEven guibg=white ctermbg=7
 
+" " Neomake
+" let g:neomake_airline = 1
+" augroup neomake_save_linter
+"     autocmd!
+"     autocmd BufWritePost *.js Neomake
+"     autocmd BufWritePost *.py Neomake
+"     autocmd BufWritePost *.rb Neomake
+" augroup end
+
+" Textobj column
+let g:skip_default_textobj_word_column_mappings = 1
+xnoremap <silent> ak :<C-u>call TextObjWordBasedColumn("aw")<cr>
+xnoremap <silent> aK :<C-u>call TextObjWordBasedColumn("aW")<cr>
+xnoremap <silent> ik :<C-u>call TextObjWordBasedColumn("iw")<cr>
+xnoremap <silent> iK :<C-u>call TextObjWordBasedColumn("iW")<cr>
+onoremap <silent> ak :call TextObjWordBasedColumn("aw")<cr>
+onoremap <silent> aK :call TextObjWordBasedColumn("aW")<cr>
+onoremap <silent> ik :call TextObjWordBasedColumn("iw")<cr>
+onoremap <silent> iK :call TextObjWordBasedColumn("iW")<cr>
