@@ -17,5 +17,9 @@ before('${1:before...}', function (${2}) {
 endsnippet
 
 snippet req "Require module" b
-var ${1:moduleName} = require('${2:$1}')${0}
+var ${1:moduleName} = require('${2:$1}')${0},d
+endsnippet
+
+snippet f "Anonymous function" i
+function ($1) { ${2:return ${3:$1}}$0 }
 endsnippet
