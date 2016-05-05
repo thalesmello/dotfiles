@@ -158,7 +158,7 @@ let g:airline_powerline_fonts = 1
 let g:airline_theme = 'powerlineish'
 " let g:airline_inactive_collapse = 0
 let g:airline#extensions#disable_rtp_load = 1
-let g:airline_extensions = ['neomake', 'tagbar', 'branch', 'tabline']
+let g:airline_extensions = ['neomake', 'tagbar', 'branch', 'tabline', 'ctrlp']
 let g:airline#extensions#tagbar#flags = 'f'
 let g:airline#extensions#branch#displayed_head_limit = 15
 
