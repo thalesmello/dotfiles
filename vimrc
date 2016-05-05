@@ -50,7 +50,9 @@ call dein#add('tpope/vim-repeat')
 call dein#add('nono/vim-handlebars')
 call dein#add('nathanaelkane/vim-indent-guides')
 " Javascript support for vim
-call dein#add('pangloss/vim-javascript')
+" call dein#add('jelera/vim-javascript-syntax', {
+"       \ 'autoload':{ 'filetypes': ['javascript'] },
+"       \ 'lazy': 1 })
 call dein#add('milkypostman/vim-togglelist')
 " Relative line number
 call dein#add('jeffkreeftmeijer/vim-numbertoggle')
@@ -90,6 +92,7 @@ endif
 call dein#end()
 
 " Required:
+syntax on
 filetype plugin indent on
 
 " If you want to install not installed plugins on startup.
@@ -171,8 +174,6 @@ set mouse=a
 set autoread
 
 
-" Enable syntax highlighting
-syntax on
 " Sets the colorscheme for terminal sessions too.
 colorscheme molokai
 
@@ -263,19 +264,6 @@ noremap <leader>ft :NERDTreeToggle<CR>
 
 " Don't fuck up vim's default file browser
 let g:NERDTreeHijackNetrw = 0
-" }}}
-" ##### Airline  {{{
-let g:airline_powerline_fonts = 1
-let g:airline_theme = 'powerlineish'
-let g:airline_section_warning = ''
-let g:airline_inactive_collapse = 0
-let g:airline#extensions#default#section_truncate_width = {
-  \ 'a': 60,
-  \ 'b': 80,
-  \ 'x': 100,
-  \ 'y': 100,
-  \ 'z': 60,
-\ }
 " }}}
 " ##### CtrlP  {{{
 " Works not only in ancestor directories of my working directory.
