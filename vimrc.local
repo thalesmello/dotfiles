@@ -156,14 +156,11 @@ vnoremap <leader>\| :VisualCommand<CR>
 " Airline
 let g:airline_powerline_fonts = 1
 let g:airline_theme = 'powerlineish'
-let g:airline_inactive_collapse = 0
+" let g:airline_inactive_collapse = 0
 let g:airline#extensions#disable_rtp_load = 1
-let g:airline_extensions = ['tagbar', 'ycm', 'branch', 'neomake', 'tabline']
-
+let g:airline_extensions = ['neomake', 'tagbar', 'branch', 'tabline']
 let g:airline#extensions#tagbar#flags = 'f'
 let g:airline#extensions#branch#displayed_head_limit = 15
-let g:airline#extensions#neomake#enabled = 1
-let g:airline#extensions#virtualenv#enabled = 0
 
 let s:tagbar_enabled = 1
 
@@ -522,6 +519,8 @@ function! s:unite_my_settings()
     nmap <buffer> <C-@> <Plug>(unite_complete)
     imap <buffer> <C-@> <Plug>(unite_complete)
     nmap <buffer> <esc> <Plug>(unite_exit)
+    nmap <buffer><expr> v unite#do_action('left')
+    imap <buffer><expr> <c-v> unite#do_action('left')
 endfunction
 
 " Indent guides for Neovim
@@ -536,6 +535,7 @@ augroup neomake_save_linter
     autocmd BufWritePost *.py Neomake
     autocmd BufWritePost *.rb Neomake
 augroup end
+let g:neomake_javascript_standard_maker = { 'errorformat': '%E %f:%l:%c: %m' }
 
 " Textobj column
 let g:skip_default_textobj_word_column_mappings = 1
