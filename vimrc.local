@@ -27,6 +27,7 @@ noremap gL L
 
 " Dein
 command! DeinClean call map(dein#check_clean(), "system('rm -rf ' . v:val)")
+command! DeinRecache call dein#recache_runtimepath()
 
 " Move around text objects
 nnoremap <localleader>s :exec "normal vi".nr2char(getchar())."\e`<"<CR>
@@ -67,11 +68,6 @@ let g:tagbar_left = 1
 let g:tagbar_autoclose = 1
 let g:tagbar_autofocus = 1
 set updatetime=500
-
-if &term =~ '^screen'
-    " tmux knows the extended mouse mode
-    set ttymouse=xterm2
-endif
 
 " Sneak
 nnoremap s s
@@ -158,23 +154,47 @@ command! -range VisualCommand <line1>,<line2>call s:visual_command()
 vnoremap <leader>\| :VisualCommand<CR>
 
 " Airline
-let g:airline#extensions#tagbar#enabled = 1
+let g:airline_powerline_fonts = 1
+let g:airline_theme = 'powerlineish'
+let g:airline_inactive_collapse = 0
+let g:airline#extensions#disable_rtp_load = 1
+let g:airline_extensions = ['tagbar', 'ycm', 'branch', 'neomake', 'tabline']
+
 let g:airline#extensions#tagbar#flags = 'f'
 let g:airline#extensions#branch#displayed_head_limit = 15
-let g:airline#extensions#ycm#enabled = 1
+let g:airline#extensions#neomake#enabled = 1
 let g:airline#extensions#virtualenv#enabled = 0
-let g:airline#extensions#default#section_truncate_width = {}
-let g:airline#extensions#tabline#enabled = 1
-let g:airline#extensions#syntastic#enabled = 1
+
+let s:tagbar_enabled = 1
+
 function! AirlineInit()
     let g:airline_section_a = airline#section#create(['mode'])
     let g:airline_section_b = airline#section#create(['file', ' ', 'readonly'])
-    let g:airline_section_c = airline#section#create(['tagbar'])
+    if s:tagbar_enabled
+        let g:airline_section_c = airline#section#create(['tagbar'])
+    else
+        let g:airline_section_c = airline#section#create([])
+    endif
     let g:airline_section_x = airline#section#create([])
     let g:airline_section_y = airline#section#create(['%<', 'branch'])
     let g:airline_section_z = airline#section#create(['%p%% ', '%{g:airline_symbols.linenr}%#__accent_bold#%l%#__restore__#:%v'])
 endfunction
 autocmd User AirlineAfterInit call AirlineInit()
+
+fun! s:ToggleAirlineOnFiletype()
+    let should_enable = &filetype != 'javascript'
+    if s:tagbar_enabled != should_enable
+        let s:tagbar_enabled = should_enable
+        silent! autocmd! TagbarAutoCmds
+        call AirlineInit()
+        AirlineRefresh
+    endif
+endf
+
+augroup airline_tagbar_handler
+    autocmd!
+    autocmd filetype * call s:ToggleAirlineOnFiletype()
+augroup end
 
 " Gutentags
 let g:gutentags_exclude = ['node_modules', '.git']
@@ -350,12 +370,6 @@ let g:autoft_config = [
             \ { 'filetype': 'sql'  , 'pattern': '^\s*SELECT.*$' },
             \ ]
 
-" Syntastic
-let g:syntastic_always_populate_loc_list = 1
-let g:syntastic_auto_loc_list = 2
-let g:syntastic_check_on_open = 1
-let g:syntastic_check_on_wq = 0
-
 " GUndo
 nnoremap <leader>gu :GundoToggle<CR>
 
@@ -474,7 +488,6 @@ cm <c-o> <Plug>(unite_cmdmatch_complete)
 nmap <leader>epv :<c-u>Unite -input=.lvimrc file_rec/neovim<cr>
 nmap <leader>spv :<c-u>LocalVimRC<cr>
 
-
 " The prefix key.
 nnoremap [unite] <Nop>
 nmap s [unite]
@@ -516,14 +529,13 @@ let g:indent_guides_auto_colors = 0
 hi IndentGuidesOdd  guibg=black ctermbg=0
 hi IndentGuidesEven guibg=white ctermbg=7
 
-" " Neomake
-" let g:neomake_airline = 1
-" augroup neomake_save_linter
-"     autocmd!
-"     autocmd BufWritePost *.js Neomake
-"     autocmd BufWritePost *.py Neomake
-"     autocmd BufWritePost *.rb Neomake
-" augroup end
+" Neomake
+augroup neomake_save_linter
+    autocmd!
+    autocmd BufWritePost *.js Neomake
+    autocmd BufWritePost *.py Neomake
+    autocmd BufWritePost *.rb Neomake
+augroup end
 
 " Textobj column
 let g:skip_default_textobj_word_column_mappings = 1
