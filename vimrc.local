@@ -205,9 +205,14 @@ nnoremap <leader>gtk :YcmCompleter GetDoc<cr>
 nnoremap <leader>gtt :YcmCompleter GetType<cr>
 nnoremap <leader>rv :YcmCompleter RefactorRename<space>
 nnoremap <leader>q :pclose<cr>:cclose<cr>:lclose<cr>
-let g:ycm_path_to_python_interpreter = '/usr/bin/python2.7'
-let g:ycm_key_list_select_completion = ['<Down>']
-let g:ycm_key_list_previous_completion = ['<Up>']
+
+let g:ycm_path_to_python_interpreter                    = '/usr/bin/python2.7'
+let g:ycm_key_list_select_completion                    = ['<Down>']
+let g:ycm_key_list_previous_completion                  = ['<Up>']
+let g:ycm_complete_in_comments                          = 1
+let g:ycm_complete_in_strings                           = 1
+let g:ycm_collect_identifiers_from_comments_and_strings = 1
+let g:ycm_collect_identifiers_from_tags_files           = 1
 
 " UltiSnips
 
