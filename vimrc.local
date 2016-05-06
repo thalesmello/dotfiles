@@ -232,6 +232,7 @@ function! MyExpandSnippet()
 endf
 
 let g:UltiSnipsEditSplit           = "vertical"
+xnoremap <silent> <tab> :call UltiSnips#SaveLastVisualSelection()<CR>gvs
 inoremap <silent> <c-j> <c-r>=JumpOrExpandSnippet()<cr>
 imap <silent> <Tab> <c-r>=MyExpandSnippet()<cr>[should]jump
 inoremap <silent><expr> [should]jump g:ulti_expand_res ? '' : "\<c-n>"
