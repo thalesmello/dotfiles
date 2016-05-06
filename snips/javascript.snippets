@@ -12,7 +12,7 @@ endsnippet
 
 snippet before "Before test block" b
 before('${1:before...}', function (${2}) {
-	${0:${VISUAL}}
+	${VISUAL}${0}
 })
 endsnippet
 
@@ -22,4 +22,10 @@ endsnippet
 
 snippet f "Anonymous function" i
 function ($1) { ${2:return ${3:$1}}$0 }
+endsnippet
+
+snippet fun "Funciton syntax" b
+function ${1:function_name} (${2:arguments}) {
+	${3:${VISUAL}}$0
+}
 endsnippet

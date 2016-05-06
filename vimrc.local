@@ -215,16 +215,22 @@ let g:ulti_expand_res = 0
 let g:ulti_jump_forwards_res = 0
 function! JumpOrExpandSnippet()
     call UltiSnips#JumpForwards()
-    if g:ulti_jump_forwards_res == 0
+    if !g:ulti_jump_forwards_res
         call UltiSnips#ExpandSnippet()
     endif
     return ''
 endfunction
 
-let g:UltiSnipsExpandTrigger       = "<Tab>"
+function! MyExpandSnippet()
+    call UltiSnips#ExpandSnippet()
+    return ''
+endf
+
 let g:UltiSnipsEditSplit           = "vertical"
-" let g:UltiSnipsJumpForwardTrigger  = "<c-j>"
 inoremap <silent> <c-j> <c-r>=JumpOrExpandSnippet()<cr>
+imap <silent> <Tab> <c-r>=MyExpandSnippet()<cr>[should]jump
+inoremap <silent><expr> [should]jump g:ulti_expand_res ? '' : "\<c-n>"
+let g:UltiSnipsExpandTrigger       = "<leader><localleader><tab>"
 let g:UltiSnipsJumpBackwardTrigger = "<c-k>"
 let g:UltiSnipsListSnippets        = "<c-l>"
 let g:UltiSnipsSnippetsDir         = '~/.snips'
@@ -341,6 +347,7 @@ augroup END
 nnoremap <localleader>vf :w<CR>:call VimuxRunCommand(GetExecuteCommand())<CR>
 nnoremap <localleader>vw :call VimuxRunCommand(GetNodemonCommand())<CR>
 nmap <localleader>vr <localleader>vq:call VimuxRunCommand(GetReplCommand())<CR>
+nnoremap <localleader>vtp :call VimuxRunCommand('exec-notify ./script/test ' . expand('%'))<cr>
 
 " Ctrlp
 let g:ctrlp_custom_ignore = '\v([\/]\.(git|hg|svn)$)|\.pyc$|node_modules/'
