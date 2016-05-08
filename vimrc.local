@@ -14,6 +14,7 @@ nmap <leader>c/ *Ncgn
 nmap <leader>of vafzO
 inoremap <c-u> <c-g>u<c-u>
 inoremap <c-w> <c-g>u<c-w>
+nnoremap Y y$
 vmap <leader>yj Jgvyu
 nmap <leader>tn :tabnew<cr>
 vmap <leader>tn y:tabnew<cr>p
