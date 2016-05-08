@@ -1,0 +1,5 @@
+" exrc for wasavi
+map ,ss :w<cr>
+map ,sq :wq<cr>
+map vae ggVG
+map! <A-C> ç
