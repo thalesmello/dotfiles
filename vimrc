@@ -23,7 +23,7 @@ call dein#add('Shougo/vimproc.vim', {'build' : 'make'})
 " Theme of this vimfiles
 call dein#add('sjl/badwolf')
 " Fuzzy search file swithing with Ctrl+P
-call dein#add('kien/ctrlp.vim')
+call dein#add('ctrlpvim/ctrlp.vim')
 " Useful statusbar in your vim
 call dein#add('bling/vim-airline')
 call dein#add('vim-airline/vim-airline-themes')
@@ -50,9 +50,9 @@ call dein#add('tpope/vim-repeat')
 call dein#add('nono/vim-handlebars')
 call dein#add('nathanaelkane/vim-indent-guides')
 " Javascript support for vim
-" call dein#add('jelera/vim-javascript-syntax', {
-"       \ 'autoload':{ 'filetypes': ['javascript'] },
-"       \ 'lazy': 1 })
+call dein#add('jelera/vim-javascript-syntax', {
+      \ 'autoload':{ 'filetypes': ['javascript'] },
+      \ 'lazy': 1 })
 call dein#add('milkypostman/vim-togglelist')
 " Relative line number
 call dein#add('jeffkreeftmeijer/vim-numbertoggle')
@@ -65,7 +65,7 @@ call dein#add('teranex/jk-jumps.vim')
 call dein#add('tpope/vim-dispatch')
 " Expand html easily: div > 3*li then Ctrl+e in an html file
 call dein#add('rstacruz/sparkup')
-" Use the Molokay font in Vim
+" Use the Molokay theme in Vim
 call dein#add('tomasr/molokai')
 " Puppet support for Vim
 call dein#add('rodjek/vim-puppet')
@@ -119,8 +119,6 @@ set wildmode=list:longest
 
 " Case-insensitive searching.
 set ignorecase
-" But case-sensitive if expression contains a capital letter.
-set smartcase
 
 " Show line numbers.
 set number
