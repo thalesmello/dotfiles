@@ -21,6 +21,8 @@ vmap <leader>tn y:tabnew<cr>p
 nmap <leader>bn :vnew<cr>
 vmap <leader>bn y:vnew<cr>p
 nmap <leader>bc :bw<cr>
+nnoremap <leader>bs :Sscratch<cr>
+vmap <leader>bs y:Sscratch<cr>vaep
 noremap <c-e> 2<c-e>
 noremap <c-y> 2<c-y>
 noremap gH H
@@ -196,7 +198,6 @@ augroup end
 
 " Gutentags
 let g:gutentags_exclude = ['node_modules', '.git']
-let g:gutentags_ctags_executable_javascript = 'jsctags -f'
 
 " YouCompleteMe
 nnoremap <leader>ycm :let g:ycm_auto_trigger = !g:ycm_auto_trigger<cr>
