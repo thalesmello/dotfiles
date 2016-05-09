@@ -237,7 +237,7 @@ let g:UltiSnipsEditSplit           = "vertical"
 xnoremap <silent> <tab> :call UltiSnips#SaveLastVisualSelection()<CR>gvs
 inoremap <silent> <c-j> <c-r>=JumpOrExpandSnippet()<cr>
 imap <silent> <Tab> <c-r>=MyExpandSnippet()<cr>[should]jump
-inoremap <silent><expr> [should]jump g:ulti_expand_res ? '' : "\<c-n>"
+inoremap <silent><expr> [should]jump g:ulti_expand_res ? '' : (pumvisible() ? "\<c-n>" : "\<tab>")
 let g:UltiSnipsExpandTrigger       = "<leader><localleader><tab>"
 let g:UltiSnipsJumpBackwardTrigger = "<c-k>"
 let g:UltiSnipsListSnippets        = "<c-l>"
@@ -430,7 +430,6 @@ let g:signify_update_on_bufenter = 1
 
 " R specific
 augroup R-specific-settings
-    " this one is which you're most likely to use?
     au!
     au FileType R,rmd let b:delimitMate_matchpairs = "(:),[:],{:}"
 augroup END
@@ -554,6 +553,7 @@ let g:neomake_javascript_standard_maker = { 'errorformat': '%E %f:%l:%c: %m' }
 
 " Textobj column
 let g:skip_default_textobj_word_column_mappings = 1
+
 xnoremap <silent> ak :<C-u>call TextObjWordBasedColumn("aw")<cr>
 xnoremap <silent> aK :<C-u>call TextObjWordBasedColumn("aW")<cr>
 xnoremap <silent> ik :<C-u>call TextObjWordBasedColumn("iw")<cr>
@@ -565,3 +565,9 @@ onoremap <silent> iK :call TextObjWordBasedColumn("iW")<cr>
 
 " Vim autoswap
 let g:autoswap_detect_tmux = 1
+
+" Delimitmate
+imap <expr> <c-x><c-l> ( delimitMate#ShouldJump() ? "<Plug>delimitMateS-BS" : "") . "\<c-x>\<c-l>"
+let g:delimitMate_expand_space = 1
+let g:delimitMate_jump_expansion = 1
+let g:delimitMate_expand_cr = 1
