@@ -586,3 +586,6 @@ let g:delimitMate_expand_cr = 1
 " Windowswap
 let g:windowswap_map_keys = 0 "prevent default bindings
 nnoremap <silent> <leader>pp :call WindowSwap#EasyWindowSwap()<CR>
+
+" Vimwiki
+let g:vimwiki_list = [{'path': '~/Dropbox/Apps/vimwiki/wiki', 'path_html': '~/Dropbox/Apps/vimwiki/html'}]
