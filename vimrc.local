@@ -27,6 +27,7 @@ noremap <c-e> 2<c-e>
 noremap <c-y> 2<c-y>
 noremap gH H
 noremap gL L
+nnoremap <leader>; A;<esc>
 
 " Dein
 command! DeinClean call map(dein#check_clean(), "system('rm -rf ' . v:val)")
@@ -494,6 +495,15 @@ nnoremap <leader>bb :Unite -quick-match buffer<cr>
 
 " Cmd completion
 cm <c-o> <Plug>(unite_cmdmatch_complete)
+
+" Tmux completion
+function! GetTmuxCompletion()
+    let text = unite#get_cur_text()
+    let text = substitute(text, '.\{-}\(\k*\)$', '\1', '')
+    return unite#start_complete( ['tmuxcomplete'],
+                \ { 'start_insert' : 1, 'input' : text })
+endfunction
+inoremap <buffer><expr> <c-x><c-t> GetTmuxCompletion()
 
 " Localvimrc
 nmap <leader>epv :<c-u>Unite -input=.lvimrc file_rec/neovim<cr>
