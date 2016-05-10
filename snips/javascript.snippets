@@ -1,7 +1,7 @@
-snippet desc "Describe block" b
+snippet dsc "Describe block" b
 describe('${1:description}', function (${2}) {
 	${VISUAL}${0}
-})
+}
 endsnippet
 
 snippet it "It assertion block" b
@@ -17,11 +17,11 @@ before('${1:before...}', function (${2}) {
 endsnippet
 
 snippet req "Require module" b
-var ${1:moduleName} = require('${2:$1}')${0},d
+var ${1:moduleName} = require('${2:$1}')${0}
 endsnippet
 
 snippet f "Anonymous function" i
-function ($1) { ${2:return ${3:$1}}$0 }
+function ($1) {${2: return ${3:$1} }$0}
 endsnippet
 
 snippet fun "Funciton syntax" b
