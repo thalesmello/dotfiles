@@ -241,11 +241,12 @@ imap <silent> <Tab> <c-r>=MyExpandSnippet()<cr>[should]jump
 inoremap <silent><expr> [should]jump g:ulti_expand_res ? '' : (pumvisible() ? "\<c-n>" : "\<tab>")
 let g:UltiSnipsExpandTrigger       = "<leader><localleader><tab>"
 let g:UltiSnipsJumpBackwardTrigger = "<c-k>"
-let g:UltiSnipsListSnippets        = "<c-l>"
 let g:UltiSnipsSnippetsDir         = '~/.snips'
 let g:UltiSnipsSnippetDirectories  = ["UltiSnips", $HOME . "/.snips"]
 inoremap <c-x><c-k> <c-x><c-k>
 nmap <leader>esp :UltiSnipsEdit<cr>
+
+inoremap <buffer><expr> <c-l> unite#start_complete( ['ultisnips'], { 'start_insert' : 1 })
 
 " ToggleList
 let g:toggle_list_no_mappings = 1
