@@ -550,8 +550,8 @@ endfunction
 
 " Indent guides for Neovim
 let g:indent_guides_auto_colors = 0
-hi IndentGuidesOdd  guibg=black ctermbg=none
-hi IndentGuidesEven guibg=white ctermbg=black
+hi IndentGuidesOdd  guibg=none ctermbg=none
+hi IndentGuidesEven guibg=black ctermbg=black
 
 " Neomake
 augroup neomake_save_linter
