@@ -160,11 +160,12 @@ vnoremap <leader>\| :VisualCommand<CR>
 " Airline
 let g:airline_powerline_fonts = 1
 let g:airline_theme = 'powerlineish'
-" let g:airline_inactive_collapse = 0
+let g:airline_inactive_collapse = 1
 let g:airline#extensions#disable_rtp_load = 1
 let g:airline_extensions = ['neomake', 'tagbar', 'branch', 'tabline', 'ctrlp']
 let g:airline#extensions#tagbar#flags = 'f'
 let g:airline#extensions#branch#displayed_head_limit = 15
+let g:airline#extensions#default#section_truncate_width = {}
 
 let s:tagbar_enabled = 1
 
@@ -246,7 +247,7 @@ let g:UltiSnipsSnippetDirectories  = ["UltiSnips", $HOME . "/.snips"]
 inoremap <c-x><c-k> <c-x><c-k>
 nmap <leader>esp :UltiSnipsEdit<cr>
 
-inoremap <buffer><expr> <c-l> unite#start_complete( ['ultisnips'], { 'start_insert' : 1 })
+inoremap <expr> <c-l> unite#start_complete( ['ultisnips'], { 'start_insert' : 1 })
 
 " ToggleList
 let g:toggle_list_no_mappings = 1
@@ -344,7 +345,8 @@ nmap <localleader>vj vip<localleader>vj
 nmap <localleader>vyp vip<localleader>vyp
 nmap <localleader>v; vip<localleader>v;
 nmap <localleader><CR> V<localleader>vs
-nmap <localleader>va ggVG<localleader>vs
+nmap <localleader>vaa ggVG<localleader>vs
+nmap <localleader>vaj ggVG<localleader>vj
 
 " Python specific shortcuts
 augroup python-vimux-shortuts
@@ -580,7 +582,6 @@ let g:autoswap_detect_tmux = 1
 " Delimitmate
 imap <expr> <c-x><c-l> ( delimitMate#ShouldJump() ? "<Plug>delimitMateS-BS" : "") . "\<c-x>\<c-l>"
 let g:delimitMate_expand_space = 1
-let g:delimitMate_jump_expansion = 1
 let g:delimitMate_expand_cr = 1
 imap <CR> <C-G>u<Plug>delimitMateCR
 
