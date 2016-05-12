@@ -147,11 +147,15 @@ set -g @resurrect-capture-pane-contents 'on'
 set -g default-command "reattach-to-user-namespace -l $SHELL"
 set -g focus-events on
 
+# Tmux fingers key
+set -g @fingers-key f
+
 # List of installed plugins
 set -g @tpm_plugins '          \
   tmux-plugins/tpm             \
   tmux-plugins/tmux-sensible   \
-  nhdaly/tmux-scroll-copy-mode  \
+  nhdaly/tmux-scroll-copy-mode \
   tmux-plugins/tmux-resurrect  \
   tmux-plugins/tmux-continuum  \
+  Morantron/tmux-fingers       \
 '
