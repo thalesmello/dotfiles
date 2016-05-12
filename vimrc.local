@@ -1,5 +1,6 @@
 let maplocalleader = "'"
 set cursorline
+set nojoinspaces
 " Mappings
 nnoremap <leader>. `>
 nnoremap <leader>ss :w<cr>
@@ -28,6 +29,11 @@ noremap <c-y> 2<c-y>
 noremap gH H
 noremap gL L
 nnoremap <leader>; A;<esc>
+
+" Vim over
+nnoremap  gs  :OverCommandLine<cr>%s//g<LEFT><LEFT>
+vnoremap  gs  :OverCommandLine<cr>s//g<LEFT><LEFT>
+let g:over_enable_auto_nohlsearch = 0
 
 " Dein
 command! DeinClean call map(dein#check_clean(), "system('rm -rf ' . v:val)")
@@ -61,6 +67,8 @@ endfunction
 nmap <c-n> :call multiple_cursors#new("n", 1)<CR>
 let g:multi_cursor_exit_from_insert_mode = 0
 let g:multi_cursor_exit_from_visual_mode = 0
+noremap g/ :MultipleCursorsFind <c-r>/<cr>
+
 highlight multiple_cursors_cursor term=reverse cterm=reverse gui=reverse
 highlight link multiple_cursors_visual Visual
 set wildmode=list:longest,full
@@ -552,7 +560,7 @@ endfunction
 
 " Indent guides for Neovim
 let g:indent_guides_auto_colors = 0
-hi IndentGuidesOdd  guibg=none ctermbg=none
+hi IndentGuidesOdd  guibg=darkgray ctermbg=none
 hi IndentGuidesEven guibg=black ctermbg=black
 
 " Neomake
@@ -583,7 +591,11 @@ let g:autoswap_detect_tmux = 1
 imap <expr> <c-x><c-l> ( delimitMate#ShouldJump() ? "<Plug>delimitMateS-BS" : "") . "\<c-x>\<c-l>"
 let g:delimitMate_expand_space = 1
 let g:delimitMate_expand_cr = 1
-imap <CR> <C-G>u<Plug>delimitMateCR
+
+if !exists('g:set_carriage_return')
+    imap <CR> <C-G>u<Plug>delimitMateCR
+    let g:set_carriage_return = 1
+endif
 
 " Windowswap
 let g:windowswap_map_keys = 0 "prevent default bindings
@@ -591,3 +603,21 @@ nnoremap <silent> <leader>pp :call WindowSwap#EasyWindowSwap()<CR>
 
 " Vimwiki
 let g:vimwiki_list = [{'path': '~/Dropbox/Apps/vimwiki/wiki', 'path_html': '~/Dropbox/Apps/vimwiki/html'}]
+
+" Persistent undo
+if has('persistent_undo')
+    set undolevels=5000
+    set undodir=$HOME/.VIM_UNDO_FILES
+    set undofile
+endif
+set updatecount=10
+
+" Schlepp
+if !exists('g:set_schlepp_shortcuts')
+    vmap <unique> <up>    :<c-u>set clipboard=<cr>gv<Plug>SchleppUp:<c-u>set clipboard=unnamed<cr>gv
+    vmap <unique> <down>  :<c-u>set clipboard=<cr>gv<Plug>SchleppDown:<c-u>set clipboard=unnamed<cr>gv
+    vmap <unique> <left>  :<c-u>set clipboard=<cr>gv<Plug>SchleppLeft:<c-u>set clipboard=unnamed<cr>gv
+    vmap <unique> <right> :<c-u>set clipboard=<cr>gv<Plug>SchleppRight:<c-u>set clipboard=unnamed<cr>gv
+    vmap <unique> D       :<c-u>set clipboard=<cr>gv<Plug>SchleppDup:<c-u>set clipboard=unnamed<cr>gv
+    let g:set_schlepp_shortcuts = 1
+endif
