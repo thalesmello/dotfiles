@@ -31,6 +31,9 @@ noremap gH H
 noremap gL L
 nnoremap <leader>; A;<esc>
 
+command! YankShouldToExpectRegex let @s = '\v\s+\zs((\w|\.)+)\.should/expect(\1).to'
+command! YankStatusToPropertyCheck let @s = '\vhave\.status\((\d+)\)/have.property(' . "'statusCode', \\1)"
+
 " Vim over
 nnoremap  gs  :OverCommandLine<cr>%s//g<LEFT><LEFT>
 vnoremap  gs  :OverCommandLine<cr>s//g<LEFT><LEFT>
@@ -531,8 +534,9 @@ nmap s [unite]
 let g:unite_quickfix_is_multiline=0
 call unite#custom_source('quickfix', 'converters', 'converter_quickfix_highlight')
 call unite#custom_source('location_list', 'converters', 'converter_quickfix_highlight')
-nnoremap <silent> [unite]qf :<c-u>Unite -wrap -no-quit -prompt-direction=top quickfix<cr>
-nnoremap <silent> [unite]ll :<c-u>Unite -wrap -no-quit -prompt-direction=top location_list<cr>
+
+nnoremap <silent> [unite]qf :<c-u>Unite -wrap -prompt-direction=top quickfix<cr>
+nnoremap <silent> [unite]ll :<c-u>Unite -wrap -prompt-direction=top location_list<cr>
 
 " Unimpaired like bindings
 nnoremap <silent> [z :<c-u>UnitePrevious<cr>
