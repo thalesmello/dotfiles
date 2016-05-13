@@ -1,4 +1,3 @@
-" .vimrc
 " Author: Pedro Franceschi <pedrohfranceschi@gmail.com>
 " Source: http://github.com/pedrofranceschi/vimfiles
 
@@ -22,8 +21,6 @@ call dein#add('Shougo/dein.vim')
 call dein#add('Shougo/vimproc.vim', {'build' : 'make'})
 " Theme of this vimfiles
 call dein#add('sjl/badwolf')
-" Fuzzy search file swithing with Ctrl+P
-call dein#add('ctrlpvim/ctrlp.vim')
 " Useful statusbar in your vim
 call dein#add('bling/vim-airline')
 call dein#add('vim-airline/vim-airline-themes')
@@ -263,12 +260,6 @@ noremap <leader>ft :NERDTreeToggle<CR>
 " Don't fuck up vim's default file browser
 let g:NERDTreeHijackNetrw = 0
 " }}}
-" ##### CtrlP  {{{
-" Works not only in ancestor directories of my working directory.
-let g:ctrlp_working_path_mode = 'a'
-" Custom ignores
-let g:ctrlp_custom_ignore = 'node_modules\|DS_Store'
-" }}}
 " ##### Ack  {{{
 noremap <C-F> :Ack!<space>
 " }}}
@@ -386,4 +377,4 @@ if filereadable(glob("~/.vimrc.secrets"))
 endif
 
 nnoremap <leader>elb :vsplit ~/.vimrc.bundles.local<CR>
-" }}}
+" }}}"
