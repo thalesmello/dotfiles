@@ -217,7 +217,7 @@ nnoremap <leader>gtr :YcmCompleter GoToReferences<cr>:cclose<cr>:copen<cr>
 nnoremap <leader>gtk :YcmCompleter GetDoc<cr>
 nnoremap <leader>gtt :YcmCompleter GetType<cr>
 nnoremap <leader>rv :YcmCompleter RefactorRename<space>
-nnoremap <leader>q :pclose<cr>:cclose<cr>:lclose<cr>
+nnoremap <silent> <leader>q :pclose<cr>:cclose<cr>:lclose<cr>:UniteClose<cr>
 
 let g:ycm_path_to_python_interpreter                    = '/usr/bin/python2.7'
 let g:ycm_key_list_select_completion                    = ['<Down>']
@@ -484,7 +484,8 @@ let g:tcommentTextObjectInlineComment = ''
 " Unite.vim
 
 call unite#custom#source('grep, line, outline', 'matchers', 'matcher_fuzzy')
-call unite#custom#source('grep, line, outline', 'sorters', 'sorter_rank')
+call unite#custom#source('grep', 'sorters', 'sorter_rank')
+call unite#custom#source('location_list, quickfix', 'sorters', 'sorter_nothing')
 call unite#filters#matcher_default#use(['matcher_fuzzy'])
 call unite#filters#sorter_default#use(['sorter_rank'])
 
@@ -526,14 +527,27 @@ nmap <leader>spv :<c-u>LocalVimRC<cr>
 nnoremap [unite] <Nop>
 nmap s [unite]
 
+" Unite quickfix
+let g:unite_quickfix_is_multiline=0
+call unite#custom_source('quickfix', 'converters', 'converter_quickfix_highlight')
+call unite#custom_source('location_list', 'converters', 'converter_quickfix_highlight')
+nnoremap <silent> [unite]qf :<c-u>Unite -wrap -no-quit -prompt-direction=top quickfix<cr>
+nnoremap <silent> [unite]ll :<c-u>Unite -wrap -no-quit -prompt-direction=top location_list<cr>
+
+" Unimpaired like bindings
+nnoremap <silent> [z :<c-u>UnitePrevious<cr>
+nnoremap <silent> ]z :<c-u>UniteNext<cr>
+nnoremap <silent> [Z :<c-u>UniteFirst<cr>
+nnoremap <silent> ]Z :<c-u>UniteLast<cr>
+
 nnoremap <silent> [unite]r :<C-u>UniteResume<CR>
 nnoremap <silent> [unite]ma :<C-u>Unite mapping<CR>
 nnoremap <silent> [unite]me :<C-u>Unite output:message<CR>
 nnoremap <silent> [unite]u :<C-u>Unite ultisnips<CR>
-nnoremap <silent> [unite]o :<C-u>Unite -direction=left outline<CR>
+nnoremap <silent> [unite]o :<C-u>Unite -direction=topleft -split outline<CR>
 nnoremap <silent> [unite]tt :<c-u>Unite tmuxcomplete -default-action=append<cr>
 nnoremap <silent> [unite]tl :<c-u>Unite tmuxcomplete/lines -default-action=append<cr>
-nnoremap <silent> [unite]l :<c-u>Unite line<cr>
+nnoremap <silent> [unite]li :<c-u>Unite line<cr>
 nnoremap <silent> [unite]f :<C-u>Unite file_mru<cr>
 
 " Like ctrlp.vim settings.
