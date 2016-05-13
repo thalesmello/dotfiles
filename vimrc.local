@@ -16,7 +16,6 @@ vmap <leader>c/ *Ncgn
 nmap <leader>c/ *Ncgn
 nmap <leader>of vafzO
 inoremap <c-u> <c-g>u<c-u>
-inoremap <c-w> <c-g>u<c-w>
 nnoremap Y y$
 vmap <leader>yj Jgvyu
 nmap <leader>tn :tabnew<cr>
@@ -172,7 +171,7 @@ let g:airline_powerline_fonts = 1
 let g:airline_theme = 'powerlineish'
 let g:airline_inactive_collapse = 1
 let g:airline#extensions#disable_rtp_load = 1
-let g:airline_extensions = ['neomake', 'tagbar', 'branch', 'tabline', 'ctrlp', 'unite']
+let g:airline_extensions = ['neomake', 'tagbar', 'branch', 'tabline', 'unite']
 let g:airline#extensions#tagbar#flags = 'f'
 let g:airline#extensions#branch#displayed_head_limit = 15
 let g:airline#extensions#default#section_truncate_width = {}
@@ -257,7 +256,7 @@ let g:UltiSnipsSnippetDirectories  = ["UltiSnips", $HOME . "/.snips"]
 inoremap <c-x><c-k> <c-x><c-k>
 nmap <leader>esp :UltiSnipsEdit<cr>
 
-inoremap <expr> <c-l> unite#start_complete( ['ultisnips'], { 'start_insert' : 1 })
+inoremap <silent> <c-l> <esc>:<c-u>Unite ultisnips -start-insert<cr>
 
 " ToggleList
 let g:toggle_list_no_mappings = 1
@@ -370,9 +369,6 @@ nnoremap <localleader>vf :w<CR>:call VimuxRunCommand(GetExecuteCommand())<CR>
 nnoremap <localleader>vw :call VimuxRunCommand(GetNodemonCommand())<CR>
 nmap <localleader>vr <localleader>vq:call VimuxRunCommand(GetReplCommand())<CR>
 nnoremap <localleader>vtp :call VimuxRunCommand('exec-notify ./script/test ' . expand('%'))<cr>
-
-" Ctrlp
-let g:ctrlp_custom_ignore = '\v([\/]\.(git|hg|svn)$)|\.pyc$|node_modules/'
 
 " Localvimrc
 let g:localvimrc_persistent = 1
@@ -507,15 +503,18 @@ vmap <leader>< d:<c-u>Unite history/yank<CR>
 nnoremap <leader>bb :Unite -quick-match buffer<cr>
 
 " Cmd completion
-cm <c-o> <Plug>(unite_cmdmatch_complete)
+cmap <c-@> <Plug>(unite_cmdmatch_complete)
+
+" File explorer
+nnoremap <silent> <c-p> :<C-u>Unite -buffer-name=files -start-insert file_rec/neovim:! file/new<CR>
 
 " Tmux completion
 function! GetTmuxCompletion()
     let text = unite#get_cur_text()
     let text = substitute(text, '.\{-}\(\k*\)$', '\1', '')
-    return unite#start_complete(['tmuxcomplete'], { 'start_insert' : 1, 'input' : text })
+    return unite#start_complete(['tmuxcomplete'], { 'start_insert' : 1, 'input' : text, 'default_action': 'append'})
 endfunction
-inoremap <silent><expr> <c-x><c-t> GetTmuxCompletion()."\<CR>"
+inoremap <silent><expr> <c-x><c-t> "\<c-g>u\<c-w>".GetTmuxCompletion()."\<right>"
 
 " Localvimrc
 nmap <leader>epv :<c-u>Unite -input=.lvimrc file_rec/neovim<cr>
@@ -532,8 +531,6 @@ nnoremap <silent> [unite]u :<C-u>Unite ultisnips<CR>
 nnoremap <silent> [unite]tt :<c-u>Unite tmuxcomplete -default-action=append<cr>
 nnoremap <silent> [unite]tl :<c-u>Unite tmuxcomplete/lines -default-action=append<cr>
 nnoremap <silent> [unite]l :<c-u>Unite line<cr>
-nnoremap <silent> [unite]l :<c-u>Unite line<cr>
-
 nnoremap <silent> [unite]f :<C-u>Unite -buffer-name=files jump_point file_point buffer_tab file_rec/neovim:! file file/new<CR>
 
 " Like ctrlp.vim settings.
