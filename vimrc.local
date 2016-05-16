@@ -31,7 +31,7 @@ noremap gH H
 noremap gL L
 nnoremap <leader>; A;<esc>
 
-command! YankShouldToExpectRegex let @s = '\v\s+\zs((\w|\.)+)\.should/expect(\1).to'
+command! YankShouldToExpectRegex let @s = "\\v\\s+\\zs((\\w|\\.|\\[|\\]|'|\")+)\\.should/expect(\\1).to"
 command! YankStatusToPropertyCheck let @s = '\vhave\.status\((\d+)\)/have.property(' . "'statusCode', \\1)"
 
 " Vim over
@@ -252,7 +252,7 @@ xnoremap <silent> <tab> :call UltiSnips#SaveLastVisualSelection()<CR>gvs
 inoremap <silent> <c-j> <c-r>=JumpOrExpandSnippet()<cr>
 imap <silent> <Tab> <c-r>=MyExpandSnippet()<cr>[should]jump
 inoremap <silent><expr> [should]jump g:ulti_expand_res ? '' : (pumvisible() ? "\<c-n>" : "\<tab>")
-let g:UltiSnipsExpandTrigger       = "<leader><localleader><tab>"
+let g:UltiSnipsExpandTrigger       = "<c-t><c-t><c-t>"
 let g:UltiSnipsJumpBackwardTrigger = "<c-k>"
 let g:UltiSnipsSnippetsDir         = '~/.snips'
 let g:UltiSnipsSnippetDirectories  = ["UltiSnips", $HOME . "/.snips"]
@@ -512,7 +512,7 @@ nnoremap <leader>bb :Unite -quick-match buffer<cr>
 cmap <c-@> <Plug>(unite_cmdmatch_complete)
 
 " File explorer
-nnoremap <silent> <c-p> :<C-u>Unite -buffer-name=files -start-insert file_rec/neovim:! file/new<CR>
+nnoremap <silent> <c-p> :<C-u>Unite -buffer-name=files file_rec/neovim:! file/new<CR>
 
 " Tmux completion
 function! GetTmuxCompletion()
