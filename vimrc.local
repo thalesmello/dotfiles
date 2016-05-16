@@ -1,9 +1,21 @@
+" # Local settings {{{
 let maplocalleader = "'"
 set cursorline
 set nojoinspaces
 set foldlevelstart=1
+set wildmode=list:longest,full
+set listchars=tab:▸\ ,eol:¬
+set lazyredraw
+set linebreak
+set updatetime=500
 
-" Mappings
+" Set unnamed register as default clipboard
+set clipboard=unnamed
+
+" Don't wait for ESC to timeout
+set timeoutlen=1000 ttimeoutlen=0
+" }}}"
+" # Mappings  {{{
 nnoremap <leader>. `>
 nnoremap <leader>ss :w<cr>
 nnoremap <leader>saa ggVG
@@ -34,58 +46,57 @@ nnoremap <leader>; A;<esc>
 command! YankShouldToExpectRegex let @s = "\\v\\s+\\zs((\\w|\\.|\\[|\\]|'|\")+)\\.should/expect(\\1).to"
 command! YankStatusToPropertyCheck let @s = '\vhave\.status\((\d+)\)/have.property(' . "'statusCode', \\1)"
 
-" Vim over
+" "}}}
+" # Vim over  {{{
 nnoremap  gs  :OverCommandLine<cr>%s//g<LEFT><LEFT>
 vnoremap  gs  :OverCommandLine<cr>s//g<LEFT><LEFT>
 let g:over_enable_auto_nohlsearch = 0
 
-" Dein
+" "}}}
+" # Dein  {{{
 command! DeinClean call map(dein#check_clean(), "system('rm -rf ' . v:val)")
 command! DeinRecache call dein#recache_runtimepath()
 
-" Move around text objects
+" "}}}
+" # Move around text objects  {{{
 nnoremap <localleader>s :exec "normal vi".nr2char(getchar())."\e`<"<CR>
 nnoremap <localleader>e :exec "normal vi".nr2char(getchar())."\e`>"<CR>
 nnoremap <localleader>S :exec "normal va".nr2char(getchar())."\e`<"<CR>
 nnoremap <localleader>E :exec "normal va".nr2char(getchar())."\e`>"<CR>
 
-" Set unnamed register as default clipboard
-set clipboard=unnamed
-
-" Tmux complete
+" "}}}
+" # Tmux complete  {{{
 nnoremap <leader>ut :set completefunc=tmuxcomplete#complete<cr>
 nnoremap <leader>uy :set completefunc=youcompleteme#Complete<cr>
 let g:tmuxcomplete#capture_args = '-J -S -'
 
-" Called once right before you start selecting multiple cursors
+" "}}}
+" # Vim Multiple Cursors  {{{
+let g:multi_cursor_exit_from_insert_mode = 0
+let g:multi_cursor_exit_from_visual_mode = 0
 function! Multiple_cursors_before()
     let s:old_ycm_auto_trigger = g:ycm_auto_trigger
     let g:ycm_auto_trigger = 0
 endfunction
 
-" Called once only when the multiple selection is canceled (default <Esc>)
 function! Multiple_cursors_after()
     let g:ycm_auto_trigger = s:old_ycm_auto_trigger
 endfunction
 
 nmap <c-n> :call multiple_cursors#new("n", 1)<CR>
-let g:multi_cursor_exit_from_insert_mode = 0
-let g:multi_cursor_exit_from_visual_mode = 0
-noremap g/ :MultipleCursorsFind <c-r>/<cr>
+noremap g<c-n> :MultipleCursorsFind <c-r>/<cr>
 
 highlight multiple_cursors_cursor term=reverse cterm=reverse gui=reverse
 highlight link multiple_cursors_visual Visual
-set wildmode=list:longest,full
 
-set listchars=tab:▸\ ,eol:¬
-
-" Tagbar
+" "}}}
+" # Tagbar  {{{
 let g:tagbar_left = 1
 let g:tagbar_autoclose = 1
 let g:tagbar_autofocus = 1
-set updatetime=500
 
-" Sneak
+" "}}}
+" # Sneak  {{{
 nnoremap s s
 nmap f <Plug>(SneakStreak)
 nmap F <Plug>(SneakStreakBackward)
@@ -97,12 +108,8 @@ let g:sneak#use_ic_scs = 1
 let g:sneak#target_labels = "sfghjkl;qwertyuiopzxvbnm/SFGHJKL:QWERTYUOPZXCVBNM?"
 let g:sneak#textobject_z = 0
 
-set lazyredraw
-
-" Don't wait for ESC to timeout
-set timeoutlen=1000 ttimeoutlen=0
-
-" Vim Tmux Navigator
+" "}}}
+" # Vim Tmux Navigator  {{{
 let g:tmux_navigator_no_mappings = 1
 nnoremap <silent> <C-H> :TmuxNavigateLeft<cr>
 nnoremap <silent> <C-J> :TmuxNavigateDown<cr>
@@ -110,10 +117,9 @@ nnoremap <silent> <C-K> :TmuxNavigateUp<cr>
 nnoremap <silent> <C-L> :TmuxNavigateRight<cr>
 nnoremap <silent> <C-\> :TmuxNavigatePrevious<cr>
 
-set linebreak
-
-" Devdocs
-augroup plugin-devdocs
+" "}}}
+" # Devdocs  {{{
+augroup plugin_devdocs
     autocmd!
     autocmd FileType c,cpp,rust,haskell,python,javascript,html,eruby,ruby nmap <buffer>K <Plug>(devdocs-under-cursor)
     autocmd FileType c,cpp,rust,haskell,python,javascript,html,eruby,ruby vmap <buffer>K y:DevDocs <C-R>"<CR>
@@ -124,29 +130,19 @@ let g:devdocs_filetype_map = {
             \   'ruby': 'ruby',
             \ }
 
-" Remove yankstack enter mapping
-" nunmap <cr>
-
-" Semantic highlighting
+" "}}}
+" # Semantic highlighting  {{{
 let g:semanticTermColors = [28,1,2,3,87,5,6,7,81,9,10,34,11,13,14,15,165,154,49,139]
 nnoremap <Leader>sh :SemanticHighlightToggle<cr>
 
-" Greplace options
-set grepprg=ack
-let g:grep_cmd_opts = '--noheading'
+" "}}}
+" # Ack Options  {{{
+let g:ackprg ='ag --vimgrep'
 
-" Go to file ctrlp
-nmap gf <c-p><c-\>w
-vmap gf <esc><c-p><c-\>v
-
-" Ack Options
-if executable('ag')
-    let g:ackprg ='ag --vimgrep'
-endif
-
+" "}}}
+" # Pipe visual to shell {{{
 " By Xolox @ http://stackoverflow.com/questions/1533565/how-to-get-visually-selected-text-in-vimscript
 function! s:get_visual_selection()
-    " Why is this not a built-in Vim script function?!
     let [lnum1, col1] = getpos("'<")[1:2]
     let [lnum2, col2] = getpos("'>")[1:2]
     let lines = getline(lnum1, lnum2)
@@ -169,7 +165,8 @@ endfunction
 command! -range VisualCommand <line1>,<line2>call s:visual_command()
 vnoremap <leader>\| :VisualCommand<CR>
 
-" Airline
+" }}} "
+" # Airline  {{{
 let g:airline_powerline_fonts = 1
 let g:airline_theme = 'powerlineish'
 let g:airline_inactive_collapse = 1
@@ -210,10 +207,12 @@ augroup airline_tagbar_handler
     autocmd filetype * call s:ToggleAirlineOnFiletype()
 augroup end
 
-" Gutentags
+" "}}}
+" # Gutentags  {{{
 let g:gutentags_exclude = ['node_modules', '.git']
 
-" YouCompleteMe
+" "}}}
+" # YouCompleteMe  {{{
 nnoremap <leader>ycm :let g:ycm_auto_trigger = !g:ycm_auto_trigger<cr>
 nnoremap <leader>gtd :YcmCompleter GoTo<cr>
 nnoremap <leader>gtr :YcmCompleter GoToReferences<cr>:cclose<cr>:copen<cr>
@@ -230,8 +229,8 @@ let g:ycm_complete_in_strings                           = 1
 let g:ycm_collect_identifiers_from_comments_and_strings = 1
 let g:ycm_collect_identifiers_from_tags_files           = 1
 
-" UltiSnips
-
+" "}}}
+" # UltiSnips  {{{
 let g:ulti_expand_res = 0
 let g:ulti_jump_forwards_res = 0
 function! JumpOrExpandSnippet()
@@ -261,20 +260,24 @@ nmap <leader>esp :UltiSnipsEdit<cr>
 
 inoremap <silent> <c-l> <esc>:<c-u>Unite ultisnips -start-insert<cr>
 
-" ToggleList
+" "}}}
+" # ToggleList  {{{
 let g:toggle_list_no_mappings = 1
 
-" NerdTREE
+" "}}}
+" # NerdTREE  {{{
 let NERDTreeIgnore=['\.pyc$']
 nnoremap <leader>ff :NERDTreeFind<cr>
 
-" Ruby
+" "}}}
+" # Ruby  {{{
 let g:rubycomplete_buffer_loading = 1
 let g:rubycomplete_classes_in_global = 1
 let g:rubycomplete_use_bundler = 1
 let g:rubycomplete_load_gemfile = 1
 
-" Vimux
+" "}}}
+" # Vimux  {{{
 let VimuxResetSequence = "q q C-u"
 " Prompt for a command to run
 map <localleader>vp :VimuxPromptCommand<CR>
@@ -360,8 +363,8 @@ nmap <localleader><CR> V<localleader>vs
 nmap <localleader>vaa ggVG<localleader>vs
 nmap <localleader>vaj ggVG<localleader>vj
 
-" Python specific shortcuts
-augroup python-vimux-shortuts
+" Python specific shortcuts 
+augroup python_vimux_shortuts
     autocmd!
     autocmd FileType python vmap <buffer> <localleader>vs :call VimuxSlimeLineBreak()<CR>`>j^
     autocmd FileType python nmap <localleader><CR> V:call VimuxSlime()<CR>`>j^
@@ -373,12 +376,14 @@ nnoremap <localleader>vw :call VimuxRunCommand(GetNodemonCommand())<CR>
 nmap <localleader>vr <localleader>vq:call VimuxRunCommand(GetReplCommand())<CR>
 nnoremap <localleader>vtp :call VimuxRunCommand('exec-notify ./script/test ' . expand('%'))<cr>
 
-" Localvimrc
+" "}}}
+" # Localvimrc  {{{
 let g:localvimrc_persistent = 1
 let g:avoid_standard_js_autowriter = 1
 let g:localvimrc_event = ['VimEnter']
 
-" Autoformat
+" "}}}
+" # Autoformat  {{{
 noremap <leader>sb :Autoformat<cr>
 let g:formatdef_sqlformat = '"sqlformat -k upper -r --indent_width=4 -"'
 let g:formatdef_rubocop = '"rubocop --auto-correct " . expand("%") . " -o /dev/null || cat " . expand("%")'
@@ -386,7 +391,8 @@ let g:formatdef_standardjs = '"standard-format -"'
 let g:formatters_sql = ['sqlformat']
 let g:formatters_ruby = ['rubocop']
 
-" Autoft
+" "}}}
+" # Autoft  {{{
 let g:autoft_config = [
             \ { 'filetype': 'html' , 'pattern': '<\%(!DOCTYPE\|html\|head\|script\)' },
             \ { 'filetype': 'c'    , 'pattern': '^\s*#\s*\%(include\|define\)\>' },
@@ -395,10 +401,12 @@ let g:autoft_config = [
             \ { 'filetype': 'sql'  , 'pattern': '^\s*SELECT.*$' },
             \ ]
 
-" GUndo
+" "}}}
+" # GUndo  {{{
 nnoremap <leader>gu :GundoToggle<CR>
 
-" Winresizer
+" "}}}
+" # Winresizer  {{{
 let g:winresizer_start_key = '<leader>wr'
 let g:winresizer_keycode_left = 72
 let g:winresizer_keycode_right = 76
@@ -409,10 +417,12 @@ nmap <leader>J <leader>wrJ
 nmap <leader>K <leader>wrK
 nmap <leader>L <leader>wrL
 
-" Tabularize
+" "}}}
+" # Tabularize  {{{
 noremap <leader>ta :Tabularize /
 
-" SQLComplete
+" "}}}
+" # SQLComplete  {{{
 function! MyOwnSqlComplete(findstart, base)
     if a:findstart
         return sqlcomplete#Complete(a:findstart, a:base)
@@ -432,23 +442,25 @@ function! MyOwnSqlComplete(findstart, base)
     endif
 endfun
 
-augroup my-sql-complete
+augroup my_sql_complete
     autocmd!
     autocmd FileType sql set omnifunc=MyOwnSqlComplete
 augroup END
 
-" Vim Signify
+" "}}}
+" # Vim Signify  {{{
 let g:signify_update_on_focusgained = 1
 let g:signify_update_on_bufenter = 1
 
-" R specific
-augroup R-specific-settings
+" "}}}
+" # R specific  {{{
+augroup R_specific_settings
     au!
     au FileType R,rmd let b:delimitMate_matchpairs = "(:),[:],{:}"
 augroup END
 
-" Textobj User
-
+" "}}}
+" # Textobj User  {{{
 call textobj#user#plugin('javascriptchunck', {
             \   '-': {
             \     'select-a-function': 'JavaScriptChuncklock',
@@ -481,16 +493,35 @@ call textobj#user#map('python', {
 let g:textobj#methodcall#select_a = 'am'
 let g:textobj#methodcall#select_i = 'im'
 
-" Tcommenter
+" "}}}
+" # Textobj column  {{{
+let g:skip_default_textobj_word_column_mappings = 1
+xnoremap <silent> ak :<C-u>call TextObjWordBasedColumn("aw")<cr>
+xnoremap <silent> aK :<C-u>call TextObjWordBasedColumn("aW")<cr>
+xnoremap <silent> ik :<C-u>call TextObjWordBasedColumn("iw")<cr>
+xnoremap <silent> iK :<C-u>call TextObjWordBasedColumn("iW")<cr>
+onoremap <silent> ak :call TextObjWordBasedColumn("aw")<cr>
+onoremap <silent> aK :call TextObjWordBasedColumn("aW")<cr>
+onoremap <silent> ik :call TextObjWordBasedColumn("iw")<cr>
+onoremap <silent> iK :call TextObjWordBasedColumn("iW")<cr>
+
+" "}}}
+" # Tcommenter  {{{
 let g:tcommentTextObjectInlineComment = ''
 
-" Unite.vim
-
+" "}}}
+" # Unite.vim {{{
+" Set default matcher options
 call unite#custom#source('grep, line, outline', 'matchers', 'matcher_fuzzy')
 call unite#custom#source('grep', 'sorters', 'sorter_rank')
 call unite#custom#source('location_list, quickfix', 'sorters', 'sorter_nothing')
 call unite#filters#matcher_default#use(['matcher_fuzzy'])
 call unite#filters#sorter_default#use(['sorter_rank'])
+call unite#custom#profile('default', 'context', {
+    \   'start_insert': 0,
+    \   'winheight': 15,
+    \   'direction': 'botright',
+    \ })
 
 " Using ag as recursive command.
 let g:unite_source_rec_async_command = ['ag', '--follow', '--nocolor', '--nogroup', '--hidden', '-g', '']
@@ -498,23 +529,18 @@ let g:unite_source_grep_command = 'ag'
 let g:unite_source_grep_default_opts = '-i --vimgrep --hidden --ignore ' .
             \ '''.hg'' --ignore ''.svn'' --ignore ''.git'' --ignore ''.bzr'''
 let g:unite_source_grep_recursive_opt = ''
-
 let g:unite_source_line_enable_highlight = 1
-
 " Yank history mappings
 nnoremap <leader>< :<c-u>Unite history/yank -default-action=append -no-start-insert<CR>
 vmap <leader>< d:<c-u>Unite history/yank<CR>
-
 " Quickly switch buffers
 nnoremap <leader>bb :Unite -quick-match buffer<cr>
-
 " Cmd completion
 cmap <c-@> <Plug>(unite_cmdmatch_complete)
-
 " File explorer
 nnoremap <silent> <c-p> :<C-u>Unite -buffer-name=files file_rec/neovim:! file/new<CR>
 
-" Tmux completion
+" Tmux completion unite settings
 function! GetTmuxCompletion()
     let text = unite#get_cur_text()
     let text = substitute(text, '.\{-}\(\k*\)$', '\1', '')
@@ -522,19 +548,14 @@ function! GetTmuxCompletion()
 endfunction
 inoremap <silent><expr> <c-x><c-t> "\<c-g>u\<c-w>".GetTmuxCompletion()."\<right>"
 
-" Localvimrc
+" Localvimrc unite settings
 nmap <leader>epv :<c-u>Unite -input=.lvimrc file_rec/neovim<cr>
 nmap <leader>spv :<c-u>LocalVimRC<cr>
-
-" The prefix key.
-nnoremap [unite] <Nop>
-nmap s [unite]
 
 " Unite quickfix
 let g:unite_quickfix_is_multiline=0
 call unite#custom_source('quickfix', 'converters', 'converter_quickfix_highlight')
 call unite#custom_source('location_list', 'converters', 'converter_quickfix_highlight')
-
 nnoremap <silent> [unite]qf :<c-u>Unite -wrap -prompt-direction=top quickfix<cr>
 nnoremap <silent> [unite]ll :<c-u>Unite -wrap -prompt-direction=top location_list<cr>
 
@@ -544,6 +565,9 @@ nnoremap <silent> ]z :<c-u>UniteNext<cr>
 nnoremap <silent> [Z :<c-u>UniteFirst<cr>
 nnoremap <silent> ]Z :<c-u>UniteLast<cr>
 
+" prefix key
+nnoremap [unite] <Nop>
+nmap s [unite]
 nnoremap <silent> [unite]r :<C-u>UniteResume<CR>
 nnoremap <silent> [unite]ma :<C-u>Unite mapping<CR>
 nnoremap <silent> [unite]me :<C-u>Unite output:message<CR>
@@ -553,13 +577,6 @@ nnoremap <silent> [unite]tt :<c-u>Unite tmuxcomplete -default-action=append<cr>
 nnoremap <silent> [unite]tl :<c-u>Unite tmuxcomplete/lines -default-action=append<cr>
 nnoremap <silent> [unite]li :<c-u>Unite line<cr>
 nnoremap <silent> [unite]f :<C-u>Unite file_mru<cr>
-
-" Like ctrlp.vim settings.
-call unite#custom#profile('default', 'context', {
-    \   'start_insert': 0,
-    \   'winheight': 15,
-    \   'direction': 'botright',
-    \ })
 
 autocmd FileType unite call s:unite_my_settings()
 function! s:unite_my_settings()
@@ -577,72 +594,8 @@ function! s:unite_my_settings()
     nmap <buffer><expr> v unite#do_action('left')
     imap <buffer><expr> <c-v> unite#do_action('left')
 endfunction
-
-" Indent guides for Neovim
-let g:indent_guides_auto_colors = 0
-hi IndentGuidesOdd  guibg=#353738 ctermbg=none
-hi IndentGuidesEven guibg=#252627 ctermbg=black
-
-" Neomake
-augroup neomake_save_linter
-    autocmd!
-    autocmd BufWritePost *.js Neomake
-    autocmd BufWritePost *.py Neomake
-    autocmd BufWritePost *.rb Neomake
-augroup end
-let g:neomake_javascript_standard_maker = { 'errorformat': '%E %f:%l:%c: %m' }
-
-" Textobj column
-let g:skip_default_textobj_word_column_mappings = 1
-
-xnoremap <silent> ak :<C-u>call TextObjWordBasedColumn("aw")<cr>
-xnoremap <silent> aK :<C-u>call TextObjWordBasedColumn("aW")<cr>
-xnoremap <silent> ik :<C-u>call TextObjWordBasedColumn("iw")<cr>
-xnoremap <silent> iK :<C-u>call TextObjWordBasedColumn("iW")<cr>
-onoremap <silent> ak :call TextObjWordBasedColumn("aw")<cr>
-onoremap <silent> aK :call TextObjWordBasedColumn("aW")<cr>
-onoremap <silent> ik :call TextObjWordBasedColumn("iw")<cr>
-onoremap <silent> iK :call TextObjWordBasedColumn("iW")<cr>
-
-" Vim autoswap
-let g:autoswap_detect_tmux = 1
-
-" Delimitmate
-imap <expr> <c-x><c-l> ( delimitMate#ShouldJump() ? "<Plug>delimitMateS-BS" : "") . "\<c-x>\<c-l>"
-let g:delimitMate_expand_space = 1
-let g:delimitMate_expand_cr = 1
-
-if !exists('g:set_carriage_return')
-    imap <CR> <C-G>u<Plug>delimitMateCR
-    let g:set_carriage_return = 1
-endif
-
-" Windowswap
-let g:windowswap_map_keys = 0 "prevent default bindings
-nnoremap <silent> <leader>pp :call WindowSwap#EasyWindowSwap()<CR>
-
-" Vimwiki
-let g:vimwiki_list = [{'path': '~/Dropbox/Apps/vimwiki/wiki', 'path_html': '~/Dropbox/Apps/vimwiki/html'}]
-
-" Persistent undo
-if has('persistent_undo')
-    set undolevels=5000
-    set undodir=$HOME/.VIM_UNDO_FILES
-    set undofile
-endif
-set updatecount=10
-
-" Schlepp
-if !exists('g:set_schlepp_shortcuts')
-    vmap <unique> <up>    :<c-u>set clipboard=<cr>gv<Plug>SchleppUp:<c-u>set clipboard=unnamed<cr>gv
-    vmap <unique> <down>  :<c-u>set clipboard=<cr>gv<Plug>SchleppDown:<c-u>set clipboard=unnamed<cr>gv
-    vmap <unique> <left>  :<c-u>set clipboard=<cr>gv<Plug>SchleppLeft:<c-u>set clipboard=unnamed<cr>gv
-    vmap <unique> <right> :<c-u>set clipboard=<cr>gv<Plug>SchleppRight:<c-u>set clipboard=unnamed<cr>gv
-    vmap <unique> D       :<c-u>set clipboard=<cr>gv<Plug>SchleppDup:<c-u>set clipboard=unnamed<cr>gv
-    let g:set_schlepp_shortcuts = 1
-endif
-
-" Unite Outline
+" " }}}
+" # Unite Outline {{{
 let g:unite_source_outline_highlight = {
 \ 'comment' : 'Comment',
 \ 'expanded': 'Constant',
@@ -662,3 +615,66 @@ let g:unite_source_outline_highlight = {
 \ 'level_6' : 'Normal',
 \ 'parameter_list': 'Normal',
 \ }
+" "}}}
+" # Indent guides configuration Neovim  {{{
+let g:indent_guides_auto_colors = 0
+hi IndentGuidesOdd  guibg=#353738 ctermbg=none
+hi IndentGuidesEven guibg=#252627 ctermbg=black
+
+" "}}}
+" # Neomake  {{{
+augroup neomake_save_linter
+    autocmd!
+    autocmd BufWritePost *.js Neomake
+    autocmd BufWritePost *.py Neomake
+    autocmd BufWritePost *.rb Neomake
+augroup end
+let g:neomake_javascript_standard_maker = { 'errorformat': '%E %f:%l:%c: %m' }
+
+" "}}}
+" # Vim autoswap  {{{
+let g:autoswap_detect_tmux = 1
+
+" "}}}
+" # Delimitmate  {{{
+imap <expr> <c-x><c-l> ( delimitMate#ShouldJump() ? "<Plug>delimitMateS-BS" : "") . "\<c-x>\<c-l>"
+let g:delimitMate_expand_space = 1
+let g:delimitMate_expand_cr = 1
+
+if !exists('g:set_carriage_return')
+    imap <CR> <C-G>u<Plug>delimitMateCR
+    let g:set_carriage_return = 1
+endif
+
+
+" "}}}
+" # Windowswap  {{{
+let g:windowswap_map_keys = 0 "prevent default bindings
+nnoremap <silent> <leader>pp :call WindowSwap#EasyWindowSwap()<CR>
+
+" "}}}
+" # Vimwiki  {{{
+let g:vimwiki_list = [{'path': '~/Dropbox/Apps/vimwiki/wiki', 'path_html': '~/Dropbox/Apps/vimwiki/html'}]
+
+" "}}}
+" # Persistent undo  {{{
+if has('persistent_undo')
+    set undolevels=5000
+    set undodir=$HOME/.VIM_UNDO_FILES
+    set undofile
+endif
+set updatecount=10
+
+
+" "}}}
+" # Schlepp  {{{
+if !exists('g:set_schlepp_shortcuts')
+    vmap <unique> <up>    :<c-u>set clipboard=<cr>gv<Plug>SchleppUp:<c-u>set clipboard=unnamed<cr>gv
+    vmap <unique> <down>  :<c-u>set clipboard=<cr>gv<Plug>SchleppDown:<c-u>set clipboard=unnamed<cr>gv
+    vmap <unique> <left>  :<c-u>set clipboard=<cr>gv<Plug>SchleppLeft:<c-u>set clipboard=unnamed<cr>gv
+    vmap <unique> <right> :<c-u>set clipboard=<cr>gv<Plug>SchleppRight:<c-u>set clipboard=unnamed<cr>gv
+    vmap <unique> D       :<c-u>set clipboard=<cr>gv<Plug>SchleppDup:<c-u>set clipboard=unnamed<cr>gv
+    let g:set_schlepp_shortcuts = 1
+endif
+
+" "}}}
