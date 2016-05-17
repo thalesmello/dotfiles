@@ -2,21 +2,18 @@
 let maplocalleader = "'"
 set cursorline
 set nojoinspaces
-set foldlevelstart=1
 set wildmode=list:longest,full
 set listchars=tab:▸\ ,eol:¬
 set lazyredraw
 set linebreak
 set updatetime=500
 
-" Set unnamed register as default clipboard
-set clipboard=unnamed
-
 " Don't wait for ESC to timeout
 set timeoutlen=1000 ttimeoutlen=0
 " }}}"
 " # Mappings  {{{
-nnoremap <leader>. `>
+vnoremap <c-c> "+y
+nnoremap <leader>o `>
 nnoremap <leader>ss :w<cr>
 nnoremap <leader>saa ggVG
 nnoremap <leader>saq ?\v('''\|""")<CR>vw//e<CR>
@@ -26,7 +23,6 @@ nmap <leader>/ *N
 vmap <leader>/ *N
 vmap <leader>c/ *Ncgn
 nmap <leader>c/ *Ncgn
-nmap <leader>of vafzO
 inoremap <c-u> <c-g>u<c-u>
 nnoremap Y y$
 vmap <leader>yj Jgvyu
@@ -42,6 +38,7 @@ noremap <c-y> 2<c-y>
 noremap gH H
 noremap gL L
 nnoremap <leader>; A;<esc>
+nnoremap <leader><bs> $x<esc>
 
 command! YankShouldToExpectRegex let @s = "\\v\\s+\\zs((\\w|\\.|\\[|\\]|'|\")+)\\.should/expect(\\1).to"
 command! YankStatusToPropertyCheck let @s = '\vhave\.status\((\d+)\)/have.property(' . "'statusCode', \\1)"
@@ -403,7 +400,7 @@ let g:autoft_config = [
 
 " "}}}
 " # GUndo  {{{
-nnoremap <leader>gu :GundoToggle<CR>
+nnoremap <leader>gu :MundoToggle<CR>
 
 " "}}}
 " # Winresizer  {{{
@@ -520,7 +517,7 @@ call unite#filters#sorter_default#use(['sorter_rank'])
 call unite#custom#profile('default', 'context', {
     \   'start_insert': 0,
     \   'winheight': 15,
-    \   'direction': 'botright',
+    \   'direction': 'topleft',
     \ })
 
 " Using ag as recursive command.
@@ -538,7 +535,16 @@ nnoremap <leader>bb :Unite -quick-match buffer<cr>
 " Cmd completion
 cmap <c-@> <Plug>(unite_cmdmatch_complete)
 " File explorer
-nnoremap <silent> <c-p> :<C-u>Unite -buffer-name=files file_rec/neovim:! file/new<CR>
+if has('nvim')
+    nnoremap <silent> <c-p> :<C-u>Unite -buffer-name=files file_rec/neovim:! file/new<CR>
+else
+    nnoremap <silent> <c-p> :<C-u>Unite -buffer-name=files file_rec/async:! file/new<CR>
+endif
+" Ack.vim
+nnoremap <silent> <c-f> :<c-u>Unite grep:!<cr>
+nnoremap <silent> <leader>a "uyiw:<c-u>Unite grep:!::<c-r>u<cr>
+vnoremap <silent> <leader>a "uy:<c-u>Unite grep:!::<c-r>u<cr>
+
 
 " Tmux completion unite settings
 function! GetTmuxCompletion()
@@ -584,6 +590,8 @@ function! s:unite_my_settings()
     imap <buffer> <C-z> <Plug>(unite_toggle_transpose_window)
     nmap <buffer> <C-j> <Plug>(unite_toggle_auto_preview)
     imap <buffer> <C-j> <Plug>(unite_toggle_auto_preview)
+    nmap <buffer> <C-p> <Plug>(unite_narrowing_input_history)
+    imap <buffer> <C-p> <Plug>(unite_narrowing_input_history)
     nmap <buffer> <C-r> <Plug>(unite_narrowing_input_history)
     imap <buffer> <C-r> <Plug>(unite_narrowing_input_history)
     nmap <buffer> <Tab> <Plug>(unite_complete)
@@ -591,6 +599,7 @@ function! s:unite_my_settings()
     nmap <buffer> <C-@> <Plug>(unite_choose_action)
     imap <buffer> <C-@> <Plug>(unite_choose_action)
     nmap <buffer> <esc> <Plug>(unite_exit)
+    nmap <buffer> / <Plug>(unite_insert_enter)
     nmap <buffer><expr> v unite#do_action('left')
     imap <buffer><expr> <c-v> unite#do_action('left')
 endfunction
@@ -669,11 +678,11 @@ set updatecount=10
 " "}}}
 " # Schlepp  {{{
 if !exists('g:set_schlepp_shortcuts')
-    vmap <unique> <up>    :<c-u>set clipboard=<cr>gv<Plug>SchleppUp:<c-u>set clipboard=unnamed<cr>gv
-    vmap <unique> <down>  :<c-u>set clipboard=<cr>gv<Plug>SchleppDown:<c-u>set clipboard=unnamed<cr>gv
-    vmap <unique> <left>  :<c-u>set clipboard=<cr>gv<Plug>SchleppLeft:<c-u>set clipboard=unnamed<cr>gv
-    vmap <unique> <right> :<c-u>set clipboard=<cr>gv<Plug>SchleppRight:<c-u>set clipboard=unnamed<cr>gv
-    vmap <unique> D       :<c-u>set clipboard=<cr>gv<Plug>SchleppDup:<c-u>set clipboard=unnamed<cr>gv
+    vmap <unique> <up>    <Plug>SchleppUp
+    vmap <unique> <down>  <Plug>SchleppDown
+    vmap <unique> <left>  <Plug>SchleppLeft
+    vmap <unique> <right> <Plug>SchleppRight
+    vmap <unique> D       <Plug>SchleppDup
     let g:set_schlepp_shortcuts = 1
 endif
 
