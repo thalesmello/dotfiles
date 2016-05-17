@@ -173,7 +173,7 @@ set autoread
 colorscheme molokai
 
 " Leader = ,
-let mapleader = ","
+let mapleader = "\<space>"
 " }}}
 " ##### General mappings  {{{
 " ##### Tabs {{{
@@ -210,7 +210,7 @@ nnoremap <leader>d <C-w>q
 " }}}
 " ##### Folding {{{
 " Toggles folding with space
-nnoremap <Space> za
+nnoremap <c-@> za
 " Open all folds
 nnoremap zO zR
 " Close all folds
