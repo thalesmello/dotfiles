@@ -273,19 +273,19 @@ let g:rubycomplete_load_gemfile = 1
 " # Vimux  {{{
 let VimuxResetSequence = "q q i C-u"
 " Prompt for a command to run
-map <localleader>vp :VimuxPromptCommand<CR>
+map <silent> <localleader>vp :VimuxPromptCommand<CR>
 " Run last command executed by VimuxRunCommand
-map <localleader>vl :call VimuxSendKeys('up Enter')<CR>
+map <silent> <localleader>vl :call VimuxSendKeys('up Enter')<CR>
 " Inspect runner pane
-map <localleader>vi :VimuxInspectRunner<CR>
+map <silent> <localleader>vi :VimuxInspectRunner<CR>
 " Close vim tmux runner opened by VimuxRunCommand
-map <localleader>vq :VimuxCloseRunner<CR>
+map <silent> <localleader>vq :VimuxCloseRunner<CR>
 " Interrupt any command running in the runner pane
-map <localleader>vx :VimuxInterruptRunner<CR>
+map <silent> <localleader>vx :VimuxInterruptRunner<CR>
 " Zoom the runner pane (use <bind-key> z to restore runner pane)
-map <localleader>vz :call VimuxZoomRunner()<CR>
+map <silent> <localleader>vz :call VimuxZoomRunner()<CR>
 " Open Vimux Page if it's closed
-map <localleader>vo :call VimuxOpenRunner()<CR>
+map <silent> <localleader>vo :call VimuxOpenRunner()<CR>
 
 function! VimuxSlime() range
     call VimuxRunCommand(s:get_visual_selection())
@@ -341,20 +341,20 @@ function! GetReplCommand()
 endfunction
 
 " If text is selected, save it in the v buffer and send that buffer it to tmux
-vmap <localleader>vs :call VimuxSlime()<CR>`>j^
-vmap <localleader>vj Jgv:call VimuxSlime()<CR>u`>j^
-vmap <localleader>vyp Jgv:call VimuxCopyPostres()<CR>u`>j^
-vmap <localleader>v; Jgv:call VimuxSlimeSemicolon()<CR>u`>j^
-vmap <localleader><CR> <localleader>vs
+vmap <silent> <localleader>vs :call VimuxSlime()<CR>`>j^
+vmap <silent> <localleader>vj Jgv:call VimuxSlime()<CR>u`>j^
+vmap <silent> <localleader>vyp Jgv:call VimuxCopyPostres()<CR>u`>j^
+vmap <silent> <localleader>v; Jgv:call VimuxSlimeSemicolon()<CR>u`>j^
+vmap <silent> <localleader><CR> <localleader>vs
 
 " Select current paragraph and send it to tmux
-nmap <localleader>vs vip<localleader>vs
-nmap <localleader>vj vip<localleader>vj
-nmap <localleader>vyp vip<localleader>vyp
-nmap <localleader>v; vip<localleader>v;
-nmap <localleader><CR> V<localleader>vs
-nmap <localleader>vaa ggVG<localleader>vs
-nmap <localleader>vaj ggVG<localleader>vj
+nmap <silent> <localleader>vs vip<localleader>vs
+nmap <silent> <localleader>vj vip<localleader>vj
+nmap <silent> <localleader>vyp vip<localleader>vyp
+nmap <silent> <localleader>v; vip<localleader>v;
+nmap <silent> <localleader><CR> V<localleader>vs
+nmap <silent> <localleader>vaa ggVG<localleader>vs
+nmap <silent> <localleader>vaj ggVG<localleader>vj
 
 " Python specific shortcuts 
 augroup python_vimux_shortuts
@@ -364,10 +364,10 @@ augroup python_vimux_shortuts
 augroup END
 
 " Execute current file in the interpreter
-nnoremap <localleader>vf :w<CR>:call VimuxRunCommand(GetExecuteCommand())<CR>
-nnoremap <localleader>vw :call VimuxRunCommand(GetNodemonCommand())<CR>
-nmap <localleader>vr <localleader>vq:call VimuxRunCommand(GetReplCommand())<CR>
-nnoremap <localleader>vtp :call VimuxRunCommand('exec-notify ./script/test ' . expand('%'))<cr>
+nnoremap <silent> <localleader>vf :w<CR>:call VimuxRunCommand(GetExecuteCommand())<CR>
+nnoremap <silent> <localleader>vw :call VimuxRunCommand(GetNodemonCommand())<CR>
+nmap <silent> <localleader>vr <localleader>vq:call VimuxRunCommand(GetReplCommand())<CR>
+nnoremap <silent> <localleader>vtp :call VimuxRunCommand('exec-notify ./script/test ' . expand('%'))<cr>
 
 " "}}}
 " # Localvimrc  {{{
