@@ -218,7 +218,7 @@ nnoremap zC zM
 " Close current fold
 nnoremap zc zc
 " Close all folds except the current one
-nnoremap zf mzzMzvzz
+nnoremap zf mzzM`zzvzz
 " }}}
 " ##### Misc {{{
 " Edit and load vimrc
