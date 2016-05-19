@@ -7,6 +7,7 @@ set listchars=tab:▸\ ,eol:¬
 set lazyredraw
 set linebreak
 set updatetime=500
+let $NVIM_TUI_ENABLE_CURSOR_SHAPE=1
 
 " Don't wait for ESC to timeout
 set timeoutlen=1000 ttimeoutlen=0
@@ -39,6 +40,14 @@ noremap gH H
 noremap gL L
 nnoremap <leader>; A;<esc>
 nnoremap <leader><bs> $x<esc>
+nnoremap <S-ScrollWheelDown> zl
+nnoremap <S-2-ScrollWheelDown> 2zl
+nnoremap <S-3-ScrollWheelDown> 3zl
+nnoremap <S-4-ScrollWheelDown> 4zl
+nnoremap <S-ScrollWheelUP> zh
+nnoremap <S-2-ScrollWheelUP> zh
+nnoremap <S-3-ScrollWheelUP> 2zh
+nnoremap <S-4-ScrollWheelUP> 2zh
 
 command! YankShouldToExpectRegex let @s = "\\v\\s+\\zs((\\w|\\.|\\[|\\]|'|\")+)\\.should/expect(\\1).to"
 command! YankStatusToPropertyCheck let @s = '\vhave\.status\((\d+)\)/have.property(' . "'statusCode', \\1)"
@@ -50,13 +59,20 @@ function! s:PulseCursor()
     let cursorcolumn_opt = &cursorcolumn
     setlocal cursorcolumn
     redraw
-    sleep 10m
+    sleep 50m
+    setlocal nocursorcolumn
+    redraw
+    sleep 50m
+    setlocal cursorcolumn
+    redraw
+    sleep 50m
     setlocal nocursorcolumn
     redraw
 endfunction
 
 if !has('gui')
     augroup pulse_cursor_on_focus
+        autocmd!
         autocmd FocusGained * call s:PulseCursor()
     augroup end
 endif
@@ -700,4 +716,4 @@ if !exists('g:set_schlepp_shortcuts')
     let g:set_schlepp_shortcuts = 1
 endif
 
-" "}}}
+" "}}}  
