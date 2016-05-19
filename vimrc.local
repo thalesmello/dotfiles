@@ -8,6 +8,9 @@ set lazyredraw
 set linebreak
 set updatetime=500
 let $NVIM_TUI_ENABLE_CURSOR_SHAPE=1
+if has('nvim')
+    set termguicolors
+endif
 
 " Don't wait for ESC to timeout
 set timeoutlen=1000 ttimeoutlen=0
