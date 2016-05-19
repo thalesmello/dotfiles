@@ -106,6 +106,10 @@ tmux_conf_new_session_prompt=false
 # ------------------------------------------------------------------------------
 # this is the place to further customize tmux's configuration
 
+# Change bind key
+set -g prefix2 C-Space
+bind-key C-Space send-prefix -2
+
 # Urlview shortcut
 bind u run "cut -c3- ~/.tmux.conf | sh -s urlview #{pane_id}"
 
@@ -137,7 +141,7 @@ bind -r } swap-pane -D       # swap current pane with the next one
 bind -r { swap-pane -U       # swap current pane with the previous one
 
 # Cycle layouts
-bind-key -r C-Space next-layout
+bind-key -r Space next-layout
 
 # Plugin Configurations
 set -g @scroll-down-exit-copy-mode "off"

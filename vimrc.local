@@ -44,6 +44,23 @@ command! YankShouldToExpectRegex let @s = "\\v\\s+\\zs((\\w|\\.|\\[|\\]|'|\")+)\
 command! YankStatusToPropertyCheck let @s = '\vhave\.status\((\d+)\)/have.property(' . "'statusCode', \\1)"
 
 " "}}}
+" # Pulse Cursor  {{{
+function! s:PulseCursor()
+    let cursorline_opt = &cursorline
+    let cursorcolumn_opt = &cursorcolumn
+    setlocal cursorcolumn
+    redraw
+    sleep 10m
+    setlocal nocursorcolumn
+    redraw
+endfunction
+
+if !has('gui')
+    augroup pulse_cursor_on_focus
+        autocmd FocusGained * call s:PulseCursor()
+    augroup end
+endif
+" "}}}
 " # Vim over  {{{
 nnoremap  gs  :OverCommandLine<cr>%s//g<LEFT><LEFT>
 vnoremap  gs  :OverCommandLine<cr>s//g<LEFT><LEFT>
