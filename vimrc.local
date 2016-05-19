@@ -41,9 +41,9 @@ noremap gL L
 nnoremap <leader>; A;<esc>
 nnoremap <leader><bs> $x<esc>
 nnoremap <S-ScrollWheelDown> zl
-nnoremap <S-2-ScrollWheelDown> 2zl
-nnoremap <S-3-ScrollWheelDown> 3zl
-nnoremap <S-4-ScrollWheelDown> 4zl
+nnoremap <S-2-ScrollWheelDown> zl
+nnoremap <S-3-ScrollWheelDown> 2zl
+nnoremap <S-4-ScrollWheelDown> 2zl
 nnoremap <S-ScrollWheelUP> zh
 nnoremap <S-2-ScrollWheelUP> zh
 nnoremap <S-3-ScrollWheelUP> 2zh
@@ -80,6 +80,8 @@ augroup pulse_cursor_on_focus
     autocmd!
     autocmd FocusGained * call s:PulseCursor()
 augroup end
+
+nnoremap <leader>pc :call <SID>PulseCursor()<cr>
 " "}}}
 " # Vim over  {{{
 nnoremap  gs  :OverCommandLine<cr>%s//g<LEFT><LEFT>
