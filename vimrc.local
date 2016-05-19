@@ -57,25 +57,29 @@ command! YankStatusToPropertyCheck let @s = '\vhave\.status\((\d+)\)/have.proper
 function! s:PulseCursor()
     let cursorline_opt = &cursorline
     let cursorcolumn_opt = &cursorcolumn
+    setlocal nocursorline
+    redraw
+    sleep 50m
+    setlocal cursorline
     setlocal cursorcolumn
     redraw
     sleep 50m
     setlocal nocursorcolumn
+    setlocal nocursorline
     redraw
     sleep 50m
     setlocal cursorcolumn
+    setlocal cursorline
     redraw
     sleep 50m
     setlocal nocursorcolumn
     redraw
 endfunction
 
-if !has('gui')
-    augroup pulse_cursor_on_focus
-        autocmd!
-        autocmd FocusGained * call s:PulseCursor()
-    augroup end
-endif
+augroup pulse_cursor_on_focus
+    autocmd!
+    autocmd FocusGained * call s:PulseCursor()
+augroup end
 " "}}}
 " # Vim over  {{{
 nnoremap  gs  :OverCommandLine<cr>%s//g<LEFT><LEFT>
