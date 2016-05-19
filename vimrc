@@ -207,7 +207,18 @@ nnoremap <leader>d <C-w>q
 " }}}
 " ##### Folding {{{
 " Toggles folding with space
-nnoremap <c-@> za
+nnoremap <s-tab> za
+if !has('gui')
+  function! JumpForwardOrToggleFold()
+    let oldpos = getpos('.')
+    execute "normal! 1\<c-i>"
+    let newpos = getpos('.')
+    if newpos == oldpos
+      normal za
+    endif
+  endf
+  nnoremap <silent> <tab> :<c-u>call JumpForwardOrToggleFold()<cr>
+endif
 " Open all folds
 nnoremap zO zR
 " Close all folds
