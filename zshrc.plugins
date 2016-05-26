@@ -5,7 +5,6 @@
 
 plugins=(git
 		gitfast
-		safe-paste
 		docker
 		git-extras
 		node
@@ -16,5 +15,5 @@ plugins=(git
 		extract
 		vi-mode
 		zsh-autosuggestions
-		zsh-titles)
+		titles)
 
