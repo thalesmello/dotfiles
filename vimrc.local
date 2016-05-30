@@ -44,14 +44,14 @@ noremap gH H
 noremap gL L
 nnoremap <leader>; A;<esc>
 nnoremap <leader><bs> $x<esc>
-nnoremap <S-ScrollWheelDown> zl
-nnoremap <S-2-ScrollWheelDown> zl
-nnoremap <S-3-ScrollWheelDown> 2zl
-nnoremap <S-4-ScrollWheelDown> 2zl
-nnoremap <S-ScrollWheelUP> zh
-nnoremap <S-2-ScrollWheelUP> zh
-nnoremap <S-3-ScrollWheelUP> 2zh
-nnoremap <S-4-ScrollWheelUP> 2zh
+nnoremap <S-ScrollWheelDown>   <ScrollWheelLeft>
+nnoremap <S-2-ScrollWheelDown> <2-ScrollWheelLeft>
+nnoremap <S-3-ScrollWheelDown> <3-ScrollWheelLeft>
+nnoremap <S-4-ScrollWheelDown> <4-ScrollWheelLeft>
+nnoremap <S-ScrollWheelUp>     <ScrollWheelRight>
+nnoremap <S-2-ScrollWheelUp>   <2-ScrollWheelRight>
+nnoremap <S-3-ScrollWheelUp>   <3-ScrollWheelRight>
+nnoremap <S-4-ScrollWheelUp>   <4-ScrollWheelRight>
 
 command! YankShouldToExpectRegex let @s = "\\v\\s+\\zs((\\w|\\.|\\[|\\]|'|\")+)\\.should/expect(\\1).to"
 command! YankStatusToPropertyCheck let @s = '\vhave\.status\((\d+)\)/have.property(' . "'statusCode', \\1)"
@@ -716,4 +716,9 @@ if !exists('g:set_schlepp_shortcuts')
     let g:set_schlepp_shortcuts = 1
 endif
 
+" "}}}  
+" # incsearch.vim  {{{
+map /  <Plug>(incsearch-forward)
+map ?  <Plug>(incsearch-backward)
+map g/ <Plug>(incsearch-stay)
 " "}}}  
