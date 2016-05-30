@@ -20,6 +20,7 @@ vnoremap <c-c> "+y
 nnoremap <leader>o `>
 nnoremap <leader>ss :w<cr>
 nnoremap <leader>saa ggVG
+nnoremap <leader>sy :setfiletype<space>
 nnoremap <leader>saq ?\v('''\|""")<CR>vw//e<CR>
 nnoremap <leader>siq ?\v('''\|""")<CR>wv//e<CR>ge
 nmap <leader>tb :TagbarToggle<CR>
@@ -425,16 +426,6 @@ let g:formatdef_rubocop = '"rubocop --auto-correct " . expand("%") . " -o /dev/n
 let g:formatdef_standardjs = '"standard-format -"'
 let g:formatters_sql = ['sqlformat']
 let g:formatters_ruby = ['rubocop']
-
-" "}}}
-" # Autoft  {{{
-let g:autoft_config = [
-            \ { 'filetype': 'html' , 'pattern': '<\%(!DOCTYPE\|html\|head\|script\)' },
-            \ { 'filetype': 'c'    , 'pattern': '^\s*#\s*\%(include\|define\)\>' },
-            \ { 'filetype': 'diff' , 'pattern': '^diff -' },
-            \ { 'filetype': 'sh'   , 'pattern': '^#!.*\%(\<sh\>\|\<bash\>\)\s*$' },
-            \ { 'filetype': 'sql'  , 'pattern': '^\s*SELECT.*$' },
-            \ ]
 
 " "}}}
 " # GUndo  {{{
