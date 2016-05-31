@@ -19,6 +19,7 @@ set timeoutlen=1000 ttimeoutlen=0
 " }}}"
 " # Mappings  {{{
 vnoremap <c-c> "+y
+nnoremap <localleader><localleader> <c-^>
 nnoremap <leader>o `>
 nnoremap <leader>ss :w<cr>
 nnoremap <leader>saa ggVG
@@ -139,17 +140,15 @@ let g:tagbar_autoclose = 1
 let g:tagbar_autofocus = 1
 
 " "}}}
-" # Sneak  {{{
-nnoremap s s
-nmap f <Plug>(SneakStreak)
-nmap F <Plug>(SneakStreakBackward)
-xmap f <Plug>(SneakStreak)
-xmap F <Plug>(SneakStreakBackward)
-omap f <Plug>(SneakStreak)
-omap F <Plug>(SneakStreakBackward)
-let g:sneak#use_ic_scs = 1
-let g:sneak#target_labels = "sfghjkl;qwertyuiopzxvbnm/SFGHJKL:QWERTYUOPZXCVBNM?"
-let g:sneak#textobject_z = 0
+" # Easymotion  {{{
+let g:EasyMotion_smartcase = 1
+nmap f <Plug>(easymotion-s)
+xmap f <Plug>(easymotion-s)
+omap f <Plug>(easymotion-s)
+nmap F <Plug>(easymotion-s2)
+xmap F <Plug>(easymotion-s2)
+omap F <Plug>(easymotion-s2)
+map  ; <Plug>(easymotion-next)
 
 " "}}}
 " # Vim Tmux Navigator  {{{
