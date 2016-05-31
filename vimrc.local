@@ -44,6 +44,7 @@ noremap gH H
 noremap gL L
 nnoremap <leader>; A;<esc>
 nnoremap <leader><bs> $x<esc>
+nnoremap <leader>= <c-w>=
 nnoremap <S-ScrollWheelUp>   <ScrollWheelLeft>
 nnoremap <S-2-ScrollWheelUp> <2-ScrollWheelLeft>
 nnoremap <S-3-ScrollWheelUp> <3-ScrollWheelLeft>
@@ -52,6 +53,7 @@ nnoremap <S-ScrollWheelDown>     <ScrollWheelRight>
 nnoremap <S-2-ScrollWheelDown>   <2-ScrollWheelRight>
 nnoremap <S-3-ScrollWheelDown>   <3-ScrollWheelRight>
 nnoremap <S-4-ScrollWheelDown>   <4-ScrollWheelRight>
+nnoremap <silent> <leader>q :pclose<cr>:cclose<cr>:lclose<cr>:UniteClose<cr>
 
 command! YankShouldToExpectRegex let @s = "\\v\\s+\\zs((\\w|\\.|\\[|\\]|'|\")+)\\.should/expect(\\1).to"
 command! YankStatusToPropertyCheck let @s = '\vhave\.status\((\d+)\)/have.property(' . "'statusCode', \\1)"
@@ -106,8 +108,6 @@ nnoremap <localleader>E :exec "normal va".nr2char(getchar())."\e`>"<CR>
 
 " "}}}
 " # Tmux complete  {{{
-nnoremap <leader>ut :set completefunc=tmuxcomplete#complete<cr>
-nnoremap <leader>uy :set completefunc=youcompleteme#Complete<cr>
 let g:tmuxcomplete#capture_args = '-J -S -'
 
 " "}}}
@@ -115,12 +115,12 @@ let g:tmuxcomplete#capture_args = '-J -S -'
 let g:multi_cursor_exit_from_insert_mode = 0
 let g:multi_cursor_exit_from_visual_mode = 0
 function! Multiple_cursors_before()
-    let s:old_ycm_auto_trigger = g:ycm_auto_trigger
-    let g:ycm_auto_trigger = 0
+    let s:old_disable_deoplete = g:deoplete#disable_auto_complete
+    let g:deoplete#disable_auto_complete = 1
 endfunction
 
 function! Multiple_cursors_after()
-    let g:ycm_auto_trigger = s:old_ycm_auto_trigger
+    let g:deoplete#disable_auto_complete = s:old_disable_deoplete
 endfunction
 
 nmap <c-n> :call multiple_cursors#new("n", 1)<CR>
@@ -248,22 +248,25 @@ augroup end
 let g:gutentags_exclude = ['node_modules', '.git']
 
 " "}}}
-" # YouCompleteMe  {{{
-nnoremap <leader>ycm :let g:ycm_auto_trigger = !g:ycm_auto_trigger<cr>
-nnoremap <leader>gtd :YcmCompleter GoTo<cr>
-nnoremap <leader>gtr :YcmCompleter GoToReferences<cr>:cclose<cr>:copen<cr>
-nnoremap <leader>gtk :YcmCompleter GetDoc<cr>
-nnoremap <leader>gtt :YcmCompleter GetType<cr>
-nnoremap <leader>rv :YcmCompleter RefactorRename<space>
-nnoremap <silent> <leader>q :pclose<cr>:cclose<cr>:lclose<cr>:UniteClose<cr>
-
-let g:ycm_path_to_python_interpreter                    = '/usr/bin/python2.7'
-let g:ycm_key_list_select_completion                    = ['<Down>']
-let g:ycm_key_list_previous_completion                  = ['<Up>']
-let g:ycm_complete_in_comments                          = 1
-let g:ycm_complete_in_strings                           = 1
-let g:ycm_collect_identifiers_from_comments_and_strings = 1
-let g:ycm_collect_identifiers_from_tags_files           = 1
+" # Deoplete  {{{
+" nnoremap <leader>ycm :let g:ycm_auto_trigger = !g:ycm_auto_trigger<cr>
+" nnoremap <leader>gtd :YcmCompleter GoTo<cr>
+" nnoremap <leader>gtr :YcmCompleter GoToReferences<cr>:cclose<cr>:copen<cr>
+" nnoremap <leader>gtk :YcmCompleter GetDoc<cr>
+" nnoremap <leader>gtt :YcmCompleter GetType<cr>
+" nnoremap <leader>rv :YcmCompleter RefactorRename<space>
+"
+" let g:ycm_path_to_python_interpreter                    = '/usr/bin/python2.7'
+" let g:ycm_key_list_select_completion                    = ['<Down>']
+" let g:ycm_key_list_previous_completion                  = ['<Up>']
+" let g:ycm_complete_in_comments                          = 1
+" let g:ycm_complete_in_strings                           = 1
+" let g:ycm_collect_identifiers_from_comments_and_strings = 1
+" let g:ycm_collect_identifiers_from_tags_files           = 1
+let g:deoplete#enable_at_startup = 1
+let g:deoplete#auto_complete_delay = 200
+set noshowmode
+let g:echodoc_enable_at_startup = 1
 
 " "}}}
 " # UltiSnips  {{{
@@ -399,7 +402,7 @@ nmap <silent> <localleader><CR> V<localleader>vs
 nmap <silent> <localleader>vaa ggVG<localleader>vs
 nmap <silent> <localleader>vaj ggVG<localleader>vj
 
-" Python specific shortcuts 
+" Python specific shortcuts
 augroup python_vimux_shortuts
     autocmd!
     autocmd FileType python vmap <buffer> <localleader>vs :call VimuxSlimeLineBreak()<CR>`>j^
@@ -560,16 +563,29 @@ let g:unite_source_line_enable_highlight = 1
 " Yank history mappings
 nnoremap gp :<c-u>Unite history/yank -default-action=append<CR>
 nnoremap gP :<c-u>Unite history/yank<CR>
-vnoremap gp d:<c-u>Unite history/yank<CR>
+vnoremap gp d:<c-u>call CallYankHistoryMaybeEnd()<cr>
+
+function! IsAtEndOfLine()
+    return col('.') == col('$') - 1 && col('.') != 1
+endfunction
+
+function! CallYankHistoryMaybeEnd()
+    let action_to_take = IsAtEndOfLine() ? 'append' : 'insert'
+    call unite#start(['history/yank'], { 'default_action': action_to_take })
+endfunction
+
 " Quickly switch buffers
 nnoremap <leader>bb :Unite -quick-match buffer<cr>
 " Cmd completion
 cmap <c-@> <Plug>(unite_cmdmatch_complete)
 " File explorer
+nmap <silent> gf viwgf
 if has('nvim')
     nnoremap <silent> <c-p> :<C-u>Unite -buffer-name=files file_rec/neovim:! file/new<CR>
+    vnoremap <silent> gf "uy:<C-u>Unite -buffer-name=files file_rec/neovim:! -input=<c-r>u<CR>
 else
     nnoremap <silent> <c-p> :<C-u>Unite -buffer-name=files file_rec/async:! file/new<CR>
+    vnoremap <silent> gf "uy:<C-u>Unite -buffer-name=files file_rec/async:! -input=<c-r>u<CR>
 endif
 " Ack.vim
 nnoremap <silent> <c-f> :<c-u>Unite grep:!<cr>
@@ -717,9 +733,9 @@ if !exists('g:set_schlepp_shortcuts')
     let g:set_schlepp_shortcuts = 1
 endif
 
-" "}}}  
+" "}}}
 " # incsearch.vim  {{{
 map /  <Plug>(incsearch-forward)
 map ?  <Plug>(incsearch-backward)
 map g/ <Plug>(incsearch-stay)
-" "}}}  
+" "}}}
