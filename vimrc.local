@@ -9,7 +9,7 @@ set completeopt-=preview
 set linebreak
 set noshowmode
 set updatetime=500
-let $NVIM_TUI_ENABLE_CURSOR_SHAPE=1
+let $NVIM_TUI_ENABLE_CURSOR_SHAPE = 1
 if has('nvim')
     set termguicolors
 endif
@@ -147,9 +147,9 @@ map ; <Plug>(easymotion-prefix)
 nmap f <Plug>(easymotion-s)
 xmap f <Plug>(easymotion-s)
 omap f <Plug>(easymotion-s)
-nmap F <Plug>(easymotion-s2)
-xmap F <Plug>(easymotion-s2)
-omap F <Plug>(easymotion-s2)
+nmap F <Plug>(easymotion-overwin-f2)
+xmap F <Plug>(easymotion-overwin-f2)
+omap F <Plug>(easymotion-overwin-f2)
 
 " "}}}
 " # Vim Tmux Navigator  {{{
@@ -592,7 +592,8 @@ endif
 nnoremap <silent> <c-f> :<c-u>Unite grep:!<cr>
 nnoremap <silent> <leader>a "uyiw:<c-u>Unite grep:!::<c-r>u<cr>
 vnoremap <silent> <leader>a "uy:<c-u>Unite grep:!::<c-r>u<cr>
-
+" Jump list
+nnoremap <silent> <leader><c-o> :<c-u>Unite jump<cr>
 
 " Tmux completion unite settings
 function! GetTmuxCompletion()
