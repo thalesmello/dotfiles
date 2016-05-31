@@ -142,13 +142,14 @@ let g:tagbar_autofocus = 1
 " "}}}
 " # Easymotion  {{{
 let g:EasyMotion_smartcase = 1
+let EasyMotion_do_mapping = 0
+map ; <Plug>(easymotion-prefix)
 nmap f <Plug>(easymotion-s)
 xmap f <Plug>(easymotion-s)
 omap f <Plug>(easymotion-s)
 nmap F <Plug>(easymotion-s2)
 xmap F <Plug>(easymotion-s2)
 omap F <Plug>(easymotion-s2)
-map  ; <Plug>(easymotion-next)
 
 " "}}}
 " # Vim Tmux Navigator  {{{
