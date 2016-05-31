@@ -203,7 +203,7 @@ nnoremap <C-l> <C-w>l
 " Create windows
 nnoremap <leader>v <C-w>v<C-w>l
 nnoremap <leader>m <C-w>s<C-w>j
-nnoremap <leader>d <C-w>q
+nnoremap <leader>d :q<cr>
 " }}}
 " ##### Folding {{{
 " Toggles folding with space
@@ -221,10 +221,10 @@ if !has('gui')
 endif
 " Open all folds
 nnoremap zO zR
+nmap <leader>fo zO
 " Close all folds
 nnoremap zC zM
-" Close current fold
-nnoremap zc zc
+nmap <leader>fc zC
 " Close all folds except the current one
 nnoremap zf mzzM`zzvzz
 " }}}
@@ -354,9 +354,6 @@ autocmd FileType vim setlocal foldmethod=marker
 nnoremap <leader>xb :%s,>[ <tab>]*<,>\r<,g<cr> gg=G
 " }}}
 " ##### SQL {{{
-" SQL to CSV
-nnoremap <leader>csv ggV/^+-<cr>dGV?^+-<cr>dgg:g/^+-/d<cr>:%s/^<bar> \<bar> <bar>$//g<cr>:%s/ *<bar> */,/g<cr>
-" }}}
 " ##### LookML {{{
 " Sets YAML syntax for *.lookml files.
 autocmd BufRead,BufNewFile *.lookml setlocal filetype=yaml
