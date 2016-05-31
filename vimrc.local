@@ -30,6 +30,7 @@ vmap <leader>c/ *Ncgn
 nmap <leader>c/ *Ncgn
 inoremap <c-u> <c-g>u<c-u>
 nnoremap Y y$
+nnoremap <leader>fw :FixWhitespace<cr>
 vmap <leader>yj Jgvyu
 nmap <leader>tn :tabnew<cr>
 vmap <leader>tn y:tabnew<cr>p
@@ -249,24 +250,23 @@ let g:gutentags_exclude = ['node_modules', '.git']
 
 " "}}}
 " # Deoplete  {{{
-" nnoremap <leader>ycm :let g:ycm_auto_trigger = !g:ycm_auto_trigger<cr>
-" nnoremap <leader>gtd :YcmCompleter GoTo<cr>
-" nnoremap <leader>gtr :YcmCompleter GoToReferences<cr>:cclose<cr>:copen<cr>
-" nnoremap <leader>gtk :YcmCompleter GetDoc<cr>
-" nnoremap <leader>gtt :YcmCompleter GetType<cr>
-" nnoremap <leader>rv :YcmCompleter RefactorRename<space>
-"
-" let g:ycm_path_to_python_interpreter                    = '/usr/bin/python2.7'
-" let g:ycm_key_list_select_completion                    = ['<Down>']
-" let g:ycm_key_list_previous_completion                  = ['<Up>']
-" let g:ycm_complete_in_comments                          = 1
-" let g:ycm_complete_in_strings                           = 1
-" let g:ycm_collect_identifiers_from_comments_and_strings = 1
-" let g:ycm_collect_identifiers_from_tags_files           = 1
+set cmdheight=2
 let g:deoplete#enable_at_startup = 1
-let g:deoplete#auto_complete_delay = 200
-set noshowmode
 let g:echodoc_enable_at_startup = 1
+
+function! ToggleEchoDocFunc()
+    if echodoc#is_enabled()
+        call echodoc#disable()
+    else
+        call echodoc#enable()
+    endif
+endfunction
+
+command! EchoDocToggle call ToggleEchoDocFunc()
+nnoremap <leader>ed :<c-u>EchoDocToggle<cr>
+
+inoremap <up> <c-p>
+inoremap <down> <c-n>
 
 " "}}}
 " # UltiSnips  {{{
