@@ -5,7 +5,9 @@ set nojoinspaces
 set wildmode=list:longest,full
 set listchars=tab:▸\ ,eol:¬
 set lazyredraw
+set completeopt-=preview
 set linebreak
+set noshowmode
 set updatetime=500
 let $NVIM_TUI_ENABLE_CURSOR_SHAPE=1
 if has('nvim')
@@ -250,7 +252,6 @@ let g:gutentags_exclude = ['node_modules', '.git']
 
 " "}}}
 " # Deoplete  {{{
-set cmdheight=2
 let g:deoplete#enable_at_startup = 1
 let g:echodoc_enable_at_startup = 1
 
