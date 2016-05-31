@@ -49,6 +49,8 @@ noremap gL L
 nnoremap <leader>; A;<esc>
 nnoremap <leader><bs> $x<esc>
 nnoremap <leader>= <c-w>=
+nnoremap <leader>\| <c-w>\|
+nnoremap <leader>_ <c-w>\|
 nnoremap <S-ScrollWheelUp>   <ScrollWheelLeft>
 nnoremap <S-2-ScrollWheelUp> <2-ScrollWheelLeft>
 nnoremap <S-3-ScrollWheelUp> <3-ScrollWheelLeft>
