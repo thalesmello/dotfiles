@@ -221,10 +221,10 @@ if !has('gui')
 endif
 " Open all folds
 nnoremap zO zR
-nmap <leader>fo zO
+nmap <leader>fo zR
 " Close all folds
 nnoremap zC zM
-nmap <leader>fc zC
+nmap <leader>fc zM
 " Close all folds except the current one
 nnoremap zf mzzM`zzvzz
 " }}}
@@ -241,9 +241,6 @@ nnoremap <leader>hs :set hlsearch!<cr>
 
 " Maps <C-C> to <esc>
 noremap <C-C> <esc>
-
-" Go full-screen
-nnoremap <leader>fs :set lines=999 columns=9999<cr>
 
 " }}}
 " }}}
