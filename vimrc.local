@@ -51,6 +51,8 @@ nnoremap <leader><bs> $x<esc>
 nnoremap <leader>= <c-w>=
 nnoremap <leader>\| <c-w>\|
 nnoremap <leader>_ <c-w>\|
+nnoremap <leader>+ <c-w>\|<c-w>+
+nnoremap <leader>cd :lcd %:p:h<cr>
 nnoremap <S-ScrollWheelUp>   <ScrollWheelLeft>
 nnoremap <S-2-ScrollWheelUp> <2-ScrollWheelLeft>
 nnoremap <S-3-ScrollWheelUp> <3-ScrollWheelLeft>
