@@ -631,7 +631,7 @@ nnoremap <silent> [unite]o :<C-u>Unite -direction=topleft -split outline<CR>
 nnoremap <silent> [unite]tt :<c-u>Unite tmuxcomplete -default-action=append<cr>
 nnoremap <silent> [unite]tl :<c-u>Unite tmuxcomplete/lines -default-action=append<cr>
 nnoremap <silent> [unite]li :<c-u>Unite line<cr>
-nnoremap <silent> [unite]f :<C-u>Unite file_mru<cr>
+nnoremap <silent> [unite]mr :<C-u>Unite file_mru<cr>
 
 autocmd FileType unite call s:unite_my_settings()
 function! s:unite_my_settings()
