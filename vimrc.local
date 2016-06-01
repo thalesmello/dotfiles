@@ -53,6 +53,7 @@ nnoremap <leader>\| <c-w>\|
 nnoremap <leader>_ <c-w>\|
 nnoremap <leader>+ <c-w>\|<c-w>+
 nnoremap <leader>cd :lcd %:p:h<cr>
+nnoremap <leader>cr :ProjectRootCD<cr>
 nnoremap <S-ScrollWheelUp>   <ScrollWheelLeft>
 nnoremap <S-2-ScrollWheelUp> <2-ScrollWheelLeft>
 nnoremap <S-3-ScrollWheelUp> <3-ScrollWheelLeft>
@@ -258,6 +259,7 @@ let g:gutentags_exclude = ['node_modules', '.git']
 " # Deoplete  {{{
 let g:deoplete#enable_at_startup = 1
 let g:echodoc_enable_at_startup = 1
+let g:deoplete#auto_complete_delay = 100
 
 function! ToggleEchoDocFunc()
     if echodoc#is_enabled()
@@ -636,6 +638,7 @@ nnoremap <silent> [unite]tt :<c-u>Unite tmuxcomplete -default-action=append<cr>
 nnoremap <silent> [unite]tl :<c-u>Unite tmuxcomplete/lines -default-action=append<cr>
 nnoremap <silent> [unite]li :<c-u>Unite line<cr>
 nnoremap <silent> [unite]mr :<C-u>Unite file_mru<cr>
+nnoremap <silent> [unite]f :<C-u>Unite file_mru<cr>
 
 autocmd FileType unite call s:unite_my_settings()
 function! s:unite_my_settings()

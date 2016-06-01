@@ -60,6 +60,7 @@ call dein#add('ConradIrwin/vim-bracketed-paste')
 call dein#add('haya14busa/incsearch.vim')
 call dein#add('Konfekt/FastFold')
 call dein#add('davidhalter/jedi')
+call dein#add('dbakker/vim-projectroot')
 
 if has('nvim')
 	call dein#add('Shougo/deoplete.nvim')
