@@ -61,7 +61,7 @@ call dein#add('haya14busa/incsearch.vim')
 call dein#add('Konfekt/FastFold')
 call dein#add('davidhalter/jedi')
 call dein#add('dbakker/vim-projectroot')
-call dein#add('junegunn/fzf', { 'rtp': '' })
+call dein#add('junegunn/fzf', { 'merged': 0 })
 call dein#add('junegunn/fzf.vim')
 
 if has('nvim')

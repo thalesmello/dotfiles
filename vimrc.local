@@ -594,10 +594,10 @@ else
     nnoremap <silent> <c-p> :<C-u>Unite -buffer-name=files file_rec/async:! file/new<CR>
     vnoremap <silent> gf "uy:<C-u>Unite -buffer-name=files file_rec/async:! -input=<c-r>u<CR>
 endif
-" Ack.vim
-nnoremap <silent> <c-f> :<c-u>Unite grep:!<cr>
-nnoremap <silent> <leader>a "uyiw:<c-u>Unite grep:!::<c-r>u<cr>
-vnoremap <silent> <leader>a "uy:<c-u>Unite grep:!::<c-r>u<cr>
+" " Ack.vim
+" nnoremap <silent> <c-f> :<c-u>Unite grep:!<cr>
+" nnoremap <silent> <leader>a "uyiw:<c-u>Unite grep:!::<c-r>u<cr>
+" vnoremap <silent> <leader>a "uy:<c-u>Unite grep:!::<c-r>u<cr>
 " Jump list
 nnoremap <silent> <leader><c-o> :<c-u>Unite jump<cr>
 
@@ -680,6 +680,12 @@ let g:unite_source_outline_highlight = {
 \ 'level_6' : 'Normal',
 \ 'parameter_list': 'Normal',
 \ }
+" "}}}
+" # Fzf.vim {{{
+nnoremap <silent> <c-f> :<c-u>Ag<space>
+nnoremap <silent> <leader>a "fyiw:<c-u>Ag <c-r>f<cr>
+vnoremap <silent> <leader>a "fy:<c-u>Ag <c-r>f<cr>
+
 " "}}}
 " # Indent guides configuration Neovim  {{{
 let g:indent_guides_auto_colors = 0
