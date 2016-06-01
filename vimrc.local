@@ -690,9 +690,7 @@ hi IndentGuidesEven guibg=#252627 ctermbg=black
 " # Neomake  {{{
 augroup neomake_save_linter
     autocmd!
-    autocmd BufWritePost *.js Neomake
-    autocmd BufWritePost *.py Neomake
-    autocmd BufWritePost *.rb Neomake
+    autocmd BufWritePost * Neomake
 augroup end
 let g:neomake_javascript_standard_maker = { 'errorformat': '%E %f:%l:%c: %m' }
 
