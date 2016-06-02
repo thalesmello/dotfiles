@@ -661,6 +661,20 @@ function! s:unite_my_settings()
     nmap <buffer><expr> v unite#do_action('left')
     imap <buffer><expr> <c-v> unite#do_action('left')
 endfunction
+
+function! UniteDoFunc(cmd)
+   silent! UniteFirst
+   silent! mark u
+   while 1
+     silent! execute a:cmd
+     let current_pos = getpos('.')
+     silent! UniteNext
+     if current_pos == getpos('.')
+       break
+     endif
+   endwhile
+endfunction
+command! -nargs=1 UniteDo call UniteDoFunc(<q-args>)
 " " }}}
 " # Unite Outline {{{
 let g:unite_source_outline_highlight = {
