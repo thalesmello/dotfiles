@@ -115,7 +115,7 @@ nnoremap <localleader>E :exec "normal va".nr2char(getchar())."\e`>"<CR>
 
 " "}}}
 " # Tmux complete  {{{
-let g:tmuxcomplete#capture_args = '-J -S -100'
+" let g:tmuxcomplete#capture_args = '-J -S -100'
 
 " "}}}
 " # Vim Multiple Cursors  {{{
