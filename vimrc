@@ -1,8 +1,20 @@
 " Author: Pedro Franceschi <pedrohfranceschi@gmail.com>
 " Source: http://github.com/pedrofranceschi/vimfiles
 
-" ##### Dein setup  {{{
-set nocompatible " Be iMproved
+set nocompatible
+
+" ##### Plug setup  {{{
+
+if empty(glob('~/.vim/autoload/plug.vim'))
+  silent !curl -fLo ~/.vim/autoload/plug.vim --create-dirs
+    \ https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+  autocmd VimEnter * PlugInstall | source $MYVIMRC
+endif
+
+function! Cond(cond, ...)
+  let opts = get(a:000, 0, {})
+  return a:cond ? opts : extend(opts, { 'on': [], 'for': [] })
+endfunction
 
 call plug#begin()
 
@@ -74,7 +86,13 @@ call plug#end()
 
 function! PendingPlugInstall()
   if !empty(filter(copy(g:plugs), '!isdirectory(v:val.dir)'))
-    PlugInstall | q
+    PlugInstall
+
+    if has('nvim')
+      UpdateRemotePlugins
+    endif
+
+    q
   endif
 endfunction
 
