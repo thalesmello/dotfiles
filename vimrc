@@ -1,10 +1,11 @@
-" Author: Pedro Franceschi <pedrohfranceschi@gmail.com>
+" OriginalAuthor: Pedro Franceschi <pedrohfranceschi@gmail.com>
+" ModifiedVersion: Thales Mello <thalesmello@gmail.com>
 " Source: http://github.com/pedrofranceschi/vimfiles
 
+" ##### Plug setup  {{{
 set nocompatible
 
-" ##### Plug setup  {{{
-
+" Install Plug if not already loaded
 if empty(glob('~/.vim/autoload/plug.vim'))
   silent !curl -fLo ~/.vim/autoload/plug.vim --create-dirs
     \ https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
@@ -20,6 +21,7 @@ call plug#begin()
 
 " "}}}
 " ##### Plugins  {{{
+Plug 'tpope/vim-sensible'
 " Plugin to load tasks asynchronously
 Plug 'Shougo/vimproc.vim', { 'do' : 'make' }
 " Theme of this vimfiles
@@ -91,8 +93,6 @@ function! PendingPlugInstall()
     if has('nvim')
       UpdateRemotePlugins
     endif
-
-    q
   endif
 endfunction
 
@@ -102,29 +102,22 @@ autocmd VimEnter * call PendingPlugInstall()
 " ##### Basic options  {{{
 " Display incomplete commands.
 set showcmd
-" Display the mode you're in.
-set showmode
 
-" Intuitive backspacing.
-set backspace=indent,eol,start
 " Handle multiple buffers better.
 set hidden
 
-" Enhanced command line completion.
-set wildmenu
 " Complete files like a shell.
-set wildmode=list:longest
+set wildmode=list:longest,full
+
+" No extra spaces when joining lines
+set nojoinspaces
 
 " Case-insensitive searching.
 set ignorecase
 
 " Show line numbers.
 set number
-" Show cursor position.
-set ruler
 
-" Highlight matches as you type.
-set incsearch
 " Don't highlight matches.
 set nohlsearch
 
@@ -155,8 +148,6 @@ set foldlevelstart=50
 " Use decent folding
 set foldmethod=indent
 
-" Show the status line all the time
-set laststatus=2
 " Useful status information at bottom of screen
 set statusline=[%n]\ %<%.99f\ %h%w%m%r%y\ %{exists('*CapsLockStatusline')?CapsLockStatusline():''}%=%-16(\ %l,%c-%v\ %)%P
 
@@ -165,10 +156,6 @@ set diffopt+=vertical
 
 " Allows the mouse to be used
 set mouse=a
-
-" Automatically reads changed files
-set autoread
-
 
 " Sets the colorscheme for terminal sessions too.
 colorscheme molokai
