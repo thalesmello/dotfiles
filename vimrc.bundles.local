@@ -1,73 +1,70 @@
-call dein#add('terryma/vim-multiple-cursors')
-call dein#add('christoomey/vim-tmux-navigator')
-call dein#add('mhinz/vim-signify')
-call dein#add('sheerun/vim-polyglot')
-call dein#add('tpope/vim-endwise')
-call dein#add('majutsushi/tagbar')
-call dein#add('ludovicchabant/vim-gutentags')
-call dein#add('easymotion/vim-easymotion')
-call dein#add('rhysd/devdocs.vim')
-call dein#add('szw/vim-g')
-call dein#add('jaxbot/semantic-highlight.vim')
-call dein#add('wellle/tmux-complete.vim')
-call dein#add('bronson/vim-visual-star-search')
-call dein#add('tmux-plugins/vim-tmux-focus-events')
-call dein#add('bronson/vim-trailing-whitespace')
-call dein#add('michaeljsmith/vim-indent-object')
-call dein#add('thalesmello/vimux')
-call dein#add('embear/vim-localvimrc')
-call dein#add('thalesmello/vim-unimpaired')
-call dein#add('Chiel92/vim-autoformat')
-call dein#add('neomake/neomake')
-call dein#add('simnalamburt/vim-mundo')
-call dein#add('simeji/winresizer')
-call dein#add('godlygeek/tabular')
-call dein#add('wesQ3/vim-windowswap')
-call dein#add('SirVer/ultisnips')
-call dein#add('honza/vim-snippets')
-call dein#add('kana/vim-textobj-function')
-call dein#add('bps/vim-textobj-python')
-call dein#add('glts/vim-textobj-comment')
-call dein#add('kana/vim-textobj-line')
-call dein#add('Julian/vim-textobj-variable-segment')
-call dein#add('kana/vim-textobj-entire')
-call dein#add('poetic/vim-textobj-javascript')
-call dein#add('thinca/vim-textobj-function-javascript')
-call dein#add('AndrewRadev/splitjoin.vim')
-call dein#add('Shougo/unite.vim')
-call dein#add('Shougo/neoyank.vim')
-call dein#add('Shougo/unite-help')
-call dein#add('thinca/vim-unite-history')
-call dein#add('thalesmello/unite-cmdmatch')
-call dein#add('coderifous/textobj-word-column.vim')
-call dein#add('todesking/vim-textobj-methodcall')
-call dein#add('ryanoasis/vim-devicons')
-call dein#add('gioele/vim-autoswap')
-call dein#add('sgur/vim-textobj-parameter')
-call dein#add('saaguero/vim-textobj-pastedtext')
-call dein#add('saihoooooooo/vim-textobj-space')
-call dein#add('tpope/vim-speeddating')
-call dein#add('vimwiki/vimwiki')
-call dein#add('itchyny/vim-cursorword')
-call dein#add('osyo-manga/vim-over')
-call dein#add('zirrostig/vim-schlepp')
-call dein#add('Shougo/unite-outline')
-call dein#add('Shougo/neomru.vim')
-call dein#add('osyo-manga/unite-quickfix')
-call dein#add('sjl/vitality.vim')
-call dein#add('thalesmello/rougherexp')
-call dein#add('ConradIrwin/vim-bracketed-paste')
-call dein#add('haya14busa/incsearch.vim')
-call dein#add('Konfekt/FastFold')
-call dein#add('davidhalter/jedi')
-call dein#add('dbakker/vim-projectroot')
-call dein#add('junegunn/fzf', { 'merged': 0 })
-call dein#add('junegunn/fzf.vim')
-
-if has('nvim')
-	call dein#add('Shougo/deoplete.nvim')
-	call dein#add('zchee/deoplete-jedi')
-	call dein#add('mhartington/deoplete-typescript')
-	call dein#add('carlitux/deoplete-ternjs')
-	call dein#add('Shougo/echodoc.vim')
-endif
+Plug 'terryma/vim-multiple-cursors'
+Plug 'christoomey/vim-tmux-navigator'
+Plug 'mhinz/vim-signify'
+Plug 'sheerun/vim-polyglot'
+Plug 'tpope/vim-endwise'
+Plug 'majutsushi/tagbar'
+Plug 'ludovicchabant/vim-gutentags'
+Plug 'easymotion/vim-easymotion', { 'tag': 'v2.1.1' }
+Plug 'rhysd/devdocs.vim'
+Plug 'szw/vim-g'
+Plug 'jaxbot/semantic-highlight.vim'
+Plug 'wellle/tmux-complete.vim'
+Plug 'bronson/vim-visual-star-search'
+Plug 'tmux-plugins/vim-tmux-focus-events'
+Plug 'bronson/vim-trailing-whitespace'
+Plug 'michaeljsmith/vim-indent-object'
+Plug 'thalesmello/vimux'
+Plug 'embear/vim-localvimrc'
+Plug 'thalesmello/vim-unimpaired'
+Plug 'Chiel92/vim-autoformat'
+Plug 'neomake/neomake'
+Plug 'simnalamburt/vim-mundo'
+Plug 'simeji/winresizer'
+Plug 'godlygeek/tabular'
+Plug 'wesQ3/vim-windowswap'
+Plug 'SirVer/ultisnips'
+Plug 'honza/vim-snippets'
+Plug 'kana/vim-textobj-function'
+Plug 'bps/vim-textobj-python'
+Plug 'glts/vim-textobj-comment'
+Plug 'kana/vim-textobj-line'
+Plug 'Julian/vim-textobj-variable-segment'
+Plug 'kana/vim-textobj-entire'
+Plug 'poetic/vim-textobj-javascript'
+Plug 'thinca/vim-textobj-function-javascript'
+Plug 'AndrewRadev/splitjoin.vim'
+Plug 'Shougo/unite.vim'
+Plug 'Shougo/neoyank.vim'
+Plug 'Shougo/unite-help'
+Plug 'thinca/vim-unite-history'
+Plug 'thalesmello/unite-cmdmatch'
+Plug 'coderifous/textobj-word-column.vim'
+Plug 'todesking/vim-textobj-methodcall'
+Plug 'ryanoasis/vim-devicons'
+Plug 'gioele/vim-autoswap'
+Plug 'sgur/vim-textobj-parameter'
+Plug 'saaguero/vim-textobj-pastedtext'
+Plug 'saihoooooooo/vim-textobj-space'
+Plug 'tpope/vim-speeddating'
+Plug 'vimwiki/vimwiki'
+Plug 'itchyny/vim-cursorword'
+Plug 'osyo-manga/vim-over'
+Plug 'zirrostig/vim-schlepp'
+Plug 'Shougo/unite-outline'
+Plug 'Shougo/neomru.vim'
+Plug 'osyo-manga/unite-quickfix'
+Plug 'sjl/vitality.vim'
+Plug 'thalesmello/rougherexp'
+Plug 'ConradIrwin/vim-bracketed-paste'
+Plug 'haya14busa/incsearch.vim'
+Plug 'Konfekt/FastFold'
+Plug 'davidhalter/jedi'
+Plug 'dbakker/vim-projectroot'
+Plug 'junegunn/fzf'
+Plug 'junegunn/fzf.vim'
+Plug 'Shougo/deoplete.nvim',            Cond(has('nvim'))
+Plug 'zchee/deoplete-jedi',             Cond(has('nvim'))
+Plug 'mhartington/deoplete-typescript', Cond(has('nvim'))
+Plug 'carlitux/deoplete-ternjs',        Cond(has('nvim'))
+Plug 'Shougo/echodoc.vim',              Cond(has('nvim'))

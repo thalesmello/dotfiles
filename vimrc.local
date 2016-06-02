@@ -1,8 +1,6 @@
 " # Local settings {{{
 let maplocalleader = "'"
 set cursorline
-set nojoinspaces
-set wildmode=list:longest,full
 set listchars=tab:▸\ ,eol:¬
 set lazyredraw
 set completeopt-=preview
@@ -10,18 +8,19 @@ set linebreak
 set noshowmode
 set updatetime=500
 let $NVIM_TUI_ENABLE_CURSOR_SHAPE = 1
+
 if has('nvim')
     set termguicolors
 endif
 
-" Don't wait for ESC to timeout
-set timeoutlen=1000 ttimeoutlen=0
 " }}}"
 " # Mappings  {{{
 nnoremap <leader>yy gv"+y
 vnoremap <leader>yy "+y
 nnoremap <leader>pp "+p
 vnoremap <leader>pp "+p
+nnoremap <leader>PP "+P
+vnoremap <leader>PP "+P
 vnoremap <c-c> "+y
 nnoremap <leader><leader> <c-^>
 nnoremap <leader>o `>
@@ -35,7 +34,6 @@ nmap <leader>/ *N
 vmap <leader>/ *N
 vmap <leader>c/ *Ncgn
 nmap <leader>c/ *Ncgn
-inoremap <c-u> <c-g>u<c-u>
 nnoremap Y y$
 nnoremap <leader>fw :FixWhitespace<cr>
 vmap <leader>yj Jgvyu
@@ -108,11 +106,6 @@ vnoremap  gs  :OverCommandLine<cr>s//g<LEFT><LEFT>
 let g:over_enable_auto_nohlsearch = 0
 
 " "}}}
-" # Dein  {{{
-command! DeinClean call map(dein#check_clean(), "system('rm -rf ' . v:val)")
-command! DeinRecache call dein#recache_runtimepath()
-
-" "}}}
 " # Move around text objects  {{{
 nnoremap <localleader>s :exec "normal vi".nr2char(getchar())."\e`<"<CR>
 nnoremap <localleader>e :exec "normal vi".nr2char(getchar())."\e`>"<CR>
@@ -127,16 +120,15 @@ let g:tmuxcomplete#capture_args = '-J -S -100'
 " # Vim Multiple Cursors  {{{
 let g:multi_cursor_exit_from_insert_mode = 0
 let g:multi_cursor_exit_from_visual_mode = 0
+
 function! Multiple_cursors_before()
-    let s:old_disable_deoplete = g:deoplete#disable_auto_complete
-    let g:deoplete#disable_auto_complete = 1
+    call DeopleteMultipleCursorsSwitch(1)
 endfunction
 
 function! Multiple_cursors_after()
-    let g:deoplete#disable_auto_complete = s:old_disable_deoplete
+    call DeopleteMultipleCursorsSwitch(0)
 endfunction
 
-nmap <c-n> :call multiple_cursors#new("n", 1)<CR>
 noremap g<c-n> :MultipleCursorsFind <c-r>/<cr>
 
 highlight multiple_cursors_cursor term=reverse cterm=reverse gui=reverse
@@ -261,6 +253,15 @@ let g:gutentags_exclude = ['node_modules', '.git']
 
 " "}}}
 " # Deoplete  {{{
+function! DeopleteMultipleCursorsSwitch(before)
+    if a:before
+        let s:old_disable_deoplete = g:deoplete#disable_auto_complete
+        let g:deoplete#disable_auto_complete = 1
+    else
+        let g:deoplete#disable_auto_complete = s:old_disable_deoplete
+    endif
+endfunction
+
 let g:deoplete#enable_at_startup = 1
 let g:echodoc_enable_at_startup = 1
 
