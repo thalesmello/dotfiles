@@ -198,23 +198,29 @@ nnoremap <leader>d :q<cr>
 " }}}
 " ##### Folding {{{
 " Toggles folding with space
-nnoremap <s-tab> za
+function! MyToggleFold()
+  if foldclosed(line('.')) >= 0
+    silent! normal zv
+  else
+    silent! normal za
+  endif
+endfunction
+
+nnoremap <silent> <s-tab> :<c-U>call MyToggleFold()<cr>
 if !has('gui')
   function! JumpForwardOrToggleFold()
     let oldpos = getpos('.')
     execute "normal! 1\<c-i>"
     let newpos = getpos('.')
     if newpos == oldpos
-      normal za
+      call MyToggleFold()
     endif
   endf
   nnoremap <silent> <tab> :<c-u>call JumpForwardOrToggleFold()<cr>
 endif
 " Open all folds
-nnoremap zO zR
-nmap <leader>fo zR
+nnoremap <leader>fo zR
 " Close all folds
-nnoremap zC zM
 nmap <leader>fc zM
 " Close all folds except the current one
 nnoremap zf mzzM`zzvzz
