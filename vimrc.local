@@ -15,6 +15,7 @@ endif
 
 " }}}"
 " # Mappings  {{{
+nnoremap <leader><cr> mz?\v(".*"\|'.*')<cr>"qyl`zi<c-r>q +<cr><c-r>q<esc>
 nnoremap <leader>yy gv"+y
 vnoremap <leader>yy "+y
 nnoremap <leader>pp "+p
@@ -460,7 +461,7 @@ nmap <leader>L <leader>wrL
 " "}}}
 " # Tabularize  {{{
 noremap <leader>ta :Tabularize /
-noremap <leader>t/ :Tabularize /<c-r>/l1l0l0<cr>
+noremap <leader>t/ :Tabularize /<c-r>//l1l0l0<cr>
 
 " "}}}
 " # SQLComplete  {{{
@@ -686,6 +687,16 @@ let g:unite_source_outline_highlight = {
 \ }
 " "}}}
 " # Fzf.vim {{{
+function! s:fzf_statusline()
+  " Override statusline as you like
+  highlight fzf1 ctermfg=161 ctermbg=251
+  highlight fzf2 ctermfg=23 ctermbg=251
+  highlight fzf3 ctermfg=237 ctermbg=251
+  setlocal statusline=%#fzf1#\ >\ %#fzf2#fz%#fzf3#f
+endfunction
+
+autocmd! User FzfStatusLine call <SID>fzf_statusline()
+
 nnoremap <silent> <c-f> :<c-u>Ag<space>
 nnoremap <silent> <leader>a "fyiw:<c-u>Ag <c-r>f<cr>
 vnoremap <silent> <leader>a "fy:<c-u>Ag <c-r>f<cr>
