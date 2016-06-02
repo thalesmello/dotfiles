@@ -3,72 +3,61 @@
 
 " ##### Dein setup  {{{
 set nocompatible " Be iMproved
-filetype off     " required
 
-" Required:
-set runtimepath^=~/.vim/dein/repos/github.com/Shougo/dein.vim
-
-" Required:
-call dein#begin('~/.vim/dein')
-
-" Let dein manage dein
-" Required:
-call dein#add('Shougo/dein.vim')
+call plug#begin()
 
 " "}}}
 " ##### Plugins  {{{
 " Plugin to load tasks asynchronously
-call dein#add('Shougo/vimproc.vim', {'build' : 'make'})
+Plug 'Shougo/vimproc.vim', { 'do' : 'make' }
 " Theme of this vimfiles
-call dein#add('sjl/badwolf')
+Plug 'sjl/badwolf'
 " Useful statusbar in your vim
-call dein#add('bling/vim-airline')
-call dein#add('vim-airline/vim-airline-themes')
-call dein#add('b4winckler/vim-objc')
+Plug 'bling/vim-airline'
+Plug 'vim-airline/vim-airline-themes'
+Plug 'b4winckler/vim-objc'
 " Comment toggling: use `gc` to toggle comments in visual mode
-call dein#add('tomtom/tcomment_vim')
+Plug 'tomtom/tcomment_vim'
 " Makes vim understand ruby blocks
-call dein#add('kana/vim-textobj-user')
-call dein#add('rhysd/vim-textobj-ruby')
+Plug 'kana/vim-textobj-user'
+Plug 'rhysd/vim-textobj-ruby'
 " Git bindings for VIM
-call dein#add('tpope/vim-fugitive')
+Plug 'tpope/vim-fugitive'
 " Surround utils for vim
-call dein#add('tpope/vim-surround')
+Plug 'tpope/vim-surround'
 " Automatic closing of brackets
-call dein#add('Raimondi/delimitMate')
+Plug 'Raimondi/delimitMate'
 " Makes vim understand markdown folding
-call dein#add('nelstrom/vim-markdown-folding')
+Plug 'nelstrom/vim-markdown-folding'
 " Makes the repeat command `.` work in more cases
-call dein#add('tpope/vim-repeat')
+Plug 'tpope/vim-repeat'
 " Vim support for Js handlebars
-call dein#add('nono/vim-handlebars')
-call dein#add('nathanaelkane/vim-indent-guides')
+Plug 'nono/vim-handlebars'
+Plug 'nathanaelkane/vim-indent-guides'
 " Javascript support for vim
-call dein#add('jelera/vim-javascript-syntax', {
-      \ 'autoload':{ 'filetypes': ['javascript'] },
-      \ 'lazy': 1 })
-call dein#add('milkypostman/vim-togglelist')
+Plug 'jelera/vim-javascript-syntax', { 'for': ['javascript'] }
+Plug 'milkypostman/vim-togglelist'
 " Relative line number
-call dein#add('jeffkreeftmeijer/vim-numbertoggle')
+Plug 'jeffkreeftmeijer/vim-numbertoggle'
 " File explorer for VIM. <leader>ft to activate
-call dein#add('scrooloose/nerdtree')
+Plug 'scrooloose/nerdtree'
 " Golang support for vim
-call dein#add('jnwhiteh/vim-golang')
+Plug 'jnwhiteh/vim-golang'
 " Make jk behave as jumps in Vim
-call dein#add('teranex/jk-jumps.vim')
-call dein#add('tpope/vim-dispatch')
+Plug 'teranex/jk-jumps.vim'
+Plug 'tpope/vim-dispatch'
 " Expand html easily: div > 3*li then Ctrl+e in an html file
-call dein#add('rstacruz/sparkup')
+Plug 'rstacruz/sparkup'
 " Use the Molokay theme in Vim
-call dein#add('tomasr/molokai')
+Plug 'tomasr/molokai'
 " Puppet support for Vim
-call dein#add('rodjek/vim-puppet')
+Plug 'rodjek/vim-puppet'
 " Elixir support for Vim
-call dein#add('elixir-lang/vim-elixir')
+Plug 'elixir-lang/vim-elixir'
 " Ruby support for Vim
-call dein#add('vim-ruby/vim-ruby')
+Plug 'vim-ruby/vim-ruby'
 " Automatically recognize indentation
-call dein#add('thalesmello/vim-sleuth')
+Plug 'thalesmello/vim-sleuth'
 
 " }}}
 " ##### Load local Plugins  {{{
@@ -80,19 +69,16 @@ if filereadable(glob("~/.vimrc.bundles.local"))
 endif
 
 " }}}
-" ##### Finish loading Dein  {{{
+" ##### Finish loading Plug  {{{
+call plug#end()
 
-" Required:
-call dein#end()
+function! PendingPlugInstall()
+  if !empty(filter(copy(g:plugs), '!isdirectory(v:val.dir)'))
+    PlugInstall | q
+  endif
+endfunction
 
-" Required:
-syntax on
-filetype plugin indent on
-
-" If you want to install not installed plugins on startup.
-if dein#check_install()
-  call dein#install()
-endif
+autocmd VimEnter * call PendingPlugInstall()
 
 " }}}
 " ##### Basic options  {{{

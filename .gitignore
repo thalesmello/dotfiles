@@ -1,6 +1,4 @@
 tmp/
 *.swp
 .netrwhist
-.init.vim-rplugin~
-!dein/repos/github.com/Shougo/dein.vim/
-dein
+plugged
