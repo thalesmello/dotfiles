@@ -3,3 +3,7 @@ function! ${1:function_name}()
 	${VISUAL}$0
 endfunction
 endsnippet
+
+snippet cmd "Vimscript" b
+command! ${1:CommandName} ${2:call ${3:$1Function}()}$0
+endsnippet
