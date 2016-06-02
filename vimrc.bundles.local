@@ -5,7 +5,7 @@ Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'
 Plug 'majutsushi/tagbar'
 Plug 'ludovicchabant/vim-gutentags'
-Plug 'easymotion/vim-easymotion', { 'tag': 'v2.1.1' }
+Plug 'easymotion/vim-easymotion'
 Plug 'rhysd/devdocs.vim'
 Plug 'szw/vim-g'
 Plug 'jaxbot/semantic-highlight.vim'
