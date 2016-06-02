@@ -18,6 +18,10 @@ endif
 set timeoutlen=1000 ttimeoutlen=0
 " }}}"
 " # Mappings  {{{
+nnoremap <leader>yy gv"+y
+vnoremap <leader>yy "+y
+nnoremap <leader>pp "+p
+vnoremap <leader>pp "+p
 vnoremap <c-c> "+y
 nnoremap <leader><leader> <c-^>
 nnoremap <leader>o `>
@@ -117,7 +121,7 @@ nnoremap <localleader>E :exec "normal va".nr2char(getchar())."\e`>"<CR>
 
 " "}}}
 " # Tmux complete  {{{
-let g:tmuxcomplete#capture_args = '-J -S -'
+let g:tmuxcomplete#capture_args = '-J -S -100'
 
 " "}}}
 " # Vim Multiple Cursors  {{{
@@ -259,7 +263,6 @@ let g:gutentags_exclude = ['node_modules', '.git']
 " # Deoplete  {{{
 let g:deoplete#enable_at_startup = 1
 let g:echodoc_enable_at_startup = 1
-let g:deoplete#auto_complete_delay = 100
 
 function! ToggleEchoDocFunc()
     if echodoc#is_enabled()
@@ -706,7 +709,15 @@ let g:autoswap_detect_tmux = 1
 
 " "}}}
 " # Delimitmate  {{{
-imap <expr> <c-x><c-l> ( delimitMate#ShouldJump() ? "<Plug>delimitMateS-BS" : "") . "\<c-x>\<c-l>"
+function! DelimitMateCompletion(key)
+    " Because of a Deoplete bug, I have to repeat a key to try to restore
+    " original vim behaviour
+    return (delimitMate#ShouldJump() ? "<Plug>delimitMateS-BS" : "")
+                \ . "\<c-x>" . a:key . (pumvisible() ? a:key : "")
+endfunction
+imap <expr> <c-x><c-l> DelimitMateCompletion("\<c-l>")
+imap <expr> <c-x><c-n> DelimitMateCompletion("\<c-n>")
+imap <expr> <c-x><c-p> DelimitMateCompletion("\<c-p>")
 let g:delimitMate_expand_space = 1
 let g:delimitMate_expand_cr = 1
 
@@ -719,7 +730,7 @@ endif
 " "}}}
 " # Windowswap  {{{
 let g:windowswap_map_keys = 0 "prevent default bindings
-nnoremap <silent> <leader>pp :call WindowSwap#EasyWindowSwap()<CR>
+nnoremap <silent> <leader>sw :call WindowSwap#EasyWindowSwap()<CR>
 
 " "}}}
 " # Vimwiki  {{{
