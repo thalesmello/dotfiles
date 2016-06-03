@@ -524,14 +524,26 @@ function! JavaScriptChuncklock()
     return ['v', head_pos, tail_pos]
 endfunction
 
+call textobj#user#map('python', {
+      \   'class': {
+      \     'select-a': '<buffer>aP',
+      \     'select-i': '<buffer>iP',
+      \   },
+      \ })
+
 let g:textobj_python_no_default_key_mappings = 1
 
-call textobj#user#map('python', {
-            \   'class': {
-            \     'select-a': '<buffer>aP',
-            \     'select-i': '<buffer>iP',
-            \   },
-            \ })
+call textobj#user#map('indent', {
+      \      '-': {
+      \        'select-a': 'au',
+      \        'select-i': 'iu'
+      \      },
+      \      'same': {
+      \        'select-a': 'aU',
+      \        'select-i': 'iU'
+      \      }
+      \    })
+let g:textobj_indent_no_default_key_mappings = 1
 
 let g:textobj#methodcall#select_a = 'am'
 let g:textobj#methodcall#select_i = 'im'
@@ -738,9 +750,10 @@ let g:autoswap_detect_tmux = 1
 function! DelimitMateCompletion(key)
     " Because of a Deoplete bug, I have to repeat a key to try to restore
     " original vim behaviour
-    return (delimitMate#ShouldJump() ? "<Plug>delimitMateS-BS" : "")
+    return (delimitMate#ShouldJump() ? "\<Del>" : "")
                 \ . "\<c-x>" . a:key . (pumvisible() ? a:key : "")
 endfunction
+
 imap <expr> <c-x><c-l> DelimitMateCompletion("\<c-l>")
 imap <expr> <c-x><c-n> DelimitMateCompletion("\<c-n>")
 imap <expr> <c-x><c-p> DelimitMateCompletion("\<c-p>")

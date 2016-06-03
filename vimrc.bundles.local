@@ -62,6 +62,8 @@ Plug 'davidhalter/jedi'
 Plug 'dbakker/vim-projectroot'
 Plug 'junegunn/fzf'
 Plug 'junegunn/fzf.vim'
+Plug 'glts/vim-textobj-indblock'
+Plug 'kana/vim-textobj-indent'
 Plug 'Shougo/deoplete.nvim',            Cond(has('nvim'))
 Plug 'zchee/deoplete-jedi',             Cond(has('nvim'))
 Plug 'mhartington/deoplete-typescript', Cond(has('nvim'))
