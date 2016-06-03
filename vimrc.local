@@ -251,6 +251,10 @@ let g:gutentags_exclude = ['node_modules', '.git']
 
 " "}}}
 " # Deoplete  {{{
+let g:deoplete#omni#input_patterns = {}
+let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
+let g:deoplete#omni#input_patterns.javascript = '[^. *\t]\.\w*'
+
 function! DeopleteMultipleCursorsSwitch(before)
     if a:before
         let s:old_disable_deoplete = g:deoplete#disable_auto_complete

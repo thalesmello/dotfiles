@@ -65,5 +65,4 @@ Plug 'junegunn/fzf.vim'
 Plug 'Shougo/deoplete.nvim',            Cond(has('nvim'))
 Plug 'zchee/deoplete-jedi',             Cond(has('nvim'))
 Plug 'mhartington/deoplete-typescript', Cond(has('nvim'))
-Plug 'carlitux/deoplete-ternjs',        Cond(has('nvim'))
 Plug 'Shougo/echodoc.vim',              Cond(has('nvim'))
