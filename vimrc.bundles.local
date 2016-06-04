@@ -60,8 +60,6 @@ Plug 'ConradIrwin/vim-bracketed-paste'
 Plug 'haya14busa/incsearch.vim'
 Plug 'davidhalter/jedi'
 Plug 'dbakker/vim-projectroot'
-Plug 'junegunn/fzf'
-Plug 'junegunn/fzf.vim'
 Plug 'glts/vim-textobj-indblock'
 Plug 'kana/vim-textobj-indent'
 Plug 'Shougo/deoplete.nvim',            Cond(has('nvim'))

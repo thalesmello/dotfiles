@@ -567,7 +567,7 @@ let g:tcommentTextObjectInlineComment = ''
 " "}}}
 " # Unite.vim {{{
 " Set default matcher options
-call unite#custom#source('grep, line, outline', 'matchers', 'matcher_fuzzy')
+call unite#custom#source('grep, outline', 'matchers', ['matcher_fuzzy'])
 call unite#custom#source('grep', 'sorters', 'sorter_rank')
 call unite#custom#source('location_list, quickfix', 'sorters', 'sorter_nothing')
 call unite#filters#matcher_default#use(['matcher_fuzzy'])
@@ -613,9 +613,9 @@ else
     vnoremap <silent> gf "uy:<C-u>Unite -buffer-name=files file_rec/async:! -input=<c-r>u<CR>
 endif
 " " Ack.vim
-" nnoremap <silent> <c-f> :<c-u>Unite grep:!<cr>
-" nnoremap <silent> <leader>a "uyiw:<c-u>Unite grep:!::<c-r>u<cr>
-" vnoremap <silent> <leader>a "uy:<c-u>Unite grep:!::<c-r>u<cr>
+nnoremap <silent> <c-f> :<c-u>Unite grep:!<cr>
+nnoremap <silent> <leader>a "uyiw:<c-u>Unite grep:!::<c-r>u<cr>
+vnoremap <silent> <leader>a "uy:<c-u>Unite grep:!::<c-r>u<cr>
 " Jump list
 nnoremap <silent> <leader><c-o> :<c-u>Unite jump<cr>
 
@@ -657,6 +657,7 @@ nnoremap <silent> [unite]tl :<c-u>Unite tmuxcomplete/lines -default-action=appen
 nnoremap <silent> [unite]li :<c-u>Unite line<cr>
 nnoremap <silent> [unite]mr :<C-u>Unite file_mru<cr>
 nnoremap <silent> [unite]f :<C-u>Unite file_mru<cr>
+nnoremap <silent> [unite]/ :<C-u>Unite line -input=<c-r>/<cr>
 
 autocmd FileType unite call s:unite_my_settings()
 function! s:unite_my_settings()
@@ -711,22 +712,6 @@ let g:unite_source_outline_highlight = {
 \ 'level_6' : 'Normal',
 \ 'parameter_list': 'Normal',
 \ }
-" "}}}
-" # Fzf.vim {{{
-function! s:fzf_statusline()
-  " Override statusline as you like
-  highlight fzf1 ctermfg=161 ctermbg=251
-  highlight fzf2 ctermfg=23 ctermbg=251
-  highlight fzf3 ctermfg=237 ctermbg=251
-  setlocal statusline=%#fzf1#\ >\ %#fzf2#fz%#fzf3#f
-endfunction
-
-autocmd! User FzfStatusLine call <SID>fzf_statusline()
-
-nnoremap <silent> <c-f> :<c-u>Ag<space>
-nnoremap <silent> <leader>a "fyiw:<c-u>Ag <c-r>f<cr>
-vnoremap <silent> <leader>a "fy:<c-u>Ag <c-r>f<cr>
-
 " "}}}
 " # Indent guides configuration Neovim  {{{
 let g:indent_guides_auto_colors = 0
