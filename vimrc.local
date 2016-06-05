@@ -30,6 +30,7 @@ nnoremap <leader>saa ggVG
 nnoremap <leader>sy :setfiletype<space>
 nnoremap <leader>saq ?\v('''\|""")<CR>vw//e<CR>
 nnoremap <leader>siq ?\v('''\|""")<CR>wv//e<CR>ge
+nnoremap <leader>sl $v^
 nmap <leader>tb :TagbarToggle<CR>
 nmap <leader>/ *N
 vmap <leader>/ *N
@@ -254,6 +255,7 @@ let g:gutentags_exclude = ['node_modules', '.git']
 let g:deoplete#omni#input_patterns = {}
 let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
 let g:deoplete#omni#input_patterns.javascript = '[^. *\t]\.\w*'
+let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
 
 function! DeopleteMultipleCursorsSwitch(before)
     if a:before
@@ -759,6 +761,10 @@ nnoremap <silent> <leader>sw :call WindowSwap#EasyWindowSwap()<CR>
 " "}}}
 " # Vimwiki  {{{
 let g:vimwiki_list = [{'path': '~/Dropbox/Apps/vimwiki/wiki', 'path_html': '~/Dropbox/Apps/vimwiki/html'}]
+nnoremap <leader>pd I= =<esc>"=strftime("%b %d, %Y")<CR>Pa <left>
+
+nnoremap [d :VimwikiDiaryPrevDay<cr>
+nnoremap ]d :VimwikiDiaryNextDay<cr>
 
 " "}}}
 " # Persistent undo  {{{
