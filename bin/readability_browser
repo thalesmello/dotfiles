@@ -1,0 +1,2 @@
+#!/bin/sh
+python3 -m readability.readability -u $@ | w3m -T text/html -dump
