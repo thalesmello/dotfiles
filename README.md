@@ -22,7 +22,6 @@ Copy this right before `source $ZSH/oh-my-zsh.sh` in your `.zshrc`
 
 Copy this to the end of your `.zshrc`
 
-	source ~/.zshrc.local
 	source ~/.zshrc.secrets
 	source ~/.zshrc.config
 
