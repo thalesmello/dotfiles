@@ -203,7 +203,8 @@ keymap :e LOAD
 keymap SPC-C-j SUBMIT
 
 ########## info ##########
-keymap y PEEK
+keymap SPC-y PEEK
+keymap y PEEK_LINK
 keymap gC-g INFO
 keymap C-g LINE_INFO
 keymap gf VIEW
