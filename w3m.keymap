@@ -156,6 +156,7 @@ keymap :H HELP
 
 ########## history navigation ##########
 keymap C-j GOTO_LINK
+keymap s SAVE_LINK
 keymap :h SELECT_MENU
 
 ########## scrolling ##########
