@@ -1,0 +1,10 @@
+#!/bin/sh
+if [ -z $TMUX ]; then
+       vim -u ~/.litevimrc $@
+else
+       tmux split-window "
+              trap \"tmux wait-for -S p12346-neww-done\" 0
+              vim -u ~/.litevimrc $@
+              " \; wait-for p12346-neww-done
+fi
+
