@@ -7,10 +7,10 @@ set completeopt-=preview
 set linebreak
 set noshowmode
 set updatetime=500
-let $NVIM_TUI_ENABLE_CURSOR_SHAPE = 1
 
 if has('nvim')
     set termguicolors
+    let $NVIM_TUI_ENABLE_CURSOR_SHAPE = 1
 endif
 
 " }}}"
@@ -44,8 +44,6 @@ vmap <leader>tn y:tabnew<cr>p
 nmap <leader>bn :vnew<cr>
 vmap <leader>bn y:vnew<cr>p
 nmap <leader>bc :bw<cr>
-nnoremap <leader>bs :Sscratch<cr>
-vmap <leader>bs y:Sscratch<cr>vaep
 noremap <c-e> 2<c-e>
 noremap <c-y> 2<c-y>
 noremap gH H
@@ -796,5 +794,12 @@ function! ConvertToJavascriptChaiExpectFunction()
   silent! %s /\vhave\.status\((\d+)\)/have.property('statusCode', \1)/g
 endfunction
 command! ConvertToJavascriptChaiExpect call ConvertToJavascriptChaiExpectFunction()
+
+function! ConvertToPagarmeDefaultRequestFunction()
+   silent! normal! 0Vf(%
+   silent! '<,'< s/common\.request(\(.\{-}\),\_.\{-}\zs, function () {/).then(function (_\1) {\r        \1 = _\1/g
+   silent! '<,'< s/common.request(.*defaultOptions.*path':\s\+\('.\{-}'\).*method':\s\+\('.\{-}'\).*})\_W\+\(\)/common.defaultRequest(\1, \2, /g
+endfunction
+command! ConvertToPagarmeDefaultRequest call ConvertToPagarmeDefaultRequestFunction()
 
 " "}}}

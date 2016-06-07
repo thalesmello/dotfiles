@@ -1,4 +1,3 @@
-" ##### Plug setup  {{{
 set nocompatible
 
 " Install Plug if not already loaded
@@ -31,7 +30,6 @@ Plug 'terryma/vim-multiple-cursors'
 Plug 'christoomey/vim-tmux-navigator'
 Plug 'tpope/vim-endwise'
 Plug 'easymotion/vim-easymotion'
-Plug 'wellle/tmux-complete.vim'
 Plug 'bronson/vim-visual-star-search'
 Plug 'michaeljsmith/vim-indent-object'
 Plug 'thalesmello/vim-unimpaired'
@@ -51,6 +49,10 @@ Plug 'saihoooooooo/vim-textobj-space'
 Plug 'tpope/vim-speeddating'
 Plug 'sjl/vitality.vim'
 Plug 'ConradIrwin/vim-bracketed-paste'
+Plug 'Shougo/deoplete.nvim',            Cond(has('nvim'))
+Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
+Plug 'wellle/tmux-complete.vim'
+Plug 'chriskempson/base16-vim'
 
 call plug#end()
 
@@ -66,3 +68,45 @@ endfunction
 
 autocmd VimEnter * call PendingPlugInstall()
 
+
+inoremap <up> <c-p>
+inoremap <down> <c-n>
+let mapleader = "\<space>"
+map H ^
+map L $
+nnoremap <leader><cr> mz?\v(".*"\|'.*')<cr>"qyl`zi<c-r>q +<cr><c-r>q<esc>
+nnoremap <leader>yy gv"+y
+vnoremap <leader>yy "+y
+nnoremap <leader>pp "+p
+vnoremap <leader>pp "+p
+nnoremap <leader>PP "+P
+vnoremap <leader>PP "+P
+vnoremap <c-c> "+y
+nnoremap <leader>o `>
+nmap <leader>/ *N
+vmap <leader>/ *N
+vmap <leader>c/ *Ncgn
+nmap <leader>c/ *Ncgn
+nnoremap Y y$
+nnoremap <leader>; A;<esc>
+nnoremap <S-ScrollWheelUp>   <ScrollWheelLeft>
+nnoremap <S-2-ScrollWheelUp> <2-ScrollWheelLeft>
+nnoremap <S-3-ScrollWheelUp> <3-ScrollWheelLeft>
+nnoremap <S-4-ScrollWheelUp> <4-ScrollWheelLeft>
+nnoremap <S-ScrollWheelDown>     <ScrollWheelRight>
+nnoremap <S-2-ScrollWheelDown>   <2-ScrollWheelRight>
+nnoremap <S-3-ScrollWheelDown>   <3-ScrollWheelRight>
+nnoremap <S-4-ScrollWheelDown>   <4-ScrollWheelRight>
+nnoremap <leader>d :q<cr>
+nnoremap <leader>ss :w<cr>
+
+set background=dark
+colorscheme base16-default
+let base16colorspace=256
+
+if has('nvim')
+    set termguicolors
+    let $NVIM_TUI_ENABLE_CURSOR_SHAPE = 1
+    let g:deoplete#enable_at_startup = 1
+    call deoplete#enable()
+endif
