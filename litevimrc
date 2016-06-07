@@ -52,7 +52,8 @@ Plug 'ConradIrwin/vim-bracketed-paste'
 Plug 'Shougo/deoplete.nvim',            Cond(has('nvim'))
 Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
 Plug 'wellle/tmux-complete.vim'
-Plug 'chriskempson/base16-vim'
+Plug 'tomasr/molokai'
+
 
 call plug#end()
 
@@ -101,8 +102,7 @@ nnoremap <leader>d :q<cr>
 nnoremap <leader>ss :w<cr>
 
 set background=dark
-colorscheme base16-default
-let base16colorspace=256
+colorscheme molokai
 
 if has('nvim')
     set termguicolors
