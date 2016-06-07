@@ -1,0 +1,4 @@
+#!/bin/sh
+
+osascript -e'on run{a}' -e'tell app"google chrome"to tell active tab of window 1 to execute javascript a' -eend "$1";
+
