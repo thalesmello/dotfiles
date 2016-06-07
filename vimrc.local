@@ -796,9 +796,7 @@ endfunction
 command! ConvertToJavascriptChaiExpect call ConvertToJavascriptChaiExpectFunction()
 
 function! ConvertToPagarmeDefaultRequestFunction()
-   silent! normal! 0Vf(%
-   silent! '<,'< s/common\.request(\(.\{-}\),\_.\{-}\zs, function () {/).then(function (_\1) {\r        \1 = _\1/g
-   silent! '<,'< s/common.request(.*defaultOptions.*path':\s\+\('.\{-}'\).*method':\s\+\('.\{-}'\).*})\_W\+\(\)/common.defaultRequest(\1, \2, /g
+   silent! s/common\.request(\(\w\{-}\)\_s*,\_W\{-}\_.common\.merge\_.\{-}common\.defaultOptions\_.\{-}path':\s*\('.\{-}'\)\s*,\_.\{-}metho...\_W\{-}\(\({\|\w\)\_.\{-}\(}\|\w\)\)\s*,.\{-}\ze\w/common.defaultRequest(\2, \3, \4)\r      .then(function(_\1) { \1 = _\1 }).then(/
 endfunction
 command! ConvertToPagarmeDefaultRequest call ConvertToPagarmeDefaultRequestFunction()
 
