@@ -796,8 +796,23 @@ endfunction
 command! ConvertToJavascriptChaiExpect call ConvertToJavascriptChaiExpectFunction()
 
 function! ConvertToPagarmeDefaultRequestFunction()
-   silent! s/common\.request(\(\w\{-}\)\_s*,\_W\{-}\_.common\.merge\_.\{-}common\.defaultOptions\_.\{-}path':\s*\('.\{-}'\)\s*,\_.\{-}metho...\_W\{-}\(\({\|\w\)\_.\{-}\(}\|\w\)\)\s*,.\{-}\ze\w/common.defaultRequest(\2, \3, \4)\r      .then(function(_\1) { \1 = _\1 }).then(/
+   silent! s/common\.request(\(\w\{-}\)\_s*,\_W\{-}\_.common\.merge\_.\{-}common\.defaultOptions\_.\{-}path':\s*\('.\{-}'\)\s*,\_.\{-}method':\s*\('.\{-}'\)\_.\{-}}\_.\{-}),\_W\{-}\(\({\|\w\)\_.\{-}\(}\|\w\)\)\s*,.\{-}\ze\w/common.defaultRequest(\2, \3, \4)\r      .then(function (_\1) { \1 = _\1 })\r      .then(/
 endfunction
 command! ConvertToPagarmeDefaultRequest call ConvertToPagarmeDefaultRequestFunction()
+
+function! TabMessage(cmd)
+   redir => message
+   silent execute a:cmd
+   redir END
+   if empty(message)
+      echoerr "no output"
+   else
+      " use "new" instead of "tabnew" below if you prefer split windows instead of tabs
+      tabnew
+      setlocal buftype=nofile bufhidden=wipe noswapfile nobuflisted nomodified
+      silent put=message
+   endif
+endfunction
+command! -nargs=+ -complete=command TabMessage call TabMessage(<q-args>)
 
 " "}}}
