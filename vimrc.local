@@ -466,7 +466,7 @@ function! FindAroundMethodCall()
 endfunction
 
 function! FindInnerMethodCall()
-    silent! execute "normal! ?\\v(\.{0,1}\\zs\\w+)(\.{0,1}\\w+)*\<cr>"
+    silent! execute "normal! w?\\v\\W(\\.{0,1}\\zs\\w+)(\\.{0,1}\\w+)*\<cr>"
     let head_pos = getpos('.')
     normal! %
     let tail_pos = getpos('.')
