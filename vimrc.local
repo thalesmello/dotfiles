@@ -452,6 +452,38 @@ let g:signify_update_on_bufenter = 1
 
 " "}}}
 " # Textobj User  {{{
+
+function! FindAroundMethodCall()
+    silent! normal! [(B
+    let head_pos = getpos('.')
+    normal! %
+    let tail_pos = getpos('.')
+    if tail_pos == head_pos
+        return 0
+    endif
+    return ['v', head_pos, tail_pos]
+endfunction
+
+function! FindInnerMethodCall()
+    silent! normal! B
+    let head_pos = getpos('.')
+    normal! %
+    let tail_pos = getpos('.')
+    if tail_pos == head_pos
+        return 0
+    endif
+    return ['v', head_pos, tail_pos]
+endfunction
+
+call textobj#user#plugin('methodcall', {
+            \   '-': {
+            \     'select-a-function': 'FindAroundMethodCall',
+            \     'select-a': 'am',
+            \     'select-i-function': 'FindInnerMethodCall',
+            \     'select-i': 'im',
+            \   },
+            \ })
+
 call textobj#user#plugin('javascriptchunck', {
             \   '-': {
             \     'select-a-function': 'JavaScriptChuncklock',
@@ -493,8 +525,6 @@ call textobj#user#map('indent', {
       \    })
 let g:textobj_indent_no_default_key_mappings = 1
 
-let g:textobj#methodcall#select_a = 'am'
-let g:textobj#methodcall#select_i = 'im'
 
 " "}}}
 " # Textobj column  {{{
