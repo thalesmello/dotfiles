@@ -525,6 +525,14 @@ call textobj#user#map('indent', {
       \    })
 let g:textobj_indent_no_default_key_mappings = 1
 
+call textobj#user#map('lastinserted', {
+      \      '-': {
+      \        'select-a': 'ay',
+      \        'select-i': 'iy'
+      \      },
+      \    })
+let g:textobj_lastinserted_no_default_key_mappings = 1
+
 
 " "}}}
 " # Textobj column  {{{
