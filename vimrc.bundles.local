@@ -6,7 +6,6 @@ Plug 'tpope/vim-endwise'
 Plug 'majutsushi/tagbar'
 Plug 'ludovicchabant/vim-gutentags'
 Plug 'easymotion/vim-easymotion'
-Plug 'rhysd/devdocs.vim'
 Plug 'szw/vim-g'
 Plug 'jaxbot/semantic-highlight.vim'
 Plug 'wellle/tmux-complete.vim'
@@ -62,7 +61,6 @@ Plug 'davidhalter/jedi'
 Plug 'dbakker/vim-projectroot'
 Plug 'glts/vim-textobj-indblock'
 Plug 'kana/vim-textobj-indent'
-Plug 'chriskempson/base16-vim',         Cond(0)
 Plug 'Shougo/deoplete.nvim',            Cond(has('nvim'))
 Plug 'zchee/deoplete-jedi',             Cond(has('nvim'))
 Plug 'mhartington/deoplete-typescript', Cond(has('nvim'))

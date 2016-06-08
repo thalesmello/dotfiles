@@ -104,13 +104,6 @@ nnoremap  <leader>: :OverCommandLine<cr>
 let g:over_enable_auto_nohlsearch = 0
 
 " "}}}
-" # Move around text objects  {{{
-nnoremap <localleader>s :exec "normal vi".nr2char(getchar())."\e`<"<CR>
-nnoremap <localleader>e :exec "normal vi".nr2char(getchar())."\e`>"<CR>
-nnoremap <localleader>S :exec "normal va".nr2char(getchar())."\e`<"<CR>
-nnoremap <localleader>E :exec "normal va".nr2char(getchar())."\e`>"<CR>
-
-" "}}}
 " # Tmux complete  {{{
 " let g:tmuxcomplete#capture_args = '-J -S -100'
 
@@ -158,19 +151,6 @@ nnoremap <silent> <C-J> :TmuxNavigateDown<cr>
 nnoremap <silent> <C-K> :TmuxNavigateUp<cr>
 nnoremap <silent> <C-L> :TmuxNavigateRight<cr>
 nnoremap <silent> <C-\> :TmuxNavigatePrevious<cr>
-
-" "}}}
-" # Devdocs  {{{
-augroup plugin_devdocs
-    autocmd!
-    autocmd FileType c,cpp,rust,haskell,python,javascript,html,eruby,ruby nmap <buffer>K <Plug>(devdocs-under-cursor)
-    autocmd FileType c,cpp,rust,haskell,python,javascript,html,eruby,ruby vmap <buffer>K y:DevDocs <C-R>"<CR>
-    autocmd FileType * nmap <buffer>gK <Plug>(devdocs-under-cursor-all)
-    autocmd FileType * vmap <buffer><silent>gK y:DevDocsAll <C-R>"<CR>
-augroup END
-let g:devdocs_filetype_map = {
-            \   'ruby': 'ruby',
-            \ }
 
 " "}}}
 " # Semantic highlighting  {{{
@@ -466,42 +446,9 @@ noremap <leader>ta :Tabularize /
 noremap <leader>t/ :Tabularize /<c-r>//l1l0l0<cr>
 
 " "}}}
-" # SQLComplete  {{{
-function! MyOwnSqlComplete(findstart, base)
-    if a:findstart
-        return sqlcomplete#Complete(a:findstart, a:base)
-    else
-        " find months matching with "a:base"
-        let original = sqlcomplete#Complete(a:findstart, a:base)
-        let res = []
-        for m in original
-            let cur = m
-            let pattern = '\C\([a-z]\+\).\(\([A-Z][a-z]*\)\+\)'
-            if cur =~ pattern
-                let cur = substitute(cur, pattern, '\1."\2"', '')
-            endif
-            call add(res, cur)
-        endfor
-        return res
-    endif
-endfun
-
-augroup my_sql_complete
-    autocmd!
-    autocmd FileType sql set omnifunc=MyOwnSqlComplete
-augroup END
-
-" "}}}
 " # Vim Signify  {{{
 let g:signify_update_on_focusgained = 1
 let g:signify_update_on_bufenter = 1
-
-" "}}}
-" # R specific  {{{
-augroup R_specific_settings
-    au!
-    au FileType R,rmd let b:delimitMate_matchpairs = "(:),[:],{:}"
-augroup END
 
 " "}}}
 " # Textobj User  {{{
@@ -515,14 +462,14 @@ call textobj#user#plugin('javascriptchunck', {
             \ })
 
 function! JavaScriptChuncklock()
-    normal! ^va{`>$
-    let tail_pos = getpos('.')
-    normal! `<^
+    silent! normal! [{
     let head_pos = getpos('.')
+    normal! %
+    let tail_pos = getpos('.')
     if tail_pos == head_pos
         return 0
     endif
-    return ['v', head_pos, tail_pos]
+    return ['V', head_pos, tail_pos]
 endfunction
 
 call textobj#user#map('python', {
@@ -738,6 +685,11 @@ if !exists('g:set_carriage_return')
     imap <CR> <C-G>u<Plug>delimitMateCR
     let g:set_carriage_return = 1
 endif
+
+augroup R_specific_settings
+    au!
+    au FileType R,rmd let b:delimitMate_matchpairs = "(:),[:],{:}"
+augroup END
 
 
 " "}}}
