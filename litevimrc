@@ -31,7 +31,8 @@ Plug 'christoomey/vim-tmux-navigator'
 Plug 'tpope/vim-endwise'
 Plug 'easymotion/vim-easymotion'
 Plug 'bronson/vim-visual-star-search'
-Plug 'michaeljsmith/vim-indent-object'
+Plug 'thalesmello/vim-indent-object'
+Plug 'kana/vim-textobj-indent'
 Plug 'thalesmello/vim-unimpaired'
 Plug 'godlygeek/tabular'
 Plug 'kana/vim-textobj-function'
@@ -103,6 +104,14 @@ nnoremap <leader>ss :w<cr>
 
 set background=dark
 colorscheme molokai
+
+call textobj#user#map('indent', {
+      \      '-': {
+      \        'select-a': 'ai',
+      \        'select-i': 'ii'
+      \      }
+      \    })
+let g:textobj_indent_no_default_key_mappings = 1
 
 if has('nvim')
     set termguicolors
