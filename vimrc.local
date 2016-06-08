@@ -100,6 +100,7 @@ nnoremap <leader>pc :call <SID>PulseCursor()<cr>
 " # Vim over  {{{
 nnoremap  gs  :OverCommandLine<cr>%s//g<LEFT><LEFT>
 vnoremap  gs  :OverCommandLine<cr>s//g<LEFT><LEFT>
+nnoremap  <leader>: :OverCommandLine<cr>
 let g:over_enable_auto_nohlsearch = 0
 
 " "}}}
@@ -797,9 +798,18 @@ command! ConvertToJavascriptChaiExpect call ConvertToJavascriptChaiExpectFunctio
 
 function! ConvertToPagarmeDefaultRequestFunction()
    silent! mark a
-   silent! s/common\.request(\(\w\{-}\)\_s*,\_W\{-}\_.common\.merge\_.\{-}common\.defaultOptions\_.\{-}path':\s*\('.\{-}'\)\s*,\_.\{-}method':\s*\('.\{-}'\)\_.\{-}}\_.\{-}),\_W\{-}\(\({\|\w\)\_.\{-}\(}\|\w\)\)\s*,.\{-}\ze\w/common.defaultRequest(\2, \3, \4)\r      .then(function (_\1) { \1 = _\1 })\r      .then(/
-   silent! normal! 'a
-   silent! execute "normal! =2/then\<cr>"
+   if getline('.') =~ 'common\.request'
+      silent! execute "normal! ^2wcedefaultRequest\<esc>/(\\_./e\<cr>\"ad/\\ze, comm\<cr>d/path':/e\<cr>d/\\ze'\<cr>"
+      silent! execute "normal! /'method\<cr>d/method':\\_./e\<cr>2/'\\_./e\<cr>d/\\w\\|{\<cr>i, \<esc>"
+      if getline('.') =~ ',\(function ()\)\@!\_s\+{'
+         silent! execute "normal! %a)\<cr>\<esc>"
+      else
+         silent! execute "normal! /,\<cr>i)\<cr>\<esc>"
+      endif
+      silent! execute "normal! d/\\w\<cr>i.then(function (_\<c-r>a) { \<c-r>a = _\<c-r>a })\<cr>.then(\<esc>mb"
+      silent! 'a,'bs/(_{}) { {} = _{} /() {/
+      silent! 'a,'bnormal! ==
+   endif
 endfunction
 command! ConvertToPagarmeDefaultRequest call ConvertToPagarmeDefaultRequestFunction()
 
