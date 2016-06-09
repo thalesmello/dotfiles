@@ -194,7 +194,7 @@ function! AirlineInit()
     let g:airline_section_a = airline#section#create(['mode'])
     let g:airline_section_b = airline#section#create(['file', ' ', 'readonly'])
     " Include tag in section c
-    let g:airline_section_c = airline#section#create([])
+    let g:airline_section_c = airline#section#create(['%{g:unite_outline_closest_tag}'])
     let g:airline_section_x = airline#section#create([])
     let g:airline_section_y = airline#section#create(['%<', 'branch'])
     let g:airline_section_z = airline#section#create(['%p%% ', '%{g:airline_symbols.linenr}%#__accent_bold#%l%#__restore__#:%v'])
@@ -661,8 +661,9 @@ let g:unite_source_outline_highlight = {
 \ 'parameter_list': 'Normal',
 \ }
 
+let g:unite_outline_closest_tag = ''
 function! GetClosestTag()
-   let candidates = unite#get_candidates(['outline'])
+   silent let candidates = unite#get_candidates(['outline'])
 
    if empty(candidates)
       return ''
@@ -681,7 +682,8 @@ function! GetClosestTag()
    return prevtag
 endfunction
 command! GetClosestTag echo GetClosestTag()
-nnoremap <silent> <esc> :<c-u>GetClosestTag<cr>
+nnoremap <silent> <esc> :let g:unite_outline_closest_tag = GetClosestTag()<cr>
+autocmd CursorHold * let g:unite_outline_closest_tag = GetClosestTag()
 
 " "}}}
 " # Indent guides configuration Neovim  {{{
