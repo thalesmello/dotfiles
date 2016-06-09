@@ -31,7 +31,6 @@ nnoremap <leader>sy :setfiletype<space>
 nnoremap <leader>saq ?\v('''\|""")<CR>vw//e<CR>
 nnoremap <leader>siq ?\v('''\|""")<CR>wv//e<CR>ge
 nnoremap <leader>sl $v^
-nmap <leader>tb :TagbarToggle<CR>
 nmap <leader>/ *N
 vmap <leader>/ *N
 vmap <leader>c/ *Ncgn
@@ -96,6 +95,7 @@ augroup end
 nnoremap <leader>pc :PulseCursor<cr>
 " "}}}
 " # Vim over  {{{
+" Lazy loadable
 nnoremap  gs  :OverCommandLine<cr>%s//g<LEFT><LEFT>
 vnoremap  gs  :OverCommandLine<cr>s//g<LEFT><LEFT>
 nnoremap  <leader>: :OverCommandLine<cr>
@@ -107,6 +107,7 @@ let g:over_enable_auto_nohlsearch = 0
 
 " "}}}
 " # Vim Multiple Cursors  {{{
+" Lazyloadable if I disable default mappings
 let g:multi_cursor_exit_from_insert_mode = 0
 let g:multi_cursor_exit_from_visual_mode = 0
 
@@ -124,13 +125,8 @@ highlight multiple_cursors_cursor term=reverse cterm=reverse gui=reverse
 highlight link multiple_cursors_visual Visual
 
 " "}}}
-" # Tagbar  {{{
-let g:tagbar_left = 1
-let g:tagbar_autoclose = 1
-let g:tagbar_autofocus = 1
-
-" "}}}
 " # Easymotion  {{{
+" Lazy loadable
 let g:EasyMotion_smartcase = 1
 
 map ; <Plug>(easymotion-prefix)
@@ -143,6 +139,7 @@ omap F <Plug>(easymotion-overwin-f2)
 
 " "}}}
 " # Vim Tmux Navigator  {{{
+" Lazy loadable
 let g:tmux_navigator_no_mappings = 1
 nnoremap <silent> <C-H> :TmuxNavigateLeft<cr>
 nnoremap <silent> <C-J> :TmuxNavigateDown<cr>
@@ -152,11 +149,13 @@ nnoremap <silent> <C-\> :TmuxNavigatePrevious<cr>
 
 " "}}}
 " # Semantic highlighting  {{{
+" Lazy loadable
 let g:semanticTermColors = [28,1,2,3,87,5,6,7,81,9,10,34,11,13,14,15,165,154,49,139]
 nnoremap <Leader>sh :SemanticHighlightToggle<cr>
 
 " "}}}
 " # Pipe visual to shell {{{
+" Plugin extractable
 " By Xolox @ http://stackoverflow.com/questions/1533565/how-to-get-visually-selected-text-in-vimscript
 function! s:get_visual_selection()
     let [lnum1, col1] = getpos("'<")[1:2]
@@ -186,42 +185,19 @@ vnoremap <leader>\| :VisualCommand<CR>
 let g:airline_powerline_fonts = 1
 let g:airline_theme = 'powerlineish'
 let g:airline_inactive_collapse = 1
-let g:airline#extensions#disable_rtp_load = 1
-let g:airline_extensions = ['neomake', 'tagbar', 'branch', 'tabline', 'unite']
-let g:airline#extensions#tagbar#flags = 'f'
 let g:airline#extensions#branch#displayed_head_limit = 15
 let g:airline#extensions#default#section_truncate_width = {}
-
-let s:tagbar_enabled = 1
 
 function! AirlineInit()
     let g:airline_section_a = airline#section#create(['mode'])
     let g:airline_section_b = airline#section#create(['file', ' ', 'readonly'])
-    if s:tagbar_enabled
-        let g:airline_section_c = airline#section#create(['tagbar'])
-    else
-        let g:airline_section_c = airline#section#create([])
-    endif
+    " Include tag in section c
+    let g:airline_section_c = airline#section#create([])
     let g:airline_section_x = airline#section#create([])
     let g:airline_section_y = airline#section#create(['%<', 'branch'])
     let g:airline_section_z = airline#section#create(['%p%% ', '%{g:airline_symbols.linenr}%#__accent_bold#%l%#__restore__#:%v'])
 endfunction
 autocmd User AirlineAfterInit call AirlineInit()
-
-fun! s:ToggleAirlineOnFiletype()
-    let should_enable = &filetype != 'javascript'
-    if s:tagbar_enabled != should_enable
-        let s:tagbar_enabled = should_enable
-        silent! autocmd! TagbarAutoCmds
-        call AirlineInit()
-        AirlineRefresh
-    endif
-endf
-
-augroup airline_tagbar_handler
-    autocmd!
-    autocmd filetype * call s:ToggleAirlineOnFiletype()
-augroup end
 
 " "}}}
 " # Gutentags  {{{
@@ -229,6 +205,7 @@ let g:gutentags_exclude = ['node_modules', '.git']
 
 " "}}}
 " # Deoplete  {{{
+" Plugin extractable
 let g:deoplete#omni#input_patterns = {}
 let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
 let g:deoplete#omni#input_patterns.javascript = '[^. *\t]\.\w*'
@@ -262,6 +239,8 @@ inoremap <down> <c-n>
 
 " "}}}
 " # UltiSnips  {{{
+" Create command to load ultisnips and call it on vimenter
+" Plugin extractable configuration
 let g:ulti_expand_res = 0
 let g:ulti_jump_forwards_res = 0
 function! JumpOrExpandSnippet()
@@ -309,6 +288,7 @@ let g:rubycomplete_load_gemfile = 1
 
 " "}}}
 " # Vimux  {{{
+" Plugins extractable configuration
 let VimuxResetSequence = "q q i C-u"
 " Prompt for a command to run
 map <silent> <localleader>vp :VimuxPromptCommand<CR>
@@ -428,6 +408,7 @@ nnoremap <leader>gu :MundoToggle<CR>
 
 " "}}}
 " # Winresizer  {{{
+" Plugin extractable configuration
 let g:winresizer_start_key = '<leader>wr'
 let g:winresizer_keycode_left = 72
 let g:winresizer_keycode_right = 76
@@ -450,6 +431,9 @@ let g:signify_update_on_bufenter = 1
 
 " "}}}
 " # Textobj User  {{{
+" Plugin extractable methodchain
+" Plugin extractable javascript junk
+" Plugin extractable configuration? study possibility
 
 function! FindAroundMethodCall()
    return FindMethodCall('a')
@@ -520,6 +504,7 @@ let g:textobj_indent_no_default_key_mappings = 1
 
 " "}}}
 " # Textobj column  {{{
+" Plugin extractable configuration
 let g:skip_default_textobj_word_column_mappings = 1
 xnoremap <silent> ak :<C-u>call TextObjWordBasedColumn("aw")<cr>
 xnoremap <silent> aK :<C-u>call TextObjWordBasedColumn("aW")<cr>
@@ -536,7 +521,9 @@ let g:tcommentTextObjectInlineComment = ''
 
 " "}}}
 " # Unite.vim {{{
+" Plugin extractable configuration
 " Set default matcher options
+" Lazy loadable?
 call unite#custom#source('grep, outline', 'matchers', ['matcher_fuzzy'])
 call unite#custom#source('grep', 'sorters', 'sorter_rank')
 call unite#custom#source('location_list, quickfix', 'sorters', 'sorter_nothing')
@@ -651,6 +638,7 @@ endfunction
 
 " " }}}
 " # Unite Outline {{{
+" Plugin extractable closest tag -> include in vim outline Pull request?
 let g:unite_source_outline_highlight = {
 \ 'comment' : 'Comment',
 \ 'expanded': 'Constant',
@@ -670,6 +658,29 @@ let g:unite_source_outline_highlight = {
 \ 'level_6' : 'Normal',
 \ 'parameter_list': 'Normal',
 \ }
+
+function! GetClosestTag()
+   let candidates = unite#get_candidates(['outline'])
+
+   if empty(candidates)
+      return ''
+   endif
+
+   let curline = line('.')
+   let prevtag = ''
+
+   for candidate in candidates
+      if candidate.action__line > curline
+         break
+      endif
+      let prevtag = candidate.abbr
+   endfor
+
+   return prevtag
+endfunction
+command! GetClosestTag echo GetClosestTag()
+nnoremap <silent> <esc> :<c-u>GetClosestTag<cr>
+
 " "}}}
 " # Indent guides configuration Neovim  {{{
 let g:indent_guides_auto_colors = 0
@@ -678,6 +689,7 @@ hi IndentGuidesEven guibg=#252627 ctermbg=black
 
 " "}}}
 " # Neomake  {{{
+" Lazy loadable
 augroup neomake_save_linter
     autocmd!
     autocmd BufWritePost * Neomake
@@ -690,6 +702,7 @@ let g:autoswap_detect_tmux = 1
 
 " "}}}
 " # Delimitmate  {{{
+" Extractable configuration
 function! DelimitMateCompletion(key)
     " Because of a Deoplete bug, I have to repeat a key to try to restore
     " original vim behaviour
@@ -721,6 +734,7 @@ nnoremap <silent> <leader>sw :call WindowSwap#EasyWindowSwap()<CR>
 
 " "}}}
 " # Vimwiki  {{{
+" Extractable configuration
 let g:vimwiki_list = [{'path': '~/Dropbox/Apps/vimwiki/wiki', 'path_html': '~/Dropbox/Apps/vimwiki/html'}]
 nnoremap <leader>pd I= =<esc>"=strftime("%b %d, %Y")<CR>Pa <left>
 
@@ -729,6 +743,7 @@ nnoremap ]d :VimwikiDiaryNextDay<cr>
 
 " "}}}
 " # Persistent undo  {{{
+" Extractable plugin
 if has('persistent_undo')
     set undolevels=5000
     set undodir=$HOME/.VIM_UNDO_FILES
@@ -739,6 +754,8 @@ set updatecount=10
 
 " "}}}
 " # Schlepp  {{{
+" Extractable configuration
+" Lazy loadable
 if !exists('g:set_schlepp_shortcuts')
     vmap <unique> <up>    <Plug>SchleppUp
     vmap <unique> <down>  <Plug>SchleppDown
@@ -750,9 +767,12 @@ endif
 
 " "}}}
 " # incsearch.vim  {{{
+" Extractable configuration
+" Lazy loadable
 map g/ <Plug>(incsearch-stay)
 " "}}}
 " # Javascript editing  {{{
+" Extractable plugin
 function! ConvertToJavascriptMultiDeclarationFunction()
    silent! normal! vip
    silent! '<,'>s/^\s+/var /
