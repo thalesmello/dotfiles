@@ -753,8 +753,6 @@ endif
 
 " "}}}
 " # incsearch.vim  {{{
-map /  <Plug>(incsearch-forward)
-map ?  <Plug>(incsearch-backward)
 map g/ <Plug>(incsearch-stay)
 " "}}}
 " # Javascript editing  {{{
@@ -789,6 +787,8 @@ function! ConvertToPagarmeDefaultRequestFunction()
    endif
 endfunction
 command! ConvertToPagarmeDefaultRequest call ConvertToPagarmeDefaultRequestFunction()
+
+command! -range ConvertToJavascriptPlainProperty <line1>,<line2>s/\V['\(\.\{-}\)']/.\1/g
 
 function! TabMessage(cmd)
    redir => message
