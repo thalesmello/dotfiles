@@ -68,35 +68,32 @@ nnoremap <silent> <leader>q :pclose<cr>:cclose<cr>:lclose<cr>:UniteClose<cr>
 
 " "}}}
 " # Pulse Cursor  {{{
+" Plugin extractable
 function! s:PulseCursor()
     let cursorline_opt = &cursorline
     let cursorcolumn_opt = &cursorcolumn
-    setlocal nocursorline
-    redraw
 
-    sleep 50m
-    setlocal cursorline
-    setlocal cursorcolumn
-    redraw
-    sleep 50m
-    setlocal nocursorcolumn
-    setlocal nocursorline
-    redraw
-    sleep 50m
-    setlocal cursorcolumn
-    setlocal cursorline
-    redraw
-    sleep 50m
-    setlocal nocursorcolumn
-    redraw
+    let toggle = 0
+
+    for _ in range(4)
+       let &cursorline = toggle
+       let &cursorcolumn = toggle
+       let toggle = !toggle
+       redraw
+       sleep 50m
+    endfor
+
+    let &cursorline = cursorline_opt
+    let &cursorcolumn = cursorcolumn_opt
 endfunction
+command! PulseCursor call <SID>PulseCursor()
 
 augroup pulse_cursor_on_focus
     autocmd!
     autocmd FocusGained * call s:PulseCursor()
 augroup end
 
-nnoremap <leader>pc :call <SID>PulseCursor()<cr>
+nnoremap <leader>pc :PulseCursor<cr>
 " "}}}
 " # Vim over  {{{
 nnoremap  gs  :OverCommandLine<cr>%s//g<LEFT><LEFT>
