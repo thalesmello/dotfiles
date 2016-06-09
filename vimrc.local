@@ -187,6 +187,8 @@ let g:airline_theme = 'powerlineish'
 let g:airline_inactive_collapse = 1
 let g:airline#extensions#branch#displayed_head_limit = 15
 let g:airline#extensions#default#section_truncate_width = {}
+let g:airline#extensions#tabline#show_buffers = 1
+let g:airline#extensions#tabline#enabled = 1
 
 function! AirlineInit()
     let g:airline_section_a = airline#section#create(['mode'])

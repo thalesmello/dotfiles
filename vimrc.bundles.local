@@ -66,3 +66,4 @@ Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
 Plug 'rhysd/vim-textobj-lastinserted'
 " TODO: Check
 " github-complete.vim
+" committia.vim
