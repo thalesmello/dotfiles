@@ -64,4 +64,4 @@ Plug 'zchee/deoplete-jedi',             Cond(has('nvim'))
 Plug 'mhartington/deoplete-typescript', Cond(has('nvim'))
 Plug 'Shougo/echodoc.vim',              Cond(has('nvim'))
 Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
-Plug 'thalesmello/vim-textobj-lastinserted'
+Plug 'rhysd/vim-textobj-lastinserted'
