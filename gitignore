@@ -13,4 +13,4 @@ _test.sh
 tags.lock
 tags.temp
 .tern-port
-.-rplugin*
+.-rplugin\~
