@@ -110,6 +110,7 @@ let g:over_enable_auto_nohlsearch = 0
 " Lazyloadable if I disable default mappings
 let g:multi_cursor_exit_from_insert_mode = 0
 let g:multi_cursor_exit_from_visual_mode = 0
+let g:deoplete#auto_complete_delay = 100
 
 function! Multiple_cursors_before()
     call DeopleteMultipleCursorsSwitch(1)

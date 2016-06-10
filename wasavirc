@@ -1,5 +1,10 @@
 " exrc for wasavi
-map ,ss :w<cr>
-map ,sq :wq<cr>
+map <space>ss :w<cr>
+map <space>sq :wq<cr>
 map vae ggVG
 map! <A-C> ç
+
+map H ^
+map L $
+
+set wd=60
