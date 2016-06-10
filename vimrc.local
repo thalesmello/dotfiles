@@ -671,12 +671,23 @@ function! GetClosestTag()
 
    let curline = line('.')
    let prevtag = ''
+   let prevword = ''
+   let accscope = ''
 
    for candidate in candidates
       if candidate.action__line > curline
          break
       endif
-      let prevtag = candidate.abbr
+
+      if prevword != '' && candidate.action__signature =~ prevword
+         let accscope = accscope == '' ? prevword : accscope . '#' . prevword
+         let prevtag = accscope . '#' . candidate.abbr
+      else
+         let accscope = ''
+         let prevtag = candidate.abbr
+      endif
+
+      let prevword = candidate.word
    endfor
 
    return prevtag
