@@ -101,6 +101,10 @@ nnoremap <S-3-ScrollWheelDown>   <3-ScrollWheelRight>
 nnoremap <S-4-ScrollWheelDown>   <4-ScrollWheelRight>
 nnoremap <leader>d :q<cr>
 nnoremap <leader>ss :w<cr>
+map ; <Plug>(easymotion-prefix)
+nmap f <Plug>(easymotion-bd-f)
+xmap f <Plug>(easymotion-bd-f)
+omap f <Plug>(easymotion-bd-f)
 
 set background=dark
 colorscheme molokai
