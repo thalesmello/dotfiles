@@ -636,9 +636,13 @@ function! DelimitMateCompletion(key)
                 \ . "\<c-x>" . a:key . (pumvisible() ? a:key : "")
 endfunction
 
+function! CustomCompletion(key)
+    return "\<c-x>" . a:key . (pumvisible() ? a:key : "")
+endfunction
+
 imap <expr> <c-x><c-l> DelimitMateCompletion("\<c-l>")
-imap <expr> <c-x><c-n> DelimitMateCompletion("\<c-n>")
-imap <expr> <c-x><c-p> DelimitMateCompletion("\<c-p>")
+imap <expr> <c-x><c-n> CustomCompletion("\<c-n>")
+imap <expr> <c-x><c-p> CustomCompletion("\<c-p>")
 let g:delimitMate_expand_space = 1
 let g:delimitMate_expand_cr = 1
 
