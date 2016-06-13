@@ -64,6 +64,12 @@ Plug 'mhartington/deoplete-typescript', Cond(has('nvim'))
 Plug 'Shougo/echodoc.vim',              Cond(has('nvim'))
 Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
 Plug 'rhysd/vim-textobj-lastinserted'
+Plug 'thalesmello/vim-textobj-methodcall'
+Plug 'thalesmello/vim-textobj-bracketchunk'
+Plug 'thalesmello/pulsecursor.vim'
+Plug 'thalesmello/tabmessage.vim'
+Plug 'thalesmello/persistent.vim'
+Plug 'thalesmello/pagarme-refactor.vim'
 " TODO: Check
 " github-complete.vim
 " committia.vim

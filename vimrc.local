@@ -66,44 +66,12 @@ nnoremap <S-4-ScrollWheelDown>   <4-ScrollWheelRight>
 nnoremap <silent> <leader>q :pclose<cr>:cclose<cr>:lclose<cr>:UniteClose<cr>
 
 " "}}}
-" # Pulse Cursor  {{{
-" Plugin extractable
-function! s:PulseCursor()
-    let cursorline_opt = &cursorline
-    let cursorcolumn_opt = &cursorcolumn
-
-    let toggle = 0
-
-    for _ in range(4)
-       let &cursorline = toggle
-       let &cursorcolumn = toggle
-       let toggle = !toggle
-       redraw
-       sleep 50m
-    endfor
-
-    let &cursorline = cursorline_opt
-    let &cursorcolumn = cursorcolumn_opt
-endfunction
-command! PulseCursor call <SID>PulseCursor()
-
-augroup pulse_cursor_on_focus
-    autocmd!
-    autocmd FocusGained * call s:PulseCursor()
-augroup end
-
-nnoremap <leader>pc :PulseCursor<cr>
-" "}}}
 " # Vim over  {{{
 " Lazy loadable
 nnoremap  gs  :OverCommandLine<cr>%s//g<LEFT><LEFT>
 vnoremap  gs  :OverCommandLine<cr>s//g<LEFT><LEFT>
 nnoremap  <leader>: :OverCommandLine<cr>
 let g:over_enable_auto_nohlsearch = 0
-
-" "}}}
-" # Tmux complete  {{{
-" let g:tmuxcomplete#capture_args = '-J -S -100'
 
 " "}}}
 " # Vim Multiple Cursors  {{{
@@ -183,6 +151,7 @@ vnoremap <leader>\| :VisualCommand<CR>
 
 " }}} "
 " # Airline  {{{
+" Plugin extractable configuration?
 let g:airline_powerline_fonts = 1
 let g:airline_theme = 'powerlineish'
 let g:airline_inactive_collapse = 1
@@ -194,7 +163,6 @@ let g:airline#extensions#tabline#enabled = 1
 function! AirlineInit()
     let g:airline_section_a = airline#section#create(['mode'])
     let g:airline_section_b = airline#section#create(['file', ' ', 'readonly'])
-    " Include tag in section c
     let g:airline_section_c = airline#section#create(['%{g:unite_outline_closest_tag}'])
     let g:airline_section_x = airline#section#create([])
     let g:airline_section_y = airline#section#create(['%<', 'branch'])
@@ -398,6 +366,7 @@ let g:localvimrc_event = ['VimEnter']
 
 " "}}}
 " # Autoformat  {{{
+" Lazy configurable
 noremap <leader>sb :Autoformat<cr>
 let g:formatdef_sqlformat = '"sqlformat -k upper -r --indent_width=4 -"'
 let g:formatdef_rubocop = '"rubocop --auto-correct " . expand("%") . " -o /dev/null || cat " . expand("%")'
@@ -434,61 +403,7 @@ let g:signify_update_on_bufenter = 1
 
 " "}}}
 " # Textobj User  {{{
-" Plugin extractable methodchain
-" Plugin extractable javascript junk
 " Plugin extractable configuration? study possibility
-
-function! FindAroundMethodCall()
-   return FindMethodCall('a')
-endfunction
-
-function! FindInnerMethodCall()
-   return FindMethodCall('i')
-endfunction
-
-function! FindMethodCall(mode)
-   if a:mode == 'a'
-      silent! normal! [(
-   endif
-   silent! execute "normal! w?\\v(\\.{0,1}\\w+)+\<cr>"
-   let head_pos = getpos('.')
-   normal! %
-   let tail_pos = getpos('.')
-   if tail_pos == head_pos
-      return 0
-   endif
-   return ['v', head_pos, tail_pos]
-endfunction
-
-call textobj#user#plugin('methodcall', {
-            \   '-': {
-            \     'select-a-function': 'FindAroundMethodCall',
-            \     'select-a': 'am',
-            \     'select-i-function': 'FindInnerMethodCall',
-            \     'select-i': 'im',
-            \   },
-            \ })
-
-call textobj#user#plugin('javascriptchunck', {
-            \   '-': {
-            \     'select-a-function': 'JavaScriptChuncklock',
-            \     'select-a': 'aj',
-            \     'select-i-function': 'JavaScriptChuncklock',
-            \     'select-i': 'ij',
-            \   },
-            \ })
-
-function! JavaScriptChuncklock()
-    silent! normal! [{
-    let head_pos = getpos('.')
-    normal! %
-    let tail_pos = getpos('.')
-    if tail_pos == head_pos
-        return 0
-    endif
-    return ['V', head_pos, tail_pos]
-endfunction
-
 call textobj#user#map('python', {
       \   'class': {
       \     'select-a': '<buffer>aP',
@@ -497,12 +412,7 @@ call textobj#user#map('python', {
       \ })
 let g:textobj_python_no_default_key_mappings = 1
 
-call textobj#user#map('indent', {
-      \      '-': {
-      \        'select-a': 'ai',
-      \        'select-i': 'ii'
-      \      }
-      \    })
+call textobj#user#map('indent', { '-': { 'select-a': 'ai', 'select-i': 'ii' } })
 let g:textobj_indent_no_default_key_mappings = 1
 
 " "}}}
@@ -758,17 +668,6 @@ nnoremap [d :VimwikiDiaryPrevDay<cr>
 nnoremap ]d :VimwikiDiaryNextDay<cr>
 
 " "}}}
-" # Persistent undo  {{{
-" Extractable plugin
-if has('persistent_undo')
-    set undolevels=5000
-    set undodir=$HOME/.VIM_UNDO_FILES
-    set undofile
-endif
-set updatecount=10
-
-
-" "}}}
 " # Schlepp  {{{
 " Extractable configuration
 " Lazy loadable
@@ -786,56 +685,4 @@ endif
 " Extractable configuration
 " Lazy loadable
 map g/ <Plug>(incsearch-stay)
-" "}}}
-" # Javascript editing  {{{
-" Extractable plugin
-function! ConvertToJavascriptMultiDeclarationFunction()
-   silent! normal! vip
-   silent! '<,'>s/^\s+/var /
-   silent! '<,'>s/^\s\+/var /
-   silent! '<,'>s/,$//
-   silent! normal! `<
-endfunction
-command! ConvertToJavascriptMultiDeclaration call ConvertToJavascriptMultiDeclarationFunction()
-
-function! ConvertToJavascriptChaiExpectFunction()
-  silent! %s /\v\s+\zs(.+)\.should/expect(\1).to/g
-  silent! %s /\vhave\.status\((\d+)\)/have.property('statusCode', \1)/g
-endfunction
-command! ConvertToJavascriptChaiExpect call ConvertToJavascriptChaiExpectFunction()
-
-function! ConvertToPagarmeDefaultRequestFunction()
-   silent! mark a
-   if getline('.') =~ 'common\.request'
-      silent! execute "normal! ^2wcedefaultRequest\<esc>/(\\_./e\<cr>\"ad/\\ze, comm\<cr>d/path':/e\<cr>d/\\ze'\<cr>"
-      silent! execute "normal! /'method\<cr>d/method':\\_./e\<cr>2/'\\_./e\<cr>d/\\w\\|{\<cr>i, \<esc>"
-      if getline('.') =~ ',\(function ()\)\@!\_s\+{'
-         silent! execute "normal! %a)\<cr>\<esc>"
-      else
-         silent! execute "normal! /,\<cr>i)\<cr>\<esc>"
-      endif
-      silent! execute "normal! d/\\w\<cr>i.then(function (_\<c-r>a) { \<c-r>a = _\<c-r>a })\<cr>.then(\<esc>mb"
-      silent! 'a,'bs/(_{}) { {} = _{} /() {/
-      silent! 'a,'bnormal! ==
-   endif
-endfunction
-command! ConvertToPagarmeDefaultRequest call ConvertToPagarmeDefaultRequestFunction()
-
-command! -range ConvertToJavascriptPlainProperty <line1>,<line2>s/\V['\(\.\{-}\)']/.\1/g
-
-function! TabMessage(cmd)
-   redir => message
-   silent execute a:cmd
-   redir END
-   if empty(message)
-      echoerr "no output"
-   else
-      " use "new" instead of "tabnew" below if you prefer split windows instead of tabs
-      tabnew
-      setlocal buftype=nofile bufhidden=wipe noswapfile nobuflisted nomodified
-      silent put=message
-   endif
-endfunction
-command! -nargs=+ -complete=command TabMessage call TabMessage(<q-args>)
-
 " "}}}
