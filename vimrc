@@ -198,6 +198,7 @@ nnoremap <leader>d :q<cr>
 " }}}
 " ##### Folding {{{
 " Toggles folding with space
+" Plugin extractable
 function! MyToggleFold()
   if foldclosed(line('.')) >= 0
     silent! normal zv
@@ -207,6 +208,7 @@ function! MyToggleFold()
 endfunction
 
 nnoremap <silent> <s-tab> :<c-U>call MyToggleFold()<cr>
+nnoremap <silent> <leader><tab> :<c-U>call MyToggleFold()<cr>
 if !has('gui')
   function! JumpForwardOrToggleFold()
     let oldpos = getpos('.')
