@@ -31,10 +31,10 @@ nnoremap <leader>sy :setfiletype<space>
 nnoremap <leader>saq ?\v('''\|""")<CR>vw//e<CR>
 nnoremap <leader>siq ?\v('''\|""")<CR>wv//e<CR>ge
 nnoremap <leader>sl $v^
-nmap <leader>/ *N
-vmap <leader>/ *N
-vmap <leader>c/ *Ncgn
-nmap <leader>c/ *Ncgn
+nmap <leader>* *N
+vmap <leader>* *N
+vmap <leader>c* *Ncgn
+nmap <leader>c* *Ncgn
 nnoremap Y y$
 nnoremap <leader>fw :FixWhitespace<cr>
 vmap <leader>yj Jgvyu
@@ -64,6 +64,7 @@ nnoremap <S-2-ScrollWheelDown>   <2-ScrollWheelRight>
 nnoremap <S-3-ScrollWheelDown>   <3-ScrollWheelRight>
 nnoremap <S-4-ScrollWheelDown>   <4-ScrollWheelRight>
 nnoremap <silent> <leader>q :pclose<cr>:cclose<cr>:lclose<cr>:UniteClose<cr>
+nnoremap <leader>sf :source %<cr>
 
 " "}}}
 " # Vim over  {{{
@@ -300,7 +301,8 @@ function! GetExecuteCommand()
                 \   'python': 'python',
                 \   'html': 'open',
                 \   'ruby': 'ruby',
-                \   'sh': 'sh'
+                \   'sh': 'sh',
+                \   'bash': 'bash'
                 \ }
     let cmd = get(filetype_to_command, &filetype, &filetype)
     return cmd . " " . expand("%")
@@ -406,14 +408,16 @@ let g:signify_update_on_bufenter = 1
 " Plugin extractable configuration? study possibility
 call textobj#user#map('python', {
       \   'class': {
-      \     'select-a': '<buffer>aP',
-      \     'select-i': '<buffer>iP',
+      \     'select-a': 'aP',
+      \     'select-i': 'iP',
       \   },
       \ })
 let g:textobj_python_no_default_key_mappings = 1
 
 call textobj#user#map('indent', { '-': { 'select-a': 'ai', 'select-i': 'ii' } })
 let g:textobj_indent_no_default_key_mappings = 1
+nnoremap <leader>saq ?\v('''\|""")<CR>vw//e<CR>
+nnoremap <leader>siq ?\v('''\|""")<CR>wv//e<CR>ge
 
 " "}}}
 " # Textobj column  {{{
@@ -437,6 +441,8 @@ let g:tcommentTextObjectInlineComment = ''
 " Plugin extractable configuration
 " Set default matcher options
 " Lazy loadable?
+" # Unite buffer options {{{
+" Plugn extractable
 call unite#custom#source('grep, outline', 'matchers', ['matcher_fuzzy'])
 call unite#custom#source('grep', 'sorters', 'sorter_rank')
 call unite#custom#source('location_list, quickfix', 'sorters', 'sorter_nothing')
@@ -448,86 +454,9 @@ call unite#custom#profile('default', 'context', {
     \   'direction': 'topleft',
     \ })
 
-" Using ag as recursive command.
-let g:unite_source_rec_async_command = ['ag', '--follow', '--nocolor', '--nogroup', '--hidden', '-g', '']
-let g:unite_source_grep_command = 'ag'
-let g:unite_source_grep_default_opts = '-i --vimgrep --hidden --ignore ' .
-            \ '''.hg'' --ignore ''.svn'' --ignore ''.git'' --ignore ''.bzr'''
-let g:unite_source_grep_recursive_opt = ''
-let g:unite_source_line_enable_highlight = 1
-" Yank history mappings
-nnoremap gp :<c-u>Unite history/yank -default-action=append<CR>
-nnoremap gP :<c-u>Unite history/yank<CR>
-vnoremap gp d:<c-u>call CallYankHistoryMaybeEnd()<cr>
-
-function! IsAtEndOfLine()
-    return col('.') == col('$') - 1 && col('.') != 1
-endfunction
-
-function! CallYankHistoryMaybeEnd()
-    let action_to_take = IsAtEndOfLine() ? 'append' : 'insert'
-    call unite#start(['history/yank'], { 'default_action': action_to_take })
-endfunction
-
-" Quickly switch buffers
-nnoremap <leader>bb :Unite -quick-match buffer<cr>
-" Cmd completion
-cmap <c-@> <Plug>(unite_cmdmatch_complete)
-" File explorer
-nmap <silent> gf viwgf
-if has('nvim')
-    nnoremap <silent> <c-p> :<C-u>Unite -buffer-name=files file_rec/neovim:! file/new<CR>
-    vnoremap <silent> gf "uy:<C-u>Unite -buffer-name=files file_rec/neovim:! -input=<c-r>u<CR>
-else
-    nnoremap <silent> <c-p> :<C-u>Unite -buffer-name=files file_rec/async:! file/new<CR>
-    vnoremap <silent> gf "uy:<C-u>Unite -buffer-name=files file_rec/async:! -input=<c-r>u<CR>
-endif
-" " Ack.vim
-nnoremap <silent> <c-f> :<c-u>Unite grep:!<cr>
-nnoremap <silent> <leader>a "uyiw:<c-u>Unite grep:!::<c-r>u<cr>
-vnoremap <silent> <leader>a "uy:<c-u>Unite grep:!::<c-r>u<cr>
-" Jump list
-nnoremap <silent> <leader><c-o> :<c-u>Unite jump<cr>
-
-" Tmux completion unite settings
-function! GetTmuxCompletion()
-    let text = unite#get_cur_text()
-    let text = substitute(text, '.\{-}\(\k*\)$', '\1', '')
-    return unite#start_complete(['tmuxcomplete'], { 'start_insert' : 1, 'input' : text, 'default_action': 'append'})
-endfunction
-inoremap <silent><expr> <c-x><c-t> "\<c-g>u\<c-w>".GetTmuxCompletion()."\<right>"
-
-" Localvimrc unite settings
-nmap <leader>epv :<c-u>Unite -input=.lvimrc file_rec/neovim<cr>
-nmap <leader>spv :<c-u>LocalVimRC<cr>
-
-" Unite quickfix
 let g:unite_quickfix_is_multiline=0
 call unite#custom_source('quickfix', 'converters', 'converter_quickfix_highlight')
 call unite#custom_source('location_list', 'converters', 'converter_quickfix_highlight')
-nnoremap <silent> [unite]qf :<c-u>Unite -wrap -prompt-direction=top quickfix<cr>
-nnoremap <silent> [unite]ll :<c-u>Unite -wrap -prompt-direction=top location_list<cr>
-
-" Unimpaired like bindings
-nnoremap <silent> [z :<c-u>UnitePrevious<cr>
-nnoremap <silent> ]z :<c-u>UniteNext<cr>
-nnoremap <silent> [Z :<c-u>UniteFirst<cr>
-nnoremap <silent> ]Z :<c-u>UniteLast<cr>
-
-" prefix key
-nnoremap [unite] <Nop>
-nmap s [unite]
-nnoremap <silent> [unite]r :<C-u>UniteResume<CR>
-nnoremap <silent> [unite]ma :<C-u>Unite mapping<CR>
-nnoremap <silent> [unite]me :<C-u>Unite output:message<CR>
-nnoremap <silent> [unite]u :<C-u>Unite ultisnips<CR>
-nnoremap <silent> [unite]o :<C-u>Unite -direction=topleft -split outline<CR>
-nnoremap <silent> [unite]tt :<c-u>Unite tmuxcomplete -default-action=append<cr>
-nnoremap <silent> [unite]tl :<c-u>Unite tmuxcomplete/lines -default-action=append<cr>
-nnoremap <silent> [unite]li :<c-u>Unite line<cr>
-nnoremap <silent> [unite]mr :<C-u>Unite file_mru<cr>
-nnoremap <silent> [unite]f :<C-u>Unite file_mru<cr>
-nnoremap <silent> [unite]/ :<C-u>Unite line -input=<c-r>/<cr>
 
 autocmd FileType unite call s:unite_my_settings()
 function! s:unite_my_settings()
@@ -548,9 +477,70 @@ function! s:unite_my_settings()
     nmap <buffer><expr> v unite#do_action('left')
     imap <buffer><expr> <c-v> unite#do_action('left')
 endfunction
-
 " " }}}
-" # Unite Outline {{{
+" # Prefix shortcuts {{{
+" Plugin extractable
+nnoremap [unite] <Nop>
+nmap s [unite]
+nnoremap <silent> [unite]r :<C-u>UniteResume<CR>
+nnoremap <silent> [unite]ma :<C-u>Unite mapping<CR>
+nnoremap <silent> [unite]me :<C-u>Unite output:message<CR>
+nnoremap <silent> [unite]u :<C-u>Unite ultisnips<CR>
+nnoremap <silent> [unite]o :<C-u>Unite -direction=topleft -split outline<CR>
+nnoremap <silent> [unite]tw :<c-u>Unite tmuxcomplete -default-action=append<cr>
+nnoremap <silent> [unite]tl :<c-u>Unite tmuxcomplete/lines -default-action=append<cr>
+nnoremap <silent> [unite]li :<c-u>Unite line<cr>
+nnoremap <silent> [unite]mr :<C-u>Unite file_mru<cr>
+nnoremap <silent> [unite]f :<C-u>Unite file_mru<cr>
+nnoremap <silent> [unite]/ :<C-u>Unite line -input=<c-r>/
+nnoremap <silent> [unite]bb :Unite -quick-match buffer<cr>
+nnoremap <silent> [unite]qf :<c-u>Unite -wrap -prompt-direction=top quickfix<cr>
+nnoremap <silent> [unite]ll :<c-u>Unite -wrap -prompt-direction=top location_list<cr>
+nnoremap <silent> [unite][ :<c-u>UnitePrevious<cr>
+nnoremap <silent> [unite]] :<c-u>UniteNext<cr>
+nnoremap <silent> [unite]{ :<c-u>UniteFirst<cr>
+nnoremap <silent> [unite]} :<c-u>UniteLast<cr>
+" " }}}
+" Ag grep config {{{
+" Plugin extractable
+let g:unite_source_rec_async_command = ['ag', '--follow', '--nocolor', '--nogroup', '--hidden', '-g', '']
+let g:unite_source_grep_command = 'ag'
+let g:unite_source_grep_default_opts = '-i --vimgrep --hidden --ignore ' .
+            \ '''.hg'' --ignore ''.svn'' --ignore ''.git'' --ignore ''.bzr'''
+let g:unite_source_grep_recursive_opt = ''
+let g:unite_source_line_enable_highlight = 1
+
+nnoremap <silent> <c-f> :<c-u>Unite grep:!<cr>
+nnoremap <silent> <leader>a "uyiw:<c-u>Unite grep:!::<c-r>u<cr>
+vnoremap <silent> <leader>a "uy:<c-u>Unite grep:!::<c-r>u<cr>
+" }}}
+" Yank history mappings {{{
+" Plugin extractable
+nnoremap gp :<c-u>Unite history/yank -default-action=append<CR>
+nnoremap gP :<c-u>Unite history/yank<CR>
+vnoremap gp d:<c-u>call CallYankHistoryMaybeEnd()<cr>
+
+function! IsAtEndOfLine()
+    return col('.') == col('$') - 1 && col('.') != 1
+endfunction
+
+function! CallYankHistoryMaybeEnd()
+    let action_to_take = IsAtEndOfLine() ? 'append' : 'insert'
+    call unite#start(['history/yank'], { 'default_action': action_to_take })
+endfunction
+" }}}
+" # File explorer (Ctrl+P) {{{
+" Plugin extractable
+let grep_source = has('nvim') ? 'file_rec/neovim' : 'file_rec/async'
+nnoremap <silent> <expr> <c-p> ":\<C-u>Unite -buffer-name=files " . grep_source . ":! file/new\<CR>"
+vnoremap <silent> <expr> gf "\"uy:\<C-u>Unite -buffer-name=files " . grep_source . ":! -input=\<c-r>u\<CR>"
+nmap <silent> gf viwgf
+
+" "}}}
+" # Unimpaired {{{
+
+" "}}}
+" # Outline {{{
 " Plugin extractable closest tag -> include in vim outline Pull request?
 let g:unite_source_outline_highlight = {
 \ 'comment' : 'Comment',
@@ -608,6 +598,13 @@ nnoremap <silent> <esc> :let g:unite_outline_closest_tag = GetClosestTag()<cr>
 autocmd CursorHold * let g:unite_outline_closest_tag = GetClosestTag()
 
 " "}}}
+" # Other mappings {{{
+nnoremap <silent> <leader><c-o> :<c-u>Unite jump<cr>
+nmap <leader>epv :<c-u>Unite -input=.lvimrc file_rec/neovim<cr>
+nmap <leader>spv :<c-u>LocalVimRC<cr>
+nmap <leader>epg :<c-u>Unite file_rec/neovim:~/.vim/plugged<cr>
+" "}}}
+" " }}}
 " # Indent guides configuration Neovim  {{{
 let g:indent_guides_auto_colors = 0
 hi IndentGuidesOdd  guibg=#353738 ctermbg=none
@@ -689,4 +686,10 @@ endif
 " Extractable configuration
 " Lazy loadable
 map g/ <Plug>(incsearch-stay)
+" "}}}
+" # incsearch.vim  {{{
+" Extractable configuration
+" Lazy loadable
+let g:fastfold_fold_movement_commands = ['zj', 'zk']
+
 " "}}}
