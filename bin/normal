@@ -1,2 +1,2 @@
 #!/bin/sh
-vim - -u NONE -es '+1' "+%normal $*" '+%print' '+:qa!' | tail -n +2
+vim - -u NONE -es "+%normal $*" '+%print' '+:qa!' | tail -n +2
