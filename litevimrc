@@ -50,9 +50,6 @@ Plug 'saihoooooooo/vim-textobj-space'
 Plug 'tpope/vim-speeddating'
 Plug 'sjl/vitality.vim'
 Plug 'ConradIrwin/vim-bracketed-paste'
-Plug 'Shougo/deoplete.nvim',            Cond(has('nvim'))
-Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
-Plug 'wellle/tmux-complete.vim'
 Plug 'tomasr/molokai'
 
 
@@ -120,6 +117,4 @@ let g:textobj_indent_no_default_key_mappings = 1
 if has('nvim')
     set termguicolors
     let $NVIM_TUI_ENABLE_CURSOR_SHAPE = 1
-    let g:deoplete#enable_at_startup = 1
-    call deoplete#enable()
 endif
