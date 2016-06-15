@@ -293,64 +293,64 @@ nmap <silent> <localleader>vr <localleader>vq:call VimuxRunCommand(GetReplComman
 nnoremap <silent> <localleader>vtp :call VimuxRunCommand('exec-notify ./script/test ' . expand('%'))<cr>
 
 function! VimuxSlime() range
-    call VimuxRunCommand(s:get_visual_selection())
+   call VimuxRunCommand(s:get_visual_selection())
 endfunction
 
 function! VimuxSlimeLineBreak() range
-    call VimuxSlime()
-    call VimuxSendKeys('Enter')
+   call VimuxSlime()
+   call VimuxSendKeys('Enter')
 endfunction
 
 function! VimuxSlimeSemicolon() range
-    call VimuxRunCommand(s:get_visual_selection() . '\;')
+   call VimuxRunCommand(s:get_visual_selection() . '\;')
 endfunction
 
 function! VimuxCopyPostres() range
-    call VimuxRunCommand('\COPY (' . s:get_visual_selection() . ") TO PROGRAM 'pbcopy' DELIMITER e'\\t' CSV HEADER\;")
+   call VimuxRunCommand('\COPY (' . s:get_visual_selection() . ") TO PROGRAM 'pbcopy' DELIMITER e'\\t' CSV HEADER\;")
 endfunction
 
 function! GetExecuteCommand()
-    let filetype_to_command = {
-                \   'javascript': 'node',
-                \   'coffee': 'coffee',
-                \   'python': 'python',
-                \   'html': 'open',
-                \   'ruby': 'ruby',
-                \   'sh': 'sh',
-                \   'bash': 'bash'
-                \ }
-    let cmd = get(filetype_to_command, &filetype, &filetype)
-    return cmd . " " . expand("%")
+   let filetype_to_command = {
+            \   'javascript': 'node',
+            \   'coffee': 'coffee',
+            \   'python': 'python',
+            \   'html': 'open',
+            \   'ruby': 'ruby',
+            \   'sh': 'sh',
+            \   'bash': 'bash'
+            \ }
+   let cmd = get(filetype_to_command, &filetype, &filetype)
+   return cmd . " " . expand("%")
 endfunction
 
 function! GetNodemonCommand()
-    let filetype_to_extension = {
-                \   'javascript': 'js',
-                \   'coffee': 'coffee',
-                \   'python': 'py',
-                \   'ruby': 'rb'
-                \ }
-    let extension = get(filetype_to_extension, &filetype, &filetype)
-    let cmd = GetExecuteCommand()
-    return  'nodemon -L -e "' . extension . '" -x "' . cmd . '"'
+   let filetype_to_extension = {
+            \   'javascript': 'js',
+            \   'coffee': 'coffee',
+            \   'python': 'py',
+            \   'ruby': 'rb'
+            \ }
+   let extension = get(filetype_to_extension, &filetype, &filetype)
+   let cmd = GetExecuteCommand()
+   return  'nodemon -L -e "' . extension . '" -x "' . cmd . '"'
 endfunction
 
 function! GetReplCommand()
-    let filetype_to_repl = {
-                \   'javascript': 'node',
-                \   'ruby': 'rbenv exec pry',
-                \   'sql': 'pagarme_postgres'
-                \ }
-    let repl_bin = get(filetype_to_repl, &filetype, &filetype)
-    echo repl_bin
-    return  repl_bin
+   let filetype_to_repl = {
+            \   'javascript': 'node',
+            \   'ruby': 'rbenv exec pry',
+            \   'sql': 'pagarme_postgres'
+            \ }
+   let repl_bin = get(filetype_to_repl, &filetype, &filetype)
+   echo repl_bin
+   return  repl_bin
 endfunction
 
 " Python specific shortcuts
 augroup python_vimux_shortuts
-    autocmd!
-    autocmd FileType python vmap <buffer> <localleader>vs :call VimuxSlimeLineBreak()<CR>`>j^
-    autocmd FileType python nmap <localleader><CR> V:call VimuxSlime()<CR>`>j^
+   autocmd!
+   autocmd FileType python vmap <buffer> <localleader>vs :call VimuxSlimeLineBreak()<CR>`>j^
+   autocmd FileType python nmap <localleader><CR> V:call VimuxSlime()<CR>`>j^
 augroup END
 
 " "}}}
