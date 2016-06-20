@@ -7,3 +7,31 @@ endsnippet
 snippet cmd "Vimscript" b
 command! ${1:CommandName} ${2:call ${3:$1Function}()}$0
 endsnippet
+
+snippet desc "Vimspec describe" b
+describe '${1:description}'
+	${VISUAL}$0
+end
+endsnippet
+
+snippet it "Vimspec it assertion" b
+it '${1:it does something}'
+	${VISUAL}$0
+end
+endsnippet
+
+snippet before "Vimspec before block" b
+before
+	${VISUAL}$0
+end
+endsnippet
+
+snippet after "Vimspec after block" b
+after
+	${VISUAL}$0
+end
+endsnippet
+
+snippet Expect "Vimspec expect" b
+Expect ${1:${VISUAL:expression}} ${2:==} ${0:expected_value}
+endsnippet
