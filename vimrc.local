@@ -656,7 +656,6 @@ nnoremap <silent> <leader>sw :call WindowSwap#EasyWindowSwap()<CR>
 " # Vimwiki  {{{
 " Extractable configuration
 let g:vimwiki_list = [{'path': '~/Dropbox/Apps/vimwiki/wiki', 'path_html': '~/Dropbox/Apps/vimwiki/html'}]
-nnoremap <leader>pd I= =<esc>"=strftime("%b %d, %Y")<CR>Pa <left>
 
 nnoremap [d :VimwikiDiaryPrevDay<cr>
 nnoremap ]d :VimwikiDiaryNextDay<cr>
@@ -679,10 +678,4 @@ endif
 " Extractable configuration
 " Lazy loadable
 map g/ <Plug>(incsearch-stay)
-" "}}}
-" # incsearch.vim  {{{
-" Extractable configuration
-" Lazy loadable
-let g:fastfold_fold_movement_commands = ['zj', 'zk']
-
 " "}}}
