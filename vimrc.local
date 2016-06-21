@@ -536,9 +536,6 @@ vnoremap <silent> <expr> gf "\"uy:\<C-u>Unite -buffer-name=files " . grep_source
 nmap <silent> gf viwgf
 
 " "}}}
-" # Unimpaired {{{
-
-" "}}}
 " # Outline {{{
 " Plugin extractable closest tag -> include in vim outline Pull request?
 let g:unite_source_outline_highlight = {
