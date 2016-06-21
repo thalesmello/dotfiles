@@ -505,7 +505,13 @@ let g:unite_source_line_enable_highlight = 1
 
 nnoremap <silent> <c-f> :<c-u>Unite grep:!<cr>
 nnoremap <silent> <leader>a "uyiw:<c-u>Unite grep:!::<c-r>u<cr>
-vnoremap <silent> <leader>a "uy:<c-u>Unite grep:!::<c-r>u<cr>
+vnoremap <silent> <leader>a :<c-u>call CallUniteAg()<cr>
+
+function! CallUniteAg()
+   let selection = s:get_visual_selection()
+   call unite#start([['grep', '!', '', selection]])
+endfunction
+
 " }}}
 " Yank history mappings {{{
 " Plugin extractable
