@@ -455,7 +455,12 @@ autocmd FileType unite call s:unite_my_settings()
 function! s:unite_my_settings()
     nmap <buffer> <C-z> <Plug>(unite_toggle_transpose_window)
     imap <buffer> <C-z> <Plug>(unite_toggle_transpose_window)
-    nmap <buffer> <C-j> <Plug>(unite_toggle_auto_preview)
+    nmap <buffer> J <Plug>(unite_toggle_auto_preview)
+    nmap <buffer> K <Plug>(unite_print_candidate)
+    nmap <buffer> L <Plug>(unite_redraw)
+    nunmap <buffer> <c-k>
+    nunmap <buffer> <c-l>
+    nunmap <buffer> <c-h>
     imap <buffer> <C-j> <Plug>(unite_toggle_auto_preview)
     nmap <buffer> <C-p> <Plug>(unite_narrowing_input_history)
     imap <buffer> <C-p> <Plug>(unite_narrowing_input_history)
