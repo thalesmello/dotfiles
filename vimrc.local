@@ -560,6 +560,10 @@ let g:unite_source_outline_highlight = {
 
 let g:unite_outline_closest_tag = ''
 function! GetClosestTag()
+   if exists('b:unite')
+      return ''
+   endif
+
    silent let candidates = unite#get_candidates(['outline'])
 
    if empty(candidates)
