@@ -522,16 +522,19 @@ endfunction
 " Plugin extractable
 nnoremap gp :<c-u>Unite history/yank -default-action=append<CR>
 nnoremap gP :<c-u>Unite history/yank<CR>
-vnoremap gp d:<c-u>call CallYankHistoryMaybeEnd()<cr>
+vnoremap gp :<c-u>Unite history/yank -default-action=replace<cr>
 
-function! IsAtEndOfLine()
-    return col('.') == col('$') - 1 && col('.') != 1
-endfunction
+if !exists('g:loaded_yank_history_replace_action')
+   let replace_action = {}
+   function! replace_action.func(candidate)
+      let word = a:candidate.word
+      execute "normal! gv\"=word\<cr>p"
+   endfunction
+   call unite#custom#action('source/history/yank/*', 'replace', replace_action)
+   let g:loaded_yank_history_replace_action = 1
+   unlet replace_action
+endif
 
-function! CallYankHistoryMaybeEnd()
-    let action_to_take = IsAtEndOfLine() ? 'append' : 'insert'
-    call unite#start(['history/yank'], { 'default_action': action_to_take })
-endfunction
 " }}}
 " # File explorer (Ctrl+P) {{{
 " Plugin extractable
