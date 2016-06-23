@@ -54,7 +54,7 @@ Plug 'milkypostman/vim-togglelist'
 " Relative line number
 Plug 'jeffkreeftmeijer/vim-numbertoggle'
 " File explorer for VIM. <leader>ft to activate
-Plug 'scrooloose/nerdtree'
+Plug 'scrooloose/nerdtree', { 'on': ['NERDTreeToggle', 'NERDTreeFind'] }
 " Golang support for vim
 Plug 'jnwhiteh/vim-golang'
 " Make jk behave as jumps in Vim
