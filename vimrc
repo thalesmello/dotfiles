@@ -32,9 +32,6 @@ Plug 'vim-airline/vim-airline-themes'
 Plug 'b4winckler/vim-objc'
 " Comment toggling: use `gc` to toggle comments in visual mode
 Plug 'tomtom/tcomment_vim'
-" Makes vim understand ruby blocks
-Plug 'kana/vim-textobj-user'
-Plug 'rhysd/vim-textobj-ruby'
 " Git bindings for VIM
 Plug 'tpope/vim-fugitive'
 " Surround utils for vim
