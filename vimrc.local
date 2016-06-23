@@ -161,6 +161,7 @@ let g:airline#extensions#default#section_truncate_width = {}
 let g:airline#extensions#tabline#show_buffers = 0
 let g:airline#extensions#tabline#enabled = 1
 
+let g:unite_outline_closest_tag = 1
 function! AirlineInit()
     let g:airline_section_a = airline#section#create(['mode'])
     let g:airline_section_b = airline#section#create(['file', ' ', 'readonly'])
@@ -371,6 +372,7 @@ let g:formatters_ruby = ['rubocop']
 
 " "}}}
 " # GUndo  {{{
+" Lazy configurable
 nnoremap <leader>gu :MundoToggle<CR>
 
 " "}}}
@@ -518,92 +520,12 @@ function! CallUniteAg()
 endfunction
 
 " }}}
-" Yank history mappings {{{
-" Plugin extractable
-nnoremap gp :<c-u>Unite history/yank -default-action=append<CR>
-nnoremap gP :<c-u>Unite history/yank<CR>
-vnoremap gp :<c-u>Unite history/yank -default-action=replace<cr>
-
-if !exists('g:loaded_yank_history_replace_action')
-   let replace_action = {}
-   function! replace_action.func(candidate)
-      let word = a:candidate.word
-      execute "normal! gv\"=word\<cr>p"
-   endfunction
-   call unite#custom#action('source/history/yank/*', 'replace', replace_action)
-   let g:loaded_yank_history_replace_action = 1
-   unlet replace_action
-endif
-
-" }}}
 " # File explorer (Ctrl+P) {{{
 " Plugin extractable
 let grep_source = has('nvim') ? 'file_rec/neovim' : 'file_rec/async'
 nnoremap <silent> <expr> <c-p> ":\<C-u>Unite -buffer-name=files " . grep_source . ":! file/new\<CR>"
 vnoremap <silent> <expr> gf "\"uy:\<C-u>Unite -buffer-name=files " . grep_source . ":! -input=\<c-r>u\<CR>"
 nmap <silent> gf viwgf
-
-" "}}}
-" # Outline {{{
-" Plugin extractable closest tag -> include in vim outline Pull request?
-let g:unite_source_outline_highlight = {
-\ 'comment' : 'Comment',
-\ 'expanded': 'Constant',
-\ 'function': 'Function',
-\ 'id'      : 'Special',
-\ 'macro'   : 'Macro',
-\ 'method'  : 'Function',
-\ 'normal'  : 'Normal',
-\ 'package' : 'Normal',
-\ 'special' : 'Macro',
-\ 'type'    : 'Type',
-\ 'level_1' : 'Type',
-\ 'level_2' : 'PreProc',
-\ 'level_3' : 'Identifier',
-\ 'level_4' : 'Constant',
-\ 'level_5' : 'Special',
-\ 'level_6' : 'Normal',
-\ 'parameter_list': 'Normal',
-\ }
-
-let g:unite_outline_closest_tag = ''
-function! GetClosestTag()
-   if exists('b:unite')
-      return ''
-   endif
-
-   silent let candidates = unite#get_candidates(['outline'])
-
-   if empty(candidates)
-      return ''
-   endif
-
-   let curline = line('.')
-   let prevtag = ''
-   let prevword = ''
-   let accscope = ''
-
-   for candidate in candidates
-      if candidate.action__line > curline
-         break
-      endif
-
-      if prevword != '' && candidate.action__signature =~ prevword
-         let accscope = accscope == '' ? prevword : accscope . '#' . prevword
-         let prevtag = accscope . '#' . candidate.abbr
-      else
-         let accscope = ''
-         let prevtag = candidate.abbr
-      endif
-
-      let prevword = candidate.word
-   endfor
-
-   return prevtag
-endfunction
-command! GetClosestTag echo GetClosestTag()
-nnoremap <silent> <esc> :let g:unite_outline_closest_tag = GetClosestTag()<cr>
-autocmd CursorHold * let g:unite_outline_closest_tag = GetClosestTag()
 
 " "}}}
 " # Other mappings {{{
