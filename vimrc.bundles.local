@@ -21,7 +21,7 @@ Plug 'simnalamburt/vim-mundo'
 Plug 'simeji/winresizer'
 Plug 'godlygeek/tabular'
 Plug 'wesQ3/vim-windowswap'
-Plug 'SirVer/ultisnips'
+Plug 'thalesmello/lazy.ultisnips' | Plug 'SirVer/ultisnips', { 'on': [] }
 Plug 'honza/vim-snippets'
 Plug 'kana/vim-textobj-function'
 Plug 'bps/vim-textobj-python'
@@ -73,3 +73,4 @@ Plug 'thalesmello/pagarme-refactor.vim'
 " TODO: Check
 " github-complete.vim
 " committia.vim
+" make outline use ctags for JavaScript
