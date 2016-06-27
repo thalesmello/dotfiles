@@ -492,7 +492,7 @@ nnoremap <silent> [unite]tl :<c-u>Unite tmuxcomplete/lines -default-action=appen
 nnoremap <silent> [unite]li :<c-u>Unite line<cr>
 nnoremap <silent> [unite]mr :<C-u>Unite file_mru<cr>
 nnoremap <silent> [unite]f :<C-u>Unite file_mru<cr>
-nnoremap <silent> [unite]/ :<C-u>Unite line -input=<c-r>/
+nnoremap <silent> [unite]/ :<C-u>Unite line -input=<c-r>/<cr>
 nnoremap <silent> [unite]bb :Unite -quick-match buffer<cr>
 nnoremap <silent> [unite]qf :<c-u>Unite -wrap -prompt-direction=top quickfix<cr>
 nnoremap <silent> [unite]ll :<c-u>Unite -wrap -prompt-direction=top location_list<cr>
