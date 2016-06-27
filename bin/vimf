@@ -1,2 +1,3 @@
 #!/bin/sh
-vim $(fzf-tmux)
+tmux send-keys "vim $(fzf-tmux)"
+tmux send-keys Enter
