@@ -22,6 +22,7 @@ nnoremap <leader>pp "+p
 vnoremap <leader>pp "+p
 nnoremap <leader>PP "+P
 vnoremap <leader>PP "+P
+nnoremap <cr> @@
 vnoremap <c-c> "+y
 nnoremap <leader><leader> <c-^>
 nnoremap <leader>o `>
