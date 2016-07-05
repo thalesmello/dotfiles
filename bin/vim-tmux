@@ -4,7 +4,7 @@ if [ -z $TMUX ]; then
 else
        tmux split-window "
               trap \"tmux wait-for -S p12346-neww-done\" 0
-              nvim -u ~/.litevimrc $@
+              nvim $@
               " \; wait-for p12346-neww-done
 fi
 
