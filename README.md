@@ -9,8 +9,8 @@ Create a symbolic links for your files:
 	ln -s $(pwd)/editrc ~/.editrc
 	ln -s $(pwd)/inputrc ~/.inputrc
 	ln -s $(pwd)/snips ~/.snips
-	ln -s $(pwd)/ctags ~/.ctags
 	ln -s $(pwd)/w3m.keymap ~/.w3m/keymap
+	ln -s $(pwd)/hammerspoon ~/.hammerspoon
 
 Include the local bin folder in the PATH
 
