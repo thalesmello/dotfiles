@@ -35,3 +35,15 @@ snippet evalblock "Evaluation block" b
 	${VISUAL}$0
 })();
 endsnippet
+
+snippet "(\w+).par" "Parenthesis (postfix)" r
+(`!p snip.rv = match.group(1)`$1)$0
+endsnippet
+
+snippet "([^\s].*)\.(return|re)" "Return (postfix)" r
+return `!p snip.rv = match.group(1)`$0
+endsnippet
+
+snippet "([^\s].*)\.log" "console.log (postfix)" r
+console.log(`!p snip.rv = match.group(1)`)$0
+endsnippet
