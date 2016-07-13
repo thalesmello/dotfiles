@@ -470,8 +470,6 @@ function! s:unite_my_settings()
     nunmap <buffer> <c-l>
     nunmap <buffer> <c-h>
     imap <buffer> <C-j> <Plug>(unite_toggle_auto_preview)
-    nmap <buffer> <C-p> <Plug>(unite_narrowing_input_history)
-    imap <buffer> <C-p> <Plug>(unite_narrowing_input_history)
     nmap <buffer> <C-r> <Plug>(unite_narrowing_input_history)
     imap <buffer> <C-r> <Plug>(unite_narrowing_input_history)
     nmap <buffer> <Tab> <Plug>(unite_complete)
