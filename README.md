@@ -11,6 +11,7 @@ Create a symbolic links for your files:
 	ln -s $(pwd)/snips ~/.snips
 	ln -s $(pwd)/w3m.keymap ~/.w3m/keymap
 	ln -s $(pwd)/hammerspoon ~/.hammerspoon
+	ln -s $(pwd)/rstudio ~/.R/rstudio
 
 Include the local bin folder in the PATH
 
