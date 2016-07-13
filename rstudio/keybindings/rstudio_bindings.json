@@ -1,0 +1,12 @@
+{
+    "activateConsole" : "Ctrl+J",
+    "activateHelp" : "Ctrl+Shift+H",
+    "activatePlots" : "Ctrl+Shift+P",
+    "activateSource" : "Ctrl+K",
+    "layoutZoomCurrentPane" : "Ctrl+Shift+=",
+    "moveTabLeft" : "",
+    "moveTabRight" : "",
+    "nextTab" : "Shift+Cmd+]",
+    "previousTab" : "Shift+Cmd+[",
+    "setWorkingDir" : ""
+}
