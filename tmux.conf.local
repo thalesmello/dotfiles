@@ -164,4 +164,5 @@ set -g @tpm_plugins '          \
   Morantron/tmux-fingers       \
   tmux-plugins/tmux-copycat    \
   tmux-plugins/tmux-open       \
+  thalesmello/tmux-asos        \
 '
