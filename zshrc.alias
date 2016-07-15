@@ -10,4 +10,4 @@ alias git='hub'
 alias sk='eval "$(fc -ln -1)"'
 alias gu='git reset HEAD'
 alias update-master='git rev-parse --abbrev-ref HEAD | xargs -I {} sh -c "git checkout master && git pull --rebase origin master && git checkout {}"'
-alias add-thales-remote="git config --get remote.origin.url | sed -E 's|https://|git@|' | xargs -I {} git remote add thalesmello {}"
+alias add-thales-remote="git config --get remote.origin.url | sed -E -e 's|https://|git@|' -e 's|/|:|' | xargs -I {} git remote add thalesmello {}"
