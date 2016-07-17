@@ -1,5 +1,5 @@
 Plug 'terryma/vim-multiple-cursors'
-Plug 'christoomey/vim-tmux-navigator'
+Plug 'thalesmello/vim-tmux-navigator'
 Plug 'mhinz/vim-signify'
 Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'

@@ -14,7 +14,6 @@ Create a symbolic links for your files:
 	ln -s $(pwd)/rstudio ~/.R/rstudio
 	ln -s $(pwd)/Karabiner ~/Library/Application\ Support/Karabiner
 
-
 Include the local bin folder in the PATH
 
 	echo "\n# Dotfiles bin folder\nexport PATH="'$PATH'":$(pwd)/bin" >> ~/.zshrc.local
