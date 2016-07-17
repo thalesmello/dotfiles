@@ -12,6 +12,8 @@ Create a symbolic links for your files:
 	ln -s $(pwd)/w3m.keymap ~/.w3m/keymap
 	ln -s $(pwd)/hammerspoon ~/.hammerspoon
 	ln -s $(pwd)/rstudio ~/.R/rstudio
+	ln -s $(pwd)/Karabiner ~/Library/Application\ Support/Karabiner
+
 
 Include the local bin folder in the PATH
 
