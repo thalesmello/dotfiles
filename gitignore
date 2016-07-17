@@ -14,3 +14,4 @@ tags.lock
 tags.temp
 .tern-port
 .-rplugin\~
+.DS_Store
