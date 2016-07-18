@@ -7,20 +7,11 @@ hs.hotkey.bind({"ctrl", "cmd", "shift"}, 'h', function() hs.window.focusedWindow
 hs.hotkey.bind({"ctrl", "cmd", "shift"}, 'j', function() hs.window.focusedWindow():focusWindowSouth() end)
 hs.hotkey.bind({"ctrl", "cmd", "shift"}, 'k', function() hs.window.focusedWindow():focusWindowNorth() end)
 hs.hotkey.bind({"ctrl", "cmd", "shift"}, 'L', function() hs.window.focusedWindow():focusWindowEast()  end)
+hs.hotkey.bind({"ctrl", "cmd"}, 'H', function() hs.eventtap.keyStroke({"ctrl"}, "left") end)
+hs.hotkey.bind({"ctrl", "cmd"}, 'L', function() hs.eventtap.keyStroke({"ctrl"}, "right") end)
 
 function notify(str)
   hs.notify.new({title="Hammerspoon", informativeText=str}):send()
-end
-
-function send_raw_keys(mods, key)
-  local hotkeys = hs.hotkey.getHotkeys()
-  for _, hotkey in ipairs(hotkeys) do
-    hotkey:disable()
-  end
-  hs.eventtap.keyStroke(mods, key)
-  for _, hotkey in ipairs(hotkeys) do
-    hotkey:enable()
-  end
 end
 
 function hs.ipc.handler(str)
@@ -34,14 +25,6 @@ function hs.ipc.handler(str)
     hs.window.focusedWindow():focusWindowEast()
   elseif str == 'currentapp' then
     return hs.window.focusedWindow():application():name()
-  elseif str == 'ctrl_h' then
-    send_raw_keys({"ctrl"}, "h")
-  elseif str == 'ctrl_j' then
-    send_raw_keys({"ctrl"}, "j")
-  elseif str == 'ctrl_k' then
-    send_raw_keys({"ctrl"}, "k")
-  elseif str == 'ctrl_l' then
-    send_raw_keys({"ctrl"}, "l")
   end
 end
 
