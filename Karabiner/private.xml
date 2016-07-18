@@ -9,4 +9,9 @@
 		<autogen>__KeyToKey__ KeyCode::K, ModifierFlag::CONTROL_L | ModifierFlag::NONE, KeyCode::K, ModifierFlag::CONTROL_L | ModifierFlag::COMMAND_L | ModifierFlag::SHIFT_L</autogen>
 		<autogen>__KeyToKey__ KeyCode::L, ModifierFlag::CONTROL_L | ModifierFlag::NONE, KeyCode::L, ModifierFlag::CONTROL_L | ModifierFlag::COMMAND_L | ModifierFlag::SHIFT_L</autogen>
 	</item>
+	<item>
+		<identifier>private.ctrl_open_bracket_exit</identifier>
+		<name>Ctrl+[ to Esc</name>
+		<autogen>__KeyToKey__ KeyCode::BRACKET_LEFT, ModifierFlag::CONTROL_L | ModifierFlag::NONE, KeyCode::ESCAPE</autogen>
+	</item>
 </root>
