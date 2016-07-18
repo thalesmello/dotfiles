@@ -22,7 +22,6 @@ nnoremap <leader>pp "+p
 vnoremap <leader>pp "+p
 nnoremap <leader>PP "+P
 vnoremap <leader>PP "+P
-nnoremap <cr> @@
 vnoremap <c-c> "+y
 nnoremap <leader><leader> <c-^>
 nnoremap <leader>o `>
@@ -162,7 +161,7 @@ let g:airline#extensions#default#section_truncate_width = {}
 let g:airline#extensions#tabline#show_buffers = 0
 let g:airline#extensions#tabline#enabled = 1
 
-let g:unite_outline_closest_tag = 1
+let g:unite_outline_closest_tag = ""
 function! AirlineInit()
     let g:airline_section_a = airline#section#create(['mode'])
     let g:airline_section_b = airline#section#create(['file', ' ', 'readonly'])
