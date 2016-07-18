@@ -1,5 +1,4 @@
 require("hs.ipc")
-local mash = {"ctrl", "cmd"}
 
 hs.hotkey.bind({"ctrl", "cmd", "alt"}, 'H', function() hs.toggleConsole() end)
 
@@ -32,7 +31,7 @@ end
 function reloadConfig(files)
   for _, file in pairs(files) do
     if file:sub(-4) == '.lua' then
-      hs.notify.new({title="Change detected", informativeText="Reloading Hammerspoon"}):send()
+      notify("Change detected: Reloading")
       hs.reload()
     end
   end

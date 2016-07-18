@@ -126,10 +126,10 @@ bind-key -t vi-copy Enter copy-pipe "reattach-to-user-namespace pbcopy"
 # Smart pane switching with awareness of vim splits
 # See: https://github.com/christoomey/vim-tmux-navigator
 is_vim='echo "#{pane_current_command}" | grep -iqE "(^|\/)g?(view|n?vim?x?)(diff)?$"'
-bind-key -n C-h if-shell "$is_vim" "send-keys C-h" "run 'octomux tmux left'"
-bind-key -n C-j if-shell "$is_vim" "send-keys C-j" "run 'octomux tmux down'"
-bind-key -n C-k if-shell "$is_vim" "send-keys C-k" "run 'octomux tmux up'"
-bind-key -n C-l if-shell "$is_vim" "send-keys C-l" "run 'octomux tmux right'"
+bind-key -n C-h if-shell "$is_vim" "send-keys C-h" "run 'octomux left'"
+bind-key -n C-j if-shell "$is_vim" "send-keys C-j" "run 'octomux down'"
+bind-key -n C-k if-shell "$is_vim" "send-keys C-k" "run 'octomux up'"
+bind-key -n C-l if-shell "$is_vim" "send-keys C-l" "run 'octomux right'"
 
 # Move window to the right or left
 bind-key -r < swap-window -t -1

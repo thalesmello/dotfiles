@@ -1,65 +1,29 @@
 #!/bin/sh
 OSCMD=/usr/local/bin/hs
+OS_FOCUS_LEFT="${OS_FOCUS_LEFT:-$OSCMD -c focusleft}"
+OS_FOCUS_DOWN="${OS_FOCUS_DOWN:-$OSCMD -c focusdown}"
+OS_FOCUS_UP="${OS_FOCUS_UP:-$OSCMD -c focusup}"
+OS_FOCUS_RIGHT="${OS_FOCUS_RIGHT:-$OSCMD -c focusright}"
 
-if [[ "$1" == "os" ]]; then
-  current_window=$(hs -c currentapp | grep -v 'Loading extension')
-elif [[ "$1" == "tmux" ]];then
-  window_bottom=$(tmux list-panes -F "#{window_height}" | head -n1)
-  window_right=$(tmux list-panes -F "#{window_width}" | head -n1)
-  window_bottom=$(($window_bottom - 1))
-  window_right=$(($window_right - 1))
-  pane=$(tmux list-panes -F "#{pane_left} #{pane_right} #{pane_top} #{pane_bottom} #{pane_active}" | grep '.* 1$')
-  pane_left=$(echo "$pane" | cut -d' ' -f 1)
-  pane_right=$(echo "$pane" | cut -d' ' -f 2)
-  pane_top=$(echo "$pane" | cut -d' ' -f 3)
-  pane_bottom=$(echo "$pane" | cut -d' ' -f 4)
-fi
-
-function os_up
-{
-  if [[ "$current_window" == "iTerm2" ]];
-  then
-    $OSCMD -c ctrl_k
-  else
-    $OSCMD -c focusup
-  fi
+silent() {
+  $* > /dev/null
 }
 
-function os_down
-{
-  if [[ "$current_window" == "iTerm2" ]];
-  then
-    $OSCMD -c ctrl_j
-  else
-    $OSCMD -c focusdown
-  fi
-}
-
-function os_right
-{
-  if [[ "$current_window" == "iTerm2" ]];
-  then
-    $OSCMD -c ctrl_l
-  else
-    $OSCMD -c focusright
-  fi
-}
-
-function os_left
-{
-  if [[ "$current_window" == "iTerm2" ]];
-  then
-    $OSCMD -c ctrl_h
-  else
-    $OSCMD -c focusleft
-  fi
-}
+window_bottom=$(tmux list-panes -F "#{window_height}" | head -n1)
+window_right=$(tmux list-panes -F "#{window_width}" | head -n1)
+window_bottom=$(($window_bottom - 1))
+window_right=$(($window_right - 1))
+pane=$(tmux list-panes -F "#{pane_left} #{pane_right} #{pane_top} #{pane_bottom} #{pane_active}" | grep '.* 1$')
+pane_left=$(echo "$pane" | cut -d' ' -f 1)
+pane_right=$(echo "$pane" | cut -d' ' -f 2)
+pane_top=$(echo "$pane" | cut -d' ' -f 3)
+pane_bottom=$(echo "$pane" | cut -d' ' -f 4)
 
 function tmux_up
 {
   if [[ $pane_top  -eq 0 ]];
   then
-    $OSCMD -c focusup
+    silent $OS_FOCUS_UP
   else
     tmux select-pane -U
   fi
@@ -69,7 +33,7 @@ function tmux_down
 {
   if [[ $pane_bottom  -eq $window_bottom ]];
   then
-    $OSCMD -c focusdown
+    silent $OS_FOCUS_DOWN
   else
     tmux select-pane -D
   fi
@@ -79,7 +43,7 @@ function tmux_right
 {
   if [[ $pane_right  -eq $window_right ]];
   then
-    $OSCMD -c focusright
+    silent $OS_FOCUS_RIGHT
   else
     tmux select-pane -R
   fi
@@ -89,42 +53,23 @@ function tmux_left
 {
   if [[ $pane_left  -eq 0 ]];
   then
-    $OSCMD -c focusleft
+    silent $OS_FOCUS_LEFT
   else
     tmux select-pane -L
   fi
 }
 
-
-if [[ "$1" == "os" ]];then
-  case "$2" in
-    'up')
-      os_up
-      ;;
-    'down')
-      os_down
-      ;;
-    'right')
-      os_right
-      ;;
-    'left')
-      os_left
-      ;;
-  esac
-
-elif [[ "$1" == "tmux" ]];then
-  case "$2" in
-    'up')
-      tmux_up
-      ;;
-    'down')
-      tmux_down
-      ;;
-    'right')
-      tmux_right
-      ;;
-    'left')
-      tmux_left
-      ;;
-  esac
-fi
+case "$1" in
+  'up')
+    tmux_up
+    ;;
+  'down')
+    tmux_down
+    ;;
+  'right')
+    tmux_right
+    ;;
+  'left')
+    tmux_left
+    ;;
+esac
