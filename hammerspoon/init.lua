@@ -13,20 +13,6 @@ function notify(str)
   hs.notify.new({title="Hammerspoon", informativeText=str}):send()
 end
 
-function hs.ipc.handler(str)
-  if str == 'focusleft' then
-    hs.window.focusedWindow():focusWindowWest()
-  elseif str == 'focusdown' then
-    hs.window.focusedWindow():focusWindowSouth()
-  elseif str == 'focusup' then
-    hs.window.focusedWindow():focusWindowNorth()
-  elseif str == 'focusright' then
-    hs.window.focusedWindow():focusWindowEast()
-  elseif str == 'currentapp' then
-    return hs.window.focusedWindow():application():name()
-  end
-end
-
 -- Reload file
 function reloadConfig(files)
   for _, file in pairs(files) do
