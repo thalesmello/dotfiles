@@ -1,21 +1,23 @@
 require("hs.ipc")
 
-hs.hotkey.bind({"ctrl", "cmd", "alt"}, 'H', function() hs.toggleConsole() end)
+if not hs.ipc.cliStatus(null, true) then
+  hs.ipc.cliInstall()
+end
 
 function nonRecursiveBind(mods, key, callback)
   local hotkey
   hotkey = hs.hotkey.bind(mods, key, function()
-    hotkey:disable()
-    callback(mods, key)
-    hotkey:enable()
+    callback(hotkey, mods, key)
   end)
 end
 
 function except(programName, callback)
-  return function(mods, key)
+  return function(hotkey, mods, key)
     local currentName = hs.window.focusedWindow():application():name()
     if currentName == programName then
+      hotkey:disable()
       hs.eventtap.keyStroke(mods, key)
+      hotkey:enable()
     else
       callback()
     end
@@ -32,10 +34,8 @@ hs.hotkey.bind({"ctrl", "cmd"}, 'L', function() hs.eventtap.keyStroke({"ctrl"}, 
 
 
 
+hs.hotkey.bind({"ctrl", "cmd", "alt"}, 'H', function() hs.toggleConsole() end)
 
-function notify(str)
-  hs.notify.new({title="Hammerspoon", informativeText=str}):send()
-end
 
 -- Reload file
 function reloadConfig(files)
@@ -48,3 +48,8 @@ function reloadConfig(files)
 end
 
 hs.pathwatcher.new(os.getenv('HOME') .. '/.hammerspoon/', reloadConfig):start()
+
+-- Utils
+function notify(str)
+  hs.notify.new({title="Hammerspoon", informativeText=str}):send()
+end
