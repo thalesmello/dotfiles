@@ -168,14 +168,6 @@ nnoremap <leader>tc :tabclose<cr>
 nnoremap [t :tabprevious<cr>
 nnoremap ]t :tabnext<cr>
 " }}}
-" ##### Line movement {{{
-" Go to start of line with H and to the end with $
-function! g:MapLineMovements()
-    map H ^
-    map L $
-endfunction
-
-call g:MapLineMovements()
 
 " Emacs bindings in command-line mode
 cnoremap <C-A> <home>
