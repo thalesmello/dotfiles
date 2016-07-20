@@ -31,25 +31,65 @@ nonRecursiveBind({"ctrl"}, "L", except("iTerm2", function() hs.window.focusedWin
 
 hs.hotkey.bind({"ctrl", "cmd"}, 'H', function() hs.eventtap.keyStroke({"ctrl"}, "left") end)
 hs.hotkey.bind({"ctrl", "cmd"}, 'L', function() hs.eventtap.keyStroke({"ctrl"}, "right") end)
-
-
+hs.hotkey.bind({"ctrl", "cmd", "shift"}, 'R', function() hs.reload() end)
+hs.hotkey.bind({"ctrl", "cmd", "shift"}, 'H', function()
+  hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
+  hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
+  hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
+  hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
+end)
+hs.hotkey.bind({"ctrl", "cmd", "shift"}, 'L', function()
+  hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
+  hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
+  hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
+  hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
+end)
 
 hs.hotkey.bind({"ctrl", "cmd", "alt"}, 'H', function() hs.toggleConsole() end)
-
-
--- Reload file
-function reloadConfig(files)
-  for _, file in pairs(files) do
-    if file:sub(-4) == '.lua' then
-      notify("Change detected: Reloading")
-      hs.reload()
-    end
-  end
-end
-
-hs.pathwatcher.new(os.getenv('HOME') .. '/.hammerspoon/', reloadConfig):start()
 
 -- Utils
 function notify(str)
   hs.notify.new({title="Hammerspoon", informativeText=str}):send()
+end
+
+function table_print (tt, indent, done)
+  done = done or {}
+  indent = indent or 0
+  if type(tt) == "table" then
+    local sb = {}
+    for key, value in pairs (tt) do
+      table.insert(sb, string.rep (" ", indent)) -- indent it
+      if type (value) == "table" and not done [value] then
+        done [value] = true
+        table.insert(sb, "{\n");
+        table.insert(sb, table_print (value, indent + 2, done))
+        table.insert(sb, string.rep (" ", indent)) -- indent it
+        table.insert(sb, "}\n");
+      elseif "number" == type(key) then
+        table.insert(sb, string.format("\"%s\"\n", tostring(value)))
+      else
+        table.insert(sb, string.format(
+            "%s = \"%s\"\n", tostring (key), tostring(value)))
+       end
+    end
+    return table.concat(sb)
+  else
+    return tt .. "\n"
+  end
+end
+
+function to_string( tbl )
+    if  "nil"       == type( tbl ) then
+        return tostring(nil)
+    elseif  "table" == type( tbl ) then
+        return table_print(tbl)
+    elseif  "string" == type( tbl ) then
+        return tbl
+    else
+        return tostring(tbl)
+    end
+end
+
+function log(obj)
+  hs.logger.new('log', 'debug'):d('\n' .. to_string(obj))
 end

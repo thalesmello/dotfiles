@@ -7,6 +7,7 @@ set completeopt-=preview
 set linebreak
 set noshowmode
 set updatetime=500
+set sidescroll=2
 
 if has('nvim')
     set termguicolors

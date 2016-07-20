@@ -1,15 +1,6 @@
 <?xml version="1.0"?>
 <root>
 	<item>
-		<identifier>private.ctrl_hjkl_system_wide</identifier>
-		<name>CTRL + HJKL System Wide</name>
-		<not>TERMINAL</not>
-		<autogen>__KeyToKey__ KeyCode::H, ModifierFlag::CONTROL_L | ModifierFlag::NONE, KeyCode::H, ModifierFlag::CONTROL_L | ModifierFlag::COMMAND_L | ModifierFlag::SHIFT_L</autogen>
-		<autogen>__KeyToKey__ KeyCode::J, ModifierFlag::CONTROL_L | ModifierFlag::NONE, KeyCode::J, ModifierFlag::CONTROL_L | ModifierFlag::COMMAND_L | ModifierFlag::SHIFT_L</autogen>
-		<autogen>__KeyToKey__ KeyCode::K, ModifierFlag::CONTROL_L | ModifierFlag::NONE, KeyCode::K, ModifierFlag::CONTROL_L | ModifierFlag::COMMAND_L | ModifierFlag::SHIFT_L</autogen>
-		<autogen>__KeyToKey__ KeyCode::L, ModifierFlag::CONTROL_L | ModifierFlag::NONE, KeyCode::L, ModifierFlag::CONTROL_L | ModifierFlag::COMMAND_L | ModifierFlag::SHIFT_L</autogen>
-	</item>
-	<item>
 		<identifier>private.ctrl_open_bracket_exit</identifier>
 		<name>Ctrl+[ to Esc</name>
 		<autogen>__KeyToKey__ KeyCode::BRACKET_LEFT, ModifierFlag::CONTROL_L | ModifierFlag::NONE, KeyCode::ESCAPE</autogen>
@@ -22,19 +13,13 @@
 			__ScrollWheelToKey__
 			ScrollWheel::LEFT, ModifierFlag::NONE,
 
-			KeyCode::2,
-			KeyCode::0,
-			KeyCode::Z,
-			KeyCode::L,
+			KeyCode::L, ModifierFlag::SHIFT_L | ModifierFlag::CONTROL_L | ModifierFlag::COMMAND_L | ModifierFlag::NONE,
 		</autogen>
 		<autogen>
 			__ScrollWheelToKey__
 			ScrollWheel::RIGHT, ModifierFlag::NONE,
 
-			KeyCode::2,
-			KeyCode::0,
-			KeyCode::Z,
-			KeyCode::H,
+			KeyCode::H, ModifierFlag::SHIFT_L | ModifierFlag::CONTROL_L | ModifierFlag::COMMAND_L | ModifierFlag::NONE,
 		</autogen>
 	</item>
 	<item>
