@@ -34,4 +34,22 @@
 			Option::FLIPSCROLLWHEEL_ROTATE,
 		</autogen>
 	</item>
+	<item>
+		<identifier>private.switch_tmux_windows_with_shortcut</identifier>
+		<name>Switch TMUX windows with Ctrl + Shift + Command + []</name>
+		<modifier_only>
+			ModifierFlag::SHIFT_L
+		</modifier_only>
+		<only>TERMINAL</only>
+		<autogen>
+			__KeyToKey__ KeyCode::BRACKET_LEFT, ModifierFlag::COMMAND_L| ModifierFlag::SHIFT_L | ModifierFlag::NONE,
+			KeyCode::SPACE, ModifierFlag::CONTROL_L,
+			KeyCode::H, ModifierFlag::CONTROL_L
+		</autogen>
+		<autogen>
+			__KeyToKey__ KeyCode::BRACKET_RIGHT, ModifierFlag::COMMAND_L| ModifierFlag::SHIFT_L | ModifierFlag::NONE,
+			KeyCode::SPACE, ModifierFlag::CONTROL_L,
+			KeyCode::L, ModifierFlag::CONTROL_L
+		</autogen>
+	</item>
 </root>
