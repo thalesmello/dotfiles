@@ -37,9 +37,6 @@
 	<item>
 		<identifier>private.switch_tmux_windows_with_shortcut</identifier>
 		<name>Switch TMUX windows with Ctrl + Shift + Command + []</name>
-		<modifier_only>
-			ModifierFlag::SHIFT_L
-		</modifier_only>
 		<only>TERMINAL</only>
 		<autogen>
 			__KeyToKey__ KeyCode::BRACKET_LEFT, ModifierFlag::COMMAND_L| ModifierFlag::SHIFT_L | ModifierFlag::NONE,
@@ -50,6 +47,35 @@
 			__KeyToKey__ KeyCode::BRACKET_RIGHT, ModifierFlag::COMMAND_L| ModifierFlag::SHIFT_L | ModifierFlag::NONE,
 			KeyCode::SPACE, ModifierFlag::CONTROL_L,
 			KeyCode::L, ModifierFlag::CONTROL_L
+		</autogen>
+	</item>
+	<item>
+		<identifier>private.command_d_to_copy</identifier>
+		<name>Command+C to copy in the terminal</name>
+		<only>TERMINAL</only>
+		<autogen>
+			__KeyToKey__ KeyCode::C, ModifierFlag::COMMAND_L, KeyCode::ENTER
+		</autogen>
+	</item>
+	<item>
+		<identifier>private.command_t_for_new_tmux_window</identifier>
+		<name>Command+T to create new window</name>
+		<only>TERMINAL</only>
+		<autogen>
+			__KeyToKey__ KeyCode::T, ModifierFlag::COMMAND_L,
+			KeyCode::SPACE, ModifierFlag::CONTROL_L,
+			KeyCode::C
+		</autogen>
+	</item>
+	<item>
+		<identifier>private.command_w_to_close_window</identifier>
+		<name>Command+W to close window</name>
+		<only>TERMINAL</only>
+		<autogen>
+			__KeyToKey__ KeyCode::W, ModifierFlag::COMMAND_L,
+			KeyCode::SPACE, ModifierFlag::CONTROL_L,
+			<!-- Ampersand is 7 + Shift -->
+			KeyCode::7, ModifierFlag::SHIFT_L
 		</autogen>
 	</item>
 </root>

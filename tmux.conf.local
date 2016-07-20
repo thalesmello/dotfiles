@@ -134,8 +134,14 @@ bind -r { swap-pane -U       # swap current pane with the previous one
 # Cycle layouts
 bind-key -r n next-layout
 
+# Stay in copy mode on drag end, but otherwise exit for mouse up.
+# Requires patch from https://github.com/tmux/tmux/issues/326
+unbind-key -t vi-copy MouseDragEnd1Pane
+bind-key -t vi-copy MouseUp1Pane clear-selection
+
 # Plugin Configurations
 set -g @scroll-down-exit-copy-mode "off"
+set -g @emulate-scroll-for-no-mouse-alternate-buffer "on"
 set -g @continuum-restore 'on'
 set -g @resurrect-save-bash-history 'on'
 set -g @resurrect-capture-pane-contents 'on'
