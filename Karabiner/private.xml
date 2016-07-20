@@ -14,4 +14,38 @@
 		<name>Ctrl+[ to Esc</name>
 		<autogen>__KeyToKey__ KeyCode::BRACKET_LEFT, ModifierFlag::CONTROL_L | ModifierFlag::NONE, KeyCode::ESCAPE</autogen>
 	</item>
+	<item>
+		<identifier>private.scroll_in_terminal</identifier>
+		<name>Enable horizontal scrolling in the terminal</name>
+		<only>TERMINAL</only>
+		<autogen>
+			__ScrollWheelToKey__
+			ScrollWheel::LEFT, ModifierFlag::NONE,
+
+			KeyCode::2,
+			KeyCode::0,
+			KeyCode::Z,
+			KeyCode::L,
+		</autogen>
+		<autogen>
+			__ScrollWheelToKey__
+			ScrollWheel::RIGHT, ModifierFlag::NONE,
+
+			KeyCode::2,
+			KeyCode::0,
+			KeyCode::Z,
+			KeyCode::H,
+		</autogen>
+	</item>
+	<item>
+		<identifier>private.horizontal_scroll_with_shift</identifier>
+		<name>Flip scroll wheel in the terminal when shift is pressed for horizontal scroll</name>
+		<modifier_only>
+			ModifierFlag::SHIFT_L
+		</modifier_only>
+		<autogen>
+			__FlipScrollWheel__
+			Option::FLIPSCROLLWHEEL_ROTATE,
+		</autogen>
+	</item>
 </root>
