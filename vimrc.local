@@ -49,14 +49,10 @@ vmap <leader>bn y:vnew<cr>p
 nmap <leader>bc :bw<cr>
 noremap <c-e> 2<c-e>
 noremap <c-y> 2<c-y>
-noremap gH H
-noremap gL L
 nnoremap <leader>; A;<esc>
 nnoremap <leader><bs> $x<esc>
 nnoremap <leader>= <c-w>=
-nnoremap <leader>\| <c-w>\|
-nnoremap <leader>_ <c-w>\|
-nnoremap <leader>+ <c-w>\|<c-w>+
+nnoremap <leader>+ <c-w>\|<c-w>_
 nnoremap <leader>cd :lcd %:p:h<cr>
 nnoremap <leader>cr :ProjectRootCD<cr>
 nnoremap <S-ScrollWheelUp>   <ScrollWheelLeft>
