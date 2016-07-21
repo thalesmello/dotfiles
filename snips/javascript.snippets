@@ -16,10 +16,6 @@ before('${1:before...}', function (${2}) {
 })
 endsnippet
 
-snippet req "Require module" b
-var ${1:moduleName} = require('${2:$1}')${0}
-endsnippet
-
 snippet af "Anonymous function" i
 function ($1) {${2: return ${3:$1} }$0}
 endsnippet
@@ -54,4 +50,12 @@ endsnippet
 
 snippet log "console.log(...)"
 console.log($0)
+endsnippet
+
+snippet "var (\w+)" "Require module" br
+var `!p snip.rv = match.group(1)` = require('${1:`!p
+snip.rv = {
+	'Promise': 'bluebird'
+}.get(match.group(1), match.group(1))
+`}')$0
 endsnippet
