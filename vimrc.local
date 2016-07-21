@@ -458,7 +458,11 @@ let g:unite_quickfix_is_multiline=0
 call unite#custom_source('quickfix', 'converters', 'converter_quickfix_highlight')
 call unite#custom_source('location_list', 'converters', 'converter_quickfix_highlight')
 
-autocmd FileType unite call s:unite_my_settings()
+augroup unite_settings
+   autocmd!
+   autocmd FileType unite call s:unite_my_settings()
+augroup end
+
 function! s:unite_my_settings()
     nmap <buffer> <C-z> <Plug>(unite_toggle_transpose_window)
     imap <buffer> <C-z> <Plug>(unite_toggle_transpose_window)
