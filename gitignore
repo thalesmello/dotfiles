@@ -15,3 +15,4 @@ tags.temp
 .tern-port
 .-rplugin\~
 .DS_Store
+*.zwc
