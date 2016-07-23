@@ -52,8 +52,12 @@ snippet log "console.log(...)" i
 console.log($0)
 endsnippet
 
+snippet logv "console.log(...)" i
+console.log('${1:${VISUAL:variable}}', JSON.stringify($1, null, 2))$0
+endsnippet
+
 snippet json "JSON stringify" i
-JSON.stringify(${1:${VISUAL}})$0
+JSON.stringify(${1:${VISUAL}}, null, 2)$0
 endsnippet
 
 snippet "var (\w+)" "Require module" br
