@@ -60,7 +60,7 @@ snippet json "JSON stringify" i
 JSON.stringify(${1:${VISUAL}}, null, 2)$0
 endsnippet
 
-snippet "var (\w+)" "Require module" br
+snippet "var (\w+)( =)?( )?" "Require module" br
 var `!p snip.rv = match.group(1)` = require('${1:`!p
 snip.rv = {
 	'Promise': 'bluebird'

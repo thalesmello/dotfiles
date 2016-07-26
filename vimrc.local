@@ -18,6 +18,7 @@ endif
 " # Mappings  {{{
 map <MiddleMouse> <Nop>
 imap <MiddleMouse> <Nop>
+nnoremap & <Nop>
 vnoremap <CR> "+y
 nnoremap <leader><cr> mz?\v(".*"\|'.*')<cr>"qyl`zi<c-r>q +<cr><c-r>q<esc>
 nnoremap <leader>yy gv"+y
