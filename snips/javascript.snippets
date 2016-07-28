@@ -1,18 +1,18 @@
 snippet desc "Describe block" b
 describe('${1:description}', function (${2}) {
-    ${VISUAL}${0}
+	${VISUAL}${0}
 })
 endsnippet
 
 snippet it "It assertion block" b
 it('${1:it does...}', function (${2}) {
-    ${VISUAL}${0}
+	${VISUAL}${0}
 })
 endsnippet
 
 snippet before "Before test block" b
 before('${1:before...}', function (${2}) {
-    ${VISUAL}${0}
+	${VISUAL}${0}
 })
 endsnippet
 
@@ -22,13 +22,13 @@ endsnippet
 
 snippet fun "Function syntax" b
 function ${1:function_name} (${2:arguments}) {
-    ${3:${VISUAL}}$0
+	${3:${VISUAL}}$0
 }
 endsnippet
 
 snippet evalblock "Evaluation block" b
 (function () {
-    ${VISUAL}$0
+	${VISUAL}$0
 })();
 endsnippet
 
@@ -63,15 +63,15 @@ endsnippet
 snippet "var (\w+)( =)?( )?" "Require module" br
 var `!p snip.rv = match.group(1)` = require('${1:`!p
 snip.rv = {
-    'Promise': 'bluebird',
-    'R': 'ramda'
+	'Promise': 'bluebird',
+	'R': 'ramda'
 }.get(match.group(1), match.group(1))
 `}')$0
 endsnippet
 
 snippet get "Create a getter" b
-get isTrailer () {
-    ${2:return }$0
+get ${1:property} () {
+	${2:return }$0
 },
 endsnippet
 
