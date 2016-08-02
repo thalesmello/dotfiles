@@ -16,3 +16,5 @@ tags.temp
 .-rplugin\~
 .DS_Store
 *.zwc
+pagarme-api
+pagarme-gateway
