@@ -438,6 +438,11 @@ onoremap <silent> iK :call TextObjWordBasedColumn("iW")<cr>
 let g:tcommentTextObjectInlineComment = ''
 
 " "}}}
+" # FZF  {{{
+nnoremap <c-p> :<c-u>FZF<CR>
+vnoremap <c-p> :<c-u>FZF<CR>
+
+" "}}}
 " # Unite.vim {{{
 " Plugin extractable configuration
 " Set default matcher options
@@ -531,7 +536,7 @@ endfunction
 " # File explorer (Ctrl+P) {{{
 " Plugin extractable
 let grep_source = has('nvim') ? 'file_rec/neovim' : 'file_rec/async'
-nnoremap <silent> <expr> <c-p> ":\<C-u>Unite -buffer-name=files " . grep_source . ":! file/new\<CR>"
+nnoremap <silent> <expr> <leader><c-p> ":\<C-u>Unite -buffer-name=files " . grep_source . ":! file/new\<CR>"
 vnoremap <silent> <expr> gf "\"uy:\<C-u>Unite -buffer-name=files " . grep_source . ":! -input=\<c-r>u\<CR>"
 nmap <silent> gf viwgf
 
