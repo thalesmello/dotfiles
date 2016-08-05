@@ -8,6 +8,7 @@ set linebreak
 set noshowmode
 set updatetime=500
 set sidescroll=2
+set showbreak=↪
 
 if has('nvim')
     set termguicolors
@@ -210,6 +211,7 @@ nnoremap <leader>ed :<c-u>EchoDocToggle<cr>
 
 inoremap <up> <c-p>
 inoremap <down> <c-n>
+inoremap <expr><C-l> deoplete#refresh()
 
 " "}}}
 " # UltiSnips  {{{
@@ -242,16 +244,15 @@ let g:UltiSnipsSnippetDirectories  = ["UltiSnips", $HOME . "/.snips"]
 inoremap <c-x><c-k> <c-x><c-k>
 nmap <leader>esp :UltiSnipsEdit<cr>
 
-inoremap <silent> <c-l> <esc>:<c-u>Unite ultisnips -start-insert<cr>
-
 " "}}}
 " # ToggleList  {{{
 let g:toggle_list_no_mappings = 1
 
 " "}}}
 " # NerdTREE  {{{
-let NERDTreeIgnore=['\.pyc$']
+let g:NERDTreeIgnore = ['\.pyc$']
 nnoremap <leader>ff :NERDTreeFind<cr>
+let g:NERDTreeQuitOnOpen = 1
 
 " "}}}
 " # Ruby  {{{
@@ -560,7 +561,11 @@ augroup neomake_save_linter
     autocmd!
     autocmd BufWritePost * Neomake
 augroup end
-let g:neomake_javascript_standard_maker = { 'errorformat': '%E %f:%l:%c: %m' }
+
+" "}}}
+" # Polyglot  {{{
+" Lazy loadable
+let g:jsx_ext_required = 1
 
 " "}}}
 " # Vim autoswap  {{{
