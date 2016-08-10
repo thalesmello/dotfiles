@@ -231,7 +231,6 @@ nnoremap <leader>hs :set hlsearch!<cr>
 noremap <C-C> <esc>
 
 " }}}
-" }}}
 " ##### Plugin settings  {{{
 " ##### Fugitive  {{{
 " (thanks to Steve Losh's vimrc)
@@ -361,3 +360,4 @@ endif
 
 nnoremap <leader>elb :vsplit ~/.vimrc.bundles.local<CR>
 " }}}"
+" }}}
