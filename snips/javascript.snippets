@@ -60,12 +60,12 @@ snippet json "JSON stringify" i
 JSON.stringify(${1:${VISUAL}}, null, 2)$0
 endsnippet
 
-snippet "var (\w+)( =)?( )?" "Require module" br
-var `!p snip.rv = match.group(1)` = require('${1:`!p
+snippet "(const|var) (\w+)( =)?( )?" "Require module" br
+`!p snip.rv = "{} {}".format(match.group(1), match.group(2))` = require('${1:`!p
 snip.rv = {
 	'Promise': 'bluebird',
 	'R': 'ramda'
-}.get(match.group(1), match.group(1))
+}.get(match.group(2), match.group(2))
 `}')$0
 endsnippet
 
@@ -75,3 +75,8 @@ get ${1:property} () {
 },
 endsnippet
 
+snippet co "Bluebird coroutine"
+Promise.coroutine(function * (${1}) {
+	${0:// Body...}
+})
+endsnippet
