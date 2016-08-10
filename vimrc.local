@@ -19,6 +19,7 @@ endif
 " # Mappings  {{{
 map <MiddleMouse> <Nop>
 imap <MiddleMouse> <Nop>
+nnoremap K <nop>
 nnoremap & <Nop>
 vnoremap <CR> "+y
 nnoremap <leader><cr> mz?\v(".*"\|'.*')<cr>"qyl`zi<c-r>q +<cr><c-r>q<esc>
@@ -561,6 +562,8 @@ augroup neomake_save_linter
     autocmd!
     autocmd BufWritePost * Neomake
 augroup end
+
+let g:neomake_javascript_enabled_makers = ['standard']
 
 " "}}}
 " # Polyglot  {{{
