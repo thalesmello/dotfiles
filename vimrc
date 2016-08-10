@@ -302,10 +302,7 @@ autocmd FileType ruby setlocal expandtab
 " But not for erb files...
 autocmd FileType eruby setlocal shiftwidth=4
 autocmd FileType eruby setlocal tabstop=4
-"
-" Remaps textobj-rubyblock's bindings to vim's defaults
-autocmd FileType ruby map aB ar
-autocmd FileType ruby map iB ir
+
 " }}}
 " ##### Puppet  {{{
 " Specific shiftwidth for puppet files
