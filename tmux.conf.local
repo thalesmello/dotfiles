@@ -107,8 +107,9 @@ tmux_conf_new_session_prompt=false
 # this is the place to further customize tmux's configuration
 
 # Change bind key
-set -g prefix2 C-Space
-bind-key C-Space send-prefix -2
+set prefix C-Space
+unbind-key C-b
+bind-key C-Space send-prefix
 
 # Urlview shortcut
 bind u run "cut -c3- ~/.tmux.conf | sh -s urlview #{pane_id}"
