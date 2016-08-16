@@ -5,15 +5,15 @@ describe('${1:description}', function (${2}) {
 endsnippet
 
 snippet it "It assertion block" b
-it('${1:it does...}', function (${2}) {
+it('${1:it does...}', Promise.coroutine(function * (${2}) {
 	${VISUAL}${0}
-})
+}))
 endsnippet
 
 snippet before "Before test block" b
-before('${1:before...}', function (${2}) {
+before('${1:before...}', Promise.coroutine(function * (${2}) {
 	${VISUAL}${0}
-})
+}))
 endsnippet
 
 snippet af "Anonymous function" i
