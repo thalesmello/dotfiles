@@ -107,7 +107,7 @@ tmux_conf_new_session_prompt=false
 # this is the place to further customize tmux's configuration
 
 # Change bind key
-set prefix C-Space
+set -g prefix C-Space
 unbind-key C-b
 bind-key C-Space send-prefix
 
