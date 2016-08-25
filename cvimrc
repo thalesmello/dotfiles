@@ -4,7 +4,7 @@ set noautofocus " The opposite of autofocus; this setting stops
                 " sites from focusing on an input box when they load
 let searchlimit = 30
 let scrollstep = 70
-let barposition = "bottom"
+let barposition = "top"
 
 " alias ':g' to ':tabnew google'
 command g tabnew google
@@ -16,3 +16,11 @@ let searchalias g = "google" " Create a shortcut for search engines.
 let mapleader = "<Space>"
 
 set autoupdategist
+
+set typelinkhints
+set numerichints
+
+map ^n nextSearchResult
+map ^N previousSearchResult
+map n :execute ^nzz<CR>
+map N :execute ^Nzz<CR>
