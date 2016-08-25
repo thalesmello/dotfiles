@@ -11,6 +11,7 @@ Create a symbolic links for your files:
 	ln -s $(pwd)/snips ~/.snips
 	ln -s $(pwd)/w3m.keymap ~/.w3m/keymap
 	ln -s $(pwd)/hammerspoon ~/.hammerspoon
+	ln -s $(pwd)/cvimrc ~/.cvimrc
 	ln -s $(pwd)/rstudio ~/.R/rstudio
 	ln -s $(pwd)/Karabiner ~/Library/Application\ Support/Karabiner
 
