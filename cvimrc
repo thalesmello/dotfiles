@@ -1,0 +1,18 @@
+" Settings
+set nosmoothscroll
+set noautofocus " The opposite of autofocus; this setting stops
+                " sites from focusing on an input box when they load
+let searchlimit = 30
+let scrollstep = 70
+let barposition = "bottom"
+
+" alias ':g' to ':tabnew google'
+command g tabnew google
+
+let searchalias g = "google" " Create a shortcut for search engines.
+                             " For example, typing ':tabnew g example'
+                             " would act the same way as ':tabnew google example'
+
+let mapleader = "<Space>"
+
+set autoupdategist
