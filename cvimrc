@@ -17,9 +17,6 @@ let mapleader = "<Space>"
 
 set autoupdategist
 
-set typelinkhints
-set numerichints
-
 map ^n nextSearchResult
 map ^N previousSearchResult
 map n :execute ^nzz<CR>
