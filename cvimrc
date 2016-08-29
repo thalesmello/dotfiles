@@ -13,7 +13,7 @@ command g tabnew google
 let searchalias g = "google" " Create a shortcut for search engines.
                              " For example, typing ':tabnew g example'
                              " would act the same way as ':tabnew google example'
-let searchengine feelinglucky = "http://www.google.com/search?hl=en&q=%s&btnI=I%27m+Feeling+Lucky&aq=f&oq="
+let searchengine feelinglucky = "http://www.google.com/search?hl=en&btnI=I%27m+Feeling+Lucky&aq=f&oq=&q=%s"
 let searchalias l = "feelinglucky" " Create a shortcut for search engines.
 command l tabnew feelinglucky
 
