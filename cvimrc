@@ -5,6 +5,7 @@ set noautofocus " The opposite of autofocus; this setting stops
 let searchlimit = 30
 let scrollstep = 70
 let barposition = "top"
+set cncpcompletion
 
 " alias ':g' to ':tabnew google'
 command g tabnew google
@@ -12,6 +13,9 @@ command g tabnew google
 let searchalias g = "google" " Create a shortcut for search engines.
                              " For example, typing ':tabnew g example'
                              " would act the same way as ':tabnew google example'
+let searchengine feelinglucky = "http://www.google.com/search?hl=en&q=%s&btnI=I%27m+Feeling+Lucky&aq=f&oq="
+let searchalias l = "feelinglucky" " Create a shortcut for search engines.
+command l tabnew feelinglucky
 
 let mapleader = "<Space>"
 
@@ -21,3 +25,5 @@ map ^n nextSearchResult
 map ^N previousSearchResult
 map n :execute ^nzz<CR>
 map N :execute ^Nzz<CR>
+map <C-e> j
+map <C-y> k
