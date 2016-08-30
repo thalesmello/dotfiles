@@ -426,6 +426,7 @@ augroup sleuth
 augroup END
 " }}}
 " }}}
+" }}}
 " ##### Local Vim Configurations {{{
 " Sets YAML syntax for *.lookml files.
 nnoremap <leader>elv :vsplit ~/.vimrc.local<cr>
@@ -440,4 +441,3 @@ endif
 
 nnoremap <leader>elb :vsplit ~/.vimrc.bundles.local<CR>
 " }}}"
-" }}}
