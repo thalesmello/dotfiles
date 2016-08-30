@@ -311,7 +311,6 @@ inoremap <C-C> <esc>
 vnoremap <C-C> <esc>
 
 " }}}
-" ##### Plugin settings  {{{
 " ##### Fugitive  {{{
 " (thanks to Steve Losh's vimrc)
 nnoremap <leader>gd :Gdiff<cr>
@@ -368,7 +367,6 @@ let g:toggle_list_copen_command="Copen"
 "
 "     let @@ = reg_save
 " endfunction
-" }}}
 " }}}
 " ##### Filetype-specific  {{{
 " ##### Ruby  {{{
