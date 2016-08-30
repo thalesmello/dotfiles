@@ -367,58 +367,10 @@ let g:toggle_list_copen_command="Copen"
 "     let @@ = reg_save
 " endfunction
 " }}}
-" ##### Filetype-specific  {{{
-" ##### Ruby  {{{
-" Specific shiftwidth for ruby files
-autocmd FileType ruby setlocal shiftwidth=2
-autocmd FileType ruby setlocal tabstop=2
-" Convert tabs to spaces in Ruby files
-autocmd FileType ruby setlocal expandtab
-
-" But not for erb files...
-autocmd FileType eruby setlocal shiftwidth=4
-autocmd FileType eruby setlocal tabstop=4
-
-" }}}
-" ##### Puppet  {{{
-" Specific shiftwidth for puppet files
-autocmd BufRead,BufNewFile *.pp setlocal filetype=puppet
-autocmd BufRead,BufNewFile Puppetfile setlocal filetype=ruby
-
-" And custom tab sizes too
-autocmd FileType puppet setlocal shiftwidth=2
-autocmd FileType puppet setlocal tabstop=2
-" }}}
-" ##### Markdown  {{{
-" Sets markdown syntax for *.md files.
-autocmd BufRead,BufNewFile *.md setlocal filetype=markdown
-
-" Wrap markdown files.
-autocmd BufRead,BufNewFile *.md setlocal wrap
-
-autocmd BufEnter *.md colorscheme badwolf
-" }}}
-" ##### JavaScript  {{{
-" Sets html syntax for *.ejs files.
-autocmd BufRead,BufNewFile *.ejs setlocal filetype=html
-" }}}
-" ##### XML {{{
-" Automatically format XML files
-nnoremap <leader>xb :%s,>[ <tab>]*<,>\r<,g<cr> gg=G
-" }}}
-" ##### SQL {{{
-" ##### LookML {{{
-" Sets YAML syntax for *.lookml files.
-autocmd BufRead,BufNewFile *.lookml setlocal filetype=yaml
-" }}}
-" ##### Reload Vim Sleuth {{{
 augroup sleuth
   autocmd!
   autocmd FileType * VimSleuthReload
 augroup END
-" }}}
-" }}}
-" }}}
 " # Local settings {{{
 let maplocalleader = "'"
 set cursorline
