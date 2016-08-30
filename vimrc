@@ -152,6 +152,7 @@ Plug 'thalesmello/pagarme-refactor.vim'
 Plug 'thalesmello/config.loupe' | Plug 'wincent/loupe'
 Plug 'dietsche/vim-lastplace'
 Plug 'EinfachToll/DidYouMean'
+Plug 'terryma/vim-expand-region'
 
 " TODO: Check
 " github-complete.vim
@@ -367,10 +368,12 @@ let g:toggle_list_copen_command="Copen"
 "     let @@ = reg_save
 " endfunction
 " }}}
+" ##### Vim Sleuth {{{
 augroup sleuth
   autocmd!
   autocmd FileType * VimSleuthReload
 augroup END
+" }}}
 " # Local settings {{{
 let maplocalleader = "'"
 set cursorline
