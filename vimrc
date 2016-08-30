@@ -285,10 +285,6 @@ if !has('gui')
   endf
   nnoremap <silent> <tab> :<c-u>call JumpForwardOrToggleFold()<cr>
 endif
-" Open all folds
-nnoremap <leader>fo zR
-" Close all folds
-nmap <leader>fc zM
 " Close all folds except the current one
 nnoremap zf mzzM`zzvzz
 " }}}
