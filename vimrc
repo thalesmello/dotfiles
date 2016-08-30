@@ -73,8 +73,6 @@ Plug 'thalesmello/vim-sleuth'
 " }}}
 " ##### Load local Plugins  {{{
 
-" The following loads a local bundles file, in case
-" you wish to install local plugins
 Plug 'terryma/vim-multiple-cursors'
 Plug 'thalesmello/vim-tmux-navigator'
 Plug 'mhinz/vim-signify'
@@ -116,6 +114,7 @@ Plug 'kana/vim-textobj-user'
       \ | Plug 'glts/vim-textobj-indblock'
       \ | Plug 'kana/vim-textobj-indent'
       \ | Plug 'rhysd/vim-textobj-lastinserted'
+      \ | Plug 'kana/vim-textobj-fold'
       \ | Plug 'thalesmello/vim-textobj-methodcall'
       \ | Plug 'thalesmello/vim-textobj-bracketchunk'
       \ | Plug 'rhysd/vim-textobj-conflict'
