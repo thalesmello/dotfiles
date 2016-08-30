@@ -244,8 +244,7 @@ nnoremap <leader>tc :tabclose<cr>
 nnoremap [t :tabprevious<cr>
 nnoremap ]t :tabnext<cr>
 " }}}
-
-" Emacs bindings in command-line mode
+" Emacs like line mappings {{{ "
 cnoremap <C-A> <home>
 cnoremap <C-E> <end>
 " }}}
@@ -295,6 +294,7 @@ nnoremap <leader>hs :set hlsearch!<cr>
 inoremap <C-C> <esc>
 vnoremap <C-C> <esc>
 
+" }}}
 " }}}
 " ##### Fugitive  {{{
 " (thanks to Steve Losh's vimrc)
