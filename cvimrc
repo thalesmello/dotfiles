@@ -27,3 +27,5 @@ map n :execute ^nzz<CR>
 map N :execute ^Nzz<CR>
 map <C-e> j
 map <C-y> k
+map <C-u> u
+map <C-d> d
