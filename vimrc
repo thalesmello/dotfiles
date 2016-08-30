@@ -255,11 +255,6 @@ cnoremap <C-A> <home>
 cnoremap <C-E> <end>
 " }}}
 " ##### Split windows {{{
-" Move around easily
-nnoremap <C-h> <C-w>h
-nnoremap <C-j> <C-w>j
-nnoremap <C-k> <C-w>k
-nnoremap <C-l> <C-w>l
 
 " Create windows
 nnoremap <leader>v <C-w>v<C-w>l
