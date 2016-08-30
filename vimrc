@@ -27,9 +27,8 @@ Plug 'Shougo/vimproc.vim', { 'do' : 'make' }
 " Theme of this vimfiles
 Plug 'sjl/badwolf'
 " Useful statusbar in your vim
-Plug 'bling/vim-airline'
+Plug 'vim-airline/vim-airline'
 Plug 'vim-airline/vim-airline-themes'
-Plug 'b4winckler/vim-objc'
 " Comment toggling: use `gc` to toggle comments in visual mode
 Plug 'tomtom/tcomment_vim'
 " Git bindings for VIM
