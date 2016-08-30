@@ -47,7 +47,6 @@ Plug 'nono/vim-handlebars'
 Plug 'nathanaelkane/vim-indent-guides'
 " Javascript support for vim
 Plug 'jelera/vim-javascript-syntax', { 'for': ['javascript'] }
-Plug 'milkypostman/vim-togglelist'
 " Relative line number
 Plug 'jeffkreeftmeijer/vim-numbertoggle'
 " File explorer for VIM. <leader>ft to activate
@@ -317,9 +316,6 @@ nnoremap <leader>gp :Git push
 " ##### Number toggle  {{{
 let g:NumberToggleTrigger="<leader>ll"
 "}}}
-" ##### togglelist {{{
-let g:toggle_list_copen_command="Copen"
-" }}}
 " ##### Ack motions {{{
 " (from Steve Losh's vimrc)
 " Motions to Ack for things.  Works with pretty much everything, including:
@@ -606,10 +602,6 @@ let g:UltiSnipsSnippetsDir         = '~/.snips'
 let g:UltiSnipsSnippetDirectories  = ["UltiSnips", $HOME . "/.snips"]
 inoremap <c-x><c-k> <c-x><c-k>
 nmap <leader>esp :UltiSnipsEdit<cr>
-
-" "}}}
-" # ToggleList  {{{
-let g:toggle_list_no_mappings = 1
 
 " "}}}
 " # NerdTREE  {{{
