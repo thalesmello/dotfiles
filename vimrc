@@ -314,12 +314,6 @@ nnoremap <leader>gr :Gread<cr>
 nnoremap <leader>grm :Gremove<cr>
 nnoremap <leader>gp :Git push
 " }}}
-" ##### NERDTree  {{{
-noremap <leader>ft :NERDTreeToggle<CR>
-
-" Don't fuck up vim's default file browser
-let g:NERDTreeHijackNetrw = 0
-" }}}
 " ##### Number toggle  {{{
 let g:NumberToggleTrigger="<leader>ll"
 "}}}
@@ -619,6 +613,8 @@ let g:toggle_list_no_mappings = 1
 
 " "}}}
 " # NerdTREE  {{{
+noremap <leader>ft :NERDTreeToggle<CR>
+let g:NERDTreeHijackNetrw = 0
 let g:NERDTreeIgnore = ['\.pyc$']
 nnoremap <leader>ff :NERDTreeFind<cr>
 let g:NERDTreeQuitOnOpen = 1
