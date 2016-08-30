@@ -230,9 +230,6 @@ augroup set_fold_method
   autocmd FileType vim setlocal foldmethod=marker
 augroup end
 
-" Useful status information at bottom of screen
-set statusline=[%n]\ %<%.99f\ %h%w%m%r%y\ %{exists('*CapsLockStatusline')?CapsLockStatusline():''}%=%-16(\ %l,%c-%v\ %)%P
-
 " Always diff using vertical mode
 set diffopt+=vertical
 
