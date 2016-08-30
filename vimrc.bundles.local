@@ -75,6 +75,7 @@ Plug 'thalesmello/persistent.vim'
 Plug 'thalesmello/pagarme-refactor.vim'
 Plug 'thalesmello/config.loupe' | Plug 'wincent/loupe'
 Plug 'dietsche/vim-lastplace'
+Plug 'EinfachToll/DidYouMean'
 
 " TODO: Check
 " github-complete.vim
