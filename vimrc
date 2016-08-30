@@ -68,9 +68,6 @@ Plug 'vim-ruby/vim-ruby'
 " Automatically recognize indentation
 Plug 'thalesmello/vim-sleuth'
 
-" }}}
-" ##### Load local Plugins  {{{
-
 Plug 'terryma/vim-multiple-cursors'
 Plug 'thalesmello/vim-tmux-navigator'
 Plug 'mhinz/vim-signify'
