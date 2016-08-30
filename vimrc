@@ -312,38 +312,6 @@ nnoremap <leader>gp :Git push
 " ##### Number toggle  {{{
 let g:NumberToggleTrigger="<leader>ll"
 "}}}
-" ##### Ack motions {{{
-" (from Steve Losh's vimrc)
-" Motions to Ack for things.  Works with pretty much everything, including:
-"
-"   w, W, e, E, b, B, t*, f*, i*, a*, and custom text objects
-"
-" Awesome.
-"
-" Note: If the text covered by a motion contains a newline it won't work.  Ack
-" searches line-by-line.
-
-" nnoremap <silent> <leader>a :set opfunc=<SID>AckMotion<CR>g@
-" xnoremap <silent> <leader>a :<C-U>call <SID>AckMotion(visualmode())<CR>
-"
-" function! s:CopyMotionForType(type)
-"     if a:type ==# 'v'
-"         silent execute "normal! `<" . a:type . "`>y"
-"     elseif a:type ==# 'char'
-"         silent execute "normal! `[v`]y"
-"     endif
-" endfunction
-"
-" function! s:AckMotion(type) abort
-"     let reg_save = @@
-"
-"     call s:CopyMotionForType(a:type)
-"
-"     execute "normal! :Ack! --literal " . shellescape(@@) . "\<cr>"
-"
-"     let @@ = reg_save
-" endfunction
-" }}}
 " ##### Vim Sleuth {{{
 augroup sleuth
   autocmd!
