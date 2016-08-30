@@ -307,7 +307,8 @@ nnoremap <leader>sv :source $MYVIMRC<cr>
 nnoremap <leader>hs :set hlsearch!<cr>
 
 " Maps <C-C> to <esc>
-noremap <C-C> <esc>
+inoremap <C-C> <esc>
+vnoremap <C-C> <esc>
 
 " }}}
 " ##### Plugin settings  {{{
