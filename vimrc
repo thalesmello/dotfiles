@@ -221,9 +221,14 @@ autocmd FileType * setlocal tabstop=4
 autocmd FileType * setlocal shiftwidth=4
 
 " Files open expanded
-set foldlevelstart=50
 " Use decent folding
-set foldmethod=indent
+set foldlevelstart=50
+augroup set_fold_method
+  autocmd!
+  autocmd FileType * setlocal foldmethod=indent
+  autocmd FileType vim setlocal foldlevel=0
+  autocmd FileType vim setlocal foldmethod=marker
+augroup end
 
 " Useful status information at bottom of screen
 set statusline=[%n]\ %<%.99f\ %h%w%m%r%y\ %{exists('*CapsLockStatusline')?CapsLockStatusline():''}%=%-16(\ %l,%c-%v\ %)%P
@@ -404,11 +409,6 @@ autocmd BufEnter *.md colorscheme badwolf
 " ##### JavaScript  {{{
 " Sets html syntax for *.ejs files.
 autocmd BufRead,BufNewFile *.ejs setlocal filetype=html
-" }}}
-" ##### Vim {{{
-" Make vimrcs open folded
-autocmd FileType vim setlocal foldlevel=0
-autocmd FileType vim setlocal foldmethod=marker
 " }}}
 " ##### XML {{{
 " Automatically format XML files
