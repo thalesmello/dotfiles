@@ -152,7 +152,6 @@ Plug 'thalesmello/pagarme-refactor.vim'
 Plug 'thalesmello/config.loupe' | Plug 'wincent/loupe'
 Plug 'dietsche/vim-lastplace'
 Plug 'EinfachToll/DidYouMean'
-Plug 'terryma/vim-expand-region'
 
 " TODO: Check
 " github-complete.vim
@@ -444,6 +443,8 @@ nnoremap <S-3-ScrollWheelDown>   <3-ScrollWheelRight>
 nnoremap <S-4-ScrollWheelDown>   <4-ScrollWheelRight>
 nnoremap <silent> <leader>q :pclose<cr>:cclose<cr>:lclose<cr>:UniteClose<cr>
 nnoremap <leader>sf :source %<cr>
+vnoremap _ <esc>`<jV`>k0
+vnoremap + <esc>`<kV`>j0
 
 " "}}}
 " # Vim over  {{{
