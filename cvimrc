@@ -5,7 +5,7 @@ set noautofocus " The opposite of autofocus; this setting stops
 let searchlimit = 30
 let scrollstep = 70
 let barposition = "top"
-set cncpcompletion
+set nocncpcompletion
 
 " alias ':g' to ':tabnew google'
 command g tabnew google
