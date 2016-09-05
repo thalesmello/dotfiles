@@ -16,3 +16,4 @@ tags.temp
 .-rplugin\~
 .DS_Store
 *.zwc
+*.pyc
