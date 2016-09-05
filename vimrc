@@ -100,7 +100,6 @@ Plug 'kana/vim-textobj-user'
       \ | Plug 'kana/vim-textobj-line'
       \ | Plug 'Julian/vim-textobj-variable-segment'
       \ | Plug 'kana/vim-textobj-entire'
-      \ | Plug 'poetic/vim-textobj-javascript'
       \ | Plug 'thinca/vim-textobj-function-javascript'
       \ | Plug 'coderifous/textobj-word-column.vim'
       \ | Plug 'ryanoasis/vim-devicons'
@@ -147,6 +146,7 @@ Plug 'thalesmello/pagarme-refactor.vim'
 Plug 'thalesmello/config.loupe' | Plug 'wincent/loupe'
 Plug 'dietsche/vim-lastplace'
 Plug 'EinfachToll/DidYouMean'
+Plug 'duggiefresh/vim-easydir'
 
 " TODO: Check
 " github-complete.vim
@@ -214,16 +214,6 @@ autocmd FileType * setlocal tabstop=4
 " And again, related.
 autocmd FileType * setlocal shiftwidth=4
 
-" Files open expanded
-" Use decent folding
-set foldlevelstart=50
-augroup set_fold_method
-  autocmd!
-  autocmd FileType * setlocal foldmethod=indent
-  autocmd FileType vim setlocal foldlevel=0
-  autocmd FileType vim setlocal foldmethod=marker
-augroup end
-
 " Always diff using vertical mode
 set diffopt+=vertical
 
@@ -281,6 +271,18 @@ if !has('gui')
 endif
 " Close all folds except the current one
 nnoremap zf mzzM`zzvzz
+
+" Files open expanded
+" Use decent folding
+set foldlevelstart=50
+augroup set_fold_method
+  autocmd!
+  autocmd FileType * setlocal foldmethod=indent
+  autocmd FileType vim setlocal foldlevel=0
+  autocmd FileType vim setlocal foldmethod=marker
+  autocmd FileType javascript call JavaScriptFold()
+augroup end
+
 " }}}
 " ##### Misc {{{
 " Edit and load vimrc
