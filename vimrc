@@ -147,6 +147,7 @@ Plug 'thalesmello/config.loupe' | Plug 'wincent/loupe'
 Plug 'dietsche/vim-lastplace'
 Plug 'EinfachToll/DidYouMean'
 Plug 'duggiefresh/vim-easydir'
+Plug 'Konfekt/FastFold'
 
 " TODO: Check
 " github-complete.vim
@@ -281,6 +282,7 @@ augroup set_fold_method
   autocmd FileType vim setlocal foldlevel=0
   autocmd FileType vim setlocal foldmethod=marker
   autocmd FileType javascript call JavaScriptFold()
+  autocmd FileType javascript setlocal foldlevelstart=50
 augroup end
 
 " }}}
