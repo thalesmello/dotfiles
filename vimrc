@@ -24,8 +24,6 @@ call plug#begin()
 Plug 'tpope/vim-sensible'
 " Plugin to load tasks asynchronously
 Plug 'Shougo/vimproc.vim', { 'do' : 'make' }
-" Theme of this vimfiles
-Plug 'sjl/badwolf'
 " Useful statusbar in your vim
 Plug 'vim-airline/vim-airline'
 Plug 'vim-airline/vim-airline-themes'
@@ -57,8 +55,6 @@ Plug 'teranex/jk-jumps.vim'
 Plug 'tpope/vim-dispatch'
 " Expand html easily: div > 3*li then Ctrl+e in an html file
 Plug 'rstacruz/sparkup'
-" Use the Molokay theme in Vim
-Plug 'tomasr/molokai'
 " Puppet support for Vim
 Plug 'rodjek/vim-puppet'
 " Elixir support for Vim
@@ -67,6 +63,8 @@ Plug 'elixir-lang/vim-elixir'
 Plug 'vim-ruby/vim-ruby'
 " Automatically recognize indentation
 Plug 'thalesmello/vim-sleuth'
+
+Plug 'tomasr/molokai'
 
 Plug 'terryma/vim-multiple-cursors'
 Plug 'thalesmello/vim-tmux-navigator'
@@ -222,7 +220,8 @@ set diffopt+=vertical
 set mouse=a
 
 " Sets the colorscheme for terminal sessions too.
-colorscheme badwolf
+set background=dark
+colorscheme molokai
 
 " Leader = ,
 let mapleader = "\<space>"
@@ -483,7 +482,7 @@ vnoremap <leader>\| :VisualCommand<CR>
 " # Airline  {{{
 " Plugin extractable configuration?
 let g:airline_powerline_fonts = 1
-let g:airline_theme = 'powerlineish'
+let g:airline_theme = 'molokai'
 let g:airline_inactive_collapse = 1
 let g:airline#extensions#branch#displayed_head_limit = 15
 let g:airline#extensions#default#section_truncate_width = {}
@@ -888,6 +887,17 @@ augroup neomake_save_linter
 augroup end
 
 let g:neomake_javascript_enabled_makers = ['standard']
+
+function! DefineNeomakeColors()
+  hi NeomakeErrorSign ctermfg=white
+endfunction
+
+call DefineNeomakeColors()
+
+augroup my_error_signs
+    au!
+    autocmd ColorScheme * call DefineNeomakeColors()
+augroup END
 
 " "}}}
 " # Polyglot  {{{
