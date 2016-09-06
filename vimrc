@@ -222,7 +222,7 @@ set diffopt+=vertical
 set mouse=a
 
 " Sets the colorscheme for terminal sessions too.
-colorscheme molokai
+colorscheme badwolf
 
 " Leader = ,
 let mapleader = "\<space>"
