@@ -88,7 +88,7 @@ Plug 'simnalamburt/vim-mundo'
 Plug 'simeji/winresizer'
 Plug 'godlygeek/tabular'
 Plug 'wesQ3/vim-windowswap'
-Plug 'SirVer/ultisnips', { 'on': ['UltiSnipsEdit'] }
+Plug 'thalesmello/lazy.ultisnips' | Plug 'SirVer/ultisnips', { 'on': ['UltiSnipsEdit'] }
 Plug 'honza/vim-snippets'
 Plug 'kana/vim-textobj-user'
       \ | Plug 'rhysd/vim-textobj-ruby'
