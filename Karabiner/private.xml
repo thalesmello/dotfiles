@@ -69,13 +69,24 @@
 	</item>
 	<item>
 		<identifier>private.command_w_to_close_window</identifier>
-		<name>Command+W to close window</name>
+		<name>Hold Command+W to close window</name>
 		<only>TERMINAL</only>
 		<autogen>
-			__KeyToKey__ KeyCode::W, ModifierFlag::COMMAND_L,
+			__HoldingKeyToKey__ KeyCode::W, ModifierFlag::COMMAND_L | ModifierFlag::NONE,
+
+			<!-- Short Press -->
+			@begin
 			KeyCode::SPACE, ModifierFlag::CONTROL_L,
 			<!-- Ampersand is 7 + Shift -->
 			KeyCode::7, ModifierFlag::SHIFT_L
+			@end
+
+			<!-- Long Hold -->
+			@begin
+			KeyCode::SPACE, ModifierFlag::CONTROL_L,
+			KeyCode::7, ModifierFlag::SHIFT_L, <!-- ( & ) = 7 + Shift -->
+			KeyCode::Y, ModifierFlag::NONE
+			@end
 		</autogen>
 	</item>
 </root>
