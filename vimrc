@@ -88,7 +88,7 @@ Plug 'simnalamburt/vim-mundo'
 Plug 'simeji/winresizer'
 Plug 'godlygeek/tabular'
 Plug 'wesQ3/vim-windowswap'
-Plug 'thalesmello/lazy.ultisnips' | Plug 'SirVer/ultisnips', { 'on': ['UltiSnipsEdit'] }
+Plug 'SirVer/ultisnips', { 'on': ['UltiSnipsEdit'] }
 Plug 'honza/vim-snippets'
 Plug 'kana/vim-textobj-user'
       \ | Plug 'rhysd/vim-textobj-ruby'
@@ -510,6 +510,7 @@ let g:deoplete#omni#input_patterns = {}
 let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
 let g:deoplete#omni#input_patterns.javascript = '[^. *\t]\.\w*'
 let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
+
 
 function! DeopleteMultipleCursorsSwitch(before)
     if a:before
