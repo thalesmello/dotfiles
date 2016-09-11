@@ -2,7 +2,7 @@ Create a symbolic links for your files:
 
 	ln -s $(pwd)/vimrc.local ~/.vimrc.local
 	ln -s $(pwd)/vimrc.bundles.local ~/.vimrc.bundles.local
-	ln -s $(pwd)/tmux.conf.local ~/.tmux.conf.local
+	ln -s $(pwd)/tmux.conf ~/.tmux.conf
 	ln -s $(pwd)/zshrc.plugins ~/.zshrc.plugins
 	ln -s $(pwd)/zshrc.config ~/.zshrc.config
 	ln -s $(pwd)/zshrc.alias ~/.zshrc.alias
