@@ -64,7 +64,7 @@ Plug 'vim-ruby/vim-ruby'
 " Automatically recognize indentation
 Plug 'thalesmello/vim-sleuth'
 
-Plug 'tomasr/molokai'
+Plug 'morhetz/gruvbox'
 
 Plug 'terryma/vim-multiple-cursors'
 Plug 'thalesmello/vim-tmux-navigator'
@@ -146,6 +146,8 @@ Plug 'dietsche/vim-lastplace'
 Plug 'EinfachToll/DidYouMean'
 Plug 'duggiefresh/vim-easydir'
 Plug 'Konfekt/FastFold'
+Plug 'tmux-plugins/vim-tmux'
+Plug 'zeorin/tmuxline.vim', {'branch': 'utf8-suppress-error'}
 
 " TODO: Check
 " github-complete.vim
@@ -221,7 +223,8 @@ set mouse=a
 
 " Sets the colorscheme for terminal sessions too.
 set background=dark
-colorscheme molokai
+let g:gruvbox_contrast_dark = 'hard'
+colorscheme gruvbox
 
 " Leader = ,
 let mapleader = "\<space>"
@@ -481,7 +484,7 @@ vnoremap <leader>\| :VisualCommand<CR>
 " # Airline  {{{
 " Plugin extractable configuration?
 let g:airline_powerline_fonts = 1
-let g:airline_theme = 'molokai'
+let g:airline_theme = 'gruvbox'
 let g:airline_inactive_collapse = 1
 let g:airline#extensions#branch#displayed_head_limit = 15
 let g:airline#extensions#default#section_truncate_width = {}
@@ -498,6 +501,19 @@ function! AirlineInit()
     let g:airline_section_z = airline#section#create(['%p%% ', '%{g:airline_symbols.linenr}%#__accent_bold#%l%#__restore__#:%v'])
 endfunction
 autocmd User AirlineAfterInit call AirlineInit()
+
+" "}}}
+" # Tmuxline  {{{
+" Plugin extractable configuration?
+let g:airline#extensions#tmuxline#enabled = 0
+let s:computer_emoji = '💻'
+let g:tmuxline_preset = {
+    \'a'       : [s:computer_emoji . '  #(whoami)', '#S'],
+    \'win'     : ['#I', '#W'],
+    \'cwin'    : ['#I', '#W'],
+    \'x'       : ['#{prefix_highlight}'],
+    \'z'       : ['On: #{online_status}', '#{battery_icon} #{battery_percentage}', '1234'],
+    \'options' : {'status-justify' : 'left'}}
 
 " "}}}
 " # Gutentags  {{{
