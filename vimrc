@@ -512,7 +512,7 @@ let g:tmuxline_preset = {
     \'win'     : ['#I', '#W'],
     \'cwin'    : ['#I', '#W'],
     \'x'       : ['#{prefix_highlight}'],
-    \'z'       : ['On: #{online_status}', '#{battery_icon} #{battery_percentage}', '1234'],
+    \'z'       : ['On: #{online_status}', '#{battery_icon} #{battery_percentage}', '%R'],
     \'options' : {'status-justify' : 'left'}}
 
 " "}}}
