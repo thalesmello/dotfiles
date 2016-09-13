@@ -1,3 +1,32 @@
 snippet header "Header for the Vimwiki diary" b
 = `!v strftime("%b %d, %Y")`$0 =
 endsnippet
+
+snippet frac "Mathjax fraction" i
+\frac{${1:${VISUAL}}}{$2}$0
+endsnippet
+
+snippet sum "Mathjax fraction" i
+\sum_{$1}^{$2}$0
+endsnippet
+
+snippet ^ "Mathjax power" i
+^{${1:${VISUAL}}}$0
+endsnippet
+
+snippet _ "Mathjax power" i
+_{${1:${VISUAL}}}$0
+endsnippet
+
+snippet hat "Mathjax hat" i
+\hat{${1:${VISUAL}}}$0
+endsnippet
+
+snippet $ "Mathjax fraction" i
+$ ${1:${VISUAL}}$0 $
+endsnippet
+
+snippet \ "Mathjax enclose" i
+\\$1{${2:${VISUAL}}}$0
+endsnippet
+
