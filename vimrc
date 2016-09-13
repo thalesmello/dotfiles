@@ -526,7 +526,7 @@ let g:deoplete#omni#input_patterns = {}
 let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
 let g:deoplete#omni#input_patterns.javascript = '[^. *\t]\.\w*'
 let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
-
+let g:deoplete#sources#tss#javascript_support = 1
 
 function! DeopleteMultipleCursorsSwitch(before)
     if a:before
@@ -571,16 +571,22 @@ endfunction
 
 function! MyExpandSnippet()
     call UltiSnips#ExpandSnippet()
-    return ''
+
+    if g:ulti_expand_res
+      return ""
+    elseif pumvisible()
+      return "\<c-n>"
+    else
+      return "\<tab>"
+    end
 endf
 
 let g:UltiSnipsEditSplit           = "vertical"
 xnoremap <silent> <tab> :call UltiSnips#SaveLastVisualSelection()<CR>gvs
-inoremap <silent> <c-j> <c-r>=JumpOrExpandSnippet()<cr>
-imap <silent> <Tab> <c-r>=MyExpandSnippet()<cr>[should]jump
-inoremap <silent><expr> [should]jump g:ulti_expand_res ? '' : (pumvisible() ? "\<c-n>" : "\<tab>")
+inoremap <silent> <c-l> <c-r>=JumpOrExpandSnippet()<cr>
+imap <silent> <Tab> <c-r>=MyExpandSnippet()<cr>
 let g:UltiSnipsExpandTrigger       = "<c-t><c-t><c-t>"
-let g:UltiSnipsJumpBackwardTrigger = "<c-k>"
+let g:UltiSnipsJumpBackwardTrigger = "<c-h>"
 let g:UltiSnipsSnippetsDir         = '~/.snips'
 let g:UltiSnipsSnippetDirectories  = ["UltiSnips", $HOME . "/.snips"]
 inoremap <c-x><c-k> <c-x><c-k>
@@ -633,10 +639,20 @@ nmap <silent> <localleader>vaj ggVG<localleader>vj
 nnoremap <silent> <localleader>vf :w<CR>:call VimuxRunCommand(GetExecuteCommand())<CR>
 nnoremap <silent> <localleader>vw :call VimuxRunCommand(GetNodemonCommand())<CR>
 nmap <silent> <localleader>vr <localleader>vq:call VimuxRunCommand(GetReplCommand())<CR>
-nnoremap <silent> <localleader>vtp :call VimuxRunCommand('exec-notify ./script/test ' . expand('%'))<cr>
+nnoremap <silent> <localleader>vtp :call VimuxRunPagarmeTest()<cr>
 
 function! VimuxSlime() range
    call VimuxRunCommand(s:get_visual_selection())
+endfunction
+
+function! VimuxRunPagarmeTest()
+  if getcwd() =~ 'gateway'
+    let script = './script/test-unit'
+  else
+    let script = './script/test'
+  endif
+
+  call VimuxRunCommand('exec-notify '. script . ' ' . expand('%'))
 endfunction
 
 function! VimuxSlimeLineBreak() range
@@ -963,10 +979,25 @@ nnoremap <silent> <leader>sw :call WindowSwap#EasyWindowSwap()<CR>
 " "}}}
 " # Vimwiki  {{{
 " Extractable configuration
-let g:vimwiki_list = [{'path': '~/Dropbox/Apps/vimwiki/wiki', 'path_html': '~/Dropbox/Apps/vimwiki/html'}]
+let g:vimwiki_list = [{
+      \ 'path': '~/Dropbox/Apps/vimwiki/wiki',
+      \ 'path_html': '~/Dropbox/Apps/vimwiki/html',
+      \ 'template_default': 'default',
+      \ 'template_ext': '.tpl',
+      \ 'template_path': '~/Dropbox/Apps/vimwiki/templates'
+      \ }]
 
-nnoremap [d :VimwikiDiaryPrevDay<cr>
-nnoremap ]d :VimwikiDiaryNextDay<cr>
+augroup vimwiki_shortcuts
+  autocmd!
+  autocmd FileType vimwiki nnoremap <buffer> [d :VimwikiDiaryPrevDay<cr>
+  autocmd FileType vimwiki nnoremap <buffer> ]d :VimwikiDiaryNextDay<cr>
+  autocmd FileType vimwiki nmap <buffer> ]l <Plug>VimwikiNextLink
+  autocmd FileType vimwiki nmap <buffer> [l <Plug>VimwikiPrevLink
+  autocmd FileType vimwiki iunmap <buffer> <C-L><C-J>
+  autocmd FileType vimwiki iunmap <buffer> <C-L><C-K>
+  autocmd FileType vimwiki iunmap <buffer> <C-L><C-M>
+  autocmd FileType vimwiki iunmap <buffer> <Tab>
+augroup end
 
 " "}}}
 " # Schlepp  {{{
