@@ -959,6 +959,7 @@ imap <expr> <c-x><c-n> CustomCompletion("\<c-n>")
 imap <expr> <c-x><c-p> CustomCompletion("\<c-p>")
 let g:delimitMate_expand_space = 1
 let g:delimitMate_expand_cr = 1
+let g:delimitMate_nesting_quotes = ['"','`', "'"]
 
 if !exists('g:set_carriage_return')
     imap <CR> <C-G>u<Plug>delimitMateCR
