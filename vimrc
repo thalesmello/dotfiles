@@ -148,6 +148,8 @@ Plug 'duggiefresh/vim-easydir'
 Plug 'Konfekt/FastFold'
 Plug 'tmux-plugins/vim-tmux'
 Plug 'zeorin/tmuxline.vim', {'branch': 'utf8-suppress-error'}
+Plug 'thalesmello/devlindo.vim'
+Plug 'sealemar/vtl'
 
 " TODO: Check
 " github-complete.vim
@@ -354,6 +356,7 @@ nnoremap <leader>pp "+p
 vnoremap <leader>pp "+p
 nnoremap <leader>PP "+P
 vnoremap <leader>PP "+P
+vnoremap @ :normal @
 vnoremap <c-c> "+y
 nnoremap <leader><leader> <c-^>
 nnoremap <leader>o `>
@@ -966,7 +969,7 @@ if !exists('g:set_carriage_return')
     let g:set_carriage_return = 1
 endif
 
-augroup R_specific_settings
+augroup delimitmate_language_specific
     au!
     au FileType R,rmd let b:delimitMate_matchpairs = "(:),[:],{:}"
 augroup END
