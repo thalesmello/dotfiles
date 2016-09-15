@@ -329,7 +329,6 @@ augroup END
 let maplocalleader = "'"
 set cursorline
 set listchars=tab:▸\ ,eol:¬
-set lazyredraw
 set completeopt-=preview
 set linebreak
 set noshowmode
