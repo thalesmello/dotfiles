@@ -140,7 +140,8 @@ hs.window.animationDuration = 0
 local function adjust(x, y, w, h)
   return function()
     local win = hs.window.focusedWindow()
-    if not win then return end
+
+    if not win or win:isFullScreen() then return end
 
     local f = win:frame()
     local max = win:screen():frame()
