@@ -86,7 +86,8 @@
 			KeyCode::SPACE, ModifierFlag::CONTROL_L,
 			KeyCode::7, ModifierFlag::SHIFT_L, <!-- ( & ) = 7 + Shift -->
 			KeyCode::Y, ModifierFlag::NONE
-			@end
+			@end,
+			Option::NOREPEAT
 		</autogen>
 	</item>
 </root>
