@@ -916,7 +916,7 @@ endfunction
 
 command! ToggleLocalIndent call ToggleLocalIndentFunction()
 nnoremap <leader>ig :ToggleLocalIndent<cr>
-highlight LocalIndentGuide guifg=5 guibg=0 gui=inverse ctermfg=5 ctermbg=0 cterm=inverse
+highlight LocalIndentGuide guifg=#353738 guibg=0 gui=inverse ctermfg=5 ctermbg=0 cterm=inverse
 
 " "}}}
 " # Neomake  {{{
