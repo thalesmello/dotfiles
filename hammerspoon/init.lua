@@ -1,5 +1,13 @@
 require("hs.ipc")
 
+local application = require "hs.application"
+local fnutils = require "hs.fnutils"
+local grid = require "hs.grid"
+local hotkey = require "hs.hotkey"
+local mjomatic = require "hs.mjomatic"
+local window = require "hs.window"
+
+
 if not hs.ipc.cliStatus(null, true) then
   hs.ipc.cliInstall()
 end
@@ -93,3 +101,41 @@ end
 function log(obj)
   hs.logger.new('log', 'debug'):d('\n' .. to_string(obj))
 end
+
+-- BrianGilbert's init.lua
+
+grid.MARGINX = 0
+grid.MARGINY = 0
+grid.GRIDHEIGHT = 5
+grid.GRIDWIDTH = 5
+
+local mash = {"cmd", "alt", "ctrl"}
+local mashshift = {"cmd", "alt", "ctrl", "shift"}
+
+
+--
+-- replace caffeine
+--
+local caffeine = hs.menubar.new()
+function setCaffeineDisplay(state)
+    local result
+    if state then
+        result = caffeine:setIcon("caffeine-on.pdf")
+    else
+        result = caffeine:setIcon("caffeine-off.pdf")
+    end
+end
+
+function caffeineClicked()
+    setCaffeineDisplay(hs.caffeinate.toggle("displayIdle"))
+end
+
+if caffeine then
+    caffeine:setClickCallback(caffeineClicked)
+    setCaffeineDisplay(hs.caffeinate.get("displayIdle"))
+end
+
+hs.hotkey.bind(mash, "/", function() caffeineClicked() end)
+--
+-- /replace caffeine
+--
