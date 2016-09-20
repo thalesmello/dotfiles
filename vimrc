@@ -41,7 +41,7 @@ Plug 'nelstrom/vim-markdown-folding'
 Plug 'tpope/vim-repeat'
 " Vim support for Js handlebars
 Plug 'nono/vim-handlebars'
-Plug 'nathanaelkane/vim-indent-guides'
+Plug 'tweekmonster/local-indent.vim'
 " Javascript support for vim
 Plug 'othree/yajs.vim', { 'for': ['javascript'] }
 " Relative line number
@@ -804,7 +804,6 @@ vnoremap <c-p> :<c-u>FZF<CR>
 " # Unite buffer options {{{
 " Plugn extractable
 call unite#custom#source('grep, lines', 'max_candidates', 1000)
-" call unite#custom#source('grep, outline', 'matchers', ['matcher_fuzzy'])
 call unite#custom#source('grep', 'sorters', 'sorter_rank')
 call unite#custom#source('location_list, quickfix', 'sorters', 'sorter_nothing')
 call unite#filters#matcher_default#use(['matcher_fuzzy'])
@@ -904,9 +903,20 @@ nmap <leader>epg :<c-u>Unite file_rec/neovim:~/.vim/plugged<cr>
 " "}}}
 " " }}}
 " # Indent guides configuration Neovim  {{{
-let g:indent_guides_auto_colors = 0
-hi IndentGuidesOdd  guibg=#353738 ctermbg=none
-hi IndentGuidesEven guibg=#252627 ctermbg=black
+let s:LocalIndentState = 0
+function! ToggleLocalIndentFunction()
+  if s:LocalIndentState
+    LocalIndentGuide -hl
+  else
+    LocalIndentGuide +hl
+  endif
+
+  let s:LocalIndentState = !s:LocalIndentState
+endfunction
+
+command! ToggleLocalIndent call ToggleLocalIndentFunction()
+nnoremap <leader>ig :ToggleLocalIndent<cr>
+highlight LocalIndentGuide guifg=5 guibg=0 gui=inverse ctermfg=5 ctermbg=0 cterm=inverse
 
 " "}}}
 " # Neomake  {{{
