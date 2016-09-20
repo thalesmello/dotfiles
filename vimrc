@@ -74,7 +74,6 @@ Plug 'tpope/vim-endwise'
 Plug 'ludovicchabant/vim-gutentags'
 Plug 'easymotion/vim-easymotion'
 Plug 'szw/vim-g'
-Plug 'jaxbot/semantic-highlight.vim'
 Plug 'wellle/tmux-complete.vim'
 Plug 'bronson/vim-visual-star-search'
 Plug 'bronson/vim-trailing-whitespace'
@@ -450,12 +449,6 @@ nnoremap <silent> <C-L> :TmuxNavigateRight<cr>
 nnoremap <silent> <C-\> :TmuxNavigatePrevious<cr>
 
 " "}}}
-" # Semantic highlighting  {{{
-" Lazy loadable
-let g:semanticTermColors = [28,1,2,3,87,5,6,7,81,9,10,34,11,13,14,15,165,154,49,139]
-nnoremap <Leader>sh :SemanticHighlightToggle<cr>
-
-" "}}}
 " # Pipe visual to shell {{{
 " Plugin extractable
 " By Xolox @ http://stackoverflow.com/questions/1533565/how-to-get-visually-selected-text-in-vimscript
@@ -587,10 +580,12 @@ let g:UltiSnipsEditSplit           = "vertical"
 xnoremap <silent> <tab> :call UltiSnips#SaveLastVisualSelection()<CR>gvs
 inoremap <silent> <c-l> <c-r>=JumpOrExpandSnippet()<cr>
 imap <silent> <Tab> <c-r>=MyExpandSnippet()<cr>
-let g:UltiSnipsExpandTrigger       = "<c-t><c-t><c-t>"
+let g:UltiSnipsExpandTrigger       = "<c-x><c-x><tab>"
 let g:UltiSnipsJumpBackwardTrigger = "<c-h>"
+let g:UltiSnipsJumpForwardTrigger  = "<c-l>"
 let g:UltiSnipsSnippetsDir         = '~/.snips'
 let g:UltiSnipsSnippetDirectories  = ["UltiSnips", $HOME . "/.snips"]
+imap <c-j> <nop>
 inoremap <c-x><c-k> <c-x><c-k>
 nmap <leader>esp :UltiSnipsEdit<cr>
 
@@ -808,7 +803,8 @@ vnoremap <c-p> :<c-u>FZF<CR>
 " Lazy loadable?
 " # Unite buffer options {{{
 " Plugn extractable
-call unite#custom#source('grep, outline', 'matchers', ['matcher_fuzzy'])
+call unite#custom#source('grep, lines', 'max_candidates', 1000)
+" call unite#custom#source('grep, outline', 'matchers', ['matcher_fuzzy'])
 call unite#custom#source('grep', 'sorters', 'sorter_rank')
 call unite#custom#source('location_list, quickfix', 'sorters', 'sorter_nothing')
 call unite#filters#matcher_default#use(['matcher_fuzzy'])
