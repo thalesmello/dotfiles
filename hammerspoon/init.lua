@@ -2,10 +2,9 @@ require("hs.ipc")
 
 -- Config
 local mash = {
-  split      = {"ctrl", "cmd"},
-  corner     = {"ctrl", "cmd", "shift"},
-  utils      = {"ctrl", "cmd", "shift"},
-  utilsExtra = {"ctrl", "cmd", "shift"}
+  window    = {"ctrl", "cmd"},
+  altWindow = {"ctrl", "cmd", "alt"},
+  utils     = {"ctrl", "cmd", "shift"}
 }
 
 
@@ -38,23 +37,23 @@ nonRecursiveBind({"ctrl"}, "J", except("iTerm2", function() hs.window.focusedWin
 nonRecursiveBind({"ctrl"}, "K", except("iTerm2", function() hs.window.focusedWindow():focusWindowNorth() end))
 nonRecursiveBind({"ctrl"}, "L", except("iTerm2", function() hs.window.focusedWindow():focusWindowEast()  end))
 
-hs.hotkey.bind(mash.utils, 'H', function() hs.eventtap.keyStroke({"ctrl"}, "left") end)
-hs.hotkey.bind(mash.utils, 'L', function() hs.eventtap.keyStroke({"ctrl"}, "right") end)
+hs.hotkey.bind(mash.window, 'H', function() hs.eventtap.keyStroke({"ctrl"}, "left") end)
+hs.hotkey.bind(mash.window, 'L', function() hs.eventtap.keyStroke({"ctrl"}, "right") end)
 hs.hotkey.bind(mash.utils, 'R', function() hs.reload() end)
-hs.hotkey.bind(mash.utils, 'H', function()
+hs.hotkey.bind(mash.altWindow, 'H', function()
   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
 end)
-hs.hotkey.bind({"ctrl", "cmd", "shift"}, 'L', function()
+hs.hotkey.bind(mash.altWindow, 'L', function()
   hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
   hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
   hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
   hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
 end)
 
-hs.hotkey.bind(mash.utilsExtra, 'H', function() hs.toggleConsole() end)
+hs.hotkey.bind(mash.utils, 'H', function() hs.toggleConsole() end)
 
 -- Utils
 function notify(str)
@@ -172,33 +171,33 @@ local function adjustCenter(w, h)
 end
 
 -- top half
-hs.hotkey.bind(mash.split, "up", adjust(0, 0, 1, 0.5))
+hs.hotkey.bind(mash.window, "up", adjust(0, 0, 1, 0.5))
 
 -- right half
-hs.hotkey.bind(mash.split, "right", adjust(0.5, 0, 0.5, 1))
-hs.hotkey.bind(mash.split, ".", adjust(0.5, 0, 0.5, 1))
+hs.hotkey.bind(mash.window, "right", adjust(0.5, 0, 0.5, 1))
+hs.hotkey.bind(mash.window, ".", adjust(0.5, 0, 0.5, 1))
 
 -- bottom half
-hs.hotkey.bind(mash.split, "down", adjust(0, 0.5, 1, 0.5))
+hs.hotkey.bind(mash.window, "down", adjust(0, 0.5, 1, 0.5))
 
 -- left half
-hs.hotkey.bind(mash.split, "left", adjust(0, 0, 0.5, 1))
-hs.hotkey.bind(mash.split, ",", adjust(0, 0, 0.5, 1))
+hs.hotkey.bind(mash.window, "left", adjust(0, 0, 0.5, 1))
+hs.hotkey.bind(mash.window, ",", adjust(0, 0, 0.5, 1))
 
 -- top left
-hs.hotkey.bind(mash.corner, "up", adjust(0, 0, 0.5, 0.5))
+hs.hotkey.bind(mash.altWindow, "up", adjust(0, 0, 0.5, 0.5))
 
 -- top right
-hs.hotkey.bind(mash.corner, "right", adjust(0.5, 0, 0.5, 0.5))
+hs.hotkey.bind(mash.altWindow, "right", adjust(0.5, 0, 0.5, 0.5))
 
 -- bottom right
-hs.hotkey.bind(mash.corner, "down", adjust(0.5, 0.5, 0.5, 0.5))
+hs.hotkey.bind(mash.altWindow, "down", adjust(0.5, 0.5, 0.5, 0.5))
 
 -- bottom left
-hs.hotkey.bind(mash.corner, "left", adjust(0, 0.5, 0.5, 0.5))
+hs.hotkey.bind(mash.altWindow, "left", adjust(0, 0.5, 0.5, 0.5))
 
 -- fullscreen
-hs.hotkey.bind(mash.split, "m", adjust(0, 0, 1, 1))
+hs.hotkey.bind(mash.window, "m", adjust(0, 0, 1, 1))
 
 -- Wifi
 function ssidChangedCallback()
