@@ -1,0 +1,10 @@
+#!/bin/bash
+ # remove untagged images
+ docker rmi $(docker images | grep none | awk '{ print $3}')
+ # remove unused volumes
+ docker volume rm $(docker volume ls -q )
+ # `shotgun` remove unused networks
+ docker network rm $(docker network ls | grep "_default")
+ # remove stopped + exited containers, I skip Exit 0 as I have old scripts using data containers.
+ docker rm -v $(docker ps -a | grep "Exit [1-255]" | awk '{ print $1 }')
+
