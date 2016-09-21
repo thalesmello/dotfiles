@@ -916,7 +916,7 @@ endfunction
 
 command! ToggleLocalIndent call ToggleLocalIndentFunction()
 nnoremap <leader>ig :ToggleLocalIndent<cr>
-highlight LocalIndentGuide guifg=#4E4E4E guibg=0 gui=inverse ctermfg=5 ctermbg=0 cterm=inverse
+highlight LocalIndentGuide guifg=#4E4E4E guibg=black gui=inverse ctermfg=5 ctermbg=0 cterm=inverse
 
 " "}}}
 " # Neomake  {{{
@@ -926,7 +926,7 @@ augroup neomake_save_linter
     autocmd BufWritePost * Neomake
 augroup end
 
-let g:neomake_javascript_enabled_makers = ['standard']
+let g:neomake_javascript_enabled_makers = ['eslint_d']
 
 function! DefineNeomakeColors()
   hi NeomakeErrorSign ctermfg=white
