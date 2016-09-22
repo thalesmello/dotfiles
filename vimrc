@@ -43,7 +43,7 @@ Plug 'tpope/vim-repeat'
 Plug 'nono/vim-handlebars'
 Plug 'tweekmonster/local-indent.vim'
 " Javascript support for vim
-Plug 'othree/yajs.vim', { 'for': ['javascript'] }
+Plug 'isRuslan/vim-es6', { 'for': ['javascript'] }
 " Relative line number
 Plug 'jeffkreeftmeijer/vim-numbertoggle'
 " File explorer for VIM. <leader>ft to activate
@@ -284,6 +284,7 @@ augroup set_fold_method
   autocmd FileType * setlocal foldmethod=indent
   autocmd FileType vim setlocal foldlevel=0
   autocmd FileType vim setlocal foldmethod=marker
+  autocmd FileType javascript call JavaScriptFold()
   autocmd FileType javascript setlocal foldlevelstart=50
 augroup end
 
@@ -356,7 +357,7 @@ nnoremap <leader>PP "+P
 vnoremap <leader>PP "+P
 vnoremap @ :normal @
 vnoremap <c-c> "+y
-nnoremap <leader><leader> <c-^>
+nnoremap <leader><leader><leader> <c-^>
 nnoremap <leader>o `>
 nnoremap <leader>ss :w<cr>
 nnoremap <leader>saa ggVG
@@ -430,7 +431,7 @@ highlight link multiple_cursors_visual Visual
 " Lazy loadable
 let g:EasyMotion_smartcase = 1
 
-map ; <Plug>(easymotion-prefix)
+map <leader><leader> <Plug>(easymotion-prefix)
 nmap f <Plug>(easymotion-bd-f)
 xmap f <Plug>(easymotion-bd-f)
 omap f <Plug>(easymotion-bd-f)
@@ -521,7 +522,6 @@ let g:deoplete#omni#input_patterns = {}
 let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
 let g:deoplete#omni#input_patterns.javascript = '[^. *\t]\.\w*'
 let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
-let g:deoplete#sources#tss#javascript_support = 1
 
 function! DeopleteMultipleCursorsSwitch(before)
     if a:before
