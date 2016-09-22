@@ -1,0 +1,3 @@
+#!/bin/bash -e
+
+vim -c 'profile start profile.log' -c 'profile func *' $@ -c 'profile pause' -c 'quit'
