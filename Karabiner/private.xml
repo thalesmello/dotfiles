@@ -27,7 +27,7 @@
 		<name>Erase word with Option+Backspace in the terminal</name>
 		<only>TERMINAL</only>
 		<autogen>
-			__KeyToKey__ KeyCode::BACKSPACE, ModifierFlag::OPTION_L | ModifierFlag::NONE,
+			__KeyToKey__ KeyCode::DELETE, ModifierFlag::OPTION_L | ModifierFlag::NONE,
 			KeyCode::W, ModifierFlag::CONTROL_L
 		</autogen>
 	</item>
