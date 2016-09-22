@@ -23,6 +23,15 @@
 		</autogen>
 	</item>
 	<item>
+		<identifier>private.word_backspace_in_terminal</identifier>
+		<name>Erase word with Option+Backspace in the terminal</name>
+		<only>TERMINAL</only>
+		<autogen>
+			__KeyToKey__ KeyCode::BACKSPACE, ModifierFlag::OPTION_L | ModifierFlag::NONE,
+			KeyCode::W, ModifierFlag::CONTROL_L
+		</autogen>
+	</item>
+	<item>
 		<identifier>private.horizontal_scroll_with_shift</identifier>
 		<name>Flip scroll wheel in the terminal when shift is pressed for horizontal scroll</name>
 		<modifier_only>
