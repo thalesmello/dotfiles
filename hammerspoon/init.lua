@@ -19,10 +19,25 @@ function nonRecursiveBind(mods, key, callback)
   end)
 end
 
-function except(programName, callback)
+function except(listOfPrograms, callback)
+  function containsActiveWindow (activeWindowName)
+    for _, currentName in ipairs (listOfPrograms) do
+
+        if currentName == activeWindowName then
+            return true
+        end
+    end
+
+    return false
+  end
+
+  if type(listOfPrograms) ~= 'table' then
+    listOfPrograms = { listOfPrograms }
+  end
+
   return function(hotkey, mods, key)
-    local currentName = hs.window.focusedWindow():application():name()
-    if currentName == programName then
+    local activeWindowName = hs.window.focusedWindow():application():name()
+    if containsActiveWindow(activeWindowName) then
       hotkey:disable()
       hs.eventtap.keyStroke(mods, key)
       hotkey:enable()
@@ -32,10 +47,10 @@ function except(programName, callback)
   end
 end
 
-nonRecursiveBind({"ctrl"}, "H", except("iTerm2", function() hs.window.focusedWindow():focusWindowWest()  end))
-nonRecursiveBind({"ctrl"}, "J", except("iTerm2", function() hs.window.focusedWindow():focusWindowSouth() end))
-nonRecursiveBind({"ctrl"}, "K", except("iTerm2", function() hs.window.focusedWindow():focusWindowNorth() end))
-nonRecursiveBind({"ctrl"}, "L", except("iTerm2", function() hs.window.focusedWindow():focusWindowEast()  end))
+nonRecursiveBind({"ctrl"}, "H", except({ "iTerm2", "RStudio" }, function() hs.window.focusedWindow():focusWindowWest()  end))
+nonRecursiveBind({"ctrl"}, "J", except({ "iTerm2", "RStudio" }, function() hs.window.focusedWindow():focusWindowSouth() end))
+nonRecursiveBind({"ctrl"}, "K", except({ "iTerm2", "RStudio" }, function() hs.window.focusedWindow():focusWindowNorth() end))
+nonRecursiveBind({"ctrl"}, "L", except({ "iTerm2", "RStudio" }, function() hs.window.focusedWindow():focusWindowEast()  end))
 
 hs.hotkey.bind(mash.window, 'H', function() hs.eventtap.keyStroke({"ctrl"}, "left") end)
 hs.hotkey.bind(mash.window, 'L', function() hs.eventtap.keyStroke({"ctrl"}, "right") end)
