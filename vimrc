@@ -643,7 +643,7 @@ function! VimuxSlime() range
 endfunction
 
 function! VimuxRunPagarmeTest()
-  if getcwd() =~ 'gateway'
+  if getcwd() =~ '.*gateway^'
     let script = './script/test-unit'
   else
     let script = './script/test'
