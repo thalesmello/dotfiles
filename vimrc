@@ -42,8 +42,6 @@ Plug 'tpope/vim-repeat'
 " Vim support for Js handlebars
 Plug 'nono/vim-handlebars'
 Plug 'tweekmonster/local-indent.vim'
-" Javascript support for vim
-Plug 'isRuslan/vim-es6', { 'for': ['javascript'] }
 " Relative line number
 Plug 'jeffkreeftmeijer/vim-numbertoggle'
 " File explorer for VIM. <leader>ft to activate
@@ -284,7 +282,7 @@ augroup set_fold_method
   autocmd FileType * setlocal foldmethod=indent
   autocmd FileType vim setlocal foldlevel=0
   autocmd FileType vim setlocal foldmethod=marker
-  autocmd FileType javascript call JavaScriptFold()
+  autocmd FileType javascript set foldmethod=syntax
   autocmd FileType javascript setlocal foldlevelstart=50
 augroup end
 
