@@ -91,4 +91,6 @@ snippet "(\`[^\`]*)\$" "console.log (postfix)" r
 `!p snip.rv = match.group(1)`${${1:variable}}$0
 endsnippet
 
-
+snippet $ "Interpolation" i
+${${VISUAL}$1}$0
+endsnippet
