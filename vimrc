@@ -147,6 +147,9 @@ Plug 'tmux-plugins/vim-tmux'
 Plug 'zeorin/tmuxline.vim', {'branch': 'utf8-suppress-error'}
 Plug 'thalesmello/devlindo.vim'
 Plug 'sealemar/vtl'
+Plug 'machakann/vim-highlightedyank'
+Plug 'vim-scripts/ingo-library'
+Plug 'vim-scripts/SyntaxRange'
 
 " TODO: Check
 " github-complete.vim
@@ -922,6 +925,7 @@ highlight LocalIndentGuide guifg=#4E4E4E guibg=black gui=inverse ctermfg=5 cterm
 augroup neomake_save_linter
     autocmd!
     autocmd BufWritePost * Neomake
+    autocmd BufWritePost *.ts Neomake! tsc
 augroup end
 
 let g:neomake_javascript_enabled_makers = ['eslint_d']
@@ -936,6 +940,16 @@ augroup my_error_signs
     au!
     autocmd ColorScheme * call DefineNeomakeColors()
 augroup END
+
+let g:neomake_tsc_maker = {
+    \ 'exe': 'tsc',
+    \ 'args': [],
+    \ 'errorformat':
+            \ '%E%f %#(%l\,%c): error %m,' .
+            \ '%E%f %#(%l\,%c): %m,' .
+            \ '%Eerror %m,' .
+            \ '%C%\s%\+%m'
+    \ }
 
 " "}}}
 " # Polyglot  {{{
@@ -1024,4 +1038,7 @@ endif
 " Extractable configuration
 " Lazy loadable
 map g/ <Plug>(incsearch-stay)
+" "}}}
+" # Highlightedyank  {{{
+let g:highlightedyank_highlight_duration = 300
 " "}}}
