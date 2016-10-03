@@ -524,7 +524,7 @@ let g:deoplete#omni#input_patterns = {}
 let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
 let g:deoplete#omni#input_patterns.javascript = '[^. *\t]\.\w*'
 let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
-let g:deoplete#omni#input_patterns.r = '.*'
+let g:deoplete#omni#input_patterns.r = '[^ *\t]\$\w*'
 
 function! DeopleteMultipleCursorsSwitch(before)
     if a:before
@@ -1047,8 +1047,8 @@ let g:highlightedyank_highlight_duration = 200
 " # Nvim-R  {{{
 augroup r_vim_settings
   autocmd!
-  autocmd FileType r vmap <buffer> <CR> <Plug>RDSendSelection
-  autocmd FileType r nmap <buffer> <CR> <Plug>RDSendLine
+  autocmd FileType r vmap <buffer> <localleader><CR> <localleader>sd
+  autocmd FileType r nmap <buffer> <localleader><CR> <localleader>d
 augroup END
 let R_assign = 0
 " "}}}
