@@ -150,6 +150,7 @@ Plug 'sealemar/vtl'
 Plug 'machakann/vim-highlightedyank'
 Plug 'vim-scripts/ingo-library'
 Plug 'vim-scripts/SyntaxRange'
+Plug 'jalvesaq/Nvim-R'
 
 " TODO: Check
 " github-complete.vim
@@ -523,6 +524,7 @@ let g:deoplete#omni#input_patterns = {}
 let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
 let g:deoplete#omni#input_patterns.javascript = '[^. *\t]\.\w*'
 let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
+let g:deoplete#omni#input_patterns.r = '.*'
 
 function! DeopleteMultipleCursorsSwitch(before)
     if a:before
@@ -1041,4 +1043,20 @@ map g/ <Plug>(incsearch-stay)
 " "}}}
 " # Highlightedyank  {{{
 let g:highlightedyank_highlight_duration = 200
+" "}}}
+" # Nvim-R  {{{
+augroup r_vim_settings
+  autocmd!
+  autocmd FileType r vmap <buffer> <CR> <Plug>RDSendSelection
+  autocmd FileType r nmap <buffer> <CR> <Plug>RDSendLine
+augroup END
+let R_assign = 0
+" "}}}
+" # Neovim terminal  {{{
+tnoremap <C-h> <C-\><C-n>:TmuxNavigateLeft<cr>
+tnoremap <C-j> <C-\><C-n>:TmuxNavigateDown<cr>
+tnoremap <C-k> <C-\><C-n>:TmuxNavigateUp<cr>
+tnoremap <C-l> <C-\><C-n>:TmuxNavigateRight<cr>
+autocmd BufWinEnter,WinEnter term://* startinsert
+autocmd BufLeave term://* stopinsert
 " "}}}
