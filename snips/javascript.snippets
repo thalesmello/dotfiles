@@ -94,3 +94,12 @@ endsnippet
 snippet $ "Interpolation" i
 ${${VISUAL}$1}$0
 endsnippet
+
+snippet try "Try catch" b
+try {
+	${VISUAL}$1
+}
+catch(${2:err}) {
+	$3
+}$0
+endsnippet
