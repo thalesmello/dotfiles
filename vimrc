@@ -1040,5 +1040,5 @@ endif
 map g/ <Plug>(incsearch-stay)
 " "}}}
 " # Highlightedyank  {{{
-let g:highlightedyank_highlight_duration = 300
+let g:highlightedyank_highlight_duration = 200
 " "}}}
