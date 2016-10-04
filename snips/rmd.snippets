@@ -26,14 +26,32 @@ ${VISUAL}$0
 \`\`\`
 endsnippet
 
-snippet "((\w|\$|\.)+) " "console.log (postfix)" br
+snippet "((\w|\$|\.)+) " "Assignment" br
 `!p snip.rv = match.group(1)` <- ${VISUAL}$0
 endsnippet
 
-snippet lab "Label" i
-\\\\label{${VISUAL}$1}$0
+snippet "(^.*['"].*).*lab" "Label" ir
+`!p snip.rv = match.group(1)`\\\\label{${VISUAL}$1}$0
+endsnippet
+
+snippet "(^[^'"]*)lab" "Label" ir
+`!p snip.rv = match.group(1)`\\label{${VISUAL}$1}$0
 endsnippet
 
 snippet ref "Label" i
 \ref{${VISUAL}$1}$0
+endsnippet
+
+snippet refe "Label" i
+(\ref{${VISUAL}$1})$0
+endsnippet
+
+snippet ( "Parenthesis reference" i
+(@${VISUAL}$0
+endsnippet
+
+snippet eq "Equation" b
+\begin{equation}
+	${VISUAL}$1
+\end{equation}$0
 endsnippet
