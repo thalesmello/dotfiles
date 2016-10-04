@@ -3,3 +3,7 @@ ${1:function_name} <- function(${2:arg}) ${3:{
 	${VISUAL}$0
 }}
 endsnippet
+
+snippet "((\w|\$|\.)+) " "console.log (postfix)" br
+`!p snip.rv = match.group(1)` <- ${VISUAL}$0
+endsnippet
