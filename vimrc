@@ -361,6 +361,7 @@ vnoremap @ :normal @
 vnoremap <c-c> "+y
 nnoremap <leader><leader><leader> <c-^>
 nnoremap <leader>o `>
+nnoremap <leader>] `]
 nnoremap <leader>ss :w<cr>
 nnoremap <leader>saa ggVG
 nnoremap <leader>sy :setfiletype<space>
@@ -385,6 +386,7 @@ nnoremap <leader>; A;<esc>
 nnoremap <leader><bs> $x<esc>
 nnoremap <leader>= <c-w>=
 nnoremap <leader>+ <c-w>\|<c-w>_
+nnoremap <leader>\| <c-w>\|
 nnoremap <leader>cd :lcd %:p:h<cr>
 nnoremap <leader>cr :ProjectRootCD<cr>
 nnoremap <S-ScrollWheelUp>   <ScrollWheelLeft>
@@ -449,7 +451,6 @@ nnoremap <silent> <C-H> :TmuxNavigateLeft<cr>
 nnoremap <silent> <C-J> :TmuxNavigateDown<cr>
 nnoremap <silent> <C-K> :TmuxNavigateUp<cr>
 nnoremap <silent> <C-L> :TmuxNavigateRight<cr>
-nnoremap <silent> <C-\> :TmuxNavigatePrevious<cr>
 
 " "}}}
 " # Pipe visual to shell {{{
@@ -524,7 +525,6 @@ let g:deoplete#omni#input_patterns = {}
 let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
 let g:deoplete#omni#input_patterns.javascript = '[^. *\t]\.\w*'
 let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
-let g:deoplete#omni#input_patterns.r = '[^ *\t]\$\w*'
 
 function! DeopleteMultipleCursorsSwitch(before)
     if a:before
@@ -1047,16 +1047,22 @@ let g:highlightedyank_highlight_duration = 200
 " # Nvim-R  {{{
 augroup r_vim_settings
   autocmd!
-  autocmd FileType r vmap <buffer> <localleader><CR> <localleader>sd
-  autocmd FileType r nmap <buffer> <localleader><CR> <localleader>d
+  autocmd FileType r,rmd vmap <buffer> <localleader><CR> <localleader>sd
+  autocmd FileType r,rmd nmap <buffer> <localleader><CR> <localleader>d
+  autocmd FileType r,rmd nmap <buffer> <CR> <localleader>d
+  autocmd VimLeave * if exists("g:SendCmdToR") && string(g:SendCmdToR) != "function('SendCmdToR_fake')" | call RQuit("nosave") | endif
 augroup END
 let R_assign = 0
+let R_in_buffer = 0
+let R_applescript = 0
+let R_tmux_split = 1
 " "}}}
 " # Neovim terminal  {{{
-tnoremap <C-h> <C-\><C-n>:TmuxNavigateLeft<cr>
-tnoremap <C-j> <C-\><C-n>:TmuxNavigateDown<cr>
-tnoremap <C-k> <C-\><C-n>:TmuxNavigateUp<cr>
-tnoremap <C-l> <C-\><C-n>:TmuxNavigateRight<cr>
+tnoremap <silent> <C-h> <C-\><C-n>:TmuxNavigateLeft<cr>
+tnoremap <silent> <C-j> <C-\><C-n>:TmuxNavigateDown<cr>
+tnoremap <silent> <C-k> <C-\><C-n>:TmuxNavigateUp<cr>
+tnoremap <silent> <C-l> <C-\><C-n>:TmuxNavigateRight<cr>
+tnoremap <silent> <esc><esc> <C-\><C-n>
 autocmd BufWinEnter,WinEnter term://* startinsert
 autocmd BufLeave term://* stopinsert
 " "}}}
