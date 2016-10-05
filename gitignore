@@ -18,3 +18,4 @@ tags.temp
 .DS_Store
 *.zwc
 *.pyc
+node_modules
