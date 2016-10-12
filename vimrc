@@ -151,6 +151,7 @@ Plug 'machakann/vim-highlightedyank'
 Plug 'vim-scripts/ingo-library'
 Plug 'vim-scripts/SyntaxRange'
 Plug 'jalvesaq/Nvim-R'
+Plug 'othree/jspc.vim'
 
 " TODO: Check
 " github-complete.vim
@@ -347,6 +348,7 @@ endif
 " # Mappings  {{{
 map <MiddleMouse> <Nop>
 imap <MiddleMouse> <Nop>
+noremap Q gq
 nnoremap K <nop>
 nnoremap & <Nop>
 vnoremap <CR> "+y
@@ -370,8 +372,8 @@ nnoremap <leader>siq ?\v('''\|""")<CR>wv//e<CR>ge
 nnoremap <leader>sl $v^
 nmap <leader>* *N
 vmap <leader>* *N
-vmap <leader>c* *Ncgn
-nmap <leader>c* *Ncgn
+vmap c* *Ncgn
+nmap c* *Ncgn
 nnoremap Y y$
 nnoremap <leader>fw :FixWhitespace<cr>
 vmap <leader>yj Jgvyu
@@ -523,10 +525,13 @@ let g:gutentags_exclude = ['node_modules', '.git']
 " Plugin extractable
 let g:deoplete#omni#input_patterns = {}
 let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
-let g:deoplete#omni#input_patterns.javascript = '[^. *\t]\.\w*'
+let g:deoplete#omni#input_patterns.javascript = "(\\.|\'|\")"
 let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
 
 function! DeopleteMultipleCursorsSwitch(before)
+    if !exists('g:loaded_deoplete')
+      return
+    endif
     if a:before
         let s:old_disable_deoplete = g:deoplete#disable_auto_complete
         let g:deoplete#disable_auto_complete = 1
@@ -1058,11 +1063,13 @@ let R_applescript = 0
 let R_tmux_split = 1
 " "}}}
 " # Neovim terminal  {{{
-tnoremap <silent> <C-h> <C-\><C-n>:TmuxNavigateLeft<cr>
-tnoremap <silent> <C-j> <C-\><C-n>:TmuxNavigateDown<cr>
-tnoremap <silent> <C-k> <C-\><C-n>:TmuxNavigateUp<cr>
-tnoremap <silent> <C-l> <C-\><C-n>:TmuxNavigateRight<cr>
-tnoremap <silent> <esc><esc> <C-\><C-n>
-autocmd BufWinEnter,WinEnter term://* startinsert
-autocmd BufLeave term://* stopinsert
+if has('nvim')
+  tnoremap <silent> <C-h> <C-\><C-n>:TmuxNavigateLeft<cr>
+  tnoremap <silent> <C-j> <C-\><C-n>:TmuxNavigateDown<cr>
+  tnoremap <silent> <C-k> <C-\><C-n>:TmuxNavigateUp<cr>
+  tnoremap <silent> <C-l> <C-\><C-n>:TmuxNavigateRight<cr>
+  tnoremap <silent> <c-]><esc> <C-\><C-n>
+  autocmd BufWinEnter,WinEnter term://* startinsert
+  autocmd BufLeave term://* stopinsert
+endif
 " "}}}
