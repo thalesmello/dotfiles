@@ -26,7 +26,6 @@ Plug 'tpope/vim-sensible'
 Plug 'Shougo/vimproc.vim', { 'do' : 'make' }
 " Useful statusbar in your vim
 Plug 'vim-airline/vim-airline'
-Plug 'vim-airline/vim-airline-themes'
 " Comment toggling: use `gc` to toggle comments in visual mode
 Plug 'tomtom/tcomment_vim'
 " Git bindings for VIM
@@ -39,26 +38,16 @@ Plug 'Raimondi/delimitMate'
 Plug 'nelstrom/vim-markdown-folding'
 " Makes the repeat command `.` work in more cases
 Plug 'tpope/vim-repeat'
-" Vim support for Js handlebars
-Plug 'nono/vim-handlebars'
+" Local indent in a file
 Plug 'tweekmonster/local-indent.vim'
 " Relative line number
 Plug 'jeffkreeftmeijer/vim-numbertoggle'
 " File explorer for VIM. <leader>ft to activate
 Plug 'scrooloose/nerdtree', { 'on': ['NERDTreeToggle', 'NERDTreeFind'] }
-" Golang support for vim
-Plug 'jnwhiteh/vim-golang'
 " Make jk behave as jumps in Vim
 Plug 'teranex/jk-jumps.vim'
-Plug 'tpope/vim-dispatch'
 " Expand html easily: div > 3*li then Ctrl+e in an html file
 Plug 'rstacruz/sparkup'
-" Puppet support for Vim
-Plug 'rodjek/vim-puppet'
-" Elixir support for Vim
-Plug 'elixir-lang/vim-elixir'
-" Ruby support for Vim
-Plug 'vim-ruby/vim-ruby'
 " Automatically recognize indentation
 Plug 'thalesmello/vim-sleuth'
 
@@ -87,6 +76,7 @@ Plug 'godlygeek/tabular'
 Plug 'wesQ3/vim-windowswap'
 Plug 'thalesmello/lazy.ultisnips' | Plug 'SirVer/ultisnips', { 'on': ['UltiSnipsEdit'] }
 Plug 'honza/vim-snippets'
+Plug 'ryanoasis/vim-devicons'
 Plug 'kana/vim-textobj-user'
       \ | Plug 'rhysd/vim-textobj-ruby'
       \ | Plug 'kana/vim-textobj-function'
@@ -97,7 +87,6 @@ Plug 'kana/vim-textobj-user'
       \ | Plug 'kana/vim-textobj-entire'
       \ | Plug 'thinca/vim-textobj-function-javascript'
       \ | Plug 'coderifous/textobj-word-column.vim'
-      \ | Plug 'ryanoasis/vim-devicons'
       \ | Plug 'sgur/vim-textobj-parameter'
       \ | Plug 'saihoooooooo/vim-textobj-space'
       \ | Plug 'glts/vim-textobj-indblock'
@@ -123,8 +112,6 @@ Plug 'tpope/vim-speeddating'
 Plug 'vimwiki/vimwiki'
 Plug 'itchyny/vim-cursorword'
 Plug 'osyo-manga/vim-over'
-Plug 'zirrostig/vim-schlepp'
-Plug 'thalesmello/rougherexp'
 Plug 'wincent/terminus'
 Plug 'haya14busa/incsearch.vim'
 Plug 'davidhalter/jedi'
@@ -225,12 +212,32 @@ set diffopt+=vertical
 " Allows the mouse to be used
 set mouse=a
 
+" Copy to system register
+set clipboard=unnamed
+
+" Set virtual edit
+set virtualedit=block,onemore
+
 " Sets the colorscheme for terminal sessions too.
 set background=dark
 let g:gruvbox_contrast_dark = 'hard'
 colorscheme gruvbox
 
-" Leader = ,
+let maplocalleader = "'"
+set cursorline
+set listchars=tab:▸\ ,eol:¬
+set completeopt-=preview
+set linebreak
+set noshowmode
+set updatetime=500
+set sidescroll=2
+set showbreak=↪
+
+if has('nvim')
+    set termguicolors
+    let $NVIM_TUI_ENABLE_CURSOR_SHAPE = 1
+endif
+
 let mapleader = "\<space>"
 " }}}
 " ##### General mappings  {{{
@@ -328,23 +335,6 @@ augroup sleuth
   autocmd FileType * VimSleuthReload
 augroup END
 " }}}
-" # Local settings {{{
-let maplocalleader = "'"
-set cursorline
-set listchars=tab:▸\ ,eol:¬
-set completeopt-=preview
-set linebreak
-set noshowmode
-set updatetime=500
-set sidescroll=2
-set showbreak=↪
-
-if has('nvim')
-    set termguicolors
-    let $NVIM_TUI_ENABLE_CURSOR_SHAPE = 1
-endif
-
-" }}}"
 " # Mappings  {{{
 map <MiddleMouse> <Nop>
 imap <MiddleMouse> <Nop>
@@ -402,7 +392,9 @@ nnoremap <S-4-ScrollWheelDown>   <4-ScrollWheelRight>
 nnoremap <silent> <leader>q :pclose<cr>:cclose<cr>:lclose<cr>:UniteClose<cr>
 nnoremap <leader>sf :source %<cr>
 vnoremap _ <esc>`<jV`>k0
+vnoremap - <esc>`<jV`>k0
 vnoremap + <esc>`<kV`>j0
+nnoremap <leader>V vg_
 
 " "}}}
 " # Vim over  {{{
@@ -1001,8 +993,8 @@ augroup END
 
 " "}}}
 " # Windowswap  {{{
-let g:windowswap_map_keys = 0 "prevent default bindings
-nnoremap <silent> <leader>sw :call WindowSwap#EasyWindowSwap()<CR>
+let g:windowswap_map_keys = 0
+command! WindowSwap call WindowSwap#EasyWindowSwap()
 
 " "}}}
 " # Vimwiki  {{{
@@ -1026,19 +1018,6 @@ augroup vimwiki_shortcuts
   autocmd FileType vimwiki iunmap <buffer> <C-L><C-M>
   autocmd FileType vimwiki iunmap <buffer> <Tab>
 augroup end
-
-" "}}}
-" # Schlepp  {{{
-" Extractable configuration
-" Lazy loadable
-if !exists('g:set_schlepp_shortcuts')
-    vmap <unique> <up>    <Plug>SchleppUp
-    vmap <unique> <down>  <Plug>SchleppDown
-    vmap <unique> <left>  <Plug>SchleppLeft
-    vmap <unique> <right> <Plug>SchleppRight
-    vmap <unique> D       <Plug>SchleppDup
-    let g:set_schlepp_shortcuts = 1
-endif
 
 " "}}}
 " # incsearch.vim  {{{
