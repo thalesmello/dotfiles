@@ -43,7 +43,7 @@ Plug 'tpope/vim-repeat'
 Plug 'tweekmonster/local-indent.vim'
 " Relative line number
 Plug 'jeffkreeftmeijer/vim-numbertoggle'
-" File explorer for VIM. <leader>ft to activate
+" File explorer for VIM. <leader>nt to activate
 Plug 'scrooloose/nerdtree', { 'on': ['NERDTreeToggle', 'NERDTreeFind'] }
 " Make jk behave as jumps in Vim
 Plug 'teranex/jk-jumps.vim'
@@ -109,7 +109,7 @@ Plug 'Shougo/unite.vim'
       \ | Plug 'Shougo/neomru.vim'
       \ | Plug 'thalesmello/config-unite-outline'
 Plug 'gioele/vim-autoswap'
-Plug 'junegunn/fzf'
+Plug 'junegunn/fzf' | Plug 'junegunn/fzf.vim'
 Plug 'tpope/vim-speeddating'
 Plug 'vimwiki/vimwiki'
 Plug 'itchyny/vim-cursorword'
@@ -258,7 +258,7 @@ cnoremap <C-E> <end>
 
 " Create windows
 nnoremap <leader>v <C-w>v<C-w>l
-nnoremap <leader>m <C-w>s<C-w>j
+nnoremap <leader>x <C-w>s<C-w>j
 nnoremap <leader>d :q<cr>
 " }}}
 " ##### Folding {{{
@@ -593,10 +593,10 @@ nmap <leader>esp :UltiSnipsEdit<cr>
 
 " "}}}
 " # NerdTREE  {{{
-noremap <leader>ft :NERDTreeToggle<CR>
+noremap <leader>nt :NERDTreeToggle<CR>
 let g:NERDTreeHijackNetrw = 0
 let g:NERDTreeIgnore = ['\.pyc$']
-nnoremap <leader>ff :NERDTreeFind<cr>
+nnoremap <leader>nf :NERDTreeFind<cr>
 let g:NERDTreeQuitOnOpen = 1
 
 " "}}}
@@ -798,6 +798,25 @@ let g:tcommentTextObjectInlineComment = ''
 nnoremap <c-p> :<c-u>FZF<CR>
 vnoremap <c-p> :<c-u>FZF<CR>
 
+let g:fzf_history_dir = '~/.local/share/fzf-history'
+let g:fzf_layout = { 'up': '~40%' }
+
+nnoremap <c-f> :Ag<space>
+
+nnoremap <silent> <leader>a viw:<c-u>call CallFzfAg()<cr>
+vnoremap <silent> <leader>a :<c-u>call CallFzfAg()<cr>
+nnoremap <silent> <leader>li :BLines<cr>
+nnoremap <silent> <leader>hp :Helptags<cr>
+nnoremap <silent> <leader>cm :Commands<cr>
+nnoremap <silent> <leader>ma :Maps<cr>
+nnoremap <silent> <leader>hi :History:<cr>
+nnoremap <silent> <leader>ft :Filetypes<cr>
+
+function! CallFzfAg()
+  let selection = s:get_visual_selection()
+  execute "Ag " . selection
+endfunction
+
 " "}}}
 " # Unite.vim {{{
 " Plugin extractable configuration
@@ -852,7 +871,6 @@ endfunction
 nnoremap [unite] <Nop>
 nmap s [unite]
 nnoremap <silent> [unite]r :<C-u>UniteResume<CR>
-nnoremap <silent> [unite]ma :<C-u>Unite mapping<CR>
 nnoremap <silent> [unite]me :<C-u>Unite output:message<CR>
 nnoremap <silent> [unite]u :<C-u>Unite ultisnips<CR>
 nnoremap <silent> [unite]o :<C-u>Unite -direction=topleft -split outline<CR>
@@ -878,15 +896,6 @@ let g:unite_source_grep_default_opts = '-i --vimgrep --hidden --ignore ' .
       \ '''.hg'' --ignore ''.svn'' --ignore ''.git'' --ignore ''.bzr'''
 let g:unite_source_grep_recursive_opt = ''
 let g:unite_source_line_enable_highlight = 1
-
-nnoremap <silent> <c-f> :<c-u>Unite grep:!<cr>
-nnoremap <silent> <leader>a "uyiw:<c-u>Unite grep:!::<c-r>u<cr>
-vnoremap <silent> <leader>a :<c-u>call CallUniteAg()<cr>
-
-function! CallUniteAg()
-   let selection = s:get_visual_selection()
-   call unite#start([['grep', '!', '', selection]])
-endfunction
 
 " }}}
 " # File explorer (Ctrl+P) {{{
