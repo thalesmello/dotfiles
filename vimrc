@@ -8,9 +8,10 @@ set nocompatible
 " Install Plug if not already loaded
 if empty(glob('~/.vim/autoload/plug.vim'))
   silent !curl -fLo ~/.vim/autoload/plug.vim --create-dirs
-    \ https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+        \ https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
   autocmd VimEnter * PlugInstall | source $MYVIMRC
 endif
+
 
 function! Cond(cond, ...)
   let opts = get(a:000, 0, {})
@@ -234,8 +235,8 @@ set sidescroll=2
 set showbreak=↪
 
 if has('nvim')
-    set termguicolors
-    let $NVIM_TUI_ENABLE_CURSOR_SHAPE = 1
+  set termguicolors
+  let $NVIM_TUI_ENABLE_CURSOR_SHAPE = 1
 endif
 
 let mapleader = "\<space>"
@@ -412,11 +413,11 @@ let g:multi_cursor_exit_from_visual_mode = 0
 let g:deoplete#auto_complete_delay = 100
 
 function! Multiple_cursors_before()
-    call DeopleteMultipleCursorsSwitch(1)
+  call DeopleteMultipleCursorsSwitch(1)
 endfunction
 
 function! Multiple_cursors_after()
-    call DeopleteMultipleCursorsSwitch(0)
+  call DeopleteMultipleCursorsSwitch(0)
 endfunction
 
 noremap g<c-n> :MultipleCursorsFind <c-r>/<cr>
@@ -451,23 +452,23 @@ nnoremap <silent> <C-L> :TmuxNavigateRight<cr>
 " Plugin extractable
 " By Xolox @ http://stackoverflow.com/questions/1533565/how-to-get-visually-selected-text-in-vimscript
 function! s:get_visual_selection()
-    let [lnum1, col1] = getpos("'<")[1:2]
-    let [lnum2, col2] = getpos("'>")[1:2]
-    let lines = getline(lnum1, lnum2)
-    let lines[-1] = lines[-1][: col2 - (&selection == 'inclusive' ? 1 : 2)]
-    let lines[0] = lines[0][col1 - 1:]
-    return join(lines, "\n")
+  let [lnum1, col1] = getpos("'<")[1:2]
+  let [lnum2, col2] = getpos("'>")[1:2]
+  let lines = getline(lnum1, lnum2)
+  let lines[-1] = lines[-1][: col2 - (&selection == 'inclusive' ? 1 : 2)]
+  let lines[0] = lines[0][col1 - 1:]
+  return join(lines, "\n")
 endfunction
 
 function! s:Chomp(string)
-    return substitute(a:string, '\n\+$', '', '')
+  return substitute(a:string, '\n\+$', '', '')
 endfunction
 
 function! s:visual_command() range
-    let text = s:get_visual_selection()
-    let cmd = input('Pipe: ', '', 'shellcmd')
-    let @v = s:Chomp(system(cmd, text))
-    execute 'normal! gv"vp'
+  let text = s:get_visual_selection()
+  let cmd = input('Pipe: ', '', 'shellcmd')
+  let @v = s:Chomp(system(cmd, text))
+  execute 'normal! gv"vp'
 endfunction
 
 command! -range VisualCommand <line1>,<line2>call s:visual_command()
@@ -486,12 +487,12 @@ let g:airline#extensions#tabline#enabled = 1
 
 let g:unite_outline_closest_tag = ""
 function! AirlineInit()
-    let g:airline_section_a = airline#section#create(['mode'])
-    let g:airline_section_b = airline#section#create(['file', ' ', 'readonly'])
-    let g:airline_section_c = airline#section#create(['%{g:unite_outline_closest_tag}'])
-    let g:airline_section_x = airline#section#create([])
-    let g:airline_section_y = airline#section#create(['%<', 'branch'])
-    let g:airline_section_z = airline#section#create(['%p%% ', '%{g:airline_symbols.linenr}%#__accent_bold#%l%#__restore__#:%v'])
+  let g:airline_section_a = airline#section#create(['mode'])
+  let g:airline_section_b = airline#section#create(['file', ' ', 'readonly'])
+  let g:airline_section_c = airline#section#create(['%{g:unite_outline_closest_tag}'])
+  let g:airline_section_x = airline#section#create([])
+  let g:airline_section_y = airline#section#create(['%<', 'branch'])
+  let g:airline_section_z = airline#section#create(['%p%% ', '%{g:airline_symbols.linenr}%#__accent_bold#%l%#__restore__#:%v'])
 endfunction
 autocmd User AirlineAfterInit call AirlineInit()
 
@@ -501,12 +502,12 @@ autocmd User AirlineAfterInit call AirlineInit()
 let g:airline#extensions#tmuxline#enabled = 0
 let s:computer_emoji = '💻'
 let g:tmuxline_preset = {
-    \'a'       : [s:computer_emoji . '  #(whoami)', '#S'],
-    \'win'     : ['#I', '#W'],
-    \'cwin'    : ['#I', '#W'],
-    \'x'       : ['#{prefix_highlight}'],
-    \'z'       : ['On: #{online_status}', '#{battery_icon} #{battery_percentage}', '%R'],
-    \'options' : {'status-justify' : 'left'}}
+      \'a'       : [s:computer_emoji . '  #(whoami)', '#S'],
+      \'win'     : ['#I', '#W'],
+      \'cwin'    : ['#I', '#W'],
+      \'x'       : ['#{prefix_highlight}'],
+      \'z'       : ['On: #{online_status}', '#{battery_icon} #{battery_percentage}', '%R'],
+      \'options' : {'status-justify' : 'left'}}
 
 " "}}}
 " # Gutentags  {{{
@@ -521,26 +522,26 @@ let g:deoplete#omni#input_patterns.javascript = "(\\.|\'|\")"
 let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
 
 function! DeopleteMultipleCursorsSwitch(before)
-    if !exists('g:loaded_deoplete')
-      return
-    endif
-    if a:before
-        let s:old_disable_deoplete = g:deoplete#disable_auto_complete
-        let g:deoplete#disable_auto_complete = 1
-    else
-        let g:deoplete#disable_auto_complete = s:old_disable_deoplete
-    endif
+  if !exists('g:loaded_deoplete')
+    return
+  endif
+  if a:before
+    let s:old_disable_deoplete = g:deoplete#disable_auto_complete
+    let g:deoplete#disable_auto_complete = 1
+  else
+    let g:deoplete#disable_auto_complete = s:old_disable_deoplete
+  endif
 endfunction
 
 let g:deoplete#enable_at_startup = 1
 let g:echodoc_enable_at_startup = 1
 
 function! ToggleEchoDocFunc()
-    if echodoc#is_enabled()
-        call echodoc#disable()
-    else
-        call echodoc#enable()
-    endif
+  if echodoc#is_enabled()
+    call echodoc#disable()
+  else
+    call echodoc#enable()
+  endif
 endfunction
 
 command! EchoDocToggle call ToggleEchoDocFunc()
@@ -557,23 +558,23 @@ inoremap <expr><C-l> deoplete#refresh()
 let g:ulti_expand_res = 0
 let g:ulti_jump_forwards_res = 0
 function! JumpOrExpandSnippet()
-    call UltiSnips#JumpForwards()
-    if !g:ulti_jump_forwards_res
-        call UltiSnips#ExpandSnippet()
-    endif
-    return ''
+  call UltiSnips#JumpForwards()
+  if !g:ulti_jump_forwards_res
+    call UltiSnips#ExpandSnippet()
+  endif
+  return ''
 endfunction
 
 function! MyExpandSnippet()
-    call UltiSnips#ExpandSnippet()
+  call UltiSnips#ExpandSnippet()
 
-    if g:ulti_expand_res
-      return ""
-    elseif pumvisible()
-      return "\<c-n>"
-    else
-      return "\<tab>"
-    end
+  if g:ulti_expand_res
+    return ""
+  elseif pumvisible()
+    return "\<c-n>"
+  else
+    return "\<tab>"
+  end
 endf
 
 let g:UltiSnipsEditSplit           = "vertical"
@@ -639,7 +640,7 @@ nmap <silent> <localleader>vr <localleader>vq:call VimuxRunCommand(GetReplComman
 nnoremap <silent> <localleader>vtp :call VimuxRunPagarmeTest()<cr>
 
 function! VimuxSlime() range
-   call VimuxRunCommand(s:get_visual_selection())
+  call VimuxRunCommand(s:get_visual_selection())
 endfunction
 
 function! VimuxRunPagarmeTest()
@@ -653,60 +654,60 @@ function! VimuxRunPagarmeTest()
 endfunction
 
 function! VimuxSlimeLineBreak() range
-   call VimuxSlime()
-   call VimuxSendKeys('Enter')
+  call VimuxSlime()
+  call VimuxSendKeys('Enter')
 endfunction
 
 function! VimuxSlimeSemicolon() range
-   call VimuxRunCommand(s:get_visual_selection() . '\;')
+  call VimuxRunCommand(s:get_visual_selection() . '\;')
 endfunction
 
 function! VimuxCopyPostres() range
-   call VimuxRunCommand('\COPY (' . s:get_visual_selection() . ") TO PROGRAM 'pbcopy' DELIMITER e'\\t' CSV HEADER\;")
+  call VimuxRunCommand('\COPY (' . s:get_visual_selection() . ") TO PROGRAM 'pbcopy' DELIMITER e'\\t' CSV HEADER\;")
 endfunction
 
 function! GetExecuteCommand()
-   let filetype_to_command = {
-            \   'javascript': 'node',
-            \   'coffee': 'coffee',
-            \   'python': 'python',
-            \   'html': 'open',
-            \   'ruby': 'ruby',
-            \   'sh': 'sh',
-            \   'bash': 'bash'
-            \ }
-   let cmd = get(filetype_to_command, &filetype, &filetype)
-   return cmd . " " . expand("%")
+  let filetype_to_command = {
+        \   'javascript': 'node',
+        \   'coffee': 'coffee',
+        \   'python': 'python',
+        \   'html': 'open',
+        \   'ruby': 'ruby',
+        \   'sh': 'sh',
+        \   'bash': 'bash'
+        \ }
+  let cmd = get(filetype_to_command, &filetype, &filetype)
+  return cmd . " " . expand("%")
 endfunction
 
 function! GetNodemonCommand()
-   let filetype_to_extension = {
-            \   'javascript': 'js',
-            \   'coffee': 'coffee',
-            \   'python': 'py',
-            \   'ruby': 'rb'
-            \ }
-   let extension = get(filetype_to_extension, &filetype, &filetype)
-   let cmd = GetExecuteCommand()
-   return  'nodemon -L -e "' . extension . '" -x "' . cmd . '"'
+  let filetype_to_extension = {
+        \   'javascript': 'js',
+        \   'coffee': 'coffee',
+        \   'python': 'py',
+        \   'ruby': 'rb'
+        \ }
+  let extension = get(filetype_to_extension, &filetype, &filetype)
+  let cmd = GetExecuteCommand()
+  return  'nodemon -L -e "' . extension . '" -x "' . cmd . '"'
 endfunction
 
 function! GetReplCommand()
-   let filetype_to_repl = {
-            \   'javascript': 'node',
-            \   'ruby': 'rbenv exec pry',
-            \   'sql': 'pagarme_postgres'
-            \ }
-   let repl_bin = get(filetype_to_repl, &filetype, &filetype)
-   echo repl_bin
-   return  repl_bin
+  let filetype_to_repl = {
+        \   'javascript': 'node',
+        \   'ruby': 'rbenv exec pry',
+        \   'sql': 'pagarme_postgres'
+        \ }
+  let repl_bin = get(filetype_to_repl, &filetype, &filetype)
+  echo repl_bin
+  return  repl_bin
 endfunction
 
 " Python specific shortcuts
 augroup python_vimux_shortuts
-   autocmd!
-   autocmd FileType python vmap <buffer> <localleader>vs :call VimuxSlimeLineBreak()<CR>`>j^
-   autocmd FileType python nmap <localleader><CR> V:call VimuxSlime()<CR>`>j^
+  autocmd!
+  autocmd FileType python vmap <buffer> <localleader>vs :call VimuxSlimeLineBreak()<CR>`>j^
+  autocmd FileType python nmap <localleader><CR> V:call VimuxSlime()<CR>`>j^
 augroup END
 
 " "}}}
@@ -809,40 +810,40 @@ call unite#custom#source('location_list, quickfix', 'sorters', 'sorter_nothing')
 call unite#filters#matcher_default#use(['matcher_fuzzy'])
 call unite#filters#sorter_default#use(['sorter_rank'])
 call unite#custom#profile('default', 'context', {
-    \   'start_insert': 0,
-    \   'winheight': 15,
-    \   'direction': 'topleft',
-    \ })
+      \   'start_insert': 0,
+      \   'winheight': 15,
+      \   'direction': 'topleft',
+      \ })
 
 let g:unite_quickfix_is_multiline=0
 call unite#custom_source('quickfix', 'converters', 'converter_quickfix_highlight')
 call unite#custom_source('location_list', 'converters', 'converter_quickfix_highlight')
 
 augroup unite_settings
-   autocmd!
-   autocmd FileType unite call s:unite_my_settings()
+  autocmd!
+  autocmd FileType unite call s:unite_my_settings()
 augroup end
 
 function! s:unite_my_settings()
-    nmap <buffer> <C-z> <Plug>(unite_toggle_transpose_window)
-    imap <buffer> <C-z> <Plug>(unite_toggle_transpose_window)
-    nmap <buffer> J <Plug>(unite_toggle_auto_preview)
-    nmap <buffer> K <Plug>(unite_print_candidate)
-    nmap <buffer> L <Plug>(unite_redraw)
-    nunmap <buffer> <c-k>
-    nunmap <buffer> <c-l>
-    nunmap <buffer> <c-h>
-    imap <buffer> <C-j> <Plug>(unite_toggle_auto_preview)
-    nmap <buffer> <C-r> <Plug>(unite_narrowing_input_history)
-    imap <buffer> <C-r> <Plug>(unite_narrowing_input_history)
-    nmap <buffer> <Tab> <Plug>(unite_complete)
-    imap <buffer> <Tab> <Plug>(unite_complete)
-    nmap <buffer> <C-@> <Plug>(unite_choose_action)
-    imap <buffer> <C-@> <Plug>(unite_choose_action)
-    nmap <buffer> <esc> <Plug>(unite_exit)
-    nmap <buffer> / <Plug>(unite_insert_enter)
-    nmap <buffer><expr> v unite#do_action('left')
-    imap <buffer><expr> <c-v> unite#do_action('left')
+  nmap <buffer> <C-z> <Plug>(unite_toggle_transpose_window)
+  imap <buffer> <C-z> <Plug>(unite_toggle_transpose_window)
+  nmap <buffer> J <Plug>(unite_toggle_auto_preview)
+  nmap <buffer> K <Plug>(unite_print_candidate)
+  nmap <buffer> L <Plug>(unite_redraw)
+  nunmap <buffer> <c-k>
+  nunmap <buffer> <c-l>
+  nunmap <buffer> <c-h>
+  imap <buffer> <C-j> <Plug>(unite_toggle_auto_preview)
+  nmap <buffer> <C-r> <Plug>(unite_narrowing_input_history)
+  imap <buffer> <C-r> <Plug>(unite_narrowing_input_history)
+  nmap <buffer> <Tab> <Plug>(unite_complete)
+  imap <buffer> <Tab> <Plug>(unite_complete)
+  nmap <buffer> <C-@> <Plug>(unite_choose_action)
+  imap <buffer> <C-@> <Plug>(unite_choose_action)
+  nmap <buffer> <esc> <Plug>(unite_exit)
+  nmap <buffer> / <Plug>(unite_insert_enter)
+  nmap <buffer><expr> v unite#do_action('left')
+  imap <buffer><expr> <c-v> unite#do_action('left')
 endfunction
 " " }}}
 " # Prefix shortcuts {{{
@@ -873,7 +874,7 @@ nnoremap <silent> [unite]} :<c-u>UniteLast<cr>
 let g:unite_source_rec_async_command = ['ag', '--follow', '--nocolor', '--nogroup', '--hidden', '-g', '']
 let g:unite_source_grep_command = 'ag'
 let g:unite_source_grep_default_opts = '-i --vimgrep --hidden --ignore ' .
-            \ '''.hg'' --ignore ''.svn'' --ignore ''.git'' --ignore ''.bzr'''
+      \ '''.hg'' --ignore ''.svn'' --ignore ''.git'' --ignore ''.bzr'''
 let g:unite_source_grep_recursive_opt = ''
 let g:unite_source_line_enable_highlight = 1
 
@@ -922,9 +923,9 @@ highlight LocalIndentGuide guifg=#4E4E4E guibg=black gui=inverse ctermfg=5 cterm
 " # Neomake  {{{
 " Lazy loadable
 augroup neomake_save_linter
-    autocmd!
-    autocmd BufWritePost * Neomake
-    autocmd BufWritePost *.ts Neomake! tsc
+  autocmd!
+  autocmd BufWritePost * Neomake
+  autocmd BufWritePost *.ts Neomake! tsc
 augroup end
 
 let g:neomake_javascript_enabled_makers = ['eslint_d']
@@ -936,19 +937,19 @@ endfunction
 call DefineNeomakeColors()
 
 augroup my_error_signs
-    au!
-    autocmd ColorScheme * call DefineNeomakeColors()
+  au!
+  autocmd ColorScheme * call DefineNeomakeColors()
 augroup END
 
 let g:neomake_tsc_maker = {
-    \ 'exe': 'tsc',
-    \ 'args': [],
-    \ 'errorformat':
-            \ '%E%f %#(%l\,%c): error %m,' .
-            \ '%E%f %#(%l\,%c): %m,' .
-            \ '%Eerror %m,' .
-            \ '%C%\s%\+%m'
-    \ }
+      \ 'exe': 'tsc',
+      \ 'args': [],
+      \ 'errorformat':
+      \ '%E%f %#(%l\,%c): error %m,' .
+      \ '%E%f %#(%l\,%c): %m,' .
+      \ '%Eerror %m,' .
+      \ '%C%\s%\+%m'
+      \ }
 
 " "}}}
 " # Polyglot  {{{
@@ -963,14 +964,14 @@ let g:autoswap_detect_tmux = 1
 " # Delimitmate  {{{
 " Extractable configuration
 function! DelimitMateCompletion(key)
-    " Because of a Deoplete bug, I have to repeat a key to try to restore
-    " original vim behaviour
-    return (delimitMate#ShouldJump() ? "\<Del>" : "")
-                \ . "\<c-x>" . a:key . (pumvisible() ? a:key : "")
+  " Because of a Deoplete bug, I have to repeat a key to try to restore
+  " original vim behaviour
+  return (delimitMate#ShouldJump() ? "\<Del>" : "")
+        \ . "\<c-x>" . a:key . (pumvisible() ? a:key : "")
 endfunction
 
 function! CustomCompletion(key)
-    return "\<c-x>" . a:key . (pumvisible() ? a:key : "")
+  return "\<c-x>" . a:key . (pumvisible() ? a:key : "")
 endfunction
 
 imap <expr> <c-x><c-l> DelimitMateCompletion("\<c-l>")
@@ -981,13 +982,13 @@ let g:delimitMate_expand_cr = 1
 let g:delimitMate_nesting_quotes = ['"','`', "'"]
 
 if !exists('g:set_carriage_return')
-    imap <CR> <C-G>u<Plug>delimitMateCR
-    let g:set_carriage_return = 1
+  imap <CR> <C-G>u<Plug>delimitMateCR
+  let g:set_carriage_return = 1
 endif
 
 augroup delimitmate_language_specific
-    au!
-    au FileType R,rmd let b:delimitMate_matchpairs = "(:),[:],{:}"
+  au!
+  au FileType R,rmd let b:delimitMate_matchpairs = "(:),[:],{:}"
 augroup END
 
 
