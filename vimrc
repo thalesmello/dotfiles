@@ -358,13 +358,12 @@ nnoremap <leader>o `>
 nnoremap <leader>] `]
 nnoremap <leader>ss :w<cr>
 nnoremap <leader>saa ggVG
-nnoremap <leader>sy :setfiletype<space>
 nnoremap <leader>saq ?\v('''\|""")<CR>vw//e<CR>
 nnoremap <leader>siq ?\v('''\|""")<CR>wv//e<CR>ge
 nnoremap <leader>sl $v^
 nmap <leader>* *N
 vmap <leader>* *N
-vmap c* *Ncgn
+vmap <leader>c* *Ncgn
 nmap c* *Ncgn
 nnoremap Y y$
 nnoremap <leader>fw :FixWhitespace<cr>
@@ -521,6 +520,9 @@ let g:deoplete#omni#input_patterns = {}
 let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
 let g:deoplete#omni#input_patterns.javascript = "(\\.|\'|\")"
 let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
+
+let g:deoplete#omni#functions = {}
+let g:deoplete#omni#functions.javascript = [ 'jspc#omni', 'javascriptcomplete#CompleteJS' ]
 
 function! DeopleteMultipleCursorsSwitch(before)
   if !exists('g:loaded_deoplete')
@@ -799,7 +801,6 @@ nnoremap <c-p> :<c-u>FZF<CR>
 vnoremap <c-p> :<c-u>FZF<CR>
 
 let g:fzf_history_dir = '~/.local/share/fzf-history'
-let g:fzf_layout = { 'up': '~40%' }
 
 nnoremap <c-f> :Ag<space>
 
