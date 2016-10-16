@@ -140,7 +140,7 @@ Plug 'machakann/vim-highlightedyank'
 Plug 'vim-scripts/ingo-library'
 Plug 'vim-scripts/SyntaxRange'
 Plug 'jalvesaq/Nvim-R'
-Plug 'othree/jspc.vim'
+" Plug 'othree/jspc.vim'
 
 " TODO: Check
 " github-complete.vim
@@ -259,7 +259,7 @@ cnoremap <C-E> <end>
 " Create windows
 nnoremap <leader>v <C-w>v<C-w>l
 nnoremap <leader>x <C-w>s<C-w>j
-nnoremap <leader>d :q<cr>
+nnoremap <leader>q :q<cr>
 " }}}
 " ##### Folding {{{
 " Toggles folding with space
@@ -390,7 +390,6 @@ nnoremap <S-ScrollWheelDown>     <ScrollWheelRight>
 nnoremap <S-2-ScrollWheelDown>   <2-ScrollWheelRight>
 nnoremap <S-3-ScrollWheelDown>   <3-ScrollWheelRight>
 nnoremap <S-4-ScrollWheelDown>   <4-ScrollWheelRight>
-nnoremap <silent> <leader>q :pclose<cr>:cclose<cr>:lclose<cr>:UniteClose<cr>
 nnoremap <leader>sf :source %<cr>
 vnoremap _ <esc>`<jV`>k0
 vnoremap - <esc>`<jV`>k0
@@ -521,8 +520,8 @@ let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
 let g:deoplete#omni#input_patterns.javascript = "(\\.|\'|\")"
 let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
 
-let g:deoplete#omni#functions = {}
-let g:deoplete#omni#functions.javascript = [ 'jspc#omni', 'javascriptcomplete#CompleteJS' ]
+" let g:deoplete#omni#functions = {}
+" let g:deoplete#omni#functions.javascript = [ 'jspc#omni', 'javascriptcomplete#CompleteJS' ]
 
 function! DeopleteMultipleCursorsSwitch(before)
   if !exists('g:loaded_deoplete')
