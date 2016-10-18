@@ -89,7 +89,7 @@ for (const ${2:value} of ${1:iterable}) {
 endsnippet
 
 snippet "(\`[^\`]*)\$" "console.log (postfix)" r
-`!p snip.rv = match.group(1)`${${1:variable}}$0
+`!p snip.rv = match.group(1)`${${1:${VISUAL:variable}}}$0
 endsnippet
 
 snippet try "Try catch" b
