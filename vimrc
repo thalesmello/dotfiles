@@ -258,8 +258,8 @@ cnoremap <C-E> <end>
 
 " Create windows
 nnoremap <leader>v <C-w>v<C-w>l
-nnoremap <leader>x <C-w>s<C-w>j
-nnoremap <leader>q :q<cr>
+nnoremap <leader>m <C-w>s<C-w>j
+nnoremap <leader>d :q<cr>
 " }}}
 " ##### Folding {{{
 " Toggles folding with space
@@ -808,7 +808,6 @@ vnoremap <silent> <leader>a :<c-u>call CallFzfAg()<cr>
 nnoremap <silent> <leader>li :BLines<cr>
 nnoremap <silent> <leader>hp :Helptags<cr>
 nnoremap <silent> <leader>cm :Commands<cr>
-nnoremap <silent> <leader>ma :Maps<cr>
 nnoremap <silent> <leader>hi :History:<cr>
 nnoremap <silent> <leader>ft :Filetypes<cr>
 
