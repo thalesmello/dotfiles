@@ -1,0 +1,7 @@
+#!/bin/bash
+
+REMOTE=$(git config --get remote.origin.url)
+SSHREMOTE=$(echo $REMOTE | sed -E -e 's|https://|git@|' -e 's|/|:|')
+USERNAME=$(echo $SSHREMOTE | sed -E -e 's|git@github.com:||' -e 's|/.+?$||')
+NEWREMOTE=$(echo $SSHREMOTE | sed -E -e "s|$USERNAME|thalesmello|")
+echo $NEWREMOTE
