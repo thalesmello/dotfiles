@@ -141,6 +141,7 @@ Plug 'vim-scripts/ingo-library'
 Plug 'vim-scripts/SyntaxRange'
 Plug 'jalvesaq/Nvim-R'
 " Plug 'othree/jspc.vim'
+Plug 'bfredl/nvim-miniyank'
 
 " TODO: Check
 " github-complete.vim
@@ -296,6 +297,8 @@ augroup set_fold_method
   autocmd FileType * setlocal foldmethod=indent
   autocmd FileType vim setlocal foldlevel=0
   autocmd FileType vim setlocal foldmethod=marker
+  autocmd FileType markdown setlocal foldmethod=expr
+  autocmd FileType snippets setlocal foldmethod=marker
   autocmd FileType javascript set foldmethod=syntax
   autocmd FileType javascript setlocal foldlevelstart=50
 augroup end
@@ -347,10 +350,6 @@ vnoremap <CR> "+y
 nnoremap <leader><cr> mz?\v(".*"\|'.*')<cr>"qyl`zi<c-r>q +<cr><c-r>q<esc>
 nnoremap <leader>yy gv"+y
 vnoremap <leader>yy "+y
-nnoremap <leader>pp "+p
-vnoremap <leader>pp "+p
-nnoremap <leader>PP "+P
-vnoremap <leader>PP "+P
 vnoremap @ :normal @
 vnoremap <c-c> "+y
 nnoremap <leader><leader><leader> <c-^>
@@ -591,6 +590,12 @@ let g:UltiSnipsSnippetDirectories  = ["UltiSnips", $HOME . "/.snips"]
 imap <c-j> <nop>
 inoremap <c-x><c-k> <c-x><c-k>
 nmap <leader>esp :UltiSnipsEdit<cr>
+
+augroup set_snippets_filetype_correctly
+  " this one is which you're most likely to use?
+  autocmd BufRead *.snippets setlocal filetype=snippets
+  autocmd FileType snippets setlocal foldmarker=<<<,>>>
+augroup end
 
 " "}}}
 " # NerdTREE  {{{
@@ -882,10 +887,10 @@ nnoremap <silent> [unite]/ :<C-u>Unite line -input=<c-r>/<cr>
 nnoremap <silent> [unite]bb :Unite -quick-match buffer<cr>
 nnoremap <silent> [unite]qf :<c-u>Unite -wrap -prompt-direction=top quickfix<cr>
 nnoremap <silent> [unite]ll :<c-u>Unite -wrap -prompt-direction=top location_list<cr>
-nnoremap <silent> [unite][ :<c-u>UnitePrevious<cr>
-nnoremap <silent> [unite]] :<c-u>UniteNext<cr>
-nnoremap <silent> [unite]{ :<c-u>UniteFirst<cr>
-nnoremap <silent> [unite]} :<c-u>UniteLast<cr>
+nnoremap <silent> [unite][ :<c-u>UnitePrevious<cr><cr>
+nnoremap <silent> [unite]] :<c-u>UniteNext<cr><cr>
+nnoremap <silent> [unite]{ :<c-u>UniteFirst<cr><cr>
+nnoremap <silent> [unite]} :<c-u>UniteLast<cr><cr>
 " " }}}
 " Ag grep config {{{
 " Plugin extractable
@@ -1060,5 +1065,12 @@ if has('nvim')
   tnoremap <silent> <c-]><esc> <C-\><C-n>
   autocmd BufWinEnter,WinEnter term://* startinsert
   autocmd BufLeave term://* stopinsert
+endif
+" "}}}
+" # Nvim miniwank  {{{
+if has('nvim')
+  map p <Plug>(miniyank-autoput)
+  map P <Plug>(miniyank-autoPut)
+  map <leader>p <Plug>(miniyank-cycle)
 endif
 " "}}}
