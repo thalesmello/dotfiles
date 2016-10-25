@@ -1,0 +1,95 @@
+# Tables and Figures <<<1 #
+snippet figure "Figure with label" b
+\begin{figure}[h]
+\begin{center}
+<<fig=TRUE, include = TRUE, echo=FALSE>>=
+${VISUAL}$1
+@
+\end{center}
+\caption{${2:Exemplo de Figura com Legenda}}
+\label{fig:${3:figure_label}}
+\end{figure}$0
+endsnippet
+
+snippet table "Table with label" b
+<<label=table_example, results=tex, echo=FALSE>>=
+n <- 100
+x <- rnorm(n)
+y <- 2*x + rnorm(n)
+out <- lm(y ~ x)
+data <- coefficients(summary(out))
+(function () {
+	${VISUAL}$1
+})() %>%
+print(xtable(.,
+	digits = rep(2, ncol(.)),
+	caption = "${2:Um exemplo de tabela}",
+	label = "${3:tab:exemplo}"))
+@
+endsnippet
+
+snippet r "Inline R expression" i
+\Sexpr{${VISUAL}$1}$0
+endsnippet
+# 1>>> Tables and Figures #
+# Math <<< #
+snippet frac "Math fraction" i
+\frac{${VISUAL}$1}{$2}$0
+endsnippet
+
+snippet sum "Math sum" i
+\sum_{$1}^{$2}$0
+endsnippet
+
+snippet ^ "Math power" i
+^{${1:${VISUAL}}}$0
+endsnippet
+
+snippet _ "Math subscript " i
+_{${1:${VISUAL}}}$0
+endsnippet
+
+snippet hat "Math hat" i
+\hat{${VISUAL}$1}$0
+endsnippet
+
+snippet $ "Math formula" i
+$ ${VISUAL}$1 $$0
+endsnippet
+
+snippet \ "Math enclose" i
+\\$1{${2:${VISUAL}}}$0
+endsnippet
+
+snippet tm "Math times" i
+\times $0
+endsnippet
+
+snippet left{ "Math leftright curly" i
+\left\\{${VISUAL}$0\right\\
+endsnippet
+
+snippet left( "Math leftright paren" i
+\left(${VISUAL}$0\right
+endsnippet
+
+snippet left[ "Math leftright paren" i
+\left[${VISUAL}$0\right
+endsnippet
+
+snippet "^(?!.*left){" "Math literal curly" r
+\\{${VISUAL}$0\\
+endsnippet
+
+snippet ... "Math elipsis" i
+\ldots$0
+endsnippet
+
+snippet deriv "Math derivate" i
+\frac{\mathrm{d} ${VISUAL}$1}{\mathrm{d} $2}$0
+endsnippet
+
+snippet _tilde "Math tilde under" i
+\stackrel{${VISUAL}$1}{\sim}$0
+endsnippet
+# >>> Math #
