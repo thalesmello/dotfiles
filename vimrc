@@ -56,7 +56,7 @@ Plug 'morhetz/gruvbox'
 
 Plug 'terryma/vim-multiple-cursors'
 Plug 'thalesmello/vim-tmux-navigator'
-Plug 'mhinz/vim-signify'
+Plug 'airblade/vim-gitgutter'
 Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'
 Plug 'ludovicchabant/vim-gutentags', Cond(v:version >= 704)
@@ -757,14 +757,11 @@ noremap <leader>ta :Tabularize /
 noremap <leader>t/ :Tabularize /<c-r>//l1l0l0<cr>
 
 " "}}}
-" # Vim Signify  {{{
-let g:signify_update_on_focusgained = 1
-let g:signify_update_on_bufenter = 1
-
-omap ih <plug>(signify-motion-inner-pending)
-xmap ih <plug>(signify-motion-inner-visual)
-omap ah <plug>(signify-motion-outer-pending)
-xmap ah <plug>(signify-motion-outer-visual)
+" # Vim Gitgutter  {{{
+omap ih <Plug>GitGutterTextObjectInnerPending
+omap ah <Plug>GitGutterTextObjectOuterPending
+xmap ih <Plug>GitGutterTextObjectInnerVisual
+xmap ah <Plug>GitGutterTextObjectOuterVisual
 
 " "}}}
 " # Textobj User  {{{
