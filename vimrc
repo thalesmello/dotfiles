@@ -141,7 +141,7 @@ Plug 'vim-scripts/ingo-library'
 Plug 'vim-scripts/SyntaxRange'
 Plug 'jalvesaq/Nvim-R'
 " Plug 'othree/jspc.vim'
-Plug 'bfredl/nvim-miniyank'
+Plug 'bfredl/nvim-miniyank', Cond(has('nvim'))
 
 " TODO: Check
 " github-complete.vim
