@@ -59,7 +59,7 @@ Plug 'thalesmello/vim-tmux-navigator'
 " Plug 'airblade/vim-gitgutter'
 Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'
-Plug 'ludovicchabant/vim-gutentags', Cond(v:version >= 704)
+" Plug 'c0r73x/neotags.nvim', Cond(has('nvim'))
 Plug 'easymotion/vim-easymotion'
 Plug 'szw/vim-g'
 Plug 'tpope/vim-rsi'
@@ -506,10 +506,6 @@ let g:tmuxline_preset = {
       \'x'       : ['#{prefix_highlight}'],
       \'z'       : ['On: #{online_status}', '#{battery_icon} #{battery_percentage}', '%R'],
       \'options' : {'status-justify' : 'left'}}
-
-" "}}}
-" # Gutentags  {{{
-let g:gutentags_exclude = ['node_modules', '.git']
 
 " "}}}
 " # Deoplete  {{{
