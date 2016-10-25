@@ -965,7 +965,7 @@ let g:neomake_tsc_maker = {
 " "}}}
 " # Polyglot  {{{
 " Lazy loadable
-" let g:jsx_ext_required = 1
+let g:jsx_ext_required = 1
 
 " "}}}
 " # Vim autoswap  {{{
