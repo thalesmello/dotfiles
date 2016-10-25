@@ -56,10 +56,10 @@ Plug 'morhetz/gruvbox'
 
 Plug 'terryma/vim-multiple-cursors'
 Plug 'thalesmello/vim-tmux-navigator'
-" Plug 'airblade/vim-gitgutter'
+Plug 'airblade/vim-gitgutter'
 Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'
-" Plug 'c0r73x/neotags.nvim', Cond(has('nvim'))
+Plug 'c0r73x/neotags.nvim', Cond(has('nvim'))
 Plug 'easymotion/vim-easymotion'
 Plug 'szw/vim-g'
 Plug 'tpope/vim-rsi'
@@ -961,7 +961,7 @@ let g:neomake_tsc_maker = {
 " "}}}
 " # Polyglot  {{{
 " Lazy loadable
-let g:jsx_ext_required = 1
+" let g:jsx_ext_required = 1
 
 " "}}}
 " # Vim autoswap  {{{
