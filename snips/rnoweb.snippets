@@ -93,3 +93,14 @@ snippet _tilde "Math tilde under" i
 \stackrel{${VISUAL}$1}{\sim}$0
 endsnippet
 # >>> Math #
+# R General snippets <<< #
+snippet fun "Create a new funciton" b
+${1:function_name} <- function(${2:arg}) ${3:{
+	${VISUAL}$0
+}}
+endsnippet
+
+snippet "((\w|\$|\.)+) " "console.log (postfix)" br
+`!p snip.rv = match.group(1)` <- ${VISUAL}$0
+endsnippet
+# >>> R General snippets #
