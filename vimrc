@@ -56,7 +56,7 @@ Plug 'morhetz/gruvbox'
 
 Plug 'terryma/vim-multiple-cursors'
 Plug 'thalesmello/vim-tmux-navigator'
-Plug 'airblade/vim-gitgutter'
+" Plug 'airblade/vim-gitgutter'
 Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'
 Plug 'ludovicchabant/vim-gutentags', Cond(v:version >= 704)
