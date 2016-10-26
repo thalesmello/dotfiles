@@ -63,7 +63,7 @@ Plug 'ludovicchabant/vim-gutentags', Cond(v:version >= 704)
 Plug 'easymotion/vim-easymotion'
 Plug 'szw/vim-g'
 Plug 'tpope/vim-rsi'
-Plug 'wellle/tmux-complete.vim'
+Plug 'thalesmello/tmux-complete.vim'
 Plug 'bronson/vim-visual-star-search'
 Plug 'bronson/vim-trailing-whitespace'
 Plug 'thalesmello/vim-indent-object'
