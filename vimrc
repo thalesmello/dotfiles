@@ -119,10 +119,11 @@ Plug 'haya14busa/incsearch.vim'
 Plug 'davidhalter/jedi'
 Plug 'dbakker/vim-projectroot'
 Plug 'Shougo/deoplete.nvim',                      Cond(has('nvim'))
+      \ | Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
       \ | Plug 'zchee/deoplete-jedi',             Cond(has('nvim'))
+      \ | Plug 'steelsojka/deoplete-flow',        Cond(has('nvim'))
       \ | Plug 'mhartington/deoplete-typescript', Cond(has('nvim'))
       \ | Plug 'Shougo/echodoc.vim',              Cond(has('nvim'))
-      \ | Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
 Plug 'thalesmello/pulsecursor.vim'
 Plug 'thalesmello/tabmessage.vim'
 Plug 'thalesmello/persistent.vim'
@@ -142,6 +143,7 @@ Plug 'vim-scripts/SyntaxRange'
 Plug 'jalvesaq/Nvim-R'
 " Plug 'othree/jspc.vim'
 Plug 'bfredl/nvim-miniyank', Cond(has('nvim'))
+Plug 'flowtype/vim-flow'
 
 " TODO: Check
 " github-complete.vim
@@ -1070,4 +1072,9 @@ if has('nvim')
   map P <Plug>(miniyank-autoPut)
   map <leader>p <Plug>(miniyank-cycle)
 endif
+" "}}}
+" # Nvim miniwank  {{{
+let g:flow#enable = 0
+nnoremap <leader>tt :FlowType<cr>
+nnoremap <leader>td :FlowJumpToDef<cr>
 " "}}}
