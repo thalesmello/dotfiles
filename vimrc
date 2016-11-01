@@ -799,7 +799,7 @@ let g:fzf_history_dir = '~/.local/share/fzf-history'
 
 nnoremap <c-f> :Ag<space>
 
-nnoremap <silent> <leader>a viw:<c-u>call CallFzfAg()<cr>
+nnoremap <silent> <leader>a :<c-u>Ag <c-r><c-w><cr>
 vnoremap <silent> <leader>a :<c-u>call CallFzfAg()<cr>
 nnoremap <silent> <leader>li :BLines<cr>
 nnoremap <silent> <leader>hp :Helptags<cr>
