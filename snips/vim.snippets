@@ -35,3 +35,11 @@ endsnippet
 snippet Expect "Vimspec expect" b
 Expect ${1:${VISUAL:expression}} ${2:==} ${0:expected_value}
 endsnippet
+
+snippet au "Autogroup" b
+augroup preview_window
+	autocmd!
+	${VISUAL:autocmd }$0
+augroup end
+
+endsnippet
