@@ -121,9 +121,8 @@ Plug 'dbakker/vim-projectroot'
 Plug 'Shougo/deoplete.nvim',                      Cond(has('nvim'))
       \ | Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
       \ | Plug 'zchee/deoplete-jedi',             Cond(has('nvim'))
-      \ | Plug 'steelsojka/deoplete-flow',        Cond(has('nvim'))
+      \ | Plug 'thalesmello/deoplete-flow',        Cond(has('nvim'))
       \ | Plug 'mhartington/deoplete-typescript', Cond(has('nvim'))
-      \ | Plug 'Shougo/echodoc.vim',              Cond(has('nvim'))
 Plug 'thalesmello/pulsecursor.vim'
 Plug 'thalesmello/tabmessage.vim'
 Plug 'thalesmello/persistent.vim'
@@ -231,7 +230,7 @@ colorscheme gruvbox
 let maplocalleader = "'"
 set cursorline
 set listchars=tab:▸\ ,eol:¬
-set completeopt-=preview
+set splitbelow
 set linebreak
 set noshowmode
 set updatetime=500
@@ -518,7 +517,6 @@ let g:gutentags_exclude = ['node_modules', '.git']
 " Plugin extractable
 let g:deoplete#omni#input_patterns = {}
 let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
-let g:deoplete#omni#input_patterns.javascript = "(\\.|\'|\")"
 let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
 
 " let g:deoplete#omni#functions = {}
@@ -537,18 +535,11 @@ function! DeopleteMultipleCursorsSwitch(before)
 endfunction
 
 let g:deoplete#enable_at_startup = 1
-let g:echodoc_enable_at_startup = 1
 
-function! ToggleEchoDocFunc()
-  if echodoc#is_enabled()
-    call echodoc#disable()
-  else
-    call echodoc#enable()
-  endif
-endfunction
-
-command! EchoDocToggle call ToggleEchoDocFunc()
-nnoremap <leader>ed :<c-u>EchoDocToggle<cr>
+augroup preview_window
+  autocmd!
+  autocmd InsertLeave * pclose!
+augroup end
 
 inoremap <up> <c-p>
 inoremap <down> <c-n>
@@ -595,6 +586,7 @@ nmap <leader>esp :UltiSnipsEdit<cr>
 
 augroup set_snippets_filetype_correctly
   " this one is which you're most likely to use?
+  autocmd!
   autocmd BufRead *.snippets setlocal filetype=snippets
   autocmd FileType snippets setlocal foldmarker=<<<,>>>
 augroup end
