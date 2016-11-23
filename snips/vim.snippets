@@ -37,7 +37,7 @@ Expect ${1:${VISUAL:expression}} ${2:==} ${0:expected_value}
 endsnippet
 
 snippet au "Autogroup" b
-augroup preview_window
+augroup ${1:group_name}
 	autocmd!
 	${VISUAL:autocmd }$0
 augroup end

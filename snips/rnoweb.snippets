@@ -17,30 +17,23 @@ endsnippet
 snippet figure "Figure with label" b
 \begin{figure}[h]
 \begin{center}
-<<$1fig=TRUE, include = TRUE, echo=FALSE>>=
+<<$1fig=TRUE, echo=FALSE>>=
 ${VISUAL}$2
 @
+\caption{${3:Exemplo de Figura com Legenda}}
+\label{${4:fig:${5:label}}}
 \end{center}
-\caption{${2:Exemplo de Figura com Legenda}}
-\label{fig:${3:figure_label}}
 \end{figure}$0
 endsnippet
 
 snippet table "Table with label" b
-<<$1label=table_example, results=tex, echo=FALSE>>=
-n <- 100
-x <- rnorm(n)
-y <- 2*x + rnorm(n)
-out <- lm(y ~ x)
-data <- coefficients(summary(out))
-(function () {
-	${VISUAL}$2
-})() %>%
-print(xtable(.,
-	digits = rep(2, ncol(.)),
-	caption = "${2:Um exemplo de tabela}",
-	label = "${3:tab:exemplo}"))
-@
+<<$1results=tex, echo=FALSE>>=
+${3:data} <- $2
+print(xtable($3,
+	digits = 2,
+	caption = "${4:Um exemplo de tabela}",
+	label = "${5:tab:${6:exemplo}}"))
+@$0
 endsnippet
 
 snippet inline "Inline R expression" i
@@ -48,7 +41,7 @@ snippet inline "Inline R expression" i
 endsnippet
 
 snippet eval "Execute code without displaying" b
-<<$1include=FALSE, echo=FALSE>>=
+<<$1echo=FALSE>>=
 ${VISUAL}$2
 @$0
 endsnippet
