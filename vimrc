@@ -39,6 +39,8 @@ Plug 'Raimondi/delimitMate'
 Plug 'nelstrom/vim-markdown-folding'
 " Makes the repeat command `.` work in more cases
 Plug 'tpope/vim-repeat'
+" Subvert command and convert type of case
+Plug 'tpope/vim-abolish'
 " Local indent in a file
 Plug 'tweekmonster/local-indent.vim'
 " Relative line number
@@ -119,10 +121,10 @@ Plug 'haya14busa/incsearch.vim'
 Plug 'davidhalter/jedi'
 Plug 'dbakker/vim-projectroot'
 Plug 'Shougo/deoplete.nvim',                      Cond(has('nvim'))
+      \ | Plug 'thalesmello/deoplete-flow',     Cond(has('nvim'))
       \ | Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
-      \ | Plug 'zchee/deoplete-jedi',             Cond(has('nvim'))
-      \ | Plug 'thalesmello/deoplete-flow',        Cond(has('nvim'))
-      \ | Plug 'mhartington/deoplete-typescript', Cond(has('nvim'))
+      \ | Plug 'zchee/deoplete-jedi',             Cond(has('nvim'), {'for': 'python'})
+      \ | Plug 'mhartington/deoplete-typescript', Cond(has('nvim'), {'for': 'javascript'})
 Plug 'thalesmello/pulsecursor.vim'
 Plug 'thalesmello/tabmessage.vim'
 Plug 'thalesmello/persistent.vim'
@@ -140,9 +142,10 @@ Plug 'machakann/vim-highlightedyank'
 Plug 'vim-scripts/ingo-library'
 Plug 'vim-scripts/SyntaxRange'
 Plug 'jalvesaq/Nvim-R'
-" Plug 'othree/jspc.vim'
 Plug 'bfredl/nvim-miniyank', Cond(has('nvim'))
 Plug 'flowtype/vim-flow'
+Plug 'alcesleo/vim-uppercase-sql'
+Plug 'wincent/replay'
 
 " TODO: Check
 " github-complete.vim
@@ -243,6 +246,10 @@ if has('nvim')
 endif
 
 let mapleader = "\<space>"
+
+if exists('&inccommand')
+  set inccommand=split
+endif
 " }}}
 " ##### General mappings  {{{
 " ##### Tabs {{{
@@ -517,10 +524,11 @@ let g:gutentags_exclude = ['node_modules', '.git']
 " Plugin extractable
 let g:deoplete#omni#input_patterns = {}
 let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
+" let g:deoplete#omni#input_patterns.javascript = "(\\.)"
 let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
 
 " let g:deoplete#omni#functions = {}
-" let g:deoplete#omni#functions.javascript = [ 'jspc#omni', 'javascriptcomplete#CompleteJS' ]
+" let g:deoplete#omni#functions._ = ['autoprogramming#complete']
 
 function! DeopleteMultipleCursorsSwitch(before)
   if !exists('g:loaded_deoplete')
@@ -535,6 +543,7 @@ function! DeopleteMultipleCursorsSwitch(before)
 endfunction
 
 let g:deoplete#enable_at_startup = 1
+let g:deoplete#file#enable_buffer_path = 1
 
 augroup preview_window
   autocmd!
@@ -878,10 +887,10 @@ nnoremap <silent> [unite]/ :<C-u>Unite line -input=<c-r>/<cr>
 nnoremap <silent> [unite]bb :Unite -quick-match buffer<cr>
 nnoremap <silent> [unite]qf :<c-u>Unite -wrap -prompt-direction=top quickfix<cr>
 nnoremap <silent> [unite]ll :<c-u>Unite -wrap -prompt-direction=top location_list<cr>
-nnoremap <silent> [unite][ :<c-u>UnitePrevious<cr><cr>
-nnoremap <silent> [unite]] :<c-u>UniteNext<cr><cr>
-nnoremap <silent> [unite]{ :<c-u>UniteFirst<cr><cr>
-nnoremap <silent> [unite]} :<c-u>UniteLast<cr><cr>
+nnoremap <silent> [unite][ :<c-u>UnitePrevious<cr>
+nnoremap <silent> [unite]] :<c-u>UniteNext<cr>
+nnoremap <silent> [unite]{ :<c-u>UniteFirst<cr>
+nnoremap <silent> [unite]} :<c-u>UniteLast<cr>
 " " }}}
 " Ag grep config {{{
 " Plugin extractable
@@ -927,13 +936,14 @@ highlight LocalIndentGuide guifg=#4E4E4E guibg=black gui=inverse ctermfg=5 cterm
 " "}}}
 " # Neomake  {{{
 " Lazy loadable
-augroup neomake_save_linter
+augroup neomake_linter
   autocmd!
-  autocmd BufWritePost * Neomake
-  autocmd BufWritePost *.ts Neomake! tsc
+  autocmd BufWritePost,BufReadPost * Neomake
+  autocmd BufWritePost,BufReadPost *.ts Neomake! tsc
 augroup end
 
 let g:neomake_javascript_enabled_makers = ['eslint_d']
+let g:neomake_java_enabled_makers = []
 
 function! DefineNeomakeColors()
   hi NeomakeErrorSign ctermfg=white
@@ -1065,8 +1075,16 @@ if has('nvim')
   map <leader>p <Plug>(miniyank-cycle)
 endif
 " "}}}
-" # Nvim miniwank  {{{
+" # Flow  {{{
 let g:flow#enable = 0
 nnoremap <leader>tt :FlowType<cr>
 nnoremap <leader>td :FlowJumpToDef<cr>
+" "}}}
+
+" # Comments for JavaScript  {{{
+augroup comments_options
+  autocmd!
+  autocmd FileType javascript setlocal formatoptions-=c formatoptions-=r formatoptions-=o
+augroup END
+
 " "}}}
