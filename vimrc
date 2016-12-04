@@ -208,11 +208,6 @@ set nowritebackup
 " Keep swap files in one location
 set directory=$HOME/.vim/tmp//,.
 
-" Global tab width.
-autocmd FileType * setlocal tabstop=4
-" And again, related.
-autocmd FileType * setlocal shiftwidth=4
-
 " Always diff using vertical mode
 set diffopt+=vertical
 
@@ -300,16 +295,7 @@ nnoremap zf mzzM`zzvzz
 " Files open expanded
 " Use decent folding
 set foldlevelstart=50
-augroup set_fold_method
-  autocmd!
-  autocmd FileType * setlocal foldmethod=indent
-  autocmd FileType vim setlocal foldlevel=0
-  autocmd FileType vim setlocal foldmethod=marker
-  autocmd FileType markdown setlocal foldmethod=expr
-  autocmd FileType snippets setlocal foldmethod=marker
-  autocmd FileType javascript set foldmethod=syntax
-  autocmd FileType javascript setlocal foldlevelstart=50
-augroup end
+set foldmethod=indent
 
 " }}}
 " ##### Misc {{{
@@ -342,12 +328,6 @@ nnoremap <leader>gp :Git push
 " ##### Number toggle  {{{
 let g:NumberToggleTrigger="<leader>ll"
 "}}}
-" ##### Vim Sleuth {{{
-augroup sleuth
-  autocmd!
-  autocmd FileType * VimSleuthReload
-augroup END
-" }}}
 " # Mappings  {{{
 map <MiddleMouse> <Nop>
 imap <MiddleMouse> <Nop>
@@ -492,6 +472,7 @@ let g:airline#extensions#tabline#show_buffers = 0
 let g:airline#extensions#tabline#enabled = 1
 
 let g:unite_outline_closest_tag = ""
+
 function! AirlineInit()
   let g:airline_section_a = airline#section#create(['mode'])
   let g:airline_section_b = airline#section#create(['file', ' ', 'readonly'])
@@ -500,9 +481,11 @@ function! AirlineInit()
   let g:airline_section_y = airline#section#create(['%<', 'branch'])
   let g:airline_section_z = airline#section#create(['%p%% ', '%{g:airline_symbols.linenr}%#__accent_bold#%l%#__restore__#:%v'])
 endfunction
+
 autocmd User AirlineAfterInit call AirlineInit()
 
 " "}}}
+
 " # Tmuxline  {{{
 " Plugin extractable configuration?
 let g:airline#extensions#tmuxline#enabled = 0
@@ -597,7 +580,6 @@ augroup set_snippets_filetype_correctly
   " this one is which you're most likely to use?
   autocmd!
   autocmd BufRead *.snippets setlocal filetype=snippets
-  autocmd FileType snippets setlocal foldmarker=<<<,>>>
 augroup end
 
 " "}}}
@@ -1001,12 +983,6 @@ if !exists('g:set_carriage_return')
   let g:set_carriage_return = 1
 endif
 
-augroup delimitmate_language_specific
-  au!
-  au FileType R,rmd let b:delimitMate_matchpairs = "(:),[:],{:}"
-augroup END
-
-
 " "}}}
 " # Windowswap  {{{
 let g:windowswap_map_keys = 0
@@ -1023,18 +999,6 @@ let g:vimwiki_list = [{
       \ 'template_path': '~/Dropbox/Apps/vimwiki/templates'
       \ }]
 
-augroup vimwiki_shortcuts
-  autocmd!
-  autocmd FileType vimwiki nnoremap <buffer> [d :VimwikiDiaryPrevDay<cr>
-  autocmd FileType vimwiki nnoremap <buffer> ]d :VimwikiDiaryNextDay<cr>
-  autocmd FileType vimwiki nmap <buffer> ]l <Plug>VimwikiNextLink
-  autocmd FileType vimwiki nmap <buffer> [l <Plug>VimwikiPrevLink
-  autocmd FileType vimwiki iunmap <buffer> <C-L><C-J>
-  autocmd FileType vimwiki iunmap <buffer> <C-L><C-K>
-  autocmd FileType vimwiki iunmap <buffer> <C-L><C-M>
-  autocmd FileType vimwiki iunmap <buffer> <Tab>
-augroup end
-
 " "}}}
 " # incsearch.vim  {{{
 " Extractable configuration
@@ -1044,18 +1008,11 @@ map g/ <Plug>(incsearch-stay)
 " # Highlightedyank  {{{
 let g:highlightedyank_highlight_duration = 200
 " "}}}
-" # Nvim-R  {{{
-augroup r_vim_settings
-  autocmd!
-  autocmd FileType r,rmd vmap <buffer> <localleader><CR> <localleader>sd
-  autocmd FileType r,rmd nmap <buffer> <localleader><CR> <localleader>d
-  autocmd FileType r,rmd nmap <buffer> <CR> <localleader>d
-  autocmd VimLeave * if exists("g:SendCmdToR") && string(g:SendCmdToR) != "function('SendCmdToR_fake')" | call RQuit("nosave") | endif
-augroup END
 let R_assign = 0
 let R_in_buffer = 0
 let R_applescript = 0
 let R_tmux_split = 1
+
 " "}}}
 " # Neovim terminal  {{{
 if has('nvim')
@@ -1081,10 +1038,3 @@ nnoremap <leader>tt :FlowType<cr>
 nnoremap <leader>td :FlowJumpToDef<cr>
 " "}}}
 
-" # Comments for JavaScript  {{{
-augroup comments_options
-  autocmd!
-  autocmd FileType javascript setlocal formatoptions-=c formatoptions-=r formatoptions-=o
-augroup END
-
-" "}}}
