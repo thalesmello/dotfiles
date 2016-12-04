@@ -146,6 +146,7 @@ Plug 'bfredl/nvim-miniyank', Cond(has('nvim'))
 Plug 'flowtype/vim-flow'
 Plug 'alcesleo/vim-uppercase-sql'
 Plug 'wincent/replay'
+Plug 'thalesmello/tabfold'
 
 " TODO: Check
 " github-complete.vim
@@ -266,36 +267,16 @@ nnoremap <leader>m <C-w>s<C-w>j
 nnoremap <leader>d :q<cr>
 " }}}
 " ##### Folding {{{
-" Toggles folding with space
-" Plugin extractable
-function! MyToggleFold()
-  if foldclosed(line('.')) >= 0
-    silent! normal zv
-  else
-    silent! normal za
-  endif
-endfunction
-
-nnoremap <silent> <s-tab> :<c-U>call MyToggleFold()<cr>
-nnoremap <silent> <leader><tab> :<c-U>call MyToggleFold()<cr>
-if !has('gui')
-  function! JumpForwardOrToggleFold()
-    let oldpos = getpos('.')
-    execute "normal! 1\<c-i>"
-    let newpos = getpos('.')
-    if newpos == oldpos
-      call MyToggleFold()
-    endif
-  endf
-  nnoremap <silent> <tab> :<c-u>call JumpForwardOrToggleFold()<cr>
-endif
-" Close all folds except the current one
 nnoremap zf mzzM`zzvzz
 
 " Files open expanded
 " Use decent folding
-set foldlevelstart=50
-set foldmethod=indent
+augroup fold_settings
+  autocmd!
+  autocmd VimEnter * set foldlevelstart=50
+  autocmd VimEnter * set foldmethod=indent
+augroup end
+
 
 " }}}
 " ##### Misc {{{
@@ -510,9 +491,6 @@ let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
 " let g:deoplete#omni#input_patterns.javascript = "(\\.)"
 let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
 
-" let g:deoplete#omni#functions = {}
-" let g:deoplete#omni#functions._ = ['autoprogramming#complete']
-
 function! DeopleteMultipleCursorsSwitch(before)
   if !exists('g:loaded_deoplete')
     return
@@ -533,8 +511,19 @@ augroup preview_window
   autocmd InsertLeave * pclose!
 augroup end
 
-inoremap <up> <c-p>
-inoremap <down> <c-n>
+function! MyArrowNavigation(direction)
+  let pumNavigation = { 'Down': "\<C-N>", 'Up': "\<C-P>" }
+  let arrowNavigation = { 'Down': "\<Down>", 'Up': "\<Up>" }
+
+  if pumvisible()
+    return pumNavigation[a:direction]
+  endif
+
+  return arrowNavigation[a:direction]
+endfunction
+
+inoremap <silent> <up> <c-r>=MyArrowNavigation('Up')<CR>
+inoremap <silent> <Down> <c-r>=MyArrowNavigation('Down')<CR>
 inoremap <expr><C-l> deoplete#refresh()
 
 " "}}}
@@ -543,30 +532,11 @@ inoremap <expr><C-l> deoplete#refresh()
 " Plugin extractable configuration
 let g:ulti_expand_res = 0
 let g:ulti_jump_forwards_res = 0
-function! JumpOrExpandSnippet()
-  call UltiSnips#JumpForwards()
-  if !g:ulti_jump_forwards_res
-    call UltiSnips#ExpandSnippet()
-  endif
-  return ''
-endfunction
-
-function! MyExpandSnippet()
-  call UltiSnips#ExpandSnippet()
-
-  if g:ulti_expand_res
-    return ""
-  elseif pumvisible()
-    return "\<c-n>"
-  else
-    return "\<tab>"
-  end
-endf
 
 let g:UltiSnipsEditSplit           = "vertical"
 xnoremap <silent> <tab> :call UltiSnips#SaveLastVisualSelection()<CR>gvs
-inoremap <silent> <c-l> <c-r>=JumpOrExpandSnippet()<cr>
-imap <silent> <Tab> <c-r>=MyExpandSnippet()<cr>
+inoremap <silent> <c-l> <c-r>=ultisnips_config#jump_or_expand_snippet()<cr>
+imap <silent> <Tab> <c-r>=ultisnips_config#expand_snippet()<cr>
 let g:UltiSnipsExpandTrigger       = "<c-x><c-x><tab>"
 let g:UltiSnipsJumpBackwardTrigger = "<c-h>"
 let g:UltiSnipsJumpForwardTrigger  = "<c-l>"
@@ -900,19 +870,8 @@ nmap <leader>epg :<c-u>Unite file_rec/neovim:~/.vim/plugged<cr>
 " "}}}
 " " }}}
 " # Indent guides configuration Neovim  {{{
-let s:LocalIndentState = 0
-function! ToggleLocalIndentFunction()
-  if s:LocalIndentState
-    LocalIndentGuide -hl
-  else
-    LocalIndentGuide +hl
-  endif
-
-  let s:LocalIndentState = !s:LocalIndentState
-endfunction
-
-command! ToggleLocalIndent call ToggleLocalIndentFunction()
-nnoremap <leader>ig :ToggleLocalIndent<cr>
+command! ToggleLocalIndent call local_indent_function#toggle()
+nnoremap <silent> <leader>ig :ToggleLocalIndent<cr>
 highlight LocalIndentGuide guifg=#4E4E4E guibg=black gui=inverse ctermfg=5 ctermbg=0 cterm=inverse
 
 " "}}}
