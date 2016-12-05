@@ -76,7 +76,7 @@ Plug 'osyo-manga/unite-quickfix'
 Plug 'thalesmello/config-unite-outline'
 
 " Deoplete
-Plug 'Shougo/deoplete.nvim',                      Cond(has('nvim'))
+Plug 'Shougo/deoplete.nvim',            Cond(has('nvim'))
 Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
 Plug 'zchee/deoplete-jedi',             Cond(has('nvim'), {'for': 'python'})
 Plug 'mhartington/deoplete-typescript', Cond(has('nvim'), {'for': 'javascript'})
