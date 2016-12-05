@@ -23,39 +23,22 @@ call plug#begin()
 " "}}}
 " ##### Plugins  {{{
 Plug 'tpope/vim-sensible'
-" Plugin to load tasks asynchronously
-Plug 'Shougo/vimproc.vim', { 'do' : 'make' }
-" Useful statusbar in your vim
-Plug 'vim-airline/vim-airline'
-" Comment toggling: use `gc` to toggle comments in visual mode
-Plug 'tomtom/tcomment_vim'
-" Git bindings for VIM
-Plug 'tpope/vim-fugitive'
-" Surround utils for vim
-Plug 'tpope/vim-surround'
-" Automatic closing of brackets
-Plug 'Raimondi/delimitMate'
-" Makes vim understand markdown folding
-Plug 'nelstrom/vim-markdown-folding'
-" Makes the repeat command `.` work in more cases
-Plug 'tpope/vim-repeat'
-" Subvert command and convert type of case
-Plug 'tpope/vim-abolish'
-" Local indent in a file
-Plug 'tweekmonster/local-indent.vim'
-" Relative line number
-Plug 'jeffkreeftmeijer/vim-numbertoggle'
-" File explorer for VIM. <leader>nt to activate
-Plug 'scrooloose/nerdtree', { 'on': ['NERDTreeToggle', 'NERDTreeFind'] }
-" Make jk behave as jumps in Vim
-Plug 'teranex/jk-jumps.vim'
-" Expand html easily: div > 3*li then Ctrl+e in an html file
-Plug 'rstacruz/sparkup'
-" Automatically recognize indentation
-Plug 'thalesmello/vim-sleuth'
-
 Plug 'morhetz/gruvbox'
-
+Plug 'thalesmello/tabfold'
+Plug 'Shougo/vimproc.vim', { 'do' : 'make' }
+Plug 'vim-airline/vim-airline'
+Plug 'tomtom/tcomment_vim'
+Plug 'tpope/vim-fugitive'
+Plug 'tpope/vim-surround'
+Plug 'Raimondi/delimitMate'
+Plug 'nelstrom/vim-markdown-folding'
+Plug 'tpope/vim-repeat'
+Plug 'tpope/vim-abolish'
+Plug 'tweekmonster/local-indent.vim'
+Plug 'scrooloose/nerdtree', { 'on': ['NERDTreeToggle', 'NERDTreeFind'] }
+Plug 'teranex/jk-jumps.vim'
+Plug 'rstacruz/sparkup'
+Plug 'thalesmello/vim-sleuth'
 Plug 'terryma/vim-multiple-cursors'
 Plug 'thalesmello/vim-tmux-navigator'
 Plug 'airblade/vim-gitgutter'
@@ -63,7 +46,6 @@ Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'
 Plug 'ludovicchabant/vim-gutentags', Cond(v:version >= 704)
 Plug 'easymotion/vim-easymotion'
-Plug 'szw/vim-g'
 Plug 'tpope/vim-rsi'
 Plug 'thalesmello/tmux-complete.vim'
 Plug 'bronson/vim-visual-star-search'
@@ -81,35 +63,44 @@ Plug 'wesQ3/vim-windowswap'
 Plug 'thalesmello/lazy.ultisnips' | Plug 'SirVer/ultisnips', Cond(v:version >= 704, { 'on': ['UltiSnipsEdit'] })
 Plug 'honza/vim-snippets'
 Plug 'ryanoasis/vim-devicons'
-Plug 'kana/vim-textobj-user'
-      \ | Plug 'rhysd/vim-textobj-ruby'
-      \ | Plug 'kana/vim-textobj-function'
-      \ | Plug 'bps/vim-textobj-python'
-      \ | Plug 'glts/vim-textobj-comment'
-      \ | Plug 'kana/vim-textobj-line'
-      \ | Plug 'Julian/vim-textobj-variable-segment'
-      \ | Plug 'kana/vim-textobj-entire'
-      \ | Plug 'thinca/vim-textobj-function-javascript'
-      \ | Plug 'coderifous/textobj-word-column.vim'
-      \ | Plug 'sgur/vim-textobj-parameter'
-      \ | Plug 'saihoooooooo/vim-textobj-space'
-      \ | Plug 'glts/vim-textobj-indblock'
-      \ | Plug 'kana/vim-textobj-indent'
-      \ | Plug 'rhysd/vim-textobj-lastinserted'
-      \ | Plug 'kana/vim-textobj-fold'
-      \ | Plug 'thalesmello/vim-textobj-methodcall'
-      \ | Plug 'thalesmello/vim-textobj-bracketchunk'
-      \ | Plug 'rhysd/vim-textobj-conflict'
 Plug 'AndrewRadev/splitjoin.vim'
+
+" Unite
 Plug 'Shougo/unite.vim'
-      \ | Plug 'thalesmello/config.neoyank.vim' | Plug 'Shougo/neoyank.vim'
-      \ | Plug 'Shougo/unite-help'
-      \ | Plug 'thinca/vim-unite-history'
-      \ | Plug 'thalesmello/unite-cmdmatch'
-      \ | Plug 'Shougo/unite-outline'
-      \ | Plug 'osyo-manga/unite-quickfix'
-      \ | Plug 'Shougo/neomru.vim'
-      \ | Plug 'thalesmello/config-unite-outline'
+Plug 'thalesmello/config.neoyank.vim' | Plug 'Shougo/neoyank.vim'
+Plug 'Shougo/unite-help'
+Plug 'thinca/vim-unite-history'
+Plug 'thalesmello/unite-cmdmatch'
+Plug 'Shougo/unite-outline'
+Plug 'osyo-manga/unite-quickfix'
+Plug 'thalesmello/config-unite-outline'
+
+" Deoplete
+Plug 'Shougo/deoplete.nvim',                      Cond(has('nvim'))
+Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
+Plug 'zchee/deoplete-jedi',             Cond(has('nvim'), {'for': 'python'})
+Plug 'mhartington/deoplete-typescript', Cond(has('nvim'), {'for': 'javascript'})
+
+" Text objects
+Plug 'kana/vim-textobj-user'
+Plug 'rhysd/vim-textobj-ruby'
+Plug 'kana/vim-textobj-function'
+Plug 'bps/vim-textobj-python'
+Plug 'glts/vim-textobj-comment'
+Plug 'kana/vim-textobj-line'
+Plug 'Julian/vim-textobj-variable-segment'
+Plug 'kana/vim-textobj-entire'
+Plug 'thinca/vim-textobj-function-javascript'
+Plug 'coderifous/textobj-word-column.vim'
+Plug 'sgur/vim-textobj-parameter'
+Plug 'saihoooooooo/vim-textobj-space'
+Plug 'glts/vim-textobj-indblock'
+Plug 'kana/vim-textobj-indent'
+Plug 'rhysd/vim-textobj-lastinserted'
+Plug 'kana/vim-textobj-fold'
+Plug 'thalesmello/vim-textobj-methodcall'
+Plug 'thalesmello/vim-textobj-bracketchunk'
+Plug 'rhysd/vim-textobj-conflict'
 Plug 'gioele/vim-autoswap'
 Plug 'junegunn/fzf' | Plug 'junegunn/fzf.vim'
 Plug 'tpope/vim-speeddating'
@@ -120,10 +111,6 @@ Plug 'wincent/terminus'
 Plug 'haya14busa/incsearch.vim'
 Plug 'davidhalter/jedi'
 Plug 'dbakker/vim-projectroot'
-Plug 'Shougo/deoplete.nvim',                      Cond(has('nvim'))
-      \ | Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
-      \ | Plug 'zchee/deoplete-jedi',             Cond(has('nvim'), {'for': 'python'})
-      \ | Plug 'mhartington/deoplete-typescript', Cond(has('nvim'), {'for': 'javascript'})
 Plug 'thalesmello/pulsecursor.vim'
 Plug 'thalesmello/tabmessage.vim'
 Plug 'thalesmello/persistent.vim'
@@ -132,7 +119,6 @@ Plug 'thalesmello/config.loupe' | Plug 'wincent/loupe'
 Plug 'dietsche/vim-lastplace'
 Plug 'EinfachToll/DidYouMean'
 Plug 'duggiefresh/vim-easydir'
-Plug 'Konfekt/FastFold'
 Plug 'tmux-plugins/vim-tmux'
 Plug 'zeorin/tmuxline.vim', {'branch': 'utf8-suppress-error'}
 Plug 'thalesmello/devlindo.vim'
@@ -144,7 +130,6 @@ Plug 'jalvesaq/Nvim-R'
 Plug 'bfredl/nvim-miniyank', Cond(has('nvim'))
 Plug 'alcesleo/vim-uppercase-sql'
 Plug 'wincent/replay'
-Plug 'thalesmello/tabfold'
 
 " TODO: Check
 " github-complete.vim
@@ -172,6 +157,8 @@ autocmd VimEnter * call PendingPlugInstall()
 " Display incomplete commands.
 set showcmd
 
+set shortmess+=I
+
 " Handle multiple buffers better.
 set hidden
 
@@ -186,6 +173,7 @@ set ignorecase
 
 " Show line numbers.
 set number
+set relativenumber
 
 " Don't highlight matches.
 set nohlsearch
