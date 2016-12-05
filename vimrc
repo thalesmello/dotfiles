@@ -93,6 +93,7 @@ Plug 'jalvesaq/Nvim-R'
 Plug 'bfredl/nvim-miniyank', Cond(has('nvim'))
 Plug 'alcesleo/vim-uppercase-sql'
 Plug 'wincent/replay'
+Plug 'moll/vim-node'
 
 " Unite
 Plug 'Shougo/unite.vim'
@@ -693,7 +694,6 @@ let g:unite_source_line_enable_highlight = 1
 let grep_source = has('nvim') ? 'file_rec/neovim' : 'file_rec/async'
 nnoremap <silent> <expr> <leader><c-p> ":\<C-u>Unite -buffer-name=files " . grep_source . ":! file/new\<CR>"
 vnoremap <silent> <expr> gf "\"uy:\<C-u>Unite -buffer-name=files " . grep_source . ":! -input=\<c-r>u\<CR>"
-nmap <silent> gf viwgf
 
 " "}}}
 " # Other mappings {{{

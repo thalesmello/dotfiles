@@ -3,8 +3,14 @@ function! vimux_config#slime() range
 endfunction
 
 function! vimux_config#run_pagarme_test()
-  if getcwd() =~ '.*gateway^'
-    let script = './script/test-unit'
+  if getcwd() =~ '.*gateway$'
+    if expand('%') =~ 'e2e' && expand('%') =~ 'live'
+      let script = './script/test-e2e live'
+    elseif expand('%') =~ 'e2e'
+      let script = './script/test-e2e test'
+    else
+      let script = './script/test-unit'
+    endif
   else
     let script = './script/test'
   endif
