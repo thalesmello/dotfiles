@@ -25,9 +25,9 @@ call plug#begin()
 Plug 'tpope/vim-sensible'
 Plug 'morhetz/gruvbox'
 Plug 'thalesmello/tabfold'
+Plug 'tomtom/tcomment_vim'
 Plug 'Shougo/vimproc.vim', { 'do' : 'make' }
 Plug 'vim-airline/vim-airline'
-Plug 'tomtom/tcomment_vim'
 Plug 'tpope/vim-fugitive'
 Plug 'tpope/vim-surround'
 Plug 'Raimondi/delimitMate'
@@ -64,6 +64,35 @@ Plug 'thalesmello/lazy.ultisnips' | Plug 'SirVer/ultisnips', Cond(v:version >= 7
 Plug 'honza/vim-snippets'
 Plug 'ryanoasis/vim-devicons'
 Plug 'AndrewRadev/splitjoin.vim'
+Plug 'gioele/vim-autoswap'
+Plug 'junegunn/fzf' | Plug 'junegunn/fzf.vim'
+Plug 'tpope/vim-speeddating'
+Plug 'vimwiki/vimwiki'
+Plug 'itchyny/vim-cursorword'
+Plug 'osyo-manga/vim-over'
+Plug 'wincent/terminus'
+Plug 'haya14busa/incsearch.vim'
+Plug 'davidhalter/jedi'
+Plug 'dbakker/vim-projectroot'
+Plug 'thalesmello/pulsecursor.vim'
+Plug 'thalesmello/tabmessage.vim'
+Plug 'thalesmello/persistent.vim'
+Plug 'thalesmello/pagarme-refactor.vim'
+Plug 'thalesmello/config.loupe' | Plug 'wincent/loupe'
+Plug 'dietsche/vim-lastplace'
+Plug 'EinfachToll/DidYouMean'
+Plug 'duggiefresh/vim-easydir'
+Plug 'tmux-plugins/vim-tmux'
+Plug 'zeorin/tmuxline.vim', {'branch': 'utf8-suppress-error'}
+Plug 'thalesmello/devlindo.vim'
+Plug 'sealemar/vtl'
+Plug 'machakann/vim-highlightedyank'
+Plug 'vim-scripts/ingo-library'
+Plug 'vim-scripts/SyntaxRange'
+Plug 'jalvesaq/Nvim-R'
+Plug 'bfredl/nvim-miniyank', Cond(has('nvim'))
+Plug 'alcesleo/vim-uppercase-sql'
+Plug 'wincent/replay'
 
 " Unite
 Plug 'Shougo/unite.vim'
@@ -101,35 +130,6 @@ Plug 'kana/vim-textobj-fold'
 Plug 'thalesmello/vim-textobj-methodcall'
 Plug 'thalesmello/vim-textobj-bracketchunk'
 Plug 'rhysd/vim-textobj-conflict'
-Plug 'gioele/vim-autoswap'
-Plug 'junegunn/fzf' | Plug 'junegunn/fzf.vim'
-Plug 'tpope/vim-speeddating'
-Plug 'vimwiki/vimwiki'
-Plug 'itchyny/vim-cursorword'
-Plug 'osyo-manga/vim-over'
-Plug 'wincent/terminus'
-Plug 'haya14busa/incsearch.vim'
-Plug 'davidhalter/jedi'
-Plug 'dbakker/vim-projectroot'
-Plug 'thalesmello/pulsecursor.vim'
-Plug 'thalesmello/tabmessage.vim'
-Plug 'thalesmello/persistent.vim'
-Plug 'thalesmello/pagarme-refactor.vim'
-Plug 'thalesmello/config.loupe' | Plug 'wincent/loupe'
-Plug 'dietsche/vim-lastplace'
-Plug 'EinfachToll/DidYouMean'
-Plug 'duggiefresh/vim-easydir'
-Plug 'tmux-plugins/vim-tmux'
-Plug 'zeorin/tmuxline.vim', {'branch': 'utf8-suppress-error'}
-Plug 'thalesmello/devlindo.vim'
-Plug 'sealemar/vtl'
-Plug 'machakann/vim-highlightedyank'
-Plug 'vim-scripts/ingo-library'
-Plug 'vim-scripts/SyntaxRange'
-Plug 'jalvesaq/Nvim-R'
-Plug 'bfredl/nvim-miniyank', Cond(has('nvim'))
-Plug 'alcesleo/vim-uppercase-sql'
-Plug 'wincent/replay'
 
 " TODO: Check
 " github-complete.vim
@@ -209,7 +209,6 @@ set virtualedit=block,onemore
 
 " Sets the colorscheme for terminal sessions too.
 set background=dark
-let g:gruvbox_contrast_dark = 'hard'
 colorscheme gruvbox
 
 let maplocalleader = "'"
