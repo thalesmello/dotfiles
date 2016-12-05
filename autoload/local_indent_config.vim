@@ -1,6 +1,6 @@
 let s:LocalIndentState = 0
 
-function! local_indent_function#toggle()
+function! local_indent_config#toggle()
   if s:LocalIndentState
     LocalIndentGuide -hl
   else

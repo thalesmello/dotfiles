@@ -430,16 +430,7 @@ let g:airline#extensions#tabline#enabled = 1
 
 let g:unite_outline_closest_tag = ""
 
-function! AirlineInit()
-  let g:airline_section_a = airline#section#create(['mode'])
-  let g:airline_section_b = airline#section#create(['file', ' ', 'readonly'])
-  let g:airline_section_c = airline#section#create(['%{g:unite_outline_closest_tag}'])
-  let g:airline_section_x = airline#section#create([])
-  let g:airline_section_y = airline#section#create(['%<', 'branch'])
-  let g:airline_section_z = airline#section#create(['%p%% ', '%{g:airline_symbols.linenr}%#__accent_bold#%l%#__restore__#:%v'])
-endfunction
-
-autocmd User AirlineAfterInit call AirlineInit()
+autocmd User AirlineAfterInit call airline_config#init()
 
 " "}}}
 
@@ -726,7 +717,7 @@ nmap <leader>epg :<c-u>Unite file_rec/neovim:~/.vim/plugged<cr>
 " "}}}
 " " }}}
 " # Indent guides configuration Neovim  {{{
-command! ToggleLocalIndent call local_indent_function#toggle()
+command! ToggleLocalIndent call local_indent_config#toggle()
 nnoremap <silent> <leader>ig :ToggleLocalIndent<cr>
 highlight LocalIndentGuide guifg=#4E4E4E guibg=black gui=inverse ctermfg=5 ctermbg=0 cterm=inverse
 
@@ -742,15 +733,11 @@ augroup end
 let g:neomake_javascript_enabled_makers = ['eslint_d']
 let g:neomake_java_enabled_makers = []
 
-function! DefineNeomakeColors()
-  hi NeomakeErrorSign ctermfg=white
-endfunction
-
-call DefineNeomakeColors()
+hi NeomakeErrorSign ctermfg=white
 
 augroup my_error_signs
   au!
-  autocmd ColorScheme * call DefineNeomakeColors()
+  autocmd ColorScheme * hi NeomakeErrorSign ctermfg=white
 augroup END
 
 let g:neomake_tsc_maker = {
