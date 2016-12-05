@@ -121,7 +121,6 @@ Plug 'haya14busa/incsearch.vim'
 Plug 'davidhalter/jedi'
 Plug 'dbakker/vim-projectroot'
 Plug 'Shougo/deoplete.nvim',                      Cond(has('nvim'))
-      \ | Plug 'thalesmello/deoplete-flow',     Cond(has('nvim'))
       \ | Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
       \ | Plug 'zchee/deoplete-jedi',             Cond(has('nvim'), {'for': 'python'})
       \ | Plug 'mhartington/deoplete-typescript', Cond(has('nvim'), {'for': 'javascript'})
@@ -143,7 +142,6 @@ Plug 'vim-scripts/ingo-library'
 Plug 'vim-scripts/SyntaxRange'
 Plug 'jalvesaq/Nvim-R'
 Plug 'bfredl/nvim-miniyank', Cond(has('nvim'))
-Plug 'flowtype/vim-flow'
 Plug 'alcesleo/vim-uppercase-sql'
 Plug 'wincent/replay'
 Plug 'thalesmello/tabfold'
@@ -380,11 +378,11 @@ let g:multi_cursor_exit_from_visual_mode = 0
 let g:deoplete#auto_complete_delay = 100
 
 function! Multiple_cursors_before()
-  call DeopleteMultipleCursorsSwitch(1)
+  call deoplete_config#multiple_cursors_switch(1)
 endfunction
 
 function! Multiple_cursors_after()
-  call DeopleteMultipleCursorsSwitch(0)
+  call deoplete_config#multiple_cursors_switch(0)
 endfunction
 
 noremap g<c-n> :MultipleCursorsFind <c-r>/<cr>
@@ -416,29 +414,7 @@ nnoremap <silent> <C-L> :TmuxNavigateRight<cr>
 
 " "}}}
 " # Pipe visual to shell {{{
-" Plugin extractable
-" By Xolox @ http://stackoverflow.com/questions/1533565/how-to-get-visually-selected-text-in-vimscript
-function! s:get_visual_selection()
-  let [lnum1, col1] = getpos("'<")[1:2]
-  let [lnum2, col2] = getpos("'>")[1:2]
-  let lines = getline(lnum1, lnum2)
-  let lines[-1] = lines[-1][: col2 - (&selection == 'inclusive' ? 1 : 2)]
-  let lines[0] = lines[0][col1 - 1:]
-  return join(lines, "\n")
-endfunction
-
-function! s:Chomp(string)
-  return substitute(a:string, '\n\+$', '', '')
-endfunction
-
-function! s:visual_command() range
-  let text = s:get_visual_selection()
-  let cmd = input('Pipe: ', '', 'shellcmd')
-  let @v = s:Chomp(system(cmd, text))
-  execute 'normal! gv"vp'
-endfunction
-
-command! -range VisualCommand <line1>,<line2>call s:visual_command()
+command! -range VisualCommand <line1>,<line2>call vim_utils#visual_command()
 vnoremap <leader>\| :VisualCommand<CR>
 
 " }}} "
@@ -488,20 +464,7 @@ let g:gutentags_exclude = ['node_modules', '.git']
 " Plugin extractable
 let g:deoplete#omni#input_patterns = {}
 let g:deoplete#omni#input_patterns.ruby = ['[^. *\t]\.\w*', '[a-zA-Z_]\w*::']
-" let g:deoplete#omni#input_patterns.javascript = "(\\.)"
 let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
-
-function! DeopleteMultipleCursorsSwitch(before)
-  if !exists('g:loaded_deoplete')
-    return
-  endif
-  if a:before
-    let s:old_disable_deoplete = g:deoplete#disable_auto_complete
-    let g:deoplete#disable_auto_complete = 1
-  else
-    let g:deoplete#disable_auto_complete = s:old_disable_deoplete
-  endif
-endfunction
 
 let g:deoplete#enable_at_startup = 1
 let g:deoplete#file#enable_buffer_path = 1
@@ -511,19 +474,8 @@ augroup preview_window
   autocmd InsertLeave * pclose!
 augroup end
 
-function! MyArrowNavigation(direction)
-  let pumNavigation = { 'Down': "\<C-N>", 'Up': "\<C-P>" }
-  let arrowNavigation = { 'Down': "\<Down>", 'Up': "\<Up>" }
-
-  if pumvisible()
-    return pumNavigation[a:direction]
-  endif
-
-  return arrowNavigation[a:direction]
-endfunction
-
-inoremap <silent> <up> <c-r>=MyArrowNavigation('Up')<CR>
-inoremap <silent> <Down> <c-r>=MyArrowNavigation('Down')<CR>
+inoremap <silent> <up> <c-r>=deoplete_config#arrow_navigation('Up')<CR>
+inoremap <silent> <Down> <c-r>=deoplete_config#arrow_navigation('Down')<CR>
 inoremap <expr><C-l> deoplete#refresh()
 
 " "}}}
@@ -547,7 +499,6 @@ inoremap <c-x><c-k> <c-x><c-k>
 nmap <leader>esp :UltiSnipsEdit<cr>
 
 augroup set_snippets_filetype_correctly
-  " this one is which you're most likely to use?
   autocmd!
   autocmd BufRead *.snippets setlocal filetype=snippets
 augroup end
@@ -580,10 +531,10 @@ map <silent> <localleader>vz :call VimuxZoomRunner()<CR>
 map <silent> <localleader>vo :call VimuxOpenRunner()<CR>
 
 " If text is selected, save it in the v buffer and send that buffer it to tmux
-vmap <silent> <localleader>vs :call VimuxSlime()<CR>`>j^
-vmap <silent> <localleader>vj Jgv:call VimuxSlime()<CR>u`>j^
-vmap <silent> <localleader>vyp Jgv:call VimuxCopyPostres()<CR>u`>j^
-vmap <silent> <localleader>v; Jgv:call VimuxSlimeSemicolon()<CR>u`>j^
+vmap <silent> <localleader>vs :call vimux_config#slime()<CR>`>j^
+vmap <silent> <localleader>vj Jgv:call vimux_config#slime()<CR>u`>j^
+vmap <silent> <localleader>vyp Jgv:call vimux_config#copy_postgres()<CR>u`>j^
+vmap <silent> <localleader>v; Jgv:call vimux_config#slime_semicolon()<CR>u`>j^
 vmap <silent> <localleader><CR> <localleader>vs
 
 " Select current paragraph and send it to tmux
@@ -596,80 +547,16 @@ nmap <silent> <localleader>vaa ggVG<localleader>vs
 nmap <silent> <localleader>vaj ggVG<localleader>vj
 
 " Execute current file in the interpreter
-nnoremap <silent> <localleader>vf :w<CR>:call VimuxRunCommand(GetExecuteCommand())<CR>
-nnoremap <silent> <localleader>vw :call VimuxRunCommand(GetNodemonCommand())<CR>
-nmap <silent> <localleader>vr <localleader>vq:call VimuxRunCommand(GetReplCommand())<CR>
-nnoremap <silent> <localleader>vtp :call VimuxRunPagarmeTest()<cr>
-
-function! VimuxSlime() range
-  call VimuxRunCommand(s:get_visual_selection())
-endfunction
-
-function! VimuxRunPagarmeTest()
-  if getcwd() =~ '.*gateway^'
-    let script = './script/test-unit'
-  else
-    let script = './script/test'
-  endif
-
-  call VimuxRunCommand('exec-notify '. script . ' ' . expand('%'))
-endfunction
-
-function! VimuxSlimeLineBreak() range
-  call VimuxSlime()
-  call VimuxSendKeys('Enter')
-endfunction
-
-function! VimuxSlimeSemicolon() range
-  call VimuxRunCommand(s:get_visual_selection() . '\;')
-endfunction
-
-function! VimuxCopyPostres() range
-  call VimuxRunCommand('\COPY (' . s:get_visual_selection() . ") TO PROGRAM 'pbcopy' DELIMITER e'\\t' CSV HEADER\;")
-endfunction
-
-function! GetExecuteCommand()
-  let filetype_to_command = {
-        \   'javascript': 'node',
-        \   'coffee': 'coffee',
-        \   'python': 'python',
-        \   'html': 'open',
-        \   'ruby': 'ruby',
-        \   'sh': 'sh',
-        \   'bash': 'bash'
-        \ }
-  let cmd = get(filetype_to_command, &filetype, &filetype)
-  return cmd . " " . expand("%")
-endfunction
-
-function! GetNodemonCommand()
-  let filetype_to_extension = {
-        \   'javascript': 'js',
-        \   'coffee': 'coffee',
-        \   'python': 'py',
-        \   'ruby': 'rb'
-        \ }
-  let extension = get(filetype_to_extension, &filetype, &filetype)
-  let cmd = GetExecuteCommand()
-  return  'nodemon -L -e "' . extension . '" -x "' . cmd . '"'
-endfunction
-
-function! GetReplCommand()
-  let filetype_to_repl = {
-        \   'javascript': 'node',
-        \   'ruby': 'rbenv exec pry',
-        \   'sql': 'pagarme_postgres'
-        \ }
-  let repl_bin = get(filetype_to_repl, &filetype, &filetype)
-  echo repl_bin
-  return  repl_bin
-endfunction
+nnoremap <silent> <localleader>vf :w<CR>:call VimuxRunCommand(vimux_config#get_execute_command())<CR>
+nnoremap <silent> <localleader>vw :call VimuxRunCommand(vimux_config#get_nodemon_command())<CR>
+nmap <silent> <localleader>vr <localleader>vq:call VimuxRunCommand(vimux_config#get_repl_command())<CR>
+nnoremap <silent> <localleader>vtp :call vimux_config#run_pagarme_test()<cr>
 
 " Python specific shortcuts
 augroup python_vimux_shortuts
   autocmd!
   autocmd FileType python vmap <buffer> <localleader>vs :call VimuxSlimeLineBreak()<CR>`>j^
-  autocmd FileType python nmap <localleader><CR> V:call VimuxSlime()<CR>`>j^
+  autocmd FileType python nmap <localleader><CR> V:call vimux_config#slime()<CR>`>j^
 augroup END
 
 " "}}}
@@ -761,17 +648,12 @@ let g:fzf_history_dir = '~/.local/share/fzf-history'
 nnoremap <c-f> :Ag<space>
 
 nnoremap <silent> <leader>a :<c-u>Ag <c-r><c-w><cr>
-vnoremap <silent> <leader>a :<c-u>call CallFzfAg()<cr>
+vnoremap <silent> <leader>a :<c-u>call fzf_config#visual_ag()<cr>
 nnoremap <silent> <leader>li :BLines<cr>
 nnoremap <silent> <leader>hp :Helptags<cr>
 nnoremap <silent> <leader>cm :Commands<cr>
 nnoremap <silent> <leader>hi :History:<cr>
 nnoremap <silent> <leader>ft :Filetypes<cr>
-
-function! CallFzfAg()
-  let selection = s:get_visual_selection()
-  execute "Ag " . selection
-endfunction
 
 " "}}}
 " # Unite.vim {{{
@@ -795,32 +677,6 @@ let g:unite_quickfix_is_multiline=0
 call unite#custom_source('quickfix', 'converters', 'converter_quickfix_highlight')
 call unite#custom_source('location_list', 'converters', 'converter_quickfix_highlight')
 
-augroup unite_settings
-  autocmd!
-  autocmd FileType unite call s:unite_my_settings()
-augroup end
-
-function! s:unite_my_settings()
-  nmap <buffer> <C-z> <Plug>(unite_toggle_transpose_window)
-  imap <buffer> <C-z> <Plug>(unite_toggle_transpose_window)
-  nmap <buffer> J <Plug>(unite_toggle_auto_preview)
-  nmap <buffer> K <Plug>(unite_print_candidate)
-  nmap <buffer> L <Plug>(unite_redraw)
-  nunmap <buffer> <c-k>
-  nunmap <buffer> <c-l>
-  nunmap <buffer> <c-h>
-  imap <buffer> <C-j> <Plug>(unite_toggle_auto_preview)
-  nmap <buffer> <C-r> <Plug>(unite_narrowing_input_history)
-  imap <buffer> <C-r> <Plug>(unite_narrowing_input_history)
-  nmap <buffer> <Tab> <Plug>(unite_complete)
-  imap <buffer> <Tab> <Plug>(unite_complete)
-  nmap <buffer> <C-@> <Plug>(unite_choose_action)
-  imap <buffer> <C-@> <Plug>(unite_choose_action)
-  nmap <buffer> <esc> <Plug>(unite_exit)
-  nmap <buffer> / <Plug>(unite_insert_enter)
-  nmap <buffer><expr> v unite#do_action('left')
-  imap <buffer><expr> <c-v> unite#do_action('left')
-endfunction
 " " }}}
 " # Prefix shortcuts {{{
 " Plugin extractable
@@ -919,20 +775,8 @@ let g:autoswap_detect_tmux = 1
 " "}}}
 " # Delimitmate  {{{
 " Extractable configuration
-function! DelimitMateCompletion(key)
-  " Because of a Deoplete bug, I have to repeat a key to try to restore
-  " original vim behaviour
-  return (delimitMate#ShouldJump() ? "\<Del>" : "")
-        \ . "\<c-x>" . a:key . (pumvisible() ? a:key : "")
-endfunction
+imap <expr> <c-x><c-l> delimitmate_config#completion("\<c-l>")
 
-function! CustomCompletion(key)
-  return "\<c-x>" . a:key . (pumvisible() ? a:key : "")
-endfunction
-
-imap <expr> <c-x><c-l> DelimitMateCompletion("\<c-l>")
-imap <expr> <c-x><c-n> CustomCompletion("\<c-n>")
-imap <expr> <c-x><c-p> CustomCompletion("\<c-p>")
 let g:delimitMate_expand_space = 1
 let g:delimitMate_expand_cr = 1
 let g:delimitMate_nesting_quotes = ['"','`', "'"]
@@ -990,10 +834,5 @@ if has('nvim')
   map P <Plug>(miniyank-autoPut)
   map <leader>p <Plug>(miniyank-cycle)
 endif
-" "}}}
-" # Flow  {{{
-let g:flow#enable = 0
-nnoremap <leader>tt :FlowType<cr>
-nnoremap <leader>td :FlowJumpToDef<cr>
 " "}}}
 
