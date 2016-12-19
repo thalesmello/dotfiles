@@ -69,7 +69,6 @@ Plug 'junegunn/fzf' | Plug 'junegunn/fzf.vim'
 Plug 'tpope/vim-speeddating'
 Plug 'vimwiki/vimwiki'
 Plug 'itchyny/vim-cursorword'
-Plug 'osyo-manga/vim-over'
 Plug 'wincent/terminus'
 Plug 'haya14busa/incsearch.vim'
 Plug 'davidhalter/jedi'
@@ -257,11 +256,11 @@ nnoremap zf mzzM`zzvzz
 
 " Files open expanded
 " Use decent folding
-augroup fold_settings
-  autocmd!
-  autocmd VimEnter * set foldlevelstart=50
-  autocmd VimEnter * set foldmethod=indent
-augroup end
+if !exists('g:set_fold_setting')
+  set foldlevelstart=50
+  set foldmethod=indent
+  let g:set_fold_setting = 1
+endif
 
 
 " }}}
@@ -351,12 +350,10 @@ vnoremap + <esc>`<kV`>j0
 nnoremap <leader>V vg_
 
 " "}}}
-" # Vim over  {{{
+" # Command substitution  {{{
 " Lazy loadable
-nnoremap  gs  :OverCommandLine<cr>%s//g<LEFT><LEFT>
-vnoremap  gs  :OverCommandLine<cr>s//g<LEFT><LEFT>
-nnoremap  <leader>: :OverCommandLine<cr>
-let g:over_enable_auto_nohlsearch = 0
+nnoremap  gs  :%s//g<LEFT><LEFT>
+vnoremap  gs  :s//g<LEFT><LEFT>
 
 " "}}}
 " # Vim Multiple Cursors  {{{
@@ -785,6 +782,7 @@ map g/ <Plug>(incsearch-stay)
 " # Highlightedyank  {{{
 let g:highlightedyank_highlight_duration = 200
 " "}}}
+" # Nvim-R  {{{
 let R_assign = 0
 let R_in_buffer = 0
 let R_applescript = 0
