@@ -1,1 +1,1 @@
-Guifont Sauce Code Pro Nerd Font Complete Mono:h13
+Guifont SauceCodePro Nerd Font:h16
