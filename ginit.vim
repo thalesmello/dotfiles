@@ -1,1 +1,1 @@
-Guifont Monaco for Powerline Plus Nerd File Types:h13
+Guifont Sauce Code Pro Nerd Font Complete Mono:h13

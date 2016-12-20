@@ -91,7 +91,6 @@ Plug 'vim-scripts/SyntaxRange'
 Plug 'jalvesaq/Nvim-R'
 Plug 'bfredl/nvim-miniyank', Cond(has('nvim'))
 Plug 'alcesleo/vim-uppercase-sql'
-Plug 'wincent/replay'
 Plug 'moll/vim-node'
 
 " Unite
