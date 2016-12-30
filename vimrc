@@ -105,7 +105,7 @@ Plug 'thalesmello/config-unite-outline'
 
 " Deoplete
 Plug 'Shougo/deoplete.nvim',            Cond(has('nvim'))
-Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
+" Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
 Plug 'zchee/deoplete-jedi',             Cond(has('nvim'), {'for': 'python'})
 Plug 'mhartington/deoplete-typescript', Cond(has('nvim'), {'for': 'javascript'})
 
@@ -129,6 +129,9 @@ Plug 'kana/vim-textobj-fold'
 Plug 'thalesmello/vim-textobj-methodcall'
 Plug 'thalesmello/vim-textobj-bracketchunk'
 Plug 'rhysd/vim-textobj-conflict'
+
+" New
+" Plug 'ivalkeen/vim-simpledb'
 
 " TODO: Check
 " github-complete.vim
@@ -480,10 +483,10 @@ augroup end
 
 " "}}}
 " # NerdTREE  {{{
-noremap <leader>nt :NERDTreeToggle<CR>
+noremap <silent> <leader>nt :NERDTreeToggle<CR>
 let g:NERDTreeHijackNetrw = 0
 let g:NERDTreeIgnore = ['\.pyc$']
-nnoremap <leader>nf :NERDTreeFind<cr>
+nnoremap <silent> <leader>nf :NERDTreeFind<cr>
 let g:NERDTreeQuitOnOpen = 1
 
 " "}}}
@@ -806,7 +809,7 @@ if has('nvim')
   map <leader>p <Plug>(miniyank-cycle)
 endif
 " "}}}
-
+" # Hyperblame {{{ "
 function! HyperBlameFunction()
   let file = expand('%')
   let line = line('.')
@@ -818,5 +821,11 @@ function! HyperBlameFunction()
 endfunction
 
 command! HyperBlame call HyperBlameFunction()
+" }}} Hyperblame "
+" Lookml {{{ "
+augroup lookml
+  autocmd!
+  autocmd BufRead *.lookml setfiletype yaml
+augroup end
 
-
+" }}} Lookml "
