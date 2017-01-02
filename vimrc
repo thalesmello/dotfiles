@@ -40,7 +40,7 @@ Plug 'teranex/jk-jumps.vim'
 Plug 'rstacruz/sparkup'
 Plug 'thalesmello/vim-sleuth'
 Plug 'terryma/vim-multiple-cursors'
-Plug 'thalesmello/vim-tmux-navigator'
+Plug 'christoomey/vim-tmux-navigator'
 Plug 'airblade/vim-gitgutter'
 Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'
@@ -131,7 +131,7 @@ Plug 'thalesmello/vim-textobj-bracketchunk'
 Plug 'rhysd/vim-textobj-conflict'
 
 " New
-" Plug 'ivalkeen/vim-simpledb'
+Plug 'ivalkeen/vim-simpledb'
 
 " TODO: Check
 " github-complete.vim
@@ -222,6 +222,7 @@ set noshowmode
 set updatetime=500
 set sidescroll=2
 set showbreak=↪
+set tabstop=4
 
 if has('nvim')
   set termguicolors
@@ -236,8 +237,7 @@ endif
 " }}}
 " ##### General mappings  {{{
 " ##### Tabs {{{
-nnoremap <leader>tn :tabnew<cr>
-nnoremap <leader>te :tabedit
+nnoremap <leader>tn <C-W>T
 nnoremap <leader>tc :tabclose<cr>
 nnoremap [t :tabprevious<cr>
 nnoremap ]t :tabnext<cr>
@@ -323,11 +323,6 @@ nmap c* *Ncgn
 nnoremap Y y$
 nnoremap <leader>fw :FixWhitespace<cr>
 vmap <leader>yj Jgvyu
-nmap <leader>tn :tabnew<cr>
-vmap <leader>tn y:tabnew<cr>p
-nmap <leader>bn :vnew<cr>
-vmap <leader>bn y:vnew<cr>p
-nmap <leader>bc :bw<cr>
 noremap <c-e> 2<c-e>
 noremap <c-y> 2<c-y>
 nnoremap <leader>; A;<esc>
