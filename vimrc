@@ -132,6 +132,9 @@ Plug 'rhysd/vim-textobj-conflict'
 
 " New
 Plug 'ivalkeen/vim-simpledb'
+Plug 'fatih/vim-go'
+Plug 'zchee/deoplete-go'
+Plug 'Shougo/neco-vim'
 
 " TODO: Check
 " github-complete.vim
@@ -237,7 +240,7 @@ endif
 " }}}
 " ##### General mappings  {{{
 " ##### Tabs {{{
-nnoremap <leader>tn <C-W>T
+nnoremap <silent> <leader>tn :execute  "tabedit % \| call setpos('.', " . string(getpos('.')) . ")"<cr>
 nnoremap <leader>tc :tabclose<cr>
 nnoremap [t :tabprevious<cr>
 nnoremap ]t :tabnext<cr>
@@ -415,7 +418,6 @@ let g:unite_outline_closest_tag = ""
 autocmd User AirlineAfterInit call airline_config#init()
 
 " "}}}
-
 " # Tmuxline  {{{
 " Plugin extractable configuration?
 let g:airline#extensions#tmuxline#enabled = 0
