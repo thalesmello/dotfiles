@@ -457,9 +457,10 @@ inoremap <expr><C-l> deoplete#refresh()
 " # UltiSnips  {{{
 " Create command to load ultisnips and call it on vimenter
 " Plugin extractable configuration
+autocmd User Defer call plug#load('ultisnips')
+
 let g:ulti_expand_res = 0
 let g:ulti_jump_forwards_res = 0
-
 let g:UltiSnipsEditSplit           = "vertical"
 xnoremap <silent> <tab> :call UltiSnips#SaveLastVisualSelection()<CR>gvs
 inoremap <silent> <c-l> <c-r>=ultisnips_config#jump_or_expand_snippet()<cr>
@@ -826,3 +827,12 @@ augroup lookml
 augroup end
 
 " }}} Lookml "
+" Defer mechanism {{{ "
+augroup DeferBoot
+  autocmd!
+  if has('vim_starting')
+    autocmd CursorHold,CursorHoldI * call autocmd#deferboot()
+  endif
+augroup END
+
+" }}} Defer mechanism "

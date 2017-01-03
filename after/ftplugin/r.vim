@@ -1,3 +1,8 @@
+if exists("b:did_after_ftplugin")
+  finish
+endif
+let b:did_after_ftplugin = 1
+
 vmap <buffer> <localleader><CR> <localleader>sd
 nmap <buffer> <localleader><CR> <localleader>d
 nmap <buffer> <CR> <localleader>d
