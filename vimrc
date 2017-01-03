@@ -60,7 +60,7 @@ Plug 'simnalamburt/vim-mundo'
 Plug 'simeji/winresizer'
 Plug 'godlygeek/tabular'
 Plug 'wesQ3/vim-windowswap'
-Plug 'thalesmello/lazy.ultisnips' | Plug 'SirVer/ultisnips', Cond(v:version >= 704, { 'on': ['UltiSnipsEdit'] })
+Plug 'SirVer/ultisnips', Cond(v:version >= 704, { 'on': ['UltiSnipsEdit'] })
 Plug 'honza/vim-snippets'
 Plug 'ryanoasis/vim-devicons'
 Plug 'AndrewRadev/splitjoin.vim'
@@ -95,7 +95,7 @@ Plug 'moll/vim-node'
 
 " Unite
 Plug 'Shougo/unite.vim'
-Plug 'thalesmello/config.neoyank.vim' | Plug 'Shougo/neoyank.vim'
+Plug 'thalesmello/config.neoyank.vim' | Plug 'Shougo/neoyank.vim', { 'on': [] }
 Plug 'Shougo/unite-help'
 Plug 'thinca/vim-unite-history'
 Plug 'thalesmello/unite-cmdmatch'
@@ -638,6 +638,7 @@ nnoremap <silent> <leader>ft :Filetypes<cr>
 " Lazy loadable?
 " # Unite buffer options {{{
 " Plugn extractable
+autocmd User Defer call plug#load('neoyank.vim')
 call unite#custom#source('grep, lines', 'max_candidates', 1000)
 call unite#custom#source('grep', 'sorters', 'sorter_rank')
 call unite#custom#source('location_list, quickfix', 'sorters', 'sorter_nothing')
