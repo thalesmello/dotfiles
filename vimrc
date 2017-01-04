@@ -1,23 +1,9 @@
 " OriginalAuthor: Pedro Franceschi <pedrohfranceschi@gmail.com>
 " ModifiedVersion: Thales Mello <thalesmello@gmail.com>
-" Source: http://github.com/pedrofranceschi/vimfiles
+" Source: http://github.com/thalesmello/vimfiles
 
 " ##### Plug setup  {{{
 set nocompatible
-
-" Install Plug if not already loaded
-if empty(glob('~/.vim/autoload/plug.vim'))
-  silent !curl -fLo ~/.vim/autoload/plug.vim --create-dirs
-        \ https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
-  autocmd VimEnter * PlugInstall | source $MYVIMRC
-endif
-
-
-function! Cond(cond, ...)
-  let opts = get(a:000, 0, {})
-  return a:cond ? opts : extend(opts, { 'on': [], 'for': [] })
-endfunction
-
 call plug#begin()
 
 " "}}}
@@ -44,7 +30,7 @@ Plug 'christoomey/vim-tmux-navigator'
 Plug 'airblade/vim-gitgutter'
 Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'
-Plug 'ludovicchabant/vim-gutentags', Cond(v:version >= 704)
+Plug 'ludovicchabant/vim-gutentags', only#if(v:version >= 704)
 Plug 'easymotion/vim-easymotion'
 Plug 'tpope/vim-rsi'
 Plug 'thalesmello/tmux-complete.vim'
@@ -60,7 +46,7 @@ Plug 'simnalamburt/vim-mundo'
 Plug 'simeji/winresizer'
 Plug 'godlygeek/tabular'
 Plug 'wesQ3/vim-windowswap'
-Plug 'SirVer/ultisnips', Cond(v:version >= 704, { 'on': ['UltiSnipsEdit'] })
+Plug 'SirVer/ultisnips', only#if(v:version >= 704, { 'on': ['UltiSnipsEdit'] })
 Plug 'honza/vim-snippets'
 Plug 'ryanoasis/vim-devicons'
 Plug 'AndrewRadev/splitjoin.vim'
@@ -89,7 +75,7 @@ Plug 'machakann/vim-highlightedyank'
 Plug 'vim-scripts/ingo-library'
 Plug 'vim-scripts/SyntaxRange'
 Plug 'jalvesaq/Nvim-R'
-Plug 'bfredl/nvim-miniyank', Cond(has('nvim'))
+Plug 'bfredl/nvim-miniyank', only#if(has('nvim'))
 Plug 'alcesleo/vim-uppercase-sql'
 Plug 'moll/vim-node'
 
@@ -104,10 +90,10 @@ Plug 'osyo-manga/unite-quickfix'
 Plug 'thalesmello/config-unite-outline'
 
 " Deoplete
-Plug 'Shougo/deoplete.nvim',            Cond(has('nvim'))
-" Plug 'thalesmello/webcomplete.vim',     Cond(has('nvim'))
-Plug 'zchee/deoplete-jedi',             Cond(has('nvim'), {'for': 'python'})
-Plug 'mhartington/deoplete-typescript', Cond(has('nvim'), {'for': 'javascript'})
+Plug 'Shougo/deoplete.nvim',            only#if(has('nvim'))
+" Plug 'thalesmello/webcomplete.vim',     only#if(has('nvim'))
+Plug 'zchee/deoplete-jedi',             only#if(has('nvim'), {'for': 'python'})
+Plug 'mhartington/deoplete-typescript', only#if(has('nvim'), {'for': 'javascript'})
 
 " Text objects
 Plug 'kana/vim-textobj-user'
@@ -145,17 +131,7 @@ Plug 'Shougo/neco-vim'
 " ##### Finish loading Plug  {{{
 call plug#end()
 
-function! PendingPlugInstall()
-  if !empty(filter(copy(g:plugs), '!isdirectory(v:val.dir)'))
-    PlugInstall
-
-    if has('nvim')
-      UpdateRemotePlugins
-    endif
-  endif
-endfunction
-
-autocmd VimEnter * call PendingPlugInstall()
+call auto#defer('plug_utils#pending_install()')
 
 " }}}
 " ##### Basic options  {{{
@@ -245,10 +221,6 @@ nnoremap <leader>tc :tabclose<cr>
 nnoremap [t :tabprevious<cr>
 nnoremap ]t :tabnext<cr>
 " }}}
-" Emacs like line mappings {{{ "
-cnoremap <C-A> <home>
-cnoremap <C-E> <end>
-" }}}
 " ##### Split windows {{{
 
 " Create windows
@@ -261,12 +233,10 @@ nnoremap zf mzzM`zzvzz
 
 " Files open expanded
 " Use decent folding
-if !exists('g:set_fold_setting')
+if has('vim_starting')
   set foldlevelstart=50
   set foldmethod=indent
-  let g:set_fold_setting = 1
 endif
-
 
 " }}}
 " ##### Misc {{{
@@ -296,9 +266,6 @@ nnoremap <leader>gr :Gread<cr>
 nnoremap <leader>grm :Gremove<cr>
 nnoremap <leader>gp :Git push
 " }}}
-" ##### Number toggle  {{{
-let g:NumberToggleTrigger="<leader>ll"
-"}}}
 " # Mappings  {{{
 map <MiddleMouse> <Nop>
 imap <MiddleMouse> <Nop>
@@ -306,6 +273,8 @@ noremap Q gq
 nnoremap K <nop>
 nnoremap & <Nop>
 vnoremap <CR> "+y
+" The snippet below tries to intelligently split a string and append a concat
+" operator in it
 nnoremap <leader><cr> mz?\v(".*"\|'.*')<cr>"qyl`zi<c-r>q +<cr><c-r>q<esc>
 nnoremap <leader>yy gv"+y
 vnoremap <leader>yy "+y
@@ -348,10 +317,6 @@ vnoremap _ <esc>`<jV`>k0
 vnoremap - <esc>`<jV`>k0
 vnoremap + <esc>`<kV`>j0
 nnoremap <leader>V vg_
-
-" "}}}
-" # Command substitution  {{{
-" Lazy loadable
 nnoremap  gs  :%s//g<LEFT><LEFT>
 vnoremap  gs  :s//g<LEFT><LEFT>
 
@@ -444,10 +409,7 @@ let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
 let g:deoplete#enable_at_startup = 1
 let g:deoplete#file#enable_buffer_path = 1
 
-augroup preview_window
-  autocmd!
-  autocmd InsertLeave * pclose!
-augroup end
+call auto#cmd('preview_window', 'InsertLeave * pclose!')
 
 inoremap <silent> <up> <c-r>=deoplete_config#arrow_navigation('Up')<CR>
 inoremap <silent> <Down> <c-r>=deoplete_config#arrow_navigation('Down')<CR>
@@ -457,7 +419,7 @@ inoremap <expr><C-l> deoplete#refresh()
 " # UltiSnips  {{{
 " Create command to load ultisnips and call it on vimenter
 " Plugin extractable configuration
-autocmd User Defer call plug#load('ultisnips')
+call auto#defer("plug#load('ultisnips')")
 
 let g:ulti_expand_res = 0
 let g:ulti_jump_forwards_res = 0
@@ -474,10 +436,7 @@ imap <c-j> <nop>
 inoremap <c-x><c-k> <c-x><c-k>
 nmap <leader>esp :UltiSnipsEdit<cr>
 
-augroup set_snippets_filetype_correctly
-  autocmd!
-  autocmd BufRead *.snippets setlocal filetype=snippets
-augroup end
+call auto#cmd('set_snippets_filetype', 'BufRead *.snippets setlocal filetype=snippets')
 
 " "}}}
 " # NerdTREE  {{{
@@ -552,7 +511,7 @@ let g:formatters_sql = ['sqlformat']
 let g:formatters_ruby = ['rubocop']
 
 " "}}}
-" # GUndo  {{{
+" # Mundo  {{{
 " Lazy configurable
 nnoremap <leader>gu :MundoToggle<CR>
 
@@ -584,18 +543,11 @@ xmap ah <Plug>GitGutterTextObjectOuterVisual
 " "}}}
 " # Textobj User  {{{
 " Plugin extractable configuration? study possibility
-call textobj#user#map('python', {
-      \   'class': {
-      \     'select-a': 'aP',
-      \     'select-i': 'iP',
-      \   },
-      \ })
+call textobj#user#map('python', { 'class': { 'select-a': 'aP', 'select-i': 'iP', } })
 let g:textobj_python_no_default_key_mappings = 1
 
 call textobj#user#map('indent', { '-': { 'select-a': 'ai', 'select-i': 'ii' } })
 let g:textobj_indent_no_default_key_mappings = 1
-nnoremap <leader>saq ?\v('''\|""")<CR>vw//e<CR>
-nnoremap <leader>siq ?\v('''\|""")<CR>wv//e<CR>ge
 
 " "}}}
 " # Textobj column  {{{
@@ -638,7 +590,7 @@ nnoremap <silent> <leader>ft :Filetypes<cr>
 " Lazy loadable?
 " # Unite buffer options {{{
 " Plugn extractable
-autocmd User Defer call plug#load('neoyank.vim')
+call auto#defer("plug#load('neoyank.vim')")
 call unite#custom#source('grep, lines', 'max_candidates', 1000)
 call unite#custom#source('grep', 'sorters', 'sorter_rank')
 call unite#custom#source('location_list, quickfix', 'sorters', 'sorter_nothing')
@@ -720,10 +672,7 @@ let g:neomake_java_enabled_makers = []
 
 hi NeomakeErrorSign ctermfg=white
 
-augroup my_error_signs
-  au!
-  autocmd ColorScheme * hi NeomakeErrorSign ctermfg=white
-augroup END
+call auto#cmd('my_error_signs', 'ColorScheme * hi NeomakeErrorSign ctermfg=white')
 
 let g:neomake_tsc_maker = {
       \ 'exe': 'tsc',
@@ -753,9 +702,8 @@ let g:delimitMate_expand_space = 1
 let g:delimitMate_expand_cr = 1
 let g:delimitMate_nesting_quotes = ['"','`', "'"]
 
-if !exists('g:set_carriage_return')
+if has('vim_starting')
   imap <CR> <C-G>u<Plug>delimitMateCR
-  let g:set_carriage_return = 1
 endif
 
 " "}}}
@@ -809,31 +757,13 @@ if has('nvim')
 endif
 " "}}}
 " # Hyperblame {{{ "
-function! HyperBlameFunction()
-  let file = expand('%')
-  let line = line('.')
-  let type = &filetype
-  tabnew
-  execute "-1r! git hyper-blame -i 050270c -i f0a0054 -i 94b1d49 -i 328db36" file
-  execute line
-  execute "setfiletype" type
-endfunction
-
-command! HyperBlame call HyperBlameFunction()
+command! HyperBlame call hyperblame#open()
 " }}} Hyperblame "
 " Lookml {{{ "
-augroup lookml
-  autocmd!
-  autocmd BufRead *.lookml setfiletype yaml
-augroup end
+call auto#cmd('lookml', 'BufRead *.lookml setfiletype yaml')
 
 " }}} Lookml "
 " Defer mechanism {{{ "
-augroup DeferBoot
-  autocmd!
-  if has('vim_starting')
-    autocmd CursorHold,CursorHoldI * call autocmd#deferboot()
-  endif
-augroup END
+call auto#setup_defer()
 
 " }}} Defer mechanism "
