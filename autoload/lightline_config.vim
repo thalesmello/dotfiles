@@ -2,8 +2,8 @@ function! lightline_config#load()
   let g:lightline = {
         \ 'colorscheme': 'gruvbox',
         \ 'active': {
-        \   'left': [[ 'mode', 'paste'], ['filename'], ['ctrlpmark']],
-        \   'right': [['syntastic', 'lineinfo', 'percent'], ['fileformat', 'fileencoding', 'filetype', 'fugitive'], ['%>']]
+        \   'left': [[ 'mode', 'paste'], ['filename'], ['ctrlpmark'], ['fugitive']],
+        \   'right': [['syntastic', 'lineinfo', 'percent'], ['fileformat', 'fileencoding', 'filetype'], ['%<']]
         \ },
         \ 'component_function': {
         \   'fugitive': 'lightline_config#fugitive',
@@ -48,7 +48,7 @@ endfunction
 
 function! lightline_config#fugitive()
   try
-    if expand('%:t') !~? 'Tagbar\|Gundo\|NERD' && &ft !~? 'vimfiler' && exists('*fugitive#head') && winwidth(0) > 50
+    if expand('%:t') !~? 'Tagbar\|Gundo\|NERD' && &ft !~? 'vimfiler' && exists('*fugitive#head') && winwidth(0) > 80
       let mark = ''  " edit here for cool mark
       let branch = fugitive#head()
       return branch !=# '' ? mark.branch : ''
