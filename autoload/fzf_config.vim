@@ -4,5 +4,9 @@ function! fzf_config#visual_ag()
 endfunction
 
 function! fzf_config#smart_ctrlp()
-  ProjectRootExe FZF
+  if expand('%:p') =~ getcwd()
+    FZF
+  else
+    execute 'FZF' projectroot#guess()
+  endif
 endfunction
