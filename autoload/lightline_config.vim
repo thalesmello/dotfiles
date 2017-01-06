@@ -3,7 +3,7 @@ function! lightline_config#load()
         \ 'colorscheme': 'gruvbox',
         \ 'active': {
         \   'left': [[ 'mode', 'paste'], ['filename'], ['ctrlpmark']],
-        \   'right': [['syntastic', 'lineinfo', 'percent'], ['fileformat', 'fileencoding', 'filetype', 'fugitive']]
+        \   'right': [['syntastic', 'lineinfo', 'percent'], ['fileformat', 'fileencoding', 'filetype', 'fugitive'], ['%>']]
         \ },
         \ 'component_function': {
         \   'fugitive': 'lightline_config#fugitive',
@@ -34,7 +34,7 @@ function! lightline_config#readonly()
 endfunction
 
 function! lightline_config#filename()
-  let fname = expand('%:t')
+  let fname = pathshorten(expand('%'))
   return fname == 'ControlP' && has_key(g:lightline, 'ctrlp_item') ? g:lightline.ctrlp_item :
         \ fname == '__Tagbar__' ? g:lightline.fname :
         \ fname =~ '__Gundo\|NERD_tree' ? '' :
