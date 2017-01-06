@@ -59,7 +59,6 @@ set virtualedit=block,onemore
 set background=dark
 colorscheme gruvbox
 
-let maplocalleader = "'"
 set cursorline
 set listchars=tab:▸\ ,eol:¬
 set splitbelow
@@ -74,8 +73,6 @@ if has('nvim')
   set termguicolors
   let $NVIM_TUI_ENABLE_CURSOR_SHAPE = 1
 endif
-
-let mapleader = "\<space>"
 
 if exists('&inccommand')
   set inccommand=split

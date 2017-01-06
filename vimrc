@@ -122,3 +122,6 @@ Plug 'Shougo/neco-vim'
 " make outline use ctags for JavaScript
 
 call plug#end()
+
+let mapleader = "\<space>"
+let maplocalleader = "'"
