@@ -115,6 +115,7 @@ Plug 'ivalkeen/vim-simpledb'
 Plug 'fatih/vim-go'
 Plug 'zchee/deoplete-go'
 Plug 'Shougo/neco-vim'
+Plug 'aliou/sql-heredoc.vim'
 
 " TODO: Check
 " github-complete.vim
