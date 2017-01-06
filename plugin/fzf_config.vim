@@ -1,5 +1,5 @@
-nnoremap <c-p> :<c-u>FZF<CR>
-vnoremap <c-p> :<c-u>FZF<CR>
+nnoremap <silent><c-p> :<c-u>call fzf_config#smart_ctrlp()<cr>
+vnoremap <silent><c-p> :<c-u>call fzf_config#smart_ctrlp()<cr>
 
 let g:fzf_history_dir = '~/.local/share/fzf-history'
 
