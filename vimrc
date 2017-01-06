@@ -295,6 +295,7 @@ nnoremap <leader>V vg_
 nnoremap  gs  :%s//g<LEFT><LEFT>
 vnoremap  gs  :s//g<LEFT><LEFT>
 
+" " }}}
 " # Vim Multiple Cursors  {{{
 " Lazyloadable if I disable default mappings
 let g:multi_cursor_exit_from_insert_mode = 0
@@ -547,9 +548,6 @@ nnoremap <silent> <leader>hi :History:<cr>
 nnoremap <silent> <leader>ft :Filetypes<cr>
 
 " "}}}
-" # Unite.vim {{{
-" "}}}
-" " }}}
 " # Neovim terminal  {{{
 if has('nvim')
   tnoremap <silent> <C-h> <C-\><C-n>:TmuxNavigateLeft<cr>
