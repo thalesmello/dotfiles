@@ -1,4 +1,4 @@
-" OriginalAuthor: Pedro Franceschi <pedrohfranceschi@gmail.com>
+"/ OriginalAuthor: Pedro Franceschi <pedrohfranceschi@gmail.com>
 " ModifiedVersion: Thales Mello <thalesmello@gmail.com>
 " Source: http://github.com/thalesmello/vimfiles
 
@@ -13,7 +13,7 @@ Plug 'morhetz/gruvbox'
 Plug 'thalesmello/tabfold'
 Plug 'tomtom/tcomment_vim'
 Plug 'Shougo/vimproc.vim', { 'do' : 'make' }
-Plug 'vim-airline/vim-airline'
+Plug 'itchyny/lightline.vim'
 Plug 'tpope/vim-fugitive'
 Plug 'tpope/vim-surround'
 Plug 'Raimondi/delimitMate'
@@ -368,19 +368,8 @@ command! -range VisualCommand <line1>,<line2>call vim_utils#visual_command()
 vnoremap <leader>\| :VisualCommand<CR>
 
 " }}} "
-" # Airline  {{{
-" Plugin extractable configuration?
-let g:airline_powerline_fonts = 1
-let g:airline_theme = 'gruvbox'
-let g:airline_inactive_collapse = 1
-let g:airline#extensions#branch#displayed_head_limit = 15
-let g:airline#extensions#default#section_truncate_width = {}
-let g:airline#extensions#tabline#show_buffers = 0
-let g:airline#extensions#tabline#enabled = 1
-
-let g:unite_outline_closest_tag = ""
-
-autocmd User AirlineAfterInit call airline_config#init()
+" # Lightline  {{{
+call lightline_config#load()
 
 " "}}}
 " # Tmuxline  {{{
@@ -409,7 +398,7 @@ let g:deoplete#omni#input_patterns.vimwiki = '\[\[.*'
 let g:deoplete#enable_at_startup = 1
 let g:deoplete#file#enable_buffer_path = 1
 
-call auto#cmd('preview_window', 'InsertLeave * pclose!')
+call auto#cmd('preview_window', 'InsertLeave * if empty(&buftype) | pclose! | endif')
 
 inoremap <silent> <up> <c-r>=deoplete_config#arrow_navigation('Up')<CR>
 inoremap <silent> <Down> <c-r>=deoplete_config#arrow_navigation('Down')<CR>
