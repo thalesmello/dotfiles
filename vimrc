@@ -56,7 +56,6 @@ Plug 'tpope/vim-speeddating'
 Plug 'vimwiki/vimwiki'
 Plug 'itchyny/vim-cursorword'
 Plug 'wincent/terminus'
-Plug 'haya14busa/incsearch.vim'
 Plug 'davidhalter/jedi'
 Plug 'dbakker/vim-projectroot'
 Plug 'thalesmello/pulsecursor.vim'
@@ -214,21 +213,16 @@ if exists('&inccommand')
   set inccommand=split
 endif
 " }}}
-" ##### General mappings  {{{
-" ##### Tabs {{{
+" ##### Mappings  {{{
 nnoremap <silent> <leader>tn :execute  "tabedit % \| call setpos('.', " . string(getpos('.')) . ")"<cr>
 nnoremap <leader>tc :tabclose<cr>
 nnoremap [t :tabprevious<cr>
 nnoremap ]t :tabnext<cr>
-" }}}
-" ##### Split windows {{{
 
 " Create windows
 nnoremap <leader>v <C-w>v<C-w>l
 nnoremap <leader>m <C-w>s<C-w>j
 nnoremap <leader>d :q<cr>
-" }}}
-" ##### Folding {{{
 nnoremap zf mzzM`zzvzz
 
 " Files open expanded
@@ -238,8 +232,6 @@ if has('vim_starting')
   set foldmethod=indent
 endif
 
-" }}}
-" ##### Misc {{{
 " Edit and load vimrc
 nnoremap <leader>ev :vsplit $MYVIMRC<cr>
 nnoremap <leader>sv :source $MYVIMRC<cr>
@@ -250,23 +242,6 @@ nnoremap <leader>hs :set hlsearch!<cr>
 " Maps <C-C> to <esc>
 inoremap <C-C> <esc>
 vnoremap <C-C> <esc>
-
-" }}}
-" }}}
-" ##### Fugitive  {{{
-" (thanks to Steve Losh's vimrc)
-nnoremap <leader>gd :Gdiff<cr>
-nnoremap <leader>gs :Gstatus<cr>
-nnoremap <leader>gw :Gwrite<cr>
-nnoremap <leader>ga :Gadd<cr>
-nnoremap <leader>gb :Gblame<cr>
-nnoremap <leader>gci :Gcommit<cr>
-nnoremap <leader>gm :Gmove
-nnoremap <leader>gr :Gread<cr>
-nnoremap <leader>grm :Gremove<cr>
-nnoremap <leader>gp :Git push
-" }}}
-" # Mappings  {{{
 map <MiddleMouse> <Nop>
 imap <MiddleMouse> <Nop>
 noremap Q gq
@@ -320,7 +295,6 @@ nnoremap <leader>V vg_
 nnoremap  gs  :%s//g<LEFT><LEFT>
 vnoremap  gs  :s//g<LEFT><LEFT>
 
-" "}}}
 " # Vim Multiple Cursors  {{{
 " Lazyloadable if I disable default mappings
 let g:multi_cursor_exit_from_insert_mode = 0
@@ -574,159 +548,8 @@ nnoremap <silent> <leader>ft :Filetypes<cr>
 
 " "}}}
 " # Unite.vim {{{
-" Plugin extractable configuration
-" Set default matcher options
-" Lazy loadable?
-" # Unite buffer options {{{
-" Plugn extractable
-call auto#defer("plug#load('neoyank.vim')")
-call unite#custom#source('grep, lines', 'max_candidates', 1000)
-call unite#custom#source('grep', 'sorters', 'sorter_rank')
-call unite#custom#source('location_list, quickfix', 'sorters', 'sorter_nothing')
-call unite#filters#matcher_default#use(['matcher_fuzzy'])
-call unite#filters#sorter_default#use(['sorter_rank'])
-call unite#custom#profile('default', 'context', {
-      \   'start_insert': 0,
-      \   'winheight': 15,
-      \   'direction': 'topleft',
-      \ })
-
-let g:unite_quickfix_is_multiline=0
-call unite#custom_source('quickfix', 'converters', 'converter_quickfix_highlight')
-call unite#custom_source('location_list', 'converters', 'converter_quickfix_highlight')
-
-" " }}}
-" # Prefix shortcuts {{{
-" Plugin extractable
-nnoremap [unite] <Nop>
-nmap s [unite]
-nnoremap <silent> [unite]r :<C-u>UniteResume<CR>
-nnoremap <silent> [unite]me :<C-u>Unite output:message<CR>
-nnoremap <silent> [unite]u :<C-u>Unite ultisnips<CR>
-nnoremap <silent> [unite]o :<C-u>Unite -direction=topleft -split outline<CR>
-nnoremap <silent> [unite]tw :<c-u>Unite tmuxcomplete -default-action=append<cr>
-nnoremap <silent> [unite]tl :<c-u>Unite tmuxcomplete/lines -default-action=append<cr>
-nnoremap <silent> [unite]li :<c-u>Unite line<cr>
-nnoremap <silent> [unite]mr :<C-u>Unite file_mru<cr>
-nnoremap <silent> [unite]f :<C-u>Unite file_mru<cr>
-nnoremap <silent> [unite]/ :<C-u>Unite line -input=<c-r>/<cr>
-nnoremap <silent> [unite]bb :Unite -quick-match buffer<cr>
-nnoremap <silent> [unite]qf :<c-u>Unite -wrap -prompt-direction=top quickfix<cr>
-nnoremap <silent> [unite]ll :<c-u>Unite -wrap -prompt-direction=top location_list<cr>
-nnoremap <silent> [unite][ :<c-u>UnitePrevious<cr>
-nnoremap <silent> [unite]] :<c-u>UniteNext<cr>
-nnoremap <silent> [unite]{ :<c-u>UniteFirst<cr>
-nnoremap <silent> [unite]} :<c-u>UniteLast<cr>
-" " }}}
-" Ag grep config {{{
-" Plugin extractable
-let g:unite_source_rec_async_command = ['ag', '--follow', '--nocolor', '--nogroup', '--hidden', '-g', '']
-let g:unite_source_grep_command = 'ag'
-let g:unite_source_grep_default_opts = '-i --vimgrep --hidden --ignore ' .
-      \ '''.hg'' --ignore ''.svn'' --ignore ''.git'' --ignore ''.bzr'''
-let g:unite_source_grep_recursive_opt = ''
-let g:unite_source_line_enable_highlight = 1
-
-" }}}
-" # File explorer (Ctrl+P) {{{
-" Plugin extractable
-let grep_source = has('nvim') ? 'file_rec/neovim' : 'file_rec/async'
-nnoremap <silent> <expr> <leader><c-p> ":\<C-u>Unite -buffer-name=files " . grep_source . ":! file/new\<CR>"
-vnoremap <silent> <expr> gf "\"uy:\<C-u>Unite -buffer-name=files " . grep_source . ":! -input=\<c-r>u\<CR>"
-
-" "}}}
-" # Other mappings {{{
-nnoremap <silent> <leader><c-o> :<c-u>Unite jump<cr>
-nmap <leader>epv :<c-u>Unite -input=.lvimrc file_rec/neovim<cr>
-nmap <leader>spv :<c-u>LocalVimRC<cr>
-nmap <leader>epg :<c-u>Unite file_rec/neovim:~/.vim/plugged<cr>
 " "}}}
 " " }}}
-" # Indent guides configuration Neovim  {{{
-command! ToggleLocalIndent call local_indent_config#toggle()
-nnoremap <silent> <leader>ig :ToggleLocalIndent<cr>
-highlight LocalIndentGuide guifg=#4E4E4E guibg=black gui=inverse ctermfg=5 ctermbg=0 cterm=inverse
-
-" "}}}
-" # Neomake  {{{
-" Lazy loadable
-augroup neomake_linter
-  autocmd!
-  autocmd BufWritePost,BufReadPost * Neomake
-  autocmd BufWritePost,BufReadPost *.ts Neomake! tsc
-augroup end
-
-let g:neomake_javascript_enabled_makers = ['eslint_d']
-let g:neomake_java_enabled_makers = []
-
-hi NeomakeErrorSign ctermfg=white
-
-call auto#cmd('my_error_signs', 'ColorScheme * hi NeomakeErrorSign ctermfg=white')
-
-let g:neomake_tsc_maker = {
-      \ 'exe': 'tsc',
-      \ 'args': [],
-      \ 'errorformat':
-      \ '%E%f %#(%l\,%c): error %m,' .
-      \ '%E%f %#(%l\,%c): %m,' .
-      \ '%Eerror %m,' .
-      \ '%C%\s%\+%m'
-      \ }
-
-" "}}}
-" # Polyglot  {{{
-" Lazy loadable
-let g:jsx_ext_required = 1
-
-" "}}}
-" # Vim autoswap  {{{
-let g:autoswap_detect_tmux = 1
-
-" "}}}
-" # Delimitmate  {{{
-" Extractable configuration
-imap <expr> <c-x><c-l> delimitmate_config#completion("\<c-l>")
-
-let g:delimitMate_expand_space = 1
-let g:delimitMate_expand_cr = 1
-let g:delimitMate_nesting_quotes = ['"','`', "'"]
-
-if has('vim_starting')
-  imap <CR> <C-G>u<Plug>delimitMateCR
-endif
-
-" "}}}
-" # Windowswap  {{{
-let g:windowswap_map_keys = 0
-command! WindowSwap call WindowSwap#EasyWindowSwap()
-
-" "}}}
-" # Vimwiki  {{{
-" Extractable configuration
-let g:vimwiki_list = [{
-      \ 'path': '~/Dropbox/Apps/vimwiki/wiki',
-      \ 'path_html': '~/Dropbox/Apps/vimwiki/html',
-      \ 'template_default': 'default',
-      \ 'template_ext': '.tpl',
-      \ 'template_path': '~/Dropbox/Apps/vimwiki/templates'
-      \ }]
-
-" "}}}
-" # incsearch.vim  {{{
-" Extractable configuration
-" Lazy loadable
-map g/ <Plug>(incsearch-stay)
-" "}}}
-" # Highlightedyank  {{{
-let g:highlightedyank_highlight_duration = 200
-" "}}}
-" # Nvim-R  {{{
-let R_assign = 0
-let R_in_buffer = 0
-let R_applescript = 0
-let R_tmux_split = 1
-
-" "}}}
 " # Neovim terminal  {{{
 if has('nvim')
   tnoremap <silent> <C-h> <C-\><C-n>:TmuxNavigateLeft<cr>
@@ -738,16 +561,6 @@ if has('nvim')
   autocmd BufLeave term://* stopinsert
 endif
 " "}}}
-" # Nvim miniwank  {{{
-if has('nvim')
-  map p <Plug>(miniyank-autoput)
-  map P <Plug>(miniyank-autoPut)
-  map <leader>p <Plug>(miniyank-cycle)
-endif
-" "}}}
-" # Hyperblame {{{ "
-command! HyperBlame call hyperblame#open()
-" }}} Hyperblame "
 " Lookml {{{ "
 call auto#cmd('lookml', 'BufRead *.lookml setfiletype yaml')
 
