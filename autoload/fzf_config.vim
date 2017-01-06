@@ -4,9 +4,5 @@ function! fzf_config#visual_ag()
 endfunction
 
 function! fzf_config#smart_ctrlp()
-  if expand('%:p') =~ getcwd()
-    FZF
-  else
-    execute 'FZF' expand('%:h')
-  endif
+  ProjectRootExe FZF
 endfunction
