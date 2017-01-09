@@ -69,6 +69,9 @@ set sidescroll=2
 set showbreak=↪
 set tabstop=4
 
+" Splits should use full line just like Tmux
+set fillchars+=vert:│
+
 if has('nvim')
   set termguicolors
   let $NVIM_TUI_ENABLE_CURSOR_SHAPE = 1

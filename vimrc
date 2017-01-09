@@ -4,6 +4,7 @@
 
 call plug#begin()
 Plug 'tpope/vim-sensible'
+Plug 'fatih/vim-go'
 Plug 'morhetz/gruvbox'
 Plug 'thalesmello/tabfold'
 Plug 'tomtom/tcomment_vim'
@@ -28,7 +29,6 @@ Plug 'tpope/vim-endwise'
 Plug 'ludovicchabant/vim-gutentags', only#if(v:version >= 704)
 Plug 'easymotion/vim-easymotion'
 Plug 'tpope/vim-rsi'
-Plug 'thalesmello/tmux-complete.vim'
 Plug 'bronson/vim-visual-star-search'
 Plug 'bronson/vim-trailing-whitespace'
 Plug 'thalesmello/vim-indent-object'
@@ -88,6 +88,9 @@ Plug 'Shougo/deoplete.nvim',            only#if(has('nvim'))
 " Plug 'thalesmello/webcomplete.vim',     only#if(has('nvim'))
 Plug 'zchee/deoplete-jedi',             only#if(has('nvim'), {'for': 'python'})
 Plug 'mhartington/deoplete-typescript', only#if(has('nvim'), {'for': 'javascript'})
+Plug 'Shougo/neco-vim'
+Plug 'zchee/deoplete-go'
+Plug 'thalesmello/tmux-complete.vim'
 
 " Text objects
 Plug 'kana/vim-textobj-user'
@@ -110,12 +113,9 @@ Plug 'thalesmello/vim-textobj-methodcall'
 Plug 'thalesmello/vim-textobj-bracketchunk'
 Plug 'rhysd/vim-textobj-conflict'
 
-" New
+" Database
 Plug 'ivalkeen/vim-simpledb'
-Plug 'fatih/vim-go'
-Plug 'zchee/deoplete-go'
-Plug 'Shougo/neco-vim'
-Plug 'aliou/sql-heredoc.vim'
+Plug 'exu/pgsql.vim'
 
 " TODO: Check
 " github-complete.vim

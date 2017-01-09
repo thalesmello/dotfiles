@@ -1,4 +1,4 @@
-function! plug_utils#pending_install()
+function! plug_config#pending_install()
   if !empty(filter(copy(g:plugs), '!isdirectory(v:val.dir)'))
     PlugInstall
 

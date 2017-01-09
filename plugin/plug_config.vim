@@ -1,2 +1,3 @@
-call auto#defer('plug_utils#pending_install()')
+call auto#defer('plug_config#pending_install()')
+call auto#cmd('pending_install', 'SourceCmd $MYVIMRC call plug_config#pending_install()')
 
