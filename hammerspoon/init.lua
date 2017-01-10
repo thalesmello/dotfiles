@@ -1,13 +1,15 @@
 require("hs.ipc")
 
--- Config
+-- Config {{{ --
 local mash = {
   window    = {"ctrl", "cmd"},
   altWindow = {"ctrl", "cmd", "alt"},
-  utils     = {"ctrl", "cmd", "shift"}
+  utils     = {"ctrl", "cmd", "shift"},
+  ctrl      = {"ctrl"}
 }
 
-
+-- }}} Config --
+-- Octomux {{{ --
 if not hs.ipc.cliStatus(null, true) then
   hs.ipc.cliInstall()
 end
@@ -19,25 +21,31 @@ function nonRecursiveBind(mods, key, callback)
   end)
 end
 
+function as_list(list)
+  if type(list) ~= 'table' then
+    list = { list }
+  end
+
+  return list
+end
+
+function currentWindowInList (listOfPrograms)
+  local activeWindowName = hs.window.focusedWindow():application():name()
+  for _, currentName in ipairs (listOfPrograms) do
+
+      if currentName == activeWindowName then
+          return true
+      end
+  end
+
+  return false
+end
+
 function except(listOfPrograms, callback)
-  function containsActiveWindow (activeWindowName)
-    for _, currentName in ipairs (listOfPrograms) do
-
-        if currentName == activeWindowName then
-            return true
-        end
-    end
-
-    return false
-  end
-
-  if type(listOfPrograms) ~= 'table' then
-    listOfPrograms = { listOfPrograms }
-  end
+  listOfPrograms = as_list(listOfPrograms)
 
   return function(hotkey, mods, key)
-    local activeWindowName = hs.window.focusedWindow():application():name()
-    if containsActiveWindow(activeWindowName) then
+    if currentWindowInList(listOfPrograms) then
       hotkey:disable()
       hs.eventtap.keyStroke(mods, key)
       hotkey:enable()
@@ -47,20 +55,40 @@ function except(listOfPrograms, callback)
   end
 end
 
+function only(listOfPrograms, callback)
+  listOfPrograms = as_list(listOfPrograms)
+
+  return function(hotkey, mods, key)
+    if currentWindowInList(listOfPrograms) then
+      callback()
+    else
+      hotkey:disable()
+      hs.eventtap.keyStroke(mods, key)
+      hotkey:enable()
+    end
+  end
+end
+
 -- nonRecursiveBind({"ctrl"}, "H", except({ "iTerm2", "RStudio" }, function() hs.window.focusedWindow():focusWindowWest()  end))
 -- nonRecursiveBind({"ctrl"}, "J", except({ "iTerm2", "RStudio" }, function() hs.window.focusedWindow():focusWindowSouth() end))
 -- nonRecursiveBind({"ctrl"}, "K", except({ "iTerm2", "RStudio" }, function() hs.window.focusedWindow():focusWindowNorth() end))
 -- nonRecursiveBind({"ctrl"}, "L", except({ "iTerm2", "RStudio" }, function() hs.window.focusedWindow():focusWindowEast()  end))
-
+-- }}} Octomux --
+-- Mappings {{{ --
 hs.hotkey.bind(mash.window, 'H', function() hs.eventtap.keyStroke({"ctrl"}, "left") end)
 hs.hotkey.bind(mash.window, 'L', function() hs.eventtap.keyStroke({"ctrl"}, "right") end)
 hs.hotkey.bind(mash.utils, 'R', function() hs.reload() end)
+
+-- }}} Mappings --
+-- Vim compatibility {{{ --
+
 hs.hotkey.bind(mash.altWindow, 'H', function()
   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
 end)
+
 hs.hotkey.bind(mash.altWindow, 'L', function()
   hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
   hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
@@ -68,11 +96,37 @@ hs.hotkey.bind(mash.altWindow, 'L', function()
   hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
 end)
 
-hs.hotkey.bind(mash.utils, 'H', function() hs.toggleConsole() end)
+hs.hotkey.bind(mash.ctrl, '[', function() hs.eventtap.keyStroke({}, "escape") end)
+nonRecursiveBind({"alt"}, "delete", only({ "iTerm2" }, function() quickKeyStroke({"ctrl"}, "W")  end))
 
--- Utils
+nonRecursiveBind({"cmd", "shift"}, "[", only({ "iTerm2" }, function()
+  quickKeyStroke({"ctrl"}, "space")
+  quickKeyStroke({"ctrl"}, "H")
+end))
+
+nonRecursiveBind({"cmd", "shift"}, "]", only({ "iTerm2" }, function()
+  quickKeyStroke({"ctrl"}, "space")
+  quickKeyStroke({"ctrl"}, "L")
+end))
+
+nonRecursiveBind({"cmd"}, "C", only({ "iTerm2" }, function()
+  quickKeyStroke({}, "return")
+end))
+
+nonRecursiveBind({"cmd"}, "T", only({ "iTerm2" }, function()
+  quickKeyStroke({"ctrl"}, "space")
+  quickKeyStroke({}, "C")
+end))
+
+nonRecursiveBind({"cmd"}, "W", only({ "iTerm2" }, function()
+  quickKeyStroke({"ctrl"}, "space")
+  quickKeyStroke({}, "X")
+end))
+
+-- }}}  Vim compatibility --
+-- Utils {{{ --
 function notify(str)
-  hs.notify.new({title="Hammerspoon", informativeText=str}):send()
+  hs.alert.show(str)
 end
 
 function table_print (tt, indent, done)
@@ -117,9 +171,14 @@ function log(obj)
   hs.logger.new('log', 'debug'):d('\n' .. to_string(obj))
 end
 
---
--- replace caffeine
---
+function is_active(program_name)
+  local active_window_name = hs.window.focusedWindow():application():name()
+  return active_window_name == program_name
+end
+
+hs.hotkey.bind(mash.utils, 'H', function() hs.toggleConsole() end)
+-- }}} Utils --
+-- Caffeine {{{ --
 local caffeine = hs.menubar.new()
 function setCaffeineDisplay(state)
     local result
@@ -141,13 +200,14 @@ end
 
 hs.hotkey.bind(mash.utils, "c", function() caffeineClicked() end)
 
-
-local centeredWindowRatios = {
-  small = { w = 0.8, h = 0.8 }, -- screen width < 2560
-  large = { w = 0.66, h = 0.66 } -- screen width >= 2560
-}
-
--- Setup
+function quickKeyStroke (modifiers, character)
+    local event = require("hs.eventtap").event
+    event.newKeyEvent(modifiers, string.lower(character), true):post()
+    event.newKeyEvent(modifiers, string.lower(character), false):post()
+end
+-- }}} Caffeine --
+-- Windows {{{ --
+-- Setup animation to avoid lag
 hs.window.animationDuration = 0
 
 -- Resize windows
@@ -213,8 +273,8 @@ hs.hotkey.bind(mash.altWindow, "left", adjust(0, 0.5, 0.5, 0.5))
 
 -- fullscreen
 hs.hotkey.bind(mash.window, "m", adjust(0, 0, 1, 1))
-
--- Wifi
+-- }}} Windows --
+-- Wifi {{{ --
 function ssidChangedCallback()
     local ssid = hs.wifi.currentNetwork()
     if ssid then
@@ -232,9 +292,8 @@ hs.hotkey.bind(mash.utils, "I", function()
   hs.execute("networksetup -setairportpower en0 off")
   hs.execute("networksetup -setairportpower en0 on")
 end)
-
-
--- Battery
+-- }}} Wifi --
+-- Battery {{{ --
 local previousPowerSource = hs.battery.powerSource()
 
 function minutesToHours(minutes)
@@ -289,6 +348,22 @@ end
 hs.battery.watcher.new(batteryChangedCallback):start()
 
 hs.hotkey.bind(mash.utils, "b", showBatteryStatus)
+-- }}} battery --
+-- Report {{{ --
+notify("Hammerspoon!")
+-- }}} Report --
 
--- All set
-hs.alert.show("Hammerspoon!")
+scrollBind = hs.eventtap.new({hs.eventtap.event.types.scrollWheel}, function(e)
+  if is_active('iTerm2') then
+    local horizontalOffset = e:getProperty(hs.eventtap.event.properties.scrollWheelEventDeltaAxis2)
+
+    if horizontalOffset ~= 0 then
+      hs.eventtap.scrollWheel({ 0, horizontalOffset }, {"shift"}, 'pixel')
+      return true
+    end
+  end
+
+  return false
+
+end):start()
+
