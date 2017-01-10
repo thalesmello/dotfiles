@@ -68,7 +68,7 @@ nnoremap <S-ScrollWheelDown>     <ScrollWheelRight>
 nnoremap <S-2-ScrollWheelDown>   <2-ScrollWheelRight>
 nnoremap <S-3-ScrollWheelDown>   <3-ScrollWheelRight>
 nnoremap <S-4-ScrollWheelDown>   <4-ScrollWheelRight>
-nnoremap <leader>sf :source %<cr>
+nnoremap <silent> <leader>sf :if &ft == 'vim' <bar> source % <bar> endif<cr>
 vnoremap _ <esc>`<jV`>k0
 vnoremap - <esc>`<jV`>k0
 vnoremap + <esc>`<kV`>j0
