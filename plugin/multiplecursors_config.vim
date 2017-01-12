@@ -10,8 +10,8 @@ function! Multiple_cursors_after()
   call deoplete_config#multiple_cursors_switch(0)
 endfunction
 
-noremap g<c-n> :MultipleCursorsFind <c-r>/<cr>
-
-highlight multiple_cursors_cursor term=reverse cterm=reverse gui=reverse
-highlight link multiple_cursors_visual Visual
+nnoremap g<c-n> :MultipleCursorsFind <c-r><c-w><cr>
+vnoremap g<c-n> :MultipleCursorsFind <c-r>/<cr>
+nnoremap <c-_> :MultipleCursorsFind<space>
+vnoremap <c-_> :MultipleCursorsFind<space>
 

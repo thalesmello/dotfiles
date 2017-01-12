@@ -7,7 +7,7 @@ Plug 'tpope/vim-sensible'
 Plug 'fatih/vim-go'
 Plug 'morhetz/gruvbox'
 Plug 'thalesmello/tabfold'
-Plug 'tomtom/tcomment_vim'
+Plug 'tpope/vim-commentary'
 Plug 'Shougo/vimproc.vim', { 'do' : 'make' }
 Plug 'itchyny/lightline.vim'
 Plug 'tpope/vim-fugitive'
@@ -85,7 +85,7 @@ Plug 'thalesmello/config-unite-outline'
 
 " Deoplete
 Plug 'Shougo/deoplete.nvim',            only#if(has('nvim'))
-" Plug 'thalesmello/webcomplete.vim',     only#if(has('nvim'))
+Plug 'thalesmello/webcomplete.vim',     only#if(has('nvim'))
 Plug 'zchee/deoplete-jedi',             only#if(has('nvim'), {'for': 'python'})
 Plug 'mhartington/deoplete-typescript', only#if(has('nvim'), {'for': 'javascript'})
 Plug 'Shougo/neco-vim'
