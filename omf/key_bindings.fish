@@ -1,3 +1,3 @@
 # Enable FZF key bindings
 fzf_key_bindings
-bind \t fzf-complete
+bind \e\[Z fzf-complete

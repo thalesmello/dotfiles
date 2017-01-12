@@ -1,5 +1,5 @@
 function fzf-complete --description 'fzf completion and print selection back to commandline'
-    set -l complist (complete -C(commandline -c))
+	set -l complist (complete -C(commandline -c))
     set -l result
     if math (string join -- \n $complist | wc -l) == 1
         set result (echo $complist | cut -f1)
