@@ -1,1 +1,3 @@
+package wd
 theme default
+theme pure
