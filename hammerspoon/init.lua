@@ -2,10 +2,10 @@ require("hs.ipc")
 
 -- Config {{{ --
 local mash = {
-  window    = {"ctrl", "cmd"},
-  altWindow = {"ctrl", "cmd", "alt"},
-  utils     = {"ctrl", "cmd", "shift"},
-  ctrl      = {"ctrl"}
+  ctrlCmd      = {"ctrl", "cmd"},
+  altCmd       = {"ctrl", "cmd", "alt"},
+  ctrlShiftCmd = {"ctrl", "cmd", "shift"},
+  ctrl         = {"ctrl"}
 }
 
 -- }}} Config --
@@ -75,21 +75,28 @@ end
 -- nonRecursiveBind({"ctrl"}, "L", except({ "iTerm2", "RStudio" }, function() hs.window.focusedWindow():focusWindowEast()  end))
 -- }}} Octomux --
 -- Mappings {{{ --
-hs.hotkey.bind(mash.window, 'H', function() hs.eventtap.keyStroke({"ctrl"}, "left") end)
-hs.hotkey.bind(mash.window, 'L', function() hs.eventtap.keyStroke({"ctrl"}, "right") end)
-hs.hotkey.bind(mash.utils, 'R', function() hs.reload() end)
+hs.hotkey.bind(mash.ctrlCmd, 'H', function() hs.eventtap.keyStroke({"ctrl"}, "left") end)
+hs.hotkey.bind(mash.ctrlCmd, 'L', function() hs.eventtap.keyStroke({"ctrl"}, "right") end)
+hs.hotkey.bind(mash.ctrlShiftCmd, 'R', function() hs.reload() end)
+hs.hotkey.bind(mash.ctrlShiftCmd, 'H', function() hs.toggleConsole() end)
+hs.hotkey.bind(mash.ctrlShiftCmd, 'W', function() print(hs.window.focusedWindow():application():name()) end)
+
+-- }}} Mappings --
+-- Mappings {{{ --
+nonRecursiveBind(mash.ctrl, 'N', only({ "Google Chrome" }, function() quickKeyStroke({}, "tab")  end))
+nonRecursiveBind(mash.ctrl, 'P', only({ "Google Chrome" }, function() quickKeyStroke({"shift"}, "tab")  end))
 
 -- }}} Mappings --
 -- Vim compatibility {{{ --
 
-hs.hotkey.bind(mash.altWindow, 'H', function()
+hs.hotkey.bind(mash.altCmd, 'H', function()
   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
 end)
 
-hs.hotkey.bind(mash.altWindow, 'L', function()
+hs.hotkey.bind(mash.altCmd, 'L', function()
   hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
   hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
   hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
@@ -122,6 +129,20 @@ nonRecursiveBind({"cmd"}, "W", only({ "iTerm2" }, function()
   quickKeyStroke({"ctrl"}, "space")
   quickKeyStroke({}, "X")
 end))
+
+-- Horizontal scroll
+scrollBind = hs.eventtap.new({hs.eventtap.event.types.scrollWheel}, function(e)
+  if is_active('iTerm2') then
+    local horizontalOffset = e:getProperty(hs.eventtap.event.properties.scrollWheelEventDeltaAxis2)
+
+    if horizontalOffset ~= 0 then
+      hs.eventtap.scrollWheel({ 0, horizontalOffset }, {"shift"}, 'pixel')
+      return true
+    end
+  end
+
+  return false
+end):start()
 
 -- }}}  Vim compatibility --
 -- Utils {{{ --
@@ -176,8 +197,7 @@ function is_active(program_name)
   return active_window_name == program_name
 end
 
-hs.hotkey.bind(mash.utils, 'H', function() hs.toggleConsole() end)
--- }}} Utils --
+-- }}} ctrlShiftCmd --
 -- Caffeine {{{ --
 local caffeine = hs.menubar.new()
 function setCaffeineDisplay(state)
@@ -198,7 +218,7 @@ if caffeine then
     setCaffeineDisplay(hs.caffeinate.get("displayIdle"))
 end
 
-hs.hotkey.bind(mash.utils, "c", function() caffeineClicked() end)
+hs.hotkey.bind(mash.ctrlShiftCmd, "c", function() caffeineClicked() end)
 
 function quickKeyStroke (modifiers, character)
     local event = require("hs.eventtap").event
@@ -246,33 +266,33 @@ local function adjustCenter(w, h)
 end
 
 -- top half
-hs.hotkey.bind(mash.window, "up", adjust(0, 0, 1, 0.5))
+hs.hotkey.bind(mash.ctrlCmd, "up", adjust(0, 0, 1, 0.5))
 
 -- right half
-hs.hotkey.bind(mash.window, "right", adjust(0.5, 0, 0.5, 1))
-hs.hotkey.bind(mash.window, ".", adjust(0.5, 0, 0.5, 1))
+hs.hotkey.bind(mash.ctrlCmd, "right", adjust(0.5, 0, 0.5, 1))
+hs.hotkey.bind(mash.ctrlCmd, ".", adjust(0.5, 0, 0.5, 1))
 
 -- bottom half
-hs.hotkey.bind(mash.window, "down", adjust(0, 0.5, 1, 0.5))
+hs.hotkey.bind(mash.ctrlCmd, "down", adjust(0, 0.5, 1, 0.5))
 
 -- left half
-hs.hotkey.bind(mash.window, "left", adjust(0, 0, 0.5, 1))
-hs.hotkey.bind(mash.window, ",", adjust(0, 0, 0.5, 1))
+hs.hotkey.bind(mash.ctrlCmd, "left", adjust(0, 0, 0.5, 1))
+hs.hotkey.bind(mash.ctrlCmd, ",", adjust(0, 0, 0.5, 1))
 
 -- top left
-hs.hotkey.bind(mash.altWindow, "up", adjust(0, 0, 0.5, 0.5))
+hs.hotkey.bind(mash.altCmd, "up", adjust(0, 0, 0.5, 0.5))
 
 -- top right
-hs.hotkey.bind(mash.altWindow, "right", adjust(0.5, 0, 0.5, 0.5))
+hs.hotkey.bind(mash.altCmd, "right", adjust(0.5, 0, 0.5, 0.5))
 
 -- bottom right
-hs.hotkey.bind(mash.altWindow, "down", adjust(0.5, 0.5, 0.5, 0.5))
+hs.hotkey.bind(mash.altCmd, "down", adjust(0.5, 0.5, 0.5, 0.5))
 
 -- bottom left
-hs.hotkey.bind(mash.altWindow, "left", adjust(0, 0.5, 0.5, 0.5))
+hs.hotkey.bind(mash.altCmd, "left", adjust(0, 0.5, 0.5, 0.5))
 
 -- fullscreen
-hs.hotkey.bind(mash.window, "m", adjust(0, 0, 1, 1))
+hs.hotkey.bind(mash.ctrlCmd, "m", adjust(0, 0, 1, 1))
 -- }}} Windows --
 -- Wifi {{{ --
 function ssidChangedCallback()
@@ -284,7 +304,7 @@ end
 
 hs.wifi.watcher.new(ssidChangedCallback):start()
 
-hs.hotkey.bind(mash.utils, "I", function()
+hs.hotkey.bind(mash.ctrlShiftCmd, "I", function()
   local ssid = hs.wifi.currentNetwork()
   if not ssid then return end
 
@@ -347,22 +367,10 @@ end
 
 hs.battery.watcher.new(batteryChangedCallback):start()
 
-hs.hotkey.bind(mash.utils, "b", showBatteryStatus)
+hs.hotkey.bind(mash.ctrlShiftCmd, "b", showBatteryStatus)
 -- }}} battery --
 -- Report {{{ --
 notify("Hammerspoon!")
 -- }}} Report --
 
-scrollBind = hs.eventtap.new({hs.eventtap.event.types.scrollWheel}, function(e)
-  if is_active('iTerm2') then
-    local horizontalOffset = e:getProperty(hs.eventtap.event.properties.scrollWheelEventDeltaAxis2)
-
-    if horizontalOffset ~= 0 then
-      hs.eventtap.scrollWheel({ 0, horizontalOffset }, {"shift"}, 'pixel')
-      return true
-    end
-  end
-
-  return false
-end):start()
 
