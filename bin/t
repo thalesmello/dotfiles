@@ -1,0 +1,2 @@
+#!/bin/sh
+tmux attach -d -t base || tmux new -s base || tmux attach -d -t base

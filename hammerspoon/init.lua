@@ -364,6 +364,5 @@ scrollBind = hs.eventtap.new({hs.eventtap.event.types.scrollWheel}, function(e)
   end
 
   return false
-
 end):start()
 
