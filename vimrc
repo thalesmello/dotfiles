@@ -27,7 +27,6 @@ Plug 'airblade/vim-gitgutter'
 Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'
 Plug 'ludovicchabant/vim-gutentags', only#if(v:version >= 704)
-Plug 'easymotion/vim-easymotion'
 Plug 'tpope/vim-rsi'
 Plug 'bronson/vim-visual-star-search'
 Plug 'bronson/vim-trailing-whitespace'

@@ -19,6 +19,8 @@ set nojoinspaces
 " Case-insensitive searching.
 set ignorecase
 
+set shell=/usr/local/bin/zsh
+
 " Show line numbers.
 set number
 set relativenumber

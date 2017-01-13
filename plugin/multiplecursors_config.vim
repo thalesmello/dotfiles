@@ -10,8 +10,8 @@ function! Multiple_cursors_after()
   call deoplete_config#multiple_cursors_switch(0)
 endfunction
 
-nnoremap g<c-n> :MultipleCursorsFind <c-r><c-w><cr>
-vnoremap g<c-n> :MultipleCursorsFind <c-r>/<cr>
+nnoremap g<c-n> :MultipleCursorsFind \<<c-r><c-w>\><cr>
+vnoremap g<c-n> :call multiplecursors_config#smart_visual_select()<cr>
 nnoremap <c-_> :MultipleCursorsFind<space>
 vnoremap <c-_> :MultipleCursorsFind<space>
 
