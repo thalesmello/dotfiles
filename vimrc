@@ -45,7 +45,8 @@ Plug 'honza/vim-snippets'
 Plug 'ryanoasis/vim-devicons'
 Plug 'AndrewRadev/splitjoin.vim'
 Plug 'gioele/vim-autoswap'
-Plug 'junegunn/fzf' | Plug 'junegunn/fzf.vim', { 'commit': '0.15.9' }
+Plug 'junegunn/fzf', { 'tag': '0.15.9' }
+Plug 'junegunn/fzf.vim'
 Plug 'lotabout/skim', { 'dir': '~/.skim', 'do': './install' }
 Plug 'vimwiki/vimwiki'
 Plug 'itchyny/vim-cursorword'
