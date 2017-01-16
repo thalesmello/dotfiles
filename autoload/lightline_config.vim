@@ -3,7 +3,7 @@ function! lightline_config#load()
         \ 'colorscheme': 'gruvbox',
         \ 'active': {
         \   'left': [[ 'mode', 'paste'], ['filename'], ['ctrlpmark'], ['fugitive']],
-        \   'right': [['syntastic', 'lineinfo', 'percent'], ['fileformat', 'fileencoding', 'filetype'], ['%<']]
+        \   'right': [['lineinfo', 'percent', 'neomake'], ['fileformat', 'fileencoding', 'filetype']]
         \ },
         \ 'component_function': {
         \   'fugitive': 'lightline_config#fugitive',
@@ -12,17 +12,19 @@ function! lightline_config#load()
         \   'filetype': 'lightline_config#filetype',
         \   'fileencoding': 'lightline_config#fileencoding',
         \   'mode': 'lightline_config#mode',
-        \   'ctrlpmark': 'lightline_config#ctrlpmark',
-        \ },
-        \ 'component_expand': {
-        \   'syntastic': 'SyntasticStatuslineFlag',
+        \   'ctrlpmark': 'lightline_config#ctrlpmark'
         \ },
         \ 'component_type': {
-        \   'syntastic': 'error',
+        \   'neomake': 'error'
+        \ },
+        \ 'component_expand': {
+        \   'neomake': 'lightline_config#neomake'
         \ },
         \ 'separator': { 'left': '', 'right': '' },
         \ 'subseparator': { 'left': '', 'right': '' }
         \ }
+
+    call auto#cmd('neomake_statusline', 'User NeomakeFinished call lightline#update()')
 endfunction
 
 function! lightline_config#modified()
@@ -117,14 +119,28 @@ function! TagbarStatusFunc(current, sort, fname, ...) abort
   return lightline#statusline(0)
 endfunction
 
-augroup AutoSyntastic
-  autocmd!
-  autocmd BufWritePost *.c,*.cpp call s:syntastic()
-augroup END
-function! s:syntastic()
-  SyntasticCheck
-  call lightline#update()
-endfunction
+func! lightline_config#neomake()
+    if !exists('*neomake#statusline#LoclistCounts')
+        return ''
+    endif
+
+    " Count all the errors, warnings
+    let total = 0
+
+    for v in values(neomake#statusline#LoclistCounts())
+        let total += v
+    endfor
+
+    for v in items(neomake#statusline#QflistCounts())
+        let total += v
+    endfor
+
+    if total == 0
+        return ''
+    endif
+
+    return 'line '.getloclist(0)[0].lnum. ', 1 of '.total
+endf
 
 let g:unite_force_overwrite_statusline = 0
 let g:vimfiler_force_overwrite_statusline = 0
