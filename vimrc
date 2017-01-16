@@ -46,6 +46,7 @@ Plug 'ryanoasis/vim-devicons'
 Plug 'AndrewRadev/splitjoin.vim'
 Plug 'gioele/vim-autoswap'
 Plug 'junegunn/fzf' | Plug 'junegunn/fzf.vim'
+Plug 'lotabout/skim', { 'dir': '~/.skim', 'do': './install' }
 Plug 'tpope/vim-speeddating'
 Plug 'vimwiki/vimwiki'
 Plug 'itchyny/vim-cursorword'
@@ -68,7 +69,6 @@ Plug 'machakann/vim-highlightedyank'
 Plug 'vim-scripts/ingo-library'
 Plug 'vim-scripts/SyntaxRange'
 Plug 'jalvesaq/Nvim-R'
-Plug 'bfredl/nvim-miniyank', only#if(has('nvim'))
 Plug 'alcesleo/vim-uppercase-sql'
 Plug 'moll/vim-node'
 
