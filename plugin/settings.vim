@@ -65,10 +65,11 @@ set cursorline
 set listchars=tab:▸\ ,eol:¬
 set splitbelow
 set linebreak
+set breakindent
 set noshowmode
 set updatetime=500
 set sidescroll=2
-set showbreak=↪
+set showbreak=↪\ 
 set tabstop=4
 
 " Splits should use full line just like Tmux
