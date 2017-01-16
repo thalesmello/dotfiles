@@ -1,3 +1,6 @@
+package foreign-env
+package technicolor
+package vcs
 package wd
 theme default
 theme pure
