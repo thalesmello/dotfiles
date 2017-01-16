@@ -65,7 +65,7 @@ Plug 'tmux-plugins/vim-tmux'
 Plug 'zeorin/tmuxline.vim', {'branch': 'utf8-suppress-error'}
 Plug 'thalesmello/devlindo.vim'
 Plug 'sealemar/vtl'
-Plug 'machakann/vim-highlightedyank'
+" Plug 'machakann/vim-highlightedyank'
 Plug 'vim-scripts/ingo-library'
 Plug 'vim-scripts/SyntaxRange'
 Plug 'jalvesaq/Nvim-R'

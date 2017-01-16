@@ -5,8 +5,8 @@ endfunction
 
 function! fzf_config#smart_ctrlp()
   if expand('%:p') =~ getcwd()
-    FZF
+    Files
   else
-    execute 'FZF' projectroot#guess()
+    execute 'Files' projectroot#guess()
   endif
 endfunction
