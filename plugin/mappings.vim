@@ -17,6 +17,10 @@ nnoremap zf mzzM`zzvzz
 nnoremap <leader>ev :vsplit ~/.vim/vimrc<cr>
 nnoremap <leader>sv :source ~/.vim/vimrc<cr>
 
+" Smart lookup for command line
+cnoremap <c-p> <up>
+cnoremap <c-n> <down>
+
 " Toggles hlsearch
 nnoremap <leader>hs :set hlsearch!<cr>
 
