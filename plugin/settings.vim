@@ -33,6 +33,9 @@ set nowrap
 " Show 3 lines of context around the cursor.
 set scrolloff=3
 
+" Disable preview window
+set completeopt-=preview
+
 " Set the terminal's title
 set title
 " No beeping.
