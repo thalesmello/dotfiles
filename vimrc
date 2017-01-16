@@ -83,6 +83,9 @@ Plug 'Shougo/unite-outline'
 Plug 'osyo-manga/unite-quickfix'
 Plug 'thalesmello/config-unite-outline'
 
+" Denite
+Plug 'Shougo/denite.nvim'
+
 " Deoplete
 Plug 'Shougo/deoplete.nvim',            only#if(has('nvim'))
 Plug 'thalesmello/webcomplete.vim',     only#if(has('nvim'))

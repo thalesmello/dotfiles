@@ -14,8 +14,8 @@ nnoremap <leader>d :q<cr>
 nnoremap zf mzzM`zzvzz
 
 " Edit and load vimrc
-nnoremap <leader>ev :vsplit $MYVIMRC<cr>
-nnoremap <leader>sv :source $MYVIMRC<cr>
+nnoremap <leader>ev :vsplit ~/.vim/vimrc<cr>
+nnoremap <leader>sv :source ~/.vim/vimrc<cr>
 
 " Toggles hlsearch
 nnoremap <leader>hs :set hlsearch!<cr>
