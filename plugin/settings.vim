@@ -52,7 +52,7 @@ set diffopt+=vertical
 set mouse=a
 
 " Copy to system register
-set clipboard=unnamed
+" set clipboard=unnamed
 
 " Set virtual edit
 set virtualedit=block,onemore

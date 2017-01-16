@@ -3,11 +3,11 @@
 " Source: http://github.com/thalesmello/vimfiles
 
 call plug#begin()
-Plug 'tpope/vim-sensible'
+Plug 'tpope/vim-sensible', only#if(!has('nvim'))
+Plug 'tpope/vim-commentary'
 Plug 'fatih/vim-go'
 Plug 'morhetz/gruvbox'
 Plug 'thalesmello/tabfold'
-Plug 'tpope/vim-commentary'
 Plug 'Shougo/vimproc.vim', { 'do' : 'make' }
 Plug 'itchyny/lightline.vim'
 Plug 'tpope/vim-fugitive'
@@ -45,9 +45,8 @@ Plug 'honza/vim-snippets'
 Plug 'ryanoasis/vim-devicons'
 Plug 'AndrewRadev/splitjoin.vim'
 Plug 'gioele/vim-autoswap'
-Plug 'junegunn/fzf' | Plug 'junegunn/fzf.vim'
+Plug 'junegunn/fzf' | Plug 'junegunn/fzf.vim', { 'commit': '0.15.9' }
 Plug 'lotabout/skim', { 'dir': '~/.skim', 'do': './install' }
-Plug 'tpope/vim-speeddating'
 Plug 'vimwiki/vimwiki'
 Plug 'itchyny/vim-cursorword'
 Plug 'wincent/terminus'
@@ -65,7 +64,8 @@ Plug 'tmux-plugins/vim-tmux'
 Plug 'zeorin/tmuxline.vim', {'branch': 'utf8-suppress-error'}
 Plug 'thalesmello/devlindo.vim'
 Plug 'sealemar/vtl'
-" Plug 'machakann/vim-highlightedyank'
+Plug 'machakann/vim-highlightedyank'
+Plug 'thalesmello/vim-tmux-clipboard'
 Plug 'vim-scripts/ingo-library'
 Plug 'vim-scripts/SyntaxRange'
 Plug 'jalvesaq/Nvim-R'
