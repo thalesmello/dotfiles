@@ -10,7 +10,7 @@ nnoremap <silent> <leader>T :LastWindow<cr>
 " Create windows
 nnoremap <leader>v <C-w>v<C-w>l
 nnoremap <leader>m <C-w>s<C-w>j
-nnoremap <leader>d :q<cr>
+nnoremap <leader>q :q<cr>
 nnoremap zf mzzM`zzvzz
 
 " Edit and load vimrc
@@ -42,7 +42,6 @@ vnoremap @ :normal @
 vnoremap <c-c> "+y
 nnoremap <leader><leader><leader> <c-^>
 nnoremap <leader>o `>
-nnoremap <leader>] `]
 nnoremap <leader>ss :w<cr>
 nnoremap <leader>saa ggVG
 nnoremap <leader>saq ?\v('''\|""")<CR>vw//e<CR>

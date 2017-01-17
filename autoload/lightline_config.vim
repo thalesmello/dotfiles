@@ -2,8 +2,8 @@ function! lightline_config#load()
   let g:lightline = {
         \ 'colorscheme': 'gruvbox',
         \ 'active': {
-        \   'left': [[ 'mode', 'paste'], ['filename'], ['ctrlpmark'], ['fugitive']],
-        \   'right': [['lineinfo', 'percent', 'neomake'], ['fileformat', 'fileencoding', 'filetype']]
+        \   'left': [['mode', 'paste'], ['filename'], ['ctrlpmark'], ['fugitive']],
+        \   'right': [['neomake', 'lineinfo', 'percent'], ['fileformat', 'fileencoding', 'filetype']]
         \ },
         \ 'component_function': {
         \   'fugitive': 'lightline_config#fugitive',

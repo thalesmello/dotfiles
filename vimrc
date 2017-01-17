@@ -76,15 +76,12 @@ Plug 'moll/vim-node'
 " Unite
 Plug 'Shougo/unite.vim'
 Plug 'thalesmello/config.neoyank.vim' | Plug 'Shougo/neoyank.vim', { 'on': [] }
-Plug 'Shougo/unite-help'
-Plug 'thinca/vim-unite-history'
-Plug 'thalesmello/unite-cmdmatch'
-Plug 'Shougo/unite-outline'
-Plug 'osyo-manga/unite-quickfix'
-Plug 'thalesmello/config-unite-outline'
 
 " Denite
 Plug 'Shougo/denite.nvim'
+Plug 'chemzqm/unite-location'
+Plug 'thalesmello/config-unite-outline'
+Plug 'Shougo/unite-outline'
 
 " Deoplete
 Plug 'Shougo/deoplete.nvim',            only#if(has('nvim'))
