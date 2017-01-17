@@ -30,12 +30,11 @@ call denite#custom#filter('matcher_ignore_globs', 'ignore_globs',
 	  \   'venv/', 'images/', '*.min.*', 'img/', 'fonts/'])
 
 nnoremap <silent> <leader>dd :Denite -resume<cr>
-nnoremap <silent> <leader>do :Denite <cr>
+" nnoremap <silent> <leader>dq :Denite -auto-resize quickfix -default-action=quickfix<cr>
+nnoremap <silent> <leader>dl :Denite -auto-resize location_list -default-action=quickfix<cr>
 nnoremap <silent> <leader>du :Denite unite:ultisnips<CR>
 nnoremap <silent> <leader>do :Denite -direction=topleft unite:outline<CR>
 nnoremap <silent> <leader>d/ :Denite line<cr>
-nnoremap <silent> <leader>dq :Denite quickfix -default-action=quickfix<cr>
-nnoremap <silent> <leader>dl :Denite location_list -default-action=quickfix<cr>
 nnoremap <silent> <leader>[  :Denite -resume -select=+1 -immediately<cr>
 nnoremap <silent> <leader>]  :Denite -resume -select=-1 -immediately<cr>
 
