@@ -75,7 +75,7 @@ Plug 'moll/vim-node'
 
 " Unite
 Plug 'Shougo/unite.vim'
-Plug 'thalesmello/config.neoyank.vim' | Plug 'Shougo/neoyank.vim', { 'on': [] }
+Plug 'thalesmello/config.neoyank.vim' | Plug 'Shougo/neoyank.vim'
 
 " Denite
 Plug 'Shougo/denite.nvim'
