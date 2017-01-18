@@ -49,7 +49,6 @@ Plug 'junegunn/fzf', { 'tag': '0.15.9' }
 Plug 'junegunn/fzf.vim'
 Plug 'lotabout/skim', { 'dir': '~/.skim', 'do': './install' }
 Plug 'vimwiki/vimwiki'
-Plug 'itchyny/vim-cursorword'
 Plug 'wincent/terminus'
 Plug 'ConradIrwin/vim-bracketed-paste', only#if(!has('nvim'))
 Plug 'davidhalter/jedi'
@@ -81,8 +80,6 @@ Plug 'thalesmello/config.neoyank.vim' | Plug 'Shougo/neoyank.vim'
 " Denite
 Plug 'Shougo/denite.nvim'
 Plug 'chemzqm/unite-location'
-Plug 'thalesmello/config-unite-outline'
-Plug 'Shougo/unite-outline'
 
 " Deoplete
 Plug 'Shougo/deoplete.nvim',            only#if(has('nvim'))
