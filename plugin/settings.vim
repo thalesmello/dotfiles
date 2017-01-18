@@ -36,6 +36,9 @@ set scrolloff=3
 " Disable preview window
 set completeopt-=preview
 
+" Set comment line break when editing comments
+set formatoptions+=ro
+
 " Set the terminal's title
 set title
 " No beeping.
