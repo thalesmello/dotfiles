@@ -51,7 +51,7 @@ Plug 'lotabout/skim', { 'dir': '~/.skim', 'do': './install' }
 Plug 'vimwiki/vimwiki'
 Plug 'itchyny/vim-cursorword'
 Plug 'wincent/terminus'
-Plug 'ConradIrwin/vim-bracketed-paste'
+Plug 'ConradIrwin/vim-bracketed-paste', only#if(!has('nvim'))
 Plug 'davidhalter/jedi'
 Plug 'dbakker/vim-projectroot'
 Plug 'thalesmello/pulsecursor.vim'
