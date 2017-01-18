@@ -2,10 +2,11 @@ require("hs.ipc")
 
 -- Config {{{ --
 local mash = {
+  ctrl         = {"ctrl"},
   ctrlCmd      = {"ctrl", "cmd"},
+  ctrlAlt      = {"ctrl", "alt"},
   altCmd       = {"ctrl", "cmd", "alt"},
   ctrlShiftCmd = {"ctrl", "cmd", "shift"},
-  ctrl         = {"ctrl"}
 }
 
 -- }}} Config --
@@ -73,10 +74,16 @@ end
 -- nonRecursiveBind({"ctrl"}, "J", except({ "iTerm2", "RStudio" }, function() hs.window.focusedWindow():focusWindowSouth() end))
 -- nonRecursiveBind({"ctrl"}, "K", except({ "iTerm2", "RStudio" }, function() hs.window.focusedWindow():focusWindowNorth() end))
 -- nonRecursiveBind({"ctrl"}, "L", except({ "iTerm2", "RStudio" }, function() hs.window.focusedWindow():focusWindowEast()  end))
+
+hs.hotkey.bind(mash.ctrlCmd, "H", function() hs.window.focusedWindow():focusWindowWest()  end)
+hs.hotkey.bind(mash.ctrlCmd, "J", function() hs.window.focusedWindow():focusWindowSouth() end)
+hs.hotkey.bind(mash.ctrlCmd, "K", function() hs.window.focusedWindow():focusWindowNorth() end)
+hs.hotkey.bind(mash.ctrlCmd, "L", function() hs.window.focusedWindow():focusWindowEast()  end)
+
 -- }}} Octomux --
 -- Mappings {{{ --
-hs.hotkey.bind(mash.ctrlCmd, 'H', function() hs.eventtap.keyStroke({"ctrl"}, "left") end)
-hs.hotkey.bind(mash.ctrlCmd, 'L', function() hs.eventtap.keyStroke({"ctrl"}, "right") end)
+hs.hotkey.bind(mash.ctrlAlt, 'H', function() hs.eventtap.keyStroke({"ctrl"}, "left") end)
+hs.hotkey.bind(mash.ctrlAlt, 'L', function() hs.eventtap.keyStroke({"ctrl"}, "right") end)
 hs.hotkey.bind(mash.ctrlShiftCmd, 'R', function() hs.reload() end)
 hs.hotkey.bind(mash.ctrlShiftCmd, 'H', function() hs.toggleConsole() end)
 hs.hotkey.bind(mash.ctrlShiftCmd, 'W', function() print(hs.window.focusedWindow():application():name()) end)
