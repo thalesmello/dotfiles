@@ -36,3 +36,9 @@ nnoremap <silent> <leader>d/ :Denite line<cr>
 nnoremap <silent> <leader>[  :Denite -resume -cursor-pos=-1 -immediately<cr>
 nnoremap <silent> <leader>]  :Denite -resume -cursor-pos=+1 -immediately<cr>
 
+" Replace copy/paste
+
+nnoremap gp :Denite neoyank -default-action=append<CR>
+vnoremap gp :Denite neoyank -default-action=replace<CR>
+
+

@@ -73,13 +73,10 @@ Plug 'jalvesaq/Nvim-R'
 Plug 'alcesleo/vim-uppercase-sql'
 Plug 'moll/vim-node'
 
-" Unite
-Plug 'Shougo/unite.vim'
-Plug 'thalesmello/config.neoyank.vim' | Plug 'Shougo/neoyank.vim'
-
 " Denite
 Plug 'Shougo/denite.nvim'
 Plug 'chemzqm/unite-location'
+Plug 'Shougo/neoyank.vim'
 
 " Deoplete
 Plug 'Shougo/deoplete.nvim',            only#if(has('nvim'))
