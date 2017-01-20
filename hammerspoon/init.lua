@@ -90,8 +90,8 @@ hs.hotkey.bind(mash.ctrlShiftCmd, 'W', function() print(hs.window.focusedWindow(
 
 -- }}} Mappings --
 -- Mappings {{{ --
-nonRecursiveBind(mash.ctrl, 'N', only({ "Google Chrome" }, function() quickKeyStroke({}, "tab")  end))
-nonRecursiveBind(mash.ctrl, 'P', only({ "Google Chrome" }, function() quickKeyStroke({"shift"}, "tab")  end))
+-- nonRecursiveBind(mash.ctrl, 'N', only({ "Google Chrome" }, function() quickKeyStroke({}, "tab")  end))
+-- nonRecursiveBind(mash.ctrl, 'P', only({ "Google Chrome" }, function() quickKeyStroke({"shift"}, "tab")  end))
 
 -- }}} Mappings --
 -- Vim compatibility {{{ --
