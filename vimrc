@@ -21,7 +21,7 @@ Plug 'scrooloose/nerdtree', { 'on': ['NERDTreeToggle', 'NERDTreeFind'] }
 Plug 'teranex/jk-jumps.vim'
 Plug 'rstacruz/sparkup'
 Plug 'thalesmello/vim-sleuth'
-Plug 'AndrewRadev/multichange.vim'
+Plug 'terryma/vim-multiple-cursors'
 Plug 'christoomey/vim-tmux-navigator'
 Plug 'airblade/vim-gitgutter'
 Plug 'sheerun/vim-polyglot'
