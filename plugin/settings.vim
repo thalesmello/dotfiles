@@ -57,6 +57,9 @@ set diffopt+=vertical
 " Allows the mouse to be used
 set mouse=a
 
+" Set position of quickfix
+botright cwindow
+
 " Copy to system register
 " set clipboard=unnamed
 

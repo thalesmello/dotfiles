@@ -16,6 +16,7 @@ call denite#custom#map('insert', '<c-e>', '<denite:move_caret_to_tail>', 'norema
 call denite#custom#map('insert', '<c-b>', '<denite:move_caret_to_left>', 'noremap')
 call denite#custom#map('insert', '<c-f>', '<denite:move_caret_to_right>', 'noremap')
 call denite#custom#map('insert', '<c-x>', '<denite:toggle_select_down>', 'noremap')
+call denite#custom#map('insert', '<c-q>', '<denite:toggle_select_all>', 'noremap')
 
 " Change sorters.
 call denite#custom#source('file_rec', 'sorters', ['sorter_sublime'])
