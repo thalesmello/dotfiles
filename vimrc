@@ -40,16 +40,17 @@ Plug 'simnalamburt/vim-mundo'
 Plug 'simeji/winresizer'
 Plug 'godlygeek/tabular'
 Plug 'wesQ3/vim-windowswap'
+Plug 'nhooyr/neoman.vim'
 Plug 'SirVer/ultisnips', only#if(v:version >= 704, { 'on': ['UltiSnipsEdit'] })
 Plug 'honza/vim-snippets'
 Plug 'ryanoasis/vim-devicons'
 Plug 'AndrewRadev/splitjoin.vim'
 Plug 'gioele/vim-autoswap'
-Plug 'junegunn/fzf', { 'tag': '0.15.9' }
+Plug 'junegunn/fzf'
 Plug 'junegunn/fzf.vim'
 Plug 'lotabout/skim', { 'dir': '~/.skim', 'do': './install' }
 Plug 'vimwiki/vimwiki'
-Plug 'wincent/terminus'
+Plug 'tmux-plugins/vim-tmux-focus-events'
 Plug 'ConradIrwin/vim-bracketed-paste', only#if(!has('nvim'))
 Plug 'davidhalter/jedi'
 Plug 'dbakker/vim-projectroot'
@@ -82,12 +83,12 @@ Plug 'Shougo/neoyank.vim'
 " Deoplete
 Plug 'Shougo/deoplete.nvim',            only#if(has('nvim'))
 Plug 'Shougo/echodoc.vim'
-" Plug 'thalesmello/webcomplete.vim',     only#if(has('nvim'))
+Plug 'thalesmello/webcomplete.vim',     only#if(has('nvim'))
 Plug 'zchee/deoplete-jedi',             only#if(has('nvim'), {'for': 'python'})
 Plug 'mhartington/deoplete-typescript', only#if(has('nvim'), {'for': 'javascript'})
 Plug 'Shougo/neco-vim'
 Plug 'zchee/deoplete-go'
-Plug 'thalesmello/tmux-complete.vim'
+Plug 'wellle/tmux-complete.vim'
 
 " Text objects
 Plug 'kana/vim-textobj-user'

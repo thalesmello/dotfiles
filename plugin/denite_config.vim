@@ -42,4 +42,11 @@ nnoremap <silent> <leader>]  :Denite -resume -cursor-pos=+1 -immediately<cr>
 nnoremap gp :Denite neoyank -mode=normal -default-action=append<CR>
 vnoremap gp :Denite neoyank -mode=normal -default-action=replace<CR>
 
-
+" Configure ripgrep
+call denite#custom#var('grep', 'command', ['rg'])
+call denite#custom#var('grep', 'default_opts',
+		\ ['--vimgrep', '--no-heading'])
+call denite#custom#var('grep', 'recursive_opts', [])
+call denite#custom#var('grep', 'pattern_opt', ['--regexp'])
+call denite#custom#var('grep', 'separator', ['--'])
+call denite#custom#var('grep', 'final_opts', [])
