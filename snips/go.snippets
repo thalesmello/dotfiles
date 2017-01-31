@@ -5,6 +5,12 @@ func (${1:receiver} ${2:type}) ${3:name}(${4:params})${5/(.+)/ /}`!p opening_par
 }
 endsnippet
 
+snippet "^(\w+)\.(\w+)" "Postfix methods" r
+func (`!p snip.rv = match.group(1)[0].lower()` `!p snip.rv = match.group(1)`) `!p snip.rv = match.group(2)`(${1:params})${2/(.+)/ /}`!p opening_par(snip, 2)`$2`!p closing_par(snip, 2)` {
+	${0:${VISUAL}}
+}
+endsnippet
+
 global !p
 
 import re
