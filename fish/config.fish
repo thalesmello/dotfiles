@@ -1,6 +1,6 @@
 # Environment variables
 set -gx EDITOR nvim
-set -gx VSUAL nvim
+set -gx VISUAL nvim
 
 # Setup envs
 status --is-interactive; and source (nodenv init -|psub)
