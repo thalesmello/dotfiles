@@ -13,3 +13,4 @@ if !empty(&buftype)
   nnoremap <buffer> <esc> :q<cr>
 endif
 
+nnoremap <buffer><silent> <c-]>  :call lookup#lookup()<cr>

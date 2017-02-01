@@ -52,6 +52,8 @@ Plug 'lotabout/skim', { 'dir': '~/.skim', 'do': './install' }
 Plug 'vimwiki/vimwiki'
 Plug 'tmux-plugins/vim-tmux-focus-events'
 Plug 'lambdalisue/vim-pager'
+Plug 'tweekmonster/exception.vim'
+Plug 'mhinz/vim-lookup'
 Plug 'ConradIrwin/vim-bracketed-paste', only#if(!has('nvim'))
 Plug 'davidhalter/jedi'
 Plug 'dbakker/vim-projectroot'
