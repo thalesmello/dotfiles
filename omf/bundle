@@ -2,5 +2,5 @@ package foreign-env
 package technicolor
 package vcs
 package wd
+theme bobthefish
 theme default
-theme pure
