@@ -153,11 +153,11 @@ keymap ZQ NULL
 ########## command ##########
 keymap :: COMMAND
 keymap :H HELP
+keymap :h HELP
 
 ########## history navigation ##########
 keymap C-j GOTO_LINK
 keymap s SAVE_LINK
-keymap :h SELECT_MENU
 
 ########## scrolling ##########
 keymap C-e UP
@@ -176,10 +176,9 @@ keymap RIGHT MOVE_RIGHT
 keymap LEFT MOVE_LEFT
 keymap DOWN MOVE_DOWN1
 keymap UP MOVE_UP1
-keymap H LINE_BEGIN
-keymap L LINE_END
-keymap 0 LINE_BEGIN
+keymap ^ LINE_BEGIN
 keymap $ LINE_END
+keymap 0 LINE_BEGIN
 keymap w NEXT_WORD
 keymap b PREV_WORD
 ########## cursor history ##########
