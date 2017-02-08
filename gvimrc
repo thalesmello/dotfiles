@@ -1,6 +1,6 @@
 " Example Vim graphical configuration.
 " Copy to ~/.gvimrc or ~/_gvimrc.
-set guifont=Monaco\ for\ Powerline\ Plus\ Nerd\ File\ Types
+set guifont=Sauce\ Code\ Pro\ Medium\ Nerd\ Font\ Complete\ Mono
 set encoding=utf-8                " Use UTF-8 everywhere.
 set guioptions-=T                 " Hide toolbar.
 set lines=25 columns=100          " Window dimensions.

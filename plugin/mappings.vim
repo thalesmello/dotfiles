@@ -40,7 +40,7 @@ nnoremap <leader>yy gv"+y
 vnoremap <leader>yy "+y
 vnoremap @ :normal @
 vnoremap <c-c> "+y
-nnoremap <leader><leader><leader> <c-^>
+nnoremap <leader><leader> <c-^>
 nnoremap <leader>o `>
 nnoremap <leader>ss :w<cr>
 nnoremap <leader>saa ggVG

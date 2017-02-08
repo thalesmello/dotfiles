@@ -116,6 +116,8 @@ Plug 'ivalkeen/vim-simpledb'
 Plug 'exu/pgsql.vim'
 
 " Slime
+" Plug 'jpalardy/vim-slime'
+Plug 'jgdavey/tslime.vim'
 
 " TODO: Check
 " github-complete.vim
