@@ -25,6 +25,7 @@ Plug 'terryma/vim-multiple-cursors'
 Plug 'AndrewRadev/multichange.vim'
 Plug 'christoomey/vim-tmux-navigator'
 Plug 'airblade/vim-gitgutter'
+Plug 'peterrincker/vim-argumentative'
 Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'
 Plug 'ludovicchabant/vim-gutentags', only#if(v:version >= 704)
@@ -32,7 +33,6 @@ Plug 'tpope/vim-rsi'
 Plug 'bronson/vim-visual-star-search'
 Plug 'bronson/vim-trailing-whitespace'
 Plug 'thalesmello/vim-indent-object'
-Plug 'thalesmello/vimux'
 Plug 'embear/vim-localvimrc'
 Plug 'thalesmello/vim-unimpaired'
 Plug 'Chiel92/vim-autoformat'
@@ -102,7 +102,6 @@ Plug 'Julian/vim-textobj-variable-segment'
 Plug 'kana/vim-textobj-entire'
 Plug 'thinca/vim-textobj-function-javascript'
 Plug 'coderifous/textobj-word-column.vim'
-Plug 'sgur/vim-textobj-parameter'
 Plug 'saihoooooooo/vim-textobj-space'
 Plug 'glts/vim-textobj-indblock'
 Plug 'kana/vim-textobj-indent'
@@ -115,6 +114,8 @@ Plug 'rhysd/vim-textobj-conflict'
 " Database
 Plug 'ivalkeen/vim-simpledb'
 Plug 'exu/pgsql.vim'
+
+" Slime
 
 " TODO: Check
 " github-complete.vim
