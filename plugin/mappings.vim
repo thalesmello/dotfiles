@@ -9,8 +9,9 @@ nnoremap <silent> <leader>T :LastWindow<cr>
 
 " Create windows
 nnoremap <leader>v <C-w>v<C-w>l
-nnoremap <leader>m <C-w>s<C-w>j
-nnoremap <leader>q :q<cr>
+nnoremap <leader>% <C-w>v<C-w>l
+nnoremap <leader>" <C-w>s<C-w>j
+nnoremap <leader>x :q<cr>
 nnoremap zf mzzM`zzvzz
 
 " Edit and load vimrc
