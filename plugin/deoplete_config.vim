@@ -11,3 +11,5 @@ inoremap <silent> <up> <c-r>=deoplete_config#arrow_navigation('Up')<CR>
 inoremap <silent> <Down> <c-r>=deoplete_config#arrow_navigation('Down')<CR>
 inoremap <expr><C-l> deoplete#refresh()
 
+imap <expr> <c-x><c-p> deoplete_config#repeated_completion("\<c-p>")
+imap <expr> <c-x><c-n> deoplete_config#repeated_completion("\<c-n>")

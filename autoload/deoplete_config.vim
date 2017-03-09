@@ -1,4 +1,3 @@
-
 function! deoplete_config#multiple_cursors_switch(before)
   if !exists('g:loaded_deoplete')
     return
@@ -21,4 +20,8 @@ function! deoplete_config#arrow_navigation(direction)
   endif
 
   return arrowNavigation[a:direction]
+endfunction
+
+function! deoplete_config#repeated_completion(key)
+  return "\<c-x>" . a:key . (pumvisible() ? a:key : "")
 endfunction
