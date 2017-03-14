@@ -1,0 +1,7 @@
+snippet dim "A looker dimension" b
+dimension: ${1:name} {
+	type: ${2:string}
+	sql: ${TABLE}.${3:$1} ;;
+}
+endsnippet
+
