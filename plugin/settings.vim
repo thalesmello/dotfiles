@@ -36,6 +36,8 @@ set scrolloff=3
 " Disable preview window
 set completeopt-=preview
 
+set completeopt+=menuone,noselect
+
 " Set comment line break when editing comments
 set formatoptions+=ro
 
