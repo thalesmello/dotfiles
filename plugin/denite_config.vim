@@ -61,3 +61,10 @@ vnoremap <silent> <leader>a :<c-u>call denite_config#visual_ag()<cr>
 
 nnoremap <silent><c-p> :<c-u>call denite_config#smart_ctrlp()<cr>
 vnoremap <silent><c-p> :<c-u>call denite_config#smart_ctrlp()<cr>
+
+" Help tags
+cabbrev h Denite help<cr>
+
+" Filetypes
+nnoremap <leader>ft :Denite filetype<cr>
+

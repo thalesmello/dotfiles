@@ -9,5 +9,5 @@ nnoremap <silent> <leader>li :BLines<cr>
 nnoremap <silent> <leader>hp :Helptags<cr>
 nnoremap <silent> <leader>cm :Commands<cr>
 nnoremap <silent> <leader>hi :History:<cr>
-nnoremap <silent> <leader>ft :Filetypes<cr>
+" nnoremap <silent> <leader>ft :Filetypes<cr>
 
