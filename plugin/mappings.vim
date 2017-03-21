@@ -57,7 +57,6 @@ nnoremap <leader>fw :FixWhitespace<cr>
 vmap <leader>yj Jgvyu
 noremap <c-e> 2<c-e>
 noremap <c-y> 2<c-y>
-nnoremap <leader>; A;<esc>
 nnoremap <leader><bs> $x<esc>
 nnoremap <leader>= <c-w>=
 nnoremap <leader>+ <c-w>\|<c-w>_

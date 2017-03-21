@@ -112,6 +112,8 @@ Plug 'kana/vim-textobj-fold'
 Plug 'thalesmello/vim-textobj-methodcall'
 Plug 'thalesmello/vim-textobj-bracketchunk'
 Plug 'rhysd/vim-textobj-conflict'
+Plug 'yssl/QFEnter'
+Plug 'lfilho/cosco.vim'
 
 " Database
 Plug 'ivalkeen/vim-simpledb'

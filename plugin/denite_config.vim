@@ -8,8 +8,8 @@ call denite#custom#map('insert', '<C-p>', '<denite:move_to_previous_line>', 'nor
 call denite#custom#map('insert', '<Down>', '<denite:move_to_next_line>', 'noremap')
 call denite#custom#map('insert', '<Up>', '<denite:move_to_previous_line>', 'noremap')
 call denite#custom#map('insert', '<c-v>', '<denite:do_action:vsplit>', 'noremap')
-call denite#custom#map('insert', '<c-r>', '<denite:assign_next_matched_text>', 'noremap')
-call denite#custom#map('insert', '<c-s>', '<denite:assign_previous_matched_text>', 'noremap')
+call denite#custom#map('insert', '<c-r>', '<denite:assign_previous_matched_text>', 'noremap')
+call denite#custom#map('insert', '<c-s>', '<denite:assign_next_matched_text>', 'noremap')
 call denite#custom#map('insert', '<c-j>', '<denite:do_action:preview>', 'noremap')
 call denite#custom#map('insert', '<a-cr>', '<denite:do_action:quickfix>', 'noremap')
 call denite#custom#map('insert', '<c-a>', '<denite:move_caret_to_head>', 'noremap')
@@ -39,7 +39,6 @@ nnoremap <silent> <leader>[  :Denite -resume -cursor-pos=-1 -immediately<cr>
 nnoremap <silent> <leader>]  :Denite -resume -cursor-pos=+1 -immediately<cr>
 
 " Replace copy/paste
-
 nnoremap gp :Denite neoyank -mode=normal -default-action=append<CR>
 vnoremap gp :Denite neoyank -mode=normal -default-action=replace<CR>
 
@@ -52,4 +51,13 @@ call denite#custom#var('grep', 'separator', ['--'])
 call denite#custom#var('grep', 'final_opts', [])
 call denite#custom#source('grep', 'sorters', [''])
 
+nnoremap <silent> <c-f> :Denite grep:::!<cr>
+
 cabbr ddo cdo normal
+
+" Replace FZF
+nnoremap <silent> <leader>a :<c-u>call denite_config#ag(expand('<cword>'))<cr>
+vnoremap <silent> <leader>a :<c-u>call denite_config#visual_ag()<cr>
+
+nnoremap <silent><c-p> :<c-u>call denite_config#smart_ctrlp()<cr>
+vnoremap <silent><c-p> :<c-u>call denite_config#smart_ctrlp()<cr>
