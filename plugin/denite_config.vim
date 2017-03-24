@@ -51,7 +51,7 @@ call denite#custom#var('grep', 'separator', ['--'])
 call denite#custom#var('grep', 'final_opts', [])
 call denite#custom#source('grep', 'sorters', [''])
 
-nnoremap <silent> <c-f> :Denite grep:::!<cr>
+nnoremap <silent> <c-f> :call denite_config#smart_interactive_ag()<cr>
 
 cabbr ddo cdo normal
 

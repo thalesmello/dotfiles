@@ -1,2 +1,2 @@
-call auto#cmd('lookml', 'BufRead *.lookml setfiletype yaml')
+call auto#cmd('lookml', 'BufRead *.lkml setfiletype javascript')
 
