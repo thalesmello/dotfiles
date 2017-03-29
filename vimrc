@@ -121,12 +121,10 @@ Plug 'ivalkeen/vim-simpledb'
 Plug 'exu/pgsql.vim'
 
 " Slime
-" Plug 'jpalardy/vim-slime'
 Plug 'jgdavey/tslime.vim'
 Plug 'vim-scripts/OnSyntaxChange'
 
 Plug 'thalesmello/lkml.vim'
-Plug 'gelguy/Cmd2.vim'
 
 " TODO: Check
 " github-complete.vim
