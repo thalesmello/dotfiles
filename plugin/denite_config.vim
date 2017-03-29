@@ -65,6 +65,9 @@ vnoremap <silent><c-p> :<c-u>call denite_config#smart_ctrlp()<cr>
 " Help tags
 cabbrev h Denite help<cr>
 
+nnoremap <silent> <leader><c-h> :call denite#start([{'name': 'help', 'args': []}], {'input': expand('<cword>')})<cr>
+
+
 " Filetypes
 nnoremap <leader>ft :Denite filetype<cr>
 

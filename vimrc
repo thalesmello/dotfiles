@@ -90,6 +90,7 @@ Plug 'thalesmello/webcomplete.vim',     only#if(has('nvim'))
 Plug 'zchee/deoplete-jedi',             only#if(has('nvim'), {'for': 'python'})
 Plug 'mhartington/deoplete-typescript', only#if(has('nvim'), {'for': 'javascript'})
 Plug 'Shougo/neco-vim'
+Plug 'Shougo/neco-syntax'
 Plug 'zchee/deoplete-go'
 Plug 'wellle/tmux-complete.vim'
 
@@ -122,6 +123,10 @@ Plug 'exu/pgsql.vim'
 " Slime
 " Plug 'jpalardy/vim-slime'
 Plug 'jgdavey/tslime.vim'
+Plug 'vim-scripts/OnSyntaxChange'
+
+Plug 'thalesmello/lkml.vim'
+Plug 'gelguy/Cmd2.vim'
 
 " TODO: Check
 " github-complete.vim
@@ -132,3 +137,4 @@ call plug#end()
 
 let mapleader = "\<space>"
 let maplocalleader = "'"
+
