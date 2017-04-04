@@ -3,6 +3,7 @@
     "activateHelp" : "Ctrl+Shift+H",
     "activatePlots" : "Ctrl+Shift+P",
     "activateSource" : "Ctrl+K",
+    "findAll" : "Alt+Cmd+F",
     "layoutZoomCurrentPane" : "Ctrl+Shift+=",
     "moveTabLeft" : "",
     "moveTabRight" : "",
