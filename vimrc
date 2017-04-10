@@ -19,7 +19,6 @@ Plug 'tpope/vim-abolish'
 Plug 'tweekmonster/local-indent.vim'
 Plug 'scrooloose/nerdtree', { 'on': ['NERDTreeToggle', 'NERDTreeFind'] }
 Plug 'teranex/jk-jumps.vim'
-Plug 'rstacruz/sparkup'
 Plug 'thalesmello/vim-sleuth'
 Plug 'dag/vim-fish'
 Plug 'terryma/vim-multiple-cursors'
