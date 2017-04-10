@@ -112,6 +112,7 @@ end)
 
 hs.hotkey.bind(mash.ctrl, '[', function() hs.eventtap.keyStroke({}, "escape") end)
 nonRecursiveBind({"alt"}, "delete", only({ "iTerm2" }, function() quickKeyStroke({"ctrl"}, "W")  end))
+nonRecursiveBind({"cmd"}, "delete", only({ "iTerm2" }, function() quickKeyStroke({"ctrl"}, "U")  end))
 
 nonRecursiveBind({"cmd", "shift"}, "[", only({ "iTerm2" }, function()
   quickKeyStroke({"ctrl"}, "space")
