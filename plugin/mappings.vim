@@ -31,7 +31,6 @@ vnoremap <C-C> <esc>
 map <MiddleMouse> <Nop>
 imap <MiddleMouse> <Nop>
 noremap Q gq
-nnoremap K <nop>
 nnoremap & <Nop>
 vnoremap <CR> "+y
 " The snippet below tries to intelligently split a string and append a concat

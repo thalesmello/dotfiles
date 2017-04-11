@@ -75,6 +75,7 @@ colorscheme gruvbox
 set cursorline
 set listchars=tab:▸\ ,eol:¬
 set splitbelow
+set splitright
 set linebreak
 set breakindent
 set noshowmode
@@ -82,6 +83,7 @@ set updatetime=500
 set sidescroll=2
 set showbreak=↪\ 
 set tabstop=4
+set keywordprg=:help
 
 " Splits should use full line just like Tmux
 set fillchars+=vert:│
