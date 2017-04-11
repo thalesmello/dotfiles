@@ -5,7 +5,7 @@
 call plug#begin()
 Plug 'tpope/vim-sensible', only#if(!has('nvim'))
 Plug 'tpope/vim-commentary'
-Plug 'fatih/vim-go'
+Plug 'thalesmello/vim-go', { 'branch': 'feature/keyify-support' }
 Plug 'morhetz/gruvbox'
 Plug 'thalesmello/tabfold'
 Plug 'Shougo/vimproc.vim', { 'do' : 'make' }
