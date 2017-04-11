@@ -39,7 +39,8 @@ nnoremap <silent> <leader>[  :Denite -resume -cursor-pos=-1 -immediately<cr>
 nnoremap <silent> <leader>]  :Denite -resume -cursor-pos=+1 -immediately<cr>
 
 " Replace copy/paste
-nnoremap gp :Denite neoyank -mode=normal -default-action=append<CR>
+nnoremap gP i.<esc>v:Denite neoyank -mode=normal -default-action=replace<CR>
+nnoremap gp a.<esc>v:Denite neoyank -mode=normal -default-action=replace<CR>
 vnoremap gp :Denite neoyank -mode=normal -default-action=replace<CR>
 
 " Configure ripgrep
