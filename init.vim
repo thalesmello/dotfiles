@@ -1,1 +1,1 @@
-/Users/thales/.vimrc
+vimrc
