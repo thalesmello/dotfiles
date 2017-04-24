@@ -7,6 +7,7 @@ Create a symbolic links for your files:
 	ln -s (pwd)/snips ~/.snips
 	ln -s (pwd)/gitconfig ~/.gitconfig
 	ln -s (pwd)/gitignore ~/.gitignore
+	ln -s (pwd)/tmux.theme ~/.tmux.theme
 	ln -s (pwd)/ctags ~/.ctags
 	ln -s (pwd)/w3m ~/.w3m
 	ln -s (pwd)/hammerspoon ~/.hammerspoon
