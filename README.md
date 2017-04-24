@@ -5,6 +5,8 @@ Create a symbolic links for your files:
 	ln -s (pwd)/editrc ~/.editrc
 	ln -s (pwd)/inputrc ~/.inputrc
 	ln -s (pwd)/snips ~/.snips
+	ln -s (pwd)/gitconfig ~/.gitconfig
+	ln -s (pwd)/ctags ~/.ctags
 	ln -s (pwd)/w3m ~/.w3m
 	ln -s (pwd)/hammerspoon ~/.hammerspoon
 	ln -s (pwd)/rstudio ~/.R/rstudio
