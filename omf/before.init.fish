@@ -1,1 +1,1 @@
-set -gX $projects_path ~/Projects/* ~/Go/src/github.com/pagarme/*
+set -g projects_path ~/projects/*
