@@ -12,3 +12,4 @@ abbr be 'bundle exec'
 abbr how 'how2 -l'
 abbr gblame 'git log -p -M --follow --stat --'
 abbr gr 'git remote'
+abbr wd prj

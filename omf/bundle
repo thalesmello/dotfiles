@@ -3,6 +3,5 @@ package https://github.com/brgmnn/fish-docker-compose
 package prj
 package technicolor
 package vcs
-package wd
 theme bobthefish
 theme default
