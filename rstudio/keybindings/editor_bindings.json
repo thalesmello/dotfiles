@@ -1,2 +1,4 @@
 {
+    "removeline" : "Shift+Cmd+K",
+    "selectOrFindNext" : "Cmd+D"
 }
