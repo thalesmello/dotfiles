@@ -41,7 +41,7 @@ vnoremap <leader>yy "+y
 vnoremap @ :normal @
 vnoremap <c-c> "+y
 nnoremap <leader><leader> <c-^>
-nnoremap <leader>o `>
+nnoremap <leader>o gvo<esc>
 nnoremap <leader>ss :w<cr>
 nnoremap <leader>saa ggVG
 nnoremap <leader>saq ?\v('''\|""")<CR>vw//e<CR>
@@ -81,3 +81,5 @@ vnoremap  gs  :s//g<LEFT><LEFT>
 " Enable preview window
 nnoremap <expr> <leader>cp ':set completeopt' . (&completeopt =~ 'preview' ? '-' : '+') . "=preview\<cr>"
 
+" Silence write file so it doesn't pollute history
+nnoremap <silent> :w<cr> :write<cr>
