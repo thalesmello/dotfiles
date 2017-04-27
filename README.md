@@ -11,7 +11,7 @@ Create a symbolic links for your files:
 	ln -s (pwd)/ctags ~/.ctags
 	ln -s (pwd)/w3m ~/.w3m
 	ln -s (pwd)/hammerspoon ~/.hammerspoon
-	ln -s (pwd)/rstudio ~/.R/rstudio
+	ln -s (pwd)/R ~/.R
 	ln -s (pwd)/Karabiner ~/Library/Application\ Support/Karabiner
 
 Include the local bin folder in the PATH
