@@ -8,3 +8,5 @@ set -g theme_show_exit_status yes
 set -g default_user your_normal_user
 set -g theme_color_scheme gruvbox
 set -g fish_prompt_pwd_dir_length 2
+
+thefuck --alias | source
