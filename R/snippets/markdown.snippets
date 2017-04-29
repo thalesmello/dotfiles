@@ -1,0 +1,47 @@
+snippet [
+	[${1:label}](${2:location})
+
+snippet ![
+	![${1:label}](${2:location})
+
+snippet r
+	```{r ${1:label}, ${2:options}}
+	${0}
+	```
+
+snippet rcpp
+	```{r, engine='Rcpp'}
+	#include <Rcpp.h>
+	using namespace Rcpp;
+	
+	${0}
+	
+	```
+
+snippet eq
+	\begin{equation} 
+	  ${0:f(x) = x^2}
+	  (\#eq:${1:my_equation})
+	\end{equation}
+
+snippet fig
+	(ref:${1}) ${2:Description of the figure.}
+	```{r ${1:reference}, fig.asp=.7, fig.width=6, fig.cap='(ref:${1})', fig.align='center', out.width='90%'}
+	${0:plot(pressure, pch = 19, type = 'b')}
+	```
+
+snippet tref
+	(ref:${1:text_reference}) ${0:Define a text reference **here**.}
+
+snippet ref
+	\@ref(${1:label})${0}
+	
+snippet tab
+	(ref:${1}) ${2:Description of the table.}
+	```{r ${1:reference}}
+	knitr::kable(
+	  ${0:head(mtcars[, 1:8], 10)},
+	  booktabs = TRUE,
+	  caption = '(ref:${1})'
+	)
+	```
