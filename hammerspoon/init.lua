@@ -116,6 +116,8 @@ nonRecursiveBind({"cmd"}, "delete", only({ "iTerm2" }, function() quickKeyStroke
 nonRecursiveBind({"ctrl"}, "w", only({ "RStudio" }, function() quickKeyStroke({"alt"}, "delete")  end))
 nonRecursiveBind({"ctrl"}, "u", only({ "RStudio" }, function() quickKeyStroke({}, "pageup")  end))
 nonRecursiveBind({"ctrl"}, "d", only({ "RStudio" }, function() quickKeyStroke({}, "pagedown")  end))
+nonRecursiveBind({"ctrl"}, "e", only({ "RStudio" }, function() quickKeyStroke({}, "down")  end))
+nonRecursiveBind({"ctrl"}, "y", only({ "RStudio" }, function() quickKeyStroke({}, "up")  end))
 
 nonRecursiveBind({"cmd", "shift"}, "[", only({ "iTerm2" }, function()
   quickKeyStroke({"ctrl"}, "space")
