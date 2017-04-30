@@ -113,6 +113,9 @@ end)
 hs.hotkey.bind(mash.ctrl, '[', function() hs.eventtap.keyStroke({}, "escape") end)
 nonRecursiveBind({"alt"}, "delete", only({ "iTerm2" }, function() quickKeyStroke({"ctrl"}, "W")  end))
 nonRecursiveBind({"cmd"}, "delete", only({ "iTerm2" }, function() quickKeyStroke({"ctrl"}, "U")  end))
+nonRecursiveBind({"ctrl"}, "w", only({ "RStudio" }, function() quickKeyStroke({"alt"}, "delete")  end))
+nonRecursiveBind({"ctrl"}, "u", only({ "RStudio" }, function() quickKeyStroke({}, "pageup")  end))
+nonRecursiveBind({"ctrl"}, "d", only({ "RStudio" }, function() quickKeyStroke({}, "pagedown")  end))
 
 nonRecursiveBind({"cmd", "shift"}, "[", only({ "iTerm2" }, function()
   quickKeyStroke({"ctrl"}, "space")
@@ -279,6 +282,7 @@ hs.hotkey.bind(mash.ctrlCmd, "up", adjust(0, 0, 1, 0.5))
 -- right half
 hs.hotkey.bind(mash.ctrlCmd, "right", adjust(0.5, 0, 0.5, 1))
 hs.hotkey.bind(mash.ctrlCmd, ".", adjust(0.5, 0, 0.5, 1))
+hs.hotkey.bind(mash.ctrlShiftCmd, ".", adjust(0.25, 0, 0.75, 1))
 
 -- bottom half
 hs.hotkey.bind(mash.ctrlCmd, "down", adjust(0, 0.5, 1, 0.5))
@@ -286,6 +290,7 @@ hs.hotkey.bind(mash.ctrlCmd, "down", adjust(0, 0.5, 1, 0.5))
 -- left half
 hs.hotkey.bind(mash.ctrlCmd, "left", adjust(0, 0, 0.5, 1))
 hs.hotkey.bind(mash.ctrlCmd, ",", adjust(0, 0, 0.5, 1))
+hs.hotkey.bind(mash.ctrlShiftCmd, ",", adjust(0.0, 0, 0.75, 1))
 
 -- top left
 hs.hotkey.bind(mash.altCmd, "up", adjust(0, 0, 0.5, 0.5))
@@ -380,5 +385,4 @@ hs.hotkey.bind(mash.ctrlShiftCmd, "b", showBatteryStatus)
 -- Report {{{ --
 notify("Hammerspoon!")
 -- }}} Report --
-
 
