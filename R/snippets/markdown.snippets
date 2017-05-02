@@ -19,10 +19,10 @@ snippet rcpp
 	```
 
 snippet eq
-	\begin{equation} 
-	  ${0:f(x) = x^2}
-	  (\#eq:${1:my_equation})
-	\end{equation}
+	\$\$
+	${0:f(x) = x^2}
+	(\#eq:${1:my_equation})
+	\$\$
 
 snippet fig
 	(ref:${1}) ${2:Description of the figure.}
@@ -45,3 +45,9 @@ snippet tab
 	  caption = '(ref:${1})'
 	)
 	```
+	
+snippet (
+	\left($1\right)$0
+
+snippet /
+	\frac{$1}{$2}$0
