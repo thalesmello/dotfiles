@@ -42,6 +42,7 @@ vnoremap @ :normal @
 vnoremap <c-c> "+y
 nnoremap <leader><leader> <c-^>
 nnoremap <leader>o gvo<esc>
+nnoremap <expr> <leader>o getpos('.') == getpos("'[") ? "`]" : "`["
 nnoremap <leader>ss :w<cr>
 nnoremap <leader>saa ggVG
 nnoremap <leader>saq ?\v('''\|""")<CR>vw//e<CR>
@@ -83,3 +84,4 @@ nnoremap <expr> <leader>cp ':set completeopt' . (&completeopt =~ 'preview' ? '-'
 
 " Silence write file so it doesn't pollute history
 nnoremap <silent> :w<cr> :write<cr>
+nnoremap <silent> :q<cr> :quit<cr>
