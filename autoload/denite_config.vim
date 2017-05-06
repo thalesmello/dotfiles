@@ -20,7 +20,9 @@ function! denite_config#smart_interactive_ag()
 endfunction
 
 function! s:get_project_path()
-  if s:start_with(expand('%:p'), getcwd())
+  if $HOME ==# getcwd()
+    return projectroot#guess()
+  elseif s:start_with(expand('%:p'), getcwd())
     return ''
   else
     return projectroot#guess()

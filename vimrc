@@ -85,7 +85,7 @@ Plug 'Shougo/neoyank.vim'
 " Deoplete
 Plug 'Shougo/deoplete.nvim',            only#if(has('nvim'))
 Plug 'Shougo/echodoc.vim'
-Plug 'thalesmello/webcomplete.vim',     only#if(has('nvim'))
+" Plug 'thalesmello/webcomplete.vim',     only#if(has('nvim'))
 Plug 'zchee/deoplete-jedi',             only#if(has('nvim'), {'for': 'python'})
 Plug 'mhartington/deoplete-typescript', only#if(has('nvim'), {'for': 'javascript'})
 Plug 'Shougo/neco-vim'
@@ -134,4 +134,3 @@ call plug#end()
 
 let mapleader = "\<space>"
 let maplocalleader = "'"
-
