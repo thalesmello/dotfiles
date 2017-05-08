@@ -124,6 +124,7 @@ Plug 'jgdavey/tslime.vim'
 Plug 'vim-scripts/OnSyntaxChange'
 
 Plug 'thalesmello/lkml.vim'
+Plug 'junegunn/vim-easy-align'
 
 " TODO: Check
 " github-complete.vim
