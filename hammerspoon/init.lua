@@ -92,6 +92,12 @@ hs.hotkey.bind(mash.ctrlShiftCmd, 'W', function() print(hs.window.focusedWindow(
 -- Mappings {{{ --
 -- nonRecursiveBind(mash.ctrl, 'N', only({ "Google Chrome" }, function() quickKeyStroke({}, "tab")  end))
 -- nonRecursiveBind(mash.ctrl, 'P', only({ "Google Chrome" }, function() quickKeyStroke({"shift"}, "tab")  end))
+--
+
+hs.hotkey.bind(mash.ctrlAlt, 'R', function() hs.application.launchOrFocus("RStudio") end)
+hs.hotkey.bind(mash.ctrlAlt, 'C', function() hs.application.launchOrFocus("Chrome") end)
+hs.hotkey.bind(mash.ctrlAlt, 'T', function() hs.application.launchOrFocus("iTerm2") end)
+hs.hotkey.bind(mash.ctrlAlt, 'P', function() hs.application.launchOrFocus("Preview") end)
 
 -- }}} Mappings --
 -- Vim compatibility {{{ --
