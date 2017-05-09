@@ -1,5 +1,5 @@
 # This tmux statusbar config was created by tmuxline.vim
-# on Mon, 08 May 2017
+# on Tue, 09 May 2017
 
 set -g status-bg "#504945"
 set -g message-command-fg "#282828"
@@ -25,5 +25,5 @@ setw -g window-status-separator ""
 setw -g window-status-bg "#504945"
 set -g status-left "#[fg=#7c6f64,bg=#282828,bold] 💻  #(whoami)  #S #[fg=#282828,bg=#504945,nobold,nounderscore,noitalics]"
 set -g status-right "#[fg=#504945,bg=#504945,nobold,nounderscore,noitalics]#[fg=#a89984,bg=#504945,bold] #{prefix_highlight} #[fg=#282828,bg=#504945,nobold,nounderscore,noitalics]#[fg=#7c6f64,bg=#282828,bold] #{cpu_icon}#{cpu_percentage}  #{online_status}  #{battery_icon} #{battery_percentage}  %R "
-setw -g window-status-format "#[fg=#504945,bg=#504945,nobold,nounderscore,noitalics]#[default] #I  #(if echo #W | grep -q fish; then echo '#{pane_current_path}' | rev | cut -d'/' -f1 | rev | xargs -I {} echo {}/; else echo #W; fi) #[fg=#504945,bg=#504945,nobold,nounderscore,noitalics]"
-setw -g window-status-current-format "#[fg=#504945,bg=#7c6f64,nobold,nounderscore,noitalics]#[fg=#282828,bg=#7c6f64,bold] #I  #(if echo #W | grep -q fish; then echo '#{pane_current_path}' | rev | cut -d'/' -f1 | rev | xargs -I {} echo {}/; else echo #W; fi) #[fg=#7c6f64,bg=#504945,nobold,nounderscore,noitalics]"
+setw -g window-status-format "#[fg=#504945,bg=#504945,nobold,nounderscore,noitalics]#[default] #I  #(if echo #W | grep -q reattach-to-user-namespace; then echo '#{pane_current_path}' | rev | cut -d'/' -f1 | rev | xargs -I {} echo {}/; else echo #W; fi) #[fg=#504945,bg=#504945,nobold,nounderscore,noitalics]"
+setw -g window-status-current-format "#[fg=#504945,bg=#7c6f64,nobold,nounderscore,noitalics]#[fg=#282828,bg=#7c6f64,bold] #I  #(if echo #W | grep -q reattach-to-user-namespace; then echo '#{pane_current_path}' | rev | cut -d'/' -f1 | rev | xargs -I {} echo {}/; else echo #W; fi) #[fg=#7c6f64,bg=#504945,nobold,nounderscore,noitalics]"
