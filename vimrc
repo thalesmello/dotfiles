@@ -5,8 +5,14 @@
 call plug#begin()
 Plug 'tpope/vim-sensible', only#if(!has('nvim'))
 Plug 'tpope/vim-commentary'
-Plug 'thalesmello/vim-go', { 'branch': 'feature/keyify-support' }
+Plug 'kana/vim-textobj-user'
+Plug 'Shougo/denite.nvim'
+Plug 'SirVer/ultisnips', only#if(v:version >= 704, { 'on': ['UltiSnipsEdit'] })
+Plug 'ryanoasis/vim-devicons'
 Plug 'morhetz/gruvbox'
+Plug 'vim-scripts/SyntaxRange'
+Plug 'christoomey/vim-tmux-navigator'
+Plug 'tpope/vim-projectionist'
 Plug 'thalesmello/tabfold'
 Plug 'Shougo/vimproc.vim', { 'do' : 'make' }
 Plug 'itchyny/lightline.vim'
@@ -23,13 +29,13 @@ Plug 'thalesmello/vim-sleuth'
 Plug 'dag/vim-fish'
 Plug 'terryma/vim-multiple-cursors'
 Plug 'AndrewRadev/multichange.vim'
-Plug 'christoomey/vim-tmux-navigator'
 Plug 'airblade/vim-gitgutter'
 Plug 'peterrincker/vim-argumentative'
-Plug 'sheerun/vim-polyglot'
+" Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'
 Plug 'ludovicchabant/vim-gutentags', only#if(v:version >= 704)
 Plug 'tpope/vim-rsi'
+Plug 'thalesmello/vim-go'
 Plug 'bronson/vim-visual-star-search'
 Plug 'bronson/vim-trailing-whitespace'
 Plug 'thalesmello/vim-indent-object'
@@ -43,9 +49,7 @@ Plug 'simeji/winresizer'
 Plug 'godlygeek/tabular'
 Plug 'wesQ3/vim-windowswap'
 Plug 'nhooyr/neoman.vim'
-Plug 'SirVer/ultisnips', only#if(v:version >= 704, { 'on': ['UltiSnipsEdit'] })
 Plug 'honza/vim-snippets'
-Plug 'ryanoasis/vim-devicons'
 Plug 'AndrewRadev/splitjoin.vim'
 Plug 'gioele/vim-autoswap'
 Plug 'junegunn/fzf'
@@ -72,13 +76,11 @@ Plug 'sealemar/vtl'
 Plug 'machakann/vim-highlightedyank'
 Plug 'thalesmello/vim-tmux-clipboard'
 Plug 'vim-scripts/ingo-library'
-Plug 'vim-scripts/SyntaxRange'
 Plug 'jalvesaq/Nvim-R'
 Plug 'moll/vim-node'
 Plug 'justinmk/vim-sneak'
 
 " Denite
-Plug 'Shougo/denite.nvim'
 Plug 'chemzqm/unite-location'
 Plug 'Shougo/neoyank.vim'
 
@@ -94,7 +96,6 @@ Plug 'zchee/deoplete-go'
 Plug 'wellle/tmux-complete.vim'
 
 " Text objects
-Plug 'kana/vim-textobj-user'
 Plug 'rhysd/vim-textobj-ruby'
 Plug 'kana/vim-textobj-function'
 Plug 'bps/vim-textobj-python'
