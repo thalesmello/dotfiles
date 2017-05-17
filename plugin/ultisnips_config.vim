@@ -1,4 +1,6 @@
-call auto#defer("plug#load('ultisnips')")
+if has_key(g:plugs, 'ultisnips')
+	call auto#defer("plug#load('ultisnips')")
+endif
 
 let g:ulti_expand_res = 0
 let g:ulti_jump_forwards_res = 0

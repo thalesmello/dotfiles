@@ -28,8 +28,7 @@ set relativenumber
 " Don't highlight matches.
 set nohlsearch
 
-" Turn off line wrapping.
-set nowrap
+set wrap
 " Show 3 lines of context around the cursor.
 set scrolloff=3
 
