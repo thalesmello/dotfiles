@@ -32,7 +32,7 @@ Plug 'terryma/vim-multiple-cursors'
 Plug 'AndrewRadev/multichange.vim'
 Plug 'airblade/vim-gitgutter'
 Plug 'peterrincker/vim-argumentative'
-" Plug 'sheerun/vim-polyglot'
+Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'
 Plug 'ludovicchabant/vim-gutentags', only#if(v:version >= 704)
 Plug 'tpope/vim-rsi'

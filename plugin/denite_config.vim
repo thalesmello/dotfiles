@@ -54,8 +54,6 @@ call denite#custom#source('grep', 'sorters', [''])
 
 nnoremap <silent> <c-f> :call denite_config#smart_interactive_ag()<cr>
 
-cabbr ddo cdo normal
-
 " Replace FZF
 nnoremap <silent> <leader>a :<c-u>call denite_config#ag(expand('<cword>'))<cr>
 vnoremap <silent> <leader>a :<c-u>call denite_config#visual_ag()<cr>
@@ -65,6 +63,7 @@ vnoremap <silent><c-p> :<c-u>call denite_config#smart_ctrlp()<cr>
 
 " Help tags
 cabbrev h Denite help<cr>
+cabbr <expr> h getcmdtype() == ':' ? "Denite help\<cr>" : 'h'
 
 nnoremap <silent> <leader><c-h> :call denite#start([{'name': 'help', 'args': []}], {'input': expand('<cword>')})<cr>
 
