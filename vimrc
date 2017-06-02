@@ -13,6 +13,7 @@ Plug 'morhetz/gruvbox'
 Plug 'vim-scripts/SyntaxRange'
 Plug 'christoomey/vim-tmux-navigator'
 Plug 'tpope/vim-projectionist'
+Plug 'tpope/vim-eunuch'
 Plug 'thalesmello/tabfold'
 Plug 'Shougo/vimproc.vim', { 'do' : 'make' }
 Plug 'itchyny/lightline.vim'
