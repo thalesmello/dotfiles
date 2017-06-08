@@ -52,7 +52,7 @@ Plug 'godlygeek/tabular'
 Plug 'wesQ3/vim-windowswap'
 Plug 'honza/vim-snippets'
 Plug 'AndrewRadev/splitjoin.vim'
-Plug 'gioele/vim-autoswap'
+Plug 'thalesmello/vim-autoswap'
 Plug 'junegunn/fzf'
 Plug 'junegunn/fzf.vim'
 Plug 'lotabout/skim', { 'dir': '~/.skim', 'do': './install' }

@@ -76,6 +76,7 @@ set listchars=tab:▸\ ,eol:¬
 set splitbelow
 set splitright
 set linebreak
+let &breakat=" \<tab>(),"
 set breakindent
 set noshowmode
 set updatetime=500
