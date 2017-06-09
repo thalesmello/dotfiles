@@ -127,6 +127,8 @@ Plug 'vim-scripts/OnSyntaxChange'
 Plug 'thalesmello/lkml.vim'
 Plug 'junegunn/vim-easy-align'
 
+Plug 'equalsraf/neovim-gui-shim'
+
 " TODO: Check
 " github-complete.vim
 " committia.vim

@@ -1,1 +1,1 @@
-Guifont SauceCodePro Nerd Font:h16
+Guifont SauceCodePro Nerd Font:h10
