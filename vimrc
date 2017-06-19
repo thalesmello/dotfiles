@@ -131,6 +131,7 @@ Plug 'thalesmello/lkml.vim'
 Plug 'junegunn/vim-easy-align'
 
 Plug 'equalsraf/neovim-gui-shim'
+Plug 'chrisbra/csv.vim'
 
 " TODO: Check
 " github-complete.vim

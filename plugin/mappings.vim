@@ -91,3 +91,9 @@ map <silent> [[ :<c-u>keeppatterns normal ?{<c-v><cr>w99[{<cr>
 map <silent> ][ :<c-u>keeppatterns normal /}<c-v><CR>b99]}<cr>
 map <silent> ]] :<c-u>keeppatterns normal j0[[%/{<c-v><cr><CR>
 map <silent> [] :<c-u>keeppatterns normal k$][%?}<c-v><cr><CR>
+
+" Replace fun
+nnoremap <c-q> *``gn<C-g>
+inoremap <c-q> <C-o>gn<C-g>
+snoremap <expr> . @.
+snoremap <c-q> <c-g><esc>ngn<c-g>
