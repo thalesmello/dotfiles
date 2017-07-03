@@ -1,0 +1,24 @@
+#!/bin/sh
+
+FILENAME=$(basename "$PWD").Rproj
+
+if [ -f $FILENAME ]; then
+  echo "$FILENAME already exists!"
+  exit 1
+fi
+
+cat <<DOC >$FILENAME
+Version: 1.0
+
+RestoreWorkspace: Default
+SaveWorkspace: Default
+AlwaysSaveHistory: Default
+
+EnableCodeIndexing: Yes
+UseSpacesForTab: Yes
+NumSpacesForTab: 2
+Encoding: UTF-8
+
+RnwWeave: Sweave
+LaTeX: pdfLaTeX
+DOC
