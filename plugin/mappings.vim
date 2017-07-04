@@ -97,3 +97,8 @@ nnoremap <c-q> *``gn<C-g>
 inoremap <c-q> <C-o>gn<C-g>
 snoremap <expr> . @.
 snoremap <c-q> <c-g><esc>ngn<c-g>
+
+nnoremap <expr> j v:count > 0 ? ":\<c-u>call jk_jumps_config#jump('j')\<cr>" : 'gj'
+xnoremap <expr> j v:count > 0 ? ":\<c-u>call jk_jumps_config#jump('j')\<cr>" : 'gj'
+nnoremap <expr> k v:count > 0 ? ":\<c-u>call jk_jumps_config#jump('k')\<cr>" : 'gk'
+xnoremap <expr> k v:count > 0 ? ":\<c-u>call jk_jumps_config#jump('k')\<cr>" : 'gk'

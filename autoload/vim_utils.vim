@@ -22,3 +22,11 @@ endfunction
 function! vim_utils#syn_stack()
   return map(synstack(line('.'), col('.')), 'synIDattr(v:val, "name")')
 endfunc
+
+function! vim_utils#invert_sql()
+  normal! vi}
+  silent! '<,'>s/GRANT/REVOKE/gi
+  silent! '<,'>s/CREATE/DROP/ig
+  silent! '<,'>s/TO/FROM/gi
+  normal! `<
+endfunction

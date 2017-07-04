@@ -29,7 +29,6 @@ Plug 'tpope/vim-repeat'
 Plug 'tpope/vim-abolish'
 Plug 'tweekmonster/local-indent.vim'
 Plug 'scrooloose/nerdtree', { 'on': ['NERDTreeToggle', 'NERDTreeFind'] }
-Plug 'teranex/jk-jumps.vim'
 Plug 'thalesmello/vim-sleuth'
 Plug 'dag/vim-fish'
 Plug 'terryma/vim-multiple-cursors'
@@ -132,6 +131,7 @@ Plug 'junegunn/vim-easy-align'
 
 Plug 'equalsraf/neovim-gui-shim'
 Plug 'chrisbra/csv.vim'
+Plug 'dzeban/vim-log-syntax'
 
 " TODO: Check
 " github-complete.vim
