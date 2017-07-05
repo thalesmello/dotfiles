@@ -119,3 +119,9 @@ snippet type "Type wrap" b
 ${VISUAL}$0
 */
 endsnippet
+
+snippet q "Expand query" b
+await redshift.query(\`
+	${VISUAL}$1
+\`)
+endsnippet
