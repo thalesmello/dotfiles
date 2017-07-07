@@ -1,3 +1,10 @@
+fundle plugin brgmnn/fish-docker-compose
+fundle plugin fischerling/plugin-wd
+fundle plugin thalesmello/theme-bobthefish
+fundle plugin fisherman/rbenv
+fundle plugin fisherman/nodenv
+fundle init
+
 # Configure theme
 set -g theme_display_docker_machine no
 set -g theme_display_vi yes
@@ -8,13 +15,6 @@ set -g theme_show_exit_status yes
 set -g default_user your_normal_user
 set -g theme_color_scheme gruvbox
 set -g fish_prompt_pwd_dir_length 2
-
-fundle plugin brgmnn/fish-docker-compose
-fundle plugin fischerling/plugin-wd
-fundle plugin thalesmello/theme-bobthefish
-fundle plugin fisherman/rbenv
-fundle plugin fisherman/nodenv
-fundle init
 
 # Environment variables
 set -gx EDITOR nvim
