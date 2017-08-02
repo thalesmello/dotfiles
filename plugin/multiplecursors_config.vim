@@ -3,11 +3,15 @@ let g:multi_cursor_exit_from_visual_mode = 0
 let g:deoplete#auto_complete_delay = 100
 
 function! Multiple_cursors_before()
-  call deoplete_config#multiple_cursors_switch(1)
+  if get(g:, 'cm_smart_enable', 1) == 1
+	call cm#disable_for_buffer()
+  endif
 endfunction
 
 function! Multiple_cursors_after()
-  call deoplete_config#multiple_cursors_switch(0)
+  if get(g:, 'cm_smart_enable', 1) == 1
+	call cm#enable_for_buffer()
+  endif
 endfunction
 
 nnoremap g<c-n> :MultipleCursorsFind \<<c-r><c-w>\><cr>
