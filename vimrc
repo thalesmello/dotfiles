@@ -97,6 +97,7 @@ Plug 'Shougo/neco-vim'
 Plug 'Shougo/neco-syntax'
 Plug 'zchee/deoplete-go'
 Plug 'wellle/tmux-complete.vim'
+Plug 'roxma/nvim-cm-tern',  {'do': 'npm install'}
 
 " Python dependencies
 Plug 'roxma/python-support.nvim'
