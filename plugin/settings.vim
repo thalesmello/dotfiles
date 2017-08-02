@@ -6,6 +6,7 @@ set path+=**
 set wildignorecase
 
 set shortmess+=I
+set shortmess+=c
 
 " Handle multiple buffers better.
 set hidden

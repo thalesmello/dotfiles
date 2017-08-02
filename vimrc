@@ -7,7 +7,7 @@ Plug 'tpope/vim-sensible', only#if(!has('nvim'))
 Plug 'tpope/vim-commentary'
 Plug 'kana/vim-textobj-user'
 Plug 'Shougo/denite.nvim'
-Plug 'SirVer/ultisnips', only#if(v:version >= 704, { 'on': ['UltiSnipsEdit'] })
+Plug 'SirVer/ultisnips', only#if(v:version >= 704)
 Plug 'ryanoasis/vim-devicons'
 Plug 'morhetz/gruvbox'
 Plug 'vim-scripts/SyntaxRange'
@@ -86,8 +86,9 @@ Plug 'justinmk/vim-sneak'
 Plug 'chemzqm/unite-location'
 Plug 'Shougo/neoyank.vim'
 
-" Deoplete
-Plug 'Shougo/deoplete.nvim',            only#if(has('nvim'))
+" Completion
+Plug 'roxma/nvim-completion-manager', only#if(has('nvim'))
+" Plug 'Shougo/deoplete.nvim',            only#if(has('nvim'))
 Plug 'Shougo/echodoc.vim'
 " Plug 'thalesmello/webcomplete.vim',     only#if(has('nvim'))
 Plug 'zchee/deoplete-jedi',             only#if(has('nvim'), {'for': 'python'})
@@ -96,6 +97,9 @@ Plug 'Shougo/neco-vim'
 Plug 'Shougo/neco-syntax'
 Plug 'zchee/deoplete-go'
 Plug 'wellle/tmux-complete.vim'
+
+" Python dependencies
+Plug 'roxma/python-support.nvim'
 
 " Text objects
 Plug 'rhysd/vim-textobj-ruby'
