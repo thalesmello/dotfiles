@@ -122,6 +122,28 @@ endsnippet
 
 snippet q "Expand query" b
 await redshift.query(\`
-	${VISUAL}$1
+	${VISUAL}$0
 \`)
+endsnippet
+
+snippet m "Adds a method" b
+${1:name} (${2:params}) {
+	${VISUAL}$0
+}
+endsnippet
+
+snippet am "Adds a method" b
+async ${1:name} (${2:params}) {
+	${VISUAL}$0
+}
+endsnippet
+
+snippet af "Async lambda" i
+async (${1:params}) => $0
+endsnippet
+
+snippet gen "Function generator" i
+function *$1 (${2:args}) {
+	${VISUAL}$0
+}
 endsnippet
