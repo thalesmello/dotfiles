@@ -96,7 +96,7 @@ Plug 'mhartington/deoplete-typescript', only#if(has('nvim'), {'for': 'javascript
 Plug 'Shougo/neco-vim'
 Plug 'Shougo/neco-syntax'
 Plug 'zchee/deoplete-go'
-Plug 'wellle/tmux-complete.vim'
+" Plug 'wellle/tmux-complete.vim'
 Plug 'roxma/nvim-cm-tern',  {'do': 'npm install'}
 
 " Python dependencies
