@@ -40,7 +40,6 @@ Plug 'tpope/vim-endwise'
 Plug 'ludovicchabant/vim-gutentags', only#if(v:version >= 704)
 Plug 'tpope/vim-rsi'
 Plug 'thalesmello/vim-go'
-Plug 'bronson/vim-visual-star-search'
 Plug 'bronson/vim-trailing-whitespace'
 Plug 'thalesmello/vim-indent-object'
 Plug 'embear/vim-localvimrc'
@@ -67,7 +66,7 @@ Plug 'davidhalter/jedi'
 Plug 'thalesmello/tabmessage.vim'
 Plug 'thalesmello/persistent.vim'
 Plug 'thalesmello/pagarme-refactor.vim'
-Plug 'thalesmello/config.loupe' | Plug 'wincent/loupe'
+Plug 'junegunn/vim-slash'
 Plug 'dietsche/vim-lastplace'
 Plug 'EinfachToll/DidYouMean'
 Plug 'duggiefresh/vim-easydir'
@@ -88,7 +87,6 @@ Plug 'Shougo/neoyank.vim'
 
 " Completion
 Plug 'roxma/nvim-completion-manager', only#if(has('nvim'))
-" Plug 'Shougo/deoplete.nvim',            only#if(has('nvim'))
 Plug 'Shougo/echodoc.vim'
 " Plug 'thalesmello/webcomplete.vim',     only#if(has('nvim'))
 Plug 'zchee/deoplete-jedi',             only#if(has('nvim'), {'for': 'python'})
@@ -96,7 +94,6 @@ Plug 'mhartington/deoplete-typescript', only#if(has('nvim'), {'for': 'javascript
 Plug 'Shougo/neco-vim'
 Plug 'Shougo/neco-syntax'
 Plug 'zchee/deoplete-go'
-" Plug 'wellle/tmux-complete.vim'
 Plug 'roxma/nvim-cm-tern',  {'do': 'npm install'}
 
 " Python dependencies
