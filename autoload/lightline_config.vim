@@ -3,7 +3,7 @@ function! lightline_config#load()
         \ 'colorscheme': 'gruvbox',
         \ 'active': {
         \   'left': [['mode', 'paste'], ['filename'], ['ctrlpmark'], ['fugitive']],
-        \   'right': [['ale', 'lineinfo', 'percent'], ['fileformat', 'fileencoding', 'filetype']]
+        \   'right': [['ale', 'lineinfo', 'percent', 'lineindicator'], ['fileformat', 'fileencoding', 'filetype']]
         \ },
         \ 'component_function': {
         \   'fugitive': 'lightline_config#fugitive',
@@ -12,7 +12,8 @@ function! lightline_config#load()
         \   'filetype': 'lightline_config#filetype',
         \   'fileencoding': 'lightline_config#fileencoding',
         \   'mode': 'lightline_config#mode',
-        \   'ctrlpmark': 'lightline_config#ctrlpmark'
+        \   'ctrlpmark': 'lightline_config#ctrlpmark',
+        \   'lineindicator': 'lightline_config#line_indicator'
         \ },
         \ 'component_type': {
         \   'ale': 'error'
@@ -33,6 +34,10 @@ endfunction
 
 function! lightline_config#readonly()
   return &ft !~? 'help' && &readonly ? '' : ''
+endfunction
+
+function! lightline_config#line_indicator()
+  return LineNoIndicator()
 endfunction
 
 function! lightline_config#filename()
