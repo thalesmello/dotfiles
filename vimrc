@@ -94,7 +94,7 @@ Plug 'Shougo/echodoc.vim'
 Plug 'zchee/deoplete-jedi',             only#if(has('nvim'), {'for': 'python'})
 Plug 'mhartington/deoplete-typescript', only#if(has('nvim'), {'for': 'javascript'})
 Plug 'Shougo/neco-vim'
-Plug 'Shougo/neco-syntax'
+" Plug 'Shougo/neco-syntax'
 Plug 'zchee/deoplete-go'
 Plug 'roxma/nvim-cm-tern',  {'do': 'npm install'}
 
