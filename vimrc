@@ -136,7 +136,6 @@ Plug 'junegunn/vim-easy-align'
 Plug 'equalsraf/neovim-gui-shim'
 Plug 'chrisbra/csv.vim'
 Plug 'dzeban/vim-log-syntax'
-Plug 'thalesmello/nvim-better-operator-message', only#if(has('nvim'))
 Plug 'mattn/emmet-vim'
 Plug 'wellle/targets.vim'
 Plug 'valloric/matchtagalways'
