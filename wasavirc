@@ -1,4 +1,5 @@
 " exrc for wasavi
+set nolaunchbell
 map <space>ss :w<cr>
 map <space>sq :wq<cr>
 map vae ggVG
