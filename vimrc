@@ -124,7 +124,7 @@ Plug 'yssl/QFEnter'
 
 " Database
 Plug 'ivalkeen/vim-simpledb'
-Plug 'exu/pgsql.vim'
+" Plug 'exu/pgsql.vim'
 
 " Slime
 Plug 'jgdavey/tslime.vim'
@@ -137,7 +137,7 @@ Plug 'equalsraf/neovim-gui-shim'
 Plug 'chrisbra/csv.vim'
 Plug 'dzeban/vim-log-syntax'
 Plug 'mattn/emmet-vim'
-Plug 'wellle/targets.vim'
+" Plug 'wellle/targets.vim'
 Plug 'valloric/matchtagalways'
 Plug 'alvan/vim-closetag'
 Plug 'tpope/vim-rhubarb'
