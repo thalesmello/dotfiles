@@ -4,6 +4,6 @@ let g:delimitMate_expand_space = 1
 let g:delimitMate_expand_cr = 1
 let g:delimitMate_nesting_quotes = ['"','`', "'"]
 
-if has('vim_starting')
+if has('vim_starting') && exists("g:loaded_delimitMate")
   imap <CR> <C-G>u<Plug>delimitMateCR
 endif
