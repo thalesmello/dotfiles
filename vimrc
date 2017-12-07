@@ -24,7 +24,7 @@ Plug 'drzel/vim-line-no-indicator'
 Plug 'dbakker/vim-projectroot'
 Plug 'tpope/vim-fugitive'
 Plug 'tpope/vim-surround'
-" Plug 'Raimondi/delimitMate'
+Plug 'Raimondi/delimitMate'
 " Plug 'cohama/lexima.vim'
 Plug 'nelstrom/vim-markdown-folding'
 Plug 'tpope/vim-repeat'
@@ -142,7 +142,6 @@ Plug 'mattn/emmet-vim'
 Plug 'valloric/matchtagalways'
 Plug 'alvan/vim-closetag'
 Plug 'tpope/vim-rhubarb'
-Plug 'jiangmiao/auto-pairs'
 
 " TODO: Check
 " github-complete.vim
