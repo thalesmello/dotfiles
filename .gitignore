@@ -2,3 +2,5 @@
 *.swo
 tags
 w3m/history
+w3m/w3mcache*
+w3m/w3mtmp*
