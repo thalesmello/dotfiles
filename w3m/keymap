@@ -238,7 +238,7 @@ keymap ZQ EXIT
 
 ########## external browser #####
 keymap B EXTERN
-keymap C-b EXTERN_LINK
+keymap M-m EXTERN_LINK
 
 ########## commands ####
 keymap :o OPTIONS
