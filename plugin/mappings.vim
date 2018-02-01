@@ -38,7 +38,7 @@ vnoremap <CR> "+y
 nnoremap <leader><cr> mz?\v(".*"\|'.*')<cr>"qyl`zi<c-r>q +<cr><c-r>q<esc>
 nnoremap <leader>yy gv"+y
 vnoremap <leader>yy "+y
-vnoremap @ :normal @
+vnoremap @ :<c-u>noautocmd '<,'> normal @
 vnoremap <c-c> "+y
 nnoremap <leader><leader> <c-^>
 nnoremap <leader>o gvo<esc>
@@ -94,3 +94,6 @@ map <silent> [] :<c-u>keeppatterns normal k$][%?}<c-v><cr><CR>
 
 nnoremap <expr> j v:count > 0 ? ":\<c-u>call jk_jumps_config#jump('j')\<cr>" : 'gj'
 nnoremap <expr> k v:count > 0 ? ":\<c-u>call jk_jumps_config#jump('k')\<cr>" : 'gk'
+
+vmap : <esc>gv<Plug>SwapVisualCursor
+vnoremap <expr> <Plug>SwapVisualCursor line('.') == line("'<") ? ':' : 'o:'
