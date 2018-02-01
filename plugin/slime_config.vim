@@ -8,9 +8,9 @@ endfunction
 
 nnoremap <silent> <Plug>SlimePostHook :call setpos('.', getpos("'>"))<cr>^j
 
-nmap <silent> <a-cr> :set opfunc=<SID>send_operation<cr>g@
-nmap <silent> <a-cr><a-cr> :set opfunc=<SID>send_operation<cr>Vg@
-vmap <silent> <a-cr> :<c-u>set opfunc=<SID>send_operation<cr>gvg@
+nmap <silent> <a-m> :set opfunc=<SID>send_operation<cr>g@
+nmap <silent> <a-m><a-m> :set opfunc=<SID>send_operation<cr>Vg@
+vmap <silent> <a-m> :<c-u>set opfunc=<SID>send_operation<cr>gvg@
 
 command! SlimeResetVars call feedkeys("\<Plug>SetTmuxVars")
 

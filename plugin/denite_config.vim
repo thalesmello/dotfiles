@@ -11,7 +11,7 @@ call denite#custom#map('insert', '<c-v>', '<denite:do_action:vsplit>', 'noremap'
 call denite#custom#map('insert', '<c-r>', '<denite:assign_previous_matched_text>', 'noremap')
 call denite#custom#map('insert', '<c-s>', '<denite:assign_next_matched_text>', 'noremap')
 call denite#custom#map('insert', '<c-j>', '<denite:do_action:preview>', 'noremap')
-call denite#custom#map('insert', '<a-cr>', '<denite:do_action:quickfix>', 'noremap')
+call denite#custom#map('insert', '<a-m>', '<denite:do_action:quickfix>', 'noremap')
 call denite#custom#map('insert', '<c-a>', '<denite:move_caret_to_head>', 'noremap')
 call denite#custom#map('insert', '<c-e>', '<denite:move_caret_to_tail>', 'noremap')
 call denite#custom#map('insert', '<c-b>', '<denite:move_caret_to_left>', 'noremap')
