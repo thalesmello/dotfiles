@@ -30,7 +30,6 @@ inoremap <C-C> <esc>
 vnoremap <C-C> <esc>
 map <MiddleMouse> <Nop>
 imap <MiddleMouse> <Nop>
-noremap Q gq
 nnoremap & <Nop>
 vnoremap <CR> "+y
 " The snippet below tries to intelligently split a string and append a concat
@@ -97,3 +96,5 @@ nnoremap <expr> k v:count > 0 ? ":\<c-u>call jk_jumps_config#jump('k')\<cr>" : '
 
 vmap : <esc>gv<Plug>SwapVisualCursor
 vnoremap <expr> <Plug>SwapVisualCursor line('.') == line("'<") ? ':' : 'o:'
+
+nnoremap <silent> Q :<C-U><C-R><C-R>='let @' . v:register . ' = ' . string(getreg())<CR><C-F><Left>
