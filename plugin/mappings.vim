@@ -97,4 +97,8 @@ nnoremap <expr> k v:count > 0 ? ":\<c-u>call jk_jumps_config#jump('k')\<cr>" : '
 vmap : <esc>gv<Plug>SwapVisualCursor
 vnoremap <expr> <Plug>SwapVisualCursor line('.') == line("'<") ? ':' : 'o:'
 
-nnoremap <silent> Q :<C-U><C-R><C-R>='let @' . v:register . ' = ' . string(getreg())<CR><C-F><Left>
+fun! ChangeReg() abort
+  let x = nr2char(getchar())
+  call feedkeys("q:ilet @" . x . " = \<c-r>\<c-r>=string(@" . x . ")\<cr>\<esc>0f'", 'n')
+endfun
+nnoremap cr :call ChangeReg()<cr>
