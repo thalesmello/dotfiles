@@ -19,7 +19,7 @@ function! lightline_config#load()
         \   'ale': 'error'
         \ },
         \ 'component_expand': {
-        \   'ale': 'ALEGetStatusLine'
+        \   'ale': 'AleStatusLineCustom'
         \ },
         \ 'separator': { 'left': '', 'right': '' },
         \ 'subseparator': { 'left': '', 'right': '' }
@@ -122,6 +122,19 @@ let g:tagbar_status_func = 'TagbarStatusFunc'
 function! TagbarStatusFunc(current, sort, fname, ...) abort
     let g:lightline.fname = a:fname
   return lightline#statusline(0)
+endfunction
+
+function! AleStatusLineCustom()
+  let l:counts = ale#statusline#Count(bufnr(''))
+
+  let l:all_errors = l:counts.error + l:counts.style_error
+  let l:all_non_errors = l:counts.total - l:all_errors
+
+  return l:counts.total == 0 ? 'OK' : printf(
+  \   '⚠ %d ⨉ %d',
+  \   all_non_errors,
+  \   all_errors
+  \)
 endfunction
 
 let g:unite_force_overwrite_statusline = 0
