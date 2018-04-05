@@ -1,8 +1,9 @@
 #!/bin/bash
 pane_tty=$1
-pipenv_pid=$(pgrep -t ${pane_tty/\/dev\/} pipenv)
-if [[ $? == 0 ]]; then
-  ps -o state=,comm= -p $(pstree -p $pipenv_pid | grep -Po '\(\d+\)' | tr -d '()')
+pipenv_pid=$(ps -o pid= -o command= -t $pane_tty | grep pipenv | head -n 1 | awk '{ print $1 }')
+if [[ -n "$pipenv_pid" ]]; then
+  ps -o state=,comm= -p $(pstree -p $pipenv_pid | awk '{ print $2 }')
 else
   ps -o state=,comm= -t $pane_tty
 fi | grep -iqE '^[^TXZ ]+ +(\\S+\\/)?g?(view|n?vim?x?)(diff)?$'
+
