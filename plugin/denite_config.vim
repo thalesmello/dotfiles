@@ -62,8 +62,8 @@ nnoremap <silent><c-p> :<c-u>call denite_config#smart_ctrlp()<cr>
 vnoremap <silent><c-p> :<c-u>call denite_config#smart_ctrlp()<cr>
 
 " Help tags
-cabbrev h Denite help<cr>
-cabbr <expr> h getcmdtype() == ':' ? "Denite help\<cr>" : 'h'
+" cabbrev h Denite help<cr>
+" cabbr <expr> h getcmdtype() == ':' ? "Denite help\<cr>" : 'h'
 
 nnoremap <silent> <leader><c-h> :call denite#start([{'name': 'help', 'args': []}], {'input': expand('<cword>')})<cr>
 
