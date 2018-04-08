@@ -3,4 +3,5 @@ let g:cm_matcher = {
 			\ 'case': 'icase'
 			\ }
 
-imap <c-x><c-x> <Plug>(cm_force_refresh)
+imap <c-space> <Plug>(cm_force_refresh)
+let g:cm_complete_start_delay = 200
