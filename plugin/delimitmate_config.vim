@@ -7,3 +7,6 @@ let g:delimitMate_nesting_quotes = ['"','`', "'"]
 if has('vim_starting')
   imap <CR> <C-G>u<Plug>delimitMateCR
 endif
+
+autocmd User MultipleCursorsPre DelimitMateOff
+autocmd User MultipleCursorsPost DelimitMateOn
