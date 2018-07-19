@@ -39,7 +39,7 @@ Plug 'peterrincker/vim-argumentative'
 Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'
 Plug 'ludovicchabant/vim-gutentags', only#if(v:version >= 704)
-Plug 'vim-scripts/gitignore'
+Plug 'thalesmello/gitignore'
 Plug 'tpope/vim-rsi'
 Plug 'thalesmello/vim-go'
 Plug 'bronson/vim-trailing-whitespace'
