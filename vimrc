@@ -90,7 +90,6 @@ Plug 'Shougo/neoyank.vim'
 " Completion
 Plug 'roxma/nvim-completion-manager', only#if(has('nvim'))
 " Plug 'Shougo/deoplete.nvim'
-Plug 'autozimu/LanguageClient-neovim', only#if(has('nvim'))
 Plug 'mhartington/nvim-typescript'
 Plug 'Shougo/echodoc.vim'
 " Plug 'thalesmello/webcomplete.vim',     only#if(has('nvim'))

@@ -101,4 +101,4 @@ fun! ChangeReg() abort
   let x = nr2char(getchar())
   call feedkeys("q:ilet @" . x . " = \<c-r>\<c-r>=string(@" . x . ")\<cr>\<esc>0f'", 'n')
 endfun
-nnoremap cr :call ChangeReg()<cr>
+nnoremap <leader>er :call ChangeReg()<cr>
