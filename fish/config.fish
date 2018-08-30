@@ -3,7 +3,6 @@ fundle plugin fischerling/plugin-wd
 fundle plugin thalesmello/theme-bobthefish
 fundle plugin fisherman/rbenv
 fundle plugin fisherman/nodenv
-fundle plugin oh-my-fish/plugin-aws
 fundle init
 
 # Configure theme
