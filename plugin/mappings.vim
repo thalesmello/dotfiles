@@ -102,3 +102,5 @@ fun! ChangeReg() abort
   call feedkeys("q:ilet @" . x . " = \<c-r>\<c-r>=string(@" . x . ")\<cr>\<esc>0f'", 'n')
 endfun
 nnoremap <leader>er :call ChangeReg()<cr>
+
+nnoremap <silent> <bs> :nohlsearch<cr>

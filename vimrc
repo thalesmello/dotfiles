@@ -68,7 +68,6 @@ Plug 'thalesmello/tabmessage.vim'
 Plug 'thalesmello/persistent.vim'
 Plug 'thalesmello/pagarme-refactor.vim'
 Plug 'thinca/vim-visualstar'
-Plug 'romainl/vim-cool', { 'branch': 'total' }
 Plug 'dietsche/vim-lastplace'
 Plug 'EinfachToll/DidYouMean'
 Plug 'duggiefresh/vim-easydir'
@@ -87,18 +86,20 @@ Plug 'justinmk/vim-sneak'
 Plug 'chemzqm/unite-location'
 Plug 'Shougo/neoyank.vim'
 
-" Completion
-Plug 'roxma/nvim-completion-manager', only#if(has('nvim'))
-" Plug 'Shougo/deoplete.nvim'
-Plug 'mhartington/nvim-typescript'
-Plug 'Shougo/echodoc.vim'
-" Plug 'thalesmello/webcomplete.vim',     only#if(has('nvim'))
-Plug 'zchee/deoplete-jedi',             only#if(has('nvim'), {'for': 'python'})
-Plug 'mhartington/deoplete-typescript', only#if(has('nvim'), {'for': 'javascript'})
-Plug 'Shougo/neco-vim'
-" Plug 'Shougo/neco-syntax'
-Plug 'zchee/deoplete-go'
-Plug 'roxma/nvim-cm-tern',  {'do': 'npm install'}
+Plug 'roxma/nvim-yarp'
+Plug 'ncm2/ncm2', only#if(has('nvim'))
+Plug 'ncm2/ncm2-bufword'
+Plug 'ncm2/ncm2-path'
+Plug 'ncm2/ncm2-github'
+Plug 'Shougo/neco-syntax'
+Plug 'ncm2/ncm2-syntax'
+Plug 'ncm2/ncm2-jedi'
+Plug 'ncm2/ncm2-go'
+Plug 'ncm2/ncm2-ultisnips'
+Plug 'Shougo/neoinclude.vim'
+Plug 'ncm2/ncm2-neoinclude'
+Plug 'wellle/tmux-complete.vim'
+
 
 " Python dependencies
 Plug 'roxma/python-support.nvim'
