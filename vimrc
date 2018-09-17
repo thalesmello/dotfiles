@@ -99,7 +99,7 @@ Plug 'ncm2/ncm2-ultisnips'
 Plug 'Shougo/neoinclude.vim'
 Plug 'ncm2/ncm2-neoinclude'
 Plug 'wellle/tmux-complete.vim'
-
+Plug 'thalesmello/webcomplete.vim'
 
 " Python dependencies
 Plug 'roxma/python-support.nvim'
