@@ -103,4 +103,6 @@ fun! ChangeReg() abort
 endfun
 nnoremap <leader>er :call ChangeReg()<cr>
 
-nnoremap <silent> <bs> :nohlsearch<cr>
+nnoremap <silent> <bs> :nohlsearch<cr>:pclose<cr>:diffoff<cr>
+
+nnoremap <silent> <leader>dt :diffthis<cr>
