@@ -183,19 +183,19 @@ nonRecursiveBind({"cmd"}, "W", only({ "iTerm2" }, function()
   quickKeyStroke({}, "X")
 end))
 
--- Horizontal scroll
-scrollBind = hs.eventtap.new({hs.eventtap.event.types.scrollWheel}, function(e)
-  if is_active('iTerm2') then
-    local horizontalOffset = e:getProperty(hs.eventtap.event.properties.scrollWheelEventDeltaAxis2)
+-- -- Horizontal scroll
+-- scrollBind = hs.eventtap.new({hs.eventtap.event.types.scrollWheel}, function(e)
+--   if is_active('iTerm2') then
+--     local horizontalOffset = e:getProperty(hs.eventtap.event.properties.scrollWheelEventDeltaAxis2)
 
-    if horizontalOffset ~= 0 then
-      hs.eventtap.scrollWheel({ 0, horizontalOffset }, {"shift"}, 'pixel')
-      return true
-    end
-  end
+--     if horizontalOffset ~= 0 then
+--       hs.eventtap.scrollWheel({ 0, horizontalOffset }, {"shift"}, 'pixel')
+--       return true
+--     end
+--   end
 
-  return false
-end):start()
+--   return false
+-- end):start()
 
 -- }}}  Vim compatibility --
 -- Utils {{{ --
