@@ -1,6 +1,6 @@
 fundle plugin brgmnn/fish-docker-compose
 fundle plugin fischerling/plugin-wd
-fundle plugin thalesmello/theme-bobthefish
+fundle plugin oh-my-fish/theme-bobthefish
 fundle plugin fisherman/rbenv
 fundle plugin fisherman/nodenv
 fundle init
