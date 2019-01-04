@@ -8,15 +8,7 @@ let tab_name_generator = "#(
        \ sed 's/##//g' |
        \ sed -E 's/$/ /g' |
        \ sed -E 's/^ $//g'
-       \ )#(
-       \ if echo #W | grep -q reattach-to-user-namespace;
-       \ then echo '#{pane_current_path}' |
-       \ rev |
-       \ cut -d'/' -f1 |
-       \ rev |
-       \ xargs -I {} echo \"{}/\";
-       \ else echo #W;
-       \ fi)"
+       \ )#{?#{==:#W,fish},#{b:pane_current_path},#W}/"
 
 let g:tmuxline_preset = {
       \ 'a'   : [s:computer_emoji . '  #(whoami)', '#S'],
