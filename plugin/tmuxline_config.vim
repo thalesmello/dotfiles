@@ -1,14 +1,11 @@
 let g:airline#extensions#tmuxline#enabled = 0
 let s:computer_emoji = '💻'
-let tab_name_generator = "#(
-       \ echo '#F' |
-       \ sed 's/[^Z!##]//g' |
-       \ sed 's/Z//g' |
-       \ sed 's/!//g' |
-       \ sed 's/##//g' |
-       \ sed -E 's/$/ /g' |
-       \ sed -E 's/^ $//g'
-       \ )#{?#{==:#W,fish},#{b:pane_current_path},#W}/"
+let window_icon = "#{?window_zoomed_flag,,}"
+let window_icon = window_icon . "#{?window_activity_flag,,}"
+let window_icon = window_icon . "#{?window_bell_flag,,}"
+let empty_icon = "#{==:" . window_icon . ",}"
+let window_icon = "#{?" . empty_icon . ",," . window_icon . " }"
+let tab_name_generator = window_icon . "#{?#{==:#W,fish},#{b:pane_current_path}/,#W}"
 
 let g:tmuxline_preset = {
       \ 'a'   : [s:computer_emoji . '  #(whoami)', '#S'],
