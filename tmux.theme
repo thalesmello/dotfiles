@@ -1,5 +1,5 @@
 # This tmux statusbar config was created by tmuxline.vim
-# on Wed, 21 Mar 2018
+# on Fri, 04 Jan 2019
 
 set -g status-bg "#3c3836"
 set -g message-command-fg "#ebdbb2"
@@ -25,5 +25,5 @@ setw -g window-status-separator ""
 setw -g window-status-bg "#3c3836"
 set -g status-left "#[fg=#504945,bg=#ebdbb2] 💻  #(whoami)  #S #[fg=#ebdbb2,bg=#3c3836,nobold,nounderscore,noitalics]"
 set -g status-right "#[fg=#3c3836,bg=#3c3836,nobold,nounderscore,noitalics]#[fg=#a89984,bg=#3c3836] #{prefix_highlight} #[fg=#ebdbb2,bg=#3c3836,nobold,nounderscore,noitalics]#[fg=#504945,bg=#ebdbb2] #{cpu_icon}#{cpu_percentage}  #{online_status}  #{battery_icon} #{battery_percentage}  %R "
-setw -g window-status-format "#[fg=#3c3836,bg=#3c3836,nobold,nounderscore,noitalics]#[default] #I  #(echo '#F' | sed 's/[^Z!##]//g' | sed 's/Z//g' | sed 's/!//g' | sed 's/##//g' | sed -E 's/$/ /g' | sed -E 's/^ $//g')#(if echo #W | grep -q reattach-to-user-namespace; then echo '#{pane_current_path}' | rev | cut -d'/' -f1 | rev | xargs -I {} echo {}/; else echo #W; fi) #[fg=#3c3836,bg=#3c3836,nobold,nounderscore,noitalics]"
-setw -g window-status-current-format "#[fg=#3c3836,bg=#504945,nobold,nounderscore,noitalics]#[fg=#ebdbb2,bg=#504945] #I  #(echo '#F' | sed 's/[^Z!##]//g' | sed 's/Z//g' | sed 's/!//g' | sed 's/##//g' | sed -E 's/$/ /g' | sed -E 's/^ $//g')#(if echo #W | grep -q reattach-to-user-namespace; then echo '#{pane_current_path}' | rev | cut -d'/' -f1 | rev | xargs -I {} echo {}/; else echo #W; fi) #[fg=#504945,bg=#3c3836,nobold,nounderscore,noitalics]"
+setw -g window-status-format "#[fg=#3c3836,bg=#3c3836,nobold,nounderscore,noitalics]#[default] #I  #( echo '#F' | sed 's/[^Z!##]//g' | sed 's/Z//g' | sed 's/!//g' | sed 's/##//g' | sed -E 's/$/ /g' | sed -E 's/^ $//g' )#{?#{==:#W,fish},#{b:pane_current_path},#W}/ #[fg=#3c3836,bg=#3c3836,nobold,nounderscore,noitalics]"
+setw -g window-status-current-format "#[fg=#3c3836,bg=#504945,nobold,nounderscore,noitalics]#[fg=#ebdbb2,bg=#504945] #I  #( echo '#F' | sed 's/[^Z!##]//g' | sed 's/Z//g' | sed 's/!//g' | sed 's/##//g' | sed -E 's/$/ /g' | sed -E 's/^ $//g' )#{?#{==:#W,fish},#{b:pane_current_path},#W}/ #[fg=#504945,bg=#3c3836,nobold,nounderscore,noitalics]"
