@@ -15,8 +15,8 @@ nnoremap <leader>x :q<cr>
 nnoremap zf mzzM`zzvzz
 
 " Edit and load vimrc
-nnoremap <leader>ev :vsplit ~/.vim/vimrc<cr>
-nnoremap <leader>sv :source ~/.vim/vimrc<cr>
+nnoremap <leader>ev :vsplit $MYVIMRC<cr>
+nnoremap <leader>sv :source $MYVIMRC<cr>
 
 " Smart lookup for command line
 cnoremap <c-p> <up>
