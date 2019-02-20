@@ -2,7 +2,7 @@ fundle plugin brgmnn/fish-docker-compose
 fundle plugin fischerling/plugin-wd
 fundle plugin oh-my-fish/theme-bobthefish
 fundle plugin fisherman/rbenv
-fundle plugin fisherman/nodenv
+fundle plugin cafedomancer/nodenv
 fundle init
 
 # Configure theme
