@@ -106,3 +106,6 @@ nnoremap <leader>er :call ChangeReg()<cr>
 nnoremap <silent> <bs> :nohlsearch<cr>:pclose<cr>:diffoff<cr>
 
 nnoremap <silent> <leader>dt :diffthis<cr>
+
+nnoremap <leader>gf <c-w>vgf
+vnoremap <leader>gf <esc><c-w>vgvgf
