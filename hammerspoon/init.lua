@@ -418,15 +418,6 @@ hs.hotkey.bind(mash.altCmd, "left", adjust(0, 0.5, 0.5, 0.5))
 hs.hotkey.bind(mash.ctrlCmd, "m", adjust(0, 0, 1, 1))
 -- }}} Windows --
 -- Wifi {{{ --
-function ssidChangedCallback()
-    local ssid = hs.wifi.currentNetwork()
-    if ssid then
-      hs.alert.show("Network connected: " .. ssid)
-    end
-end
-
-hs.wifi.watcher.new(ssidChangedCallback):start()
-
 hs.hotkey.bind(mash.ctrlShiftCmd, "I", function()
   local ssid = hs.wifi.currentNetwork()
   if not ssid then return end
