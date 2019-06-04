@@ -4,6 +4,7 @@ require("hs.ipc")
 local mash = {
   ctrl         = {"ctrl"},
   ctrlCmd      = {"ctrl", "cmd"},
+  ctrlShift      = {"ctrl", "shift"},
   ctrlAlt      = {"ctrl", "alt"},
   altCmd       = {"ctrl", "cmd", "alt"},
   ctrlShiftCmd = {"ctrl", "cmd", "shift"},
@@ -94,9 +95,9 @@ hs.hotkey.bind(mash.ctrlShiftCmd, 'W', function() print(hs.window.focusedWindow(
 -- nonRecursiveBind(mash.ctrl, 'P', only({ "Google Chrome" }, function() quickKeyStroke({"shift"}, "tab")  end))
 --
 
-hs.hotkey.bind(mash.ctrlShiftCmd, 'A', function() hs.application.launchOrFocus("iTerm") end)
-hs.hotkey.bind(mash.ctrlShiftCmd, 'S', function() hs.application.launchOrFocus("Google Chrome") end)
-hs.hotkey.bind(mash.ctrlShiftCmd, 'D', function() hs.application.launchOrFocus("DataGrip") end)
+hs.hotkey.bind(mash.ctrlShift, 'A', function() hs.application.launchOrFocus("iTerm") end)
+hs.hotkey.bind(mash.ctrlShift, 'S', function() hs.application.launchOrFocus("Google Chrome") end)
+hs.hotkey.bind(mash.ctrlShift, 'D', function() hs.application.launchOrFocus("DataGrip") end)
 
 -- }}} Mappings --
 -- Vim compatibility {{{ --
