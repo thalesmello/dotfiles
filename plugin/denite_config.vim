@@ -55,11 +55,8 @@ call denite#custom#source('grep', 'sorters', [''])
 nnoremap <silent> <c-f> :call denite_config#smart_interactive_ag()<cr>
 
 " Replace FZF
-nnoremap <silent> <leader>a :<c-u>call denite_config#ag(expand('<cword>'))<cr>
-vnoremap <silent> <leader>a :<c-u>call denite_config#visual_ag()<cr>
-
-nnoremap <silent><c-p> :<c-u>call denite_config#smart_ctrlp()<cr>
-vnoremap <silent><c-p> :<c-u>call denite_config#smart_ctrlp()<cr>
+" nnoremap <silent> <leader>a :<c-u>call denite_config#ag(expand('<cword>'))<cr>
+" vnoremap <silent> <leader>a :<c-u>call denite_config#visual_ag()<cr>
 
 " Help tags
 " cabbrev h Denite help<cr>
