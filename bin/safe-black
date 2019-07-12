@@ -1,0 +1,5 @@
+#!/bin/bash
+
+if grep -q -F tool.black $(find . -name 'pyproject.toml') /dev/null; then
+  black $@
+fi
