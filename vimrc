@@ -142,6 +142,7 @@ Plug 'alvan/vim-closetag'
 Plug 'tpope/vim-rhubarb'
 
 Plug 'AndrewRadev/switch.vim'
+Plug 'andymass/vim-matchup'
 
 " TODO: Check
 " github-complete.vim
