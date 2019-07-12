@@ -141,6 +141,8 @@ Plug 'valloric/matchtagalways'
 Plug 'alvan/vim-closetag'
 Plug 'tpope/vim-rhubarb'
 
+Plug 'AndrewRadev/switch.vim'
+
 " TODO: Check
 " github-complete.vim
 " committia.vim

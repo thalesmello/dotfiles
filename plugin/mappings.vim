@@ -75,8 +75,6 @@ vnoremap _ <esc>`<jV`>k0
 vnoremap - <esc>`<jV`>k0
 vnoremap + <esc>`<kV`>j0
 nnoremap <leader>V vg_
-nnoremap  gs  :%s//g<LEFT><LEFT>
-vnoremap  gs  :s//g<LEFT><LEFT>
 
 " Enable preview window
 nnoremap <expr> <leader>cp ':set completeopt' . (&completeopt =~ 'preview' ? '-' : '+') . "=preview\<cr>"
