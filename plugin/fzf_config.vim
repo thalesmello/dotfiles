@@ -11,3 +11,4 @@ nnoremap <silent> <leader>cm :Commands<cr>
 nnoremap <silent> <leader>hi :History:<cr>
 nnoremap <silent> <leader>ft :Filetypes<cr>
 
+nnoremap <c-f> :<c-u>Ag<space>
