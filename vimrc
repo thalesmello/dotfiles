@@ -70,7 +70,7 @@ Plug 'thinca/vim-visualstar'
 Plug 'dietsche/vim-lastplace'
 Plug 'duggiefresh/vim-easydir'
 Plug 'tmux-plugins/vim-tmux'
-Plug 'zeorin/tmuxline.vim', {'branch': 'utf8-suppress-error'}
+Plug 'edkolev/tmuxline.vim'
 Plug 'thalesmello/devlindo.vim'
 Plug 'sealemar/vtl'
 Plug 'machakann/vim-highlightedyank'

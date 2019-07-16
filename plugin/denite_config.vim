@@ -30,18 +30,18 @@ call denite#custom#filter('matcher_ignore_globs', 'ignore_globs',
 	  \ [ '.git/', '.ropeproject/', '__pycache__/',
 	  \   'venv/', 'images/', '*.min.*', 'img/', 'fonts/'])
 
-nnoremap <silent> <leader>dd :Denite -resume<cr>
-nnoremap <silent> <leader>dq :Denite -auto-resize quickfix<cr>
-nnoremap <silent> <leader>dl :Denite -auto-resize location_list<cr>
-nnoremap <silent> <leader>du :Denite unite:ultisnips<CR>
-nnoremap <silent> <leader>d/ :Denite line<cr>
-nnoremap <silent> <leader>[  :Denite -resume -cursor-pos=-1 -immediately<cr>
-nnoremap <silent> <leader>]  :Denite -resume -cursor-pos=+1 -immediately<cr>
+" nnoremap <silent> <leader>dd :Denite -resume<cr>
+" nnoremap <silent> <leader>dq :Denite -auto-resize quickfix<cr>
+" nnoremap <silent> <leader>dl :Denite -auto-resize location_list<cr>
+" nnoremap <silent> <leader>du :Denite unite:ultisnips<CR>
+" nnoremap <silent> <leader>d/ :Denite line<cr>
+" nnoremap <silent> <leader>[  :Denite -resume -cursor-pos=-1 -immediately<cr>
+" nnoremap <silent> <leader>]  :Denite -resume -cursor-pos=+1 -immediately<cr>
 
 " Replace copy/paste
-nnoremap gP i.<esc>v:Denite neoyank -mode=normal -default-action=replace<CR>
-nnoremap gp a.<esc>v:Denite neoyank -mode=normal -default-action=replace<CR>
-vnoremap gp :Denite neoyank -mode=normal -default-action=replace<CR>
+" nnoremap gP i.<esc>v:Denite neoyank -mode=normal -default-action=replace<CR>
+" nnoremap gp a.<esc>v:Denite neoyank -mode=normal -default-action=replace<CR>
+" vnoremap gp :Denite neoyank -mode=normal -default-action=replace<CR>
 
 " Configure ripgrep
 call denite#custom#var('grep', 'command', ['ag'])
@@ -52,7 +52,7 @@ call denite#custom#var('grep', 'separator', ['--'])
 call denite#custom#var('grep', 'final_opts', [])
 call denite#custom#source('grep', 'sorters', [''])
 
-nnoremap <silent> <c-f> :call denite_config#smart_interactive_ag()<cr>
+" nnoremap <silent> <c-f> :call denite_config#smart_interactive_ag()<cr>
 
 " Replace FZF
 " nnoremap <silent> <leader>a :<c-u>call denite_config#ag(expand('<cword>'))<cr>
@@ -62,9 +62,9 @@ nnoremap <silent> <c-f> :call denite_config#smart_interactive_ag()<cr>
 " cabbrev h Denite help<cr>
 " cabbr <expr> h getcmdtype() == ':' ? "Denite help\<cr>" : 'h'
 
-nnoremap <silent> <leader><c-h> :call denite#start([{'name': 'help', 'args': []}], {'input': expand('<cword>')})<cr>
+" nnoremap <silent> <leader><c-h> :call denite#start([{'name': 'help', 'args': []}], {'input': expand('<cword>')})<cr>
 
 
 " Filetypes
-nnoremap <leader>ft :Denite filetype<cr>
+" nnoremap <leader>ft :Denite filetype<cr>
 
