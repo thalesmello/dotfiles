@@ -1,5 +1,9 @@
 #!/bin/bash
 
-if grep -q -F tool.black $(find . -name 'pyproject.toml') /dev/null; then
+if (cd $(git rev-parse --show-toplevel 2>/dev/null || echo .); grep -q -F tool.black $(find . -name 'pyproject.toml') /dev/null); then
+  black $@
+elif git rev-parse --show-toplevel &>/dev/null; then
+  : # noop
+else
   black $@
 fi
