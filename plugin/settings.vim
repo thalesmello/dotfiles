@@ -1,8 +1,6 @@
 " Display incomplete commands.
 set showcmd
 
-set path+=**
-
 set wildignorecase
 
 set shortmess+=I

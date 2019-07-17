@@ -1,12 +1,11 @@
 "/ OriginalAuthor: Pedro Franceschi <pedrohfranceschi@gmail.com>
-" ModifiedVersion: Thales Mello <thalesmello@gmail.com>
+" ModifiedVersion: Thales Mello <!-- <thalesmello@gmail.com> -->
 " Source: http://github.com/thalesmello/vimfiles
 
 call plug#begin()
 Plug 'tpope/vim-sensible', only#if(!has('nvim'))
 Plug 'tpope/vim-commentary'
 Plug 'kana/vim-textobj-user'
-Plug 'Shougo/denite.nvim'
 Plug 'SirVer/ultisnips', only#if(v:version >= 704)
 Plug 'ryanoasis/vim-devicons'
 Plug 'morhetz/gruvbox'
@@ -18,10 +17,8 @@ Plug 'tpope/vim-tbone'
 Plug 'tpope/vim-vinegar'
 Plug 'tpope/vim-eunuch'
 Plug 'thalesmello/tabfold'
-Plug 'Shougo/vimproc.vim', { 'do' : 'make' }
 Plug 'itchyny/lightline.vim'
 Plug 'drzel/vim-line-no-indicator'
-Plug 'dbakker/vim-projectroot'
 Plug 'tpope/vim-fugitive'
 Plug 'tpope/vim-surround'
 Plug 'Raimondi/delimitMate'
@@ -30,7 +27,7 @@ Plug 'tpope/vim-repeat'
 Plug 'tpope/vim-abolish'
 Plug 'tweekmonster/local-indent.vim'
 Plug 'scrooloose/nerdtree', { 'on': ['NERDTreeToggle', 'NERDTreeFind'] }
-Plug 'thalesmello/vim-sleuth'
+Plug 'tpope/vim-sleuth'
 Plug 'dag/vim-fish'
 Plug 'terryma/vim-multiple-cursors'
 Plug 'AndrewRadev/multichange.vim'
@@ -45,44 +42,33 @@ Plug 'thalesmello/vim-go'
 Plug 'bronson/vim-trailing-whitespace'
 Plug 'thalesmello/vim-indent-object'
 Plug 'embear/vim-localvimrc'
-Plug 'thalesmello/vim-unimpaired'
-Plug 'Chiel92/vim-autoformat'
+Plug 'tpope/vim-unimpaired'
 Plug 'w0rp/ale'
 Plug 'simnalamburt/vim-mundo'
 Plug 'simeji/winresizer'
-Plug 'godlygeek/tabular'
-Plug 'wesQ3/vim-windowswap'
 Plug 'honza/vim-snippets'
 Plug 'AndrewRadev/splitjoin.vim'
 Plug 'junegunn/fzf'
 Plug 'junegunn/fzf.vim'
-Plug 'vimwiki/vimwiki'
 Plug 'tmux-plugins/vim-tmux-focus-events'
-Plug 'lambdalisue/vim-pager'
 Plug 'tweekmonster/exception.vim'
 Plug 'ConradIrwin/vim-bracketed-paste', only#if(!has('nvim'))
 Plug 'davidhalter/jedi'
 Plug 'thalesmello/tabmessage.vim'
 Plug 'thalesmello/persistent.vim'
-Plug 'thalesmello/pagarme-refactor.vim'
 Plug 'thinca/vim-visualstar'
 Plug 'dietsche/vim-lastplace'
 Plug 'duggiefresh/vim-easydir'
 Plug 'tmux-plugins/vim-tmux'
 Plug 'edkolev/tmuxline.vim'
 Plug 'thalesmello/devlindo.vim'
-Plug 'sealemar/vtl'
 Plug 'machakann/vim-highlightedyank'
 Plug 'thalesmello/vim-tmux-clipboard'
 Plug 'vim-scripts/ingo-library'
-Plug 'jalvesaq/Nvim-R'
 Plug 'moll/vim-node'
 Plug 'justinmk/vim-sneak'
 
 " Denite
-Plug 'chemzqm/unite-location'
-Plug 'Shougo/neoyank.vim'
-
 Plug 'roxma/nvim-yarp'
 Plug 'ncm2/ncm2', only#if(has('nvim'))
 Plug 'ncm2/ncm2-bufword'
@@ -116,13 +102,13 @@ Plug 'glts/vim-textobj-indblock'
 Plug 'kana/vim-textobj-indent'
 Plug 'kana/vim-textobj-fold'
 Plug 'thalesmello/vim-textobj-methodcall'
-Plug 'thalesmello/vim-textobj-bracketchunk'
 Plug 'rhysd/vim-textobj-conflict'
-Plug 'yssl/QFEnter'
+Plug 'tpope/vim-dispatch'
+Plug 'tpope/vim-haystack'
 
-" Database
-Plug 'ivalkeen/vim-simpledb'
-" Plug 'exu/pgsql.vim'
+
+Plug 'tpope/vim-apathy'
+Plug 'yssl/QFEnter'
 
 " Slime
 Plug 'jgdavey/tslime.vim'
@@ -132,16 +118,14 @@ Plug 'thalesmello/lkml.vim'
 Plug 'junegunn/vim-easy-align'
 
 Plug 'equalsraf/neovim-gui-shim'
-Plug 'chrisbra/csv.vim'
 Plug 'dzeban/vim-log-syntax'
-Plug 'mattn/emmet-vim'
-" Plug 'wellle/targets.vim'
-Plug 'valloric/matchtagalways'
 Plug 'alvan/vim-closetag'
 Plug 'tpope/vim-rhubarb'
 
 Plug 'AndrewRadev/switch.vim'
 Plug 'andymass/vim-matchup'
+
+Plug 'tpope/vim-jdaddy'
 
 " TODO: Check
 " github-complete.vim
