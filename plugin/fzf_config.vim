@@ -12,3 +12,13 @@ nnoremap <silent> <leader>hi :History:<cr>
 nnoremap <silent> <leader>ft :Filetypes<cr>
 
 nnoremap <c-f> :<c-u>Ag<space>
+
+
+fun! CompleteAg(A,L,P)
+    if a:A == ''
+        return a:A
+    endif
+    return system("ag -o " . shellescape('\b\w*' . a:A . '\w*\b') . ' | cut -d":" -f3- | sort -u')
+endfun
+
+command! -bang -complete=custom,CompleteAg -nargs=* Ag call fzf#vim#ag(<q-args>, <bang>0)
