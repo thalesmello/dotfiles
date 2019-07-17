@@ -127,11 +127,6 @@ Plug 'andymass/vim-matchup'
 
 Plug 'tpope/vim-jdaddy'
 
-" TODO: Check
-" github-complete.vim
-" committia.vim
-" make outline use ctags for JavaScript
-
 call plug#end()
 
 let mapleader = "\<space>"
