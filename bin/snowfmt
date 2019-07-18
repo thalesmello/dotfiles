@@ -1,0 +1,25 @@
+#!/bin/bash
+
+
+# We check the first byte in order to verify the first byte is
+# used. Otherwise, transform the file passed as argument.
+first_byte=$(dd bs=1 count=1 2>/dev/null | od -t o1 -A n | tr -dc 0-9)
+if [ -z "$first_byte" ]; then
+  tmpfile=$(mktemp /tmp/abc-script.XXXXXX)
+  # What we do here is, replace all : for :: in Snowflake queries, so they are
+  # interpreted as type casts for the snowformat function
+  # (https://www.npmjs.com/package/poor-mans-t-sql-formatter-cli)
+  # Then, we convert the colons back to their original form, and
+  # remove any trailing lines and whitespaces
+  sed 's/:/::/g' <"$1"  | sqlformat --indent '    ' --expandInLists --breakJoinOnSections | sed -e 's/::/:/g' -e 's/[ \t]*$//' -e :a -e '/^\n*$/{$d;N;ba' -e '}' >"$tmpfile"
+  cp "$tmpfile" > "$1"
+  rm "tmpfile"
+else
+  {
+    printf "\\$first_byte"
+    cat
+  } | {
+    sed 's/:/::/g' | sqlformat --indent '    ' --expandInLists --breakJoinOnSections | sed -e 's/::/:/g' -e 's/[ \t]*$//' -e :a -e '/^\n*$/{$d;N;ba' -e '}'
+  }
+fi
+
