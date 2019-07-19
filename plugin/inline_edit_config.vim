@@ -11,3 +11,4 @@ call add(g:inline_edit_patterns, {
       \ })
 
 nmap <silent> <leader>ei :<c-u>:InlineEdit<cr>
+vmap <silent> <leader>ei :InlineEdit<cr>

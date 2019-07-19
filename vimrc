@@ -128,15 +128,9 @@ Plug 'andymass/vim-matchup'
 
 Plug 'tpope/vim-jdaddy'
 Plug 'AndrewRadev/undoquit.vim'
-Plug 'kana/vim-smartword'
 Plug 'AndrewRadev/inline_edit.vim'
 
 call plug#end()
 
 let mapleader = "\<space>"
 let maplocalleader = "'"
-
-map w  <Plug>(smartword-w)
-map b  <Plug>(smartword-b)
-map e  <Plug>(smartword-e)
-map ge  <Plug>(smartword-ge)
