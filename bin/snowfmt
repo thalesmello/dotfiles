@@ -9,9 +9,11 @@ if test "$#" -ge 1; then
   # (https://www.npmjs.com/package/poor-mans-t-sql-formatter-cli)
   # Then, we convert the colons back to their original form, and
   # remove any trailing lines and whitespaces
-  sed 's/:/::/g' <"$1"  | sqlformat --indent '    ' --expandInLists --breakJoinOnSections | sed -e 's/::/:/g' -e 's/[ \t]*$//' -e :a -e '/^\n*$/{$d;N;ba' -e '}' >"$tmpfile"
+  sed 's/:/::/g' <"$1"  | sqlformat --indent '    ' --expandInLists --breakJoinOnSections | sed -e 's/::/:/g' -e 's/ *$//' -e :a -e '/^\n*$/{$d;N;ba' -e '}' >"$tmpfile"
   cp "$tmpfile" "$1"
   rm "$tmpfile"
 else
-  sed 's/:/::/g' | sqlformat --indent '    ' --expandInLists --breakJoinOnSections | sed -e 's/::/:/g' -e 's/[ \t]*$//' -e :a -e '/^\n*$/{$d;N;ba' -e '}'
+  sed 's/:/::/g' | sqlformat --indent '    ' --expandInLists --breakJoinOnSections | sed -e 's/::/:/g' -e 's/ *$//' -e :a -e '/^\n*$/{$d;N;ba' -e '}'
 fi
+
+
