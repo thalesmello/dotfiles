@@ -6,5 +6,9 @@ let g:projectionist_heuristics = {
 			\ "models/*": {
 			\ "models/*.sql": { "alternate": "models/{}.yml", "type": "model" },
 			\ "models/*.yml": { "alternate": "models/{}.sql", "type": "doc" }
+			\ },
+			\ "dags/*": {
+			\   "dags/replication/*.py": { "type": "replication" },
+			\   "dags/*.py": { "type": "dag" }
 			\ }
 			\ }
