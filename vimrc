@@ -129,6 +129,8 @@ Plug 'andymass/vim-matchup'
 Plug 'tpope/vim-jdaddy'
 Plug 'AndrewRadev/undoquit.vim'
 Plug 'AndrewRadev/inline_edit.vim'
+Plug 'thalesmello/vim-textobj-bracketchunk'
+Plug 'thalesmello/vim-compiler-python3'
 
 call plug#end()
 

@@ -25,7 +25,8 @@ function! lightline_config#load()
         \ 'subseparator': { 'left': '', 'right': '' }
         \ }
 
-    call auto#cmd('ale_statusline', 'User ALELint call lightline#update()')
+    call auto#cmd('ale_statusline', 'User ALELintPost call lightline#update()')
+    call auto#cmd('ale_statusline', 'User ALEFixPost call lightline#update()')
 endfunction
 
 function! lightline_config#modified()
