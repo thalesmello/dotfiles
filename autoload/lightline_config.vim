@@ -1,6 +1,6 @@
 function! lightline_config#load()
   let g:lightline = {
-        \ 'colorscheme': 'gruvbox',
+        \ 'colorscheme': g:my_colorscheme,
         \ 'active': {
         \   'left': [['mode', 'paste'], ['filename'], ['ctrlpmark'], ['fugitive']],
         \   'right': [['ale', 'lineinfo', 'percent', 'lineindicator'], ['fileformat', 'fileencoding', 'filetype']]
@@ -21,8 +21,8 @@ function! lightline_config#load()
         \ 'component_expand': {
         \   'ale': 'AleStatusLineCustom'
         \ },
-        \ 'separator': { 'left': '', 'right': '' },
-        \ 'subseparator': { 'left': '', 'right': '' }
+        \ 'separator': { 'left': '', 'right': '' },
+        \ 'subseparator': { 'left': '|', 'right': '|' }
         \ }
 
     call auto#cmd('ale_statusline', 'User ALELintPost call lightline#update()')

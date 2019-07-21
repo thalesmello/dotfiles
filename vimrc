@@ -8,7 +8,7 @@ Plug 'tpope/vim-commentary'
 Plug 'kana/vim-textobj-user'
 Plug 'SirVer/ultisnips', only#if(v:version >= 704)
 Plug 'ryanoasis/vim-devicons'
-Plug 'morhetz/gruvbox'
+Plug 'ayu-theme/ayu-vim'
 Plug 'vim-scripts/SyntaxRange'
 Plug 'christoomey/vim-tmux-navigator'
 Plug 'tpope/vim-scriptease'
@@ -60,7 +60,7 @@ Plug 'thinca/vim-visualstar'
 Plug 'dietsche/vim-lastplace'
 Plug 'duggiefresh/vim-easydir'
 Plug 'tmux-plugins/vim-tmux'
-Plug 'edkolev/tmuxline.vim'
+Plug 'sainnhe/tmuxline.vim'
 Plug 'thalesmello/devlindo.vim'
 Plug 'machakann/vim-highlightedyank'
 Plug 'thalesmello/vim-tmux-clipboard'
@@ -135,3 +135,4 @@ call plug#end()
 
 let mapleader = "\<space>"
 let maplocalleader = "'"
+let g:my_colorscheme = 'ayu'

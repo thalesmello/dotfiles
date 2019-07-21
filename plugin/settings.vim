@@ -62,10 +62,6 @@ botright cwindow
 " Set virtual edit
 set virtualedit=block,onemore
 
-" Sets the colorscheme for terminal sessions too.
-set background=dark
-colorscheme gruvbox
-
 set cursorline
 set listchars=tab:▸\ ,eol:¬
 set splitbelow
@@ -85,6 +81,10 @@ set fillchars+=vert:│
 
 if has('nvim')
   set termguicolors
+
+  " Sets the colorscheme for terminal sessions too.
+  set background=dark
+  execute "colorscheme" g:my_colorscheme
 endif
 
 if exists('&inccommand')
