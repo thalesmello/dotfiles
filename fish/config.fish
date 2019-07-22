@@ -1,6 +1,6 @@
 fundle plugin brgmnn/fish-docker-compose
 fundle plugin fischerling/plugin-wd
-fundle plugin oh-my-fish/theme-bobthefish
+fundle plugin thalesmello/theme-cmorrell.com
 fundle plugin fisherman/rbenv
 fundle plugin cafedomancer/nodenv
 fundle init
@@ -14,7 +14,7 @@ set -g theme_nerd_fonts yes
 set -g theme_powerline_fonts no
 set -g theme_show_exit_status yes
 set -g theme_display_virtualenv no
-set -g default_user your_normal_user
+set -g default_user thales
 set -g theme_color_scheme zenburn
 set -g fish_prompt_pwd_dir_length 2
 
