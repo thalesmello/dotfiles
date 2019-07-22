@@ -7,6 +7,10 @@ set shortmess+=I
 " Ignore completion messages
 set shortmess+=c
 
+" By default use four spaces
+set shiftwidth=4
+set expandtab
+
 " Handle multiple buffers better.
 set hidden
 

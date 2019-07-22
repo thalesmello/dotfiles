@@ -1,8 +1,16 @@
 function! auto#cmd(name, command)
+  if type(a:command) == type([])
+    let commands = a:command
+  else
+    let commands = [a:command]
+  end
+
   execute "augroup auto_" . a:name
     autocmd!
 
-    execute "autocmd" a:command
+    for command in commands
+      execute "autocmd" command
+    endfor
   augroup end
 endfunction
 
