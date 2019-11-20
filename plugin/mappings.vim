@@ -19,8 +19,8 @@ nnoremap <leader>ev :vsplit $MYVIMRC<cr>
 nnoremap <leader>sv :source $MYVIMRC<cr>
 
 " Smart lookup for command line
-cnoremap <c-p> <up>
-cnoremap <c-n> <down>
+cnoremap <expr> <c-p> pumvisible() ? "\<c-p>" : "\<up>"
+cnoremap <expr> <c-n> pumvisible() ? "\<c-n>" : "\<down>"
 
 " Toggles hlsearch
 nnoremap <leader>hs :set hlsearch!<cr>

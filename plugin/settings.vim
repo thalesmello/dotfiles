@@ -14,8 +14,13 @@ set expandtab
 " Handle multiple buffers better.
 set hidden
 
-" Complete files like a shell.
-set wildmode=list:longest,full
+
+if has('nvim')
+  set wildoptions=pum
+else
+  " Complete files like a shell.
+  set wildmode=list:longest,full
+endif
 
 " No extra spaces when joining lines
 set nojoinspaces
