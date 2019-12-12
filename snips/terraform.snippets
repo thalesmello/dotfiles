@@ -1,11 +1,11 @@
 snippet var "Terraform variable" b
-variable "${1:variable_name}" {
+variable ${1:variable_name} {
 	${2:default = ${3:"default_value"}}$0
 }
 endsnippet
 
 snippet out "Terraform output" b
-output "${1:variable_name}" {
+output ${1:variable_name} {
 	value = "\$\{${2:resource}\}"$0
 }
 endsnippet
@@ -15,13 +15,13 @@ ${1:property} = "${2:value}"
 endsnippet
 
 snippet res "Terraform resource" b
-resource "${1:resource_name}" "${2:identifier}" {
+resource ${1:resource_name} ${2:identifier} {
 	${3:name = ${3:"${2/_/-/g}"}}$0
 }
 endsnippet
 
 snippet mod "Terraform module" b
-module "${1:module_name}" {
+module ${1:module_name} {
 	source = "${2:./source}"$0
 }
 endsnippet
