@@ -10,7 +10,6 @@ Plug 'SirVer/ultisnips', only#if(v:version >= 704)
 Plug 'ryanoasis/vim-devicons'
 Plug 'ayu-theme/ayu-vim'
 Plug 'vim-scripts/SyntaxRange'
-Plug 'christoomey/vim-tmux-navigator'
 Plug 'tpope/vim-scriptease'
 Plug 'tpope/vim-projectionist'
 Plug 'tpope/vim-tbone'

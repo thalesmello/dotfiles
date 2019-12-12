@@ -107,3 +107,8 @@ nnoremap <silent> <leader>dt :diffthis<cr>
 
 nnoremap <leader>gf <c-w>vgf
 vnoremap <leader>gf <esc><c-w>vgvgf
+
+nnoremap <c-h> <c-w>h
+nnoremap <c-l> <c-w>l
+nnoremap <c-j> <c-w>j
+nnoremap <c-k> <c-w>k
