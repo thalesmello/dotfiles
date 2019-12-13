@@ -1,0 +1,67 @@
+snippet header "Header for the Vimwiki diary" b
+= `!v strftime("%b %d, %Y")`$0 =
+endsnippet
+
+snippet frac "Mathjax fraction" i
+\frac{${VISUAL}$1}{$2}$0
+endsnippet
+
+snippet sum "Mathjax sum" i
+\sum_{$1}^{$2}$0
+endsnippet
+
+snippet ^ "Mathjax power" i
+^{${1:${VISUAL}}}$0
+endsnippet
+
+snippet _ "Mathjax subscript " i
+_{${1:${VISUAL}}}$0
+endsnippet
+
+snippet hat "Mathjax hat" i
+\hat{${VISUAL}$1}$0
+endsnippet
+
+snippet $ "Mathjax formula" i
+$ ${VISUAL}$1 $$0
+endsnippet
+
+snippet \ "Mathjax enclose" i
+\\$1{${2:${VISUAL}}}$0
+endsnippet
+
+snippet "(=+)" "Titles" r
+`!p snip.rv = match.group(1)` $0 `!p snip.rv = match.group(1)`
+endsnippet
+
+snippet tm "Mathjax times" i
+\times $0
+endsnippet
+
+snippet left{ "Mathjax leftright curly" i
+\left\\{${VISUAL}$0\right\\
+endsnippet
+
+snippet left( "Mathjax leftright paren" i
+\left(${VISUAL}$0\right
+endsnippet
+
+snippet left[ "Mathjax leftright paren" i
+\left[${VISUAL}$0\right
+endsnippet
+
+snippet "^(?!.*left){" "Mathjax literal curly" r
+\\{${VISUAL}$0\\
+endsnippet
+
+snippet ... "Mathjax elipsis" i
+\ldots$0
+endsnippet
+
+snippet deriv "Mathjax derivate" i
+\frac{\mathrm{d} ${VISUAL}$1}{\mathrm{d} $2}$0
+endsnippet
+
+snippet _tilde "Mathjax tilde under" i
+\stackrel{${VISUAL}$1}{\sim}$0
+endsnippet

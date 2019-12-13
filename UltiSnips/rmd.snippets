@@ -1,0 +1,52 @@
+snippet fun "Creates a function in R"
+${1:name} <- function(${2:args}) {
+	${3:${VISUAL}}$0
+}
+endsnippet
+
+snippet funi "Inline function"
+function(${1:args}) ${0:body}
+endsnippet
+
+snippet chun "Description" b
+\`\`\`{r$1}
+${VISUAL}$0
+\`\`\`
+endsnippet
+
+snippet echun "Description" b
+\`\`\`{r$1, include=FALSE}
+${VISUAL}$0
+\`\`\`
+endsnippet
+
+snippet pchun "Description" b
+\`\`\`{r$1, echo=FALSE}
+${VISUAL}$0
+\`\`\`
+endsnippet
+
+snippet "((\w|\$|\.)+) " "Assignment" br
+`!p snip.rv = match.group(1)` <- ${VISUAL}$0
+endsnippet
+
+snippet ref "Label" i
+\@ref(${VISUAL}$1)$0
+endsnippet
+
+snippet ( "Parenthesis reference" i
+(@${VISUAL}$0
+endsnippet
+
+snippet eq "Equation" b
+\begin{equation}
+	${VISUAL}$1
+\end{equation}$0
+endsnippet
+
+snippet fig "Figure" b
+(ref:${1:label}) ${2:Description}.
+\`\`\`{r $1, fig.asp=.7, fig.width=6, fig.cap='(ref:$1)', fig.align='center', out.width='90%'}
+${VISUAL}$0
+\`\`\`
+endsnippet

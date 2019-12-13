@@ -1,0 +1,19 @@
+snippet "(ex|explore)" "Looker explore" r
+explore: ${1:explore_name} {
+	view_name: ${2:$1}
+}
+endsnippet
+
+snippet dim "A looker dimension" b
+dimension: ${1:name} {
+	type: ${2:string}
+	sql: ${TABLE}.${3:$1} ;;
+}
+endsnippet
+
+snippet measure "A looker measure" b
+measure: ${1:name} {
+	type: ${2:average}
+	sql: ${4:${TABLE}.${3:$1}} ;;
+}
+endsnippet
