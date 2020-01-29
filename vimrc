@@ -49,7 +49,7 @@ Plug 'honza/vim-snippets'
 Plug 'AndrewRadev/splitjoin.vim'
 Plug 'junegunn/fzf'
 Plug 'junegunn/fzf.vim'
-Plug 'tmux-plugins/vim-tmux-focus-events'
+Plug 'tmux-plugins/vim-tmux-focus-events', { 'tag': 'v1.0.0' }
 Plug 'tweekmonster/exception.vim'
 Plug 'ConradIrwin/vim-bracketed-paste', only#if(!has('nvim'))
 Plug 'davidhalter/jedi'
