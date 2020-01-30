@@ -8,5 +8,11 @@ if has('vim_starting')
   imap <CR> <C-G>u<Plug>delimitMateCR
 endif
 
-autocmd User MultipleCursorsPre DelimitMateOff
-autocmd User MultipleCursorsPost DelimitMateOn
+augroup DelimitMateConfig
+  autocmd!
+  autocmd User ClapOnEnter DelimitMateOff
+  autocmd User ClapOnExit DelimitMateOn
+
+  autocmd User MultipleCursorsPre DelimitMateOff
+  autocmd User MultipleCursorsPost DelimitMateOn
+augroup END
