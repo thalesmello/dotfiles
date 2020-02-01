@@ -1,5 +1,5 @@
-if !exists("*textobj#user#map")
-	finish
+if match(&runtimepath, 'vim-textobj-user') == -1
+    finish
 endif
 
 call textobj#user#map('python', { 'class': { 'select-a': 'aP', 'select-i': 'iP', } })
