@@ -93,7 +93,11 @@ if has('nvim')
 
   " Sets the colorscheme for terminal sessions too.
   set background=dark
-  execute "colorscheme" g:my_colorscheme
+
+  try
+	execute "colorscheme" g:my_colorscheme
+  catch
+  endtry
 endif
 
 if exists('&inccommand')

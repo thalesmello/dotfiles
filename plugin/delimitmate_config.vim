@@ -1,3 +1,7 @@
+if match(&runtimepath, 'delimitMate') == -1
+    finish
+endif
+
 imap <expr> <c-x><c-l> delimitmate_config#completion("\<c-l>")
 
 let g:delimitMate_expand_space = 1
