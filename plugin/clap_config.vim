@@ -1,7 +1,7 @@
 nnoremap <silent><c-p> :<c-u>Clap files .<cr>
 vnoremap <silent><c-p> :<c-u>Clap files .<cr>
-nnoremap <silent> <leader>a :<c-u>Clap grep . ++query=<cword><CR>
-vnoremap <silent> <leader>a :<c-u>Clap grep . ++query=@visual<CR>
+nnoremap <silent> <leader>a :<c-u>Clap grep ++query=<cword> .<CR>
+vnoremap <silent> <leader>a :<c-u>Clap grep ++query=@visual .<CR>
 nnoremap <silent> <leader>li :<c-u>Clap bLines<cr>
 nnoremap <silent> <leader>hp :<c-u>Clap helptags<cr>
 nnoremap <silent> <leader>cm :<c-u>Clap commands<cr>
