@@ -3,7 +3,6 @@ function! clap_config#visual_grep()
 endfunction
 
 function! clap_config#from_query_term(mode, query_term)
-
   execute "Clap" a:mode "."
   call feedkeys("\<c-e>")
   call g:clap.input.set(a:query_term)
@@ -42,5 +41,18 @@ endfunction
 
 function! clap_config#unset_input_hook()
   autocmd! ClapConfigLastUsedGroup
+endfunction
+
+function! clap_config#ensure_closed() abort
+  call clap#floating_win#close()
+  call feedkeys("\<esc>")
+  silent! autocmd! ClapEnsureAllClosed
+endfunction
+
+function! clap_config#on_clap_enter() abort
+  augroup ClapEnsureAllClosed
+    autocmd!
+    autocmd BufEnter,WinEnter,WinLeave * call clap_config#ensure_closed()
+  augroup END
 endfunction
 
