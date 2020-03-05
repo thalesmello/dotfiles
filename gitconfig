@@ -32,8 +32,8 @@
 	new = green bold
 	whitespace = red reverse
 [pager]
-	diff = diff-highlight | diff-so-fancy | less --tabs=4 -RFX
-	show = diff-highlight | diff-so-fancy | less --tabs=4 -RFX
+	diff = diff-so-fancy | less --tabs=4 -RFX
+	show = diff-so-fancy | less --tabs=4 -RFX
 [filter "lfs"]
 	process = git-lfs filter-process
 	required = true
