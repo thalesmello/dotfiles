@@ -80,7 +80,7 @@ Plug 'ncm2/ncm2-ultisnips'
 Plug 'Shougo/neoinclude.vim'
 Plug 'ncm2/ncm2-neoinclude'
 Plug 'wellle/tmux-complete.vim'
-Plug 'thalesmello/webcomplete.vim'
+Plug 'thalesmello/webcomplete.vim', only#if(has('macos'))
 
 " Python dependencies
 Plug 'roxma/python-support.nvim'
