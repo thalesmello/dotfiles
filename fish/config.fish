@@ -1,8 +1,6 @@
 fundle plugin brgmnn/fish-docker-compose
 fundle plugin fischerling/plugin-wd
 fundle plugin thalesmello/theme-cmorrell.com
-fundle plugin fisherman/rbenv
-fundle plugin cafedomancer/nodenv
 fundle init
 
 # Configure theme
@@ -28,4 +26,7 @@ set -xg SKIM_DEFAULT_OPTS '--bind "ctrl-n:down,ctrl-p:up,alt-r:previous-history,
 
 # AWS completion
 test -x (which aws_completer); and complete --command aws --no-files --arguments '(begin; set --local --export COMP_SHELL fish; set --local --export COMP_LINE (commandline); aws_completer | sed \'s/ $//\'; end)'
-source /usr/local/opt/asdf/asdf.fish
+eval (keychain --eval --quiet)
+set -x WSL_HOST (tail -1 /etc/resolve.conf | cut -d' ' -f2)
+set -x DISPLAY=$WSL_HOST:0
+source $HOME/.asdf/asdf.fish
