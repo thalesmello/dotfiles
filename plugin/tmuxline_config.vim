@@ -12,7 +12,7 @@ let g:tmuxline_preset = {
       \ 'win'     : ['#I', tab_name_generator],
       \ 'cwin'    : ['#I', tab_name_generator],
       \ 'x'   : ['#{prefix_highlight}'],
-      \ 'z'   : ['#{cpu_icon}#{cpu_percentage}', '#{online_status}', '#{battery_icon} #{battery_percentage}', '%R'],
+      \ 'z'   : ['#{cpu_icon}#{cpu_percentage}', '#{online_status}', '%R'],
       \ 'options' : {'status-justify' : 'left'}}
 
 command! TmuxlineLoadConfig call tmuxline_config#load_theme()
