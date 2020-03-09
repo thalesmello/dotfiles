@@ -1,5 +1,5 @@
 # This tmux statusbar config was created by tmuxline.vim
-# on Sun, 21 Jul 2019
+# on Sat, 07 Mar 2020
 
 set -g status-justify "left"
 set -g status "on"
@@ -16,6 +16,6 @@ setw -g window-status-activity-style "none,fg=#01060E,bg=#14191F"
 setw -g window-status-separator ""
 setw -g window-status-style "dim,fg=#E6E1CF,bg=#161F2A"
 set -g status-left "#[fg=#E6E1CF,bg=#01060E]  #(whoami) | #S #[fg=#01060E,bg=#14191F,nobold,nounderscore,noitalics]"
-set -g status-right "#[fg=#14191F,bg=#14191F,nobold,nounderscore,noitalics]#[fg=#C2D94C,bg=#14191F] #{prefix_highlight} #[fg=#161F2A,bg=#14191F,nobold,nounderscore,noitalics]#[fg=#E6E1CF,bg=#161F2A] #{cpu_icon}#{cpu_percentage} | #{online_status} | #{battery_icon} #{battery_percentage} | %R "
-setw -g window-status-format "#[fg=#14191F,bg=#161F2A,nobold,nounderscore,noitalics]#[fg=#E6E1CF,bg=#161F2A,dim] #I | #{?#{==:#{?window_zoomed_flag,,}#{?window_activity_flag,,}#{?window_bell_flag,,},},,#{?window_zoomed_flag,,}#{?window_activity_flag,,}#{?window_bell_flag,,} }#{?#{==:#W,fish},#{b:pane_current_path}/,#W} #[fg=#161F2A,bg=#14191F,nobold,nounderscore,noitalics]"
+set -g status-right "#[fg=#14191F,bg=#14191F,nobold,nounderscore,noitalics]#[fg=#C2D94C,bg=#14191F] #{prefix_highlight} #[fg=#161F2A,bg=#14191F,nobold,nounderscore,noitalics]#[fg=#E6E1CF,bg=#161F2A] #{cpu_icon}#{cpu_percentage} | #{online_status} | %R "
+setw -g window-status-format "#[fg=#14191F,bg=#161F2A,nobold,nounderscore,noitalics]#[fg=#E6E1CF] #I | #{?#{==:#{?window_zoomed_flag,,}#{?window_activity_flag,,}#{?window_bell_flag,,},},,#{?window_zoomed_flag,,}#{?window_activity_flag,,}#{?window_bell_flag,,} }#{?#{==:#W,fish},#{b:pane_current_path}/,#W} #[fg=#161F2A,bg=#14191F,nobold,nounderscore,noitalics]"
 setw -g window-status-current-format "#[fg=#14191F,bg=#161F2A,nobold,nounderscore,noitalics]#[fg=#E6E1CF,bg=#161F2A,nodim, bold] #I | #{?#{==:#{?window_zoomed_flag,,}#{?window_activity_flag,,}#{?window_bell_flag,,},},,#{?window_zoomed_flag,,}#{?window_activity_flag,,}#{?window_bell_flag,,} }#{?#{==:#W,fish},#{b:pane_current_path}/,#W} #[fg=#161F2A,bg=#14191F,nobold,nounderscore,noitalics]"
