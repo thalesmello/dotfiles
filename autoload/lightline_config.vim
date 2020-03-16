@@ -3,7 +3,7 @@ function! lightline_config#load()
         \ 'colorscheme': g:my_colorscheme,
         \ 'active': {
         \   'left': [['mode', 'paste'], ['filename'], ['ctrlpmark'], ['fugitive']],
-        \   'right': [['ale', 'lineinfo', 'percent', 'lineindicator'], ['fileformat', 'fileencoding', 'filetype']]
+        \   'right': [['ale', 'lineinfo', 'percent'], ['fileformat', 'fileencoding', 'filetype']]
         \ },
         \ 'component_function': {
         \   'fugitive': 'lightline_config#fugitive',
@@ -37,10 +37,6 @@ endfunction
 
 function! lightline_config#readonly()
   return &ft !~? 'help' && &readonly ? '' : ''
-endfunction
-
-function! lightline_config#line_indicator()
-  return LineNoIndicator()
 endfunction
 
 function! lightline_config#filename()
@@ -134,7 +130,7 @@ function! AleStatusLineCustom()
   let l:all_non_errors = l:counts.total - l:all_errors
 
   return l:counts.total == 0 ? 'OK' : printf(
-  \   '⚠ %d ⨉ %d',
+  \   'W%d E%d',
   \   all_non_errors,
   \   all_errors
   \)
