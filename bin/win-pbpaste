@@ -1,0 +1,11 @@
+#!/usr/local/bin/python3
+
+from subprocess import check_output
+from sys import stdout
+
+pastebin = check_output("pbpaste.exe").decode("utf8").replace("\r\n", "\n").rstrip()
+
+if "\n" in pastebin:
+    stdout.write(pastebin + "\n")
+else:
+    stdout.write(pastebin)
