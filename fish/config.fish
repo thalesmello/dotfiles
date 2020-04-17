@@ -34,3 +34,4 @@ set -x DISPLAY $WSL_HOST:0
 set -x HOST (hostname)
 set -x HOSTNAME (hostname)
 source $HOME/.asdf/asdf.fish
+test -f '/home/linuxbrew/.linuxbrew/bin/brew'; and eval (/home/linuxbrew/.linuxbrew/bin/brew shellenv)

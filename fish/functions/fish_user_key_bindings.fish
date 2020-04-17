@@ -10,4 +10,5 @@ function fish_user_key_bindings
   # # The argument specifies the initial mode (insert, "default" or visual).
   # # Shift Tab
   bind -M insert \cv edit_cmd
+  bind -M insert \cq 'commandline (commandline | format-shell)'
 end
