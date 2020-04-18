@@ -35,8 +35,15 @@ vnoremap <CR> "+y
 " The snippet below tries to intelligently split a string and append a concat
 " operator in it
 nnoremap <leader><cr> mz?\v(".*"\|'.*')<cr>"qyl`zi<c-r>q +<cr><c-r>q<esc>
-nnoremap <leader>yy gv"+y
-vnoremap <leader>yy "+y
+
+nnoremap <leader>y "+y
+nnoremap <leader>p "+p
+nnoremap <leader>P "+P
+
+vnoremap <leader>y "+y
+vnoremap <leader>p "+p
+vnoremap <leader>P "+P
+
 vnoremap @ :<c-u>noautocmd '<,'> normal @
 vnoremap <c-c> "+y
 nnoremap <leader><leader> <c-^>
