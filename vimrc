@@ -132,7 +132,6 @@ Plug 'google/vim-jsonnet'
 
 Plug 'unblevable/quick-scope'
 Plug 'hashivim/vim-terraform'
-Plug 'liuchengxu/vim-clap', { 'do': 'Clap install-binary' }
 
 Plug 'inkarkat/vim-AdvancedSorters'
 

@@ -1,16 +1,16 @@
 let g:fzf_history_dir = '~/.local/share/fzf-history'
 let $FZF_DEFAULT_COMMAND = 'ag -g ""'
 
-" nnoremap <silent><c-p> :<c-u>Files<cr>
-" vnoremap <silent><c-p> :<c-u>Files<cr>
-" nnoremap <c-f> :<c-u>Ag<space>
-" nnoremap <silent> <leader>a :<c-u>Ag <c-r><c-w><cr>
-" vnoremap <silent> <leader>a :<c-u>call fzf_config#visual_ag()<cr>
-" nnoremap <silent> <leader>li :BLines<cr>
-" nnoremap <silent> <leader>hp :Helptags<cr>
-" nnoremap <silent> <leader>cm :Commands<cr>
-" nnoremap <silent> <leader>hi :History:<cr>
-" nnoremap <silent> <leader>ft :Filetypes<cr>
+nnoremap <silent><c-p> :<c-u>Files<cr>
+vnoremap <silent><c-p> :<c-u>Files<cr>
+nnoremap <c-f> :<c-u>Ag<space>
+nnoremap <silent> <leader>a :<c-u>Ag <c-r><c-w><cr>
+vnoremap <silent> <leader>a :<c-u>call fzf_config#visual_ag()<cr>
+nnoremap <silent> <leader>li :BLines<cr>
+nnoremap <silent> <leader>hp :Helptags<cr>
+nnoremap <silent> <leader>cm :Commands<cr>
+nnoremap <silent> <leader>hi :History:<cr>
+nnoremap <silent> <leader>ft :Filetypes<cr>
 
 fun! CompleteAg(A,L,P)
     if a:A == ''
@@ -19,7 +19,15 @@ fun! CompleteAg(A,L,P)
     return system("ag -o " . shellescape('\b\w*' . a:A . '\w*\b') . ' | cut -d":" -f3- | sort | uniq -c | sort -k1,1 -n -r | awk "{ print \$2 }"')
 endfun
 
-command! -bang -complete=custom,CompleteAg -nargs=* Ag call fzf#vim#ag(<q-args>, <bang>0)
+function! s:p(bang, ...)
+  let preview_window = get(g:, 'fzf_preview_window', a:bang && &columns >= 80 || &columns >= 120 ? 'right': '')
+  if len(preview_window)
+    return call('fzf#vim#with_preview', add(copy(a:000), preview_window))
+  endif
+  return {}
+endfunction
+
+command! -bang -complete=custom,CompleteAg -nargs=* Ag call fzf#vim#ag(<q-args>, s:p(<bang>0), <bang>0)
 
 " Using floating windows of Neovim to start fzf
 " if has('nvim-0.4.0')
