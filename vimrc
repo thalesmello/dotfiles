@@ -77,7 +77,9 @@ Plug 'ncm2/ncm2-go'
 Plug 'ncm2/ncm2-ultisnips'
 Plug 'Shougo/neoinclude.vim'
 Plug 'ncm2/ncm2-neoinclude'
+
 Plug 'wellle/tmux-complete.vim'
+
 Plug 'thalesmello/webcomplete.vim', only#if(has('macos'))
 
 " Python dependencies
@@ -130,7 +132,7 @@ Plug 'EinfachToll/DidYouMean'
 Plug 'thalesmello/vim-textobj-bracketchunk'
 Plug 'google/vim-jsonnet'
 
-Plug 'unblevable/quick-scope'
+" Plug 'unblevable/quick-scope'
 Plug 'hashivim/vim-terraform'
 
 Plug 'inkarkat/vim-AdvancedSorters'
