@@ -8,7 +8,7 @@ Plug 'tpope/vim-commentary'
 Plug 'kana/vim-textobj-user'
 Plug 'SirVer/ultisnips', only#if(v:version >= 704)
 Plug 'ryanoasis/vim-devicons'
-Plug 'ayu-theme/ayu-vim'
+Plug 'romainl/Apprentice'
 Plug 'vim-scripts/SyntaxRange'
 Plug 'tpope/vim-scriptease'
 Plug 'tpope/vim-projectionist'
@@ -141,4 +141,4 @@ call plug#end()
 
 let mapleader = "\<space>"
 let maplocalleader = "'"
-let g:my_colorscheme = 'ayu'
+let g:my_colorscheme = 'apprentice'

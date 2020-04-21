@@ -1,6 +1,6 @@
 function! lightline_config#load()
   let g:lightline = {
-        \ 'colorscheme': g:my_colorscheme,
+        \ 'colorscheme': 'simpleblack',
         \ 'active': {
         \   'left': [['mode', 'paste'], ['filename'], ['ctrlpmark'], ['fugitive']],
         \   'right': [['ale', 'lineinfo', 'percent'], ['fileformat', 'fileencoding', 'filetype']]
