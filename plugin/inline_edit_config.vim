@@ -10,5 +10,5 @@ call add(g:inline_edit_patterns, {
       \ 'end':               '\s*\("""\|''''''\)',
       \ })
 
-nmap <silent> <leader>ei :<c-u>:InlineEdit<cr>
-vmap <silent> <leader>ei :InlineEdit<cr>
+nmap <silent> <leader>ie :<c-u>:InlineEdit<cr>
+vmap <silent> <leader>ie :InlineEdit<cr>

@@ -4,9 +4,6 @@ nnoremap <leader>tc :tabclose<cr>
 nnoremap [t :tabprevious<cr>
 nnoremap ]t :tabnext<cr>
 
-" Reopen last closed window
-nnoremap <silent> <leader>T :LastWindow<cr>
-
 " Create windows
 nnoremap <leader>v <C-w>v
 nnoremap <leader>% <C-w>v
