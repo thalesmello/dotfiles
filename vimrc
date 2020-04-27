@@ -5,6 +5,7 @@
 call plug#begin()
 Plug 'tpope/vim-sensible', only#if(!has('nvim'))
 Plug 'tpope/vim-commentary'
+Plug 'tpope/vim-flagship'
 Plug 'kana/vim-textobj-user'
 Plug 'SirVer/ultisnips', only#if(v:version >= 704)
 Plug 'ryanoasis/vim-devicons'
@@ -16,7 +17,6 @@ Plug 'tpope/vim-tbone'
 Plug 'tpope/vim-vinegar'
 Plug 'tpope/vim-eunuch'
 Plug 'thalesmello/tabfold'
-Plug 'itchyny/lightline.vim'
 Plug 'tpope/vim-fugitive'
 Plug 'tpope/vim-surround'
 Plug 'Raimondi/delimitMate'
