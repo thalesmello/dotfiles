@@ -14,6 +14,8 @@ nnoremap <leader>x :q<cr>
 
 " Edit and load vimrc
 nnoremap <leader>ev :vsplit $MYVIMRC<cr>
+nnoremap <leader>ec :vsplit $MYVIMRC<cr>:Econfig<space>
+nnoremap <leader>ea :vsplit $MYVIMRC<cr>:Eautoload<space>
 nnoremap <silent> <leader>sf :if &ft == 'vim' <bar> source % <bar> endif<cr>
 
 " Smart lookup for command line
