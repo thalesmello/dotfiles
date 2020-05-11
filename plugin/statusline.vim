@@ -13,6 +13,10 @@ endfunction
 
 
 function! StatuslineAleMessages(...)
+  if match(&runtimepath, 'ale/') == -1
+      return ''
+  endif
+
   let counts = ale#statusline#Count(bufnr(''))
 
   if counts.total == 0
