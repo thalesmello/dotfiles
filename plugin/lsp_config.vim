@@ -1,11 +1,19 @@
-let g:LanguageClient_serverCommands = {
-    \ 'rust': ['rustup', 'run', 'nightly', 'rls'],
-    \ 'javascript': ['typescript-language-server', '--stdio'],
-    \ 'javascript.jsx': ['typescript-language-server', '--stdio'],
-    \ }
+if match(&runtimepath, 'nvim-lsp') == -1
+    finish
+endif
 
-nnoremap <silent> gK :call LanguageClient_textDocument_hover()<CR>
-nnoremap <silent> g<c-]> :call LanguageClient_textDocument_definition()<CR>
-nnoremap <silent> <F2> :call LanguageClient_textDocument_rename()<CR>
+lua << END
 
-    " \ 'typescript': ['typescript-language-server', '--stdio'],
+require'nvim_lsp'.vimls.setup{}
+require'nvim_lsp'.pyls.setup{}
+
+END
+
+
+nnoremap <silent> <c-]> <cmd>lua vim.lsp.buf.definition()<CR>
+nnoremap <silent> K     <cmd>lua vim.lsp.buf.hover()<CR>
+nnoremap <silent> gK     <cmd>lua vim.lsp.buf.signature_help()<CR>
+nnoremap <silent> g*     <cmd>lua vim.lsp.buf.document_highlight()<CR>
+nnoremap <silent> gr    <cmd>lua vim.lsp.buf.references()<CR>
+nnoremap <silent> gR    <cmd>lua vim.lsp.buf.rename()<cr>
+nnoremap <silent> g0    <cmd>lua vim.lsp.buf.document_symbol()<CR>

@@ -57,22 +57,18 @@ Plug 'machakann/vim-highlightedyank'
 Plug 'moll/vim-node'
 Plug 'justinmk/vim-sneak'
 
-" Denite
-Plug 'roxma/nvim-yarp'
-Plug 'ncm2/ncm2', only#if(has('nvim'))
-Plug 'ncm2/ncm2-bufword'
-Plug 'ncm2/ncm2-path'
-Plug 'ncm2/ncm2-github'
+" LSP
+Plug 'neovim/nvim-lsp'
+
+" Completion
+Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
+Plug 'Shougo/deoplete-lsp'
+Plug 'fszymanski/deoplete-emoji'
 Plug 'Shougo/neco-syntax'
-Plug 'ncm2/ncm2-syntax'
-Plug 'ncm2/ncm2-go'
-Plug 'ncm2/ncm2-ultisnips'
 Plug 'Shougo/neoinclude.vim'
-Plug 'ncm2/ncm2-neoinclude'
-
 Plug 'wellle/tmux-complete.vim'
-
 Plug 'thalesmello/webcomplete.vim', only#if(has('macos'))
+
 
 " Python dependencies
 Plug 'roxma/python-support.nvim'

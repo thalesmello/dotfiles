@@ -9,3 +9,4 @@ augroup Ncm2Config
   autocmd User ClapOnEnter call ncm2#disable_for_buffer()
   autocmd BufEnter * call ncm2#enable_for_buffer()
 augroup END
+
