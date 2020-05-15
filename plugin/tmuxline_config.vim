@@ -14,5 +14,3 @@ let g:tmuxline_preset = {
       \ 'x'   : ['#{prefix_highlight}'],
       \ 'z'   : ['#{cpu_icon}#{cpu_percentage}', '#{online_status}', '%R'],
       \ 'options' : {'status-justify' : 'left'}}
-
-command! TmuxlineLoadConfig call tmuxline_config#load_theme()

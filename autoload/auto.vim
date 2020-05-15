@@ -1,11 +1,12 @@
 function! auto#cmd(name, command)
+  let name = substitute(a:name, " ", "_", "g")
   if type(a:command) == type([])
     let commands = a:command
   else
     let commands = [a:command]
   end
 
-  execute "augroup auto_" . a:name
+  execute "augroup auto_" . name
     autocmd!
 
     for command in commands
@@ -34,4 +35,8 @@ endfunction
 
 function! auto#defer(function)
   call auto#cmd(a:function, "User Defer call " . a:function)
+endfunction
+
+function! auto#defer_cmd(cmd)
+  call auto#cmd(a:cmd, "User Defer " . a:cmd)
 endfunction

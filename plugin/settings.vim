@@ -110,3 +110,11 @@ if has('vim_starting')
   set foldlevelstart=50
   set foldmethod=indent
 endif
+
+" Dever a redraw of the screen so the cursor appears
+" in the windows terminal. Without it, for some reason,
+" the cursor will be invisible at the beginning of the program.
+" This likely has something to do with other actions that
+" are defered during Vim load time, and some bug that makes
+" the windows terminal have a problem.
+call auto#defer_cmd("redraw")
