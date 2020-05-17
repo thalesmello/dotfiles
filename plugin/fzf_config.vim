@@ -4,8 +4,8 @@ let $FZF_DEFAULT_COMMAND = 'ag -g ""'
 nnoremap <silent><c-p> :<c-u>Files<cr>
 vnoremap <silent><c-p> :<c-u>Files<cr>
 nnoremap <c-f> :<c-u>Ag<space>
-nnoremap <silent> <leader>a :<c-u>Ag <c-r><c-w><cr>
-vnoremap <silent> <leader>a :<c-u>call fzf_config#visual_ag()<cr>
+nnoremap <silent> <leader>/ :<c-u>Ag <c-r><c-w><cr>
+vnoremap <silent> <leader>/ :<c-u>call fzf_config#visual_ag()<cr>
 nnoremap <silent> <leader>li :BLines<cr>
 nnoremap <silent> <leader>hp :Helptags<cr>
 nnoremap <silent> <leader>cm :Commands<cr>

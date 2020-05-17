@@ -58,16 +58,19 @@ Plug 'moll/vim-node'
 Plug 'justinmk/vim-sneak'
 
 " LSP
-Plug 'neovim/nvim-lsp'
+" Plug 'neovim/nvim-lsp'
 
-" Completion
-Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
-Plug 'Shougo/deoplete-lsp'
-Plug 'fszymanski/deoplete-emoji'
-Plug 'Shougo/neco-syntax'
-Plug 'Shougo/neoinclude.vim'
-Plug 'wellle/tmux-complete.vim'
-Plug 'thalesmello/webcomplete.vim', only#if(has('macos'))
+" " Completion
+" Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
+" Plug 'Shougo/deoplete-lsp'
+" Plug 'fszymanski/deoplete-emoji'
+" Plug 'Shougo/neco-syntax'
+" Plug 'Shougo/neoinclude.vim'
+" Plug 'wellle/tmux-complete.vim'
+" Plug 'thalesmello/webcomplete.vim', only#if(has('macos'))
+
+" Coc.nvim
+Plug 'neoclide/coc.nvim', {'branch': 'release'}
 
 
 " Python dependencies
@@ -112,7 +115,7 @@ Plug 'andymass/vim-matchup'
 Plug 'tpope/vim-jdaddy'
 Plug 'AndrewRadev/undoquit.vim'
 Plug 'AndrewRadev/inline_edit.vim'
-Plug 'EinfachToll/DidYouMean'
+" Plug 'EinfachToll/DidYouMean'
 Plug 'google/vim-jsonnet'
 
 Plug 'hashivim/vim-terraform'

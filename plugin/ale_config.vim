@@ -3,7 +3,7 @@ let g:ale_linters = {
 			\ 'javascript': ['eslint'],
 			\ 'typescript': ['tslint', 'tsserver'],
 			\ 'go': ['gofmt -e', 'go vet', 'golint', 'gosimple', 'staticcheck'],
-			\ 'python': ['flake8', 'mypy'],
+			\ 'python': [],
 			\ }
 
 let g:ale_fixers = {
