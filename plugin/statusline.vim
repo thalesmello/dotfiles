@@ -38,3 +38,11 @@ function! StatuslineAleMessages(...)
 
   return join(messages, ", ")
 endfunction
+
+function! CocStatus()
+	  return coc#status()
+endfunction
+
+function! CocCurrentFunction()
+  return get(b:,"coc_current_function", "")
+endfunction

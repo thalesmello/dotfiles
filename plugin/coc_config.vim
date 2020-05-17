@@ -1,3 +1,10 @@
+call coc#add_extension(
+	  \ 'coc-ultisnips',
+	  \ 'coc-highlight',
+	  \ 'coc-python',
+	  \ 'coc-json'
+	  \)
+
 nmap <silent> [g <Plug>(coc-diagnostic-prev)
 nmap <silent> ]g <Plug>(coc-diagnostic-next)
 
@@ -20,7 +27,7 @@ endfunction
 xmap <leader>fm <Plug>(coc-format-selected)
 nmap <leader>fm <Plug>(coc-format-selected)
 
-nmap <leader>fi  <Plug>(coc-fix-current)
+nmap <leader>fi  <cmd>CocFix<cr>
 
 xmap <leader>a  <Plug>(coc-codeaction-selected)
 nmap <leader>a  <Plug>(coc-codeaction-selected)

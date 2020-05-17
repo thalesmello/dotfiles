@@ -66,8 +66,8 @@ Plug 'justinmk/vim-sneak'
 " Plug 'fszymanski/deoplete-emoji'
 " Plug 'Shougo/neco-syntax'
 " Plug 'Shougo/neoinclude.vim'
-" Plug 'wellle/tmux-complete.vim'
-" Plug 'thalesmello/webcomplete.vim', only#if(has('macos'))
+Plug 'wellle/tmux-complete.vim'
+Plug 'thalesmello/webcomplete.vim', only#if(has('macos'))
 
 " Coc.nvim
 Plug 'neoclide/coc.nvim', {'branch': 'release'}

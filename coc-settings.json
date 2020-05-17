@@ -1,4 +1,5 @@
 {
   "python.jediEnabled": false,
-  "diagnostic.displayByAle": true
+  "diagnostic.displayByAle": true,
+  "coc.preferences.currentFunctionSymbolAutoUpdate": true
 }
