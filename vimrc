@@ -67,7 +67,7 @@ Plug 'justinmk/vim-sneak'
 " Plug 'Shougo/neco-syntax'
 " Plug 'Shougo/neoinclude.vim'
 Plug 'wellle/tmux-complete.vim'
-Plug 'thalesmello/webcomplete.vim', only#if(has('macos'))
+Plug 'thalesmello/webcomplete.vim', only#if(has('macunix'))
 
 " Coc.nvim
 Plug 'neoclide/coc.nvim', {'branch': 'release'}

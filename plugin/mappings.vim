@@ -3,8 +3,8 @@ nnoremap <c-h> <c-w>h
 nnoremap <c-l> <c-w>l
 nnoremap <c-j> <c-w>j
 nnoremap <c-k> <c-w>k
-nnoremap [t :tabprevious<cr>
-nnoremap ]t :tabnext<cr>
+nnoremap <leader><c-p> :tabprevious<cr>
+nnoremap <leader><c-n> :tabnext<cr>
 
 " Create windows
 nnoremap <leader>v <C-w>v
