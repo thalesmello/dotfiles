@@ -54,7 +54,7 @@ set nobackup
 " And again.
 set nowritebackup
 " Keep swap files in one location
-set directory=$HOME/.vim/tmp//,.
+set directory=$HOME/.config/nvim/tmp//,.
 
 " Always diff using vertical mode
 set diffopt+=vertical

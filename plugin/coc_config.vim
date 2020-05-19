@@ -4,6 +4,7 @@ call coc#add_extension(
 	  \ 'coc-json',
 	  \ 'coc-pairs',
 	  \ 'coc-yaml',
+	  \ 'coc-actions',
 	  \ 'coc-snippets'
 	  \)
 
@@ -31,9 +32,20 @@ nmap <leader>fm <Plug>(coc-format-selected)
 
 nmap <leader>fi  <cmd>CocFix<cr>
 
-xmap <leader>a  <Plug>(coc-codeaction-selected)
-nmap <leader>a  <Plug>(coc-codeaction-selected)
-nmap <leader>A  <Plug>(coc-codeaction)
+function! s:cocActionsOpenFromSelected(type) abort
+  let oldreg = getreg('a')
+  if a:type == 'line'
+    silent exe "normal! '[V']y"
+  else
+    silent exe "normal! `[v`]y"
+  endif
+  call setreg("a", oldreg)
+  execute 'CocCommand actions.open ' . visualmode()
+endfunction
+
+xmap <silent> <leader>a :<C-u>execute 'CocCommand actions.open ' . visualmode()<CR>
+nmap <silent> <leader>a :<C-u>set operatorfunc=<SID>cocActionsOpenFromSelected<CR>g@
+nmap <silent> <leader>A <cmd>CocCommand actions.open<CR>
 
 inoremap <silent><expr> <c-space> coc#refresh()
 
