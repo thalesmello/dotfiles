@@ -87,7 +87,6 @@ hs.hotkey.bind(mash.ctrlCmd, 'H', function() hs.eventtap.keyStroke({"ctrl"}, "le
 hs.hotkey.bind(mash.ctrlCmd, 'L', function() hs.eventtap.keyStroke({"ctrl"}, "right") end)
 hs.hotkey.bind(mash.ctrlShiftCmd, 'R', function() hs.reload() end)
 hs.hotkey.bind(mash.ctrlShiftCmd, 'H', function() hs.toggleConsole() end)
-hs.hotkey.bind(mash.ctrlShiftCmd, 'W', function() print(hs.window.focusedWindow():application():name()) end)
 
 -- }}} Mappings --
 -- Mappings {{{ --
@@ -245,10 +244,10 @@ function log(obj)
   hs.logger.new('log', 'debug'):d('\n' .. to_string(obj))
 end
 
-function is_active(program_name)
-  local active_window_name = hs.window.focusedWindow():application():name()
-  return active_window_name == program_name
-end
+-- function is_active(program_name)
+--   local active_window_name = hs.window.focusedWindow():application():name()
+--   return active_window_name == program_name
+-- end
 
 -- }}} ctrlShiftCmd --
 -- Caffeine {{{ --
