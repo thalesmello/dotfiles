@@ -28,10 +28,12 @@ set -xg SKIM_DEFAULT_OPTS '--bind "ctrl-n:down,ctrl-p:up,alt-r:previous-history,
 
 # AWS completion
 test -x (which aws_completer); and complete --command aws --no-files --arguments '(begin; set --local --export COMP_SHELL fish; set --local --export COMP_LINE (commandline); aws_completer | sed \'s/ $//\'; end)'
-eval (keychain --eval --quiet $HOME/.ssh/id_rsa)
-set -x WSL_HOST (tail -1 /etc/resolv.conf | cut -d' ' -f2)
-set -x DISPLAY $WSL_HOST:0
-set -x HOST (hostname)
-set -x HOSTNAME (hostname)
+if set -q USE_WSL_CONFIG
+	eval (keychain --eval --quiet $HOME/.ssh/id_rsa)
+	set -x WSL_HOST (tail -1 /etc/resolv.conf | cut -d' ' -f2)
+	set -x DISPLAY $WSL_HOST:0
+	set -x HOST (hostname)
+	set -x HOSTNAME (hostname)
+	test -f '/home/linuxbrew/.linuxbrew/bin/brew'; and eval (/home/linuxbrew/.linuxbrew/bin/brew shellenv)
+end
 source $HOME/.asdf/asdf.fish
-test -f '/home/linuxbrew/.linuxbrew/bin/brew'; and eval (/home/linuxbrew/.linuxbrew/bin/brew shellenv)
