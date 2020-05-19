@@ -7,7 +7,7 @@ Plug 'tpope/vim-sensible', only#if(!has('nvim'))
 Plug 'tpope/vim-commentary'
 Plug 'tpope/vim-flagship'
 Plug 'kana/vim-textobj-user'
-Plug 'SirVer/ultisnips', only#if(v:version >= 704)
+" Plug 'SirVer/ultisnips', only#if(v:version >= 704)
 Plug 'ryanoasis/vim-devicons'
 Plug 'romainl/Apprentice'
 Plug 'tpope/vim-scriptease'
@@ -18,7 +18,6 @@ Plug 'tpope/vim-eunuch'
 Plug 'thalesmello/tabfold'
 Plug 'tpope/vim-fugitive'
 Plug 'tpope/vim-surround'
-Plug 'Raimondi/delimitMate'
 Plug 'nelstrom/vim-markdown-folding'
 Plug 'tpope/vim-repeat'
 Plug 'tpope/vim-abolish'
@@ -26,7 +25,6 @@ Plug 'tweekmonster/local-indent.vim'
 Plug 'scrooloose/nerdtree', { 'on': ['NERDTreeToggle', 'NERDTreeFind'] }
 Plug 'tpope/vim-sleuth'
 Plug 'dag/vim-fish'
-Plug 'terryma/vim-multiple-cursors'
 Plug 'airblade/vim-gitgutter'
 Plug 'peterrincker/vim-argumentative'
 Plug 'sheerun/vim-polyglot'
@@ -57,21 +55,12 @@ Plug 'machakann/vim-highlightedyank'
 Plug 'moll/vim-node'
 Plug 'justinmk/vim-sneak'
 
-" LSP
-" Plug 'neovim/nvim-lsp'
-
-" " Completion
-" Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
-" Plug 'Shougo/deoplete-lsp'
-" Plug 'fszymanski/deoplete-emoji'
-" Plug 'Shougo/neco-syntax'
-" Plug 'Shougo/neoinclude.vim'
-Plug 'wellle/tmux-complete.vim'
-Plug 'thalesmello/webcomplete.vim', only#if(has('macunix'))
-
 " Coc.nvim
 Plug 'neoclide/coc.nvim', {'branch': 'release'}
-
+Plug 'Shougo/neco-vim'
+Plug 'neoclide/coc-neco'
+Plug 'wellle/tmux-complete.vim'
+Plug 'thalesmello/webcomplete.vim', only#if(has('macunix'))
 
 " Python dependencies
 Plug 'roxma/python-support.nvim'
@@ -115,7 +104,7 @@ Plug 'andymass/vim-matchup'
 Plug 'tpope/vim-jdaddy'
 Plug 'AndrewRadev/undoquit.vim'
 Plug 'AndrewRadev/inline_edit.vim'
-" Plug 'EinfachToll/DidYouMean'
+Plug 'EinfachToll/DidYouMean'
 Plug 'google/vim-jsonnet'
 
 Plug 'hashivim/vim-terraform'

@@ -1,8 +1,10 @@
 call coc#add_extension(
-	  \ 'coc-ultisnips',
 	  \ 'coc-highlight',
 	  \ 'coc-python',
-	  \ 'coc-json'
+	  \ 'coc-json',
+	  \ 'coc-pairs',
+	  \ 'coc-yaml',
+	  \ 'coc-snippets'
 	  \)
 
 nmap <silent> [g <Plug>(coc-diagnostic-prev)
@@ -10,8 +12,8 @@ nmap <silent> ]g <Plug>(coc-diagnostic-next)
 
 nmap <silent> <leader><c-]> <Plug>(coc-definition)
 nmap <silent> K <cmd>call <SID>show_documentation()<CR>
-nmap <silent> gr <Plug>(coc-references)
-nmap <silent> gR <Plug>(coc-rename)
+nmap <silent> gr <Plug>(coc-rename)
+nmap gR <Plug>(coc-refactor)
 nmap <silent> gI <Plug>(coc-implementation)
 nmap <silent> gy <Plug>(coc-type-definition)
 
@@ -44,6 +46,8 @@ nnoremap <silent> <leader>ce <cmd>CocList extensions<cr>
 nnoremap <silent> <leader>cc <cmd>CocList commands<cr>
 nnoremap <silent> <leader>co <cmd>CocList outline<cr>
 nnoremap <silent> <leader>cs <cmd>CocList -I symbols<cr>
+nnoremap <silent> <leader>cl <cmd>CocList lists<cr>
+nmap <silent> <leader>cr <Plug>(coc-references)
 nnoremap <silent> <leader>C <cmd>CocListResume<CR>
 
 nnoremap <silent> <leader>]  :<C-u>CocNext<CR>
@@ -61,4 +65,37 @@ augroup cocvim_group
   autocmd User CocJumpPlaceholder call CocActionAsync('showSignatureHelp')
   " Highlight the symbol and its references when holding the cursor.
   autocmd CursorHold * silent call CocActionAsync('highlight')
+  call auto#cmd('set_snippets_filetype', 'BufRead *.snippets setlocal filetype=snippets')
 augroup end
+
+
+nmap <leader>esp <cmd>CocCommand snippets.editSnippets<cr>
+xmap <tab> <Plug>(coc-snippets-select)
+
+let g:coc_snippet_next = '<c-l>'
+let g:coc_snippet_prev = '<c-h>'
+
+inoremap <silent><expr> <TAB>
+      \ pumvisible() ? coc#_select_confirm() :
+      \ coc#expandableOrJumpable() ? "\<C-r>=coc#rpc#request('doKeymap', ['snippets-expand-jump',''])\<CR>" :
+      \ <SID>check_back_space() ? "\<TAB>" :
+      \ coc#refresh()
+
+
+
+function! s:check_back_space() abort
+  let col = col('.') - 1
+  return !col || getline('.')[col - 1]  =~# '\s'
+endfunction
+
+
+if !exists("g:mapped_coc_cr")
+  let g:mapped_coc_cr = 1
+  inoremap <silent><expr> <Plug>CustomCocCR pumvisible() ? coc#_select_confirm() : "\<C-g>u\<CR>\<c-r>=coc#on_enter()\<CR>"
+  imap <CR> <Plug>CustomCocCR
+endif
+
+nmap <silent> <C-_> <Plug>(coc-cursors-word)*
+xmap <silent> <C-_> y/\V<C-r>=escape(@",'/\')<CR><CR>gN<Plug>(coc-cursors-range)gn
+nmap <leader><c-_> :CocSearch<space>
+

@@ -1,5 +1,6 @@
 {
   "python.jediEnabled": false,
   "diagnostic.displayByAle": true,
-  "coc.preferences.currentFunctionSymbolAutoUpdate": true
+  "coc.preferences.currentFunctionSymbolAutoUpdate": true,
+  "snippets.userSnippetsDirectory": "~/.config/nvim/coc/ultisnips"
 }
