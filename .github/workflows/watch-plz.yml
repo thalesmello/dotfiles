@@ -1,0 +1,19 @@
+name: Watch personal repositories
+# This workflow is triggered on pushes to the repository.
+on:
+  schedule:
+    - cron:  '0 * * * *'
+
+jobs:
+  watch:
+    # Job name is Greeting
+    name: Watch
+    # This job runs on Linux
+    runs-on: ubuntu-latest
+    steps:
+      # This step uses GitHub's hello-world-javascript-action: https://github.com/actions/hello-world-javascript-action
+      - id: watch
+        name: Execute watch-plz binary
+        runs: ./scripts/watch-plz
+        env:
+          GH_TOKEN: ${{ secrets.GithubNotifications }}
