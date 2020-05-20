@@ -94,9 +94,9 @@ hs.hotkey.bind(mash.ctrlShiftCmd, 'H', function() hs.toggleConsole() end)
 -- nonRecursiveBind(mash.ctrl, 'P', only({ "Google Chrome" }, function() quickKeyStroke({"shift"}, "tab")  end))
 --
 
-hs.hotkey.bind(mash.ctrlShift, 'A', function() hs.application.launchOrFocus("iTerm") end)
-hs.hotkey.bind(mash.ctrlShift, 'S', function() hs.application.launchOrFocus("Google Chrome") end)
-hs.hotkey.bind(mash.ctrlShift, 'D', function() hs.application.launchOrFocus("DataGrip") end)
+-- hs.hotkey.bind(mash.ctrlShift, 'A', function() hs.application.launchOrFocus("iTerm") end)
+-- hs.hotkey.bind(mash.ctrlShift, 'S', function() hs.application.launchOrFocus("Google Chrome") end)
+-- hs.hotkey.bind(mash.ctrlShift, 'D', function() hs.application.launchOrFocus("DataGrip") end)
 
 -- }}} Mappings --
 -- Vim compatibility {{{ --
