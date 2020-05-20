@@ -12,9 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # This step uses GitHub's hello-world-javascript-action: https://github.com/actions/hello-world-javascript-action
+      - uses: actions/checkout@v1
       - id: watch
         name: Execute watch-plz binary
         run: ./watch-plz
-        working-directory: ./scripts
+        working-directory: ./scripts/
         env:
           GH_TOKEN: ${{ secrets.GithubNotifications }}
