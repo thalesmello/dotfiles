@@ -19,3 +19,4 @@ tags.temp
 *.zwc
 *.pyc
 node_modules
+.vim/
