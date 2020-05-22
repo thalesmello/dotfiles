@@ -103,7 +103,7 @@ endfunction
 
 if !exists("g:mapped_coc_cr")
   let g:mapped_coc_cr = 1
-  inoremap <silent><expr> <Plug>CustomCocCR pumvisible() ? coc#_select_confirm() : "\<C-g>u\<CR>\<c-r>=coc#on_enter()\<CR>"
+  inoremap <silent><expr> <Plug>CustomCocCR pumvisible() && complete_info()["selected"] != "-1" ? "\<c-y>" : "\<C-g>u\<CR>\<c-r>=coc#on_enter()\<CR>"
   imap <CR> <Plug>CustomCocCR
 endif
 
