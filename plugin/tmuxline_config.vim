@@ -12,5 +12,5 @@ let g:tmuxline_preset = {
       \ 'win'     : ['#I', tab_name_generator],
       \ 'cwin'    : ['#I', tab_name_generator],
       \ 'x'   : ['#{prefix_highlight}'],
-      \ 'z'   : ['#{cpu_icon}#{cpu_percentage}', '#{online_status}', '%R'],
+      \ 'z'   : ['#{online_status}', '%R'],
       \ 'options' : {'status-justify' : 'left'}}

@@ -107,7 +107,16 @@ if !exists("g:mapped_coc_cr")
   imap <CR> <Plug>CustomCocCR
 endif
 
-nmap <silent> <C-_> <Plug>(coc-cursors-word)*
-xmap <silent> <C-_> y/\V<C-r>=escape(@",'/\')<CR><CR>gN<Plug>(coc-cursors-range)gn
+
+
+nmap <silent><expr> <Plug>CocSmartSelectRange get(g:, 'coc_cursors_activated', 0) ? "*\<Plug>(coc-cursors-word)" : "*N\<Plug>(coc-cursors-word)"
+xmap <silent><expr> <Plug>VCocSmartSelectRange get(g:, 'coc_cursors_activated', 0) ? "gn\<Plug>(coc-cursors-range)" : "y/\\V\<C-r>=escape(@\",'/\\')\<CR>\<CR>gv\<Plug>(coc-cursors-range)"
+
+nmap <silent> <C-b> <Plug>CocSmartSelectRange
+xmap <silent> <C-b> <Plug>VCocSmartSelectRange
+
+nmap <silent><expr> <c-x> get(g:, 'coc_cursors_activated', 0) ? "\<Plug>(coc-cursors-word)" : "\<C-x>"
+xmap <silent><expr> <c-x> get(g:, 'coc_cursors_activated', 0) ? "\<Plug>(coc-cursors-range)" : "\<C-x>"
+
 nmap <leader><c-_> :CocSearch<space>
 

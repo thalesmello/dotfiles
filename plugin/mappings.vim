@@ -10,7 +10,7 @@ nnoremap <leader><c-n> :tabnext<cr>
 nnoremap <leader>v <C-w>v
 nnoremap <leader>% <C-w>v
 nnoremap <leader>" <C-w>s<C-w>j
-nnoremap <leader>x :q<cr>
+nnoremap <leader><bs> :q<cr>
 
 " Edit and load vimrc
 nnoremap <leader>ev :vsplit $MYVIMRC<cr>
