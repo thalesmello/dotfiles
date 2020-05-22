@@ -118,5 +118,5 @@ xmap <silent> <C-b> <Plug>VCocSmartSelectRange
 nmap <silent><expr> <c-x> get(g:, 'coc_cursors_activated', 0) ? "\<Plug>(coc-cursors-word)" : "\<C-x>"
 xmap <silent><expr> <c-x> get(g:, 'coc_cursors_activated', 0) ? "\<Plug>(coc-cursors-range)" : "\<C-x>"
 
-nmap <leader><c-_> :CocSearch<space>
+nmap <leader><c-b> :CocSearch<space>
 
