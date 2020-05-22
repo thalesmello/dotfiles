@@ -61,6 +61,7 @@ Plug 'Shougo/neco-vim'
 Plug 'neoclide/coc-neco'
 Plug 'wellle/tmux-complete.vim'
 Plug 'thalesmello/webcomplete.vim', only#if(has('macunix'))
+Plug 'liuchengxu/vista.vim'
 
 " Python dependencies
 Plug 'roxma/python-support.nvim'
@@ -104,7 +105,7 @@ Plug 'andymass/vim-matchup'
 Plug 'tpope/vim-jdaddy'
 Plug 'AndrewRadev/undoquit.vim'
 Plug 'AndrewRadev/inline_edit.vim'
-Plug 'EinfachToll/DidYouMean'
+" Plug 'EinfachToll/DidYouMean'
 Plug 'google/vim-jsonnet'
 
 Plug 'hashivim/vim-terraform'

@@ -3,5 +3,6 @@
   "diagnostic.displayByAle": true,
   "coc.preferences.currentFunctionSymbolAutoUpdate": true,
   "snippets.userSnippetsDirectory": "~/.config/nvim/coc/ultisnips",
-  "coc-actions.hideCursor": false
+  "coc-actions.hideCursor": false,
+  "suggest.snippetIndicator": "►"
 }
