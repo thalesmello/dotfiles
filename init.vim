@@ -53,6 +53,7 @@ Plug 'tmux-plugins/vim-tmux'
 Plug 'sainnhe/tmuxline.vim'
 Plug 'moll/vim-node'
 Plug 'justinmk/vim-sneak'
+Plug 'machakann/vim-highlightedyank'
 
 " Coc.nvim
 Plug 'neoclide/coc.nvim', {'branch': 'release'}
