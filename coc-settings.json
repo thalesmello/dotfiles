@@ -4,5 +4,15 @@
   "coc.preferences.currentFunctionSymbolAutoUpdate": true,
   "snippets.userSnippetsDirectory": "~/.config/nvim/coc/ultisnips",
   "coc-actions.hideCursor": false,
-  "suggest.snippetIndicator": "►"
+  "suggest.snippetIndicator": "►",
+  "languageserver": {
+    "efm": {
+      "command": "efm-langserver",
+      "args": [],
+      "filetypes": [
+        "vim",
+        "markdown"
+      ]
+    }
+  }
 }
