@@ -5,6 +5,7 @@ call coc#add_extension(
 	  \ 'coc-pairs',
 	  \ 'coc-yaml',
 	  \ 'coc-actions',
+	  \ 'coc-vimlsp',
 	  \ 'coc-snippets'
 	  \)
 
@@ -14,7 +15,7 @@ nmap <silent> ]g <Plug>(coc-diagnostic-next)
 nmap <silent> <leader><c-]> <Plug>(coc-definition)
 nmap <silent> K <cmd>call <SID>show_documentation()<CR>
 nmap <silent> gr <Plug>(coc-rename)
-nmap gR <Plug>(coc-refactor)
+nmap <silent> gR <Plug>(coc-refactor)
 nmap <silent> gI <Plug>(coc-implementation)
 nmap <silent> gy <Plug>(coc-type-definition)
 
@@ -27,10 +28,10 @@ function! s:show_documentation()
 endfunction
 
 
-xmap <leader>fm <Plug>(coc-format-selected)
-nmap <leader>fm <Plug>(coc-format-selected)
+xmap <silent> <leader>fm <Plug>(coc-format-selected)
+nmap <silent> <leader>fm <Plug>(coc-format-selected)
 
-nmap <leader>fi  <cmd>CocFix<cr>
+nmap <silent> <leader>fi  <cmd>CocFix<cr>
 
 function! s:cocActionsOpenFromSelected(type) abort
   let oldreg = getreg('a')
@@ -70,7 +71,7 @@ nnoremap <leader>? <cmd>call CocActionAsync('showSignatureHelp')<cr>
 augroup cocvim_group
   autocmd!
   " Setup formatexpr specified filetype(s).
-  autocmd FileType typescript,json setl formatexpr=CocAction('formatSelected')
+  autocmd FileType python,json setl formatexpr=CocAction('formatSelected')
 
   autocmd FileType python setlocal tagfunc=CocTagFunc
   " Update signature help on jump placeholder.
@@ -119,4 +120,3 @@ nmap <silent><expr> <c-x> get(g:, 'coc_cursors_activated', 0) ? "\<Plug>(coc-cur
 xmap <silent><expr> <c-x> get(g:, 'coc_cursors_activated', 0) ? "\<Plug>(coc-cursors-range)" : "\<C-x>"
 
 nmap <leader><c-b> :CocSearch<space>
-

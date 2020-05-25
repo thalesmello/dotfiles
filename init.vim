@@ -35,7 +35,6 @@ Plug 'tpope/vim-rsi'
 Plug 'fatih/vim-go'
 Plug 'bronson/vim-trailing-whitespace'
 Plug 'tpope/vim-unimpaired'
-Plug 'w0rp/ale'
 Plug 'simnalamburt/vim-mundo'
 Plug 'simeji/winresizer'
 Plug 'honza/vim-snippets'
@@ -118,4 +117,4 @@ call plug#end()
 
 let mapleader = "\<space>"
 let maplocalleader = "'"
-let g:my_colorscheme = 'apprentice'
+let g:my_colorscheme = "apprentice"
