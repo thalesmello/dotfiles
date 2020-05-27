@@ -103,7 +103,7 @@ Plug 'andymass/vim-matchup'
 
 Plug 'tpope/vim-jdaddy'
 Plug 'AndrewRadev/undoquit.vim'
-Plug 'AndrewRadev/inline_edit.vim'
+Plug 'thalesmello/inline_edit.vim'
 " Plug 'EinfachToll/DidYouMean'
 Plug 'google/vim-jsonnet'
 

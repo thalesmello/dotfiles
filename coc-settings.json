@@ -4,10 +4,8 @@
   "snippets.userSnippetsDirectory": "~/.config/nvim/coc/ultisnips",
   "coc-actions.hideCursor": false,
   "suggest.snippetIndicator": "►",
-  "python.formatting.blackPath": "safe-black",
   "python.linting.pylintEnabled": false,
   "python.linting.flake8Enabled": true,
-  "coc.preferences.formatOnSaveFiletypes": ["python"],
   "python.formatting.provider": "black",
   "languageserver": {
     "efm": {

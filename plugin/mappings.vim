@@ -26,6 +26,7 @@ cnoremap <expr> <c-n> pumvisible() ? "\<c-n>" : "\<down>"
 " operator in it
 
 nnoremap <leader>y "+y
+nnoremap <leader>Y "+y$
 nnoremap <leader>p "+p
 nnoremap <leader>P "+P
 
