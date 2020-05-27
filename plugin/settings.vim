@@ -1,4 +1,6 @@
 " Display incomplete commands.
+set shell=bash
+
 set showcmd
 
 set wildignorecase

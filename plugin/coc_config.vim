@@ -111,7 +111,7 @@ endif
 
 
 nmap <silent><expr> <Plug>CocSmartSelectRange get(g:, 'coc_cursors_activated', 0) ? "*\<Plug>(coc-cursors-word)" : "*N\<Plug>(coc-cursors-word)"
-xmap <silent><expr> <Plug>VCocSmartSelectRange get(g:, 'coc_cursors_activated', 0) ? "gn\<Plug>(coc-cursors-range)" : "y/\\V\<C-r>=escape(@\",'/\\')\<CR>\<CR>gv\<Plug>(coc-cursors-range)"
+xmap <silent><expr> <Plug>VCocSmartSelectRange get(g:, 'coc_cursors_activated', 0) ? "\<esc>ngn\<Plug>(coc-cursors-range)gv" : "y/\\V\<C-r>=escape(@\",'/\\')\<CR>\<CR>gv\<Plug>(coc-cursors-range)gv"
 
 nmap <silent> <C-b> <Plug>CocSmartSelectRange
 xmap <silent> <C-b> <Plug>VCocSmartSelectRange

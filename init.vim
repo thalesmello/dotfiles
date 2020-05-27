@@ -63,7 +63,7 @@ Plug 'thalesmello/webcomplete.vim', only#if(has('macunix'))
 Plug 'liuchengxu/vista.vim'
 
 " Python dependencies
-Plug 'roxma/python-support.nvim'
+Plug 'thalesmello/python-support.nvim'
 
 " Text objects
 Plug 'michaeljsmith/vim-indent-object'
