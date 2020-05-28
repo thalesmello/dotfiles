@@ -6,11 +6,21 @@ nnoremap <c-k> <c-w>k
 nnoremap <leader><c-p> :tabprevious<cr>
 nnoremap <leader><c-n> :tabnext<cr>
 
+nnoremap <leader>1 1gt
+nnoremap <leader>2 2gt
+nnoremap <leader>3 3gt
+nnoremap <leader>4 4gt
+nnoremap <leader>5 5gt
+nnoremap <leader>6 6gt
+nnoremap <leader>7 7gt
+nnoremap <leader>8 8gt
+nnoremap <leader>9 9gt
+
 " Create windows
 nnoremap <leader>v <C-w>v
 nnoremap <leader>% <C-w>v
-nnoremap <leader>" <C-w>s<C-w>j
-nnoremap <leader><bs> :q<cr>
+nnoremap <leader>" <C-w>s
+nnoremap <leader><bs> <c-w>q
 
 " Edit and load vimrc
 nnoremap <leader>ev :vsplit $MYVIMRC<cr>

@@ -11,6 +11,7 @@ let g:python_support_python3_requirements = [
   \ 'psutil',
   \ 'setproctitle',
   \ 'black',
+  \ 'neovim-remote',
   \ 'flake8',
   \ 'isort'
   \ ]
