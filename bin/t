@@ -1,2 +1,10 @@
-#!/bin/sh
-tmux attach -d -t base || tmux new -s base || tmux attach -d -t base
+#!/bin/bash
+set -e
+
+tmux attach -d -t base \
+  || tmux new -d -s base 'fish -C "set -xg NVIM_LISTEN_ADDRESS /tmp/tmux-base-nvim-socket"' \
+  && tmux set-option -g "@nvr.filename.$(tmux display-message -p -t base: '#{window_id}')" /tmp/tmux-base-nvim-socket \
+  && tmux attach -d -t base
+
+
+

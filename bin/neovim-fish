@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+fish -C "abbr --add --global vim nvr-split"

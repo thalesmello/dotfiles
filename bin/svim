@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -e
+
+test -z $TMUX && exec nvim $@
+
+test -x "$(command -v tmate)" && test "$(tmate show -gvq '@is-tmate')" = 1 && exec nvim $@
+
+nvr -s --nostart $@ || exec nvim $@

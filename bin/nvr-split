@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+nvr -cc '1wincmd w' -O $@
