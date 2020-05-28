@@ -1,2 +1,5 @@
 #!/usr/bin/env sh
-fish -C "abbr --add --global vim nvr-split"
+fish \
+  -C 'abbr --add --global vim nvr-split' \
+  -C 'set -xg EDITOR "nvr -cc split -c \"setlocal bufhidden=delete\" --remote-wait"' \
+  -C 'set -xg VISUAL $EDITOR'
