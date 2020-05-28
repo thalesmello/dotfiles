@@ -14,6 +14,7 @@ tnoremap <silent> <c-space><c-j> <C-\><C-n><C-w><C-j>
 tnoremap <silent> <c-space><c-k> <C-\><C-n><C-w><C-k>
 tnoremap <silent> <c-space><c-l> <C-\><C-n><C-w><C-l>
 
+tnoremap <c-space>: <C-\><C-n>:
 tnoremap <silent> <c-space><space> <C-\><C-n>
 tnoremap <silent> <c-space><bs> <C-\><C-n><c-w>q
 nnoremap <silent> <c-space><bs> <c-w>q
@@ -43,16 +44,24 @@ tnoremap <c-space>7 <c-\><c-n>7gt
 tnoremap <c-space>8 <c-\><c-n>8gt
 tnoremap <c-space>9 <c-\><c-n>9gt
 
-execute 'tnoremap <silent> <c-space>v <cmd>vsplit '.s:terminal.'<CR>'
+execute 'tnoremap <silent> <c-space>v <c-\><c-n><cmd>vsplit '.s:terminal.'<CR>'
+execute 'tnoremap <silent> <c-space>" <c-\><c-n><cmd>split '.s:terminal.'<CR>'
+execute 'tnoremap <silent> <c-space>c <c-\><c-n><cmd>tabnew '.s:terminal.'<CR>'
 execute 'nnoremap <silent> <c-space>v <cmd>vsplit '.s:terminal.'<CR>'
-execute 'tnoremap <silent> <c-space>" <cmd>split '.s:terminal.'<CR>'
 execute 'nnoremap <silent> <c-space>" <cmd>split '.s:terminal.'<CR>'
-execute 'tnoremap <silent> <c-space>c <cmd>tabnew '.s:terminal.'<CR>'
 execute 'nnoremap <silent> <c-space>c <cmd>tabnew '.s:terminal.'<CR>'
+
+tnoremap <4-ScrollWheelUp> <nop>
+tnoremap <3-ScrollWheelUp> <nop>
+tnoremap <2-ScrollWheelUp> <nop>
+tnoremap <4-ScrollWheelDown> <nop>
+tnoremap <3-ScrollWheelDown> <nop>
+tnoremap <2-ScrollWheelDown> <nop>
 
 augroup neovim_terminal_group
   autocmd!
 
-  autocmd BufWinEnter,WinEnter term://* startinsert
+  autocmd BufWinEnter,WinEnter,BufEnter term://* startinsert
   autocmd BufLeave term://* stopinsert
+  autocmd TermOpen * nnoremap <buffer> q i
 augroup end
