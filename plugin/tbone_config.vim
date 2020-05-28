@@ -1,3 +1,7 @@
+if !exists('$TMUX')
+	finish
+endif
+
 function! s:twrite_operation(_type)
 	call setpos("'<", getpos("'["))
 	call setpos("'>", getpos("']"))
