@@ -7,6 +7,7 @@
   "python.linting.pylintEnabled": false,
   "python.linting.flake8Enabled": true,
   "python.formatting.provider": "black",
+  "pairs.disableLanguages": ["vim"],
   "languageserver": {
     "efm": {
       "command": "efm-langserver",

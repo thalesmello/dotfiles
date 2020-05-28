@@ -3,7 +3,6 @@
 " Source: http://github.com/thalesmello/vimfiles
 
 call plug#begin()
-Plug 'tpope/vim-sensible', only#if(!has('nvim'))
 Plug 'tpope/vim-commentary'
 Plug 'tpope/vim-flagship'
 Plug 'kana/vim-textobj-user'
@@ -17,11 +16,9 @@ Plug 'tpope/vim-eunuch'
 Plug 'thalesmello/tabfold'
 Plug 'tpope/vim-fugitive'
 Plug 'tpope/vim-surround'
-Plug 'nelstrom/vim-markdown-folding'
 Plug 'tpope/vim-repeat'
 Plug 'tpope/vim-abolish'
 Plug 'tweekmonster/local-indent.vim'
-Plug 'scrooloose/nerdtree', { 'on': ['NERDTreeToggle', 'NERDTreeFind'] }
 Plug 'tpope/vim-sleuth'
 Plug 'dag/vim-fish'
 Plug 'airblade/vim-gitgutter'
@@ -31,17 +28,15 @@ Plug 'tpope/vim-endwise'
 Plug 'ludovicchabant/vim-gutentags', only#if(v:version >= 704)
 Plug 'thalesmello/gitignore'
 Plug 'tpope/vim-rsi'
-Plug 'fatih/vim-go'
 Plug 'bronson/vim-trailing-whitespace'
 Plug 'tpope/vim-unimpaired'
-Plug 'simnalamburt/vim-mundo'
 Plug 'simeji/winresizer'
 Plug 'honza/vim-snippets'
 Plug 'AndrewRadev/splitjoin.vim'
 Plug 'junegunn/fzf'
 Plug 'junegunn/fzf.vim'
 Plug 'tmux-plugins/vim-tmux-focus-events', { 'tag': 'v1.0.0' }
-Plug 'ConradIrwin/vim-bracketed-paste', only#if(!has('nvim'))
+Plug 'ConradIrwin/vim-bracketed-paste'
 Plug 'thalesmello/tabmessage.vim'
 Plug 'thalesmello/persistent.vim'
 Plug 'thinca/vim-visualstar'
@@ -87,9 +82,6 @@ Plug 'tpope/vim-haystack'
 Plug 'tpope/vim-apathy'
 Plug 'yssl/QFEnter'
 
-" Slime
-Plug 'jgdavey/tslime.vim'
-
 Plug 'thalesmello/lkml.vim'
 Plug 'junegunn/vim-easy-align'
 
@@ -97,13 +89,11 @@ Plug 'dzeban/vim-log-syntax'
 Plug 'alvan/vim-closetag'
 Plug 'tpope/vim-rhubarb'
 
-Plug 'AndrewRadev/switch.vim'
 Plug 'andymass/vim-matchup'
 
 Plug 'tpope/vim-jdaddy'
 Plug 'AndrewRadev/undoquit.vim'
 Plug 'thalesmello/inline_edit.vim'
-" Plug 'EinfachToll/DidYouMean'
 Plug 'google/vim-jsonnet'
 
 Plug 'hashivim/vim-terraform'

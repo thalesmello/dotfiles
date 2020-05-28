@@ -7,7 +7,6 @@ function! vim_utils#visual_selection()
   return join(lines, "\n")
 endfunction
 
-
 function! vim_utils#chomp(string)
   return substitute(a:string, '\n\+$', '', '')
 endfunction
@@ -18,10 +17,6 @@ function! vim_utils#visual_command() range
   let @v = vim_utils#chomp(system(cmd, text))
   execute 'normal! gv"vp'
 endfunction
-
-function! vim_utils#syn_stack()
-  return map(synstack(line('.'), col('.')), 'synIDattr(v:val, "name")')
-endfunc
 
 function! vim_utils#invert_sql()
   normal! vi}
