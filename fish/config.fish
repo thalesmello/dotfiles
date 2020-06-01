@@ -21,7 +21,7 @@ set -gx EDITOR nvim
 set -gx VISUAL nvim
 
 set -gx PAGER /usr/local/bin/less
-set -gx LESS "--ignore-case --LONG-PROMPT --RAW-CONTROL-CHARS --HILITE-UNREAD --tabs=4 --quit-if-one-screen --mouse"
+set -gx LESS "--ignore-case --LONG-PROMPT --RAW-CONTROL-CHARS --tabs=4 --quit-if-one-screen --mouse"
 
 set -gx LESS_TERMCAP_mb \e'[1;31m'     # begin bold
 set -gx LESS_TERMCAP_md \e'[1;36m'     # begin blink
