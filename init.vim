@@ -93,14 +93,10 @@ Plug 'andymass/vim-matchup'
 
 Plug 'tpope/vim-jdaddy'
 Plug 'AndrewRadev/undoquit.vim'
-Plug 'thalesmello/inline_edit.vim'
+Plug 'AndrewRadev/inline_edit.vim'
 Plug 'google/vim-jsonnet'
 
 Plug 'hashivim/vim-terraform'
-
-" Ingo Libraries
-Plug 'vim-scripts/ingo-library'
-Plug 'inkarkat/vim-AdvancedSorters'
 
 call plug#end()
 
