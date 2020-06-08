@@ -1,5 +1,6 @@
 {
   "python.jediEnabled": true,
+  "python.pythonPath": "/usr/local/bin/python3",
   "coc.preferences.currentFunctionSymbolAutoUpdate": true,
   "snippets.userSnippetsDirectory": "~/.config/nvim/coc/ultisnips",
   "coc-actions.hideCursor": false,
