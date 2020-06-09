@@ -73,6 +73,7 @@ Plug 'rhysd/vim-textobj-ruby'
 Plug 'bps/vim-textobj-python'
 Plug 'haya14busa/vim-textobj-function-syntax'
 Plug 'thinca/vim-textobj-function-javascript'
+Plug 'thalesmello/vim-textobj-multiline-str'
 
 
 Plug 'tpope/vim-dispatch'
