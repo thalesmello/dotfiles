@@ -197,7 +197,7 @@ keymap C-r RELOAD
 # save/load
 keymap :w SAVE
 keymap :W PRINT
-keymap :o GOTO
+keymap C-l GOTO
 keymap :e LOAD
 
 keymap SPC-C-j SUBMIT
@@ -224,8 +224,8 @@ keymap SPC-d CLOSE_TAB
 keymap gh GOTO http://www.google.com/en
 keymap gH TAB_GOTO http://www.google.com/en
 keymap C-t TAB_LINK
-keymap ]t NEXT_TAB
-keymap [t PREV_TAB
+keymap gt NEXT_TAB
+keymap gT PREV_TAB
 keymap C-wL TAB_RIGHT
 keymap C-wH TAB_LEFT
 keymap t TAB_GOTO
