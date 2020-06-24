@@ -7,7 +7,7 @@ function! s:twrite_operation(_type)
 	call setpos("'>", getpos("']"))
 	normal! gv
 
-	'<,'>Twrite +
+	'<,'>Twrite {previous}
 	normal! '>j^
 endfunction
 
