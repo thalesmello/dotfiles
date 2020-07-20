@@ -99,6 +99,8 @@ Plug 'google/vim-jsonnet'
 
 Plug 'hashivim/vim-terraform'
 
+Plug 'glacambre/firenvim', { 'do': { _ -> firenvim#install(0) } }
+
 call plug#end()
 
 let mapleader = "\<space>"

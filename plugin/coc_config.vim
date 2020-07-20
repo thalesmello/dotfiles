@@ -71,7 +71,7 @@ nnoremap <leader>? <cmd>call CocActionAsync('showSignatureHelp')<cr>
 augroup cocvim_group
   autocmd!
   " Setup formatexpr specified filetype(s).
-  autocmd FileType python,json setl formatexpr=CocAction('formatSelected')
+  " autocmd FileType python,json setl formatexpr=CocAction('formatSelected')
 
   autocmd FileType python setlocal tagfunc=CocTagFunc
   " Update signature help on jump placeholder.
