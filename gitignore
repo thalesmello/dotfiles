@@ -20,3 +20,4 @@ tags.temp
 *.pyc
 node_modules
 .vim/
+.tool-versions
