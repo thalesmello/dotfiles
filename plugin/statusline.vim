@@ -11,10 +11,13 @@ function! StatuslineFugitiveBranch(...)
   return ''
 endfunction
 
-function! CocStatus()
-	  return coc#status()
-endfunction
+if match(&runtimepath, 'coc.nvim') >= 0
+	function! CocStatus()
+		return coc#status()
+	endfunction
 
-function! CocCurrentFunction()
-  return get(b:,'coc_current_function', '')
-endfunction
+	function! CocCurrentFunction()
+	  return get(b:,'coc_current_function', '')
+	endfunction
+endif
+

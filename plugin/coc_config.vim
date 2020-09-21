@@ -1,3 +1,7 @@
+if match(&runtimepath, 'coc.nvim') == -1
+    finish
+endif
+
 call coc#add_extension(
 	  \ 'coc-highlight',
 	  \ 'coc-python',

@@ -49,7 +49,7 @@ Plug 'justinmk/vim-sneak'
 Plug 'machakann/vim-highlightedyank'
 
 " Coc.nvim
-Plug 'neoclide/coc.nvim', {'branch': 'release'}
+" Plug 'neoclide/coc.nvim', {'tag': 'v0.0.78'}
 Plug 'Shougo/neco-vim'
 Plug 'neoclide/coc-neco'
 Plug 'wellle/tmux-complete.vim'
