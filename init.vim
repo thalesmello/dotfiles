@@ -27,7 +27,6 @@ Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'
 Plug 'ludovicchabant/vim-gutentags', only#if(v:version >= 704)
 Plug 'thalesmello/gitignore'
-Plug 'thalesmello/clipboard-yank-post'
 Plug 'tpope/vim-rsi'
 Plug 'bronson/vim-trailing-whitespace'
 Plug 'tpope/vim-unimpaired'
