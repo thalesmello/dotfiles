@@ -11,7 +11,7 @@ function! StatuslineFugitiveBranch(...)
   return ''
 endfunction
 
-if match(&runtimepath, 'coc.nvim') >= 0
+if match(&runtimepath, 'coc.nvim') >= -1
 	function! CocStatus()
 		return coc#status()
 	endfunction
