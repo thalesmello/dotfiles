@@ -7,7 +7,7 @@ function! s:twrite_operation(_type)
 	call setpos("'>", getpos("']"))
 	normal! gv
 
-	'<,'>Twrite {previous}
+	'<,'>Twrite {last}
 	normal! '>j^
 endfunction
 
@@ -17,3 +17,9 @@ xnoremap <silent> <Plug>TwriteOperation <cmd>set opfunc=<SID>twrite_operation<cr
 nmap <silent> <leader><cr> <Plug>TwriteOperation
 nmap <silent> <leader><cr><cr> V<Plug>TwriteOperation
 xmap <silent> <leader><cr> <Plug>TwriteOperation
+
+function! s:tmux_enter(command)
+	execute "Tmux send -t '{last}'" shellescape(a:command) "Enter"
+endfunction
+
+command! -nargs=+ TmuxEnter call <SID>tmux_enter(<q-args>)
