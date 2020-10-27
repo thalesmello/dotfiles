@@ -49,7 +49,7 @@ Plug 'justinmk/vim-sneak'
 Plug 'machakann/vim-highlightedyank'
 
 " Coc.nvim
-Plug 'neoclide/coc.nvim', { 'commit': '825f7f5b89fb1708f18711798ef7a2ba6aa1bde5' }
+Plug 'neoclide/coc.nvim', { 'branch': 'release' }
 Plug 'Shougo/neco-vim'
 Plug 'neoclide/coc-neco'
 Plug 'wellle/tmux-complete.vim'
@@ -102,6 +102,9 @@ Plug 'hashivim/vim-terraform'
 Plug 'glacambre/firenvim', { 'do': { _ -> firenvim#install(0) } }
 
 Plug 'AndrewRadev/linediff.vim'
+
+" Default restructured text syntax doesn't work well
+Plug 'marshallward/vim-restructuredtext'
 
 call plug#end()
 
