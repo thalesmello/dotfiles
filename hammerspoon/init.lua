@@ -377,53 +377,53 @@ local function adjustCycle(windowConfigs)
   end
 end
 
--- top half
-hs.hotkey.bind(mash.ctrlCmd, "up", adjust(0, 0, 1, 0.5))
+-- -- top half
+-- hs.hotkey.bind(mash.ctrlCmd, "up", adjust(0, 0, 1, 0.5))
 
--- right half
-hs.hotkey.bind(mash.ctrlCmd, "right", adjust(0.5, 0, 0.5, 1))
-hs.hotkey.bind(mash.ctrlCmd, ".", adjustCycle({
-  { x = 0.5, y = 0, w = 0.5, h = 1 },
-  { x = 0.75, y = 0, w = 0.25, h = 1 },
-  { x = 0.625, y = 0, w = 0.375, h = 1 },
-  { x = 0.5, y = 0, w = 0.25, h = 1 },
-}))
-hs.hotkey.bind(mash.ctrlShiftCmd, ".", adjustCycle({
-  { x = 0.25, y = 0, w = 0.75, h = 1 },
-  { x = 0.375, y = 0, w = 0.625, h = 1 },
-}))
+-- -- right half
+-- hs.hotkey.bind(mash.ctrlCmd, "right", adjust(0.5, 0, 0.5, 1))
+-- hs.hotkey.bind(mash.ctrlCmd, ".", adjustCycle({
+--   { x = 0.5, y = 0, w = 0.5, h = 1 },
+--   { x = 0.75, y = 0, w = 0.25, h = 1 },
+--   { x = 0.625, y = 0, w = 0.375, h = 1 },
+--   { x = 0.5, y = 0, w = 0.25, h = 1 },
+-- }))
+-- hs.hotkey.bind(mash.ctrlShiftCmd, ".", adjustCycle({
+--   { x = 0.25, y = 0, w = 0.75, h = 1 },
+--   { x = 0.375, y = 0, w = 0.625, h = 1 },
+-- }))
 
--- bottom half
-hs.hotkey.bind(mash.ctrlCmd, "down", adjust(0, 0.5, 1, 0.5))
+-- -- bottom half
+-- hs.hotkey.bind(mash.ctrlCmd, "down", adjust(0, 0.5, 1, 0.5))
 
--- left half
-hs.hotkey.bind(mash.ctrlCmd, "left", adjust(0, 0, 0.5, 1))
-hs.hotkey.bind(mash.ctrlCmd, ",", adjustCycle({
-  { x = 0, y = 0, w = 0.5, h = 1 },
-  { x = 0, y = 0, w = 0.25, h = 1 },
-  { x = 0, y = 0, w = 0.375, h = 1 },
-  { x = 0.25, y = 0, w = 0.25, h = 1 }
-}))
+-- -- left half
+-- hs.hotkey.bind(mash.ctrlCmd, "left", adjust(0, 0, 0.5, 1))
+-- hs.hotkey.bind(mash.ctrlCmd, ",", adjustCycle({
+--   { x = 0, y = 0, w = 0.5, h = 1 },
+--   { x = 0, y = 0, w = 0.25, h = 1 },
+--   { x = 0, y = 0, w = 0.375, h = 1 },
+--   { x = 0.25, y = 0, w = 0.25, h = 1 }
+-- }))
 
-hs.hotkey.bind(mash.ctrlShiftCmd, ",", adjustCycle({
-  { x = 0, y = 0, w = 0.75, h = 1 },
-  { x = 0, y = 0, w = 0.625, h = 1 },
-}))
+-- hs.hotkey.bind(mash.ctrlShiftCmd, ",", adjustCycle({
+--   { x = 0, y = 0, w = 0.75, h = 1 },
+--   { x = 0, y = 0, w = 0.625, h = 1 },
+-- }))
 
--- top left
-hs.hotkey.bind(mash.altCmd, "up", adjust(0, 0, 0.5, 0.5))
+-- -- top left
+-- hs.hotkey.bind(mash.altCmd, "up", adjust(0, 0, 0.5, 0.5))
 
--- top right
-hs.hotkey.bind(mash.altCmd, "right", adjust(0.5, 0, 0.5, 0.5))
+-- -- top right
+-- hs.hotkey.bind(mash.altCmd, "right", adjust(0.5, 0, 0.5, 0.5))
 
--- bottom right
-hs.hotkey.bind(mash.altCmd, "down", adjust(0.5, 0.5, 0.5, 0.5))
+-- -- bottom right
+-- hs.hotkey.bind(mash.altCmd, "down", adjust(0.5, 0.5, 0.5, 0.5))
 
--- bottom left
-hs.hotkey.bind(mash.altCmd, "left", adjust(0, 0.5, 0.5, 0.5))
+-- -- bottom left
+-- hs.hotkey.bind(mash.altCmd, "left", adjust(0, 0.5, 0.5, 0.5))
 
--- fullscreen
-hs.hotkey.bind(mash.ctrlCmd, "m", adjust(0, 0, 1, 1))
+-- -- fullscreen
+-- hs.hotkey.bind(mash.ctrlCmd, "m", adjust(0, 0, 1, 1))
 -- }}} Windows --
 -- Wifi {{{ --
 hs.hotkey.bind(mash.ctrlShiftCmd, "I", function()
