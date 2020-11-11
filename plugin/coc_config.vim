@@ -61,7 +61,6 @@ command! -nargs=0 OR :call CocAction('runCommand', 'editor.action.organizeImport
 nnoremap <silent> <leader>cd <cmd>CocList diagnostics<cr>
 nnoremap <silent> <leader>ce <cmd>CocList extensions<cr>
 nnoremap <silent> <leader>cc <cmd>CocList commands<cr>
-nnoremap <silent> <leader>co <cmd>CocList outline<cr>
 nnoremap <silent> <leader>cs <cmd>CocList -I symbols<cr>
 nnoremap <silent> <leader>cl <cmd>CocList lists<cr>
 nmap <silent> <leader>cr <Plug>(coc-references)
