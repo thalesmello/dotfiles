@@ -58,6 +58,7 @@ Plug 'liuchengxu/vista.vim'
 
 " Python dependencies
 Plug 'thalesmello/python-support.nvim'
+Plug 'pseewald/vim-anyfold'
 
 " Text objects
 Plug 'michaeljsmith/vim-indent-object'
