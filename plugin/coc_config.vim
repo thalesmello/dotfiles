@@ -35,7 +35,7 @@ endfunction
 xmap <silent> <leader>fm <Plug>(coc-format-selected)
 nmap <silent> <leader>fm <Plug>(coc-format-selected)
 
-nmap <silent> <leader>fi  <cmd>CocFix<cr>
+nmap <silent> <leader>.  <cmd>CocFix<cr>
 
 function! s:cocActionsOpenFromSelected(type) abort
   let oldreg = getreg('a')
