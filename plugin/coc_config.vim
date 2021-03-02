@@ -111,10 +111,23 @@ if !exists("g:mapped_coc_cr")
   imap <CR> <Plug>CustomCocCR
 endif
 
+function! CocSmartSelectRange(visual)
+    let multiple_cursors_active = get(b:, 'coc_cursors_activated', 0)
+    if a:visual && multiple_cursors_active
+        let response = "\<esc>ngn\<Plug>(coc-cursors-range)gv"
+    elseif a:visual && !multiple_cursors_active
+        let response = "y/\\V\<C-r>=escape(@\",'/\\')\<CR>\<CR>gv\<Plug>(coc-cursors-range)gv"
+    elseif !a:visual && multiple_cursors_active
+        let response = "*\<Plug>(coc-cursors-word)"
+    else
+        let response = "*N\<Plug>(coc-cursors-word)"
+    endif
 
+    return response . "\<cmd>nohlsearch\<cr>"
+endfunction
 
-nmap <silent><expr> <Plug>CocSmartSelectRange get(b:, 'coc_cursors_activated', 0) ? "*\<Plug>(coc-cursors-word)" : "*N\<Plug>(coc-cursors-word)"
-xmap <silent><expr> <Plug>VCocSmartSelectRange get(b:, 'coc_cursors_activated', 0) ? "\<esc>ngn\<Plug>(coc-cursors-range)gv" : "y/\\V\<C-r>=escape(@\",'/\\')\<CR>\<CR>gv\<Plug>(coc-cursors-range)gv"
+nmap <silent><expr> <Plug>CocSmartSelectRange CocSmartSelectRange(0)
+xmap <silent><expr> <Plug>VCocSmartSelectRange CocSmartSelectRange(1)
 
 nmap <silent> <C-b> <Plug>CocSmartSelectRange
 xmap <silent> <C-b> <Plug>VCocSmartSelectRange
