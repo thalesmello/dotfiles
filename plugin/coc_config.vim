@@ -4,7 +4,8 @@ endif
 
 call coc#add_extension(
 	  \ 'coc-highlight',
-	  \ 'coc-python',
+	  \ 'coc-pyright',
+	  \ 'coc-jedi',
 	  \ 'coc-json',
 	  \ 'coc-pairs',
 	  \ 'coc-yaml',
@@ -48,9 +49,8 @@ function! s:cocActionsOpenFromSelected(type) abort
   execute 'CocCommand actions.open ' . visualmode()
 endfunction
 
-xmap <silent> <leader>a :<C-u>execute 'CocCommand actions.open ' . visualmode()<CR>
-nmap <silent> <leader>a :<C-u>set operatorfunc=<SID>cocActionsOpenFromSelected<CR>g@
-nmap <silent> <leader>A <cmd>CocCommand actions.open<CR>
+nmap <silent> <leader>a <cmd>CocAction<CR>
+xmap <silent> <leader>a <cmd>CocAction<CR>
 
 inoremap <silent><expr> <c-space> coc#refresh()
 
