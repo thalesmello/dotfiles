@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+set -e
+
+filetype=$1
+
+if test -n "$1"
+    tmpfile=$(mktemp --suffix "$1")
+else
+    tmpfile=$(mktemp)
+fi
+
+vim "$tmpfile"
+
+pbcopy <"$tmpfile"
+rm "$tmpfile"
