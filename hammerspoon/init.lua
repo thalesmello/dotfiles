@@ -83,10 +83,11 @@ end
 
 -- }}} Octomux --
 -- Mappings {{{ --
-hs.hotkey.bind(mash.ctrlCmd, 'H', function() hs.eventtap.keyStroke({"ctrl"}, "left") end)
-hs.hotkey.bind(mash.ctrlCmd, 'L', function() hs.eventtap.keyStroke({"ctrl"}, "right") end)
+-- hs.hotkey.bind(mash.ctrlCmd, 'h', function() hs.eventtap.keyStroke({"ctrl"}, "left") end)
+-- hs.hotkey.bind(mash.ctrlCmd, 'l', function() hs.eventtap.keyStroke({"ctrl"}, "right") end)
 hs.hotkey.bind(mash.ctrlShiftCmd, 'R', function() hs.reload() end)
 hs.hotkey.bind(mash.ctrlShiftCmd, 'H', function() hs.toggleConsole() end)
+hs.hotkey.bind(mash.ctrlShiftCmd, 'P', function() quickSystemStroke("PLAY") end)
 
 -- }}} Mappings --
 -- Mappings {{{ --
@@ -276,6 +277,11 @@ function quickKeyStroke (modifiers, character)
     local event = require("hs.eventtap").event
     event.newKeyEvent(modifiers, string.lower(character), true):post()
     event.newKeyEvent(modifiers, string.lower(character), false):post()
+end
+
+function quickSystemStroke (key)
+    hs.eventtap.event.newSystemKeyEvent(key, true):post()
+    hs.eventtap.event.newSystemKeyEvent(key, false):post()
 end
 -- }}} Caffeine --
 -- Windows {{{ --
