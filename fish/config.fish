@@ -47,4 +47,4 @@ if set -q USE_WSL_CONFIG
 	set -x HOSTNAME (hostname)
 	test -f '/home/linuxbrew/.linuxbrew/bin/brew'; and eval (/home/linuxbrew/.linuxbrew/bin/brew shellenv)
 end
-source $HOME/.asdf/asdf.fish
+# source $HOME/.asdf/asdf.fish
