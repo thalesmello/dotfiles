@@ -21,3 +21,4 @@ tags.temp
 node_modules
 .vim/
 .tool-versions
+pyrightconfig.json
