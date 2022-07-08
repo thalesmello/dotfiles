@@ -11,7 +11,8 @@ call coc#add_extension(
 	  \ 'coc-yaml',
 	  \ 'coc-actions',
 	  \ 'coc-vimlsp',
-	  \ 'coc-snippets'
+	  \ 'coc-snippets',
+	  \ 'coc-lists'
 	  \)
 
 nmap <silent> [g <Plug>(coc-diagnostic-prev)
@@ -33,10 +34,8 @@ function! s:show_documentation()
 endfunction
 
 
-xmap <silent> <leader>fm <Plug>(coc-format-selected)
-nmap <silent> <leader>fm <Plug>(coc-format-selected)
-
-nmap <silent> <leader>.  <cmd>CocFix<cr>
+xmap <silent> <leader>cf <Plug>(coc-format-selected)
+nmap <silent> <leader>cf <Plug>(coc-format-selected)
 
 function! s:cocActionsOpenFromSelected(type) abort
   let oldreg = getreg('a')
@@ -49,8 +48,11 @@ function! s:cocActionsOpenFromSelected(type) abort
   execute 'CocCommand actions.open ' . visualmode()
 endfunction
 
-nmap <silent> <leader>a <cmd>CocAction<CR>
-xmap <silent> <leader>a <cmd>CocAction<CR>
+nmap <silent> <leader>a <Plug>(coc-codeaction-selected)
+xmap <silent> <leader>a <Plug>(coc-codeaction-selected)
+nmap <leader>ca  <Plug>(coc-codeaction)
+nmap <leader>.  <Plug>(coc-fix-current)
+nmap <leader>cL  <Plug>(coc-codelens-action)
 
 inoremap <silent><expr> <c-space> coc#refresh()
 
