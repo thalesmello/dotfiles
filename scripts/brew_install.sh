@@ -1,0 +1,9 @@
+brew install diff-so-fancy
+brew install entr
+brew install fzf
+brew install python3
+brew install neovim
+brew install fish
+brew install node 
+brew install tmux
+brew install tldr
