@@ -19,3 +19,7 @@ Include the local bin folder in the PATH
 
 	set -U fish_user_paths (pwd)/bin $fish_user_paths
 
+Add dependencies into PATH
+
+	set -U fish_user_paths /opt/homebrew/opt/coreutils/libexec/gnubin $fish_user_paths
+

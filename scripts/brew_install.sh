@@ -4,6 +4,9 @@ brew install fzf
 brew install python3
 brew install neovim
 brew install fish
-brew install node 
+brew install node
 brew install tmux
 brew install tldr
+brew install coreutils
+brew install universal-ctags
+
