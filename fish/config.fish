@@ -1,3 +1,6 @@
+test -f '/opt/homebrew/bin/brew'; and eval (/opt/homebrew/bin/brew shellenv)
+test -f '/home/linuxbrew/.linuxbrew/bin/brew'; and eval (/home/linuxbrew/.linuxbrew/bin/brew shellenv)
+
 fundle plugin brgmnn/fish-docker-compose
 fundle plugin fischerling/plugin-wd
 fundle plugin thalesmello/theme-cmorrell.com
@@ -45,6 +48,5 @@ if set -q USE_WSL_CONFIG
 	set -x DISPLAY $WSL_HOST:0
 	set -x HOST (hostname)
 	set -x HOSTNAME (hostname)
-	test -f '/home/linuxbrew/.linuxbrew/bin/brew'; and eval (/home/linuxbrew/.linuxbrew/bin/brew shellenv)
 end
 # source $HOME/.asdf/asdf.fish
