@@ -1,3 +1,9 @@
+# We list possible brew locations, in order of precedence
+set brews '/opt/homebrew/bin/original-brew' '/opt/homebrew/bin/brew' '/home/linuxbrew/.linuxbrew/bin/brew'
+
+for brew in brews
+	test -x "$brew"; and eval ("$brew" shellenv)
+end
 
 fundle plugin brgmnn/fish-docker-compose
 fundle plugin fischerling/plugin-wd
@@ -21,7 +27,6 @@ set -g fish_prompt_pwd_dir_length 2
 set -gx EDITOR nvim
 set -gx VISUAL nvim
 
-set -gx PAGER /usr/local/bin/less
 set -gx LESS "--ignore-case --LONG-PROMPT --RAW-CONTROL-CHARS --tabs=4 --quit-if-one-screen --mouse"
 
 set -gx LESS_TERMCAP_mb \e'[1;31m'     # begin bold
@@ -48,5 +53,3 @@ if set -q USE_WSL_CONFIG
 	set -x HOSTNAME (hostname)
 end
 
-test -f '/opt/homebrew/bin/brew'; and eval (/opt/homebrew/bin/brew shellenv)
-test -f '/home/linuxbrew/.linuxbrew/bin/brew'; and eval (/home/linuxbrew/.linuxbrew/bin/brew shellenv)
