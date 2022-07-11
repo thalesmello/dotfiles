@@ -2,7 +2,9 @@
 set brews '/opt/homebrew/bin/original-brew' '/opt/homebrew/bin/brew' '/home/linuxbrew/.linuxbrew/bin/brew'
 
 for brew in brews
-	test -x "$brew"; and eval ("$brew" shellenv)
+	test -x "$brew"
+	and eval ("$brew" shellenv)
+	and break
 end
 
 fundle plugin brgmnn/fish-docker-compose
