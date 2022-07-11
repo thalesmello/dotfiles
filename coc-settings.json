@@ -11,13 +11,5 @@
   "python.formatting.provider": "black",
   "pairs.disableLanguages": ["vim"],
   "languageserver": {
-    "efm": {
-      "command": "efm-langserver",
-      "args": [],
-      "filetypes": [
-        "vim",
-        "markdown"
-      ]
-    }
   }
 }

@@ -5,8 +5,3 @@ only. If you ended up here, feel free to look around,
 but I recommend you to build your own vim
 configuration from scratch.
 
-Bindings:
-
-```
-mkdir -p ~/.config/efm-langserver/ && ln -s (pwd)/efm-config.yaml ~/.config/efm-langserver/config.yaml
-```
