@@ -65,4 +65,5 @@ augroup neovim_terminal_group
   autocmd BufLeave term://* stopinsert
   autocmd BufLeave term://* call tmux_focus_events#focus_gained()
   autocmd TermOpen * nnoremap <buffer> q i
+  autocmd TermClose * if !v:event.status | exe 'bdelete! '..expand('<abuf>') | endif
 augroup end
