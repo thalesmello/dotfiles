@@ -1,7 +1,7 @@
 # We list possible brew locations, in order of precedence
 set brews '/opt/homebrew/bin/original-brew' '/opt/homebrew/bin/brew' '/home/linuxbrew/.linuxbrew/bin/brew'
 
-for brew in brews
+for brew in $brews
 	test -x "$brew"
 	and eval ("$brew" shellenv)
 	and break
