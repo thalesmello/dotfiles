@@ -6,6 +6,7 @@ let g:python_support_python3_venv = 0
 
 " for python completions
 let g:python_support_python3_requirements = [
+  \ 'pynvim',
   \ 'jedi',
   \ 'mistune',
   \ 'psutil',
