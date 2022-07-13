@@ -17,9 +17,10 @@ Create a symbolic links for your files:
 
 Include the local bin folder in the PATH
 
-	set -U fish_user_paths (pwd)/bin $fish_user_paths
+	fish_add_path ./bin
 
 Add dependencies into PATH
 
-	set -U fish_user_paths /opt/homebrew/opt/coreutils/libexec/gnubin $fish_user_paths
+	fish_add_path /opt/homebrew/opt/coreutils/libexec/gnubin
+	fish_add_path (python3 -m site --user-base)/bin
 
