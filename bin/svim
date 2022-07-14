@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -e
 
-test -z $TMUX && exec nvim $@
+test -z $TMUX && exec nvim "$@"
 
 if test -x "$(command -v tmate)" && test "$(tmate show -gvq '@is-tmate')" = 1; then
-    exec nvim $@
+    exec nvim "$@"
 else
     # Test if tmux has zoom enabled
     if tmux list-panes -F '#F' | grep -q Z; then
@@ -12,5 +12,5 @@ else
         tmux resize-pane -Z
     fi
 
-    nvr -s --nostart $@ || exec nvim $@
+    nvr -s --nostart "$@" || exec nvim "$@"
 fi

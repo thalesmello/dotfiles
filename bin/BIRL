@@ -1,2 +1,2 @@
 #!/bin/sh
-brew $@ | normal gUU
+brew "$@" | tr '[a-z]' '[A-Z]'

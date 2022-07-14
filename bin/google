@@ -1,2 +1,2 @@
 #!/bin/sh
-SURFRAW_text_browser="w3m" SURFRAW_graphical=no surfraw google $@
+SURFRAW_text_browser="w3m" SURFRAW_graphical=no surfraw google "$@"

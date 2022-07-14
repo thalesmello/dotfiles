@@ -1,2 +1,2 @@
 #!/bin/sh
-googler --np -C -n 1 $@ | tail -n 3 | head -n 1 | xargs readability_browser
+googler --np -C -n 1 "$@" | tail -n 3 | head -n 1 | xargs readability_browser
