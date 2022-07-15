@@ -25,7 +25,7 @@ Plug 'airblade/vim-gitgutter'
 Plug 'peterrincker/vim-argumentative'
 Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-endwise'
-Plug 'ludovicchabant/vim-gutentags', only#if(v:version >= 704)
+" Plug 'ludovicchabant/vim-gutentags', only#if(v:version >= 704)
 Plug 'thalesmello/gitignore'
 Plug 'tpope/vim-rsi'
 Plug 'bronson/vim-trailing-whitespace'
