@@ -24,3 +24,5 @@ Add dependencies into PATH
 	fish_add_path /opt/homebrew/opt/coreutils/libexec/gnubin
 	fish_add_path (python3 -m site --user-base)/bin
 
+	fish_add_path ~/.local/bin
+

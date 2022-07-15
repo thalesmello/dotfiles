@@ -9,4 +9,4 @@ brew install tmux
 brew install tldr
 brew install coreutils
 brew install universal-ctags
-
+brew install pipx
