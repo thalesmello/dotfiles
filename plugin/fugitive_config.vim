@@ -1,5 +1,5 @@
 nnoremap <leader>gd :Git diff<cr>
-nnoremap <leader>gs :Git status<cr>
+nnoremap <leader>gs :Git<cr>
 nnoremap <leader>gw :Git write<cr>
 nnoremap <leader>ga :Git add<cr>
 nnoremap <leader>gb :Git blame<cr>
