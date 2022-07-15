@@ -1,6 +1,6 @@
 {
   "pyright.enable": false,
-  "python.pythonPath": "/usr/local/bin/python3",
+  "python.pythonPath": "/opt/homebrew/bin/python3",
   "codeLens.enable": true,
   "coc.preferences.currentFunctionSymbolAutoUpdate": true,
   "snippets.userSnippetsDirectory": "~/.config/nvim/coc/ultisnips",
