@@ -65,6 +65,7 @@ nnoremap <silent> <leader>ce <cmd>CocList extensions<cr>
 nnoremap <silent> <leader>cc <cmd>CocList commands<cr>
 nnoremap <silent> <leader>cs <cmd>CocList -I symbols<cr>
 nnoremap <silent> <leader>cl <cmd>CocList lists<cr>
+nnoremap <silent> <leader>ct <cmd>CocCommand tags.generate<cr>
 nmap <silent> <leader>cr <Plug>(coc-references)
 nnoremap <silent> <leader>C <cmd>CocListResume<CR>
 
