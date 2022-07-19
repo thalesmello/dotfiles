@@ -11,7 +11,7 @@ Plug 'romainl/Apprentice'
 Plug 'tpope/vim-scriptease'
 Plug 'tpope/vim-projectionist'
 Plug 'tpope/vim-tbone'
-Plug 'justinmk/vim-dirvish'
+Plug 'justinmk/vim-dirvish', {'commit': '2e845b6352ff43b47be2b2725245a4cba3e34da1'}
 Plug 'tpope/vim-eunuch'
 Plug 'thalesmello/tabfold'
 Plug 'tpope/vim-fugitive'

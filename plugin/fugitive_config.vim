@@ -1,4 +1,4 @@
-nnoremap <leader>gd :Git diff<cr>
+nnoremap <leader>gd :Gdiffsplit<cr>
 nnoremap <leader>gs :Git<cr>
 nnoremap <leader>gw :Git write<cr>
 nnoremap <leader>ga :Git add<cr>

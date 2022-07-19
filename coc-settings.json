@@ -1,13 +1,11 @@
 {
-  "pyright.enable": false,
+  "pyright.enable": true,
   "python.pythonPath": "/opt/homebrew/bin/python3",
   "codeLens.enable": true,
   "coc.preferences.currentFunctionSymbolAutoUpdate": true,
   "snippets.userSnippetsDirectory": "~/.config/nvim/coc/ultisnips",
   "coc-actions.hideCursor": false,
   "suggest.snippetIndicator": "►",
-  "python.linting.pylintEnabled": false,
-  "python.linting.flake8Enabled": false,
   "python.formatting.provider": "black",
   "pairs.disableLanguages": ["vim"],
   "languageserver": {

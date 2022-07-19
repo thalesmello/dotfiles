@@ -5,7 +5,6 @@ endif
 call coc#add_extension(
 	  \ 'coc-highlight',
 	  \ 'coc-pyright',
-	  \ 'coc-jedi',
 	  \ 'coc-json',
 	  \ 'coc-pairs',
 	  \ 'coc-yaml',

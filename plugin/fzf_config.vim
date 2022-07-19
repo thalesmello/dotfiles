@@ -4,8 +4,9 @@ let $FZF_DEFAULT_COMMAND = 'ag -g ""'
 nnoremap <silent><c-p> :<c-u>Files<cr>
 vnoremap <silent><c-p> :<c-u>Files<cr>
 nnoremap <c-f> :<c-u>Ag<space>
-nnoremap <silent> <leader>/ :<c-u>Ag <c-r><c-w><cr>
-vnoremap <silent> <leader>/ :<c-u>call fzf_config#visual_ag()<cr>
+nnoremap <silent> <leader>/ :<c-u>Ag \b<c-r><c-w>\b<cr>
+vnoremap <silent> <leader>/ :<c-u>call fzf_config#visual_ag(0)<cr>
+vnoremap <silent> <leader>? :<c-u>call fzf_config#visual_ag(1)<cr>
 nnoremap <silent> <leader>ft :Filetypes<cr>
 
 fun! CompleteAg(A,L,P)
