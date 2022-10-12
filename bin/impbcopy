@@ -1,0 +1,2 @@
+#!/bin/bash
+osascript -e 'set the clipboard to (read (POSIX file '\"$PWD/$1\"') as JPEG picture)'
