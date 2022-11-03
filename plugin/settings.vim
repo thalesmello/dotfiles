@@ -123,10 +123,4 @@ endif
 " the windows terminal have a problem.
 call auto#defer_cmd("redraw")
 
-
-if has("nvim-0.5.0")
-  " Recently vim can merge signcolumn and number column into one
-  set signcolumn=number
-else
-  set signcolumn=yes
-endif
+set signcolumn=yes

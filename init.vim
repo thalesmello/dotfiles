@@ -2,6 +2,10 @@
 " ModifiedVersion: Thales Mello <!-- <thalesmello@gmail.com> -->
 " Source: http://github.com/thalesmello/vimfiles
 
+
+" Polyglot disabled configs should load before any syntax is loaded
+let g:polyglot_disabled = ["autoindent"]
+
 call plug#begin()
 Plug 'tpope/vim-commentary'
 Plug 'tpope/vim-flagship'
@@ -106,6 +110,7 @@ Plug 'AndrewRadev/linediff.vim'
 
 " Default restructured text syntax doesn't work well
 Plug 'marshallward/vim-restructuredtext'
+Plug 'mattboehm/vim-unstack'
 
 call plug#end()
 
