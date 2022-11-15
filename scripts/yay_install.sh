@@ -1,0 +1,10 @@
+yay -S diff-so-fancy
+yay -S entr
+yay -S fzf
+yay -S python3
+yay -S neovim
+yay -S fish
+yay -S node
+yay -S tmux
+yay -S coreutils
+yay -S universal-ctags
