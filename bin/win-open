@@ -1,5 +1,4 @@
 #!/bin/bash
-# Regex to match http URLs in Tilix:
-# (http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?
-cmd.exe /c start "" "$1" &>/dev/null || exit 0
-exit 0
+# Needs to install wslu: https://wslutiliti.es/wslu/
+
+wslview "$@"
