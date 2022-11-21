@@ -46,7 +46,7 @@ set -xg FZF_DEFAULT_OPTS '--bind "ctrl-n:down,ctrl-p:up,ctrl-r:previous-history,
 set -xg SKIM_DEFAULT_OPTS '--bind "ctrl-n:down,ctrl-p:up,alt-r:previous-history,alt-s:next-history,ctrl-q:select-all,ctrl-x:toggle-out"'
 
 # AWS completion
-test -x (which aws_completer); and complete --command aws --no-files --arguments '(begin; set --local --export COMP_SHELL fish; set --local --export COMP_LINE (commandline); aws_completer | sed \'s/ $//\'; end)'
+test -x (type -q aws_completer); and complete --command aws --no-files --arguments '(begin; set --local --export COMP_SHELL fish; set --local --export COMP_LINE (commandline); aws_completer | sed \'s/ $//\'; end)'
 if set -q USE_WSL_CONFIG
 	eval (keychain --eval --quiet $HOME/.ssh/id_rsa)
 	set -x WSL_HOST (tail -1 /etc/resolv.conf | cut -d' ' -f2)
@@ -55,3 +55,11 @@ if set -q USE_WSL_CONFIG
 	set -x HOSTNAME (hostname)
 end
 
+if test -z "$(pgrep ssh-agent)"
+	find /tmp/ -name "ssh-*" -type d -exec rm '{}' +
+	rm -rf '{}' + 2>/dev/null
+	eval $(ssh-agent -c) > /dev/null
+else
+	set -x SSH_AGENT_PID "$(pgrep ssh-agent)"
+	set -x SSH_AUTH_SOCK "$(find /tmp/ssh-* -name 'agent.*')"
+end
