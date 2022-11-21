@@ -56,8 +56,7 @@ if set -q USE_WSL_CONFIG
 end
 
 if test -z "$(pgrep ssh-agent)"
-	find /tmp/ -name "ssh-*" -type d -exec rm '{}' +
-	rm -rf '{}' + 2>/dev/null
+	find /tmp/ -name "ssh-*" -type d -exec rm '{}' + 2>/dev/null
 	eval $(ssh-agent -c) > /dev/null
 else
 	set -x SSH_AGENT_PID "$(pgrep ssh-agent)"
