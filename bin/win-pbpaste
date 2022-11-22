@@ -8,7 +8,4 @@ from sys import stdout
 
 pastebin = check_output("paste.exe").decode("utf8").replace("\r\n", "\n").rstrip()
 
-if "\n" in pastebin:
-    stdout.write(pastebin + "\n")
-else:
-    stdout.write(pastebin)
+stdout.write(pastebin + "\n" if "\n" in pastebin else "")
