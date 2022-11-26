@@ -32,7 +32,7 @@ Plug 'tpope/vim-endwise'
 " Plug 'ludovicchabant/vim-gutentags', only#if(v:version >= 704)
 Plug 'thalesmello/gitignore'
 Plug 'tpope/vim-rsi'
-Plug 'bronson/vim-trailing-whitespace'
+Plug 'thalesmello/vim-trailing-whitespace'
 Plug 'tpope/vim-unimpaired'
 Plug 'simeji/winresizer'
 Plug 'honza/vim-snippets'

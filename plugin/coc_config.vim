@@ -73,6 +73,7 @@ nnoremap <silent> <leader>[  :<C-u>CocPrev<CR>
 
 nnoremap <leader>? <cmd>call CocActionAsync('showSignatureHelp')<cr>
 
+
 augroup cocvim_group
   autocmd!
   " Setup formatexpr specified filetype(s).
@@ -93,18 +94,16 @@ xmap <tab> <Plug>(coc-snippets-select)
 let g:coc_snippet_next = '<c-l>'
 let g:coc_snippet_prev = '<c-h>'
 
-inoremap <silent><expr> <TAB>
-      \ pumvisible() ? coc#_select_confirm() :
-      \ coc#expandableOrJumpable() ? "\<C-r>=coc#rpc#request('doKeymap', ['snippets-expand-jump',''])\<CR>" :
-      \ <SID>check_back_space() ? "\<TAB>" :
-      \ coc#refresh()
-
-
-
-function! s:check_back_space() abort
+function! CocCheckBackSpace() abort
   let col = col('.') - 1
   return !col || getline('.')[col - 1]  =~# '\s'
 endfunction
+
+inoremap <silent><expr> <TAB>
+      \ pumvisible() ? coc#_select_confirm() :
+      \ coc#expandableOrJumpable() ? "\<C-r>=coc#rpc#request('doKeymap', ['snippets-expand-jump',''])\<CR>" :
+      \ CocCheckBackSpace() ? "\<TAB>" :
+      \ coc#refresh()
 
 
 if !exists("g:mapped_coc_cr")
