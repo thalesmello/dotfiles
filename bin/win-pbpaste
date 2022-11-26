@@ -6,6 +6,6 @@
 from subprocess import check_output
 from sys import stdout
 
-pastebin = check_output("paste.exe").decode("utf8").replace("\r\n", "\n").rstrip()
+pastebin = check_output("paste.exe").decode("utf8").replace("\r\n", "\n").rstrip("\n")
 
 stdout.write(pastebin + ("\n" if "\n" in pastebin else ""))
