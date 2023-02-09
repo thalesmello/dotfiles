@@ -53,12 +53,13 @@ if set -q USE_WSL_CONFIG
 	set -x DISPLAY $WSL_HOST:0
 	set -x HOST (hostname)
 	set -x HOSTNAME (hostname)
+
+	if test -z "$(pgrep ssh-agent)"
+		find /tmp/ -name "ssh-*" -type d -exec rm '{}' + 2>/dev/null
+		eval $(ssh-agent -c) > /dev/null
+	else
+		set -x SSH_AGENT_PID "$(pgrep ssh-agent)"
+		set -x SSH_AUTH_SOCK "$(find '/tmp/ssh-*' -name 'agent.*')"
+	end
 end
 
-if test -z "$(pgrep ssh-agent)"
-	find /tmp/ -name "ssh-*" -type d -exec rm '{}' + 2>/dev/null
-	eval $(ssh-agent -c) > /dev/null
-else
-	set -x SSH_AGENT_PID "$(pgrep ssh-agent)"
-	set -x SSH_AUTH_SOCK "$(find /tmp/ssh-* -name 'agent.*')"
-end
