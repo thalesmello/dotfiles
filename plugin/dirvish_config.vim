@@ -2,7 +2,7 @@ if match(&runtimepath, 'dirvish') == -1
     finish
 endif
 
-nnoremap <silent> - <cmd>Dirvish %:h<cr>
+nnoremap <silent><expr> - empty(expand('%')) ? "\<cmd>Dirvish\<cr>" : "\<cmd>Dirvish %:h\<cr>"
 
 augroup dirvish_config
   autocmd!

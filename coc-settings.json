@@ -9,5 +9,6 @@
   "python.formatting.provider": "black",
   "pairs.disableLanguages": ["vim"],
   "languageserver": {
-  }
+  },
+  "snippets.ultisnips.pythonPrompt": false
 }
