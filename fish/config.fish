@@ -63,3 +63,6 @@ if set -q USE_WSL_CONFIG
 	end
 end
 
+if command -qs zoxide
+	zoxide init fish | source
+end
