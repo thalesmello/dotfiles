@@ -10,5 +10,7 @@
   "pairs.disableLanguages": ["vim"],
   "languageserver": {
   },
-  "snippets.ultisnips.pythonPrompt": false
+  "snippets.ultisnips.pythonPrompt": false,
+  "sumneko-lua.enableNvimLuaDev": true,
+  "Lua.runtime.version": "LuaJIT"
 }
