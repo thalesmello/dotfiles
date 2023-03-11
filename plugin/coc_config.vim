@@ -11,7 +11,8 @@ call coc#add_extension(
 	  \ 'coc-actions',
 	  \ 'coc-vimlsp',
 	  \ 'coc-snippets',
-	  \ 'coc-lists'
+	  \ 'coc-lists',
+	  \ 'coc-sumneko-lua'
 	  \)
 
 nmap <silent> [g <Plug>(coc-diagnostic-prev)
