@@ -62,7 +62,6 @@ vim.api.nvim_create_autocmd("User", {
          local module = vim.fn.substitute(basename, "-", "_", "g")
 
          local projection = make_dbt_projection(module)
-         vim.pretty_print(projection)
          vim.fn["projectionist#append"](root .. "/", projection)
       end
    end
