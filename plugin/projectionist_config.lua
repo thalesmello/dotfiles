@@ -30,7 +30,6 @@ local function make_dbt_projection(module)
    local compiled_folder = "target/run/" .. module .. "/models"
 
    return {
-      ["models/*&dbt_project.yml"] = {
          ["models/*.sql"] = {
             alternate = {"models/{}.yml", compiled_folder .. "/{}.sql"},
             type = "model",
@@ -48,8 +47,7 @@ local function make_dbt_projection(module)
             make = "dbt --no-use-colors run",
             dispatch = "dbt --no-use-colors compile",
          }
-      },
-   }
+      }
 end
 
 local au_group = vim.api.nvim_create_augroup("ProjectionistConfig", { clear = true })
@@ -58,12 +56,14 @@ vim.api.nvim_create_autocmd("User", {
    pattern = "ProjectionistDetect",
    group = au_group,
    callback = function ()
-      local root = vim.fn["projectionist#path"]()
+      local root = vim.fn.getcwd()
       if vim.fn.filereadable(root .. "/dbt_project.yml") ~= 0 then
          local basename = vim.fs.basename(root)
-         local module = vim.api.nvim_call_dict_function("g:projectionist_transformations", "underscore", {basename, 0})
+         local module = vim.fn.substitute(basename, "-", "_", "g")
 
-         vim.fn["projectionist#append"](root, make_dbt_projection(module))
+         local projection = make_dbt_projection(module)
+         vim.pretty_print(projection)
+         vim.fn["projectionist#append"](root .. "/", projection)
       end
    end
 })
