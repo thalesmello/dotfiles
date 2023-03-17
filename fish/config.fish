@@ -10,6 +10,7 @@ end
 fundle plugin brgmnn/fish-docker-compose
 fundle plugin fischerling/plugin-wd
 fundle plugin thalesmello/theme-cmorrell.com
+fundle plugin oh-my-fish/plugin-git-flow
 fundle init
 
 # Configure theme
@@ -21,7 +22,6 @@ set -g theme_nerd_fonts yes
 set -g theme_powerline_fonts no
 set -g theme_show_exit_status yes
 set -g theme_display_virtualenv no
-set -g default_user tmello
 set -g theme_color_scheme zenburn
 set -g fish_prompt_pwd_dir_length 2
 
