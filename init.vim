@@ -36,7 +36,6 @@ Plug 'thalesmello/vim-trailing-whitespace'
 Plug 'tpope/vim-unimpaired'
 Plug 'simeji/winresizer'
 Plug 'honza/vim-snippets'
-Plug 'AndrewRadev/splitjoin.vim'
 Plug 'junegunn/fzf'
 Plug 'junegunn/fzf.vim'
 Plug 'tmux-plugins/vim-tmux-focus-events', { 'tag': 'v1.0.0' }
@@ -111,6 +110,10 @@ Plug 'AndrewRadev/linediff.vim'
 " Default restructured text syntax doesn't work well
 Plug 'marshallward/vim-restructuredtext'
 Plug 'mattboehm/vim-unstack'
+
+Plug 'AndrewRadev/splitjoin.vim'
+Plug 'nvim-treesitter/nvim-treesitter', {'do': 'TSUpdate'}
+Plug 'Wansmer/treesj'
 
 call plug#end()
 
