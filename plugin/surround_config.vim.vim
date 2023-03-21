@@ -4,3 +4,6 @@ call auto#cmd('surround', [
       \ 'FileType elixir let b:surround_109 = "%{\r}"',
       \ 'FileType markdown let b:surround_113 = "```\r```"'
       \])
+
+nmap <silent> dsf ds)db<Cmd>call repeat#set("dsf", 0)<cr>
+nnoremap <silent> csf [(cb<Cmd>call repeat#set("csf", 0)<cr>
