@@ -71,4 +71,9 @@ if command -qs zoxide
 	complete --command z --no-files --keep-order --arguments '(__zoxide_z_complete_smart)'
 end
 
-complete -c echo -f -a 'fish bar'
+if command -qs ag
+	set -l tokens ()
+	complete --command ag -e
+	complete --command ag -n '__ag_is_positional_arg 1' --no-files --keep-order --arguments '(__ag_completion_smart)'
+	complete --command ag -n 'not __ag_is_positional_arg 1' -F
+end
