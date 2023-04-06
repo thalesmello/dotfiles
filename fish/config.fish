@@ -66,4 +66,9 @@ end
 
 if command -qs zoxide
 	zoxide init fish | source
+
+	complete --command z -e
+	complete --command z --no-files --keep-order --arguments '(__zoxide_z_complete_smart)'
 end
+
+complete -c echo -f -a 'fish bar'
