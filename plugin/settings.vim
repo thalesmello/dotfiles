@@ -112,7 +112,7 @@ endif
 " Use decent folding
 if has('vim_starting')
   set foldlevelstart=50
-  " set foldmethod=indent
+  set foldmethod=indent
 endif
 
 " Dever a redraw of the screen so the cursor appears

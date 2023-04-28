@@ -24,19 +24,14 @@ require'nvim-treesitter.configs'.setup {
    },
 }
 
+
+
 local group = vim.api.nvim_create_augroup("TreesitterAutogroup", {
   clear = true
 })
 
 for _, lang in ipairs(langs) do
-   vim.api.nvim_create_autocmd({ 'FileType' }, {
-     group = group,
-     pattern = lang,
-     callback = function()
-       vim.opt_local.foldmethod = "expr"
-       vim.opt_local.foldexpr = "nvim_treesitter#foldexpr()"
-     end,
-   })
+   vim.opt_local.foldmethod = "expr"
+   vim.opt_local.foldexpr = "nvim_treesitter#foldexpr()"
 end
-
 

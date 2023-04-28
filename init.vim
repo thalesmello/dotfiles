@@ -114,6 +114,7 @@ Plug 'mattboehm/vim-unstack'
 Plug 'AndrewRadev/splitjoin.vim'
 Plug 'nvim-treesitter/nvim-treesitter', {'do': 'TSUpdate'}
 Plug 'Wansmer/treesj'
+Plug 'shumphrey/fugitive-gitlab.vim'
 
 call plug#end()
 
