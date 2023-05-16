@@ -12,6 +12,7 @@ fundle plugin fischerling/plugin-wd
 fundle plugin thalesmello/theme-cmorrell.com
 fundle plugin oh-my-fish/plugin-git-flow
 fundle plugin thalesmello/plugin-hubflow
+fundle plugin ankitsumitg/docker-fish-completions
 fundle init
 
 # Configure theme

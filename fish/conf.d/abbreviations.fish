@@ -19,3 +19,4 @@ abbr ssx 'ssh -C -c blowfish -X'
 abbr vim svim
 abbr vp ./venv/bin/python
 abbr wsite 'wget -r --no-parent'
+abbr k kubectl
