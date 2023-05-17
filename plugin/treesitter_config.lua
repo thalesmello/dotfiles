@@ -1,3 +1,7 @@
+if vim.fn.match(vim.opt.runtimepath:get(), "nvim-treesitter") == -1 then
+   return
+end
+
 local langs = {"lua", "vim", "python", "sql", "ruby"}
 
 require'nvim-treesitter.configs'.setup {

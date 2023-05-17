@@ -50,6 +50,7 @@ Plug 'sainnhe/tmuxline.vim'
 Plug 'moll/vim-node'
 Plug 'justinmk/vim-sneak'
 Plug 'machakann/vim-highlightedyank'
+Plug 'thalesmello/python-support.nvim'
 
 " Coc.nvim
 Plug 'neoclide/coc.nvim', { 'branch': 'release' }
@@ -60,7 +61,6 @@ Plug 'thalesmello/webcomplete.vim', only#if(has('macunix'))
 Plug 'liuchengxu/vista.vim'
 
 " Python dependencies
-Plug 'thalesmello/python-support.nvim'
 Plug 'pseewald/vim-anyfold'
 
 " Text objects

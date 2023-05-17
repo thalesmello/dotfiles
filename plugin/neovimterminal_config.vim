@@ -34,6 +34,14 @@ nmap <silent> <c-space>H <leader>H
 nmap <silent> <c-space>K <leader>K
 nmap <silent> <c-space>L <leader>L
 
+
+nnoremap <c-space>= <c-w>=
+nnoremap <c-space>+ <c-w>\|<c-w>_
+nnoremap <c-space>\| <c-w>\|
+tnoremap <c-space>= <c-\><c-n><c-w>=
+tnoremap <c-space>+ <c-\><c-n><c-w>\|<c-w>_
+tnoremap <c-space>\| <c-\><c-n><c-w>\|
+
 tnoremap <c-space>1 <c-\><c-n>1gt
 tnoremap <c-space>2 <c-\><c-n>2gt
 tnoremap <c-space>3 <c-\><c-n>3gt
