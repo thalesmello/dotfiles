@@ -20,3 +20,4 @@ abbr vim svim
 abbr vp ./venv/bin/python
 abbr wsite 'wget -r --no-parent'
 abbr k kubectl
+abbr ka kubectl -n airflow
