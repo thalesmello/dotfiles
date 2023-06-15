@@ -21,3 +21,4 @@ abbr vp ./venv/bin/python
 abbr wsite 'wget -r --no-parent'
 abbr k kubectl
 abbr ka kubectl -n airflow
+abbr kc kubectl config use-context
