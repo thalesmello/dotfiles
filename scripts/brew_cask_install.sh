@@ -5,4 +5,4 @@ brew install --cask whatsapp
 brew install --cask mouse-fix
 brew install MonitorControl
 brew tap homebrew/cask-fonts && brew install --cask font-inconsolata-go-nerd-font
-brew install --cask logitech-g-hub
+brew install --cask bettertouchtool
