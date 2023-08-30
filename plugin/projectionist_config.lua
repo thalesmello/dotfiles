@@ -37,6 +37,17 @@ local function make_dbt_projection(module)
       ["models/*.yml"] = {
          alternate = {compiled_folder .. "/{}.sql", "models/{}.sql"},
          type = "properties",
+         template = {
+            "version: 2",
+            "",
+            "models:",
+            "  - name: {basename}",
+            "    columns:",
+            "      - name: id",
+            "        tests:",
+            "          - unique",
+            "          - not_null",
+         }
       },
       [compiled_folder .. "/*.sql"] = {
          setlocal = { readonly = true, modifiable = false },
