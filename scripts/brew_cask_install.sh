@@ -8,3 +8,4 @@ brew tap homebrew/cask-fonts && brew install --cask font-inconsolata-go-nerd-fon
 brew install --cask bettertouchtool
 brew install --cask finicky
 brew install --cask obsidian
+brew install --cask notunes
