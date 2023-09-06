@@ -2,6 +2,28 @@ const office_apps = ["Slack", "zoom.us"]
 const personal_apps = ["WhatsApp"]
 const personal_websites = ["youtube.com", "facebook.com"]
 
+class Rule {
+  constructor (props) {
+    this.props = props;
+  }
+
+  match (match) {
+    return { ...this.props, match };
+  }
+}
+
+const personal_chrome = new Rule({
+  browser: { name: "Google Chrome", profile: "Profile 1" },
+});
+
+const work_chrome = new Rule({
+  browser: { name: "Google Chrome", profile: "Default" },
+});
+
+const slack = new Rule({
+  browser: "/Applications/Slack.app",
+});
+
 module.exports = {
   defaultBrowser: "Google Chrome",
   options: {
@@ -9,34 +31,9 @@ module.exports = {
     checkForUpdate: true,
   },
   handlers: [
-    {
-      match: ({ url }) => personal_websites.some(website => url.host.endsWith(website)),
-      browser: {
-        name: "Google Chrome",
-        profile: "Profile 1"
-      }
-    },
-    {
-      match: ({ opener }) => {
-        return office_apps.includes(opener.name)
-      },
-      browser: {
-        name: "Google Chrome",
-        profile: "Default",
-      },
-    },
-    {
-      match: ({ opener }) => {
-        return personal_apps.includes(opener.name)
-      },
-      browser: {
-        name: "Google Chrome",
-        profile: "Profile 1",
-      },
-    },
-    {
-      match: ({ url }) => url.protocol === "slack",
-      browser: "/Applications/Slack.app",
-    },
+    personal_chrome.match(({ url }) => personal_websites.some(website => url.host.endsWith(website))),
+    work_chrome.match(({ opener }) => office_apps.includes(opener.name)),
+    personal_chrome.match(({ opener }) => personal_apps.includes(opener.name)),
+    slack.match(({ url }) => url.protocol === "slack"),
   ],
 };
