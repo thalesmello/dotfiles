@@ -1,4 +1,4 @@
-if vim.fn.match(vim.opt.runtimepath:get(), "nvim-treesitter") or vim.fn.match(vim.opt.runtimepath:get(), "treesj") == -1 then
+if vim.fn.match(vim.opt.runtimepath:get(), "nvim-treesitter") == -1 or vim.fn.match(vim.opt.runtimepath:get(), "nvim-treesitter") == -1 then
    return
 end
 
