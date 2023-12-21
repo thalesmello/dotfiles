@@ -32,6 +32,9 @@ local function make_dbt_projection(module)
    return {
       ["models/*.sql"] = {
          alternate = {"models/{}.yml", compiled_folder .. "/{}.sql"},
+         setlocal = {
+            commentstring = "{open}# %s #{close}",
+         },
          type = "model",
       },
       ["models/*.yml"] = {

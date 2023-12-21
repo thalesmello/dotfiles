@@ -2,7 +2,8 @@ call auto#cmd('surround', [
       \ 'FileType python let b:surround_101 = "f\"\r\""',
       \ 'FileType python let b:surround_113 = "\"\"\"\r\"\"\""',
       \ 'FileType elixir let b:surround_109 = "%{\r}"',
-      \ 'FileType markdown let b:surround_113 = "```\r```"'
+      \ 'FileType markdown let b:surround_113 = "```\r```"',
+      \ 'FileType sql let b:surround_27 = "{% \r %}"'
       \])
 
 nmap <silent> dsf ds)db<Cmd>call repeat#set("dsf", 0)<cr>
