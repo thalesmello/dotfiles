@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+yq "$1" "$2" | diff -B "$2" - | patch "$2" -
