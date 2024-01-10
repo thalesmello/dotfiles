@@ -1,4 +1,4 @@
-const office_apps = ["Slack", "zoom.us"]
+const office_apps = ["Slack", "zoom.us", "iTerm2"]
 const personal_apps = ["WhatsApp"]
 const personal_websites = ["youtube.com", "facebook.com"]
 
