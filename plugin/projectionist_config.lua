@@ -59,7 +59,7 @@ local function make_dbt_projection(module)
       },
       ["*.sql"] = {
          make = "dbt --no-use-colors run",
-         dispatch = "dbt --no-use-colors compile",
+         dispatch = "dbt --no-use-colors run -m %:t:r",
          prepend = {
             suffixesadd = { ".sql", ".csv" },
             path = { "models/**", "macros/**", "seeds/**" },

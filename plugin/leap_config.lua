@@ -11,7 +11,7 @@ require('leap-spooky').setup {
   -- window.
   affixes = {
     -- The cursor moves to the targeted object, and stays there.
-    magnetic = { window = 'm', cross_window = 'M' },
+    -- magnetic = { window = 'm', cross_window = 'M' },
     -- The operation is executed seemingly remotely (the cursor boomerangs
     -- back afterwards).
     remote = { window = 'r', cross_window = 'R' },
