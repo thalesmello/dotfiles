@@ -1,3 +1,7 @@
+if vim.fn.match(vim.opt.runtimepath:get(), "leap.nvim") == -1 then
+   return
+end
+
 require('leap').add_default_mappings()
 
 require('leap-spooky').setup {
