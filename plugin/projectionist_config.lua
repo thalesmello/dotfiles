@@ -30,6 +30,13 @@ local function make_dbt_projection(module)
    local compiled_folder = "target/run/" .. module .. "/models"
 
    return {
+      ["*.sql"] = {
+         make = "dbt --no-use-colors run",
+         prepend = {
+            suffixesadd = { ".sql", ".csv" },
+            path = { "models/**", "macros/**", "seeds/**" },
+         }
+      },
       ["models/*.sql"] = {
          alternate = {"models/{}.yml", compiled_folder .. "/{}.sql"},
          setlocal = {
@@ -52,19 +59,15 @@ local function make_dbt_projection(module)
             "          - not_null",
          }
       },
+      ["tests/*.sql"] = {
+         dispatch = "dbt --no-use-colors test -m {basename}",
+         type = "test"
+      },
       [compiled_folder .. "/*.sql"] = {
          setlocal = { readonly = true, modifiable = false },
          type = "compiled",
          alternate = { "models/{}.sql" },
       },
-      ["*.sql"] = {
-         make = "dbt --no-use-colors run",
-         dispatch = "dbt --no-use-colors run -m %:t:r",
-         prepend = {
-            suffixesadd = { ".sql", ".csv" },
-            path = { "models/**", "macros/**", "seeds/**" },
-         }
-      }
    }
 end
 
