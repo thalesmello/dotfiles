@@ -9,3 +9,4 @@ brew install --cask bettertouchtool
 brew install --cask finicky
 brew install --cask obsidian
 brew install --cask notunes
+brew install --cask karabiner-elements
