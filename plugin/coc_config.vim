@@ -6,7 +6,6 @@ call coc#add_extension(
 	  \ 'coc-highlight',
 	  \ 'coc-pyright',
 	  \ 'coc-json',
-	  \ 'coc-pairs',
 	  \ 'coc-yaml',
 	  \ 'coc-actions',
 	  \ 'coc-vimlsp',

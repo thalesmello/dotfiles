@@ -145,4 +145,6 @@ require("lazy").setup({
     { 'Wansmer/treesj' },
     { 'shumphrey/fugitive-gitlab.vim' },
     { 'ivanovyordan/dbt.vim' },
+
+    { 'cohama/lexima.vim' },
 })
