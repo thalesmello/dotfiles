@@ -1,126 +1,148 @@
-"/ OriginalAuthor: Pedro Franceschi <pedrohfranceschi@gmail.com>
-" ModifiedVersion: Thales Mello <!-- <thalesmello@gmail.com> -->
-" Source: http://github.com/thalesmello/vimfiles
+-- OriginalAuthor: Pedro Franceschi <pedrohfranceschi@gmail.com>
+-- ModifiedVersion: Thales Mello <!-- <thalesmello@gmail.com> -->
+-- Source: http://github.com/thalesmello/vimfiles
 
 
-" Polyglot disabled configs should load before any syntax is loaded
-let g:polyglot_disabled = ["autoindent"]
+-- Polyglot disabled configs should load before any syntax is loaded
+vim.g.polyglot_disabled = {"autoindent"}
+vim.g.mapleader = " "
+vim.g.maplocalleader = "'"
+vim.g.my_colorscheme = "apprentice"
 
-call plug#begin()
-Plug 'tpope/vim-commentary'
-Plug 'tpope/vim-flagship'
-Plug 'kana/vim-textobj-user'
-Plug 'ryanoasis/vim-devicons'
-Plug 'romainl/Apprentice'
-Plug 'tpope/vim-scriptease'
-Plug 'tpope/vim-projectionist'
-Plug 'tpope/vim-tbone'
-Plug 'justinmk/vim-dirvish', {'commit': '2e845b6352ff43b47be2b2725245a4cba3e34da1'}
-Plug 'tpope/vim-eunuch'
-Plug 'thalesmello/tabfold'
-Plug 'tpope/vim-fugitive'
-Plug 'kylechui/nvim-surround'
-Plug 'tpope/vim-repeat'
-Plug 'tpope/vim-abolish'
-Plug 'tweekmonster/local-indent.vim'
-Plug 'tpope/vim-sleuth'
-Plug 'dag/vim-fish'
-Plug 'airblade/vim-gitgutter'
-Plug 'peterrincker/vim-argumentative'
-Plug 'sheerun/vim-polyglot'
-Plug 'tpope/vim-endwise'
-Plug 'ludovicchabant/vim-gutentags', only#if(v:version >= 704)
-Plug 'thalesmello/gitignore'
-Plug 'tpope/vim-rsi'
-Plug 'thalesmello/vim-trailing-whitespace'
-Plug 'tpope/vim-unimpaired'
-Plug 'simeji/winresizer'
-Plug 'honza/vim-snippets'
-Plug 'junegunn/fzf'
-Plug 'junegunn/fzf.vim'
-Plug 'tmux-plugins/vim-tmux-focus-events', { 'tag': 'v1.0.0' }
-Plug 'ConradIrwin/vim-bracketed-paste'
-Plug 'thalesmello/tabmessage.vim'
-Plug 'thalesmello/persistent.vim'
-Plug 'thinca/vim-visualstar'
-Plug 'farmergreg/vim-lastplace'
-Plug 'duggiefresh/vim-easydir'
-Plug 'tmux-plugins/vim-tmux'
-Plug 'sainnhe/tmuxline.vim'
-Plug 'moll/vim-node'
-Plug 'ggandor/leap.nvim'
-Plug 'machakann/vim-highlightedyank'
-Plug 'thalesmello/python-support.nvim'
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not vim.loop.fs_stat(lazypath) then
+  vim.fn.system({
+    "git",
+    "clone",
+    "--filter=blob:none",
+    "https://github.com/folke/lazy.nvim.git",
+    "--branch=stable", -- latest stable release
+    lazypath,
+  })
+end
+vim.opt.rtp:prepend(lazypath)
 
-" Coc.nvim
-Plug 'neoclide/coc.nvim', { 'branch': 'release' }
-Plug 'Shougo/neco-vim'
-Plug 'neoclide/coc-neco'
-Plug 'wellle/tmux-complete.vim'
-Plug 'thalesmello/webcomplete.vim', only#if(has('macunix'))
-Plug 'liuchengxu/vista.vim'
+require("lazy").setup({
+    { dir = vim.fn.stdpath('config'), name = "local_config", priority = 100 },
+    { 'tpope/vim-commentary' },
+    { 'tpope/vim-flagship' },
+    { 'kana/vim-textobj-user', name = 'textobj' },
+    { 'ryanoasis/vim-devicons' },
+    { 'romainl/Apprentice' },
+    { 'tpope/vim-scriptease' },
+    { 'tpope/vim-projectionist' },
+    { 'tpope/vim-tbone' },
+    { 'justinmk/vim-dirvish', commit= '2e845b6352ff43b47be2b2725245a4cba3e34da1' },
+    { 'tpope/vim-eunuch' },
+    { 'thalesmello/tabfold' },
+    { 'tpope/vim-fugitive' },
+    { 'kylechui/nvim-surround' },
+    { 'tpope/vim-repeat' },
+    { 'tpope/vim-abolish' },
+    { 'tweekmonster/local-indent.vim' },
+    { 'tpope/vim-sleuth' },
+    { 'dag/vim-fish' },
+    { 'airblade/vim-gitgutter' },
+    { 'peterrincker/vim-argumentative' },
+    { 'sheerun/vim-polyglot' },
+    { 'tpope/vim-endwise' },
+    { 'ludovicchabant/vim-gutentags' },
+    { 'thalesmello/gitignore' },
+    { 'tpope/vim-rsi' },
+    { 'thalesmello/vim-trailing-whitespace' },
+    { 'tpope/vim-unimpaired' },
+    { 'simeji/winresizer' },
+    { 'honza/vim-snippets' },
+    { 'junegunn/fzf' },
+    { 'junegunn/fzf.vim' },
+    { 'tmux-plugins/vim-tmux-focus-events', tag = 'v1.0.0' },
+    { 'ConradIrwin/vim-bracketed-paste' },
+    { 'thalesmello/tabmessage.vim' },
+    { 'thalesmello/persistent.vim' },
+    { 'thinca/vim-visualstar' },
+    { 'farmergreg/vim-lastplace' },
+    { 'duggiefresh/vim-easydir' },
+    { 'tmux-plugins/vim-tmux' },
+    { 'sainnhe/tmuxline.vim' },
+    { 'moll/vim-node' },
+    { 'ggandor/leap.nvim' },
+    { 'machakann/vim-highlightedyank' },
+    { 'thalesmello/python-support.nvim' },
 
-" Python dependencies
-Plug 'pseewald/vim-anyfold'
+    -- Coc.nvim,
+    { 'neoclide/coc.nvim', branch = 'release'  },
+    { 'Shougo/neco-vim' },
+    { 'neoclide/coc-neco' },
+    { 'wellle/tmux-complete.vim' },
+    { 'thalesmello/webcomplete.vim', cond = vim.fn.has('macunix' ) },
+    { 'liuchengxu/vista.vim' },
 
-" Text objects
-Plug 'michaeljsmith/vim-indent-object'
-Plug 'coderifous/textobj-word-column.vim'
-Plug 'thalesmello/vim-textobj-methodcall'
-Plug 'glts/vim-textobj-comment'
-Plug 'Julian/vim-textobj-variable-segment'
-Plug 'kana/vim-textobj-entire'
-Plug 'thalesmello/vim-textobj-bracketchunk'
-Plug 'wellle/targets.vim'
-Plug 'ggandor/leap-spooky.nvim'
+    -- Python dependencies,
+    { 'pseewald/vim-anyfold' },
 
-Plug 'kana/vim-textobj-function'
-Plug 'rhysd/vim-textobj-ruby'
-Plug 'bps/vim-textobj-python'
-Plug 'haya14busa/vim-textobj-function-syntax'
-Plug 'thinca/vim-textobj-function-javascript'
-Plug 'thalesmello/vim-textobj-multiline-str'
+    -- Text objects,
+    { 'michaeljsmith/vim-indent-object', dependencies = {'textobj'} },
+    { 'coderifous/textobj-word-column.vim' , dependencies = {'textobj'} },
+    { 'thalesmello/vim-textobj-methodcall' , dependencies = {'textobj'} },
+    { 'glts/vim-textobj-comment' , dependencies = {'textobj'} },
+    { 'Julian/vim-textobj-variable-segment' , dependencies = {'textobj'} },
+    { 'kana/vim-textobj-entire' , dependencies = {'textobj'} },
+    { 'thalesmello/vim-textobj-bracketchunk' , dependencies = {'textobj'} },
+    { 'wellle/targets.vim' , dependencies = {'textobj'} },
+    { 'ggandor/leap-spooky.nvim' },
+
+    { 'kana/vim-textobj-function' , dependencies = {'textobj'} },
+    { 'rhysd/vim-textobj-ruby' , dependencies = {'textobj'} },
+    { 'bps/vim-textobj-python' , dependencies = {'textobj'} },
+    { 'haya14busa/vim-textobj-function-syntax' , dependencies = {'textobj'} },
+    { 'thinca/vim-textobj-function-javascript' , dependencies = {'textobj'} },
+    { 'thalesmello/vim-textobj-multiline-str' , dependencies = {'textobj'} },
 
 
-Plug 'tpope/vim-dispatch'
-Plug 'tpope/vim-haystack'
+    { 'tpope/vim-dispatch' },
+    { 'tpope/vim-haystack' },
 
 
-Plug 'tpope/vim-apathy'
-Plug 'yssl/QFEnter'
+    { 'tpope/vim-apathy' },
+    { 'yssl/QFEnter' },
 
-Plug 'thalesmello/lkml.vim'
-Plug 'junegunn/vim-easy-align'
+    { 'thalesmello/lkml.vim' },
+    { 'junegunn/vim-easy-align' },
 
-Plug 'dzeban/vim-log-syntax'
-Plug 'alvan/vim-closetag'
-Plug 'tpope/vim-rhubarb'
+    { 'dzeban/vim-log-syntax' },
+    { 'alvan/vim-closetag' },
+    { 'tpope/vim-rhubarb' },
 
-Plug 'andymass/vim-matchup'
+    { 'andymass/vim-matchup' },
 
-Plug 'tpope/vim-jdaddy'
-Plug 'AndrewRadev/undoquit.vim'
-Plug 'AndrewRadev/inline_edit.vim'
-Plug 'google/vim-jsonnet'
+    { 'tpope/vim-jdaddy' },
+    { 'AndrewRadev/undoquit.vim' },
+    { 'AndrewRadev/inline_edit.vim' },
+    { 'google/vim-jsonnet' },
 
-Plug 'hashivim/vim-terraform'
+    { 'hashivim/vim-terraform' },
 
-Plug 'glacambre/firenvim', { 'do': { _ -> firenvim#install(0) } }
+    { 'glacambre/firenvim',
+        build = function ()
+            vim.fn['firenvim#install'](0)
+        end
+    },
 
-Plug 'AndrewRadev/linediff.vim'
+    { 'AndrewRadev/linediff.vim' },
 
-" Default restructured text syntax doesn't work well
-Plug 'marshallward/vim-restructuredtext'
-Plug 'mattboehm/vim-unstack'
+    -- Default restructured text syntax doesn't work well,
+    { 'marshallward/vim-restructuredtext' },
+    { 'mattboehm/vim-unstack' },
 
-Plug 'AndrewRadev/splitjoin.vim'
-Plug 'nvim-treesitter/nvim-treesitter', {'do': 'TSUpdate'}
-Plug 'Wansmer/treesj'
-Plug 'shumphrey/fugitive-gitlab.vim'
-Plug 'ivanovyordan/dbt.vim'
+    { 'AndrewRadev/splitjoin.vim' },
+    {
+        'nvim-treesitter/nvim-treesitter',
+        build = function ()
+            vim.cmd('TSUpdate')
+        end
 
-call plug#end()
-
-let mapleader = "\<space>"
-let maplocalleader = "'"
-let g:my_colorscheme = "apprentice"
+    },
+    { 'Wansmer/treesj' },
+    { 'shumphrey/fugitive-gitlab.vim' },
+    { 'ivanovyordan/dbt.vim' },
+})
