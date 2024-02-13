@@ -163,14 +163,14 @@ require("lazy").setup({
     { 'hrsh7th/cmp-nvim-lsp', dependencies = { 'hrsh7th/nvim-cmp' } },
     { 'dcampos/nvim-snippy' },
     { 'rafamadriz/friendly-snippets' },
-    { 'folke/neodev.nvim' },
+    { 'folke/neodev.nvim', config = true },
     {
         'ThePrimeagen/refactoring.nvim',
         dependencies = {
             "nvim-lua/plenary.nvim",
             "nvim-treesitter/nvim-treesitter",
         },
-        opts = {},
+        config = true,
     },
     { 'hrsh7th/cmp-buffer', dependencies = { 'hrsh7th/nvim-cmp' } },
     { 'hrsh7th/cmp-path', dependencies = { 'hrsh7th/nvim-cmp' } },
