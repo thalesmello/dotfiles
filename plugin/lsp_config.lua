@@ -9,39 +9,50 @@ vim.keymap.set('n', '[g', '<cmd>lua vim.diagnostic.goto_prev()<cr>')
 vim.keymap.set('n', ']g', '<cmd>lua vim.diagnostic.goto_next()<cr>')
 
 vim.api.nvim_create_autocmd('LspAttach', {
-  desc = 'LSP actions',
-  callback = function(event)
-    local opts = {buffer = event.buf}
+    desc = 'LSP actions',
+    callback = function(event)
+        local opts = { buffer = event.buf }
+        local client = vim.lsp.get_client_by_id(event.data.client_id)
 
-    -- these will be buffer-local keybindings
-    -- because they only work if you have an active language server
+        -- these will be buffer-local keybindings
+        -- because they only work if you have an active language server
+        if client == nil then
+            return
+        end
 
-    vim.keymap.set('n', 'K', '<cmd>lua vim.lsp.buf.hover()<cr>', opts)
-    vim.keymap.set('n', 'gd', '<cmd>lua vim.lsp.buf.definition()<cr>', opts)
-    vim.keymap.set('n', 'gD', '<cmd>lua vim.lsp.buf.declaration()<cr>', opts)
-    vim.keymap.set('n', 'gi', '<cmd>lua vim.lsp.buf.implementation()<cr>', opts)
-    vim.keymap.set('n', 'go', '<cmd>lua vim.lsp.buf.type_definition()<cr>', opts)
-    vim.keymap.set('n', 'gr', '<cmd>lua vim.lsp.buf.references()<cr>', opts)
-    vim.keymap.set('n', 'gK', '<cmd>lua vim.lsp.buf.signature_help()<cr>', opts)
-    vim.keymap.set('n', 'gr', '<cmd>lua vim.lsp.buf.rename()<cr>', opts)
-    vim.keymap.set({'n', 'x'}, 'g%', '<cmd>lua vim.lsp.buf.format({async = true})<cr>', opts)
-    vim.keymap.set('n', '<leader>.', '<cmd>lua vim.lsp.buf.code_action()<cr>', opts)
-  end
+        local capabilities = client.server_capabilities
+
+        local  mapCapability = function(cond, mode, key, cmd)
+            if cond then
+                vim.keymap.set(mode, key, cmd, opts)
+            end
+        end
+
+        mapCapability(capabilities.hoverProvider, 'n', 'K', '<cmd>lua vim.lsp.buf.hover()<cr>')
+        mapCapability(capabilities.definitionProvider, 'n', 'gd', '<cmd>lua vim.lsp.buf.definition()<cr>')
+        mapCapability(capabilities.declarationProvider, 'n', 'gD', '<cmd>lua vim.lsp.buf.declaration()<cr>')
+        mapCapability(capabilities.implementationProvider, 'n', 'gi', '<cmd>lua vim.lsp.buf.implementation()<cr>')
+        mapCapability(capabilities.typeDefinitionProvider, 'n', 'go', '<cmd>lua vim.lsp.buf.type_definition()<cr>')
+        mapCapability(capabilities.referencesProvider, 'n', 'gr', '<cmd>lua vim.lsp.buf.references()<cr>')
+        mapCapability(capabilities.signatureHelpProvider, 'n', 'gK', '<cmd>lua vim.lsp.buf.signature_help()<cr>')
+        mapCapability(capabilities.renameProvider, 'n', 'gr', '<cmd>lua vim.lsp.buf.rename()<cr>')
+        mapCapability(capabilities.documentFormattingProvider, { 'n', 'x' }, 'g%', '<cmd>lua vim.lsp.buf.format({async = true})<cr>')
+        mapCapability(capabilities.codeActionProvider, 'n', '<leader>.', '<cmd>lua vim.lsp.buf.code_action()<cr>')
+    end
 })
 
 local lsp_capabilities = cmp_lsp.default_capabilities()
 
 local default_setup = function(server)
-  require('lspconfig')[server].setup({
-    capabilities = lsp_capabilities,
-  })
+    require('lspconfig')[server].setup({
+        capabilities = lsp_capabilities,
+    })
 end
 
-
 local has_words_before = function()
-  unpack = unpack or table.unpack
-  local line, col = unpack(vim.api.nvim_win_get_cursor(0))
-  return col ~= 0 and vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]:sub(col, col):match("%s") == nil
+    unpack = unpack or table.unpack
+    local line, col = unpack(vim.api.nvim_win_get_cursor(0))
+    return col ~= 0 and vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]:sub(col, col):match("%s") == nil
 end
 
 require('mason').setup({})
@@ -74,8 +85,9 @@ require('mason-lspconfig').setup({
 
 cmp.setup({
     sources = {
-        {name = 'nvim_lsp'},
-        {name = 'snippy'},
+        { name = 'nvim_lsp' },
+        { name = 'snippy' },
+        { name = 'buffer' },
     },
 
     mapping = cmp.mapping.preset.insert({
@@ -83,6 +95,8 @@ cmp.setup({
         -- ['<tab>'] = cmp.mapping.confirm({select = false}),
 
         -- Ctrl + space triggers completion menu
+        ['<C-u>'] = cmp.mapping.scroll_docs(-4),
+        ['<C-d>'] = cmp.mapping.scroll_docs(4),
         ['<C-Space>'] = cmp.mapping.complete(),
         ["<Tab>"] = cmp.mapping(function(fallback)
             if cmp.visible() then
@@ -102,11 +116,12 @@ cmp.setup({
             elseif snippy.can_jump(-1) then
                 snippy.previous()
             else
-                vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<backspace>', true, false, true), vim.fn.mode(), true)
+                vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<backspace>', true, false, true), vim.fn.mode(),
+                    true)
             end
         end, { "i", "s" }),
 
-        ['<cr>'] = cmp.mapping(function (fallback)
+        ['<cr>'] = cmp.mapping(function(fallback)
             if (not cmp.visible()) or (cmp.visible() and cmp.get_selected_entry() == nil) then
                 vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<c-g>u', true, false, true), vim.fn.mode(), false)
                 fallback()
@@ -122,6 +137,25 @@ cmp.setup({
             snippy.expand_snippet(args.body)
         end,
     },
+})
+
+
+-- `/` cmdline setup.
+cmp.setup.cmdline('/', {
+    mapping = cmp.mapping.preset.cmdline(),
+    sources = {
+        { name = 'buffer' },
+    }
+})
+
+-- `:` cmdline setup.
+cmp.setup.cmdline(':', {
+    mapping = cmp.mapping.preset.cmdline(),
+    sources = cmp.config.sources({
+        { name = 'path' }
+    }, {
+        { name = 'cmdline' },
+    })
 })
 
 vim.keymap.set({ 'i', 's' }, '<c-l>', function()
@@ -140,7 +174,7 @@ vim.keymap.set({ 'i', 's' }, '<c-h>', function()
     end
 end, { expr = true })
 
-vim.keymap.set('x', '<Tab>', function ()
+vim.keymap.set('x', '<Tab>', function()
     -- '<plug>(snippy-cut-text)'
     snippy.cut_text(vim.fn.mode(), true)
 end)

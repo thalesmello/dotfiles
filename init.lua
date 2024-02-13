@@ -171,5 +171,8 @@ require("lazy").setup({
             "nvim-treesitter/nvim-treesitter",
         },
         opts = {},
-    }
+    },
+    { 'hrsh7th/cmp-buffer', dependencies = { 'hrsh7th/nvim-cmp' } },
+    { 'hrsh7th/cmp-path', dependencies = { 'hrsh7th/nvim-cmp' } },
+    { 'hrsh7th/cmp-cmdline', dependencies = { 'hrsh7th/nvim-cmp' } },
 })
