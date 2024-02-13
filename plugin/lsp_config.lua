@@ -106,14 +106,16 @@ cmp.setup({
             end
         end, { "i", "s" }),
 
-        -- ['<cr>'] = cmp.mapping(function ()
-        --     if cmp.visible() and vim.fn.complete_info()["selected"] == -1 then
-        --         vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<c-g>u<cr>', true, false, true), vim.fn.mode(), true)
-        --     else
-        --         vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<c-y>', true, false, true), vim.fn.mode(), true)
-        --     end
-        -- end, { "i", "s" })
+        ['<cr>'] = cmp.mapping(function (fallback)
+            if (not cmp.visible()) or (cmp.visible() and cmp.get_selected_entry() == nil) then
+                vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<c-g>u', true, false, true), vim.fn.mode(), false)
+                fallback()
+            else
+                cmp.confirm({ select = false })
+            end
+        end, { "i", "s" })
     }),
+
 
     snippet = {
         expand = function(args)
