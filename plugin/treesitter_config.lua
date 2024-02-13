@@ -9,9 +9,11 @@ require'nvim-treesitter.configs'.setup {
 
 
    highlight = {
-      enable = false,
+      enable = true,
       additional_vim_regex_highlighting = false,
    },
+
+   auto_install = true,
 
    incremental_selection = {
       enable = true,

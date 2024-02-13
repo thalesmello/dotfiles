@@ -11,14 +11,14 @@ vim.g.my_colorscheme = "apprentice"
 
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not vim.loop.fs_stat(lazypath) then
-  vim.fn.system({
-    "git",
-    "clone",
-    "--filter=blob:none",
-    "https://github.com/folke/lazy.nvim.git",
-    "--branch=stable", -- latest stable release
-    lazypath,
-  })
+    vim.fn.system({
+        "git",
+        "clone",
+        "--filter=blob:none",
+        "https://github.com/folke/lazy.nvim.git",
+        "--branch=stable", -- latest stable release
+        lazypath,
+    })
 end
 vim.opt.rtp:prepend(lazypath)
 
@@ -70,11 +70,11 @@ require("lazy").setup({
     { 'thalesmello/python-support.nvim' },
 
     -- Coc.nvim,
-    { 'neoclide/coc.nvim', branch = 'release'  },
-    { 'Shougo/neco-vim' },
-    { 'neoclide/coc-neco' },
-    { 'wellle/tmux-complete.vim' },
-    { 'thalesmello/webcomplete.vim', cond = vim.fn.has('macunix' ) },
+    -- { 'neoclide/coc.nvim', branch = 'release'  },
+    -- { 'Shougo/neco-vim' },
+    -- { 'neoclide/coc-neco' },
+    -- { 'wellle/tmux-complete.vim' },
+    -- { 'thalesmello/webcomplete.vim', cond = vim.fn.has('macunix' ) },
     { 'liuchengxu/vista.vim' },
 
     -- Python dependencies,
@@ -88,7 +88,9 @@ require("lazy").setup({
     { 'Julian/vim-textobj-variable-segment' , dependencies = {'textobj'} },
     { 'kana/vim-textobj-entire' , dependencies = {'textobj'} },
     { 'thalesmello/vim-textobj-bracketchunk' , dependencies = {'textobj'} },
-    { 'wellle/targets.vim' , dependencies = {'textobj'} },
+    { 'wellle/targets.vim' , dependencies = {'textobj'}, config = function ()
+        vim.g.targets_seekRanges = 'cc cr cb cB lc ac Ac lr lb ar ab lB Ar aB Ab AB rr ll rb al rB Al bb aa bB Aa BB AA'
+    end },
     { 'ggandor/leap-spooky.nvim' },
 
     { 'kana/vim-textobj-function' , dependencies = {'textobj'} },
@@ -147,4 +149,27 @@ require("lazy").setup({
     { 'ivanovyordan/dbt.vim' },
 
     { 'cohama/lexima.vim' },
+
+    { 'neovim/nvim-lspconfig', dependencies = { 'folke/neodev.nvim' } },
+    { 'williamboman/mason.nvim' },
+    {
+        'williamboman/mason-lspconfig.nvim',
+        dependencies = {
+            'neovim/nvim-lspconfig',
+            'williamboman/mason.nvim'
+        },
+    },
+    { 'hrsh7th/nvim-cmp' },
+    { 'hrsh7th/cmp-nvim-lsp', dependencies = { 'hrsh7th/nvim-cmp' } },
+    { 'dcampos/nvim-snippy' },
+    { 'rafamadriz/friendly-snippets' },
+    { 'folke/neodev.nvim' },
+    {
+        'ThePrimeagen/refactoring.nvim',
+        dependencies = {
+            "nvim-lua/plenary.nvim",
+            "nvim-treesitter/nvim-treesitter",
+        },
+        opts = {},
+    }
 })
