@@ -7,3 +7,6 @@ Plug 'machakann/vim-highlightedyank'
 
 set ideajoin
 set visualbell
+
+nmap <s-left> <nop>
+nmap <s-right> <nop>
