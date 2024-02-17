@@ -69,15 +69,15 @@ local lspconfig = require('lspconfig')
 --     }
 -- end
 
-lspconfig.dbt_ls.setup {
-    init_options = {
-        pythonInfo = {
-            path = "/Users/thales.mello/.local/pipx/venvs/dbt-core/bin/python3",
-        },
-        lspMode = "dbtProject",
-        enableSnowflakeSyntaxCheck = false,
-    },
-}
+-- lspconfig.dbt_ls.setup {
+--     init_options = {
+--         pythonInfo = {
+--             path = "/Users/thales.mello/.local/pipx/venvs/dbt-core/bin/python3",
+--         },
+--         lspMode = "dbtProject",
+--         enableSnowflakeSyntaxCheck = false,
+--     },
+-- }
 
 
 local default_setup = function(server)
