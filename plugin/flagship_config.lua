@@ -8,8 +8,8 @@ vim.api.nvim_create_autocmd("User", {
    callback = function ()
       vim.fn.Hoist("buffer", -1, "WebDevIconsGetFileTypeSymbol")
       vim.fn.Hoist("buffer", "StatuslineFugitiveBranch")
-      vim.fn.Hoist("window", "CocStatus")
-      vim.fn.Hoist("window", "CocCurrentFunction")
+      -- vim.fn.Hoist("window", "CocStatus")
+      -- vim.fn.Hoist("window", "CocCurrentFunction")
    end
 })
 

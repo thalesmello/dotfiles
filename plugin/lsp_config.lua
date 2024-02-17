@@ -4,6 +4,8 @@ local cmp = require('cmp')
 local cmp_lsp = require('cmp_nvim_lsp')
 local snippy = require('snippy')
 
+snippy.setup({})
+
 vim.keymap.set('n', 'gl', '<cmd>lua vim.diagnostic.open_float()<cr>')
 vim.keymap.set('n', '[g', '<cmd>lua vim.diagnostic.goto_prev()<cr>')
 vim.keymap.set('n', ']g', '<cmd>lua vim.diagnostic.goto_next()<cr>')

@@ -43,6 +43,8 @@ local function make_dbt_projection(module)
             commentstring = "{open}# %s #{close}",
          },
          type = "model",
+
+         dispatch = "dbt --no-use-colors run -m {basename}",
       },
       ["models/*.yml"] = {
          alternate = {compiled_folder .. "/{}.sql", "models/{}.sql"},

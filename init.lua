@@ -69,10 +69,6 @@ require("lazy").setup({
     { 'machakann/vim-highlightedyank' },
     { 'thalesmello/python-support.nvim' },
 
-    -- Coc.nvim,
-    -- { 'neoclide/coc.nvim', branch = 'release'  },
-    -- { 'Shougo/neco-vim' },
-    -- { 'neoclide/coc-neco' },
     -- { 'wellle/tmux-complete.vim' },
     -- { 'thalesmello/webcomplete.vim', cond = vim.fn.has('macunix' ) },
     { 'liuchengxu/vista.vim' },
@@ -162,6 +158,7 @@ require("lazy").setup({
     { 'hrsh7th/nvim-cmp' },
     { 'hrsh7th/cmp-nvim-lsp', dependencies = { 'hrsh7th/nvim-cmp' } },
     { 'dcampos/nvim-snippy' },
+    { 'dcampos/cmp-snippy', dependencies = { 'dcampos/nvim-snippy' } },
     { 'rafamadriz/friendly-snippets' },
     { 'folke/neodev.nvim', config = true },
     {
