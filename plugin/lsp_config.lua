@@ -216,3 +216,9 @@ vim.keymap.set('x', '<Tab>', function()
     snippy.cut_text(vim.fn.mode(), true)
 end)
 -- map( 'n', 'g<Tab>', '<plug>(snippy-cut-text)')
+
+require("lsp_signature").setup({
+  hint_enable = false,
+  handler_opts = { border = "single" },
+  max_width = 80,
+})

@@ -17,7 +17,7 @@ vim.g.projectionist_heuristics = {
 
 
       ["plugin/*.lua"] = {
-         type = "config",
+         type = "configlua",
       }
    },
    ["dags/*"] = {

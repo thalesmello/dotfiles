@@ -172,4 +172,16 @@ require("lazy").setup({
     { 'hrsh7th/cmp-buffer', dependencies = { 'hrsh7th/nvim-cmp' } },
     { 'hrsh7th/cmp-path', dependencies = { 'hrsh7th/nvim-cmp' } },
     { 'hrsh7th/cmp-cmdline', dependencies = { 'hrsh7th/nvim-cmp' } },
+    { 'winston0410/range-highlight.nvim', dependencies = { 'winston0410/cmd-parser.nvim' }, config = true },
+    { 'xiyaowong/nvim-cursorword' },
+    { "ray-x/lsp_signature.nvim" },
+    {
+        'nvim-treesitter/nvim-treesitter-textobjects',
+        dependencies = { "nvim-treesitter/nvim-treesitter" }
+    },
+    {
+        'nvim-treesitter/nvim-treesitter-context',
+        dependencies = { "nvim-treesitter/nvim-treesitter" }
+    },
 })
+
