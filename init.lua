@@ -22,8 +22,12 @@ if not vim.loop.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
+
+
+---@type string
+local config_dir = tostring(vim.fn.stdpath('config'))
 require("lazy").setup({
-    { dir = vim.fn.stdpath('config'), name = "local_config", priority = 100 },
+    { dir = config_dir, name = "local_config", priority = 100 },
     { 'tpope/vim-commentary' },
     { 'tpope/vim-flagship' },
     { 'kana/vim-textobj-user', name = 'textobj' },
@@ -183,5 +187,11 @@ require("lazy").setup({
         'nvim-treesitter/nvim-treesitter-context',
         dependencies = { "nvim-treesitter/nvim-treesitter" }
     },
+    { 'folke/which-key.nvim', opts = {} },
+    {
+        "folke/trouble.nvim",
+        dependencies = { "nvim-tree/nvim-web-devicons" },
+        opts = {},
+    }
 })
 

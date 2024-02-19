@@ -80,8 +80,14 @@ vim.api.nvim_create_autocmd("User", {
    group = au_group,
    callback = function ()
       local root = vim.fn.getcwd()
+      if root == nil then
+         return
+      end
       if vim.fn.filereadable(root .. "/dbt_project.yml") ~= 0 then
          local basename = vim.fs.basename(root)
+         if basename == nil then
+            return ""
+         end
          local module = vim.fn.substitute(basename, "-", "_", "g")
 
          local projection = make_dbt_projection(module)
