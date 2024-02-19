@@ -92,7 +92,19 @@ end, { noremap = true, expr = true })
 
 vim.keymap.set("n", "<leader>er", function ()
   local x = vim.fn.nr2char(vim.fn.getchar())
-  vim.fn.feedkeys(':lua vim.fn.setreg("' .. x .. '", [=[' .. x .. "]=])", 'm')
+
+  vim.api.nvim_create_autocmd("CmdlineEnter", {
+    pattern = "*",
+    callback = function ()
+      --- @type string
+      local str = 'lua vim.fn.setreg("' .. x .. '", [=[' .. vim.fn.getreg(x) .. "]=])"
+      local _, end_idx = str:find('[=[', 1, true)
+      vim.fn.setcmdline(str, end_idx + 1)
+    end,
+    once = true,
+  })
+
+  vim.fn.feedkeys(':', 'n')
 end)
 
 vim.keymap.set("n", "<bs>", ":nohlsearch<cr>:pclose<cr>:diffoff<cr>", { noremap = true })

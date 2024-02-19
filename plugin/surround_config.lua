@@ -10,8 +10,8 @@ require("nvim-surround").setup({
   -- surrounds =     -- Defines surround keys and behavior
   -- aliases =       -- Defines aliases
   -- highlight =     -- Defines highlight behavior
-  move_cursor = false
-  -- indent_lines =  -- Defines line indentation behavior
+  move_cursor = false,
+  -- indent_lines =  -- Defines line indentation behavior,
 })
 
 local group = vim.api.nvim_create_augroup("NvimSurroungAutogroup", {
