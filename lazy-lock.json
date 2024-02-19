@@ -42,6 +42,7 @@
   "range-highlight.nvim": { "branch": "master", "commit": "8b5e8ccb3460b2c3675f4639b9f54e64eaab36d9" },
   "refactoring.nvim": { "branch": "master", "commit": "fb4990a0546c59136930ea624b8640d07957f281" },
   "splitjoin.vim": { "branch": "main", "commit": "b2043d713154d2c61495d061197327823a769f84" },
+  "ssr.nvim": { "branch": "main", "commit": "bb323ba621ac647b4ac5638b47666e3ef3c279e1" },
   "tabfold": { "branch": "master", "commit": "46f8b4d72a64ba18fc61e5c11cb60924744c1f21" },
   "tabmessage.vim": { "branch": "master", "commit": "120b1ae7942a6349111b9fdaa9a7d71e69c29453" },
   "targets.vim": { "branch": "master", "commit": "642d3a4ce306264b05ea3219920b13ea80931767" },
