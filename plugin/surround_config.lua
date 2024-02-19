@@ -47,3 +47,18 @@ vim.api.nvim_create_autocmd({ 'FileType' }, {
 })
 
 
+vim.api.nvim_create_autocmd({ 'FileType' }, {
+  group = group,
+  pattern = "lua",
+  callback = function()
+    require("nvim-surround").buffer_setup({
+      surrounds = {
+        ["q"] = {
+          add = {"[[", "]]"},
+          find = "[[.-]]",
+          delete = "^([[%s*)().-(%s*}})()$",
+        },
+      }
+    })
+  end,
+})

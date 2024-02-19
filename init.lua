@@ -192,6 +192,16 @@ require("lazy").setup({
         "folke/trouble.nvim",
         dependencies = { "nvim-tree/nvim-web-devicons" },
         opts = {},
-    }
+    },
+    { "lukas-reineke/indent-blankline.nvim", main = "ibl", opts = {
+        scope = {
+            enabled = true,
+            show_start = true,
+            show_end = true,
+            injected_languages = true,
+            -- highlight = { "Function", "Label" },
+            priority = 500,
+        }
+    } }
 })
 
