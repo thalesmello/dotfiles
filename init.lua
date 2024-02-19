@@ -196,17 +196,17 @@ require("lazy").setup({
     { "lukas-reineke/indent-blankline.nvim", main = "ibl", opts = {
         scope = {
             enabled = true,
-            show_start = true,
-            show_end = true,
+            show_start = false,
+            show_end = false,
             injected_languages = true,
-            -- highlight = { "Function", "Label" },
+            highlight = { "Function", "Label" },
             priority = 500,
         }
     } },
     {
 
         "cshuaimin/ssr.nvim",
-        module = "ssr",
+        main = "ssr",
         -- Calling setup is optional.
         config = function()
             require("ssr").setup {
