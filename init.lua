@@ -141,10 +141,19 @@ require("lazy").setup({
         'nvim-treesitter/nvim-treesitter',
         build = function ()
             vim.cmd('TSUpdate')
+        end,
+        dependencies = {
+            'nvim-treesitter/nvim-treesitter-textobjects',
+            'nvim-treesitter/nvim-treesitter-context',
+        },
+        config = function ()
+            require('treesitter_config')
         end
 
     },
-    { 'Wansmer/treesj' },
+    { 'Wansmer/treesj', dependencies = {
+        'nvim-treesitter/nvim-treesitter',
+    }},
     { 'shumphrey/fugitive-gitlab.vim' },
     { 'ivanovyordan/dbt.vim' },
 
@@ -179,14 +188,6 @@ require("lazy").setup({
     { 'winston0410/range-highlight.nvim', dependencies = { 'winston0410/cmd-parser.nvim' }, config = true },
     { 'xiyaowong/nvim-cursorword' },
     { "ray-x/lsp_signature.nvim" },
-    {
-        'nvim-treesitter/nvim-treesitter-textobjects',
-        dependencies = { "nvim-treesitter/nvim-treesitter" }
-    },
-    {
-        'nvim-treesitter/nvim-treesitter-context',
-        dependencies = { "nvim-treesitter/nvim-treesitter" }
-    },
     { 'folke/which-key.nvim', opts = {} },
     {
         "folke/trouble.nvim",
