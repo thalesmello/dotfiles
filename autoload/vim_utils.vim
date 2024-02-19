@@ -2,7 +2,7 @@ function! vim_utils#visual_selection()
   let [lnum1, col1] = getpos("'<")[1:2]
   let [lnum2, col2] = getpos("'>")[1:2]
   let lines = getline(lnum1, lnum2)
-  let lines[-1] = lines[-1][: col2 - (&selection == 'inclusive' ? 1 : 2)]
+  let lines[len(lines) - 1] = lines[len(lines) - 1][: col2 - (&selection == 'inclusive' ? 1 : 2)]
   let lines[0] = lines[0][col1 - 1:]
   return join(lines, "\n")
 endfunction
@@ -16,12 +16,4 @@ function! vim_utils#visual_command() range
   let cmd = input('Pipe: ', '', 'shellcmd')
   let @v = vim_utils#chomp(system(cmd, text))
   execute 'normal! gv"vp'
-endfunction
-
-function! vim_utils#invert_sql()
-  normal! vi}
-  silent! '<,'>s/GRANT/REVOKE/gi
-  silent! '<,'>s/CREATE/DROP/ig
-  silent! '<,'>s/TO/FROM/gi
-  normal! `<
 endfunction

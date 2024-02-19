@@ -1,0 +1,9 @@
+vim.g.skip_default_textobj_word_column_mappings = 1
+vim.keymap.set("x", 'ak', ':<C-u>call TextObjWordBasedColumn("aw")<cr>', { noremap = true })
+vim.keymap.set("x", 'aK', ':<C-u>call TextObjWordBasedColumn("aW")<cr>', { noremap = true })
+vim.keymap.set("x", 'ik', ':<C-u>call TextObjWordBasedColumn("iw")<cr>', { noremap = true })
+vim.keymap.set("x", 'iK', ':<C-u>call TextObjWordBasedColumn("iW")<cr>', { noremap = true })
+vim.keymap.set("o", 'ak', ':call TextObjWordBasedColumn("aw")<cr>', { noremap = true })
+vim.keymap.set("o", 'aK', ':call TextObjWordBasedColumn("aW")<cr>', { noremap = true })
+vim.keymap.set("o", 'ik', ':call TextObjWordBasedColumn("iw")<cr>', { noremap = true })
+vim.keymap.set("o", 'iK', ':call TextObjWordBasedColumn("iW")<cr>', { noremap = true })

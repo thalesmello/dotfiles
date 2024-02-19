@@ -55,8 +55,8 @@ vim.api.nvim_create_autocmd({ 'FileType' }, {
       surrounds = {
         ["q"] = {
           add = {"[[", "]]"},
-          find = "[[.-]]",
-          delete = "^([[%s*)().-(%s*}})()$",
+          find = "%[%[.-]]",
+          delete = "^(%[%[%s*)().-(%s*]])()$",
         },
       }
     })

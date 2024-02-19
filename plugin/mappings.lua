@@ -33,10 +33,10 @@ vim.keymap.set("n", "<leader>sf", "<cmd>syntax sync fromstart<cr>", { noremap = 
 
 -- Smart lookup for command line
 vim.keymap.set("c", "<c-n>", function ()
-  return vim.fn.pumvisible() and "<c-n>" or "<down>"
+  return vim.fn.pumvisible() ~= 0 and "<c-n>" or "<down>"
 end, { noremap = true, expr = true })
 vim.keymap.set("c", "<c-p>", function ()
-  return vim.fn.pumvisible() and "<c-p>" or "<up>"
+  return vim.fn.pumvisible() ~= 0 and "<c-p>" or "<up>"
 end, { noremap = true, expr = true })
 
 -- The snippet below tries to intelligently split a string and append a concat
@@ -85,10 +85,10 @@ vim.keymap.set({"n", "v", "o"}, "][", "<cmd>keeppatterns normal /}<c-v><CR>b99]}
 vim.keymap.set({"n", "v", "o"}, "]]", "<cmd>keeppatterns normal j0[[%/{<c-v><cr><CR>", { silent = true })
 vim.keymap.set({"n", "v", "o"}, "[]", "<cmd>keeppatterns normal k$][%?}<c-v><cr><CR>", { silent = true })
 
-vim.keymap.set({"v"}, ":", "<esc>gv<Plug>SwapVisualCursor")
+vim.keymap.set({"v"}, ":", "<esc>gv<Plug>SwapVisualCursor", { remap = true })
 vim.keymap.set({"v"}, "<Plug>SwapVisualCursor", function ()
   return vim.fn.line(".") == vim.fn.line("'<") and ":" or "o:"
-end, { noremap = true })
+end, { noremap = true, expr = true })
 
 vim.keymap.set("n", "<leader>er", function ()
   local x = vim.fn.nr2char(vim.fn.getchar())

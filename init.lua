@@ -157,8 +157,6 @@ require("lazy").setup({
     { 'shumphrey/fugitive-gitlab.vim' },
     { 'ivanovyordan/dbt.vim' },
 
-    { 'cohama/lexima.vim' },
-
     { 'neovim/nvim-lspconfig', dependencies = { 'folke/neodev.nvim' } },
     { 'williamboman/mason.nvim' },
     {
