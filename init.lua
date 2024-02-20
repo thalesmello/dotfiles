@@ -29,9 +29,6 @@ require("lazy").setup({
     { 'tpope/vim-flagship', config = function()
         require('config/flagship_config')
     end},
-    { 'kana/vim-textobj-user', name = 'textobj', config = function()
-        require('config/textobject_config')
-    end},
     { 'ryanoasis/vim-devicons' },
     { 'romainl/Apprentice' },
     { 'tpope/vim-scriptease' },
@@ -122,29 +119,37 @@ require("lazy").setup({
     end },
 
     -- Text objects,
-    { 'michaeljsmith/vim-indent-object', dependencies = {'textobj'} },
-    { 'coderifous/textobj-word-column.vim' ,
-        dependencies = {'textobj'},
-        config = function()
-        require('config/textobjectcolumn_config')
-    end},
-    { 'thalesmello/vim-textobj-methodcall' , dependencies = {'textobj'} },
-    { 'glts/vim-textobj-comment' , dependencies = {'textobj'} },
-    { 'Julian/vim-textobj-variable-segment' , dependencies = {'textobj'} },
-    { 'kana/vim-textobj-entire' , dependencies = {'textobj'} },
-    { 'thalesmello/vim-textobj-bracketchunk' , dependencies = {'textobj'} },
-    { 'wellle/targets.vim' , dependencies = {'textobj'}, config = function ()
-        vim.g.targets_seekRanges = 'cc cr cb cB lc ac Ac lr lb ar ab lB Ar aB Ab AB rr ll rb al rB Al bb aa bB Aa BB AA'
-    end },
+    {
+        'kana/vim-textobj-user',
+        name = 'textobj',
+        dependencies = {
+            { 'michaeljsmith/vim-indent-object' },
+            { 'thalesmello/vim-textobj-methodcall' },
+            { 'glts/vim-textobj-comment' },
+            { 'Julian/vim-textobj-variable-segment' },
+            { 'kana/vim-textobj-entire' },
+            { 'thalesmello/vim-textobj-bracketchunk' },
+            { 'kana/vim-textobj-function' },
+            { 'rhysd/vim-textobj-ruby' },
+            { 'bps/vim-textobj-python' },
+            { 'haya14busa/vim-textobj-function-syntax' },
+            { 'thinca/vim-textobj-function-javascript' },
+            { 'thalesmello/vim-textobj-multiline-str' },
+        },
+        config = function() require('config/textobject_config') end,
+    },
+
+    { 'coderifous/textobj-word-column.vim' , config = function() require('config/textobjectcolumn_config') end},
+
+    {
+        'wellle/targets.vim',
+        config = function ()
+            vim.g.targets_seekRanges = 'cc cr cb cB lc ac Ac lr lb ar ab lB Ar aB Ab AB rr ll rb al rB Al bb aa bB Aa BB AA'
+        end,
+    },
+
+
     { 'ggandor/leap-spooky.nvim' },
-
-    { 'kana/vim-textobj-function' , dependencies = {'textobj'} },
-    { 'rhysd/vim-textobj-ruby' , dependencies = {'textobj'} },
-    { 'bps/vim-textobj-python' , dependencies = {'textobj'} },
-    { 'haya14busa/vim-textobj-function-syntax' , dependencies = {'textobj'} },
-    { 'thinca/vim-textobj-function-javascript' , dependencies = {'textobj'} },
-    { 'thalesmello/vim-textobj-multiline-str' , dependencies = {'textobj'} },
-
 
     { 'tpope/vim-dispatch', config = function()
         require('config/dispatch_config')
