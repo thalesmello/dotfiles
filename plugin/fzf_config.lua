@@ -1,3 +1,14 @@
+local vim_utils = require('vim_utils')
+
+local function visual_ag(word_boundary)
+    local selection = vim_utils.get_visual_selection()
+    if word_boundary then
+        vim.cmd.Ag('\\b' .. selection .. '\\b')
+    else
+        vim.cmd.Ag(selection)
+    end
+end
+
 vim.g.fzf_history_dir = '~/.local/share/fzf-history'
 vim.env.FZF_DEFAULT_COMMAND = 'ag -g ""'
 
@@ -5,8 +16,8 @@ vim.keymap.set("n", "<c-p>", '<cmd>Files<cr>', { noremap = true, silent = true }
 vim.keymap.set("v", "<c-p>", '<cmd>Files<cr>', { noremap = true, silent = true })
 vim.keymap.set("n", "<c-f>", ':<c-u>Ag<space>', { noremap = true })
 vim.keymap.set("n", "<leader>/", function () return '<cmd>Ag \\b' .. vim.fn.expand('<cword>') .. '\\b<cr>' end, { silent = true, expr = true })
-vim.keymap.set("v", "<leader>/", ':<c-u>call fzf_config#visual_ag(0)<cr>', { noremap = true, silent = true })
-vim.keymap.set("v", "<leader>?", ':<c-u>call fzf_config#visual_ag(1)<cr>', { noremap = true, silent = true })
+vim.keymap.set("v", "<leader>/", function () visual_ag(true) end, { noremap = true, silent = true })
+vim.keymap.set("v", "<leader>?", function () visual_ag(false) end, { noremap = true, silent = true })
 vim.keymap.set("n", "<leader>ft", '<cmd>Filetypes<cr>', { noremap = true, silent = true })
 
 function CompleteAg(A)
