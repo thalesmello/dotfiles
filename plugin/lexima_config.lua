@@ -1,5 +1,0 @@
--- vim.fn["lexima#add_rule"]({
---     char = [["]],
---     at = [[".*\%#"]],
---     leave = 1,
--- })

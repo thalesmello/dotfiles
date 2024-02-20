@@ -23,42 +23,67 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 
-
 ---@type string
-local config_dir = tostring(vim.fn.stdpath('config'))
 require("lazy").setup({
-    { dir = config_dir, name = "local_config", priority = 100 },
     { 'tpope/vim-commentary' },
-    { 'tpope/vim-flagship' },
-    { 'kana/vim-textobj-user', name = 'textobj' },
+    { 'tpope/vim-flagship', config = function()
+        require('config/flagship_config')
+    end},
+    { 'kana/vim-textobj-user', name = 'textobj', config = function()
+        require('config/textobject_config')
+    end},
     { 'ryanoasis/vim-devicons' },
     { 'romainl/Apprentice' },
     { 'tpope/vim-scriptease' },
-    { 'tpope/vim-projectionist' },
-    { 'tpope/vim-tbone' },
-    { 'justinmk/vim-dirvish', commit= '2e845b6352ff43b47be2b2725245a4cba3e34da1' },
+    { 'tpope/vim-projectionist', config = function()
+        require('config/projectionist_config')
+    end},
+    { 'tpope/vim-tbone', config = function()
+        require('config/tbone_config')
+    end},
+    { 'justinmk/vim-dirvish',
+        commit= '2e845b6352ff43b47be2b2725245a4cba3e34da1',
+        config = function()
+            require('config/dirvish_config')
+        end},
     { 'tpope/vim-eunuch' },
     { 'thalesmello/tabfold' },
-    { 'tpope/vim-fugitive' },
-    { 'kylechui/nvim-surround' },
+    { 'tpope/vim-fugitive', config = function()
+        require('config/fugitive_config')
+        require('config/fugitive_gitlab_config')
+    end},
+    { 'kylechui/nvim-surround', config = function()
+        require('config/surround_config')
+    end},
     { 'tpope/vim-repeat' },
     { 'tpope/vim-abolish' },
     { 'tweekmonster/local-indent.vim' },
     { 'tpope/vim-sleuth' },
     { 'dag/vim-fish' },
-    { 'airblade/vim-gitgutter' },
+    { 'airblade/vim-gitgutter', config = function()
+        require('config/gitgutter_config')
+    end},
     { 'peterrincker/vim-argumentative' },
-    { 'sheerun/vim-polyglot' },
+    { 'sheerun/vim-polyglot', config = function()
+        require('config/polyglot_config')
+    end},
     { 'tpope/vim-endwise' },
-    { 'ludovicchabant/vim-gutentags' },
+    { 'ludovicchabant/vim-gutentags', config = function()
+        require('config/gutentags_config')
+    end},
     { 'thalesmello/gitignore' },
     { 'tpope/vim-rsi' },
     { 'thalesmello/vim-trailing-whitespace' },
     { 'tpope/vim-unimpaired' },
-    { 'simeji/winresizer' },
+    { 'simeji/winresizer', config = function()
+        require('config/winresizer_config')
+    end},
     { 'honza/vim-snippets' },
-    { 'junegunn/fzf' },
-    { 'junegunn/fzf.vim' },
+    { 'junegunn/fzf.vim',
+        dependencies = { 'junegunn/fzf' },
+        config = function()
+            require('config/fzf_config')
+        end},
     { 'tmux-plugins/vim-tmux-focus-events', tag = 'v1.0.0' },
     { 'ConradIrwin/vim-bracketed-paste' },
     { 'thalesmello/tabmessage.vim' },
@@ -67,22 +92,42 @@ require("lazy").setup({
     { 'farmergreg/vim-lastplace' },
     { 'duggiefresh/vim-easydir' },
     { 'tmux-plugins/vim-tmux' },
-    { 'sainnhe/tmuxline.vim' },
+    { 'sainnhe/tmuxline.vim', config = function()
+        require('config/tmuxline_config')
+    end},
     { 'moll/vim-node' },
-    { 'ggandor/leap.nvim' },
-    { 'machakann/vim-highlightedyank' },
-    { 'thalesmello/python-support.nvim' },
+    { 'ggandor/leap.nvim', config = function()
+        require('config/leap_config')
+    end},
+    { 'machakann/vim-highlightedyank', config = function()
+        require('config/highlightedyank_config')
+    end},
+    { 'thalesmello/python-support.nvim',
+        build = function ()
+            vim.cmd.PythonSupportInitPython3()
+        end,
+        init = function()
+            require('config/python_support_config')
+        end},
 
     -- { 'wellle/tmux-complete.vim' },
     -- { 'thalesmello/webcomplete.vim', cond = vim.fn.has('macunix' ) },
-    { 'liuchengxu/vista.vim' },
+    { 'liuchengxu/vista.vim', config = function()
+        require('config/vista_config')
+    end},
 
     -- Python dependencies,
-    { 'pseewald/vim-anyfold' },
+    { 'pseewald/vim-anyfold', init = function()
+        require('config/devicons_config')
+    end },
 
     -- Text objects,
     { 'michaeljsmith/vim-indent-object', dependencies = {'textobj'} },
-    { 'coderifous/textobj-word-column.vim' , dependencies = {'textobj'} },
+    { 'coderifous/textobj-word-column.vim' ,
+        dependencies = {'textobj'},
+        config = function()
+        require('config/textobjectcolumn_config')
+    end},
     { 'thalesmello/vim-textobj-methodcall' , dependencies = {'textobj'} },
     { 'glts/vim-textobj-comment' , dependencies = {'textobj'} },
     { 'Julian/vim-textobj-variable-segment' , dependencies = {'textobj'} },
@@ -101,7 +146,9 @@ require("lazy").setup({
     { 'thalesmello/vim-textobj-multiline-str' , dependencies = {'textobj'} },
 
 
-    { 'tpope/vim-dispatch' },
+    { 'tpope/vim-dispatch', config = function()
+        require('config/dispatch_config')
+    end},
     { 'tpope/vim-haystack' },
 
 
@@ -109,7 +156,9 @@ require("lazy").setup({
     { 'yssl/QFEnter' },
 
     { 'thalesmello/lkml.vim' },
-    { 'junegunn/vim-easy-align' },
+    { 'junegunn/vim-easy-align', config = function()
+        require('config/easyalign_config')
+    end},
 
     { 'dzeban/vim-log-syntax' },
     { 'alvan/vim-closetag' },
@@ -118,25 +167,37 @@ require("lazy").setup({
     { 'andymass/vim-matchup' },
 
     { 'tpope/vim-jdaddy' },
-    { 'AndrewRadev/undoquit.vim' },
-    { 'AndrewRadev/inline_edit.vim' },
+    { 'AndrewRadev/undoquit.vim', config = function()
+        require('config/undoquit_config')
+    end},
+    { 'AndrewRadev/inline_edit.vim', config = function()
+        require('config/inline_edit_config')
+    end},
     { 'google/vim-jsonnet' },
 
-    { 'hashivim/vim-terraform' },
+    { 'hashivim/vim-terraform', config = function()
+        require('config/terraform_config')
+    end},
 
     { 'glacambre/firenvim',
         build = function ()
             vim.fn['firenvim#install'](0)
-        end
-    },
+        end,
+        config = function()
+            require('config/firenvim_config')
+        end},
 
     { 'AndrewRadev/linediff.vim' },
 
     -- Default restructured text syntax doesn't work well,
     { 'marshallward/vim-restructuredtext' },
-    { 'mattboehm/vim-unstack' },
+    { 'mattboehm/vim-unstack', config = function()
+        require('config/unstack_config')
+    end},
 
-    { 'AndrewRadev/splitjoin.vim' },
+    { 'AndrewRadev/splitjoin.vim', config = function()
+        require('config/splitjoin_config')
+    end},
     {
         'nvim-treesitter/nvim-treesitter',
         build = function ()
@@ -151,9 +212,11 @@ require("lazy").setup({
         end
 
     },
-    { 'Wansmer/treesj', dependencies = {
-        'nvim-treesitter/nvim-treesitter',
-    }},
+    { 'Wansmer/treesj',
+        dependencies = { 'nvim-treesitter/nvim-treesitter' },
+        config = function()
+            require('config/treesj_config')
+        end},
     { 'shumphrey/fugitive-gitlab.vim' },
     { 'ivanovyordan/dbt.vim' },
 
@@ -232,3 +295,12 @@ require("lazy").setup({
     }
 })
 
+require('config/settings')
+require('config/mappings')
+require('config/clipboard_config')
+require('config/jk_jumps_config')
+require('config/neovimterminal_config')
+require('config/quickfix_remove')
+
+
+require('config/lsp_config')
