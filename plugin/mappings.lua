@@ -56,7 +56,7 @@ vim.keymap.set("n", "<leader><leader>", "<c-^>", { noremap = true })
 vim.keymap.set("n", "<leader>o", function ()
     return vim.fn.getpos('.') == vim.fn.getpos("'[") and "`]" or "`["
   end, { noremap = true, expr = true })
-vim.keymap.set("v", "<leader>c*", "*Ncgn")
+vim.keymap.set("x", "<leader>c*", "*Ncgn", { remap=true })
 vim.keymap.set("n", "c*", "*Ncgn")
 vim.keymap.set("n", "Y", "y$", { noremap = true })
 vim.keymap.set("n", "<leader>fw", ":FixWhitespace<cr>", { noremap = true })
