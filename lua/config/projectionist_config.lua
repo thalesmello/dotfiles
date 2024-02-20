@@ -4,20 +4,8 @@ end
 
 vim.g.projectionist_heuristics = {
    ["autoload/&plugin/"] = {
-
-      ["autoload/*.vim"] = {
-         alternate = "plugin/{}.vim",
-         type = "autoload",
-      },
-
-      ["plugin/*.vim"] = {
-         alternate = "autoload/{}.vim",
+      ["lua/config/*.lua"] = {
          type = "config",
-      },
-
-
-      ["plugin/*.lua"] = {
-         type = "configlua",
       }
    },
    ["dags/*"] = {
