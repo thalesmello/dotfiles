@@ -1,8 +1,8 @@
 vim.g.fzf_history_dir = '~/.local/share/fzf-history'
 vim.env.FZF_DEFAULT_COMMAND = 'ag -g ""'
 
-vim.keymap.set("n", "<silent><c-p>", '<cmd>Files<cr>', { noremap = true })
-vim.keymap.set("v", "<silent><c-p>", '<cmd>Files<cr>', { noremap = true })
+vim.keymap.set("n", "<c-p>", '<cmd>Files<cr>', { noremap = true, silent = true })
+vim.keymap.set("v", "<c-p>", '<cmd>Files<cr>', { noremap = true, silent = true })
 vim.keymap.set("n", "<c-f>", ':<c-u>Ag<space>', { noremap = true })
 vim.keymap.set("n", "<leader>/", function () return '<cmd>Ag \\b' .. vim.fn.expand('<cword>') .. '\\b<cr>' end, { silent = true, expr = true })
 vim.keymap.set("v", "<leader>/", ':<c-u>call fzf_config#visual_ag(0)<cr>', { noremap = true, silent = true })
