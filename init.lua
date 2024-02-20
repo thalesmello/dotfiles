@@ -30,7 +30,13 @@ require("lazy").setup({
         require('config/flagship_config')
     end},
     { 'ryanoasis/vim-devicons' },
-    { 'romainl/Apprentice' },
+    { 'romainl/Apprentice',
+        priority = 1000,
+        config = function ()
+            -- Sets the colorscheme for terminal sessions too.
+            vim.opt.background = "dark"
+            vim.cmd.colorscheme("apprentice")
+        end },
     { 'tpope/vim-scriptease' },
     { 'tpope/vim-projectionist', config = function()
         require('config/projectionist_config')
@@ -72,7 +78,7 @@ require("lazy").setup({
     { 'tpope/vim-rsi' },
     { 'thalesmello/vim-trailing-whitespace' },
     { 'tpope/vim-unimpaired' },
-    { 'simeji/winresizer', config = function()
+    { 'simeji/winresizer', init = function()
         require('config/winresizer_config')
     end},
     { 'honza/vim-snippets' },

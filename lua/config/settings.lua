@@ -88,11 +88,6 @@ vim.opt.fillchars:append { vert = "│" }
 
 vim.opt.termguicolors = true
 
--- Sets the colorscheme for terminal sessions too.
-vim.opt.background = "dark"
-
-vim.cmd.colorscheme(vim.g.my_colorscheme)
-
 vim.opt.inccommand = "split"
 
 -- Files open expanded

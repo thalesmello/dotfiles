@@ -137,7 +137,7 @@ cmp.setup({
         ['<C-Space>'] = cmp.mapping.complete(),
         ["<Tab>"] = cmp.mapping(function(fallback)
             if cmp.visible() then
-                cmp.select_next_item()
+                cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
             elseif snippy.can_expand_or_advance() then
                 snippy.expand_or_advance()
             elseif has_words_before() then
@@ -149,7 +149,7 @@ cmp.setup({
 
         ["<S-Tab>"] = cmp.mapping(function()
             if cmp.visible() then
-                cmp.select_prev_item()
+                cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
             elseif snippy.can_jump(-1) then
                 snippy.previous()
             else
@@ -174,6 +174,10 @@ cmp.setup({
             snippy.expand_snippet(args.body)
         end,
     },
+
+    view = {
+        entries = "native",
+    }
 })
 
 
@@ -182,6 +186,9 @@ cmp.setup.cmdline('/', {
     mapping = cmp.mapping.preset.cmdline(),
     sources = {
         { name = 'buffer' },
+    },
+    view = {
+        entries = "custom",
     }
 })
 
@@ -192,7 +199,10 @@ cmp.setup.cmdline(':', {
         { name = 'path' }
     }, {
         { name = 'cmdline' },
-    })
+    }),
+    view = {
+        entries = "custom",
+    }
 })
 
 vim.keymap.set({ 'i', 's' }, '<c-l>', function()
