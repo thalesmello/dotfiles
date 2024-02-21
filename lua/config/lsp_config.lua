@@ -182,7 +182,7 @@ cmp.setup({
 
         ["<S-Tab>"] = cmp.mapping(function()
             if cmp.visible() then
-                cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
+                cmp.select_prev_item({ behavior = cmp.SelectBehavior.Select })
             elseif snippy.can_jump(-1) then
                 snippy.previous()
             else

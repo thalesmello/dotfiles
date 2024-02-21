@@ -1,0 +1,105 @@
+snippet desc "Describe block" b
+    describe('${1:description}', function () {
+        ${VISUAL}${0}
+    })
+
+snippet it "It assertion block" b
+    it('${1:it does...}', function () {
+        ${VISUAL}${0}
+    })
+
+snippet before "Before test block" b
+    before(Promise.coroutine(function * () {
+        ${VISUAL}${0}
+    }))
+
+snippet af "Anonymous function" i
+    function ($1) {${2: return ${3:$1} }$0}
+
+snippet fun "Function syntax" b
+    function ${1:function_name} (${2:arguments}) {
+        ${3:${VISUAL}}$0
+    }
+
+snippet afun "Function syntax" b
+    async function ${1:function_name} (${2:arguments}) {
+        ${3:${VISUAL}}$0
+    }
+
+snippet evalblock "Evaluation block" b
+    (function () {
+        ${VISUAL}$0
+    })();
+
+snippet iferr "Basic error handling" b
+    if (err) throw err
+
+snippet log "console.log(...)" i
+    console.log($0)
+
+snippet logv "console.log(...)" i
+    console.log('${1:${VISUAL:variable}}', JSON.stringify($1, null, 2))$0
+
+snippet json "JSON stringify" i
+    JSON.stringify(${1:${VISUAL}}, null, 2)$0
+
+snippet get "Create a getter" b
+    get ${1:property} () {
+        return $0
+    },
+
+snippet co "Bluebird coroutine"
+    Promise.coroutine(function * (${1}) {
+        ${0:// Body...}
+    })
+
+snippet each "Foreach"
+    for (const ${2:value} of ${1:iterable}) {
+        $0
+    }
+
+snippet try "Try catch" b
+    try {
+        ${VISUAL}$1
+    } catch (${2:err}) {
+        $3
+    }$0
+
+snippet / "Include types using comments" i
+    /* :${VISUAL}$1*/$0
+
+snippet flow "Include flow comment" b
+    // @flow$0
+
+snippet type "Type wrap" b
+    /* ::
+    ${VISUAL}$0
+    */
+
+snippet q "Expand query" b
+    await redshift.query(\`
+            ${VISUAL}$0
+    \`)
+
+snippet m "Adds a method" b
+    ${1:name} (${2:params}) {
+            ${VISUAL}$0
+    }
+
+snippet am "Adds a method" b
+    async ${1:name} (${2:params}) {
+            ${VISUAL}$0
+    }
+
+snippet af "Async lambda" i
+    async (${1:params}) => $0
+
+snippet ls "lambda expression"	i
+    (${1:params}) => {
+            ${VISUAL}$0
+    }
+
+snippet gen "Function generator" i
+    function *$1 (${2:args}) {
+            ${VISUAL}$0
+    }
