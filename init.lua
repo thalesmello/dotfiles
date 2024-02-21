@@ -29,7 +29,9 @@ require("lazy").setup({
     { 'tpope/vim-flagship', config = function()
         require('config/flagship_config')
     end},
-    { 'ryanoasis/vim-devicons' },
+    { 'ryanoasis/vim-devicons', config = function ()
+        require('config/devicons_config')
+    end },
     { 'romainl/Apprentice',
         priority = 1000,
         config = function ()
@@ -67,11 +69,17 @@ require("lazy").setup({
         require('config/gitgutter_config')
     end},
     { 'peterrincker/vim-argumentative' },
-    { 'sheerun/vim-polyglot', config = function()
+    { 'sheerun/vim-polyglot', init = function()
         require('config/polyglot_config')
     end},
-    { 'tpope/vim-endwise' },
-    { 'ludovicchabant/vim-gutentags', config = function()
+    {
+        'tpope/vim-endwise',
+        dependencies = {
+            -- Run autopairs before endwise so both of them work get to hook <cr> in insert mode
+            {"windwp/nvim-autopairs", opts = {}}
+        }
+    },
+    { 'ludovicchabant/vim-gutentags', init = function()
         require('config/gutentags_config')
     end},
     { 'thalesmello/gitignore' },
@@ -115,13 +123,13 @@ require("lazy").setup({
 
     -- { 'wellle/tmux-complete.vim' },
     -- { 'thalesmello/webcomplete.vim', cond = vim.fn.has('macunix' ) },
-    { 'liuchengxu/vista.vim', config = function()
+    { 'liuchengxu/vista.vim', init = function()
         require('config/vista_config')
     end},
 
     -- Python dependencies,
     { 'pseewald/vim-anyfold', init = function()
-        require('config/devicons_config')
+        require('config/anyfold_config')
     end },
 
     -- Text objects,
@@ -145,7 +153,10 @@ require("lazy").setup({
         config = function() require('config/textobject_config') end,
     },
 
-    { 'coderifous/textobj-word-column.vim' , config = function() require('config/textobjectcolumn_config') end},
+    {
+        'coderifous/textobj-word-column.vim',
+        init = function() require('config/textobjectcolumn_config') end,
+    },
 
     {
         'wellle/targets.vim',
@@ -157,9 +168,12 @@ require("lazy").setup({
 
     { 'ggandor/leap-spooky.nvim' },
 
-    { 'tpope/vim-dispatch', config = function()
-        require('config/dispatch_config')
-    end},
+    {
+        'tpope/vim-dispatch',
+        config = function()
+            require('config/dispatch_config')
+        end,
+    },
     { 'tpope/vim-haystack' },
 
 
@@ -303,7 +317,7 @@ require("lazy").setup({
             end, { desc = "[S]tructural [R]eplace" })
         end
 
-    }
+    },
 })
 
 require('config/settings')

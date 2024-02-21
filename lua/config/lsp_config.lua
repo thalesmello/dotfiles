@@ -3,6 +3,7 @@
 local cmp = require('cmp')
 local cmp_lsp = require('cmp_nvim_lsp')
 local snippy = require('snippy')
+local vim_utils = require('vim_utils')
 
 snippy.setup({})
 
@@ -10,8 +11,12 @@ vim.keymap.set('n', 'gl', '<cmd>lua vim.diagnostic.open_float()<cr>')
 vim.keymap.set('n', '[g', '<cmd>lua vim.diagnostic.goto_prev()<cr>')
 vim.keymap.set('n', ']g', '<cmd>lua vim.diagnostic.goto_next()<cr>')
 
+
+local group = vim.api.nvim_create_augroup("LspAuGroup", { clear = true})
+
 vim.api.nvim_create_autocmd('LspAttach', {
     desc = 'LSP actions',
+    group = group,
     callback = function(event)
         local opts = { buffer = event.buf }
         local client = vim.lsp.get_client_by_id(event.data.client_id)
@@ -120,6 +125,34 @@ require('mason-lspconfig').setup({
     },
 })
 
+local kind_icons = {
+  Text = "",
+  Method = "󰆧",
+  Function = "󰊕",
+  Constructor = "",
+  Field = "󰇽",
+  Variable = "󰂡",
+  Class = "󰠱",
+  Interface = "",
+  Module = "",
+  Property = "󰜢",
+  Unit = "",
+  Value = "󰎠",
+  Enum = "",
+  Keyword = "󰌋",
+  Snippet = "",
+  Color = "󰏘",
+  File = "󰈙",
+  Reference = "",
+  Folder = "󰉋",
+  EnumMember = "",
+  Constant = "󰏿",
+  Struct = "",
+  Event = "",
+  Operator = "󰆕",
+  TypeParameter = "󰅲",
+}
+
 cmp.setup({
     sources = {
         { name = 'nvim_lsp' },
@@ -153,21 +186,19 @@ cmp.setup({
             elseif snippy.can_jump(-1) then
                 snippy.previous()
             else
-                vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<backspace>', true, false, true), vim.fn.mode(),
-                    true)
+                vim_utils.feedkeys('<backspace>')
             end
         end, { "i", "s" }),
 
         ['<cr>'] = cmp.mapping(function(fallback)
             if (not cmp.visible()) or (cmp.visible() and cmp.get_selected_entry() == nil) then
-                vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<c-g>u', true, false, true), vim.fn.mode(), false)
+                vim_utils.feedkeys('<c-g>u')
                 fallback()
             else
                 cmp.confirm({ select = false })
             end
         end, { "i", "s" })
     }),
-
 
     snippet = {
         expand = function(args)
@@ -177,9 +208,16 @@ cmp.setup({
 
     view = {
         entries = "native",
-    }
-})
+    },
 
+    formatting = {
+        format = function(entry, vim_item)
+            vim_item.kind = string.format('%s %s', kind_icons[vim_item.kind], vim_item.kind) -- This concatenates the icons with the name of the item kind
+            vim_item.menu = string.format("[%s]", entry.source.name)
+            return vim_item
+        end
+    },
+})
 
 -- `/` cmdline setup.
 cmp.setup.cmdline('/', {
@@ -232,3 +270,4 @@ require("lsp_signature").setup({
   handler_opts = { border = "single" },
   max_width = 80,
 })
+

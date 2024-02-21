@@ -1,3 +1,4 @@
+local vim_utils = require "vim_utils"
 local function smart_jump(key)
 	if vim.v.count > 0 then
 		vim.cmd("normal! " .. vim.v.count1 .. key)
@@ -10,7 +11,7 @@ local function smart_jump(key)
 			vim.cmd("normal! " .. target .. "G")
 		end
 	else
-		vim.api.nvim_feedkeys("g" .. key, "n", false)
+		vim_utils.feedkeys("g" .. key)
 	end
 end
 

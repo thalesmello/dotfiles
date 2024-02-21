@@ -2,6 +2,14 @@ local function keycodes(str)
     return vim.api.nvim_replace_termcodes(str, true, true, true)
 end
 
+--- @param str string keys to feed into editor
+--- @param mode? 'n'|'m' mode passed to the feedkeys() function call, defaults to 'n'
+local function feedkeys(str, mode)
+    mode = mode or 'n'
+    vim.api.nvim_feedkeys(keycodes(str), 'n', false)
+end
+
+
 local function get_visual_selection()
     vim.cmd.normal({ args = {keycodes("<esc>gv")}, bang = true })
     local line_start, column_start = unpack(vim.fn.getpos("'<"), 2, 3)
@@ -18,4 +26,5 @@ end
 return {
     get_visual_selection = get_visual_selection,
     keycodes = keycodes,
+    feedkeys = feedkeys,
 }
