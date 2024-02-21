@@ -233,7 +233,7 @@ require("lazy").setup({
             'nvim-treesitter/nvim-treesitter-context',
         },
         config = function ()
-            require('treesitter_config')
+            require('config/treesitter_config')
         end
 
     },
