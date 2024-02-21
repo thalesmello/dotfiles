@@ -73,10 +73,18 @@ require("lazy").setup({
         require('config/polyglot')
     end},
     {
+        "windwp/nvim-autopairs",
+        opts = {
+            fast_wrap = {
+                map = '<c-g>g',
+            },
+        },
+    },
+    {
         'tpope/vim-endwise',
         dependencies = {
             -- Run autopairs before endwise so both of them work get to hook <cr> in insert mode
-            {"windwp/nvim-autopairs", opts = {}}
+            {"windwp/nvim-autopairs"}
         }
     },
     { 'ludovicchabant/vim-gutentags', init = function()
