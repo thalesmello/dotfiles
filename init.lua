@@ -256,7 +256,17 @@ require("lazy").setup({
     },
     { 'hrsh7th/nvim-cmp' },
     { 'hrsh7th/cmp-nvim-lsp', dependencies = { 'hrsh7th/nvim-cmp' } },
-    { 'dcampos/nvim-snippy' },
+    { 'dcampos/nvim-snippy', config = function ()
+        local config = vim.fn.stdpath("config")
+        vim.keymap.set("n", "<leader>esp", function ()
+            if vim.fn.expand("%:e") == '' then
+                return
+            end
+
+            vim.cmd.edit(config .. "/snippets/" .. vim.fn.expand("%:e") .. '.snippets')
+            vim.bo.filetype = "snippets"
+        end)
+    end },
     { 'dcampos/cmp-snippy', dependencies = { 'dcampos/nvim-snippy' } },
     { 'rafamadriz/friendly-snippets' },
     { 'folke/neodev.nvim', config = true },
@@ -329,3 +339,5 @@ require('config/quickfix_remove')
 
 
 require('config/lsp_config')
+
+
