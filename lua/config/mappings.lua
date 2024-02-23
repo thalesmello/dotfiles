@@ -108,4 +108,5 @@ vim.keymap.set("n", "<leader>er", function ()
 end)
 
 vim.keymap.set("n", "<bs>", ":nohlsearch<cr>:pclose<cr>:diffoff<cr>", { noremap = true })
+vim.keymap.set("s", "<bs>", "<bs>i", { noremap = true })
 

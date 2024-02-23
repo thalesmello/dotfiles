@@ -336,6 +336,18 @@ require("lazy").setup({
         end
 
     },
+    {
+        'matschaffer/vim-islime2',
+        config = function ()
+            vim.g.islime2_29_mode=1
+
+            -- " Send in/around text object - operation pending
+            -- nnoremap <silent> <Leader>i :set opfunc=islime2#iTermSendOperator<CR>g@
+            vim.keymap.set("n", "<leader><cr>", "<cmd>set opfunc=islime2#iTermSendOperator<CR>g@", { noremap = true })
+            vim.keymap.set("n", "<leader><cr><cr>", "V<cmd>set opfunc=islime2#iTermSendOperator<CR>g@", { noremap = true })
+            vim.keymap.set("v", "<leader><cr>", "<cmd>set opfunc=islime2#iTermSendOperator<CR>g@", { noremap = true })
+        end
+    }
 })
 
 require('config/settings')
