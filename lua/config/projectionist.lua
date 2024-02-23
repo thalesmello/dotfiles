@@ -2,11 +2,16 @@ if vim.fn.match(vim.opt.runtimepath:get(), "vim-projectionist") == -1 then
    return
 end
 
+local config = vim.fn.stdpath("config")
+
 vim.g.projectionist_heuristics = {
-   ["autoload/&plugin/"] = {
-      ["lua/config/*.lua"] = {
+   [config .. "/init.lua"] = {
+      [config .. "/lua/config/*.lua"] = {
          type = "config",
-      }
+      },
+      [config .. "/lua/*.lua"] = {
+         type = "lua",
+      },
    },
    ["dags/*"] = {
       ["dags/replication/*.py"] = { type = "replication" },
