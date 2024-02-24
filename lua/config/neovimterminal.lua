@@ -37,6 +37,7 @@ vim.keymap.set({"n", "t"}, "<c-space>8", '<c-\\><c-n>8gt', { noremap = true })
 vim.keymap.set({"n", "t"}, "<c-space>9", '<c-\\><c-n>9gt', { noremap = true })
 
 local function close_on_exit(bufnr, _, status)
+  vim.g.neovimterm_last_channel = nil
   if status == 0 then
     vim.cmd.bdelete({ args = {bufnr}, bang = true})
 
@@ -78,7 +79,7 @@ local au_group = vim.api.nvim_create_augroup("NeovimTerminalGroup", { clear = tr
 vim.api.nvim_create_autocmd({ "BufWinEnter", "WinEnter", "BufEnter" }, {
   pattern = "term://*",
   group = au_group,
-  callaback = function ()
+  callback = function ()
     vim.cmd.startinsert()
     vim.g.neovimterm_last_channel = vim.o.channel
   end
@@ -88,6 +89,7 @@ vim.api.nvim_create_autocmd("BufLeave", {
   pattern = "term://*",
   group = au_group,
   callback = function ()
+    vim.g.neovimterm_last_channel = vim.o.channel
     vim.cmd.stopinsert()
     vim.fn["tmux_focus_events#focus_gained"]()
   end
@@ -102,3 +104,64 @@ vim.api.nvim_create_autocmd("TermOpen", {
     vim.opt_local.relativenumber = false
   end
 })
+
+local function find_fallback_terminal()
+  local terminals = {}
+  local channel
+  local windows = vim.api.nvim_tabpage_list_wins(0)
+  for _, window in ipairs(windows) do
+    local buf = vim.api.nvim_win_get_buf(window)
+    local buftype = vim.api.nvim_buf_get_option(buf, "buftype")
+    if buftype == "terminal" then
+      terminals[#terminals + 1] = window
+    end
+  end
+
+  if #terminals == 1 then
+    local terminal = terminals[1]
+    local term_buf = vim.api.nvim_win_get_buf(terminal)
+    local term_channel = vim.api.nvim_buf_get_option(term_buf, "channel")
+    channel = vim.api.nvim_get_chan_info(term_channel).id
+  end
+
+  return channel
+end
+
+function NvimTermWriteOperation()
+  vim.fn.setpos("'<", vim.fn.getpos("'["))
+  vim.fn.setpos("'>", vim.fn.getpos("']"))
+
+  local text = vim_utils.get_visual_selection()
+
+  local channel = vim.api.nvim_get_chan_info(vim.g.neovimterm_last_channel).id
+
+  if not channel then
+    channel = find_fallback_terminal()
+    vim.g.neovimterm_last_channel = channel
+  end
+
+  if vim.g.neovimterm_last_channel and vim.api.nvim_get_chan_info(vim.g.neovimterm_last_channel).id then
+    vim_utils.feedkeys([[<c-\><c-n>]])
+    vim.api.nvim_chan_send(vim.g.neovimterm_last_channel, text .. "\n")
+    vim_utils.temporary_highlight("'[", "']")
+  else
+    vim.cmd.echoerr("No channel opened last. Navigate to a Term first!")
+  end
+end
+
+local mapper = require("nvim-mapper")
+
+mapper.map_keymap({'n', 'x'}, '<leader><cr>', function (fallback)
+  if vim.g.neovimterm_last_channel then
+    vim_utils.feedkeys('<cmd>set opfunc=v:lua.NvimTermWriteOperation<cr>g@')
+  else
+    fallback()
+  end
+end, {noremap = true, silent = true})
+mapper.map_keymap('n', '<leader><cr><cr>', function (fallback)
+  if vim.g.neovimterm_last_channel then
+    vim_utils.feedkeys('V<cmd>set opfunc=v:lua.NvimTermWriteOperation<cr>g@')
+  else
+    fallback()
+  end
+end, {noremap = true, silent = true, expr = true})

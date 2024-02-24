@@ -359,17 +359,18 @@ require("lazy").setup({
     },
     {
         'matschaffer/vim-islime2',
+        dependencies = {"kamalsacranie/nvim-mapper"},
         config = function ()
             vim.g.islime2_29_mode=1
 
-            -- " Send in/around text object - operation pending
-            -- nnoremap <silent> <Leader>i :set opfunc=islime2#iTermSendOperator<CR>g@
-            vim.keymap.set("n", "<leader><cr>", "<cmd>set opfunc=islime2#iTermSendOperator<CR>g@", { noremap = true })
-            vim.keymap.set("n", "<leader><cr><cr>", "V<cmd>set opfunc=islime2#iTermSendOperator<CR>g@", { noremap = true })
-            vim.keymap.set("v", "<leader><cr>", "<cmd>set opfunc=islime2#iTermSendOperator<CR>g@", { noremap = true })
+            local mapper = require("nvim-mapper")
+            mapper.map_keymap({"n", "x"}, "<leader><cr>", "<cmd>set opfunc=islime2#iTermSendOperator<CR>g@", { noremap = true })
+            mapper.map_keymap("n", "<leader><cr><cr>", "V<cmd>set opfunc=islime2#iTermSendOperator<CR>g@", { noremap = true })
+
         end
     },
     { "stevearc/dressing.nvim", event = "VeryLazy" },
+    { "kamalsacranie/nvim-mapper" },
 })
 
 require('config/settings')

@@ -11,7 +11,7 @@ end
 
 
 local function get_visual_selection()
-    vim.cmd.normal({ args = {keycodes("<esc>gv")}, bang = true })
+    vim.cmd.normal({ args = {keycodes([[<c-\><c-n>gv]])}, bang = true })
     local line_start, column_start = unpack(vim.fn.getpos("'<"), 2, 3)
     local line_end, column_end = unpack(vim.fn.getpos("'>"), 2, 3)
     local lines = vim.api.nvim_buf_get_lines(0, line_start - 1, line_end, false)
@@ -40,10 +40,32 @@ local function partial(fn, ...)
 end
 
 
+local function temporary_highlight(start_pos, end_pos, opts)
+    local api = vim.api
+    opts = opts or {}
+    local bufnr = api.nvim_get_current_buf()
+    local timeout = opts.timeout or 500
+    local highlight = opts.highlitght or "IncSearch"
+    local namespace = vim.api.nvim_create_namespace(opts.namespace or "temporary_highlight")
+
+
+    api.nvim_buf_clear_namespace(bufnr, namespace, 0, -1)
+
+    vim.highlight.range(0,namespace, highlight, start_pos, end_pos)
+
+    vim.defer_fn(function()
+        if api.nvim_buf_is_valid(bufnr) then
+            api.nvim_buf_clear_namespace(bufnr, namespace, 0, -1)
+        end
+    end, timeout)
+end
+
+
 return {
     get_visual_selection = get_visual_selection,
     keycodes = keycodes,
     feedkeys = feedkeys,
     partial = partial,
     concat_array = concat_array,
+    temporary_highlight = temporary_highlight,
 }
