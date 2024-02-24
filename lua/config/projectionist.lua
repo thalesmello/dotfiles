@@ -3,6 +3,7 @@ if vim.fn.match(vim.opt.runtimepath:get(), "vim-projectionist") == -1 then
 end
 
 local config = vim.fn.stdpath("config")
+local data = vim.fn.stdpath("data")
 
 vim.g.projectionist_heuristics = {
    [config .. "/init.lua"] = {
@@ -11,6 +12,11 @@ vim.g.projectionist_heuristics = {
       },
       [config .. "/lua/*.lua"] = {
          type = "lua",
+      },
+   },
+   [data .. '/lazy/'] = {
+      [data .. '/lazy/*.vim'] = {
+         type = "plugin",
       },
    },
    ["dags/*"] = {

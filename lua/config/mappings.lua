@@ -23,9 +23,8 @@ vim.keymap.set("n", '<leader>"', "<C-w>s", { noremap = true })
 vim.keymap.set("n", "<leader><bs>", "<c-w>q", { noremap = true })
 
 -- Edit and load vimrc
-vim.keymap.set("n", "<leader>ev", ":vsplit $MYVIMRC<cr>", { noremap = true })
-vim.keymap.set("n", "<leader>ec", ":vsplit $MYVIMRC<cr>:Econfig<space>", { noremap = true })
-vim.keymap.set("n", "<leader>ea", ":vsplit $MYVIMRC<cr>:Eautoload<space>", { noremap = true })
+vim.keymap.set("n", "<leader>ev", ":edit $MYVIMRC<cr>", { noremap = true })
+vim.keymap.set("n", "<leader>ec", ":Econfig<space>", { noremap = true })
 vim.keymap.set("n", "<leader>s%", ":if &ft == 'vim' <bar> source % <bar> endif<cr>", { noremap = true })
 
 -- Fix syntax highlighting

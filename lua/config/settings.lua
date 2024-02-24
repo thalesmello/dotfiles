@@ -1,6 +1,4 @@
 -- Display incomplete commands.
-vim.opt.shell = "bash"
-
 vim.opt.cmdheight = 2
 
 vim.opt.showcmd = true

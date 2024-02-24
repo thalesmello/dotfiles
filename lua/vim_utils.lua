@@ -23,8 +23,27 @@ local function get_visual_selection()
     return table.concat(lines, "\n")
 end
 
+local function concat_array(a, b)
+  local result = {unpack(a)}
+  table.move(b, 1, #b, #result + 1, result)
+  return result
+end
+
+local function partial(fn, ...)
+  local args = { ... }
+
+  return function(...)
+    local args2 = { ... }
+    local results = concat_array(args, args2)
+    return fn(unpack(results, 1, #results))
+  end
+end
+
+
 return {
     get_visual_selection = get_visual_selection,
     keycodes = keycodes,
     feedkeys = feedkeys,
+    partial = partial,
+    concat_array = concat_array,
 }

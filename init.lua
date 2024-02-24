@@ -25,34 +25,55 @@ vim.opt.rtp:prepend(lazypath)
 
 ---@type string
 require("lazy").setup({
-    { 'tpope/vim-commentary' },
-    { 'tpope/vim-flagship', config = function()
-        require('config/flagship')
-    end},
-    { 'ryanoasis/vim-devicons', config = function ()
-        require('config/devicons')
-    end },
-    { 'romainl/Apprentice',
+    {
+        'tpope/vim-commentary',
+        keys = {
+            {"gc", mode = {"n", "v"}},
+        },
+        cmd = "Commentary",
+    },
+    {
+        'tpope/vim-flagship',
+        dependencies = {
+            'ryanoasis/vim-devicons'
+        },
+        config = function() require('config/flagship') end,
+    },
+    {
+        'ryanoasis/vim-devicons',
+        config = function () require('config/devicons') end,
+    },
+    {
+        'romainl/Apprentice',
         priority = 1000,
         config = function ()
             -- Sets the colorscheme for terminal sessions too.
             vim.opt.background = "dark"
             vim.cmd.colorscheme("apprentice")
-        end },
-    { 'tpope/vim-scriptease' },
-    { 'tpope/vim-projectionist', config = function()
-        require('config/projectionist')
-    end},
-    { 'tpope/vim-tbone', config = function()
-        require('config/tbone')
-    end},
+        end
+    },
+    { 'tpope/vim-scriptease', event = "VeryLazy" },
+    {
+        'tpope/vim-projectionist',
+        config = function() require('config/projectionist') end,
+    },
+    {
+        'tpope/vim-tbone',
+        config = function() require('config/tbone') end,
+    },
     { 'justinmk/vim-dirvish',
         commit= '2e845b6352ff43b47be2b2725245a4cba3e34da1',
         config = function()
             require('config/dirvish')
         end},
-    { 'tpope/vim-eunuch' },
-    { 'thalesmello/tabfold' },
+    {
+        'tpope/vim-eunuch',
+        event = 'VeryLazy',
+    },
+    {
+        'thalesmello/tabfold',
+        event = 'VeryLazy'
+    },
     { 'tpope/vim-fugitive', config = function()
         require('config/fugitive')
         require('config/fugitive_gitlab')
@@ -347,7 +368,8 @@ require("lazy").setup({
             vim.keymap.set("n", "<leader><cr><cr>", "V<cmd>set opfunc=islime2#iTermSendOperator<CR>g@", { noremap = true })
             vim.keymap.set("v", "<leader><cr>", "<cmd>set opfunc=islime2#iTermSendOperator<CR>g@", { noremap = true })
         end
-    }
+    },
+    { "stevearc/dressing.nvim", event = "VeryLazy" },
 })
 
 require('config/settings')
