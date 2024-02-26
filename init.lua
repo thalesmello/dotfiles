@@ -358,8 +358,7 @@ require("lazy").setup({
 
     },
     {
-        'matschaffer/vim-islime2',
-        dependencies = {"kamalsacranie/nvim-mapper"},
+        'thalesmello/vim-islime2',
         config = function ()
             vim.g.islime2_29_mode=1
         end
