@@ -10,7 +10,8 @@ local function feedkeys(str, mode)
 end
 
 
-local function get_visual_selection()
+local function get_visual_selection(mode)
+    mode = mode or 'char'
     vim.cmd.normal({ args = {keycodes([[<c-\><c-n>gv]])}, bang = true })
     local line_start, column_start = unpack(vim.fn.getpos("'<"), 2, 3)
     local line_end, column_end = unpack(vim.fn.getpos("'>"), 2, 3)
@@ -18,8 +19,16 @@ local function get_visual_selection()
     if #lines == 0 then
         return ''
     end
-    lines[#lines] = string.sub(lines[#lines], 1, 1 + column_end - (vim.o.selection == 'inclusive' and 1 or 2))
-    lines[1] = string.sub(lines[1], column_start)
+
+    if mode == "char" then
+        lines[#lines] = string.sub(lines[#lines], 1, 1 + column_end - (vim.o.selection == 'inclusive' and 1 or 2))
+        lines[1] = string.sub(lines[1], column_start)
+    elseif mode == "block" then
+        for num, line in ipairs(lines) do
+            lines[num] = line:sub(column_start, 1 + column_end - (vim.o.selection == 'inclusive' and 1 or 2))
+        end
+    end
+
     return table.concat(lines, "\n")
 end
 
@@ -47,11 +56,21 @@ local function temporary_highlight(start_pos, end_pos, opts)
     local timeout = opts.timeout or 500
     local highlight = opts.highlitght or "IncSearch"
     local namespace = vim.api.nvim_create_namespace(opts.namespace or "temporary_highlight")
+    local mode = opts.mode or "char"
+    local inclusive = opts.inclusive or false
 
+    local regtype = ({
+        char = 'v',
+        block = '<CTRL-V>',
+        line = 'V',
+    })[mode]
 
     api.nvim_buf_clear_namespace(bufnr, namespace, 0, -1)
 
-    vim.highlight.range(0,namespace, highlight, start_pos, end_pos)
+    vim.highlight.range(0,namespace, highlight, start_pos, end_pos, {
+        inclusive = inclusive,
+        regtype = regtype,
+    })
 
     vim.defer_fn(function()
         if api.nvim_buf_is_valid(bufnr) then

@@ -36,7 +36,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
         end
 
         mapCapability(capabilities.hoverProvider, 'n', 'K', '<cmd>lua vim.lsp.buf.hover()<cr>')
-        mapCapability(capabilities.definitionProvider, 'n', '<c-]>', '<cmd>lua vim.lsp.buf.definition()<cr>')
+        vim.opt_local.tagfunc = "v:lua.vim.lsp.tagfunc"
         mapCapability(capabilities.declarationProvider, 'n', 'gd', '<cmd>lua vim.lsp.buf.declaration()<cr>')
         mapCapability(capabilities.implementationProvider, 'n', 'gI', '<cmd>lua vim.lsp.buf.implementation()<cr>')
         mapCapability(capabilities.typeDefinitionProvider, 'n', 'go', '<cmd>lua vim.lsp.buf.type_definition()<cr>')

@@ -127,11 +127,11 @@ local function find_fallback_terminal()
   return channel
 end
 
-function NvimTermWriteOperation()
+function NvimTermWriteOperation(mode)
   vim.fn.setpos("'<", vim.fn.getpos("'["))
   vim.fn.setpos("'>", vim.fn.getpos("']"))
 
-  local text = vim_utils.get_visual_selection()
+  local text = vim_utils.get_visual_selection(mode)
 
   local channel = vim.api.nvim_get_chan_info(vim.g.neovimterm_last_channel).id
 
@@ -143,25 +143,12 @@ function NvimTermWriteOperation()
   if vim.g.neovimterm_last_channel and vim.api.nvim_get_chan_info(vim.g.neovimterm_last_channel).id then
     vim_utils.feedkeys([[<c-\><c-n>]])
     vim.api.nvim_chan_send(vim.g.neovimterm_last_channel, text .. "\n")
-    vim_utils.temporary_highlight("'[", "']")
+    vim_utils.temporary_highlight("'[", "']", {
+      inclusive = true,
+      mode = mode,
+    })
+    vim.fn.setcursorcharpos(unpack(vim.fn.getpos("'<"), 2))
   else
     vim.cmd.echoerr("No channel opened last. Navigate to a Term first!")
   end
 end
-
-local mapper = require("nvim-mapper")
-
-mapper.map_keymap({'n', 'x'}, '<leader><cr>', function (fallback)
-  if vim.g.neovimterm_last_channel then
-    vim_utils.feedkeys('<cmd>set opfunc=v:lua.NvimTermWriteOperation<cr>g@')
-  else
-    fallback()
-  end
-end, {noremap = true, silent = true})
-mapper.map_keymap('n', '<leader><cr><cr>', function (fallback)
-  if vim.g.neovimterm_last_channel then
-    vim_utils.feedkeys('V<cmd>set opfunc=v:lua.NvimTermWriteOperation<cr>g@')
-  else
-    fallback()
-  end
-end, {noremap = true, silent = true, expr = true})
