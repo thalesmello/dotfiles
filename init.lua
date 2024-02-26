@@ -82,17 +82,17 @@ require("lazy").setup({
         require('config/surround')
     end},
     { 'tpope/vim-repeat' },
-    { 'tpope/vim-abolish' },
-    { 'tweekmonster/local-indent.vim' },
+    { 'tpope/vim-abolish', event = "VeryLazy" },
     { 'tpope/vim-sleuth' },
     { 'dag/vim-fish' },
     { 'airblade/vim-gitgutter', config = function()
         require('config/gitgutter')
     end},
     { 'peterrincker/vim-argumentative' },
-    { 'sheerun/vim-polyglot', init = function()
-        require('config/polyglot')
-    end},
+    {
+        'sheerun/vim-polyglot',
+        init = function() require('config/polyglot') end,
+    },
     {
         "windwp/nvim-autopairs",
         opts = {
@@ -283,19 +283,29 @@ require("lazy").setup({
             'williamboman/mason.nvim'
         },
     },
-    { 'hrsh7th/nvim-cmp' },
-    { 'hrsh7th/cmp-nvim-lsp', dependencies = { 'hrsh7th/nvim-cmp' } },
-    { 'dcampos/nvim-snippy', config = function ()
-        local config = vim.fn.stdpath("config")
-        vim.keymap.set("n", "<leader>esp", function ()
-            if vim.fn.expand("%:e") == '' then
-                return
-            end
+    {
+        'hrsh7th/nvim-cmp',
+        dependencies = {
+            {'hrsh7th/cmp-nvim-lsp'},
+            {'hrsh7th/cmp-buffer'},
+            {'hrsh7th/cmp-path'},
+            {'hrsh7th/cmp-cmdline'},
+        },
+    },
+    {
+        'dcampos/nvim-snippy',
+        keys = {
+            {"<leader>esp", function()
+                local config = vim.fn.stdpath("config")
+                if vim.fn.expand("%:e") == '' then
+                    return
+                end
 
-            vim.cmd.edit(config .. "/snippets/" .. vim.fn.expand("%:e") .. '.snippets')
-            vim.bo.filetype = "snippets"
-        end)
-    end },
+                vim.cmd.edit(config .. "/snippets/" .. vim.fn.expand("%:e") .. '.snippets')
+                vim.bo.filetype = "snippets"
+            end}
+        },
+    },
     { 'dcampos/cmp-snippy', dependencies = { 'dcampos/nvim-snippy' } },
     { 'rafamadriz/friendly-snippets' },
     { 'folke/neodev.nvim', config = true },
@@ -307,9 +317,6 @@ require("lazy").setup({
         },
         config = true,
     },
-    { 'hrsh7th/cmp-buffer', dependencies = { 'hrsh7th/nvim-cmp' } },
-    { 'hrsh7th/cmp-path', dependencies = { 'hrsh7th/nvim-cmp' } },
-    { 'hrsh7th/cmp-cmdline', dependencies = { 'hrsh7th/nvim-cmp' } },
     { 'winston0410/range-highlight.nvim', dependencies = { 'winston0410/cmd-parser.nvim' }, config = true },
     { 'xiyaowong/nvim-cursorword' },
     { "ray-x/lsp_signature.nvim" },
