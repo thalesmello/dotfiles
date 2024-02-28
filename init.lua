@@ -74,20 +74,31 @@ require("lazy").setup({
         'thalesmello/tabfold',
         event = 'VeryLazy'
     },
-    { 'tpope/vim-fugitive', config = function()
-        require('config/fugitive')
-        require('config/fugitive_gitlab')
-    end},
-    { 'kylechui/nvim-surround', config = function()
-        require('config/surround')
-    end},
+    {
+        'tpope/vim-fugitive',
+        dependencies = {
+            { 'shumphrey/fugitive-gitlab.vim' },
+        },
+        config = function()
+            require('config/fugitive')
+            require('config/fugitive_gitlab')
+        end,
+    },
+    {
+        'kylechui/nvim-surround',
+        config = function() require('config/surround') end,
+    },
     { 'tpope/vim-repeat' },
     { 'tpope/vim-abolish', event = "VeryLazy" },
-    { 'tpope/vim-sleuth' },
+    {
+        'tpope/vim-sleuth',
+        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
+    },
     { 'dag/vim-fish' },
-    { 'airblade/vim-gitgutter', config = function()
-        require('config/gitgutter')
-    end},
+    {
+        'airblade/vim-gitgutter',
+        config = function() require('config/gitgutter') end,
+    },
     { 'peterrincker/vim-argumentative' },
     {
         'sheerun/vim-polyglot',
@@ -114,27 +125,31 @@ require("lazy").setup({
     { 'thalesmello/gitignore' },
     { 'tpope/vim-rsi' },
     { 'thalesmello/vim-trailing-whitespace' },
-    { 'tpope/vim-unimpaired' },
+    { 'tpope/vim-unimpaired', event = "VeryLazy" },
     { 'simeji/winresizer', init = function()
         require('config/winresizer')
     end},
-    { 'honza/vim-snippets' },
     { 'junegunn/fzf.vim',
         dependencies = { 'junegunn/fzf' },
         config = function()
             require('config/fzf')
         end},
     { 'tmux-plugins/vim-tmux-focus-events', tag = 'v1.0.0' },
-    { 'ConradIrwin/vim-bracketed-paste' },
-    { 'thalesmello/tabmessage.vim' },
+    { 'ConradIrwin/vim-bracketed-paste', event = "VeryLazy" },
+    { 'thalesmello/tabmessage.vim', cmd = "TabMessage" },
     { 'thalesmello/persistent.vim' },
     { 'thinca/vim-visualstar' },
     { 'farmergreg/vim-lastplace' },
     { 'duggiefresh/vim-easydir' },
     { 'tmux-plugins/vim-tmux' },
-    { 'sainnhe/tmuxline.vim', config = function()
-        require('config/tmuxline')
-    end},
+    {
+        'sainnhe/tmuxline.vim',
+        config = function() require('config/tmuxline') end,
+        cmd = {
+            "Tmuxline",
+            "TmuxlineSnapshot",
+        }
+    },
     { 'moll/vim-node' },
     { 'ggandor/leap.nvim', config = function()
         require('config/leap')
@@ -165,6 +180,7 @@ require("lazy").setup({
     {
         'kana/vim-textobj-user',
         name = 'textobj',
+        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
         dependencies = {
             { 'michaeljsmith/vim-indent-object' },
             { 'thalesmello/vim-textobj-methodcall' },
@@ -218,12 +234,14 @@ require("lazy").setup({
     { 'alvan/vim-closetag' },
     { 'tpope/vim-rhubarb' },
 
-    { 'andymass/vim-matchup' },
-
-    { 'tpope/vim-jdaddy' },
-    { 'AndrewRadev/undoquit.vim', config = function()
-        require('config/undoquit')
-    end},
+    { 'andymass/vim-matchup', event = {"BufReadPost", "BufNewFile", "BufFilePost"} },
+    {
+        'AndrewRadev/undoquit.vim',
+        keys = {"<leader>T"},
+        config = function()
+            require('config/undoquit')
+        end,
+    },
     { 'AndrewRadev/inline_edit.vim', config = function()
         require('config/inline_edit')
     end},
@@ -254,6 +272,7 @@ require("lazy").setup({
     end},
     {
         'nvim-treesitter/nvim-treesitter',
+        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
         build = function ()
             vim.cmd('TSUpdate')
         end,
@@ -270,108 +289,134 @@ require("lazy").setup({
         dependencies = { 'nvim-treesitter/nvim-treesitter' },
         config = function()
             require('config/treesj')
-        end},
-    { 'shumphrey/fugitive-gitlab.vim' },
-    { 'ivanovyordan/dbt.vim' },
+        end,
+        keys = { "gS", "gJ" },
+        cmd = {"TSJSplit", "TSJJoin"}
 
-    { 'neovim/nvim-lspconfig', dependencies = { 'folke/neodev.nvim' } },
-    { 'williamboman/mason.nvim' },
-    {
-        'williamboman/mason-lspconfig.nvim',
-        dependencies = {
-            'neovim/nvim-lspconfig',
-            'williamboman/mason.nvim'
-        },
     },
+    { 'ivanovyordan/dbt.vim', ft = { "python", "sql" } },
     {
-        'hrsh7th/nvim-cmp',
+        'neovim/nvim-lspconfig',
+        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
+        config = function ()
+            require('config/lsp')
+        end,
         dependencies = {
-            {'hrsh7th/cmp-nvim-lsp'},
-            {'hrsh7th/cmp-buffer'},
-            {'hrsh7th/cmp-path'},
-            {'hrsh7th/cmp-cmdline'},
-        },
-    },
-    {
-        'dcampos/nvim-snippy',
-        keys = {
-            {"<leader>esp", function()
-                local config = vim.fn.stdpath("config")
-                if vim.fn.expand("%:e") == '' then
-                    return
-                end
+            { 'folke/neodev.nvim' },
+            {
+                'hrsh7th/nvim-cmp',
+                dependencies = {
+                    {'hrsh7th/cmp-nvim-lsp'},
+                    {'hrsh7th/cmp-buffer'},
+                    {'hrsh7th/cmp-path'},
+                    {'hrsh7th/cmp-cmdline'},
+                },
+            },
+            {
+                'williamboman/mason.nvim',
+                dependencies = {
+                    'williamboman/mason-lspconfig.nvim'
+                },
+            },
+            { "ray-x/lsp_signature.nvim" },
+            {
+                'dcampos/nvim-snippy',
+                keys = {
+                    {"<leader>esp", function()
+                        local config = vim.fn.stdpath("config")
+                        if vim.fn.expand("%:e") == '' then
+                            return
+                        end
 
-                vim.cmd.edit(config .. "/snippets/" .. vim.fn.expand("%:e") .. '.snippets')
-                vim.bo.filetype = "snippets"
-            end}
+                        vim.cmd.edit(config .. "/snippets/" .. vim.fn.expand("%:e") .. '.snippets')
+                        vim.bo.filetype = "snippets"
+                    end}
+                },
+                dependencies = {
+                    { 'dcampos/cmp-snippy' },
+                    { 'rafamadriz/friendly-snippets' },
+                    { 'honza/vim-snippets' },
+                },
+            },
         },
     },
-    { 'dcampos/cmp-snippy', dependencies = { 'dcampos/nvim-snippy' } },
-    { 'rafamadriz/friendly-snippets' },
-    { 'folke/neodev.nvim', config = true },
     {
         'ThePrimeagen/refactoring.nvim',
         dependencies = {
             "nvim-lua/plenary.nvim",
             "nvim-treesitter/nvim-treesitter",
         },
-        config = true,
+        opts = {},
+        cmd = {"Refactor"}
     },
-    { 'winston0410/range-highlight.nvim', dependencies = { 'winston0410/cmd-parser.nvim' }, config = true },
-    { 'xiyaowong/nvim-cursorword' },
-    { "ray-x/lsp_signature.nvim" },
+    {
+        'winston0410/range-highlight.nvim',
+        dependencies = { 'winston0410/cmd-parser.nvim' },
+        opts = {},
+    },
     { 'folke/which-key.nvim', opts = {} },
     {
         "folke/trouble.nvim",
         dependencies = { "nvim-tree/nvim-web-devicons" },
-        opts = {},
+        cmd = {
+            "Trouble",
+            "TroubleClose",
+            "TroubleToggle",
+            "TroubleRefresh",
+        },
     },
-    { "lukas-reineke/indent-blankline.nvim", main = "ibl", opts = {
-        scope = {
-            enabled = true,
-            show_start = false,
-            show_end = false,
-            injected_languages = true,
-            highlight = { "Function", "Label" },
-            priority = 500,
-        }
-    } },
+    {
+        "lukas-reineke/indent-blankline.nvim",
+        main = "ibl",
+        opts = {
+            scope = {
+                enabled = true,
+                show_start = false,
+                show_end = false,
+                injected_languages = true,
+                highlight = { "Function", "Label" },
+                priority = 500,
+            },
+        },
+        event = "VeryLazy"
+    },
     {
 
         "cshuaimin/ssr.nvim",
         main = "ssr",
         -- Calling setup is optional.
-        config = function()
-            require("ssr").setup {
-                border = "rounded",
-                min_width = 50,
-                min_height = 5,
-                max_width = 120,
-                max_height = 25,
-                adjust_window = true,
-                keymaps = {
-                    close = "q",
-                    next_match = "n",
-                    prev_match = "N",
-                    replace_confirm = "<cr>",
-                    replace_all = "<leader><cr>",
-                },
+        keys = {
+            {
+                "<leader>sr",
+                function() require("ssr").open() end,
+                { desc = "[S]tructural [R]eplace" },
             }
-
-            vim.keymap.set("n", "<leader>sr", function()
-                require("ssr").open()
-            end, { desc = "[S]tructural [R]eplace" })
-        end
+        },
+        opts = {
+            border = "rounded",
+            min_width = 50,
+            min_height = 5,
+            max_width = 120,
+            max_height = 25,
+            adjust_window = true,
+            keymaps = {
+                close = "q",
+                next_match = "n",
+                prev_match = "N",
+                replace_confirm = "<cr>",
+                replace_all = "<leader><cr>",
+            },
+        }
 
     },
     {
         'thalesmello/vim-islime2',
         config = function ()
             vim.g.islime2_29_mode=1
-        end
+        end,
+        event = "VeryLazy",
     },
     { "stevearc/dressing.nvim", event = "VeryLazy" },
-    { "kamalsacranie/nvim-mapper" },
 })
 
 require('config/settings')
@@ -382,5 +427,4 @@ require('config/neovimterminal')
 require('config/quickfix_remove')
 
 
-require('config/lsp')
 require('config/smart_send_text')
