@@ -22,7 +22,6 @@ if not vim.loop.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
-
 ---@type string
 require("lazy").setup({
     {
@@ -60,6 +59,7 @@ require("lazy").setup({
     {
         'tpope/vim-tbone',
         config = function() require('config/tbone') end,
+        cond = vim.env.TMUX,
     },
     { 'justinmk/vim-dirvish',
         commit= '2e845b6352ff43b47be2b2725245a4cba3e34da1',
@@ -72,21 +72,36 @@ require("lazy").setup({
     },
     {
         'thalesmello/tabfold',
-        event = 'VeryLazy'
+        keys = {"<tab>", "<s-tab>"}
     },
     {
         'tpope/vim-fugitive',
         dependencies = {
             { 'shumphrey/fugitive-gitlab.vim' },
+            { 'tpope/vim-rhubarb' },
         },
+        keys = {
+            {"<leader>gd", "<cmd>Gdiffsplit<cr>",  noremap = true },
+            {"<leader>gs", "<cmd>Git<cr>",  noremap = true },
+            {"<leader>gw", "<cmd>Git write<cr>",  noremap = true },
+            {"<leader>ga", "<cmd>Git add<cr>",  noremap = true },
+            {"<leader>gb", "<cmd>Git blame<cr>",  noremap = true },
+            {"<leader>gci", "<cmd>Git commit<cr>",  noremap = true },
+            {"<leader>gm", "<cmd>Git move",  noremap = true },
+            {"<leader>gr", "<cmd>Git read<cr>",  noremap = true },
+            {"<leader>grm", "<cmd>Git remove<cr>",  noremap = true },
+            {"<leader>gp", "<cmd>Git push<cr>",  noremap = true },
+        },
+        cmd = {"Git", "G", "Gdiffsplit", "GMove", "GBrowse"},
         config = function()
             require('config/fugitive')
-            require('config/fugitive_gitlab')
+            vim.g.fugitive_gitlab_domains = { 'http://gitlab.platform' }
         end,
     },
     {
         'kylechui/nvim-surround',
         config = function() require('config/surround') end,
+        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
     { 'tpope/vim-repeat' },
     { 'tpope/vim-abolish', event = "VeryLazy" },
@@ -129,11 +144,13 @@ require("lazy").setup({
     { 'simeji/winresizer', init = function()
         require('config/winresizer')
     end},
-    { 'junegunn/fzf.vim',
-        dependencies = { 'junegunn/fzf' },
+    {
+        'junegunn/fzf.vim',
+        dependencies = { 'junegunn/fzf', 'tpope/vim-projectionist' },
         config = function()
             require('config/fzf')
-        end},
+        end,
+    },
     { 'tmux-plugins/vim-tmux-focus-events', tag = 'v1.0.0' },
     { 'ConradIrwin/vim-bracketed-paste', event = "VeryLazy" },
     { 'thalesmello/tabmessage.vim', cmd = "TabMessage" },
@@ -232,9 +249,10 @@ require("lazy").setup({
 
     { 'dzeban/vim-log-syntax' },
     { 'alvan/vim-closetag' },
-    { 'tpope/vim-rhubarb' },
-
-    { 'andymass/vim-matchup', event = {"BufReadPost", "BufNewFile", "BufFilePost"} },
+    {
+        'andymass/vim-matchup',
+        keys = {"%", mode = {"n", "o"}},
+    },
     {
         'AndrewRadev/undoquit.vim',
         keys = {"<leader>T"},
@@ -346,7 +364,7 @@ require("lazy").setup({
                         "CopilotC-Nvim/CopilotChat.nvim",
                         opts = {
                             prompts = {
-                                Explain = "Explain how it works by Japanese language.",
+                                Explain = "Explain how it works by in simple terms.",
                                 Review = "Review the following code and provide concise suggestions.",
                                 Tests = "Briefly explain how the selected code works, then generate unit tests.",
                                 Refactor = "Refactor the code to improve clarity and readability.",
@@ -450,3 +468,11 @@ require('config/quickfix_remove')
 
 
 require('config/smart_send_text')
+
+
+vim.keymap.set("n", "<leader>ep", function ()
+  local share = vim.fn.stdpath("data")
+  vim.cmd.edit(share .. "/lazy/")
+end, { noremap = true })
+
+

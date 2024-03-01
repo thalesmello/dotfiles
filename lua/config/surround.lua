@@ -8,7 +8,14 @@ require("nvim-surround").setup({
     insert_line = "<C-s><c-s>",
   },
   -- surrounds =     -- Defines surround keys and behavior
-  -- aliases =       -- Defines aliases
+  aliases = {
+    ["a"] = false,
+    ["b"] = false,
+    ["B"] = false,
+    ["r"] = false,
+    ["q"] = false,
+    ["s"] = false,
+  },
   -- highlight =     -- Defines highlight behavior
   move_cursor = false,
   -- indent_lines =  -- Defines line indentation behavior,
@@ -51,12 +58,17 @@ vim.api.nvim_create_autocmd({ 'FileType' }, {
   group = group,
   pattern = "lua",
   callback = function()
-    require("nvim-surround").buffer_setup({
+    require([[nvim-surround]]).buffer_setup({
       surrounds = {
         ["q"] = {
           add = {"[[", "]]"},
-          find = "%[%[.-]]",
-          delete = "^(%[%[%s*)().-(%s*]])()$",
+          find = "%[=*%[.-%]=*%]",
+          delete = "^(%[=*%[)().-(%]=*%])()",
+        },
+        ["Q"] = {
+          add = {"[=[", "]=]"},
+          find = "%[=*%[.-%]=*%]",
+          delete = "^(%[=*%[)().-(%]=*%])()",
         },
       }
     })

@@ -23,6 +23,9 @@ vim.g.projectionist_heuristics = {
       ["dags/replication/*.py"] = { type = "replication" },
       ["dags/*.py"] = { type = "dag" },
    },
+   [".git/"] = {
+      ["README.md"] = { type = "readme" }
+   },
 }
 
 local function make_dbt_projection(module)
