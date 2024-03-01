@@ -174,7 +174,7 @@ cmp.setup({
             elseif snippy.can_expand_or_advance() then
                 snippy.expand_or_advance()
             elseif has_words_before() then
-                cmp.complete()
+                vim.fn.feedkeys(vim.fn["copilot#Accept"](vim_utils.keycodes("<cmd>v:lua.require'cmp'.complete()<cr>")), "m")
             else
                 fallback()
             end

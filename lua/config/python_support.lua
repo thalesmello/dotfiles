@@ -9,4 +9,7 @@ vim.g.python_support_python3_requirements = {
 	'mistune',
 	'psutil',
 	'setproctitle',
+	'python-dotenv',
+	'requests',
+	'prompt_toolkit',
 }
