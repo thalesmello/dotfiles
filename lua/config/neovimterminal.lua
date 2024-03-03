@@ -91,7 +91,8 @@ vim.api.nvim_create_autocmd("BufLeave", {
   callback = function ()
     vim.g.neovimterm_last_channel = vim.o.channel
     vim.cmd.stopinsert()
-    vim.fn["tmux_focus_events#focus_gained"]()
+    -- Silently call tmux focus gained, we don't care if there's an error
+    pcall(vim.fn["tmux_focus_events#focus_gained"])
   end
 })
 

@@ -137,10 +137,14 @@ require("lazy").setup({
             {"windwp/nvim-autopairs"}
         }
     },
-    { 'ludovicchabant/vim-gutentags', init = function()
-        require('config/gutentags')
-    end},
-    { 'thalesmello/gitignore' },
+    {
+        "linrongbin16/gentags.nvim",
+        opts = {},
+    },
+    -- { 'ludovicchabant/vim-gutentags', init = function()
+    --     require('config/gutentags')
+    -- end},
+    { 'thalesmello/gitignore', event = "VeryLazy" },
     { 'tpope/vim-rsi', event = {"CmdlineEnter", "InsertEnter"} },
     {
         'thalesmello/vim-trailing-whitespace',
@@ -158,7 +162,6 @@ require("lazy").setup({
         end,
     },
     { 'tmux-plugins/vim-tmux-focus-events', tag = 'v1.0.0' },
-    { 'ConradIrwin/vim-bracketed-paste', event = "VeryLazy" },
     { 'thalesmello/tabmessage.vim', cmd = "TabMessage" },
     { 'thalesmello/persistent.vim' },
     { 'thinca/vim-visualstar' },
@@ -173,10 +176,22 @@ require("lazy").setup({
             "TmuxlineSnapshot",
         }
     },
-    { 'moll/vim-node' },
-    { 'ggandor/leap.nvim', config = function()
-        require('config/leap')
-    end},
+    { 'moll/vim-node', ft = {"javascript", "json", "jsx"} },
+    {
+        'ggandor/leap.nvim',
+        config = function()
+            require('config/leap')
+        end,
+        keys = {
+            { "s", mode = {"n", "x"}, desc = "Leap forward to" },
+            { "S", mode = {"n", "x"}, desc = "Leap backward to" },
+            { "gs", mode = {"n", "x"}, desc = "Leap from windows" },
+            { "z", mode = {"o"}, desc = "Leap operator inclusive" },
+            { "Z", mode = {"o"}, desc = "Leap backwards operator inclusive" },
+            { "x", mode = {"o"}, desc = "Leap operator non-inclusive" },
+            { "X", mode = {"o"}, desc = "Leap backwards operator inclusive" },
+        },
+    },
     { 'machakann/vim-highlightedyank', config = function()
         require('config/highlightedyank')
     end},
@@ -247,12 +262,17 @@ require("lazy").setup({
 
     { 'tpope/vim-apathy' },
     { 'yssl/QFEnter' },
-
     { 'thalesmello/lkml.vim' },
-    { 'junegunn/vim-easy-align', config = function()
-        require('config/easyalign')
-    end},
-
+    {
+        'junegunn/vim-easy-align',
+        config = function()
+            require('config/easyalign')
+        end,
+        keys = {
+            {"ga", "<Plug>(EasyAlign)", mode = {"n", "x"}}
+        },
+        cmd = {"EasyAlign"}
+    },
     { 'dzeban/vim-log-syntax' },
     { 'alvan/vim-closetag' },
     {
@@ -284,7 +304,6 @@ require("lazy").setup({
         end},
 
     { 'AndrewRadev/linediff.vim' },
-
     -- Default restructured text syntax doesn't work well,
     { 'marshallward/vim-restructuredtext' },
     { 'mattboehm/vim-unstack', config = function()
@@ -480,5 +499,3 @@ vim.keymap.set("n", "<leader>ep", function ()
   local share = vim.fn.stdpath("data")
   vim.cmd.edit(share .. "/lazy/")
 end, { noremap = true })
-
-
