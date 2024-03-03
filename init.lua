@@ -61,11 +61,13 @@ require("lazy").setup({
         config = function() require('config/tbone') end,
         cond = vim.env.TMUX,
     },
-    { 'justinmk/vim-dirvish',
+    {
+        'justinmk/vim-dirvish',
         commit= '2e845b6352ff43b47be2b2725245a4cba3e34da1',
         config = function()
             require('config/dirvish')
-        end},
+        end,
+    },
     {
         'tpope/vim-eunuch',
         event = 'VeryLazy',
@@ -113,8 +115,9 @@ require("lazy").setup({
     {
         'airblade/vim-gitgutter',
         config = function() require('config/gitgutter') end,
+        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
-    { 'peterrincker/vim-argumentative' },
+    { 'peterrincker/vim-argumentative' }, -- TODO: Check if can be replaced by treesitter-textobj
     {
         'sheerun/vim-polyglot',
         init = function() require('config/polyglot') end,
@@ -138,8 +141,11 @@ require("lazy").setup({
         require('config/gutentags')
     end},
     { 'thalesmello/gitignore' },
-    { 'tpope/vim-rsi' },
-    { 'thalesmello/vim-trailing-whitespace' },
+    { 'tpope/vim-rsi', event = {"CmdlineEnter", "InsertEnter"} },
+    {
+        'thalesmello/vim-trailing-whitespace',
+        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
+    },
     { 'tpope/vim-unimpaired', event = "VeryLazy" },
     { 'simeji/winresizer', init = function()
         require('config/winresizer')
