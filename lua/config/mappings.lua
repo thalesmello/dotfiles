@@ -78,12 +78,6 @@ vim.keymap.set("n", "<S-4-ScrollWheelDown>", "<4-ScrollWheelRight>", { noremap =
 vim.keymap.set("n", ":w<cr>", ":write<cr>", { noremap = true })
 vim.keymap.set("n", ":q<cr>", ":quit<cr>", { noremap = true })
 
--- Make [[ navigation more useful for when { not in first column
-vim.keymap.set({"n", "v", "o"}, "[[", "<cmd>keeppatterns normal ?{<c-v><cr>w99[{<CR>", { silent = true })
-vim.keymap.set({"n", "v", "o"}, "][", "<cmd>keeppatterns normal /}<c-v><CR>b99]}<CR>", { silent = true })
-vim.keymap.set({"n", "v", "o"}, "]]", "<cmd>keeppatterns normal j0[[%/{<c-v><cr><CR>", { silent = true })
-vim.keymap.set({"n", "v", "o"}, "[]", "<cmd>keeppatterns normal k$][%?}<c-v><cr><CR>", { silent = true })
-
 vim.keymap.set({"v"}, ":", "<esc>gv<Plug>SwapVisualCursor", { remap = true })
 vim.keymap.set({"v"}, "<Plug>SwapVisualCursor", function ()
   return vim.fn.line(".") == vim.fn.line("'<") and ":" or "o:"

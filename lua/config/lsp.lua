@@ -277,4 +277,3 @@ require("lsp_signature").setup({
   handler_opts = { border = "single" },
   max_width = 80,
 })
-

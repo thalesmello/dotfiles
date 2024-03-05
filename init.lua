@@ -51,7 +51,7 @@ require("lazy").setup({
             vim.cmd.colorscheme("apprentice")
         end
     },
-    { 'tpope/vim-scriptease', event = "VeryLazy" },
+    { 'tpope/vim-scriptease', event = 'VeryLazy' },
     {
         'tpope/vim-projectionist',
         config = function() require('config/projectionist') end,
@@ -117,7 +117,6 @@ require("lazy").setup({
         config = function() require('config/gitgutter') end,
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
-    { 'peterrincker/vim-argumentative' }, -- TODO: Check if can be replaced by treesitter-textobj
     -- {
     --     'sheerun/vim-polyglot',
     --     init = function()
@@ -228,14 +227,9 @@ require("lazy").setup({
             { 'Julian/vim-textobj-variable-segment' },
             { 'kana/vim-textobj-entire' },
             { 'thalesmello/vim-textobj-bracketchunk' },
-            { 'kana/vim-textobj-function' },
-            { 'rhysd/vim-textobj-ruby' },
-            { 'bps/vim-textobj-python' },
-            { 'haya14busa/vim-textobj-function-syntax' },
-            { 'thinca/vim-textobj-function-javascript' },
             { 'thalesmello/vim-textobj-multiline-str' },
         },
-        config = function() require('config/textobject') end,
+        config = function() end,
     },
 
     {
@@ -324,6 +318,7 @@ require("lazy").setup({
         dependencies = {
             'nvim-treesitter/nvim-treesitter-textobjects',
             'nvim-treesitter/nvim-treesitter-context',
+            'nvim-treesitter/playground',
         },
         config = function ()
             require('config/treesitter')
@@ -421,7 +416,7 @@ require("lazy").setup({
         dependencies = { 'winston0410/cmd-parser.nvim' },
         opts = {},
     },
-    { 'folke/which-key.nvim', opts = {} },
+    -- { 'folke/which-key.nvim', opts = {}, event = 'VeryLazy', priority = 0 },
     {
         "folke/trouble.nvim",
         dependencies = { "nvim-tree/nvim-web-devicons" },
