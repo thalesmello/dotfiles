@@ -499,12 +499,11 @@ require("lazy").setup({
             require('pretty-fold').setup({
                 -- fill_char = ' ',
                 sections = {
-
                     left = {
                         function (config)
                             local content = components.content(config) ---@type string
 
-                            if content:match(config.fill_char .. '*%s*{%.%.%.}') then
+                            if content:match(config.fill_char .. '*%.%.%.') then
                                 local line_num = vim.fn.nextnonblank(vim.v.foldstart + 1)
                                 local next_line = vim.fn.trim(vim.fn.getline(line_num))
                                 content = content:gsub('%.%.%.', next_line .. ' ...')
