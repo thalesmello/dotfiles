@@ -4,7 +4,6 @@
 
 
 -- Polyglot disabled configs should load before any syntax is loaded
-vim.g.polyglot_disabled = {"autoindent"}
 vim.g.mapleader = " "
 vim.g.maplocalleader = "'"
 vim.g.my_colorscheme = "apprentice"
@@ -40,7 +39,10 @@ require("lazy").setup({
     },
     {
         'ryanoasis/vim-devicons',
-        config = function () require('config/devicons') end,
+        config = function ()
+            vim.g.webdevicons_enable_flagship_statusline = 0
+            vim.g.webdevicons_enable_flagship_statusline_fileformat_symbols = 0
+        end,
     },
     {
         'romainl/Apprentice',
@@ -54,6 +56,9 @@ require("lazy").setup({
     { 'tpope/vim-scriptease', event = 'VeryLazy' },
     {
         'tpope/vim-projectionist',
+        dependencies = {
+            { 'tpope/vim-haystack' },
+        },
         config = function() require('config/projectionist') end,
     },
     {
@@ -96,7 +101,6 @@ require("lazy").setup({
         },
         cmd = {"Git", "G", "Gdiffsplit", "GMove", "GBrowse"},
         config = function()
-            require('config/fugitive')
             vim.g.fugitive_gitlab_domains = { 'http://gitlab.platform' }
         end,
     },
@@ -106,23 +110,24 @@ require("lazy").setup({
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
     { 'tpope/vim-repeat' },
-    { 'tpope/vim-abolish', event = "VeryLazy" },
+    {
+        'tpope/vim-abolish',
+        keys = {"cr"},
+        cmd = {"Abolish", "Subvert"},
+    },
     {
         'tpope/vim-sleuth',
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
-    { 'dag/vim-fish' },
+    {
+        'dag/vim-fish',
+        ft = {"fish"},
+    },
     {
         'airblade/vim-gitgutter',
         config = function() require('config/gitgutter') end,
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
-    -- {
-    --     'sheerun/vim-polyglot',
-    --     init = function()
-    --         vim.g.jsx_ext_required = 1
-    --     end,
-    -- },
     {
         "windwp/nvim-autopairs",
         opts = {
@@ -136,25 +141,58 @@ require("lazy").setup({
         dependencies = {
             -- Run autopairs before endwise so both of them work get to hook <cr> in insert mode
             {"windwp/nvim-autopairs"}
-        }
+        },
     },
     {
         "linrongbin16/gentags.nvim",
         opts = {},
     },
-    -- { 'ludovicchabant/vim-gutentags', init = function()
-    --     require('config/gutentags')
-    -- end},
     { 'thalesmello/gitignore', event = "VeryLazy" },
     { 'tpope/vim-rsi', event = {"CmdlineEnter", "InsertEnter"} },
     {
-        'thalesmello/vim-trailing-whitespace',
+        'johnfrankmorgan/whitespace.nvim',
+        config = function ()
+            require('whitespace-nvim').setup({
+                -- configuration options and their defaults
+
+                -- `highlight` configures which highlight is used to display
+                -- trailing whitespace
+                highlight = 'DiffDelete',
+
+                -- `ignored_filetypes` configures which filetypes to ignore when
+                -- displaying trailing whitespace
+                ignored_filetypes = { 'TelescopePrompt', 'Trouble', 'help', 'qf' },
+
+                -- `ignore_terminal` configures whether to ignore terminal buffers
+                ignore_terminal = true,
+
+                -- `return_cursor` configures if cursor should return to previous
+                -- position after trimming whitespace
+                return_cursor = true,
+            })
+
+            -- remove trailing whitespace with a keybinding
+            vim.keymap.set('n', '<Leader>fw', require('whitespace-nvim').trim)
+        end,
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
     { 'tpope/vim-unimpaired', event = "VeryLazy" },
-    { 'simeji/winresizer', init = function()
-        require('config/winresizer')
-    end},
+    {
+        'simeji/winresizer',
+        keys = {
+            {"<leader>H", '<leader>wrH', remap = true},
+            {"<leader>J", '<leader>wrJ', remap = true},
+            {"<leader>K", '<leader>wrK', remap = true},
+            {"<leader>L", '<leader>wrL', remap = true},
+        },
+        init = function()
+            vim.g.winresizer_start_key = '<leader>wr'
+            vim.g.winresizer_keycode_left = 72
+            vim.g.winresizer_keycode_right = 76
+            vim.g.winresizer_keycode_down = 74
+            vim.g.winresizer_keycode_up = 75
+        end
+    },
     {
         'junegunn/fzf.vim',
         dependencies = { 'junegunn/fzf', 'tpope/vim-projectionist' },
@@ -162,13 +200,33 @@ require("lazy").setup({
             require('config/fzf')
         end,
     },
-    { 'tmux-plugins/vim-tmux-focus-events', tag = 'v1.0.0' },
+    {
+        'tmux-plugins/vim-tmux-focus-events',
+        tag = 'v1.0.0',
+        event = "TermOpen",
+        lazy = not vim.env.TMUX
+    },
     { 'thalesmello/tabmessage.vim', cmd = "TabMessage" },
-    { 'thalesmello/persistent.vim' },
-    { 'thinca/vim-visualstar' },
-    { 'farmergreg/vim-lastplace' },
-    { 'duggiefresh/vim-easydir' },
-    { 'tmux-plugins/vim-tmux' },
+    {
+        'thalesmello/persistent.vim',
+        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
+    },
+    {
+        'thinca/vim-visualstar',
+        keys = {
+            {"*", "<Plug>(visualstar-*)", mode = {"x"}},
+            {"#", "<Plug>(visualstar-#)", mode = {"x"}},
+        },
+    },
+    {
+        'farmergreg/vim-lastplace',
+        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
+    },
+    {
+        'duggiefresh/vim-easydir',
+        event = {"BufWritePre", "FileWritePre"},
+    },
+    { 'tmux-plugins/vim-tmux', ft = "tmux" },
     {
         'sainnhe/tmuxline.vim',
         config = function() require('config/tmuxline') end,
@@ -180,6 +238,9 @@ require("lazy").setup({
     { 'moll/vim-node', ft = {"javascript", "json", "jsx"} },
     {
         'ggandor/leap.nvim',
+        dependencies = {
+            'ggandor/leap-spooky.nvim',
+        },
         config = function()
             require('config/leap')
         end,
@@ -193,9 +254,11 @@ require("lazy").setup({
             { "X", mode = {"o"}, desc = "Leap backwards operator inclusive" },
         },
     },
-    { 'machakann/vim-highlightedyank', config = function()
-        require('config/highlightedyank')
-    end},
+    {
+        'machakann/vim-highlightedyank',
+        config = function() require('config/highlightedyank') end,
+        event = "TextYankPost",
+    },
     { 'thalesmello/python-support.nvim',
         build = function ()
             vim.cmd.PythonSupportInitPython3()
@@ -206,14 +269,18 @@ require("lazy").setup({
 
     -- { 'wellle/tmux-complete.vim' },
     -- { 'thalesmello/webcomplete.vim', cond = vim.fn.has('macunix' ) },
-    { 'liuchengxu/vista.vim', init = function()
-        require('config/vista')
-    end},
-
-    -- Python dependencies,
-    { 'pseewald/vim-anyfold', init = function()
-        require('config/anyfold')
-    end },
+    {
+        'liuchengxu/vista.vim',
+        keys = {
+            {"<leader>co", '<cmd>Vista!!<cr>'},
+        },
+        cmd = {"Vista"},
+        init = function()
+            vim.g.vista_icon_indent = { "╰─▸ ", "├─▸ " }
+            vim.g["vista#renderer#enable_icon"] = 1
+            vim.g.vista_default_executive = 'ctags'
+        end,
+    },
 
     -- Text objects,
     {
@@ -229,12 +296,12 @@ require("lazy").setup({
             { 'thalesmello/vim-textobj-bracketchunk' },
             { 'thalesmello/vim-textobj-multiline-str' },
         },
-        config = function() end,
     },
 
     {
         'coderifous/textobj-word-column.vim',
         init = function() require('config/textobjectcolumn') end,
+        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
 
     {
@@ -245,7 +312,6 @@ require("lazy").setup({
     },
 
 
-    { 'ggandor/leap-spooky.nvim' },
 
     {
         'tpope/vim-dispatch',
@@ -253,12 +319,29 @@ require("lazy").setup({
             require('config/dispatch')
         end,
     },
-    { 'tpope/vim-haystack' },
-
-
-    { 'tpope/vim-apathy' },
-    { 'yssl/QFEnter' },
-    { 'thalesmello/lkml.vim' },
+    {
+        'tpope/vim-apathy',
+        ft = {
+            'c',
+            'coffee',
+            'csh',
+            'desktop',
+            'dosbatch',
+            'go',
+            'javascript',
+            'javascriptreact',
+            'lua',
+            'python',
+            'ruby',
+            'scheme',
+            'sh',
+            'typescript',
+            'typescriptreact',
+            'zsh',
+        }
+    },
+    { 'yssl/QFEnter', event = "QuickFixCmdPre" },
+    { 'thalesmello/lkml.vim', ft = 'lkml' },
     {
         'junegunn/vim-easy-align',
         config = function()
@@ -269,46 +352,60 @@ require("lazy").setup({
         },
         cmd = {"EasyAlign"}
     },
-    { 'dzeban/vim-log-syntax' },
+    { 'dzeban/vim-log-syntax', ft = "log" },
     { 'alvan/vim-closetag' },
-    {
-        'andymass/vim-matchup',
-        keys = {"%", mode = {"n", "o"}},
-    },
     {
         'AndrewRadev/undoquit.vim',
         keys = {"<leader>T"},
+        cmd = {"Undoquit"},
         config = function()
-            require('config/undoquit')
+            vim.g.undoquit_mapping = '<leader>T'
         end,
     },
-    { 'AndrewRadev/inline_edit.vim', config = function()
-        require('config/inline_edit')
-    end},
-    { 'google/vim-jsonnet' },
+    {
+        'AndrewRadev/inline_edit.vim',
+        keys = {
+            {'<leader>ie',  '<cmd>InlineEdit<cr>',  silent = true},
+            {'<leader>ie', ':InlineEdit<space>""<left>', remap = true, mode = "x"}
+        },
+        cmd = "InlineEdit",
+    },
+    { 'google/vim-jsonnet', ft = "jsonnet" },
 
-    { 'hashivim/vim-terraform', config = function()
-        require('config/terraform')
-    end},
-
-    { 'glacambre/firenvim',
+    {
+        'hashivim/vim-terraform',
+        config = function()
+            require('config/terraform')
+        end,
+        ft = "terraform",
+    },
+    {
+        'glacambre/firenvim',
         build = function ()
             vim.fn['firenvim#install'](0)
         end,
         config = function()
             require('config/firenvim')
-        end},
+        end,
+        cond = vim.g.started_by_firenvim,
+    },
 
-    { 'AndrewRadev/linediff.vim' },
-    -- Default restructured text syntax doesn't work well,
-    { 'marshallward/vim-restructuredtext' },
-    { 'mattboehm/vim-unstack', config = function()
-        require('config/unstack')
-    end},
-
-    { 'AndrewRadev/splitjoin.vim', config = function()
-        require('config/splitjoin')
-    end},
+    { 'AndrewRadev/linediff.vim', cmd = {"LineDiff"} },
+    { 'marshallward/vim-restructuredtext', ft = "rst" },
+    {
+        'mattboehm/vim-unstack',
+        keys = {"<leader>st"},
+        cmd = {
+            'UnstackFromText',
+            'UnstackFromClipboard',
+            'UnstackFromSelection',
+            'UnstackFromTmux',
+        },
+        config = function()
+            vim.g.unstack_mapkey = "<leader>st"
+            vim.g.unstack_populate_quickfix = 1
+        end
+    },
     {
         'nvim-treesitter/nvim-treesitter',
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
@@ -319,14 +416,24 @@ require("lazy").setup({
             'nvim-treesitter/nvim-treesitter-textobjects',
             'nvim-treesitter/nvim-treesitter-context',
             'nvim-treesitter/playground',
+            'andymass/vim-matchup',
         },
         config = function ()
             require('config/treesitter')
         end
 
     },
-    { 'Wansmer/treesj',
-        dependencies = { 'nvim-treesitter/nvim-treesitter' },
+    {
+        'Wansmer/treesj',
+        dependencies = {
+            'nvim-treesitter/nvim-treesitter',
+            {
+                'AndrewRadev/splitjoin.vim',
+                init = function()
+                    require('config/splitjoin')
+                end,
+            },
+        },
         config = function()
             require('config/treesj')
         end,
@@ -334,7 +441,17 @@ require("lazy").setup({
         cmd = {"TSJSplit", "TSJJoin"}
 
     },
-    { 'ivanovyordan/dbt.vim', ft = { "python", "sql" } },
+    {
+        'lepture/vim-jinja',
+        ft = "jinja",
+    },
+    {
+        'ivanovyordan/dbt.vim',
+        dependencies = {
+            'lepture/vim-jinja'
+        },
+        ft = { "sql" },
+    },
     {
         'neovim/nvim-lspconfig',
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
@@ -380,6 +497,7 @@ require("lazy").setup({
             },
             {
                 'github/copilot.vim',
+                cmd = {"Copilot"},
                 event = "InsertEnter",
                 dependencies = {
                     {
@@ -395,7 +513,6 @@ require("lazy").setup({
                         build = function()
                             vim.notify("Please update the remote plugins by running ':UpdateRemotePlugins', then restart Neovim.")
                         end,
-                        event = "VeryLazy",
                     },
 
                 }
@@ -410,11 +527,6 @@ require("lazy").setup({
         },
         opts = {},
         cmd = {"Refactor"}
-    },
-    {
-        'winston0410/range-highlight.nvim',
-        dependencies = { 'winston0410/cmd-parser.nvim' },
-        opts = {},
     },
     -- { 'folke/which-key.nvim', opts = {}, event = 'VeryLazy', priority = 0 },
     {
@@ -440,7 +552,7 @@ require("lazy").setup({
                 priority = 500,
             },
         },
-        event = "VeryLazy"
+        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
     {
 
@@ -479,13 +591,6 @@ require("lazy").setup({
         event = "VeryLazy",
     },
     { "stevearc/dressing.nvim", event = "VeryLazy" },
-    {
-        'nathom/filetype.nvim',
-        config = function()
-            vim.g.did_load_filetypes = 1
-            require('filetype').setup({})
-        end,
-    },
     {
         "anuvyklack/pretty-fold.nvim",
         event = "VeryLazy",

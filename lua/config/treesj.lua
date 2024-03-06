@@ -35,21 +35,18 @@ tsj.setup({
 
 langs = require'treesj.langs'['presets']
 
-local group = vim.api.nvim_create_augroup("TreeSplitJoinGroup", {
-  clear = true
-})
+vim.keymap.set('n', 'gS', function ()
+  if langs[vim.bo.filetype] then
+    return '<Cmd>TSJSplit<CR>'
+  else
+    return '<Cmd>SplitjoinSplit<CR>'
+  end
+end, { expr = true, silent = true, desc = "Split structure" })
 
-vim.api.nvim_create_autocmd({ 'FileType' }, {
-  group = group,
-  pattern = '*',
-  callback = function()
-    local opts = { buffer = true }
+vim.keymap.set('n', 'gJ', function ()
     if langs[vim.bo.filetype] then
-      vim.keymap.set('n', 'gS', '<Cmd>TSJSplit<CR>', opts)
-      vim.keymap.set('n', 'gJ', '<Cmd>TSJJoin<CR>', opts)
+      return '<Cmd>TSJJoin<CR>'
     else
-      vim.keymap.set('n', 'gS', '<Cmd>SplitjoinSplit<CR>', opts)
-      vim.keymap.set('n', 'gJ', '<Cmd>SplitjoinJoin<CR>', opts)
+      return '<Cmd>SplitjoinJoin<CR>'
     end
-  end,
-})
+end, { expr = true, silent = true, desc = "Join structure" })

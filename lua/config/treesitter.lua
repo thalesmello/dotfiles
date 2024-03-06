@@ -42,8 +42,6 @@ require'nvim-treesitter.configs'.setup {
             ["if"] = "@function.inner",
             ["i,"] = "@parameter.inner",
             ["a,"] = "@parameter.outer",
-            ["ic"] = "@comment.inner",
-            ["ac"] = "@comment.outer",
             -- You can optionally set descriptions to the mappings (used in the desc parameter of
             -- nvim_buf_set_keymap) which plugins like which-key display
             ["iC"] = { query = "@class.inner", desc = "Select inner part of a class region" },
@@ -147,6 +145,12 @@ require'nvim-treesitter.configs'.setup {
       enable = true,
       use_virtual_text = true,
       lint_events = {"BufWrite", "CursorHold"},
+   },
+
+   matchup = {
+      enable = true,              -- mandatory, false will disable the whole extension
+      disable = {},  -- optional, list of language that will be disabled
+      -- [options]
    },
 }
 
