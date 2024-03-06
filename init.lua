@@ -33,16 +33,15 @@ require("lazy").setup({
     {
         'tpope/vim-flagship',
         dependencies = {
-            'ryanoasis/vim-devicons'
+            {
+                'ryanoasis/vim-devicons',
+                init = function ()
+                    vim.g.webdevicons_enable_flagship_statusline = 0
+                    vim.g.webdevicons_enable_flagship_statusline_fileformat_symbols = 0
+                end,
+            }
         },
         config = function() require('config/flagship') end,
-    },
-    {
-        'ryanoasis/vim-devicons',
-        config = function ()
-            vim.g.webdevicons_enable_flagship_statusline = 0
-            vim.g.webdevicons_enable_flagship_statusline_fileformat_symbols = 0
-        end,
     },
     {
         'romainl/Apprentice',
@@ -53,7 +52,17 @@ require("lazy").setup({
             vim.cmd.colorscheme("apprentice")
         end
     },
-    { 'tpope/vim-scriptease', event = 'VeryLazy' },
+    {
+        'tpope/vim-scriptease',
+        keys = {"g="},
+        ft = {"vim", "help"},
+        cmd = {
+            "Messages",
+            "PP",
+            "Scriptnames",
+            "Verbose",
+        },
+    },
     {
         'tpope/vim-projectionist',
         dependencies = {
@@ -72,7 +81,7 @@ require("lazy").setup({
         config = function()
             require('config/dirvish')
         end,
-    },
+},
     {
         'tpope/vim-eunuch',
         event = 'VeryLazy',
@@ -310,9 +319,6 @@ require("lazy").setup({
             vim.g.targets_seekRanges = 'cc cr cb cB lc ac Ac lr lb ar ab lB Ar aB Ab AB rr ll rb al rB Al bb aa bB Aa BB AA'
         end,
     },
-
-
-
     {
         'tpope/vim-dispatch',
         config = function()
