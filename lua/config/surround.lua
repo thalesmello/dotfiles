@@ -60,6 +60,11 @@ vim.api.nvim_create_autocmd({ 'FileType' }, {
   callback = function()
     require([[nvim-surround]]).buffer_setup({
       surrounds = {
+        ["<c-f>"] = {
+          add = {"function () ", " end"},
+          find = "function%().-end",
+          delete = "^(function%()%s*)().-(%send)()",
+        },
         ["q"] = {
           add = {"[[", "]]"},
           find = "%[=*%[.-%]=*%]",

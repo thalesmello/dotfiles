@@ -81,7 +81,7 @@ require("lazy").setup({
         config = function()
             require('config/dirvish')
         end,
-},
+    },
     {
         'tpope/vim-eunuch',
         event = 'VeryLazy',
@@ -205,6 +205,15 @@ require("lazy").setup({
     {
         'junegunn/fzf.vim',
         dependencies = { 'junegunn/fzf', 'tpope/vim-projectionist' },
+        keys = {
+            {"<c-p>", mode = "n"},
+            {"<c-p>", mode = "v"},
+            {"<c-f>", mode = "n"},
+            {"<leader>/", mode = "n"},
+            {"<leader>/", mode = "v"},
+            {"<leader>?", mode = "v"},
+            {"<leader>ft", mode = "n"},
+        },
         config = function()
             require('config/fzf')
         end,
@@ -254,13 +263,15 @@ require("lazy").setup({
             require('config/leap')
         end,
         keys = {
-            { "s", mode = {"n", "x"}, desc = "Leap forward to" },
-            { "S", mode = {"n", "x"}, desc = "Leap backward to" },
-            { "gs", mode = {"n", "x"}, desc = "Leap from windows" },
-            { "z", mode = {"o"}, desc = "Leap operator inclusive" },
-            { "Z", mode = {"o"}, desc = "Leap backwards operator inclusive" },
-            { "x", mode = {"o"}, desc = "Leap operator non-inclusive" },
-            { "X", mode = {"o"}, desc = "Leap backwards operator inclusive" },
+            {"s", "<Plug>(leap-forward)", mode = { "n" }, desc = "Leap forward to"},
+            {"S", "<Plug>(leap-backward)", mode = { "n" }, desc = "Leap backward to"},
+            {"gs", "<Plug>(leap-from-window)", mode = { "n" }, desc = "Leap from windows"},
+            {"s", "<Plug>(leap-forward-to)", mode = { "x" }, desc = "Leap operator inclusive"},
+            {"gs", "<Plug>(leap-backward-to)", mode = { "x" }, desc = "Leap backwards operator inclusive"},
+            {"z", "<Plug>(leap-forward-to)", mode = { "o" }, desc = "Leap operator inclusive"},
+            {"Z", "<Plug>(leap-backward-to)", mode = { "o" }, desc = "Leap backwards operator inclusive"},
+            {"x", "<Plug>(leap-forward-till)", mode = { "o" }, desc = "Leap operator non-inclusive"},
+            {"X", "<Plug>(leap-backward-till)", mode = { "o" }, desc = "Leap backwards operator inclusive"},
         },
     },
     {
@@ -268,13 +279,15 @@ require("lazy").setup({
         config = function() require('config/highlightedyank') end,
         event = "TextYankPost",
     },
-    { 'thalesmello/python-support.nvim',
-        build = function ()
+    {
+        'thalesmello/python-support.nvim',
+        build = function()
             vim.cmd.PythonSupportInitPython3()
         end,
         init = function()
             require('config/python_support')
-        end},
+        end
+    },
 
     -- { 'wellle/tmux-complete.vim' },
     -- { 'thalesmello/webcomplete.vim', cond = vim.fn.has('macunix' ) },
@@ -478,7 +491,20 @@ require("lazy").setup({
             {
                 'williamboman/mason.nvim',
                 dependencies = {
-                    'williamboman/mason-lspconfig.nvim'
+                    'williamboman/mason-lspconfig.nvim',
+                    {
+                        "rshkarin/mason-nvim-lint",
+                        dependencies = {
+                            "mfussenegger/nvim-lint",
+                            config = function()
+                                require('lint').linters_by_ft = {
+                                    python = { 'flake8' }
+                                }
+                            end
+
+                        },
+                        opts = {}
+                    }
                 },
             },
             { "ray-x/lsp_signature.nvim" },
@@ -591,8 +617,8 @@ require("lazy").setup({
     },
     {
         'thalesmello/vim-islime2',
-        config = function ()
-            vim.g.islime2_29_mode=1
+        config = function()
+            vim.g.islime2_29_mode = 1
         end,
         event = "VeryLazy",
     },

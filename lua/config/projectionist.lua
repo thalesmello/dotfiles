@@ -139,3 +139,4 @@ vim.api.nvim_create_autocmd("User", {
    end
 })
 
+vim.keymap.set("n", "<leader>cd", "<cmd>Plcd<cr>", { noremap = true, silent = true })

@@ -1,9 +1,3 @@
-if vim.fn.match(vim.opt.runtimepath:get(), "leap.nvim") == -1 then
-   return
-end
-
-require('leap').add_default_mappings()
-
 require('leap-spooky').setup {
   -- Additional text objects, to be merged with the default ones.
   -- E.g.: {'iq', 'aq'}
@@ -28,6 +22,3 @@ require('leap-spooky').setup {
   -- if the unnamed register is in use.
   paste_on_remote_yank = false,
 }
-
-vim.keymap.set({'o'}, 'z', '<Plug>(leap-forward-to)')
-vim.keymap.set({'o'}, 'Z', '<Plug>(leap-backward-to)')
