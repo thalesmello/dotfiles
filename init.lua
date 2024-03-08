@@ -115,6 +115,9 @@ require("lazy").setup({
     },
     {
         'kylechui/nvim-surround',
+        dependencies = {
+            'nvim-treesitter/nvim-treesitter',
+        },
         config = function() require('config/surround') end,
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
@@ -213,6 +216,12 @@ require("lazy").setup({
             {"<leader>/", mode = "v"},
             {"<leader>?", mode = "v"},
             {"<leader>ft", mode = "n"},
+        },
+        cmd = {
+            "Files", "GFiles", "GFiles", "Buffers", "Colors", "Ag", "Rg",
+            "RG", "Lines", "BLines", "Tags", "BTags", "Changes", "Marks", "Jumps",
+            "Windows", "Locate", "History", "", "History", "Snippets", "Commits",
+            "BCommits", "Commands", "Maps", "Helptags", "Filetypes"
         },
         config = function()
             require('config/fzf')

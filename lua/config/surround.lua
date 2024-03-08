@@ -1,7 +1,3 @@
-if vim.fn.match(vim.opt.runtimepath:get(), "nvim-surround") == -1 then
-   return
-end
-
 require("nvim-surround").setup({
   keymaps = {
     insert = "<c-s>",
@@ -17,7 +13,7 @@ require("nvim-surround").setup({
     ["s"] = false,
   },
   -- highlight =     -- Defines highlight behavior
-  move_cursor = false,
+  move_cursor = true,
   -- indent_lines =  -- Defines line indentation behavior,
 })
 
@@ -31,7 +27,7 @@ vim.api.nvim_create_autocmd({ 'FileType' }, {
   callback = function()
     require("nvim-surround").buffer_setup({
       surrounds = {
-        ["i"] = {
+        ["<c-]>"] = {
           add = {"{{ ", " }}"},
           find = "{{.-}}",
           delete = "^({{%s*)().-(%s*}})()$",
@@ -58,22 +54,28 @@ vim.api.nvim_create_autocmd({ 'FileType' }, {
   group = group,
   pattern = "lua",
   callback = function()
-    require([[nvim-surround]]).buffer_setup({
+    require("nvim-surround").buffer_setup({
       surrounds = {
         ["<c-f>"] = {
           add = {"function () ", " end"},
-          find = "function%().-end",
-          delete = "^(function%()%s*)().-(%send)()",
+          find = function ()
+            return require("nvim-surround.config").get_selection({node = "function_definition"})
+          end,
+          delete = "^(function%s*%(%)%s*)().-(%s*end)()$",
         },
         ["q"] = {
           add = {"[[", "]]"},
-          find = "%[=*%[.-%]=*%]",
-          delete = "^(%[=*%[)().-(%]=*%])()",
+          find = function ()
+            return require("nvim-surround.config").get_selection({node = "string"})
+          end,
+          delete = "^(%[=*%[)().-(%]=*%])()$",
         },
         ["Q"] = {
           add = {"[=[", "]=]"},
-          find = "%[=*%[.-%]=*%]",
-          delete = "^(%[=*%[)().-(%]=*%])()",
+          find = function ()
+            return require("nvim-surround.config").get_selection({node = "string"})
+          end,
+          delete = "^(%[=*%[)().-(%]=*%])()$",
         },
       }
     })
