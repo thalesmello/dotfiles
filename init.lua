@@ -138,7 +138,6 @@ require("lazy").setup({
     {
         'airblade/vim-gitgutter',
         config = function() require('config/gitgutter') end,
-        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
     {
         "windwp/nvim-autopairs",
