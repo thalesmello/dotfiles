@@ -24,3 +24,5 @@ abbr ka kubectl -n airflow
 abbr kc kubectl config use-context
 abbr gssh gcloud compute ssh
 abbr gscp gcloud compute scp
+abbr e cvim E
+abbr ec cvim Econfig
