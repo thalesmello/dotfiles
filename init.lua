@@ -539,6 +539,13 @@ require("lazy").setup({
                 'github/copilot.vim',
                 cmd = {"Copilot"},
                 event = "InsertEnter",
+                config = function()
+                    vim.keymap.set('i', '<right>', 'copilot#Accept("\\<right>")', {
+                        expr = true,
+                        replace_keycodes = false
+                    })
+                    vim.g.copilot_no_tab_map = true
+                end,
                 dependencies = {
                     {
                         "CopilotC-Nvim/CopilotChat.nvim",
