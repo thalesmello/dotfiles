@@ -155,8 +155,10 @@ require("lazy").setup({
         },
     },
     {
-        "linrongbin16/gentags.nvim",
-        opts = {},
+        'ludovicchabant/vim-gutentags',
+        init = function()
+            vim.g.gutentags_ctags_exclude = { 'node_modules', '.git' }
+        end,
     },
     { 'thalesmello/gitignore', event = "VeryLazy" },
     { 'tpope/vim-rsi', event = {"CmdlineEnter", "InsertEnter"} },
