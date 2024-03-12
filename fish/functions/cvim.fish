@@ -14,5 +14,5 @@ function __cvim_completion
 end
 
 function cvim
-    svim -c 'doautocmd VimEnter *' "$argv"
+    svim -c 'doautocmd VimEnter *' -c "$argv"
 end
