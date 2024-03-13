@@ -68,7 +68,7 @@ vim.cmd("botright cwindow")
 vim.cmd.virtualedit={ "block", "onemore" }
 
 vim.opt.cursorline = true
-vim.cmd.listchars={ tab = "▸ ", eol = "¬" }
+vim.opt.listchars={ tab = "▸ ", eol = "¬" }
 vim.opt.splitbelow = true
 vim.opt.splitright = true
 vim.opt.linebreak = true
