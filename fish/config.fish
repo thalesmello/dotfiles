@@ -13,6 +13,8 @@ fundle plugin thalesmello/theme-cmorrell.com
 fundle plugin thalesmello/plugin-hubflow
 fundle plugin ankitsumitg/docker-fish-completions
 fundle plugin lgathy/google-cloud-sdk-fish-completion
+# Done requires brew install terminal-notifier
+fundle plugin franciscolourenco/done
 fundle init
 
 # Configure theme
