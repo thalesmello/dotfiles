@@ -13,8 +13,11 @@ fundle plugin thalesmello/theme-cmorrell.com
 fundle plugin thalesmello/plugin-hubflow
 fundle plugin ankitsumitg/docker-fish-completions
 fundle plugin lgathy/google-cloud-sdk-fish-completion
-# Done requires brew install terminal-notifier
 fundle plugin franciscolourenco/done
+fundle plugin jorgebucaran/autopair.fish
+fundle plugin PatrickF1/colored_man_pages.fish
+# Done requires brew install terminal-notifier
+fundle plugin gazorby/fifc
 fundle init
 
 # Configure theme
@@ -46,7 +49,7 @@ set -gx LESS_TERMCAP_ue \e'[0m'        # reset underline
 set -gx LIBGL_ALWAYS_INDIRECT 1
 
 # Setup envs
-set -xg FZF_DEFAULT_OPTS '--bind "ctrl-n:down,ctrl-p:up,ctrl-r:previous-history,ctrl-s:next-history,ctrl-q:select-all,ctrl-x:toggle-out"'
+set -xg FZF_DEFAULT_OPTS '--bind "ctrl-n:down,ctrl-p:up,ctrl-r:previous-history,ctrl-s:next-history,ctrl-q:select-all,ctrl-x:toggle-out" --height 40%'
 set -xg SKIM_DEFAULT_OPTS '--bind "ctrl-n:down,ctrl-p:up,alt-r:previous-history,alt-s:next-history,ctrl-q:select-all,ctrl-x:toggle-out"'
 
 # AWS completion
