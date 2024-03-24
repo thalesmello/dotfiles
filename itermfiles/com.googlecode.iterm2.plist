@@ -361,10 +361,14 @@
 	</dict>
 	<key>Default Bookmark Guid</key>
 	<string>FE34BC10-D56F-4821-81BE-4489A74F48D9</string>
+	<key>EnableAPIServer</key>
+	<true/>
 	<key>HapticFeedbackForEsc</key>
 	<false/>
 	<key>HotkeyMigratedFromSingleToMulti</key>
 	<true/>
+	<key>Mark Alert Action</key>
+	<string>Modal Alert</string>
 	<key>NeverWarnAboutShortLivedSessions_FE34BC10-D56F-4821-81BE-4489A74F48D9</key>
 	<true/>
 	<key>NeverWarnAboutShortLivedSessions_FE34BC10-D56F-4821-81BE-4489A74F48D9_selection</key>
@@ -1300,6 +1304,10 @@
 		</dict>
 	</dict>
 	<key>Print In Black And White</key>
+	<true/>
+	<key>SetCookie</key>
+	<false/>
+	<key>ShowFullScreenTabBar</key>
 	<true/>
 	<key>SoundForEsc</key>
 	<false/>

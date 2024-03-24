@@ -1,0 +1,28 @@
+#!/bin/bash
+
+osascript<<EOF
+    tell application "iTerm"
+        activate
+        # select first window
+
+        # # Create new tab
+        # tell current window
+        #     create tab with default profile
+        # end tell
+
+        # Split pane
+        tell current session of current window
+            split horizontally with default profile command "$*"
+        end tell
+
+        # Run command in Pane-1
+        # tell second session of current tab of current window
+        #     write text "$*"
+        # end tell
+
+        # Run command in Pane-2
+        # tell second session of current tab of current window
+        #     write text "echo Second tab!;"
+        # end tell
+    end tell
+EOF
