@@ -16,8 +16,6 @@ fundle plugin lgathy/google-cloud-sdk-fish-completion
 fundle plugin franciscolourenco/done
 fundle plugin jorgebucaran/autopair.fish
 fundle plugin PatrickF1/colored_man_pages.fish
-# Done requires brew install terminal-notifier
-fundle plugin gazorby/fifc
 fundle init
 
 # Configure theme
