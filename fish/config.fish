@@ -10,6 +10,8 @@ end
 fundle plugin brgmnn/fish-docker-compose
 fundle plugin fischerling/plugin-wd
 fundle plugin thalesmello/theme-cmorrell.com
+# TODO: figure out why removing git-flow breaks git completion in shell
+fundle plugin oh-my-fish/plugin-git-flow
 fundle plugin thalesmello/plugin-hubflow
 fundle plugin ankitsumitg/docker-fish-completions
 fundle plugin lgathy/google-cloud-sdk-fish-completion
