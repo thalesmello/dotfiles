@@ -2,10 +2,14 @@
 
 set -e
 
-filetype=$1
+if test "$1" = "--guess"; then
+    filetype=$(npm exec @vscode/vscode-languagedetection "$(pbpaste)" 2>/dev/null | yq '.[0].languageId')
+else
+    filetype=$1
+fi
 
-if test -n "$1"; then
-    tmpfile=$(mktemp --suffix ".$1")
+if test -n "$filetype"; then
+    tmpfile=$(mktemp --suffix ".$filetype")
 else
     tmpfile=$(mktemp)
 fi
