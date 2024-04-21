@@ -26,3 +26,6 @@ abbr gssh gcloud compute ssh
 abbr gscp gcloud compute scp
 abbr e cvim E
 abbr ec cvim Econfig
+abbr vpython ./venv/bin/python
+abbr vpy ./venv/bin/python
+abbr vpip ./venv/bin/pip
