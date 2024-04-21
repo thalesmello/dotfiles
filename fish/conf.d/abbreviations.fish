@@ -17,7 +17,6 @@ abbr how 'howdoi -n 5'
 abbr ovim /usr/local/bin/vim
 abbr ssx 'ssh -C -c blowfish -X'
 abbr vim svim
-abbr vp ./venv/bin/python
 abbr wsite 'wget -r --no-parent'
 abbr k kubectl
 abbr ka kubectl -n airflow
@@ -29,3 +28,4 @@ abbr ec cvim Econfig
 abbr vpython ./venv/bin/python
 abbr vpy ./venv/bin/python
 abbr vpip ./venv/bin/pip
+abbr v venv-run  --
