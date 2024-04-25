@@ -13,6 +13,9 @@ vim.g.projectionist_heuristics = {
       [config .. "/lua/*.lua"] = {
          type = "lua",
       },
+      [config .. "/after/queries/*/textobjects.scm"] = {
+         type = "textobjects",
+      },
    },
    [data .. '/lazy/'] = {
       [data .. '/lazy/*.vim'] = {
@@ -29,7 +32,7 @@ vim.g.projectionist_heuristics = {
 }
 
 local function make_dbt_projection(module)
-   local compiled_folder = "target/run/" .. module .. "/models"
+   local compiled_folder = "target/run/" .. module
 
    return {
       ["*.sql"] = {
@@ -40,7 +43,7 @@ local function make_dbt_projection(module)
          }
       },
       ["models/*.sql"] = {
-         alternate = {"models/{}.yml", compiled_folder .. "/{}.sql"},
+         alternate = {"models/{}.yml", compiled_folder .. "/models/{}.sql"},
          setlocal = {
             commentstring = "{open}# %s #{close}",
          },
@@ -49,7 +52,7 @@ local function make_dbt_projection(module)
          dispatch = "dbt --no-use-colors run -m {basename}",
       },
       ["models/*.yml"] = {
-         alternate = {compiled_folder .. "/{}.sql", "models/{}.sql"},
+         alternate = {compiled_folder .. "/models/{}.sql", "models/{}.sql"},
          type = "properties",
          template = {
             "version: 2",
@@ -65,12 +68,18 @@ local function make_dbt_projection(module)
       },
       ["tests/*.sql"] = {
          dispatch = "dbt --no-use-colors test -m {basename}",
-         type = "test"
+         type = "test",
+         alternate = { compiled_folder .. "/tests/{}.sql" },
       },
-      [compiled_folder .. "/*.sql"] = {
+      [compiled_folder .. "/models/*.sql"] = {
          setlocal = { readonly = true, modifiable = false },
          type = "compiled",
          alternate = { "models/{}.sql" },
+      },
+      [compiled_folder .. "/tests/*.sql"] = {
+         setlocal = { readonly = true, modifiable = false },
+         type = "compiledtests",
+         alternate = { "tests/{}.sql" },
       },
    }
 end

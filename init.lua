@@ -419,7 +419,7 @@ require("lazy").setup({
         cond = vim.g.started_by_firenvim,
     },
 
-    { 'AndrewRadev/linediff.vim', cmd = {"LineDiff"} },
+    { 'AndrewRadev/linediff.vim', cmd = {"Linediff", "LinediffMerge"} },
     { 'marshallward/vim-restructuredtext', ft = "rst" },
     {
         'mattboehm/vim-unstack',
@@ -480,6 +480,9 @@ require("lazy").setup({
             'lepture/vim-jinja'
         },
         ft = { "sql" },
+        init = function()
+            vim.g.omni_sql_no_default_maps = 1
+        end,
     },
     {
         'neovim/nvim-lspconfig',
