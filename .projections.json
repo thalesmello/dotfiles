@@ -1,0 +1,8 @@
+{
+  "fish/fundle/*.fish": {"type": "fishplugin"},
+  "fish/completions/*.fish": {"type": "completion"},
+  "fish/functions/*.fish": {"type": "functions"},
+  "fish/conf.d/*.fish": {"type": "conf"},
+  "fish/config.fish": {"type": "init"},
+  "README.markdown": {"type": "doc"}
+}

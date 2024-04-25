@@ -15,7 +15,6 @@ fundle plugin ankitsumitg/docker-fish-completions
 fundle plugin lgathy/google-cloud-sdk-fish-completion
 fundle plugin franciscolourenco/done
 fundle plugin PatrickF1/colored_man_pages.fish
-fundle plugin lwolfsonkin/fish-jupyter-completions
 fundle init
 
 # Configure theme
