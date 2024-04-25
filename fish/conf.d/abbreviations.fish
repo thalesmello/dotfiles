@@ -17,6 +17,7 @@ abbr how 'howdoi -n 5'
 abbr ovim /usr/local/bin/vim
 abbr ssx 'ssh -C -c blowfish -X'
 abbr vim svim
+abbr p pvim
 abbr wsite 'wget -r --no-parent'
 abbr k kubectl
 abbr ka kubectl -n airflow
