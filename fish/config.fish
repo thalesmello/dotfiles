@@ -49,8 +49,6 @@ set -gx LIBGL_ALWAYS_INDIRECT 1
 set -xg FZF_DEFAULT_OPTS '--bind "ctrl-n:down,ctrl-p:up,ctrl-r:previous-history,ctrl-s:next-history,ctrl-q:select-all,ctrl-x:toggle-out" --height 40%'
 set -xg FZF_CTRL_T_COMMAND 'ag -l'
 
-# AWS completion
-test -x (type -q aws_completer); and complete --command aws --no-files --arguments '(begin; set --local --export COMP_SHELL fish; set --local --export COMP_LINE (commandline); aws_completer | sed \'s/ $//\'; end)'
 if set -q USE_WSL_CONFIG
 	eval (keychain --eval --quiet $HOME/.ssh/id_rsa)
 	set -x WSL_HOST (tail -1 /etc/resolv.conf | cut -d' ' -f2)
