@@ -1,2 +1,0 @@
-#!/bin/sh
-brew "$@" | tr '[a-z]' '[A-Z]'
