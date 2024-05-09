@@ -16,3 +16,5 @@ function __zoxide_z_complete_smart
         commandline --function repaint
     end
 end
+
+complete --command z --no-files --keep-order --arguments '(__zoxide_z_complete_smart)'

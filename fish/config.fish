@@ -64,10 +64,3 @@ if set -q USE_WSL_CONFIG
 		set -x SSH_AUTH_SOCK "$(find '/tmp/ssh-*' -name 'agent.*')"
 	end
 end
-
-if command -qs zoxide
-	zoxide init fish | source
-
-	complete --command z -e
-	complete --command z --no-files --keep-order --arguments '(__zoxide_z_complete_smart)'
-end
