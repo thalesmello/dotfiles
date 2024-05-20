@@ -340,6 +340,17 @@ require("lazy").setup({
         'wellle/targets.vim',
         config = function ()
             vim.g.targets_seekRanges = 'cc cr cb cB lc ac Ac lr lb ar ab lB Ar aB Ab AB rr ll rb al rB Al bb aa bB Aa BB AA'
+
+            vim.api.nvim_create_autocmd("User", {
+                group = vim.api.nvim_create_augroup("TargetsAuGroup", { clear = true }),
+                pattern = "targets#mappings#user",
+                callback = function ()
+                    vim.fn['targets#mappings#extend']({
+                        [":"] = vim.empty_dict(),
+                        [";"] = vim.empty_dict(),
+                    })
+                end
+            })
         end,
     },
     {
