@@ -92,16 +92,16 @@ vim.api.nvim_create_autocmd({ 'FileType' }, {
         ["q"] = {
           add = {'"""', '"""'},
           find = function ()
-            return require("nvim-surround.config").get_selection({ motion = "aq" })
+            return require("nvim-surround.config").get_selection({ query = { capture = "@multiline_string.outer", type = "textobjects" } })
           end,
-          delete = [=[^(f?""")().-(""")()$]=],
+          delete = [=[^(f?['"]['"]['"])().-(['"]['"]['"])()$]=],
         },
         ["Q"] = {
           add = {"'''", "'''"},
           find = function ()
-            return require("nvim-surround.config").get_selection({ motion = "aq" })
+            return require("nvim-surround.config").get_selection({ query = { capture = "@multiline_string.outer", type = "textobjects" } })
           end,
-          delete = [=[^(f?''')().-(''')()$]=],
+          delete = [=[^(f?['"]['"]['"])().-(['"]['"]['"])()$]=],
         },
       }
     })

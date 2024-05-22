@@ -8,6 +8,6 @@
    value: (_) @pair.value)]
 
 (string
-  . (string_start) @str-start (#any-of? @str-start "\"\"\"" "f\"\"\"" "f'''")
-  . (_) @_start
-  (_) @_end . (string_end) @str-end (#eq? @str-end @str-end) . (#make-range! "multiline_string.inner" @_start @_end)) @multiline_string.outer
+  . (string_start) @str-start (#any-of? @str-start "\"\"\"" "'''" "f\"\"\"" "f'''")
+  . ((_)*) @multiline_string.inner
+  (string_end) @str-end (#eq? @str-end @str-end) .) @multiline_string.outer
