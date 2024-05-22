@@ -81,3 +81,29 @@ vim.api.nvim_create_autocmd({ 'FileType' }, {
     })
   end,
 })
+
+
+vim.api.nvim_create_autocmd({ 'FileType' }, {
+  group = group,
+  pattern = "python",
+  callback = function()
+    require("nvim-surround").buffer_setup({
+      surrounds = {
+        ["q"] = {
+          add = {'"""', '"""'},
+          find = function ()
+            return require("nvim-surround.config").get_selection({ motion = "aq" })
+          end,
+          delete = [=[^(f?""")().-(""")()$]=],
+        },
+        ["Q"] = {
+          add = {"'''", "'''"},
+          find = function ()
+            return require("nvim-surround.config").get_selection({ motion = "aq" })
+          end,
+          delete = [=[^(f?''')().-(''')()$]=],
+        },
+      }
+    })
+  end,
+})

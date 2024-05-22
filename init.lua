@@ -117,6 +117,7 @@ require("lazy").setup({
         'kylechui/nvim-surround',
         dependencies = {
             'nvim-treesitter/nvim-treesitter',
+            'kana/vim-textobj-user',
         },
         config = function() require('config/surround') end,
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
@@ -317,7 +318,6 @@ require("lazy").setup({
     -- Text objects,
     {
         'kana/vim-textobj-user',
-        name = 'textobj',
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
         dependencies = {
             { 'michaeljsmith/vim-indent-object' },
@@ -326,7 +326,8 @@ require("lazy").setup({
             { 'Julian/vim-textobj-variable-segment' },
             { 'kana/vim-textobj-entire' },
             { 'thalesmello/vim-textobj-bracketchunk' },
-            { 'thalesmello/vim-textobj-multiline-str' },
+            -- Only works vim treesitter syntax, doesn't work with Tree sitter yet
+            -- { 'thalesmello/vim-textobj-multiline-str' },
         },
     },
 
@@ -464,6 +465,12 @@ require("lazy").setup({
 
     },
     {
+        'AndrewRadev/splitjoin.vim',
+        init = function()
+            require('config/splitjoin')
+        end,
+    },
+    {
         'Wansmer/treesj',
         dependencies = {
             'nvim-treesitter/nvim-treesitter',
@@ -524,6 +531,18 @@ require("lazy").setup({
                                 require('lint').linters_by_ft = {
                                     python = { 'flake8' }
                                 }
+
+                                local group = vim.api.nvim_create_augroup("LintGroup", { clear = true })
+
+                                vim.api.nvim_create_autocmd({ "BufEnter" }, {
+                                  group = group,
+                                  callback = function() require("lint").try_lint() end,
+                                })
+
+                                vim.api.nvim_create_autocmd({ "BufWritePost" }, {
+                                  group = group,
+                                  callback = function() require("lint").try_lint() end,
+                                })
                             end
 
                         },
@@ -654,47 +673,47 @@ require("lazy").setup({
         event = "VeryLazy",
     },
     { "stevearc/dressing.nvim", event = "VeryLazy" },
-    {
-        "anuvyklack/pretty-fold.nvim",
-        event = "VeryLazy",
-        config = function()
-            local components = require('pretty-fold.components')
-            require('pretty-fold').setup({
-                -- fill_char = ' ',
-                sections = {
+    -- {
+    --     "anuvyklack/pretty-fold.nvim",
+    --     -- event = "VeryLazy",
+    --     config = function()
+    --         local components = require('pretty-fold.components')
+    --         require('pretty-fold').setup({
+    --             -- fill_char = ' ',
+    --             sections = {
 
-                    left = {
-                        function (config)
-                            local content = components.content(config) ---@type string
+    --                 left = {
+    --                     function (config)
+    --                         local content = components.content(config) ---@type string
 
-                            if content:match(config.fill_char .. '*%s*{%.%.%.}') then
-                                local line_num = vim.fn.nextnonblank(vim.v.foldstart + 1)
-                                local next_line = vim.fn.trim(vim.fn.getline(line_num))
-                                content = content:gsub('%.%.%.', next_line .. ' ...')
-                            end
+    --                         if content:match(config.fill_char .. '*%s*{%.%.%.}') then
+    --                             local line_num = vim.fn.nextnonblank(vim.v.foldstart + 1)
+    --                             local next_line = vim.fn.trim(vim.fn.getline(line_num))
+    --                             content = content:gsub('%.%.%.', next_line .. ' ...')
+    --                         end
 
-                            return content
-                        end
-                    },
-                    right = {
-                        ' ', 'number_of_folded_lines', ': ', 'percentage', ' ',
-                        function(config) return config.fill_char:rep(3) end
-                    }
-                }
-            })
-            require('pretty-fold').ft_setup('lua', {
-                matchup_patterns = {
-                    { '^%s*do$', 'end' }, -- do ... end blocks
-                    { '^%s*if', 'end' },  -- if ... end
-                    { '^%s*for', 'end' }, -- for
-                    { 'function%s*%(', 'end' }, -- 'function( or 'function (''
-                    {  '{', '}' },
-                    { '%(', ')' }, -- % to escape lua pattern char
-                    { '%[', ']' }, -- % to escape lua pattern char
-                },
-            })
-        end,
-    }
+    --                         return content
+    --                     end
+    --                 },
+    --                 right = {
+    --                     ' ', 'number_of_folded_lines', ': ', 'percentage', ' ',
+    --                     function(config) return config.fill_char:rep(3) end
+    --                 }
+    --             }
+    --         })
+    --         require('pretty-fold').ft_setup('lua', {
+    --             matchup_patterns = {
+    --                 { '^%s*do$', 'end' }, -- do ... end blocks
+    --                 { '^%s*if', 'end' },  -- if ... end
+    --                 { '^%s*for', 'end' }, -- for
+    --                 { 'function%s*%(', 'end' }, -- 'function( or 'function (''
+    --                 {  '{', '}' },
+    --                 { '%(', ')' }, -- % to escape lua pattern char
+    --                 { '%[', ']' }, -- % to escape lua pattern char
+    --             },
+    --         })
+    --     end,
+    -- }
 })
 
 require('config/settings')
