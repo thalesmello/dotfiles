@@ -40,8 +40,8 @@ require'nvim-treesitter.configs'.setup {
             -- You can use the capture groups defined in textobjects.scm
             ["af"] = "@function.outer",
             ["if"] = "@function.inner",
-            ["i,"] = "@parameter.inner",
-            ["a,"] = "@parameter.outer",
+            -- ["i,"] = "@parameter.inner",
+            -- ["a,"] = "@parameter.outer",
             ["a;"] = "@pair.value",
             ["a:"] = "@pair.key",
             ["aq"] = "@multiline_string.outer",
@@ -66,7 +66,7 @@ require'nvim-treesitter.configs'.setup {
          enable = true,
          set_jumps = true, -- whether to set jumps in the jumplist
          goto_next_start = {
-            ["],"] = "@parameter.outer",
+            -- ["],"] = "@parameter.outer",
             ["]m"] = "@function.outer",
             ["]]"] = { query = "@class.outer", desc = "Next class start" },
             --
@@ -84,7 +84,7 @@ require'nvim-treesitter.configs'.setup {
             ["]["] = "@class.outer",
          },
          goto_previous_start = {
-            ["[,"] = "@parameter.outer",
+            -- ["[,"] = "@parameter.outer",
             ["[m"] = "@function.outer",
             ["[["] = "@class.outer",
          },
@@ -106,10 +106,10 @@ require'nvim-treesitter.configs'.setup {
       swap = {
          enable = true,
          swap_next = {
-            [">,"] = "@parameter.inner",
+            -- [">,"] = "@parameter.inner",
          },
          swap_previous = {
-            ["<,"] = "@parameter.inner",
+            -- ["<,"] = "@parameter.inner",
          },
       },
 

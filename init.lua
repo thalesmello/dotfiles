@@ -673,6 +673,7 @@ require("lazy").setup({
         event = "VeryLazy",
     },
     { "stevearc/dressing.nvim", event = "VeryLazy" },
+    { "PeterRincker/vim-argumentative" },
     -- {
     --     "anuvyklack/pretty-fold.nvim",
     --     -- event = "VeryLazy",
