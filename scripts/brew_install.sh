@@ -15,3 +15,4 @@ brew install gh
 brew install the_silver_searcher
 brew install black
 brew install terminal-notifier
+brew install yq
