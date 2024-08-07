@@ -1,6 +1,7 @@
-const office_apps = ["Slack", "zoom.us", "iTerm2", "Workplace Chat"]
+const work_apps = ["Slack", "zoom.us", "iTerm2", "Workplace Chat", "Metamate"]
 const personal_apps = ["WhatsApp"]
 const personal_websites = ["youtube.com", "facebook.com"]
+const work_websites = ["internalfb.com"]
 
 class Rule {
   constructor (props) {
@@ -32,7 +33,8 @@ module.exports = {
   },
   handlers: [
     personal_chrome.match(({ url }) => personal_websites.some(website => url.host.endsWith(website))),
-    work_chrome.match(({ opener }) => office_apps.includes(opener.name)),
+    work_chrome.match(({ url }) => work_websites.some(website => url.host.endsWith(website))),
+    work_chrome.match(({ opener }) => work_apps.includes(opener.name)),
     personal_chrome.match(({ opener }) => personal_apps.includes(opener.name)),
     slack.match(({ url }) => url.protocol === "slack"),
   ],
