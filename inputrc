@@ -1,5 +1,5 @@
 # Use Vi, not Emacs, style editing
-set editing-mode vi
+# set editing-mode vi
 
 # Show all completions as soon as I press tab, even if there's more than one
 set show-all-if-ambiguous on
@@ -8,7 +8,7 @@ set completion-ignore-case on
 
 ###########################################################
 # Keymaps for when we're in command mode (e.g., after hitting ESC)
-set keymap vi-command
+# set keymap vi-command
 
 # Insert the arguments from the last command
 # "p": "i !!*\r"
@@ -21,20 +21,20 @@ set keymap vi-command
 # "\033\033[B".
 # Feel free to bind to whatever you want. Delete the first '\e' in the keymap
 # to set plain up/down to do a history search by default.
-"\e\e[A": history-search-backward
-"\e\e[B": history-search-forward
+# "\e\e[A": history-search-backward
+# "\e\e[B": history-search-forward
 
 ###########################################################
 # Keymaps for when we're in insert (i.e., typing stuff in) mode
-set keymap vi-insert
+# set keymap vi-insert
 
 # Option-up/option-down should also apply to insert mode
-"\e\e[A": history-search-backward
-"\e\e[B": history-search-forward
+# "\e\e[A": history-search-backward
+# "\e\e[B": history-search-forward
 
-"\C-a": beginning-of-line
-"\C-e": end-of-line
+# "\C-a": beginning-of-line
+# "\C-e": end-of-line
 
 # Needed because binding 'p' in command mode above wipes its insert mode
 # function, too. This fixes that, and will insert 'p' when you type 'p'.
-"p": self-insert
+# "p": self-insert
