@@ -43,6 +43,12 @@ vim.api.nvim_create_autocmd({ 'FileType' }, {
           add = {"{%- ", " -%}"},
           find = "{%%%-?.-%-?%%}",
           delete = "^({%%%-?%s*)().-(%s*%-?%%})()"
+        },
+
+        ["#"] = {
+          add = {"{# ", " #}"},
+          find = "{#.-#}",
+          delete = "^({#%s*)().-(%s*#})()"
         }
       }
     })
@@ -50,7 +56,7 @@ vim.api.nvim_create_autocmd({ 'FileType' }, {
 })
 
 
-vim.api.nvim_create_autocmd({ 'FileType' }, {
+vim.api.nvim_create_autocmd({ 'filetype' }, {
   group = group,
   pattern = "lua",
   callback = function()

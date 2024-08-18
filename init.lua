@@ -318,7 +318,6 @@ require("lazy").setup({
     -- Text objects,
     {
         'kana/vim-textobj-user',
-        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
         dependencies = {
             { 'michaeljsmith/vim-indent-object' },
             { 'thalesmello/vim-textobj-methodcall' },
@@ -337,20 +336,50 @@ require("lazy").setup({
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
 
-    {
-        'wellle/targets.vim',
-        config = function ()
-            vim.g.targets_seekRanges = 'cc cr cb cB lc ac Ac lr lb ar ab lB Ar aB Ab AB rr ll rb al rB Al bb aa bB Aa BB AA'
+    -- {
+    --     'wellle/targets.vim',
+    --     config = function ()
+    --         vim.g.targets_seekRanges = 'cc cr cb cB lc ac Ac lr lb ar ab lB Ar aB Ab AB rr ll rb al rB Al bb aa bB Aa BB AA'
 
-            vim.api.nvim_create_autocmd("User", {
-                group = vim.api.nvim_create_augroup("TargetsAuGroup", { clear = true }),
-                pattern = "targets#mappings#user",
-                callback = function ()
-                    vim.fn['targets#mappings#extend']({
-                        [":"] = vim.empty_dict(),
-                        [";"] = vim.empty_dict(),
-                    })
-                end
+    --         vim.api.nvim_create_autocmd("User", {
+    --             group = vim.api.nvim_create_augroup("TargetsAuGroup", { clear = true }),
+    --             pattern = "targets#mappings#user",
+    --             callback = function ()
+    --                 vim.fn['targets#mappings#extend']({
+    --                     [":"] = vim.empty_dict(),
+    --                     [";"] = vim.empty_dict(),
+    --                 })
+    --             end
+    --         })
+    --     end,
+    -- },
+    {
+        'echasnovski/mini.ai',
+        version = false,
+        config = function()
+            require('mini.ai').setup({
+                custom_textobjects = {},
+                search_method = "cover"
+
+            })
+
+            local group = vim.api.nvim_create_augroup("MiniAiBufferGroup", { clear = true })
+
+            vim.api.nvim_create_autocmd({ 'FileType' }, {
+                group = group,
+                pattern = "sql",
+                callback = function()
+
+                    local spec_pair = require('mini.ai').gen_spec.pair
+                    vim.b.miniai_config = {
+                        custom_textobjects = {
+                            ['<c-]>'] = spec_pair('{{', '}}'),
+                            ['%'] = spec_pair('{%', '%}'),
+                            ['-'] = spec_pair('{%-', '-%}'),
+                            ['#'] = spec_pair('{#', '#}'),
+                        },
+                    }
+                end,
             })
         end,
     },
@@ -608,7 +637,6 @@ require("lazy").setup({
             "nvim-treesitter/nvim-treesitter",
         },
         opts = {},
-        cmd = {"Refactor"}
     },
     -- { 'folke/which-key.nvim', opts = {}, event = 'VeryLazy', priority = 0 },
     {
