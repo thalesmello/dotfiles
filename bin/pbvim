@@ -2,10 +2,16 @@
 
 set -e
 
-if test "$1" = "--guess"; then
-    filetype=$(npm exec @vscode/vscode-languagedetection "$(pbpaste)" 2>/dev/null | yq '.[0].languageId')
+
+
+if test -n "$1" -a "$1" != "--guess"; then
+    filetype="$1"
 else
-    filetype=$1
+    if test -f "/tmp/pbvim-last-filetype"; then
+        filetype="$(cat /tmp/pbvim-last-filetype)"
+    else
+        filetype=""
+    fi
 fi
 
 if test -n "$filetype"; then
@@ -16,7 +22,7 @@ fi
 
 pbpaste >"$tmpfile"
 
-svim "$tmpfile"
+svim "$tmpfile" -c 'autocmd FileType * !echo <amatch> > /tmp/pbvim-last-filetype'
 
 pbcopy <"$tmpfile"
 rm "$tmpfile"
