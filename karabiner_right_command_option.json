@@ -1,9 +1,9 @@
 {
-    "description": "Change right_option to left_control + left_option",
+    "description": "Change right_command to right_option",
     "manipulators": [
         {
             "from": {
-                "key_code": "right_option",
+                "key_code": "right_command",
                 "modifiers": {
                     "mandatory": [],
                     "optional": ["any"]
@@ -11,8 +11,8 @@
             },
             "to": [
                 {
-                    "key_code": "left_control",
-                    "modifiers": ["left_option"]
+                    "key_code": "right_option",
+                    "modifiers": []
                 }
             ],
             "type": "basic"
