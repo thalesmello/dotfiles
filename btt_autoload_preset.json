@@ -159,7 +159,7 @@
     "BTTNotchBarNotchMenubarModeHideRightScrollable" : true,
     "BSTSnapAreaDefaultPictoDistanceFromLeft" : 0.10000000149011612
   },
-  "BTTPresetUUID" : "97E909AC-AA5F-4305-A4D4-FBFE15455900",
+  "BTTPresetUUID" : "E53F69E7-F227-45CB-A176-64EF1E7F844E",
   "BTTPresetContent" : [
     {
       "BTTAppBundleIdentifier" : "BT.G",
@@ -171,7 +171,7 @@
       "BTTTriggers" : [
         {
           "BTTActionCategory" : 0,
-          "BTTLastUpdatedAt" : 1726586051.2302561,
+          "BTTLastUpdatedAt" : 1726586387.8465061,
           "BTTTriggerType" : 0,
           "BTTTriggerClass" : "BTTTriggerTypeKeyboardShortcut",
           "BTTUUID" : "C22F3947-9712-40C7-900E-BA3E229A1F34",
@@ -207,27 +207,72 @@
             },
             {
               "BTTActionCategory" : 0,
-              "BTTLastUpdatedAt" : 1720476182.4112649,
+              "BTTLastUpdatedAt" : 1726586362.815376,
               "BTTTriggerParentUUID" : "C22F3947-9712-40C7-900E-BA3E229A1F34",
               "BTTIsPureAction" : true,
               "BTTTriggerClass" : "BTTTriggerTypeKeyboardShortcut",
-              "BTTUUID" : "F8FAB4F3-A0DA-4ADB-BBBD-CF0436A1D492",
-              "BTTPredefinedActionType" : 49,
-              "BTTPredefinedActionName" : "Launch Application  or  Open File  or  Start Apple Script …",
-              "BTTAdditionalActionData" : {
-                "BTTScriptType" : 0,
-                "BTTAppleScriptRunInBackground" : false,
-                "BTTTouchBarAppleScriptPath" : "\/Users\/thales.mello\/Library\/Mobile Documents\/com~apple~Automator\/Documents\/Edit Clipboard.app",
-                "BTTTouchBarAppleScriptString" : "tell application \"iTerm\" to activate\rtell application \"System Events\" to tell process \"iTerm\" to keystroke \"t\" using command down\rtell application \"System Events\" to tell process \"iTerm\" to keystroke \"ls\"\rtell application \"System Events\" to tell process \"iTerm\" to key code 52\r",
-                "BTTTouchBarAppleScriptUsePath" : true
-              },
-              "BTTLaunchPath" : "\/Users\/thalesmello\/Documents\/Edit Clipboard.app",
-              "BTTGenericActionConfig2" : "\/Users\/thales.mello\/Library\/Mobile Documents\/com~apple~Automator\/Documents\/Edit Clipboard.app",
+              "BTTUUID" : "085730BC-8F97-4D76-AEA2-58594D7817CE",
+              "BTTPredefinedActionType" : 177,
+              "BTTPredefinedActionName" : "Show  or  Hide Specific Application",
+              "BTTAppToShowOrHide" : "\/Applications\/iTerm.app",
+              "BTTShowHideAppConfig" : "{\"BTTShowHideSpecificAppMoveToSpace\":\"BTTShowHideSpecificAppHiddenToCurrentSpace\",\"BTTShowHideSpecificAppOnlyShow\":true,\"BTTShowHideSpecificAppOnlyHide\":false,\"BTTShowHideSpecificAffectedWindow\":\"BTTShowHideSpecificAppAffectLastUsedWindow\",\"BTTShowHideSpecificMinimizeInstead\":false,\"BTTShowHideSpecificAppRegex\":\"\",\"BTTShowHideSpecificAppOnlyTreatActiveAsVisible\":true,\"BTTShowHideSpecificAppOnlyIfRunning\":false,\"BTTShowHideSpecificAppCMDN\":false,\"BTTShowHideSpecificAppMoveToCurrentSpace\":false,\"BTTShowHideSpecificAppMoveAllToCurrentSpace\":false}",
               "BTTKeyboardShortcutKeyboardType" : 0,
               "BTTEnabled" : 1,
               "BTTEnabled2" : 1,
               "BTTShortcutKeyCode" : -1,
               "BTTOrder" : 1,
+              "BTTAutoAdaptToKeyboardLayout" : 0
+            },
+            {
+              "BTTActionCategory" : 0,
+              "BTTLastUpdatedAt" : 1726586365.0219469,
+              "BTTTriggerParentUUID" : "C22F3947-9712-40C7-900E-BA3E229A1F34",
+              "BTTIsPureAction" : true,
+              "BTTTriggerClass" : "BTTTriggerTypeKeyboardShortcut",
+              "BTTUUID" : "95D8B331-A4A5-443F-93A8-3EBC5FDD1EA0",
+              "BTTLayoutIndependentActionChar" : "t",
+              "BTTShortcutToSend" : "55,17",
+              "BTTKeyboardShortcutKeyboardType" : 0,
+              "BTTEnabled" : 1,
+              "BTTEnabled2" : 1,
+              "BTTShortcutKeyCode" : -1,
+              "BTTOrder" : 2,
+              "BTTAutoAdaptToKeyboardLayout" : 0
+            },
+            {
+              "BTTActionCategory" : 0,
+              "BTTLastUpdatedAt" : 1726586383.605459,
+              "BTTTriggerParentUUID" : "C22F3947-9712-40C7-900E-BA3E229A1F34",
+              "BTTIsPureAction" : true,
+              "BTTTriggerClass" : "BTTTriggerTypeKeyboardShortcut",
+              "BTTUUID" : "C3238D8E-285E-4F9E-B0FF-4D221721C8AE",
+              "BTTPredefinedActionType" : 118,
+              "BTTPredefinedActionName" : "Insert  or  Type  or  Paste Custom Text",
+              "BTTAdditionalActionData" : {
+                "BTTActionTextToPaste" : "{\\rtf1\\ansi\\ansicpg1252\\cocoartf2761\n\\cocoatextscaling0\\cocoaplatform0{\\fonttbl\\f0\\fnil\\fcharset0 HelveticaNeue;}\n{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;}\n{\\*\\expandedcolortbl;;\\csgray\\c0;}\n\\pard\\tx560\\tx1120\\tx1680\\tx2240\\tx2800\\tx3360\\tx3920\\tx4480\\tx5040\\tx5600\\tx6160\\tx6720\\pardirnatural\\qc\\partightenfactor0\n\n\\f0\\fs24 \\cf2 exec pbvim \\cf2 --guess}"
+              },
+              "BTTMoveCursorLeftBy" : "0",
+              "BTTKeyboardShortcutKeyboardType" : 0,
+              "BTTEnabled" : 1,
+              "BTTEnabled2" : 1,
+              "BTTShortcutKeyCode" : -1,
+              "BTTOrder" : 3,
+              "BTTAutoAdaptToKeyboardLayout" : 0
+            },
+            {
+              "BTTActionCategory" : 0,
+              "BTTLastUpdatedAt" : 1726586418.941591,
+              "BTTTriggerParentUUID" : "C22F3947-9712-40C7-900E-BA3E229A1F34",
+              "BTTIsPureAction" : true,
+              "BTTTriggerClass" : "BTTTriggerTypeKeyboardShortcut",
+              "BTTUUID" : "D46E770A-EBEB-4F4D-BD08-CFA5CA41A888",
+              "BTTLayoutIndependentActionChar" : "RETURN",
+              "BTTShortcutToSend" : "36",
+              "BTTKeyboardShortcutKeyboardType" : 0,
+              "BTTEnabled" : 1,
+              "BTTEnabled2" : 1,
+              "BTTShortcutKeyCode" : -1,
+              "BTTOrder" : 4,
               "BTTAutoAdaptToKeyboardLayout" : 0
             }
           ]
@@ -985,14 +1030,13 @@
           "BTTAdditionalActions" : [
             {
               "BTTActionCategory" : 0,
-              "BTTLastUpdatedAt" : 1726520894.68701,
+              "BTTLastUpdatedAt" : 1726586355.332437,
               "BTTTriggerParentUUID" : "DAC5F90B-78D9-411A-84C6-7B953E6719C9",
               "BTTIsPureAction" : true,
               "BTTTriggerClass" : "BTTTriggerTypeKeyboardShortcut",
               "BTTUUID" : "252CE975-F9EA-44A8-A1CD-16B1F69A2683",
               "BTTPredefinedActionType" : 177,
               "BTTPredefinedActionName" : "Show  or  Hide Specific Application",
-              "BTTAppToShowOrHide" : "\/System\/Applications\/Messages.app",
               "BTTShowHideAppConfig" : "{\"BTTShowHideSpecificAppMoveToSpace\":\"BTTShowHideSpecificAppNoSpaceChange\",\"BTTShowHideSpecificAppOnlyShow\":true,\"BTTShowHideSpecificAppOnlyHide\":false,\"BTTShowHideSpecificAffectedWindow\":\"BTTShowHideSpecificAppAffectLastUsedWindow\",\"BTTShowHideSpecificMinimizeInstead\":false,\"BTTShowHideSpecificAppRegex\":\"\",\"BTTShowHideSpecificAppOnlyTreatActiveAsVisible\":true,\"BTTShowHideSpecificAppOnlyIfRunning\":false,\"BTTShowHideSpecificAppCMDN\":false,\"BTTShowHideSpecificAppMoveToCurrentSpace\":false,\"BTTShowHideSpecificAppMoveAllToCurrentSpace\":false}",
               "BTTKeyboardShortcutKeyboardType" : 0,
               "BTTEnabled" : 1,
