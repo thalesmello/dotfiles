@@ -601,6 +601,7 @@ require("lazy").setup({
             },
             {
                 'github/copilot.vim',
+                enabled = false,
                 cmd = {"Copilot"},
                 event = "InsertEnter",
                 config = function()
