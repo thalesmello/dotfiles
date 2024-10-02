@@ -17,6 +17,7 @@ Create a symbolic links for your files:
 	ln -s $(pwd)/ideavimrc ~/.ideavimrc
 	ln -s $(pwd)/finicky.js ~/.finicky.js
 	ln -s $(pwd)/btt_autoload_preset.json ~/.btt_autoload_preset.json
+	ln -s $(pwd)/aerospace.toml ~/.aerospace.toml
 
 Include the local bin folder in the PATH
 
