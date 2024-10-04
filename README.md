@@ -19,6 +19,7 @@ Create a symbolic links for your files:
 	ln -s $(pwd)/btt_autoload_preset.json ~/.btt_autoload_preset.json
 	ln -s $(pwd)/aerospace.toml ~/.aerospace.toml
 	ln -s $(pwd)/fish ~/.config/fish
+	ln -s $(pwd)/nvim ~/.config/nvim
 
 Include the local bin folder in the PATH
 
