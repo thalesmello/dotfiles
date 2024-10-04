@@ -1,0 +1,36 @@
+snippet fun "Vimscript function" b
+    function! ${1:function_name}()
+        ${VISUAL}$0
+    endfunction
+
+snippet cmd "Vimscript" b
+    command! ${1:CommandName} ${2:call ${3:$1Function}()}$0
+
+snippet desc "Vimspec describe" b
+    describe '${1:description}'
+        ${VISUAL}$0
+    end
+
+snippet it "Vimspec it assertion" b
+    it '${1:it does something}'
+        ${VISUAL}$0
+    end
+
+snippet before "Vimspec before block" b
+    before
+        ${VISUAL}$0
+    end
+
+snippet after "Vimspec after block" b
+    after
+        ${VISUAL}$0
+    end
+
+snippet Expect "Vimspec expect" b
+    Expect ${1:${VISUAL:expression}} ${2:==} ${0:expected_value}
+
+snippet au "Autogroup" b
+    augroup ${1:group_name}
+        autocmd!
+        ${VISUAL:autocmd }$0
+    augroup end

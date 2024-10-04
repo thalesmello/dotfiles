@@ -6,3 +6,7 @@ w3m/w3mcache*
 w3m/w3mtmp*
 w3m/cookie
 .Rhistory
+vimfiles/tmp/**/*
+!vimfiles/tmp/token
+vimfiles/.netrwhist
+vimfiles/plugged

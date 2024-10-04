@@ -1,0 +1,17 @@
+{
+  "pyright.enable": true,
+  "python.pythonPath": "python",
+  "python.linting.flake8Enabled": true,
+  "codeLens.enable": true,
+  "coc.preferences.currentFunctionSymbolAutoUpdate": true,
+  "snippets.userSnippetsDirectory": "~/.config/nvim/coc/ultisnips",
+  "coc-actions.hideCursor": false,
+  "suggest.snippetIndicator": "►",
+  "python.formatting.provider": "black",
+  "pairs.disableLanguages": ["vim"],
+  "languageserver": {
+  },
+  "snippets.ultisnips.pythonPrompt": false,
+  "sumneko-lua.enableNvimLuaDev": true,
+  "Lua.runtime.version": "LuaJIT"
+}

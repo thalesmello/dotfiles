@@ -1,0 +1,103 @@
+# Latex Snippets <<< #
+snippet bold "Bold text" i
+    \textbf{${VISUAL}$1}$0
+
+snippet enum "Enumerate" b
+    \begin{enumerate}[$1]
+        ${VISUAL}$0
+    \end{enumerate}
+
+snippet i "Item" b
+    \item
+# >>> Latex Snippets #
+# Tables and Figures <<<1 #
+snippet figure "Figure with label" b
+    \begin{figure}[h]
+    \begin{center}
+    <<$1fig=TRUE, echo=FALSE>>=
+    ${VISUAL}$2
+    @
+    \caption{${3:Exemplo de Figura com Legenda}}
+    \label{${4:fig:${5:label}}}
+    \end{center}
+    \end{figure}$0
+
+snippet table "Table with label" b
+    <<$1results=tex, echo=FALSE>>=
+    ${3:data} <- $2
+    print(xtable($3,
+        digits = 2,
+        caption = "${4:Um exemplo de tabela}",
+        label = "${5:tab:${6:exemplo}}"))
+    @$0
+
+snippet inline "Inline R expression" i
+    \Sexpr{${VISUAL}$1}$0
+
+snippet eval "Execute code without displaying" b
+    <<$1echo=FALSE>>=
+    ${VISUAL}$2
+    @$0
+
+snippet noeval "Just print snippet of code" b
+    <<$1eval=FALSE, echo=TRUE>>=
+    ${VISUAL}$2
+    @$0
+
+# 1>>> Tables and Figures #
+# Math <<< #
+snippet frac "Math fraction" i
+    \frac{${VISUAL}$1}{$2}$0
+
+snippet sum "Math sum" i
+    \sum_{$1}^{$2}$0
+
+snippet ^ "Math power" i
+    ^{${1:${VISUAL}}}$0
+
+snippet _ "Math subscript " i
+    _{${1:${VISUAL}}}$0
+
+snippet hat "Math hat" i
+    \hat{${VISUAL}$1}$0
+
+snippet $ "Math formula" i
+    $ ${VISUAL}$1 $$0
+
+snippet \ "Math enclose" i
+    \\$1{${2:${VISUAL}}}$0
+
+snippet tm "Math times" i
+    \times $0
+
+snippet left{ "Math leftright curly" i
+    \left\\{${VISUAL}$0\right\\
+
+snippet left( "Math leftright paren" i
+    \left(${VISUAL}$0\right
+
+snippet left[ "Math leftright paren" i
+    \left[${VISUAL}$0\right
+
+snippet "^(?!.*left){" "Math literal curly" r
+    \\{${VISUAL}$0\\
+
+snippet ... "Math elipsis" i
+    \ldots$0
+
+snippet deriv "Math derivate" i
+    \frac{\mathrm{d} ${VISUAL}$1}{\mathrm{d} $2}$0
+
+snippet _tilde "Math tilde under" i
+    \stackrel{${VISUAL}$1}{\sim}$0
+
+snippet over "Annotation over symbol" i
+    \overset{$1}{${VISUAL}$2}$0
+
+snippet fun "Create a new function" b
+    ${1:function_name} <- function(${2:arg}) ${3:{
+        ${VISUAL}$0
+    }}
+
+snippet "((\w|\$|\.)+) " "console.log (postfix)" br
+    `!p snip.rv = match.group(1)` <- ${VISUAL}$0
