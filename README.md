@@ -36,10 +36,9 @@ Add dependencies into PATH
 
 	fish_add_path /opt/homebrew/opt/coreutils/libexec/gnubin
 	fish_add_path (python3 -m site --user-base)/bin
+	mkdir -p ~/.local/bin && fish_add_path ~/.local/bin
 
 Set `fish` as default shell
 
-echo /usr/local/bin/fish | sudo tee -a /etc/shells
-
-	mkdir -p ~/.local/bin && fish_add_path ~/.local/bin
+	echo /usr/local/bin/fish | sudo tee -a /etc/shells
 	chsh -s /usr/local/bin/fish
