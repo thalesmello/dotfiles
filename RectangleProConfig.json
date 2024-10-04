@@ -1,6 +1,9 @@
 {
   "bundleId" : "com.knollsoft.Hookshot",
   "defaults" : {
+    "SUEnableAutomaticChecks" : {
+      "bool" : false
+    },
     "adjacentResizeScreenEdge" : {
       "int" : 0
     },
@@ -16,14 +19,14 @@
     "almostMaximizeWidth" : {
       "float" : 0
     },
+    "altThirdCycle" : {
+      "int" : 0
+    },
     "alternateDefaultShortcuts" : {
       "bool" : false
     },
     "alternateGestureShortcuts" : {
       "bool" : false
-    },
-    "altThirdCycle" : {
-      "int" : 0
     },
     "alwaysAccountForStage" : {
       "int" : 0
@@ -34,11 +37,11 @@
     "analogAdjacentResizing" : {
       "int" : 2
     },
+    "appSpecs" : {
+      "string" : "[{\"isGroup\":true,\"loc\":0,\"shortcut\":{\"keyCode\":42,\"modifierFlags\":1835008},\"id\":12,\"name\":\"Chrome Split\"}]"
+    },
     "applyGapToEdges" : {
       "int" : 0
-    },
-    "appSpecs" : {
-      "string" : "[]"
     },
     "attemptMatchOnNextPrevDisplay" : {
       "int" : 0
@@ -52,16 +55,22 @@
     "cascadeWidth" : {
       "int" : 0
     },
-    "centeredDirectionalMove" : {
+    "centerHalfCycles" : {
       "int" : 0
     },
-    "centerHalfCycles" : {
+    "centeredDirectionalMove" : {
       "int" : 0
     },
     "checkAnimationUnsnap" : {
       "int" : 0
     },
     "checkFullScreen" : {
+      "int" : 0
+    },
+    "clickMoveMouseButton" : {
+      "int" : 0
+    },
+    "clickResizeMouseButton" : {
       "int" : 0
     },
     "contextMenuModifiers" : {
@@ -78,6 +87,9 @@
     },
     "curtainChangeSize" : {
       "int" : 0
+    },
+    "cycleSizesIsChanged" : {
+      "bool" : false
     },
     "disabledApps" : {
 
@@ -128,7 +140,7 @@
       "string" : "[35,{\"flags\":0,\"trail\":0}]"
     },
     "hapticFeedbackOnSnap" : {
-      "int" : 0
+      "int" : 2
     },
     "helperRelaunch" : {
       "int" : 3
@@ -238,11 +250,11 @@
     "quickActionMinDist" : {
       "float" : 10
     },
-    "quickActions" : {
-      "int" : 2
-    },
     "quickActionTimeout" : {
       "double" : 1
+    },
+    "quickActions" : {
+      "int" : 2
     },
     "relaunchOpensMenu" : {
       "bool" : false
@@ -253,17 +265,17 @@
     "resizeOnDirectionalMove" : {
       "bool" : false
     },
+    "restToOneTouches" : {
+      "int" : 4
+    },
     "restartOnWakeDelay" : {
       "float" : 0
-    },
-    "restToOneTouches" : {
-      "int" : 0
     },
     "reticle" : {
       "int" : 2
     },
     "reticleColor" : {
-      "string" : "{\"green\":0.3,\"blue\":0.2,\"alpha\":0.5,\"red\":0.8}"
+      "string" : "{\"red\":0.8,\"blue\":0.2,\"green\":0.3,\"alpha\":0.5}"
     },
     "reticleDisplayMinDist" : {
       "float" : 0
@@ -281,7 +293,7 @@
       "int" : 35
     },
     "saveLayoutShortcut" : {
-
+      "string" : "null"
     },
     "screenEdgeGapBottom" : {
       "float" : 0
@@ -292,14 +304,14 @@
     "screenEdgeGapRight" : {
       "float" : 0
     },
-    "screenEdgeGapsOnMainScreenOnly" : {
-      "bool" : false
-    },
     "screenEdgeGapTop" : {
       "float" : 0
     },
     "screenEdgeGapTopNotch" : {
       "float" : 0
+    },
+    "screenEdgeGapsOnMainScreenOnly" : {
+      "bool" : false
     },
     "scrollEdgePauseDistance" : {
       "float" : 60
@@ -309,6 +321,9 @@
     },
     "scrollTriggerIncrements" : {
       "float" : 0.1
+    },
+    "selectedCycleSizes" : {
+      "int" : 0
     },
     "shortEdgeSnapAreaSize" : {
       "float" : 145
@@ -355,10 +370,10 @@
     "stashAnimation" : {
       "int" : 0
     },
-    "stashClearedByOtherActions" : {
+    "stashClearScreenEdge" : {
       "int" : 0
     },
-    "stashClearScreenEdge" : {
+    "stashClearedByOtherActions" : {
       "int" : 0
     },
     "stashCursorBoxWidth" : {
@@ -396,9 +411,6 @@
     },
     "subsequentExecutionMode" : {
       "int" : 1
-    },
-    "SUEnableAutomaticChecks" : {
-      "bool" : false
     },
     "systemWideMouseDown" : {
       "int" : 0
@@ -451,6 +463,9 @@
     "winDownDefaultAction" : {
       "int" : 0
     },
+    "winModFlags" : {
+      "int" : 1835008
+    },
     "windowSnapping" : {
       "int" : 0
     },
@@ -459,9 +474,6 @@
     },
     "windowToFront" : {
       "int" : 0
-    },
-    "winModFlags" : {
-      "int" : 1835008
     }
   },
   "shortcuts" : {
@@ -473,10 +485,6 @@
       "keyCode" : 123,
       "modifierFlags" : 1966080
     },
-    "maximize" : {
-      "keyCode" : 36,
-      "modifierFlags" : 1835008
-    },
     "rightHalf" : {
       "keyCode" : 124,
       "modifierFlags" : 1966080
@@ -486,6 +494,6 @@
       "modifierFlags" : 1966080
     }
   },
-  "timestamp" : 747937016.781849,
-  "version" : "171"
+  "timestamp" : 749766408.308786,
+  "version" : "172"
 }

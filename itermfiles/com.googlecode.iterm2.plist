@@ -2,14 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>Actions</key>
-	<array/>
 	<key>AllowClipboardAccess</key>
 	<true/>
-	<key>AlternateMouseScroll</key>
-	<true/>
-	<key>ConvertDosNewlines</key>
-	<true/>
+	<key>ClickToSelectCommand</key>
+	<false/>
 	<key>Custom Color Presets</key>
 	<dict>
 		<key>GruvboxDark</key>
@@ -369,16 +365,10 @@
 	</dict>
 	<key>Default Bookmark Guid</key>
 	<string>FE34BC10-D56F-4821-81BE-4489A74F48D9</string>
-	<key>EnableAPIServer</key>
-	<true/>
-	<key>EscapeShellCharsWithBackslash</key>
-	<false/>
 	<key>HapticFeedbackForEsc</key>
 	<false/>
 	<key>HotkeyMigratedFromSingleToMulti</key>
 	<true/>
-	<key>Mark Alert Action</key>
-	<string>Modal Alert</string>
 	<key>NeverWarnAboutShortLivedSessions_FE34BC10-D56F-4821-81BE-4489A74F48D9</key>
 	<true/>
 	<key>NeverWarnAboutShortLivedSessions_FE34BC10-D56F-4821-81BE-4489A74F48D9_selection</key>
@@ -498,13 +488,13 @@
 				<key>Alpha Component</key>
 				<real>1</real>
 				<key>Blue Component</key>
-				<real>0.69803923368453979</real>
+				<real>0.93743651686236262</real>
 				<key>Color Space</key>
 				<string>sRGB</string>
 				<key>Green Component</key>
-				<real>0.85882353782653809</real>
+				<real>0.97758709639310837</real>
 				<key>Red Component</key>
-				<real>0.92156863212585449</real>
+				<real>0.993255615234375</real>
 			</dict>
 			<key>Ansi 2 Color</key>
 			<dict>
@@ -563,39 +553,39 @@
 				<key>Alpha Component</key>
 				<real>1</real>
 				<key>Blue Component</key>
-				<real>0.41568627953529358</real>
+				<real>0.37046380049890437</real>
 				<key>Color Space</key>
 				<string>sRGB</string>
 				<key>Green Component</key>
-				<real>0.61568629741668701</real>
+				<real>0.563262939453125</real>
 				<key>Red Component</key>
-				<real>0.40784314274787903</real>
+				<real>0.36290305107831955</real>
 			</dict>
 			<key>Ansi 7 Color</key>
 			<dict>
 				<key>Alpha Component</key>
 				<real>1</real>
 				<key>Blue Component</key>
-				<real>0.51764708757400513</real>
+				<real>0.76910744048655033</real>
 				<key>Color Space</key>
 				<string>sRGB</string>
 				<key>Green Component</key>
-				<real>0.60000002384185791</real>
+				<real>0.80118449668710423</real>
 				<key>Red Component</key>
-				<real>0.65882354974746704</real>
+				<real>0.8240966796875</real>
 			</dict>
 			<key>Ansi 8 Color</key>
 			<dict>
 				<key>Alpha Component</key>
 				<real>1</real>
 				<key>Blue Component</key>
-				<real>0.45490196347236633</real>
+				<real>0.39426377043128014</real>
 				<key>Color Space</key>
 				<string>sRGB</string>
 				<key>Green Component</key>
-				<real>0.51372551918029785</real>
+				<real>0.48422602421578215</real>
 				<key>Red Component</key>
-				<real>0.57254904508590698</real>
+				<real>0.574188232421875</real>
 			</dict>
 			<key>Ansi 9 Color</key>
 			<dict>
@@ -1185,19 +1175,6 @@
 				<key>Red Component</key>
 				<real>0.83921295404434204</real>
 			</dict>
-			<key>Match Background Color</key>
-			<dict>
-				<key>Alpha Component</key>
-				<real>1</real>
-				<key>Blue Component</key>
-				<real>0.0</real>
-				<key>Color Space</key>
-				<string>P3</string>
-				<key>Green Component</key>
-				<real>1</real>
-				<key>Red Component</key>
-				<real>1</real>
-			</dict>
 			<key>Mouse Reporting</key>
 			<true/>
 			<key>Name</key>
@@ -1207,9 +1184,9 @@
 			<key>Non-ASCII Anti Aliased</key>
 			<true/>
 			<key>Normal Font</key>
-			<string>InconsolataGoNFM 18</string>
+			<string>InconsolataGoNFM 15</string>
 			<key>Option Key Sends</key>
-			<integer>2</integer>
+			<integer>0</integer>
 			<key>Prompt Before Closing 2</key>
 			<false/>
 			<key>Right Option Key Sends</key>
@@ -1219,7 +1196,7 @@
 			<key>Screen</key>
 			<integer>-1</integer>
 			<key>Scrollback Lines</key>
-			<integer>50000</integer>
+			<integer>1000</integer>
 			<key>Selected Text Color</key>
 			<dict>
 				<key>Alpha Component</key>
@@ -1293,18 +1270,8 @@
 			<string>/Users/thales.mello</string>
 		</dict>
 	</array>
-	<key>OptionClickMovesCursor</key>
-	<false/>
-	<key>PasteSpecialChunkDelay</key>
-	<real>0.01</real>
-	<key>PasteSpecialChunkSize</key>
-	<integer>1024</integer>
-	<key>PasteSpecialRegex</key>
-	<string></string>
-	<key>PasteSpecialSubstitution</key>
-	<string></string>
-	<key>PasteSpecialUseRegexSubstitution</key>
-	<false/>
+	<key>PasteTabToStringTabStopSize</key>
+	<integer>4</integer>
 	<key>PointerActions</key>
 	<dict>
 		<key>Button,1,1,,</key>
@@ -1338,12 +1305,6 @@
 			<string>kNextWindowPointerAction</string>
 		</dict>
 	</dict>
-	<key>Print In Black And White</key>
-	<true/>
-	<key>SetCookie</key>
-	<false/>
-	<key>ShowFullScreenTabBar</key>
-	<true/>
 	<key>SoundForEsc</key>
 	<false/>
 	<key>VisualIndicatorForEsc</key>
