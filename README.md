@@ -20,6 +20,7 @@ Create a symbolic links for your files:
 	ln -s $(pwd)/aerospace.toml ~/.aerospace.toml
 	ln -s $(pwd)/fish ~/.config/fish
 	ln -s $(pwd)/nvim ~/.config/nvim
+	mkdir -p ~/.config/karabiner && ln -s $(pwd)/karabiner/karabiner.json ~/.config/karabiner/karabiner.json
 
 Include the local bin folder in the PATH
 
