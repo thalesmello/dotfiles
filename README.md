@@ -22,6 +22,12 @@ Create a symbolic links for your files:
 	ln -s $(pwd)/nvim ~/.config/nvim
 	mkdir -p ~/.config/karabiner && ln -s $(pwd)/karabiner/karabiner.json ~/.config/karabiner/karabiner.json
 
+Install dependencies:
+
+	bash ./scripts/brew_install.sh
+	bash ./scripts/brew_cask_install.sh
+	bash ./scripts/pipx_install.sh
+
 Include the local bin folder in the PATH
 
 	fish_add_path ./bin
