@@ -10,3 +10,6 @@ vimfiles/tmp/**/*
 !vimfiles/tmp/token
 vimfiles/.netrwhist
 vimfiles/plugged
+fish/fishd.*
+fish/fundle
+fish/fish_variables

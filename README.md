@@ -18,6 +18,7 @@ Create a symbolic links for your files:
 	ln -s $(pwd)/finicky.js ~/.finicky.js
 	ln -s $(pwd)/btt_autoload_preset.json ~/.btt_autoload_preset.json
 	ln -s $(pwd)/aerospace.toml ~/.aerospace.toml
+	ln -s $(pwd)/fish ~/.config/fish
 
 Include the local bin folder in the PATH
 
@@ -27,6 +28,4 @@ Add dependencies into PATH
 
 	fish_add_path /opt/homebrew/opt/coreutils/libexec/gnubin
 	fish_add_path (python3 -m site --user-base)/bin
-
 	mkdir -p ~/.local/bin && fish_add_path ~/.local/bin
-
