@@ -21,6 +21,7 @@ Create a symbolic links for your files:
 	ln -s $(pwd)/fish ~/.config/fish
 	ln -s $(pwd)/nvim ~/.config/nvim
 	mkdir -p ~/.config/karabiner && ln -s $(pwd)/karabiner/karabiner.json ~/.config/karabiner/karabiner.json
+	ln -s "~/Applications/Chrome Apps.localized/" /usr/local/etc/chrome-apps
 
 Install dependencies:
 
