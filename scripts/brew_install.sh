@@ -16,3 +16,5 @@ brew install the_silver_searcher
 brew install black
 brew install terminal-notifier
 brew install yq
+brew install luarocks
+brew install wget
