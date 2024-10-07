@@ -576,6 +576,32 @@ require("lazy").setup({
 
                         },
                         opts = {}
+                    },
+                    {
+                        'mhartington/formatter.nvim',
+                        config = function()
+                            local util = require "formatter.util"
+
+                            require("formatter").setup {
+                                logging = true,
+                                log_level = vim.log.levels.WARN,
+
+                                filetype = {
+                                    lua = {
+                                        require("formatter.filetypes.lua").stylua,
+                                    },
+
+                                    python = {
+                                        require("formatter.filetypes.python").black,
+                                    },
+
+                                    ["*"] = {
+                                        require("formatter.filetypes.any").remove_trailing_whitespace,
+                                    }
+                                }
+                            }
+                        end
+
                     }
                 },
             },
@@ -599,38 +625,37 @@ require("lazy").setup({
                     { 'honza/vim-snippets' },
                 },
             },
-            {
-                'github/copilot.vim',
-                enabled = false,
-                cmd = {"Copilot"},
-                event = "InsertEnter",
-                config = function()
-                    vim.keymap.set('i', '<right>', 'copilot#Accept("\\<right>")', {
-                        expr = true,
-                        replace_keycodes = false
-                    })
-                    vim.g.copilot_no_tab_map = true
-                end,
-                dependencies = {
-                    {
-                        "CopilotC-Nvim/CopilotChat.nvim",
-                        opts = {
-                            prompts = {
-                                Explain = "Explain how it works by in simple terms.",
-                                Review = "Review the following code and provide concise suggestions.",
-                                Tests = "Briefly explain how the selected code works, then generate unit tests.",
-                                Refactor = "Refactor the code to improve clarity and readability.",
-                            },
-                        },
-                        build = function()
-                            vim.notify("Please update the remote plugins by running ':UpdateRemotePlugins', then restart Neovim.")
-                        end,
-                    },
-
-                }
-            },
         },
     },
+    -- {
+    --     'github/copilot.vim',
+    --     enabled = false,
+    --     cmd = {"Copilot"},
+    --     event = "InsertEnter",
+    --     config = function()
+    --         vim.keymap.set('i', '<right>', 'copilot#Accept("\\<right>")', {
+    --             expr = true,
+    --             replace_keycodes = false
+    --         })
+    --         vim.g.copilot_no_tab_map = true
+    --     end,
+    --     dependencies = {
+    --         {
+    --             "CopilotC-Nvim/CopilotChat.nvim",
+    --             opts = {
+    --                 prompts = {
+    --                     Explain = "Explain how it works by in simple terms.",
+    --                     Review = "Review the following code and provide concise suggestions.",
+    --                     Tests = "Briefly explain how the selected code works, then generate unit tests.",
+    --                     Refactor = "Refactor the code to improve clarity and readability.",
+    --                 },
+    --             },
+    --             build = function()
+    --                 vim.notify("Please update the remote plugins by running ':UpdateRemotePlugins', then restart Neovim.")
+    --             end,
+    --         },
+    --     }
+    -- },
     {
         'ThePrimeagen/refactoring.nvim',
         dependencies = {
@@ -638,6 +663,7 @@ require("lazy").setup({
             "nvim-treesitter/nvim-treesitter",
         },
         opts = {},
+        priority = 0,
     },
     -- { 'folke/which-key.nvim', opts = {}, event = 'VeryLazy', priority = 0 },
     {
