@@ -13,3 +13,4 @@ vimfiles/plugged
 fish/fishd.*
 fish/fundle
 fish/fish_variables
+.DS_Store

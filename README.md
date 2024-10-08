@@ -21,7 +21,11 @@ Create a symbolic links for your files:
 	ln -s $(pwd)/fish ~/.config/fish
 	ln -s $(pwd)/nvim ~/.config/nvim
 	mkdir -p ~/.config/karabiner && ln -s $(pwd)/karabiner/karabiner.json ~/.config/karabiner/karabiner.json
-	ln -s "~/Applications/Chrome Apps.localized/" /usr/local/etc/chrome-apps
+
+Set `fish` as default shell
+
+	echo "$(which fish)" | sudo tee -a /etc/shells
+	chsh -s "$(which fish)"
 
 Install dependencies:
 
@@ -39,7 +43,3 @@ Add dependencies into PATH
 	fish_add_path (python3 -m site --user-base)/bin
 	mkdir -p ~/.local/bin && fish_add_path ~/.local/bin
 
-Set `fish` as default shell
-
-	echo /usr/local/bin/fish | sudo tee -a /etc/shells
-	chsh -s /usr/local/bin/fish
