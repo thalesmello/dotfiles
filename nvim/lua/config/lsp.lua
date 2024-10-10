@@ -158,6 +158,7 @@ cmp.setup({
         { name = 'nvim_lsp' },
         { name = 'snippy' },
         { name = 'buffer' },
+        { name = 'path' },
     },
 
     mapping = cmp.mapping.preset.insert({
