@@ -64,7 +64,7 @@ require("lazy").setup({
         },
     },
     {
-        'tpope/vim-projectionist',
+        'thalesmello/vim-projectionist',
         dependencies = {
             { 'tpope/vim-haystack' },
         },
@@ -112,6 +112,7 @@ require("lazy").setup({
         config = function()
             vim.g.fugitive_gitlab_domains = { 'http://gitlab.platform' }
         end,
+        lazy = false,
     },
     {
         'kylechui/nvim-surround',

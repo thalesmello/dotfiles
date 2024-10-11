@@ -18,7 +18,6 @@ vim.keymap.set("n", "<c-f>", ':<c-u>ProjectDo Ag<space>', { noremap = true })
 vim.keymap.set("n", "<leader>/", function () return '<cmd>ProjectDo Ag \\b' .. vim.fn.expand('<cword>') .. '\\b<cr>' end, { silent = true, expr = true })
 vim.keymap.set("v", "<leader>/", function () visual_ag(true) end, { noremap = true, silent = true })
 vim.keymap.set("v", "<leader>?", function () visual_ag(false) end, { noremap = true, silent = true })
-vim.keymap.set("n", "<leader>ft", '<cmd>Filetypes<cr>', { noremap = true, silent = true })
 
 function CompleteAg(A)
   if A == '' then

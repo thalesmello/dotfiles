@@ -19,7 +19,8 @@ vim.g.projectionist_heuristics = {
    },
    [data .. '/lazy/'] = {
       [data .. '/lazy/**/README*'] = {
-         type = "plugin",
+         type = "lazyplugin",
+         onload = {'plcd'},
       },
    },
    ["dags/*"] = {
@@ -27,7 +28,7 @@ vim.g.projectionist_heuristics = {
       ["dags/*.py"] = { type = "dag" },
    },
    [".git/"] = {
-      ["README.md"] = { type = "readme" }
+      ["README.md"] = { type = "readme" },
    },
 }
 
@@ -48,7 +49,6 @@ local function make_dbt_projection(module)
             commentstring = "{open}# %s #{close}",
          },
          type = "model",
-
          dispatch = "dbt --no-use-colors run -m {basename}",
       },
       ["models/*.yml"] = {
@@ -107,22 +107,24 @@ vim.api.nvim_create_autocmd("User", {
    end
 })
 
-local function iter_projection(property, iterate)
-   for _, result in ipairs(vim.fn["projectionist#query"](property)) do
-      local _, projection = unpack(result)
-      for prop, value in pairs(projection) do
-         iterate(prop, value)
-      end
-
-      break
-   end
+local function iter_projection(property)
+   local result = unpack(vim.iter(vim.fn["projectionist#query"](property)):take(1):totable())
+   local _, projection = unpack(result or {})
+   return vim.iter(projection or {})
 end
+
+local onload_fns = {
+   plcd = function()
+      vim.cmd.Plcd()
+   end
+}
 
 vim.api.nvim_create_autocmd("User", {
    pattern = "ProjectionistActivate",
    group = au_group,
    callback = function()
-      iter_projection('setlocal', function (prop, value)
+      local res = iter_projection('setlocal')
+      for prop, value in iter_projection('setlocal') do
          if value == "v:true" then
             value = true
          elseif value == "v:false" then
@@ -136,15 +138,24 @@ vim.api.nvim_create_autocmd("User", {
          end
 
          vim.opt_local[prop] = value
-      end)
+      end
 
-      iter_projection('prepend', function (prop, value)
+      for prop, value in iter_projection('prepend') do
          vim.opt_local[prop]:prepend(value)
-      end)
+      end
 
-      iter_projection('append', function (prop, value)
+      for prop, value in iter_projection('append') do
          vim.opt_local[prop]:append(value)
-      end)
+      end
+
+
+      for value in iter_projection('onload') do
+         vim.print(value)
+         local onload_func = onload_fns[value]
+         if onload_func then
+            onload_func()
+         end
+      end
    end
 })
 
