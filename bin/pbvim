@@ -22,7 +22,7 @@ fi
 
 pbpaste >"$tmpfile"
 
-svim "$tmpfile" -c 'autocmd FileType * !echo <amatch> > /tmp/pbvim-last-filetype'
+svim "$tmpfile" -c 'autocmd FileType * silent !test <amatch> \!= cmp_menu && echo <amatch> > /tmp/pbvim-last-filetype'
 
 pbcopy <"$tmpfile"
 rm "$tmpfile"
