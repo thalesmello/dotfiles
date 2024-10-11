@@ -23,7 +23,7 @@ local group = vim.api.nvim_create_augroup("NvimSurroungAutogroup", {
 
 vim.api.nvim_create_autocmd({ 'FileType' }, {
   group = group,
-  pattern = "sql",
+  pattern = {"sql", "jinja"},
   callback = function()
     require("nvim-surround").buffer_setup({
       surrounds = {

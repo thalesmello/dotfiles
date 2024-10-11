@@ -18,7 +18,7 @@ vim.g.projectionist_heuristics = {
       },
    },
    [data .. '/lazy/'] = {
-      [data .. '/lazy/*.vim'] = {
+      [data .. '/lazy/**/README*'] = {
          type = "plugin",
       },
    },

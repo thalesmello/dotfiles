@@ -367,7 +367,7 @@ require("lazy").setup({
 
             vim.api.nvim_create_autocmd({ 'FileType' }, {
                 group = group,
-                pattern = "sql",
+                pattern = {"sql", "jinja"},
                 callback = function()
 
                     local spec_pair = require('mini.ai').gen_spec.pair
@@ -377,6 +377,7 @@ require("lazy").setup({
                             ['%'] = spec_pair('{%', '%}'),
                             ['-'] = spec_pair('{%-', '-%}'),
                             ['#'] = spec_pair('{#', '#}'),
+                            ['\\'] = { "}()().-()(){" },
                         },
                     }
                 end,
