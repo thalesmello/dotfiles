@@ -1,8 +1,3 @@
-if vim.fn.match(vim.opt.runtimepath:get(), "dirvish") == -1 then
-   return
-end
-
-
 vim.keymap.set("n", "-", function()
   return vim.fn.empty(vim.fn.expand("%")) == 1 and "<cmd>Dirvish<cr>" or "<cmd>Dirvish %:h<cr>"
 end, { expr = true, noremap = true })

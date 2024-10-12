@@ -1,8 +1,3 @@
-if vim.fn.match(vim.opt.runtimepath:get(), "vim-flagship") == -1 then
-   return
-end
-
-
 _G.StatuslineFugitiveBranch = function ()
    if vim.fn.winwidth(0) < 80 then
       return ''

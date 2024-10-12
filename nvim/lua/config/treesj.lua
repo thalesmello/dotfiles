@@ -1,7 +1,3 @@
-if vim.fn.match(vim.opt.runtimepath:get(), "nvim-treesitter") == -1 or vim.fn.match(vim.opt.runtimepath:get(), "nvim-treesitter") == -1 then
-   return
-end
-
 local tsj = require('treesj')
 
 local langs = {}
