@@ -790,3 +790,8 @@ vim.keymap.set("n", "<leader>ep", function ()
   local share = vim.fn.stdpath("data")
   vim.cmd.edit(share .. "/lazy/")
 end, { noremap = true })
+
+local nvim_local = vim.fn.expand("$HOME/.nvim_local.lua")
+if vim.loop.fs_stat(nvim_local) then
+    vim.cmd.luafile(nvim_local)
+end
