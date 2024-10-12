@@ -1,7 +1,3 @@
-if vim.fn.match(vim.opt.runtimepath:get(), "vim-projectionist") == -1 then
-   return
-end
-
 local config = vim.fn.stdpath("config")
 local data = vim.fn.stdpath("data")
 
@@ -123,7 +119,6 @@ vim.api.nvim_create_autocmd("User", {
    pattern = "ProjectionistActivate",
    group = au_group,
    callback = function()
-      local res = iter_projection('setlocal')
       for prop, value in iter_projection('setlocal') do
          if value == "v:true" then
             value = true
@@ -150,7 +145,6 @@ vim.api.nvim_create_autocmd("User", {
 
 
       for value in iter_projection('onload') do
-         vim.print(value)
          local onload_func = onload_fns[value]
          if onload_func then
             onload_func()

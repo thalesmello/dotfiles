@@ -69,6 +69,7 @@ require("lazy").setup({
             { 'tpope/vim-haystack' },
         },
         config = function() require('config/projectionist') end,
+        name = 'vim-projectionist',
     },
     {
         'tpope/vim-tbone',
@@ -210,7 +211,7 @@ require("lazy").setup({
     },
     {
         'junegunn/fzf.vim',
-        dependencies = { 'junegunn/fzf', 'tpope/vim-projectionist' },
+        dependencies = { 'junegunn/fzf', 'vim-projectionist' },
         keys = {
             {"<c-p>", mode = "n"},
             {"<c-p>", mode = "v"},
