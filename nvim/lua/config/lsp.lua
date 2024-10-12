@@ -174,8 +174,9 @@ cmp.setup({
                 cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
             elseif snippy.can_expand_or_advance() then
                 snippy.expand_or_advance()
-            elseif has_words_before() then
-                vim.fn.feedkeys(vim.fn["copilot#Accept"](), "n")
+            -- Removing because copilot is not being used anymore
+            -- elseif has_words_before() then
+                -- vim.fn.feedkeys(vim.fn["copilot#Accept"](), "n")
             else
                 fallback()
             end
