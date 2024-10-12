@@ -4,7 +4,7 @@ end
 
 local vim_utils = require('vim_utils')
 
-local fontSize = 30
+local fontSize = 25
 local function setGuiFont(fontSizeChange)
     if not fontSizeChange then
         fontSizeChange = 0
@@ -35,7 +35,7 @@ end
 vim.go.laststatus = 0
 
 
-function startResizeCycle()
+local function startResizeCycle()
     vim.keymap.set("n", "J", function () setDocument(defaultLineChange, 0) end, { buffer = true})
     vim.keymap.set("n", "K", function () setDocument(-defaultLineChange, 0) end, { buffer = true})
     vim.keymap.set("n", "L", function () setDocument(0, defaultColumnChange) end, { buffer = true})
@@ -91,7 +91,13 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
             end)
 
             vim.keymap.set("n", "<c-z>", function ()
+                vim.cmd("silent write")
                 vim.fn["firenvim#hide_frame"]()
+            end)
+
+            vim.keymap.set("n", "<D-cr>", function()
+                vim.cmd("silent write")
+                vim.fn['firenvim#hide_frame']()
             end)
 
             vim.defer_fn(function()
@@ -102,12 +108,6 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
                         vim.api.nvim_win_set_cursor(0, {line, 1})
                     end
                 end)
-
-                vim.cmd [[
-                function! UserVimFirenvimSetlineCallback(line)
-                    let _ = v:lua.UserFirenvimSetlineCallback(a:line)
-                endfunction
-                ]]
 
                 vim.rpcnotify(chan, 'firenvim_eval_js', "document.querySelector('.active-line-number').innerText", "UserFirenvimSetlineCallback")
             end, 100)
