@@ -80,6 +80,16 @@ local function temporary_highlight(start_pos, end_pos, opts)
 end
 
 
+local function create_vimscript_function(name, fn)
+    local luafunc_name = '__' .. name .. '_luafunc'
+    _G[luafunc_name] = fn
+    vim.cmd([[
+function! ]] .. name .. [[(val)
+        call v:lua.]] .. luafunc_name .. [[(a:val)
+endfunction
+]])
+end
+
 return {
     get_visual_selection = get_visual_selection,
     keycodes = keycodes,
@@ -87,4 +97,5 @@ return {
     partial = partial,
     concat_array = concat_array,
     temporary_highlight = temporary_highlight,
+    create_vimscript_function = create_vimscript_function,
 }

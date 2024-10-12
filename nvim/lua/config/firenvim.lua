@@ -2,6 +2,8 @@ if not vim.g.started_by_firenvim then
     return
 end
 
+local vim_utils = require('vim_utils')
+
 local fontSize = 30
 local function setGuiFont(fontSizeChange)
     if not fontSizeChange then
@@ -32,6 +34,7 @@ end
 
 vim.go.laststatus = 0
 
+
 function startResizeCycle()
     vim.keymap.set("n", "J", function () setDocument(defaultLineChange, 0) end, { buffer = true})
     vim.keymap.set("n", "K", function () setDocument(-defaultLineChange, 0) end, { buffer = true})
@@ -56,8 +59,10 @@ end
 vim.api.nvim_create_autocmd({'UIEnter'}, {
     group = vim.api.nvim_create_augroup("FireNvimConfig", { clear = true}),
     callback = function()
-        local client = vim.api.nvim_get_chan_info(vim.v.event.chan).client
-        if client ~= nil and client.name == "Firenvim" then
+        local chan = vim.v.event.chan
+        local client = vim.api.nvim_get_chan_info(chan).client
+
+        if client and client.name == "Firenvim" then
             setGuiFont()
 
             vim.keymap.set("n", "<leader>J", function ()
@@ -84,6 +89,28 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
             vim.keymap.set("n", "<c-=>", function ()
                 setGuiFont(1)
             end)
+
+            vim.keymap.set("n", "<c-z>", function ()
+                vim.fn["firenvim#hide_frame"]()
+            end)
+
+            vim.defer_fn(function()
+                vim_utils.create_vimscript_function('UserFirenvimSetlineCallback', function(line)
+                    line = tonumber(vim.json.decode(line))
+
+                    if line >= 0 then
+                        vim.api.nvim_win_set_cursor(0, {line, 1})
+                    end
+                end)
+
+                vim.cmd [[
+                function! UserVimFirenvimSetlineCallback(line)
+                    let _ = v:lua.UserFirenvimSetlineCallback(a:line)
+                endfunction
+                ]]
+
+                vim.rpcnotify(chan, 'firenvim_eval_js', "document.querySelector('.active-line-number').innerText", "UserFirenvimSetlineCallback")
+            end, 100)
         end
     end
 })
