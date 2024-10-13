@@ -101,15 +101,16 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
             end)
 
             vim.defer_fn(function()
-                vim_utils.create_vimscript_function('UserFirenvimSetlineCallback', function(line)
-                    line = tonumber(vim.json.decode(line))
+                vim.fn['firenvim#eval_js'](
+                    "document.querySelector('.active-line-number').innerText",
+                    vim_utils.create_vimscript_function('UserFirenvimSetlineCallback', function(line)
+                        line = tonumber(vim.json.decode(line))
 
-                    if line >= 0 then
-                        vim.api.nvim_win_set_cursor(0, {line, 1})
-                    end
-                end)
-
-                vim.rpcnotify(chan, 'firenvim_eval_js', "document.querySelector('.active-line-number').innerText", "UserFirenvimSetlineCallback")
+                        if line >= 0 then
+                            vim.api.nvim_win_set_cursor(0, {line, 1})
+                        end
+                    end)
+                )
             end, 100)
         end
     end

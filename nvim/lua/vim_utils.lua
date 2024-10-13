@@ -88,6 +88,8 @@ function! ]] .. name .. [[(val)
         call v:lua.]] .. luafunc_name .. [[(a:val)
 endfunction
 ]])
+
+    return name
 end
 
 return {
