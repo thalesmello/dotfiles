@@ -11,9 +11,18 @@ local function setGuiFont(fontSizeChange)
     end
 
     fontSize = fontSize + fontSizeChange
-    vim.go.guifont = "InconsolataGoNerdFontCompleteM-Regular:h" .. fontSize
+    vim.go.guifont = "InconsolataGoNerdFontMono-Regular:h" .. fontSize
 end
 
+local default_statusline = vim.o.laststatus
+
+local function modifyStatusline()
+    if vim.o.lines <= 10 then
+        vim.go.laststatus = 0
+    else
+        vim.o.laststatus = default_statusline
+    end
+end
 
 local defaultLineChange = 2
 local defaultColumnChange = 5
@@ -29,10 +38,11 @@ local function setDocument(lines, columns)
 
     vim.o.lines = vim.o.lines + lines
     vim.o.columns = vim.o.columns + columns
+
+    modifyStatusline()
 end
 
 
-vim.go.laststatus = 0
 
 
 local function startResizeCycle()
@@ -64,6 +74,8 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
 
         if client and client.name == "Firenvim" then
             setGuiFont()
+
+            modifyStatusline()
 
             vim.keymap.set("n", "<leader>J", function ()
                 setDocument(defaultLineChange, 0)
