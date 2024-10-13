@@ -121,6 +121,7 @@ vim.g.firenvim_config = {
     localSettings = {
         ['.*'] = {
             takeover = 'never',
+            filename = '/tmp/{hostname}_{pathname}_{selector%10}_{timestamp%32}.{extension}',
         }
     }
 }
