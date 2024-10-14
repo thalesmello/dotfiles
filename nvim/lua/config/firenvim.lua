@@ -114,7 +114,7 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
             end)
 
             vim.keymap.set("n", "<D-v>", '"+p')
-            vim.keymap.set("i", "<D-v>", '<c-r><c-r>+')
+            vim.keymap.set({ "i", "c" }, "<D-v>", '<c-r><c-r>+')
 
             vim.defer_fn(function()
                 vim.fn['firenvim#eval_js'](

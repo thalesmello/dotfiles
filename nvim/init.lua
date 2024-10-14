@@ -89,7 +89,10 @@ require("lazy").setup({
     },
     {
         'thalesmello/tabfold',
-        keys = {"<tab>", "<s-tab>"}
+        keys = {"<tab>", "<s-tab>"},
+        init = function()
+            vim.g.tabfold_enforce_forward_or_toggle_fold = 1
+        end
     },
     {
         'tpope/vim-fugitive',
@@ -775,21 +778,14 @@ require("lazy").setup({
     -- }
 })
 
+-- Personal configs that were never exported to a plugin
 require('config/settings')
 require('config/mappings')
 require('config/clipboard')
 require('config/jk_jumps')
 require('config/neovimterminal')
 require('config/quickfix_remove')
-
-
 require('config/smart_send_text')
-
-
-vim.keymap.set("n", "<leader>ep", function ()
-  local share = vim.fn.stdpath("data")
-  vim.cmd.edit(share .. "/lazy/")
-end, { noremap = true })
 
 local nvim_local = vim.fn.expand("$HOME/.nvim_local.lua")
 if vim.loop.fs_stat(nvim_local) then
