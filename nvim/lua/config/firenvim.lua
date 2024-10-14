@@ -110,8 +110,7 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
             end)
 
             vim.keymap.set("n", "<D-cr>", function()
-                vim.cmd("silent write")
-                vim.fn['firenvim#hide_frame']()
+                vim.cmd("silent wq")
             end)
 
             vim.keymap.set("n", "<D-v>", '"+p')
