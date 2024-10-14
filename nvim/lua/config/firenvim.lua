@@ -127,7 +127,7 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
 
             -- The two following settings work with Monaco editors in web browser pages
             vim.fn['firenvim#eval_js'](
-                "window.getComputedStyle(document.querySelector('.active-line-number')).getPropertyValue('font-size').slice(0, -2)",
+                "window.getComputedStyle(document.querySelector('.active-line-number')).getPropertyValue('font-size').slice(0, -2) * window.devicePixelRatio",
                 vim_utils.create_vimscript_function('UserFirenvimSetfontCallback', function(fontsize)
                     fontsize = math.floor(tonumber(vim.json.decode(fontsize)) * 72 / 96)
                     vim.print({fontsize = fontsize})
