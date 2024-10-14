@@ -4,14 +4,23 @@ end
 
 local vim_utils = require('vim_utils')
 
+
+
 local fontSize = 25
-local function setGuiFont(fontSizeChange)
+local function setFontSize(newFontSize)
+    if not newFontSize then
+        newFontSize = fontSize
+    else
+        fontSize = newFontSize
+    end
+    vim.go.guifont = "InconsolataGoNerdFontMono-Regular:h" .. fontSize
+end
+local function incrementFontSize(fontSizeChange)
     if not fontSizeChange then
         fontSizeChange = 0
     end
 
-    fontSize = fontSize + fontSizeChange
-    vim.go.guifont = "InconsolataGoNerdFontMono-Regular:h" .. fontSize
+    setFontSize(fontSize + fontSizeChange)
 end
 
 local default_cmdheight = vim.o.cmdheight
@@ -75,7 +84,7 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
         local client = vim.api.nvim_get_chan_info(chan).client
 
         if client and client.name == "Firenvim" then
-            setGuiFont()
+            incrementFontSize()
 
             modifyCmdheight()
 
@@ -97,11 +106,11 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
             end)
 
             vim.keymap.set("n", "<c-->", function ()
-                setGuiFont(-1)
+                incrementFontSize(-1)
             end)
 
             vim.keymap.set("n", "<c-=>", function ()
-                setGuiFont(1)
+                incrementFontSize(1)
             end)
 
             vim.keymap.set("n", "<c-z>", function ()
@@ -115,6 +124,19 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
 
             vim.keymap.set("n", "<D-v>", '"+p')
             vim.keymap.set({ "i", "c" }, "<D-v>", '<c-r><c-r>+')
+
+            -- The two following settings work with Monaco editors in web browser pages
+            vim.fn['firenvim#eval_js'](
+                "window.getComputedStyle(document.querySelector('.active-line-number')).getPropertyValue('font-size').slice(0, -2)",
+                vim_utils.create_vimscript_function('UserFirenvimSetfontCallback', function(fontsize)
+                    fontsize = math.floor(tonumber(vim.json.decode(fontsize)) * 72 / 96)
+                    vim.print({fontsize = fontsize})
+
+                    if fontsize > 0 then
+                        setFontSize(fontsize)
+                    end
+                end)
+            )
 
             vim.defer_fn(function()
                 vim.fn['firenvim#eval_js'](
@@ -132,7 +154,7 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
     end
 })
 
-vim.keymap.set("n", "<c-l>", setGuiFont)
+vim.keymap.set("n", "<c-l>", setFontSize)
 
 vim.g.firenvim_config = {
     localSettings = {
