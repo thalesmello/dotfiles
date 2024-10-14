@@ -14,13 +14,15 @@ local function setGuiFont(fontSizeChange)
     vim.go.guifont = "InconsolataGoNerdFontMono-Regular:h" .. fontSize
 end
 
-local default_statusline = vim.o.laststatus
+local default_cmdheight = vim.o.cmdheight
 
-local function modifyStatusline()
+vim.go.laststatus = 0
+
+local function modifyCmdheight()
     if vim.o.lines <= 10 then
-        vim.go.laststatus = 0
+        vim.go.cmdheight = 0
     else
-        vim.o.laststatus = default_statusline
+        vim.o.cmdheight = default_cmdheight
     end
 end
 
@@ -39,7 +41,7 @@ local function setDocument(lines, columns)
     vim.o.lines = vim.o.lines + lines
     vim.o.columns = vim.o.columns + columns
 
-    modifyStatusline()
+    modifyCmdheight()
 end
 
 
@@ -75,7 +77,7 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
         if client and client.name == "Firenvim" then
             setGuiFont()
 
-            modifyStatusline()
+            modifyCmdheight()
 
             vim.keymap.set("n", "<leader>J", function ()
                 setDocument(defaultLineChange, 0)
@@ -112,6 +114,9 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
                 vim.fn['firenvim#hide_frame']()
             end)
 
+            vim.keymap.set("n", "<D-v>", '"+p')
+            vim.keymap.set("i", "<D-v>", '<c-r><c-r>+')
+
             vim.defer_fn(function()
                 vim.fn['firenvim#eval_js'](
                     "document.querySelector('.active-line-number').innerText",
@@ -135,6 +140,7 @@ vim.g.firenvim_config = {
         ['.*'] = {
             takeover = 'never',
             filename = '/tmp/{hostname}_{pathname}_{selector%10}_{timestamp%32}.{extension}',
+            cmdline = 'neovim',
         }
     }
 }

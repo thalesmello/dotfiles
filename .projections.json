@@ -1,8 +1,8 @@
 {
   "fish/fundle/*.fish": {"type": "fishplugin"},
-  "fish/completions/*.fish": {"type": "completion"},
-  "fish/functions/*.fish": {"type": "function"},
-  "fish/conf.d/*.fish": {"type": "conf"},
-  "fish/config.fish": {"type": "init"},
+  "fish/completions/*.fish": {"type": "fishcompletion"},
+  "fish/functions/*.fish": {"type": "fishfunction"},
+  "fish/conf.d/*.fish": {"type": "fishconf"},
+  "fish/config.fish": {"type": "fishinit"},
   "README.markdown": {"type": "doc"}
 }
