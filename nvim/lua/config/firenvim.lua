@@ -114,12 +114,13 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
             end)
 
             vim.keymap.set("n", "<c-z>", function ()
-                vim.cmd("silent write")
+                vim.cmd("update")
                 vim.fn["firenvim#hide_frame"]()
             end)
 
             vim.keymap.set("n", "<D-cr>", function()
-                vim.cmd("silent wq")
+                vim.cmd("update")
+                vim.cmd("quit")
             end)
 
             vim.keymap.set("n", "<D-v>", '"+p')
@@ -154,14 +155,39 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
     end
 })
 
+
+-- vim.api.nvim_create_autocmd({'BufEnter'}, {
+--     pattern = "*.txt",
+--     callback = function()
+--         vim.cmd.lcd(vim.fn.expand('%:h'))
+--     end,
+--     group = group,
+-- })
+
 vim.keymap.set("n", "<c-l>", setFontSize)
 
 vim.g.firenvim_config = {
     localSettings = {
         ['.*'] = {
             takeover = 'never',
-            filename = '/tmp/{hostname}_{pathname}_{selector%10}_{timestamp%32}.{extension}',
+            filename = '/tmp/firenvim/{hostname}_{pathname}_{selector%10}_{timestamp%32}.{extension}',
             cmdline = 'neovim',
         }
     }
 }
+
+if not vim.fn.isdirectory('/tmp/firenvim') then
+    vim.cmd('silent ! mkdir -p /tmp/firenvim')
+end
+
+-- local ok, cmp = pcall(require, "cmp")
+-- if ok then
+--     cmp.setup({
+--         sources = {
+--             { name = 'nvim_lsp' },
+--             { name = 'snippy' },
+--             { name = 'buffer' },
+--             { name = 'path' },
+--         }
+--     )
+-- end

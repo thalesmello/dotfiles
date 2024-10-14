@@ -157,8 +157,19 @@ cmp.setup({
     sources = {
         { name = 'nvim_lsp' },
         { name = 'snippy' },
-        { name = 'buffer' },
+        {
+            name = 'buffer',
+            get_bufnrs = function()
+              return vim.api.nvim_list_bufs()
+            end,
+        },
         { name = 'path' },
+        { name = 'calc' },
+        {
+            name = "rg",
+            -- Try it when you feel cmp performance is poor
+            -- keyword_length = 3
+        },
     },
 
     mapping = cmp.mapping.preset.insert({

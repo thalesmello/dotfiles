@@ -21,3 +21,4 @@ brew install wget
 brew install jq
 brew install gron
 brew install up
+brew install rg
