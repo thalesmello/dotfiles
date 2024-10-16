@@ -176,7 +176,7 @@ vim.g.firenvim_config = {
     }
 }
 
-if not vim.fn.isdirectory('/tmp/firenvim') then
+if vim.fn.isdirectory('/tmp/firenvim') == 0 then
     vim.cmd('silent ! mkdir -p /tmp/firenvim')
 end
 
