@@ -13,7 +13,6 @@ Create a symbolic links for your files:
     ln -s $(pwd)/kitty ~/.config/kitty
     ln -s $(pwd)/hammerspoon ~/.hammerspoon
     ln -s $(pwd)/R ~/.R
-    ln -s $(pwd)/Karabiner ~/Library/Application\ Support/Karabiner
     ln -s $(pwd)/ideavimrc ~/.ideavimrc
     ln -s $(pwd)/finicky.js ~/.finicky.js
     ln -s $(pwd)/btt_autoload_preset.json ~/.btt_autoload_preset.json
