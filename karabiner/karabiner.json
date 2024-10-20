@@ -15,7 +15,19 @@
                                     }
                                 ],
                                 "from": { "key_code": "spacebar" },
-                                "to": [
+                                "parameters": {
+                                    "basic.to_delayed_action_delay_milliseconds": 150,
+                                    "basic.to_if_alone_timeout_milliseconds": 300,
+                                    "basic.to_if_held_down_threshold_milliseconds": 150
+                                },
+                                "to_delayed_action": { "to_if_canceled": [{ "key_code": "spacebar" }] },
+                                "to_if_alone": [
+                                    {
+                                        "halt": true,
+                                        "key_code": "spacebar"
+                                    }
+                                ],
+                                "to_if_held_down": [
                                     {
                                         "set_variable": {
                                             "key_up_value": 0,
@@ -24,18 +36,12 @@
                                         }
                                     }
                                 ],
-                                "to_if_alone": [
-                                    {
-                                        "halt": true,
-                                        "key_code": "spacebar"
-                                    }
-                                ],
                                 "type": "basic"
                             }
                         ]
                     },
                     {
-                        "description": "SpaceFN: Space+[wbe]",
+                        "description": "SpaceFN: Space+[wbae]",
                         "manipulators": [
                             {
                                 "conditions": [
@@ -67,6 +73,46 @@
                                 ],
                                 "from": {
                                     "key_code": "e",
+                                    "modifiers": { "optional": ["any"] }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "right_arrow",
+                                        "modifiers": ["left_command"]
+                                    }
+                                ],
+                                "type": "basic"
+                            },
+                            {
+                                "conditions": [
+                                    {
+                                        "name": "spacefn_mode",
+                                        "type": "variable_if",
+                                        "value": 1
+                                    }
+                                ],
+                                "from": {
+                                    "key_code": "a",
+                                    "modifiers": { "optional": ["any"] }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "left_arrow",
+                                        "modifiers": ["left_command"]
+                                    }
+                                ],
+                                "type": "basic"
+                            },
+                            {
+                                "conditions": [
+                                    {
+                                        "name": "spacefn_mode",
+                                        "type": "variable_if",
+                                        "value": 1
+                                    }
+                                ],
+                                "from": {
+                                    "key_code": "f",
                                     "modifiers": { "optional": ["any"] }
                                 },
                                 "to": [
