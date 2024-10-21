@@ -13,7 +13,7 @@ local function setFontSize(newFontSize)
     else
         fontSize = newFontSize
     end
-    vim.go.guifont = "InconsolataGoNerdFontMono-Regular:h" .. fontSize
+    vim.go.guifont = "InconsolataGoNFM:h" .. fontSize
 end
 local function incrementFontSize(fontSizeChange)
     if not fontSizeChange then
