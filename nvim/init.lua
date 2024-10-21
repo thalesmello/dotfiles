@@ -6,7 +6,6 @@
 -- Polyglot disabled configs should load before any syntax is loaded
 vim.g.mapleader = " "
 vim.g.maplocalleader = "'"
-vim.g.my_colorscheme = "apprentice"
 
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not vim.loop.fs_stat(lazypath) then
@@ -42,15 +41,6 @@ require("lazy").setup({
             }
         },
         config = function() require('config/flagship') end,
-    },
-    {
-        'romainl/Apprentice',
-        priority = 1000,
-        config = function ()
-            -- Sets the colorscheme for terminal sessions too.
-            vim.opt.background = "dark"
-            vim.cmd.colorscheme("apprentice")
-        end
     },
     {
       "folke/tokyonight.nvim",
