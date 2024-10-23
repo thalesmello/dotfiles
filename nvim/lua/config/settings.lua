@@ -57,6 +57,7 @@ vim.opt.diffopt:append { "vertical" }
 
 -- Allows the mouse to be used
 vim.opt.mouse = "a"
+vim.opt.mousescroll = "ver:2,hor:2"
 
 -- Set position of quickfix
 vim.cmd("botright cwindow")

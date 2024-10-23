@@ -84,6 +84,7 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
         local client = vim.api.nvim_get_chan_info(chan).client
 
         if client and client.name == "Firenvim" then
+            vim.go.mousescroll = "ver:1"
             incrementFontSize()
 
             modifyCmdheight()
