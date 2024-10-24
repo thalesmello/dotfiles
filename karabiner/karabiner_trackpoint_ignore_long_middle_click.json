@@ -1,0 +1,33 @@
+{
+    "description": "(TrackPoint) Ignore long middle click",
+    "manipulators": [
+        {
+            "type": "basic",
+            "from": {
+                "pointing_button": "button3"
+            },
+            "parameters": {
+                "basic.to_if_alone_timeout_milliseconds": 300
+            },
+            "to_if_alone": [
+                {
+                    "halt": true,
+                    "pointing_button": "button3"
+                }
+            ],
+            "conditions": [
+                {
+                    "type": "device_if",
+                    "identifiers": [
+                        {
+                            "is_keyboard": true,
+                            "is_pointing_device": true,
+                            "product_id": 24801,
+                            "vendor_id": 6127
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
