@@ -19,6 +19,7 @@ Create a symbolic links for your files:
     ln -s $(pwd)/aerospace.toml ~/.aerospace.toml
     ln -s $(pwd)/fish ~/.config/fish
     ln -s $(pwd)/nvim ~/.config/nvim
+    ln -s $(pwd)/linearmouse ~/.config/linearmouse
     mkdir -p ~/.config/karabiner && ln -s $(pwd)/karabiner/karabiner.json ~/.config/karabiner/karabiner.json
 
 Set `fish` as default shell
