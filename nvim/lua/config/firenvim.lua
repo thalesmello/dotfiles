@@ -123,7 +123,7 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
                 vim.fn["firenvim#hide_frame"]()
             end)
 
-            vim.keymap.set("n", "<D-cr>", function()
+            vim.keymap.set({"n", "i"}, "<D-cr>", function()
                 vim.cmd("update")
                 vim.cmd("quit")
             end)
