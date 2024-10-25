@@ -4,6 +4,35 @@
             "complex_modifications": {
                 "rules": [
                     {
+                        "description": "(TrackPoint) Ignore long middle click",
+                        "manipulators": [
+                            {
+                                "conditions": [
+                                    {
+                                        "identifiers": [
+                                            {
+                                                "is_keyboard": true,
+                                                "is_pointing_device": true,
+                                                "product_id": 24801,
+                                                "vendor_id": 6127
+                                            }
+                                        ],
+                                        "type": "device_if"
+                                    }
+                                ],
+                                "from": { "pointing_button": "button3" },
+                                "parameters": { "basic.to_if_alone_timeout_milliseconds": 300 },
+                                "to_if_alone": [
+                                    {
+                                        "halt": true,
+                                        "pointing_button": "button3"
+                                    }
+                                ],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
                         "description": "SpaceFN: Space enables SpaceFN mode (see: https://geekhack.org/index.php?topic=51069.0 & https://spacelauncherapp.com)",
                         "manipulators": [
                             {
@@ -307,27 +336,6 @@
                         ]
                     },
                     {
-                        "description": "Change right_option to left_control + left_option",
-                        "manipulators": [
-                            {
-                                "from": {
-                                    "key_code": "right_option",
-                                    "modifiers": {
-                                        "mandatory": [],
-                                        "optional": ["any"]
-                                    }
-                                },
-                                "to": [
-                                    {
-                                        "key_code": "left_control",
-                                        "modifiers": ["left_option"]
-                                    }
-                                ],
-                                "type": "basic"
-                            }
-                        ]
-                    },
-                    {
                         "description": "Change right_control to control + option",
                         "manipulators": [
                             {
@@ -391,6 +399,33 @@
                         "vendor_id": 10730
                     },
                     "ignore": false
+                },
+                {
+                    "identifiers": {
+                        "is_keyboard": true,
+                        "is_pointing_device": true,
+                        "product_id": 24801,
+                        "vendor_id": 6127
+                    },
+                    "ignore": false,
+                    "simple_modifications": [
+                        {
+                            "from": { "key_code": "left_command" },
+                            "to": [{ "key_code": "left_option" }]
+                        },
+                        {
+                            "from": { "key_code": "left_option" },
+                            "to": [{ "key_code": "left_command" }]
+                        }
+                    ]
+                },
+                {
+                    "identifiers": {
+                        "is_keyboard": true,
+                        "product_id": 50489,
+                        "vendor_id": 1133
+                    },
+                    "ignore": true
                 }
             ],
             "name": "Default profile",
