@@ -81,6 +81,10 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
     group = vim.api.nvim_create_augroup("FireNvimConfig", { clear = true}),
     callback = function()
         local chan = vim.v.event.chan
+
+        vim.keymap.set("n", "<A-ScrollWheelUp><A-ScrollWheelUp>", '<ScrollWheelUp>', { noremap = true })
+        vim.keymap.set("n", "<A-ScrollWheelDown><A-ScrollWheelDown>", '<ScrollWheelDown>', { noremap = true })
+
         local client = vim.api.nvim_get_chan_info(chan).client
 
         if client and client.name == "Firenvim" then
