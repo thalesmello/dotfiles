@@ -102,3 +102,7 @@ end)
 vim.keymap.set("n", "<bs>", ":nohlsearch<cr>:pclose<cr>:diffoff<cr>", { noremap = true })
 vim.keymap.set("s", "<bs>", "<bs>i", { noremap = true })
 vim.keymap.set("n", "<leader>ft", ':setfiletype<space>', { noremap = true })
+
+vim.keymap.set("c", "<c-9>", '\\(\\)<left><left>', { noremap = true })
+vim.keymap.set("c", "<c-_>", '\\{-}', { noremap = true })
+vim.keymap.set("c", "<c-->", '\\{-}', { noremap = true })
