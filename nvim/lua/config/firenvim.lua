@@ -82,8 +82,8 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
     callback = function()
         local chan = vim.v.event.chan
 
-        vim.keymap.set("n", "<A-ScrollWheelUp><A-ScrollWheelUp>", '<ScrollWheelUp>', { noremap = true })
-        vim.keymap.set("n", "<A-ScrollWheelDown><A-ScrollWheelDown>", '<ScrollWheelDown>', { noremap = true })
+        vim.keymap.set("n", "<A-ScrollWheelUp><A-ScrollWheelUp>", '<ScrollWheelUp>', { noremap = true, silent = true })
+        vim.keymap.set("n", "<A-ScrollWheelDown><A-ScrollWheelDown>", '<ScrollWheelDown>', { noremap = true, silent = true })
 
         local client = vim.api.nvim_get_chan_info(chan).client
 
