@@ -5,6 +5,14 @@ end
 local vim_utils = require('vim_utils')
 
 
+require("tokyonight").setup({
+  styles = {
+    comments = { italic = false },
+    keywords = { italic = false },
+  },
+})
+
+vim.cmd[[colorscheme tokyonight]]
 
 local fontSize = 25
 local function setFontSize(newFontSize)
