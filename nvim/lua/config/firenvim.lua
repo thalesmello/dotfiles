@@ -85,8 +85,9 @@ local function startResizeCycle()
     })
 end
 
+local group = vim.api.nvim_create_augroup("FireNvimConfig", { clear = true})
 vim.api.nvim_create_autocmd({'UIEnter'}, {
-    group = vim.api.nvim_create_augroup("FireNvimConfig", { clear = true}),
+    group = group,
     callback = function()
         local chan = vim.v.event.chan
 
@@ -168,6 +169,20 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
     end
 })
 
+vim.api.nvim_create_autocmd({'TextChanged', 'TextChangedI'}, {
+    group = group,
+    callback = function()
+        if vim.g.firenvim_bufwrite_timer ~= nil then
+            vim.fn.timer_stop(vim.g.firenvim_bufwrite_timer)
+            vim.g.firenvim_bufwrite_timer = nil
+        end
+
+        vim.g.firenvim_bufwrite_timer = vim.fn.timer_start(3000, function()
+            vim.g.firenvim_bufwrite_timer = nil
+            vim.cmd('silent write')
+        end)
+    end
+})
 
 -- vim.api.nvim_create_autocmd({'BufEnter'}, {
 --     pattern = "*.txt",
@@ -204,3 +219,60 @@ end
 --         }
 --     )
 -- end
+
+-- -- Example of how to setup languages specific to websites
+-- local group = vim.api.nvim_create_augroup('FirenvimNvimLocalGroup', {})
+
+-- vim.api.nvim_create_autocmd({'BufEnter'}, {
+--     pattern = "www.internalfb.com_intern-daiquery*.txt",
+--     callback = function()
+--         vim.bo.filetype = 'sql'
+
+
+--         vim.fn['firenvim#eval_js'](
+--             'document.body.textContent.includes("You have view-only access to the workspace this query is in.")',
+--             vim_utils.create_vimscript_function('UserFirenvimDetectDaiqueryReadonly', function(readonly)
+--                 readonly = vim.json.decode(readonly)
+
+--                 if readonly then
+--                     vim.bo.modifiable = false
+--                     vim.bo.readonly = true
+--                 end
+--             end)
+--         )
+
+--         vim.fn['firenvim#eval_js'](
+--             'document.body.textContent.includes("You have view-only access to the workspace this query is in.")',
+--             vim_utils.create_vimscript_function('UserFirenvimDetectDaiqueryReadonly', function(readonly)
+--                 readonly = vim.json.decode(readonly)
+
+--                 if readonly then
+--                     vim.bo.modifiable = false
+--                     vim.bo.readonly = true
+--                 end
+--             end)
+--         )
+--     end,
+--     group = group,
+-- })
+
+-- vim.api.nvim_create_autocmd({'BufEnter'}, {
+--     pattern = "www.internalfb.com_code*.txt",
+--     callback = function(args)
+--         -- @cast match string
+--         local match = args.match
+--         local _, path = unpack(vim.split(match, "_"))
+--         local path_pieces = vim.split(path, "-")
+--         local extension = path_pieces[#path_pieces]
+--         local editmode = path_pieces[3]
+--         local newfilename = vim.fn.substitute(match, "\\.txt$", "." .. extension, '')
+--         local filetype, _ = vim.filetype.match({ buf = 0, filename = newfilename })
+--         vim.bo.filetype = filetype
+
+--         if editmode ~= 'edit' then
+--             vim.bo.modifiable = false
+--             vim.bo.readonly = true
+--         end
+--     end,
+--     group = group,
+-- })
