@@ -1,20 +1,20 @@
 {
+  "$schema" : "https:\/\/schema.linearmouse.app\/0.10.0",
   "schemes" : [
     {
+      "pointer" : {
+        "speed" : 0.0656,
+        "acceleration" : 1
+      },
       "if" : {
         "device" : {
-          "vendorID" : "0x16c0",
-          "category" : "mouse",
-          "productID" : "0x27da",
+          "serialNumber" : "pqrs.org:Karabiner-DriverKit-VirtualHIDPointing",
           "productName" : "Karabiner DriverKit VirtualHIDPointing 1.8.0",
-          "serialNumber" : "pqrs.org:Karabiner-DriverKit-VirtualHIDPointing"
+          "productID" : "0x27da",
+          "category" : "mouse",
+          "vendorID" : "0x16c0"
         }
-      },
-      "pointer" : {
-        "speed" : 0.15,
-        "acceleration" : 1
       }
     }
-  ],
-  "$schema" : "https:\/\/schema.linearmouse.app\/0.10.0"
+  ]
 }

@@ -4,6 +4,49 @@
             "complex_modifications": {
                 "rules": [
                     {
+                        "description": "Mouse back click",
+                        "manipulators": [
+                            {
+                                "conditions": [
+                                    {
+                                        "identifiers": [{ "is_pointing_device": true }],
+                                        "type": "device_if"
+                                    }
+                                ],
+                                "from": { "pointing_button": "button2" },
+                                "parameters": { "basic.to_if_alone_timeout_milliseconds": 300 },
+                                "to": [
+                                    {
+                                        "set_variable": {
+                                            "key_up_value": 0,
+                                            "name": "right_click_mode",
+                                            "value": 1
+                                        }
+                                    }
+                                ],
+                                "to_if_alone": [{ "pointing_button": "button2" }],
+                                "type": "basic"
+                            },
+                            {
+                                "conditions": [
+                                    {
+                                        "name": "right_click_mode",
+                                        "type": "variable_if",
+                                        "value": 1
+                                    }
+                                ],
+                                "from": { "pointing_button": "button1" },
+                                "to_if_alone": [
+                                    {
+                                        "key_code": "open_bracket",
+                                        "modifiers": ["left_command"]
+                                    }
+                                ],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
                         "description": "(TrackPoint) Ignore long middle click",
                         "manipulators": [
                             {
@@ -447,6 +490,15 @@
                         "is_pointing_device": true,
                         "product_id": 24814,
                         "vendor_id": 6127
+                    },
+                    "ignore": false
+                },
+                {
+                    "identifiers": {
+                        "is_keyboard": true,
+                        "is_pointing_device": true,
+                        "product_id": 2087,
+                        "vendor_id": 1118
                     },
                     "ignore": false
                 }
