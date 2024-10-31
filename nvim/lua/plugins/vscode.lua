@@ -2,9 +2,8 @@ if not vim.g.vscode then
   return {}
 end
 
-vim.g.debug_vscode = vim.empty_dict()
-
-
+-- This is makes extensions not be enabled by default
+-- To enable, add "vscode = true" to the plugin spec
 require("lazy.core.config").options.defaults.cond = function(plugin)
   return (
     plugin.vscode
