@@ -20,14 +20,14 @@ if not vim.loop.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
+
+
 ---@type string
 require("lazy").setup({
     {
-        'tpope/vim-commentary',
-        keys = {
-            {"gc", mode = {"n", "v"}},
-        },
-        cmd = "Commentary",
+        -- This is makes extensions not be enabled by default
+        -- To enable, add "vscode = true" to the plugin spec
+        import = "plugins.vscode"
     },
     {
         'tpope/vim-flagship',
@@ -43,15 +43,16 @@ require("lazy").setup({
         config = function() require('config/flagship') end,
     },
     {
-      "folke/tokyonight.nvim",
-      lazy = false,
-      priority = 1000,
-      config = function ()
+        "folke/tokyonight.nvim",
+        lazy = false,
+        priority = 1000,
+        config = function ()
             require('tokyonight').setup()
             -- Sets the colorscheme for terminal sessions too.
             vim.opt.background = "dark"
             vim.cmd.colorscheme("tokyonight")
-      end
+        end,
+        vscode = true,
     },
     {
         'tpope/vim-scriptease',
@@ -126,7 +127,7 @@ require("lazy").setup({
             'kana/vim-textobj-user',
         },
         config = function() require('config/surround') end,
-        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
+        vscode = true,
     },
     { 'tpope/vim-repeat' },
     {
@@ -290,6 +291,7 @@ require("lazy").setup({
             {"x", "<Plug>(leap-forward-till)", mode = { "o" }, desc = "Leap operator non-inclusive"},
             {"X", "<Plug>(leap-backward-till)", mode = { "o" }, desc = "Leap backwards operator inclusive"},
         },
+        vscode = true,
     },
     {
         'machakann/vim-highlightedyank',
@@ -334,12 +336,13 @@ require("lazy").setup({
             -- Only works vim treesitter syntax, doesn't work with Tree sitter yet
             -- { 'thalesmello/vim-textobj-multiline-str' },
         },
+        vscode = true,
     },
 
     {
         'coderifous/textobj-word-column.vim',
         init = function() require('config/textobjectcolumn') end,
-        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
+        vscode = true,
     },
 
     -- {
@@ -494,17 +497,19 @@ require("lazy").setup({
             'nvim-treesitter/nvim-treesitter-context',
             'nvim-treesitter/playground',
             'andymass/vim-matchup',
+            'kana/vim-textobj-user',
         },
         config = function ()
             require('config/treesitter')
-        end
-
+        end,
+        vscode = true,
     },
     {
         'AndrewRadev/splitjoin.vim',
         init = function()
             require('config/splitjoin')
         end,
+        vscode = true,
     },
     {
         'Wansmer/treesj',
@@ -521,8 +526,8 @@ require("lazy").setup({
             require('config/treesj')
         end,
         keys = { "gS", "gJ" },
-        cmd = {"TSJSplit", "TSJJoin"}
-
+        cmd = {"TSJSplit", "TSJJoin"},
+        vscode = true,
     },
     {
         'lepture/vim-jinja',

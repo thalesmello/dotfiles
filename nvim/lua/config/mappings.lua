@@ -74,8 +74,8 @@ vim.keymap.set("n", "<S-3-ScrollWheelDown>", "<3-ScrollWheelRight>", { noremap =
 vim.keymap.set("n", "<S-4-ScrollWheelDown>", "<4-ScrollWheelRight>", { noremap = true })
 
 -- Silence write file so it doesn't pollute history
-vim.keymap.set("n", ":w<cr>", ":write<cr>", { noremap = true })
-vim.keymap.set("n", ":q<cr>", ":quit<cr>", { noremap = true })
+-- vim.keymap.set("n", ":w<cr>", ":write<cr>", { noremap = true })
+-- vim.keymap.set("n", ":q<cr>", ":quit<cr>", { noremap = true })
 
 vim.keymap.set({"v"}, ":", "<esc>gv<Plug>SwapVisualCursor", { remap = true })
 vim.keymap.set({"v"}, "<Plug>SwapVisualCursor", function ()

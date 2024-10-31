@@ -1,4 +1,3 @@
-local ts_repeat_move = require "nvim-treesitter.textobjects.repeatable_move"
 local langs = {"lua", "vim", "python", "ruby", "query", "sql"}
 
 require'nvim-treesitter.configs'.setup {
@@ -174,9 +173,13 @@ for _, lang in ipairs(langs) do
 end
 
 
-vim.keymap.set({ "n", "x" }, ";", ts_repeat_move.repeat_last_move)
-vim.keymap.set({ "n", "x" }, ",", ts_repeat_move.repeat_last_move_opposite)
-vim.keymap.set({ "n", "x" }, "f", ts_repeat_move.builtin_f_expr, { expr = true })
-vim.keymap.set({ "n", "x" }, "F", ts_repeat_move.builtin_F_expr, { expr = true })
-vim.keymap.set({ "n", "x" }, "t", ts_repeat_move.builtin_t_expr, { expr = true })
-vim.keymap.set({ "n", "x" }, "T", ts_repeat_move.builtin_T_expr, { expr = true })
+local module_exists, ts_repeat_move = pcall(require, "nvim-treesitter.textobjects.repeatable_move")
+
+if module_exists then
+   vim.keymap.set({ "n", "x" }, ";", ts_repeat_move.repeat_last_move)
+   vim.keymap.set({ "n", "x" }, ",", ts_repeat_move.repeat_last_move_opposite)
+   vim.keymap.set({ "n", "x" }, "f", ts_repeat_move.builtin_f_expr, { expr = true })
+   vim.keymap.set({ "n", "x" }, "F", ts_repeat_move.builtin_F_expr, { expr = true })
+   vim.keymap.set({ "n", "x" }, "t", ts_repeat_move.builtin_t_expr, { expr = true })
+   vim.keymap.set({ "n", "x" }, "T", ts_repeat_move.builtin_T_expr, { expr = true })
+end
