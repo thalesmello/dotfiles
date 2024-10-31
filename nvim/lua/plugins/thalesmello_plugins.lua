@@ -6,5 +6,12 @@ return {
         'thalesmello/persistent.vim',
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
+    {
+        'thalesmello/tabfold',
+        keys = {"<tab>", "<s-tab>"},
+        init = function()
+            vim.g.tabfold_enforce_forward_or_toggle_fold = 1
+        end
+    }
     -- { 'thalesmello/webcomplete.vim', cond = vim.fn.has('macunix' ) },
 }

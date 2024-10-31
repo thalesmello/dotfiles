@@ -34,9 +34,7 @@ require('config/settings')
 require('config/mappings')
 require('config/clipboard')
 require('config/jk_jumps')
-require('config/neovimterminal')
 require('config/quickfix_remove')
-require('config/smart_send_text')
 
 local nvim_local = vim.fn.expand("$HOME/.nvim_local.lua")
 if vim.loop.fs_stat(nvim_local) then
