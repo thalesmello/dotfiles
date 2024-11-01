@@ -6,6 +6,9 @@ vim.g.projectionist_heuristics = {
       [config .. "/lua/config/*.lua"] = {
          type = "config",
       },
+      [config .. "/lua/plugins/*.lua"] = {
+         type = "plugin",
+      },
       [config .. "/lua/*.lua"] = {
          type = "lua",
       },
