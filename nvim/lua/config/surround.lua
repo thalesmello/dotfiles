@@ -53,6 +53,29 @@ vim.api.nvim_create_autocmd({ 'FileType' }, {
   end,
 })
 
+vim.api.nvim_create_autocmd({ 'FileType' }, {
+  group = group,
+  pattern = {"sql"},
+  callback = function()
+    require("nvim-surround").buffer_setup({
+      surrounds = {
+        ["c"] = {
+          add = function()
+            local config = require("nvim-surround.config")
+            local type = config.get_input("Enter the type to cast to: ")
+            if type then
+              return { { "CAST(" }, { " AS " .. type .. ")" } }
+            end
+          end,
+          find = "CAST%(.-%s+AS%s+%w-%)",
+          delete = "^([Cc][Aa][Ss][Tt]%(%s*)().-(%s+[Aa][Ss]%s+%w-%))()$",
+        },
+
+      }
+    })
+  end,
+})
+
 
 vim.api.nvim_create_autocmd({ 'filetype' }, {
   group = group,
