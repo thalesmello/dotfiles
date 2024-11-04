@@ -17,9 +17,7 @@ require("nvim-surround").setup({
   -- indent_lines =  -- Defines line indentation behavior,
 })
 
-local group = vim.api.nvim_create_augroup("NvimSurroungAutogroup", {
-  clear = true
-})
+local group = vim.api.nvim_create_augroup("NvimSurroungAutogroup", { clear = true })
 
 vim.api.nvim_create_autocmd({ 'FileType' }, {
   group = group,

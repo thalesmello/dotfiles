@@ -1,7 +1,10 @@
 return {
     'echasnovski/mini.ai',
     version = false,
+    vscode = true,
     config = function()
+        local spec_pair = require('mini.ai').gen_spec.pair
+
         require('mini.ai').setup({
             custom_textobjects = {},
             search_method = "cover",
@@ -14,8 +17,6 @@ return {
             group = group,
             pattern = {"sql", "jinja"},
             callback = function()
-
-                local spec_pair = require('mini.ai').gen_spec.pair
                 vim.b.miniai_config = {
                     custom_textobjects = {
                         ['<c-]>'] = spec_pair('{{', '}}'),
@@ -23,6 +24,18 @@ return {
                         ['-'] = spec_pair('{%-', '-%}'),
                         ['#'] = spec_pair('{#', '#}'),
                         ['\\'] = { "}()%s-()%S?.-%S?()%s-(){" },
+                    },
+                }
+            end,
+        })
+
+        vim.api.nvim_create_autocmd({ 'FileType' }, {
+            group = group,
+            pattern = {"python"},
+            callback = function()
+                vim.b.miniai_config = {
+                    custom_textobjects = {
+                        ['q'] = { { 'f?""".-"""', "f?'''.-'''" }, '^...%s*().-()%s*...$' },
                     },
                 }
             end,

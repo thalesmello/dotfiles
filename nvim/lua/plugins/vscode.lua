@@ -25,6 +25,10 @@ vim.keymap.set("n", "zO", function () vscode.action('editor.unfoldRecursively') 
 vim.keymap.set("n", "zR", function () vscode.action('editor.unfoldAll') end)
 vim.keymap.set("n", "zM", function () vscode.action('editor.foldAll') end)
 
+-- Simulate my most used vim-unimpaired shortcut
+vim.keymap.set("n", "[<space>", "O<esc>")
+vim.keymap.set("n", "]<space>", "o<esc>")
+
 vim.o.relativenumber = true
 
 return {}
