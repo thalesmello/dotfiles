@@ -46,6 +46,7 @@ return {
     {
         "echasnovski/mini.surround",
         version = false,
+        vscode = true,
         config = function ()
             local surround = require('mini.surround')
             surround.setup({
@@ -63,6 +64,7 @@ return {
                     suffix_next = 'n',
                 },
                 search_method = 'cover_or_next',
+                respect_selection_type = true,
             })
 
             -- Remap adding surrounding to Visual mode selection
