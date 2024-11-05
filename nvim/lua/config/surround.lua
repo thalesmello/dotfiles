@@ -55,7 +55,7 @@ vim.api.nvim_create_autocmd({ 'FileType' }, {
 
 vim.api.nvim_create_autocmd({ 'FileType' }, {
   group = group,
-  pattern = {"sql"},
+  pattern = {"sql", "python"},
   callback = function()
     require("nvim-surround").buffer_setup({
       surrounds = {

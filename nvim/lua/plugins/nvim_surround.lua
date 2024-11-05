@@ -5,5 +5,6 @@ return {
         'kana/vim-textobj-user',
     },
     config = function() require('config/surround') end,
+    cond = false,
     vscode = true,
 }

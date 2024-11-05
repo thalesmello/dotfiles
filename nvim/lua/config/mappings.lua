@@ -28,7 +28,7 @@ vim.keymap.set("n", "<leader>ec", ":Econfig<space>", { noremap = true })
 vim.keymap.set("n", "<leader>s%", ":if &ft == 'vim' <bar> source % <bar> endif<cr>", { noremap = true })
 
 -- Fix syntax highlighting
-vim.keymap.set("n", "<leader>sf", "<cmd>syntax sync fromstart<cr>", { noremap = true })
+-- vim.keymap.set("n", "<leader>sf", "<cmd>syntax sync fromstart<cr>", { noremap = true })
 
 -- Smart lookup for command line
 vim.keymap.set("c", "<c-n>", function ()
