@@ -280,10 +280,9 @@ vim.keymap.set({ 'i', 's' }, '<c-h>', function()
 end, { expr = true })
 
 vim.keymap.set('x', '<Tab>', function()
-    -- '<plug>(snippy-cut-text)'
     snippy.cut_text(vim.fn.mode(), true)
 end)
--- map( 'n', 'g<Tab>', '<plug>(snippy-cut-text)')
+vim.keymap.set( 'n', 'g<Tab>', '<plug>(snippy-cut-text)')
 
 require("lsp_signature").setup({
   hint_enable = false,

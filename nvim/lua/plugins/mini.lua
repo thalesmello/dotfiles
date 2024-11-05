@@ -82,7 +82,6 @@ return {
                     once = true,
                     callback = function()
                         local col = vim.fn.col('.')
-                        local getline = vim.fn.getline('.')
                         -- For some reason, at cursor column there's a "<c2>" caracter
                         -- And therefore to select the character in from of the cursor I have
                         -- To use col + 1, even though end indices are inclusive in lua
@@ -105,7 +104,7 @@ return {
                 group = group,
                 pattern = {"sql", "jinja"},
                 callback = function()
-                    vim.b.minisurround_config = {
+                    vim.b.minisurround_config = vim.tbl_deep_extend("force", vim.b.minisurround_config or {}, {
                         custom_surroundings = {
                             ["i"] = {
                                 output = { left = "{{ ", right = " }}"},
@@ -127,7 +126,7 @@ return {
                                 input = {"{#.-#}", "^({#%s*)().-(%s*#})()"}
                             }
                         }
-                    }
+                    })
                 end,
             })
 
@@ -135,7 +134,7 @@ return {
                 group = group,
                 pattern = {"sql", "python"},
                 callback = function()
-                    vim.b.minisurround_config = {
+                    vim.b.minisurround_config = vim.tbl_deep_extend("force", vim.b.minisurround_config or {}, {
                         custom_surroundings = {
                             ["c"] = {
                                 add = function()
@@ -148,7 +147,7 @@ return {
                             },
 
                         }
-                    }
+                    })
                 end,
             })
 
@@ -157,7 +156,7 @@ return {
                 group = group,
                 pattern = "lua",
                 callback = function()
-                    vim.b.minisurround_config = {
+                    vim.b.minisurround_config = vim.tbl_deep_extend("force", vim.b.minisurround_config or {}, {
                         custom_surroundings = {
                             ["F"] = {
                                 output = { left = "function () ", right = " end"},
@@ -172,7 +171,7 @@ return {
                                 input = { "%[=*%[().-()%]=*%]" },
                             },
                         }
-                    }
+                    })
                 end,
             })
 
@@ -181,7 +180,7 @@ return {
                 group = group,
                 pattern = "python",
                 callback = function()
-                    vim.b.minisurround_config = {
+                    vim.b.minisurround_config = vim.tbl_deep_extend("force", vim.b.minisurround_config or {}, {
                         custom_surroundings = {
                             ["q"] = {
                                 output = { left = '"""', right = '"""'},
@@ -204,7 +203,7 @@ return {
                                 input = {[=[['"][%w_]+['"]%s-:%s+]=], [=[^['"]()[%w_]+()['"]%s-:%s-$]=]}
                             },
                         }
-                    }
+                    })
                 end,
             })
         end
