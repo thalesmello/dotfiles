@@ -27,3 +27,12 @@ snippet f "Anonymous function" i
     function (${1})
         $VISUAL${2}
     end${0}
+
+snippet au "Autocommand"
+    vim.api.nvim_create_autocmd({ '${1:FileType}' }, {
+        group = vim.api.nvim_create_augroup('${2:GroupName}', { clear = true }),
+        pattern = {"${3}"},
+        callback = function()
+            $VISUAL$0
+        end,
+    })
