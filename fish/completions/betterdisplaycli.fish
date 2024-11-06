@@ -1,8 +1,8 @@
 # Completions for betterdisplaycli
 
-function __betterdisplaycli_complete_displays
+function __betterdisplaycli_complete_displays -a jq_filter
   if command -q jq
-    command betterdisplaycli get --identifiers |  sed 's/},{/}\\n{/' | jq -r .name
+    command betterdisplaycli get --identifiers |  sed 's/},{/}\\n{/' | jq -r $jq_filter
   end
 end
 
@@ -25,9 +25,9 @@ complete -c betterdisplaycli -n "__fish_is_first_token" -f -x -a "help" -d "Prov
 complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l tagID -d "Identify a device via the display's tagID"
 complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l UUID -d "Identify a device via the display's UUID assigned by this macOS installation"
 complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l displayID -d "Identify a device using the displayID issued by macOS"
-complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l name -d "Identify a device using its displayed name in BetterDisplay" -x -a "(__betterdisplaycli_complete_displays)"
+complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l name -d "Identify a device using its displayed name in BetterDisplay" -x -a "(__betterdisplaycli_complete_displays .name)"
 complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l nameLike -d "Identify a device using a part of its displayed name in BetterDisplay (case insensitive)"
-complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l originalName -d "Identify a device using its name in BetterDisplay"
+complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l originalName -d "Identify a device using its name in BetterDisplay" -x -a "(__betterdisplaycli_complete_displays .originalName)"
 complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l originalNameLike -d "Identify a device using a part of its name in BetterDisplay (case insensitive)"
 complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l productName -d "Identify a device using its product name (as recorded in the display EDID)"
 complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l productNameLike -d "Identify a device using a part of its name (as recorded in the display EDID, case insensitive)"
