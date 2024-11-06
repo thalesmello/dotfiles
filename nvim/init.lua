@@ -41,6 +41,10 @@ require("lazy").setup({
             },
         }
     },
+    change_detection = {
+        enabled = true,
+        notify = false,
+    },
 })
 
 -- Personal configs that were never exported to a plugin
