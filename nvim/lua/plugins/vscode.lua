@@ -37,6 +37,9 @@ vim.keymap.set("n", "]l", function () vscode.action('editor.action.marker.next')
 vim.keymap.set("n", "[q", function () vscode.action('action.marker.prevInFiles') end)
 vim.keymap.set("n", "]q", function () vscode.action('action.marker.nextInFiles') end)
 
+
+vim.keymap.set("n", "<leader>.", function () vscode.action('editor.action.quickFix') end)
+
 vim.o.relativenumber = true
 
 return {}
