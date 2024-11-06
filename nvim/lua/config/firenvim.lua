@@ -134,7 +134,8 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
 
             vim.keymap.set({"n", "i"}, "<D-cr>", function()
                 vim.cmd("update")
-                vim.cmd("quit")
+                vim.fn["firenvim#hide_frame"]()
+                -- vim.cmd("quit")
             end)
 
             vim.keymap.set("n", "<D-v>", '"+p')
@@ -152,19 +153,22 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
                     end
                 end)
             )
+            local firenvim_set_line_callback = vim_utils.create_vimscript_function('UserFirenvimSetlineCallback', function(line)
+                line = tonumber(vim.json.decode(line))
 
-            vim.defer_fn(function()
-                vim.fn['firenvim#eval_js'](
-                    "document.querySelector('.active-line-number').innerText",
-                    vim_utils.create_vimscript_function('UserFirenvimSetlineCallback', function(line)
-                        line = tonumber(vim.json.decode(line))
+                if line >= 0 then
+                    vim.b.firenvim_last_line_number = line
+                    vim.api.nvim_win_set_cursor(0, {line, 1})
+                end
+            end)
 
-                        if line >= 0 then
-                            vim.api.nvim_win_set_cursor(0, {line, 1})
-                        end
-                    end)
-                )
-            end, 100)
+            vim.api.nvim_create_autocmd({ 'FocusGained' }, {
+                group = group,
+                pattern = "*",
+                callback = function()
+                    vim.fn['firenvim#eval_js']("document.querySelector('.active-line-number').innerText", firenvim_set_line_callback)
+                end,
+            })
         end
     end
 })
