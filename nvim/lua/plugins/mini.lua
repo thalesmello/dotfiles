@@ -18,7 +18,7 @@ return {
                 group = group,
                 pattern = {"sql", "jinja"},
                 callback = function()
-                    vim.b.miniai_config = {
+                    vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, {
                         custom_textobjects = {
                             ['<c-]>'] = spec_pair('{{', '}}'),
                             ['%'] = spec_pair('{%', '%}'),
@@ -26,7 +26,7 @@ return {
                             ['#'] = spec_pair('{#', '#}'),
                             ['\\'] = { "}()%s-()%S?.-%S?()%s-(){" },
                         },
-                    }
+                    })
                 end,
             })
 
@@ -34,17 +34,29 @@ return {
                 group = group,
                 pattern = {"python"},
                 callback = function()
-                    vim.b.miniai_config = {
+                    vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, {
                         custom_textobjects = {
                             ['q'] = { { 'f?""".-"""', "f?'''.-'''" }, '^...%s*().-()%s*...$' },
                         },
-                    }
+                    })
+                end,
+            })
+
+            vim.api.nvim_create_autocmd({ 'FileType' }, {
+                group = group,
+                pattern = {"snippets"},
+                callback = function()
+                    vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, {
+                        custom_textobjects = {
+                            ['$'] = {"%${.-}", "^%${().-()}$"},
+                        },
+                    })
                 end,
             })
         end,
     },
     {
-        "echasnovski/mini.surround",
+        "thalesmello/mini.surround",
         version = false,
         vscode = true,
         config = function ()
@@ -53,6 +65,8 @@ return {
                 mappings = {
                     add = 'ys',
                     delete = 'ds',
+                    yank = '<leader>sy',
+                    paste = '<leader>sp',
                     find = '<leader>sf',
                     find_left = '<leader>sF',
                     highlight = '<leader>sh',
@@ -137,7 +151,7 @@ return {
                     vim.b.minisurround_config = vim.tbl_deep_extend("force", vim.b.minisurround_config or {}, {
                         custom_surroundings = {
                             ["c"] = {
-                                add = function()
+                                output = function()
                                     local type = surround.user_input("Enter the type to cast to: ")
                                     if type then
                                         return { left = "CAST(" , right = " AS " .. type .. ")"  }
@@ -201,6 +215,21 @@ return {
                             [":"] = {
                                 output = { left = '"', right = '": '},
                                 input = {[=[['"][%w_]+['"]%s-:%s+]=], [=[^['"]()[%w_]+()['"]%s-:%s-$]=]}
+                            },
+                        }
+                    })
+                end,
+            })
+
+            vim.api.nvim_create_autocmd({ 'FileType' }, {
+                group = group,
+                pattern = {"snippets"},
+                callback = function()
+                    vim.b.minisurround_config = vim.tbl_deep_extend("force", vim.b.minisurround_config or {}, {
+                        custom_surroundings = {
+                            ["$"] = {
+                                output = { left = "${", right = "}"},
+                                input = {"%${.-}", "^%${().-()}$"}
                             },
                         }
                     })
