@@ -27,6 +27,14 @@ vim.keymap.set("n", "<leader>ev", ":edit $MYVIMRC<cr>", { noremap = true })
 vim.keymap.set("n", "<leader>ec", ":Econfig<space>", { noremap = true })
 vim.keymap.set("n", "<leader>s%", ":if &ft == 'vim' <bar> source % <bar> endif<cr>", { noremap = true })
 
+vim.keymap.set("n", "<leader>gcc", function ()
+  vim.cmd.normal("yyPgccj")
+end)
+
+vim.keymap.set("v", "<leader>gc", function ()
+  vim.cmd.normal("y`]`[gc`]`]p")
+end)
+
 -- Fix syntax highlighting
 -- vim.keymap.set("n", "<leader>sf", "<cmd>syntax sync fromstart<cr>", { noremap = true })
 
