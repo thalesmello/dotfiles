@@ -40,6 +40,12 @@ vim.keymap.set("n", "]q", function () vscode.action('action.marker.nextInFiles')
 
 vim.keymap.set("n", "<leader>.", function () vscode.action('editor.action.quickFix') end)
 
-vim.o.relativenumber = true
+vim.api.nvim_create_autocmd({ 'BufEnter' }, {
+  group = vim.api.nvim_create_augroup('VsCodeAugroup', { clear = true }),
+  pattern = {"*"},
+  callback = function()
+    vim.o.relativenumber = true
+  end,
+})
 
 return {}

@@ -199,9 +199,9 @@ complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get tog
 complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l targetTagID -d "Identify a target device via the display's tagID which is a BetterDisplay provided unique numeric ID specific to this app installation"
 complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l targetUUID -d "Identify a target device via the display's UUID assigned by this macOS installation"
 complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l targetDisplayID -d "Identify a target device using the displayID issued by macOS"
-complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l targetName -d "Identify a target device using its displayed name in BetterDisplay" -x -a "(__betterdisplaycli_complete_displays)"
+complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l targetName -d "Identify a target device using its displayed name in BetterDisplay" -x -a "(__betterdisplaycli_complete_displays .name)"
 complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l targetNameLike -d "Identify a target  using a part of its displayed name in BetterDisplay (case insensitive)"
-complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l targetOriginalName -d "Identify a target device using its name in BetterDisplay"
+complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l targetOriginalName -d "Identify a target device using its name in BetterDisplay" -a "(__betterdisplaycli_complete_displays .originalName)"
 complete -c betterdisplaycli -n "__fish_seen_subcommand_from perform set get toggle create discard help" -l targetOriginalNameLike -d "Identify a target device using a part of its name in BetterDisplay (case insensitive)"
 
 # Options
