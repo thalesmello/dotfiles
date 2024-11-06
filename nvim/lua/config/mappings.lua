@@ -1,26 +1,16 @@
 -- Navigation shortcuts
-vim.keymap.set("n", "<c-h>", "<c-w>h", { noremap = true })
-vim.keymap.set("n", "<c-l>", "<c-w>l", { noremap = true })
-vim.keymap.set("n", "<c-j>", "<c-w>j", { noremap = true })
-vim.keymap.set("n", "<c-k>", "<c-w>k", { noremap = true })
-vim.keymap.set("n", "<leader><c-p>", ":tabprevious<cr>", { noremap = true })
-vim.keymap.set("n", "<leader><c-n>", ":tabnext<cr>", { noremap = true })
-
-vim.keymap.set("n", "<leader>1", "1gt", { noremap = true })
-vim.keymap.set("n", "<leader>2", "2gt", { noremap = true })
-vim.keymap.set("n", "<leader>3", "3gt", { noremap = true })
-vim.keymap.set("n", "<leader>4", "4gt", { noremap = true })
-vim.keymap.set("n", "<leader>5", "5gt", { noremap = true })
-vim.keymap.set("n", "<leader>6", "6gt", { noremap = true })
-vim.keymap.set("n", "<leader>7", "7gt", { noremap = true })
-vim.keymap.set("n", "<leader>8", "8gt", { noremap = true })
-vim.keymap.set("n", "<leader>9", "9gt", { noremap = true })
+vim.keymap.set("n", "<c-h>", "<c-w>h", { remap = true })
+vim.keymap.set("n", "<c-l>", "<c-w>l", { remap = true })
+vim.keymap.set("n", "<c-j>", "<c-w>j", { remap = true })
+vim.keymap.set("n", "<c-k>", "<c-w>k", { remap = true })
+vim.keymap.set("n", "<leader><c-p>", ":tabprevious<cr>", { remap = true })
+vim.keymap.set("n", "<leader><c-n>", ":tabnext<cr>", { remap = true })
 
 -- Create windows
-vim.keymap.set("n", "<leader>v", "<C-w>v", { noremap = true })
-vim.keymap.set("n", "<leader>%", "<C-w>v", { noremap = true })
-vim.keymap.set("n", '<leader>"', "<C-w>s", { noremap = true })
-vim.keymap.set("n", "<leader><bs>", "<c-w>q", { noremap = true })
+vim.keymap.set("n", "<leader>v", "<C-w>v", { remap = true })
+vim.keymap.set("n", "<leader>%", "<C-w>v", { remap = true })
+vim.keymap.set("n", '<leader>"', "<C-w>s", { remap = true })
+vim.keymap.set("n", "<leader><bs>", "<c-w>q", { remap = true })
 
 -- Edit and load vimrc
 vim.keymap.set("n", "<leader>ev", ":edit $MYVIMRC<cr>", { noremap = true })
@@ -39,12 +29,12 @@ end)
 -- vim.keymap.set("n", "<leader>sf", "<cmd>syntax sync fromstart<cr>", { noremap = true })
 
 -- Smart lookup for command line
-vim.keymap.set("c", "<c-n>", function ()
-  return vim.fn.pumvisible() ~= 0 and "<c-n>" or "<down>"
-end, { noremap = true, expr = true })
-vim.keymap.set("c", "<c-p>", function ()
-  return vim.fn.pumvisible() ~= 0 and "<c-p>" or "<up>"
-end, { noremap = true, expr = true })
+-- vim.keymap.set("c", "<c-n>", function ()
+--   return vim.fn.pumvisible() ~= 0 and "<c-n>" or "<down>"
+-- end, { noremap = true, expr = true })
+-- vim.keymap.set("c", "<c-p>", function ()
+--   return vim.fn.pumvisible() ~= 0 and "<c-p>" or "<up>"
+-- end, { noremap = true, expr = true })
 
 -- The snippet below tries to intelligently split a string and append a concat
 -- operator in it
@@ -107,7 +97,7 @@ vim.keymap.set("n", "<leader>er", function ()
   vim.fn.feedkeys(':', 'n')
 end)
 
-vim.keymap.set("n", "<bs>", ":nohlsearch<cr>:pclose<cr>:diffoff<cr>", { noremap = true })
+vim.keymap.set("n", "<bs>", ":nohlsearch<cr>:pclose<cr>:diffoff<cr>", { noremap = true, silent = true })
 vim.keymap.set("s", "<bs>", "<bs>i", { noremap = true })
 vim.keymap.set("n", "<leader>ft", ':setfiletype<space>', { noremap = true })
 
