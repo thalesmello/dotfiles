@@ -10,17 +10,15 @@ local function smart_jump(key)
 			vim.cmd("normal! " .. vim.v.count1 .. bkey)
 			vim.cmd("normal! " .. target .. "G")
 		end
-
-		return ''
 	else
-		return "g" .. key
+		vim_utils.feedkeys("g" .. key)
 	end
 end
 
 vim.keymap.set("n", "j", function ()
-	return smart_jump("j")
-end, { silent = true, expr = true, remap = true })
+	smart_jump("j")
+end, { silent = true })
 
 vim.keymap.set("n", "k", function ()
-	return smart_jump("k")
-end, { silent = true, expr = true, remap = true })
+	smart_jump("k")
+end, { silent = true })
