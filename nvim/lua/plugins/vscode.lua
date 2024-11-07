@@ -15,6 +15,21 @@ require("lazy.core.config").options.defaults.cond = function(plugin)
 
 end
 
+local function inferMoveKey(direction)
+  return function ()
+    if vim.v.count > 0 or vim.fn.reg_recording() ~= '' then
+      return direction
+    else
+      return "g" .. direction
+    end
+   end
+end
+
+
+vim.keymap.set("n", "j", inferMoveKey("j"), { remap = true, expr = true })
+
+vim.keymap.set("n", "k", inferMoveKey("k"), { remap = true, expr = true })
+
 vim.keymap.set("n", "<leader>sv", function () vscode.action('vscode-neovim.restart') end)
 
 -- vim.keymap.set("n", "<leader><space>", "<cmd>Find<cr>")
