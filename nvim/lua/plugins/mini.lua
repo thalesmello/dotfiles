@@ -5,9 +5,16 @@ return {
         vscode = true,
         config = function()
             local spec_pair = require('mini.ai').gen_spec.pair
+            local spec_treesitter = require('mini.ai').gen_spec.treesitter
 
             require('mini.ai').setup({
-                custom_textobjects = {},
+                custom_textobjects = {
+                    ["f"] = { '%f[%w_%.][%w_%.]+%b()', '^.-%(().*()%)$' },
+                    ["F"] = spec_treesitter({ a = "@function.outer", i = "@function.inner" }),
+                    -- [";"] = spec_treesitter({ a = "@pair.value", i = "" }),
+                    -- [":"] = spec_treesitter({ a = "@pair.key", i = "" }),
+                    ["C"] = spec_treesitter({ i = "@class.inner", a = "@class.outer" }),
+                },
                 search_method = "cover",
                 n_lines = 1000,
             })
@@ -38,6 +45,19 @@ return {
                         custom_textobjects = {
                             ['q'] = { { 'f?""".-"""', "f?'''.-'''" }, '^...%s*().-()%s*...$' },
                         },
+                    })
+                end,
+            })
+
+            vim.api.nvim_create_autocmd({ 'FileType' }, {
+                group = group,
+                pattern = "lua",
+                callback = function()
+                    vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, {
+                        custom_text_objects = {
+                            ["q"] = { "%[=*%[().-()%]=*%]" },
+                            ["Q"] = { "%[=*%[().-()%]=*%]" },
+                        }
                     })
                 end,
             })
@@ -174,7 +194,7 @@ return {
                         custom_surroundings = {
                             ["F"] = {
                                 output = { left = "function () ", right = " end"},
-                                input = ts_input({ outer = "@fundef.outer", inner = "@fundef.inner"}),
+                                input = ts_input({ outer = "@function.outer", inner = "@function.inner"}),
                             },
                             ["q"] = {
                                 output = { left = "[[", right = "]]"},

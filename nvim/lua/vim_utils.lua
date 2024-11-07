@@ -9,7 +9,6 @@ local function feedkeys(str, mode)
     vim.api.nvim_feedkeys(keycodes(str), 'n', false)
 end
 
-
 local function get_visual_selection(mode)
     mode = mode or 'char'
     vim.cmd.normal({ args = {keycodes([[<c-\><c-n>gv]])}, bang = true })

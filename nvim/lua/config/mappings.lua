@@ -1,4 +1,3 @@
--- Navigation shortcuts
 vim.keymap.set("n", "<c-h>", "<c-w>h", { remap = true })
 vim.keymap.set("n", "<c-l>", "<c-w>l", { remap = true })
 vim.keymap.set("n", "<c-j>", "<c-w>j", { remap = true })
@@ -15,7 +14,12 @@ vim.keymap.set("n", "<leader><bs>", "<c-w>q", { remap = true })
 -- Edit and load vimrc
 vim.keymap.set("n", "<leader>ev", ":edit $MYVIMRC<cr>", { noremap = true })
 vim.keymap.set("n", "<leader>ec", ":Econfig<space>", { noremap = true })
-vim.keymap.set("n", "<leader>s%", ":if &ft == 'vim' <bar> source % <bar> endif<cr>", { noremap = true })
+
+vim.keymap.set("n", "<leader>s%", function ()
+  if vim.list_contains({"lua", "vim"}, vim.o.filetype) then
+    vim.cmd.source("%")
+  end
+end)
 
 vim.keymap.set("n", "<leader>gcc", function ()
   vim.cmd.normal("yyPgccj")

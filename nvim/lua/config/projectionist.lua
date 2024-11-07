@@ -1,18 +1,34 @@
-local config = vim.fn.stdpath("config")
+-- local config = vim.fn.stdpath("config")
 local data = vim.fn.stdpath("data")
 
+local function template(str)
+   return vim.split(str, "\n")
+end
+
 vim.g.projectionist_heuristics = {
-   [config .. "/init.lua"] = {
-      [config .. "/lua/config/*.lua"] = {
+   ["init.lua"] = {
+      ["lua/config/*.lua"] = {
          type = "config",
       },
-      [config .. "/lua/plugins/*.lua"] = {
+      ["lua/plugins/*.lua"] = {
          type = "plugin",
+         template = template([=[
+return {
+   {
+      "plugin",
+      -- opts = {}
+      -- config = function () end
+   }
+}
+]=])
       },
-      [config .. "/lua/*.lua"] = {
+      ["lua/*.lua"] = {
          type = "lua",
       },
-      [config .. "/after/queries/*/textobjects.scm"] = {
+      ["local_plugins/**/lua/*.lua"] = {
+         type = "localplugins",
+      },
+      ["after/queries/*/textobjects.scm"] = {
          type = "textobjects",
       },
    },
@@ -53,17 +69,17 @@ local function make_dbt_projection(module)
       ["models/*.yml"] = {
          alternate = {compiled_folder .. "/models/{}.sql", "models/{}.sql"},
          type = "properties",
-         template = {
-            "version: 2",
-            "",
-            "models:",
-            "  - name: {basename}",
-            "    columns:",
-            "      - name: id",
-            "        tests:",
-            "          - unique",
-            "          - not_null",
-         }
+         template = template([=[
+version: 2
+
+models:
+  - name: {basename}
+    columns:
+      - name: id
+        tests:
+          - unique
+          - not_null
+]=])
       },
       ["tests/*.sql"] = {
          dispatch = "dbt --no-use-colors test -m {basename}",

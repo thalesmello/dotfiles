@@ -30,10 +30,18 @@ vim.keymap.set("n", "j", inferMoveKey("j"), { remap = true, expr = true })
 
 vim.keymap.set("n", "k", inferMoveKey("k"), { remap = true, expr = true })
 
-vim.keymap.set("n", "<leader>sv", function () vscode.action('vscode-neovim.restart') end)
+vim.keymap.set("n", "<leader><c-r>", function () vscode.action('vscode-neovim.restart') end)
 
--- vim.keymap.set("n", "<leader><space>", "<cmd>Find<cr>")
-vim.keymap.set("n", "<leader>/", function () vscode.action('workbench.action.findInFiles') end)
+vim.keymap.set("n", "gr", function () vscode.action('editor.action.rename') end)
+
+vim.keymap.set("n", "<c-f>", function () vscode.action('workbench.action.findInFiles') end)
+vim.keymap.set("n", "<leader>/", "viw<cmd>lua require('vscode').action('workbench.action.findInFiles')<cr>")
+
+vim.keymap.set("v", "<leader>/", function ()
+  vscode.action('workbench.action.findInFiles')
+end)
+
+vim.keymap.set("n", "gR", function () vscode.action('references-view.findReferences') end)
 vim.keymap.set("n", "<leader>ss", function () vscode.action('workbench.action.gotoSymbol') end)
 vim.keymap.set("n", "<leader><cr>", function () vscode.action('workbench.action.terminal.toggleTerminal') end)
 vim.keymap.set("n", "<tab>", function () vscode.action('editor.toggleFold') end)

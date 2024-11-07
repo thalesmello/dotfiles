@@ -37,8 +37,8 @@ require'nvim-treesitter.configs'.setup {
 
          keymaps = {
             -- You can use the capture groups defined in textobjects.scm
-            ["af"] = "@function.outer",
-            ["if"] = "@function.inner",
+            -- ["af"] = "@function.outer",
+            -- ["if"] = "@function.inner",
             -- ["i,"] = "@parameter.inner",
             -- ["a,"] = "@parameter.outer",
             ["a;"] = "@pair.value",
@@ -47,15 +47,15 @@ require'nvim-treesitter.configs'.setup {
             -- ["iq"] = "@multiline_string.inner",
             -- You can optionally set descriptions to the mappings (used in the desc parameter of
             -- nvim_buf_set_keymap) which plugins like which-key display
-            ["iC"] = { query = "@class.inner", desc = "Select inner part of a class region" },
-            ["aC"] = { query = "@class.outer", desc = "Select outer part of a class region" },
+            -- ["iC"] = { query = "@class.inner", desc = "Select inner part of a class region" },
+            -- ["aC"] = { query = "@class.outer", desc = "Select outer part of a class region" },
             -- You can also use captures from other query groups like `locals.scm`
             -- ["as"] = { query = "@scope", query_group = "locals", desc = "Select language scope" },
          },
 
          selection_modes = {
-            ['@parameter.outer'] = 'v', -- charwise
-            ['@function.outer'] = 'v', -- linewise
+            -- ['@parameter.outer'] = 'v', -- charwise
+            -- ['@function.outer'] = 'v', -- linewise
             -- ['@class.outer'] = '<c-v>', -- blockwise
          },
 
@@ -161,7 +161,8 @@ local group = vim.api.nvim_create_augroup("TreesitterAutogroup", {
    clear = true
 })
 
-for _, lang in ipairs(langs) do
+
+for _, lang in ipairs({"python"}) do
    vim.api.nvim_create_autocmd({ 'FileType' }, {
       group = group,
       pattern = lang,

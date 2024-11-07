@@ -19,6 +19,8 @@ vim.opt.hidden = true
 
 vim.opt.wildoptions = "pum"
 
+vim.opt.pumheight = 30
+
 -- No extra spaces when joining lines
 vim.opt.joinspaces = false
 

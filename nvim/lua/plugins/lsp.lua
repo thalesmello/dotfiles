@@ -39,7 +39,7 @@ return {
                     mapCapability(capabilities.declarationProvider, 'n', 'gd', '<cmd>lua vim.lsp.buf.declaration()<cr>')
                     mapCapability(capabilities.implementationProvider, 'n', 'gI', '<cmd>lua vim.lsp.buf.implementation()<cr>')
                     mapCapability(capabilities.typeDefinitionProvider, 'n', 'go', '<cmd>lua vim.lsp.buf.type_definition()<cr>')
-                    mapCapability(capabilities.referencesProvider, 'n', 'gr', '<cmd>lua vim.lsp.buf.references()<cr>')
+                    mapCapability(capabilities.referencesProvider, 'n', 'gR', '<cmd>lua vim.lsp.buf.references()<cr>')
                     mapCapability(capabilities.signatureHelpProvider, 'n', 'gK', '<cmd>lua vim.lsp.buf.signature_help()<cr>')
                     mapCapability(capabilities.renameProvider, 'n', 'gr', '<cmd>lua vim.lsp.buf.rename()<cr>')
                     mapCapability(capabilities.documentFormattingProvider, { 'n', 'x' }, 'g%', '<cmd>lua vim.lsp.buf.format({async = true})<cr>')
@@ -48,7 +48,7 @@ return {
             })
         end,
         dependencies = {
-            { 'nvim-cmp' },
+            { 'hrsh7th/nvim-cmp' },
             { 'dcampos/nvim-snippy' },
         },
     },
@@ -220,7 +220,6 @@ return {
 
         end
     },
-
     {
         'dcampos/nvim-snippy',
         keys = {
@@ -412,12 +411,20 @@ return {
     {
         "ray-x/lsp_signature.nvim",
         opts = {
-            hint_enable = false,
+            hint_enable = true,
             handler_opts = { border = "single" },
-            max_width = 80,
+            hint_prefix = {
+                above = "↙ ",  -- when the hint is on the line above the current line
+                current = "← ",  -- when the hint is on the same line
+                below = "↖ "  -- when the hint is on the line below the current line
+            },
+            -- max_width = 80,
+            toggle_key = "<c-/>",
+            toggle_key_flip_floatwin_setting = true,
         }
     },
     {
+        name = "lazydev_plugins",
         {
             "folke/lazydev.nvim",
             ft = "lua", -- only load on lua files
