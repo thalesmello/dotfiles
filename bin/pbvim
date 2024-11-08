@@ -22,7 +22,13 @@ fi
 
 pbpaste >"$tmpfile"
 
-svim "$tmpfile" -c 'autocmd FileType * silent !test <amatch> \!= cmp_menu && echo <amatch> > /tmp/pbvim-last-filetype'
+before=$(stat -c %y "$tmpfile")
 
-pbcopy <"$tmpfile"
+svim "$tmpfile" -c 'autocmd FileType * silent !test <amatch> \!= cmp_menu && echo <amatch> > /tmp/pbvim-last-filetype'
+after=$(stat -c %y "$tmpfile")
+
+if [[ $before != $after ]]; then
+    pbcopy <"$tmpfile"
+fi
+
 rm "$tmpfile"
