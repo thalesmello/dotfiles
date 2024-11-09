@@ -6,5 +6,7 @@ return {
     keys = {
         {"ga", "<Plug>(EasyAlign)", mode = {"n", "x"}}
     },
-    cmd = {"EasyAlign"}
+    cmd = {"EasyAlign"},
+    firenvim = true,
+    vscode = true,
 }
