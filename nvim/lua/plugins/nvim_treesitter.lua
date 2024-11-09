@@ -16,6 +16,7 @@ return {
             require('config/treesitter')
         end,
         vscode = true,
+        firenvim = true,
     },
     {
 

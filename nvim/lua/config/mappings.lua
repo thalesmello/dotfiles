@@ -32,13 +32,14 @@ end)
 -- Fix syntax highlighting
 -- vim.keymap.set("n", "<leader>sf", "<cmd>syntax sync fromstart<cr>", { noremap = true })
 
--- Smart lookup for command line
--- vim.keymap.set("c", "<c-n>", function ()
---   return vim.fn.pumvisible() ~= 0 and "<c-n>" or "<down>"
--- end, { noremap = true, expr = true })
--- vim.keymap.set("c", "<c-p>", function ()
---   return vim.fn.pumvisible() ~= 0 and "<c-p>" or "<up>"
--- end, { noremap = true, expr = true })
+vim.keymap.set("c", "<c-n>", function ()
+  -- return vim.fn.pumvisible() ~= 0 and "<c-n>" or "<down>"
+  return "<down>"
+end, { noremap = true, expr = true })
+
+vim.keymap.set("c", "<c-p>", function ()
+  return "<up>"
+end, { noremap = true, expr = true })
 
 -- The snippet below tries to intelligently split a string and append a concat
 -- operator in it
@@ -91,7 +92,7 @@ vim.keymap.set("n", "<leader>er", function ()
     pattern = "*",
     callback = function ()
       --- @type string
-      local str = 'lua vim.fn.setreg("' .. x .. '", [=[' .. vim.fn.getreg(x) .. "]=])"
+      local str = 'lua vim.fn.setreg(\'' .. x .. '\', [=[' .. vim.fn.getreg(x) .. "]=])"
       local _, end_idx = str:find('[=[', 1, true)
       vim.fn.setcmdline(str, end_idx + 1)
     end,

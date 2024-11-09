@@ -12,4 +12,5 @@ return {
         },
     },
     event = { "BufReadPost", "BufNewFile", "BufFilePost" },
+    firenvim = true,
 }

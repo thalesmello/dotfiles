@@ -5,4 +5,5 @@ return {
         {'<leader>ie', ':InlineEdit<space>""<left>', remap = true, mode = "x"}
     },
     cmd = "InlineEdit",
+    firenvim = true,
 }

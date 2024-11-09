@@ -4,6 +4,7 @@ return {
         dev = true,
         config = function ()
             require('jk_jumps')
-        end
+        end,
+        firenvim = true,
     },
 }

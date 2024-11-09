@@ -3,6 +3,7 @@ return {
         'echasnovski/mini.ai',
         version = false,
         vscode = true,
+        firenvim = true,
         config = function()
             local spec_pair = require('mini.ai').gen_spec.pair
             local spec_treesitter = require('mini.ai').gen_spec.treesitter
@@ -79,6 +80,7 @@ return {
         "thalesmello/mini.surround",
         version = false,
         vscode = true,
+        firenvim = true,
         config = function ()
             local surround = require('mini.surround')
             surround.setup({
@@ -99,6 +101,7 @@ return {
                 },
                 search_method = 'cover_or_next',
                 respect_selection_type = true,
+                n_lines = 1000,
             })
 
             -- Remap adding surrounding to Visual mode selection

@@ -44,4 +44,5 @@ return {
         }
     end,
     vscode = true,
+    firenvim = true,
 }

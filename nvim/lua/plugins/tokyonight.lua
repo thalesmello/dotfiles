@@ -9,4 +9,5 @@ return {
         vim.cmd.colorscheme("tokyonight")
     end,
     vscode = true,
+    firenvim = true,
 }

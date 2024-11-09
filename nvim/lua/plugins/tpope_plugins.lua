@@ -1,12 +1,12 @@
 return {
     { 'tpope/vim-eunuch', event = 'VeryLazy'},
-    { 'tpope/vim-repeat' },
+    { 'tpope/vim-repeat', firenvim = true, vscode = true },
     { 'tpope/vim-abolish', keys = {"cr"}, cmd = {"Abolish", "Subvert"}},
     {
         'tpope/vim-sleuth',
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
-    { 'tpope/vim-rsi', event = {"CmdlineEnter", "InsertEnter"} },
+    { 'tpope/vim-rsi', event = {"CmdlineEnter", "InsertEnter"}, firenvim = true },
     { 'tpope/vim-unimpaired', event = "VeryLazy" },
     {
         'tpope/vim-apathy',

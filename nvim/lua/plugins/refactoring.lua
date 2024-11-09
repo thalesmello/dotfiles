@@ -6,4 +6,5 @@ return {
     },
     opts = {},
     cmd = "Refactor",
+    firenvim = true,
 }

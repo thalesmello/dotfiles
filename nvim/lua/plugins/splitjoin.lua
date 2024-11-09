@@ -5,6 +5,7 @@ return {
             require('config/splitjoin')
         end,
         vscode = true,
+        firenvim = true,
     },
     {
         'Wansmer/treesj',
@@ -18,5 +19,6 @@ return {
         keys = { "gS", "gJ" },
         cmd = {"TSJSplit", "TSJJoin"},
         vscode = true,
+        firenvim = true,
     },
 }

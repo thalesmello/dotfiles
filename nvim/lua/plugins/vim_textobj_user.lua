@@ -12,6 +12,7 @@ return {
             -- { 'thalesmello/vim-textobj-multiline-str' },
         },
         vscode = true,
+        firenvim = true,
     },
     { "PeterRincker/vim-argumentative" },
 }

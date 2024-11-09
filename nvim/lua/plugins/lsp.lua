@@ -42,27 +42,39 @@ return {
                     mapCapability(capabilities.referencesProvider, 'n', 'gR', '<cmd>lua vim.lsp.buf.references()<cr>')
                     mapCapability(capabilities.signatureHelpProvider, 'n', 'gK', '<cmd>lua vim.lsp.buf.signature_help()<cr>')
                     mapCapability(capabilities.renameProvider, 'n', 'gr', '<cmd>lua vim.lsp.buf.rename()<cr>')
-                    mapCapability(capabilities.documentFormattingProvider, { 'n', 'x' }, 'g%', '<cmd>lua vim.lsp.buf.format({async = true})<cr>')
+                    -- mapCapability(capabilities.documentFormattingProvider, { 'n', 'x' }, 'g%', '<cmd>lua vim.lsp.buf.format({async = true})<cr>')
                     mapCapability(capabilities.codeActionProvider, 'n', '<leader>.', '<cmd>lua vim.lsp.buf.code_action()<cr>')
                 end
             })
         end,
-        dependencies = {
-            { 'hrsh7th/nvim-cmp' },
-            { 'dcampos/nvim-snippy' },
-        },
+    },
+    {
+        {
+            "hrsh7th/nvim-cmp",
+            opts = function(_, opts)
+                opts.sources = opts.sources or {}
+                opts.sources = vim.list_extend(opts.sources or {}, {
+                    { name = 'nvim_lsp' },
+                    { name = 'path' },
+                })
+            end,
+            dependencies = {
+                { 'hrsh7th/cmp-nvim-lsp' },
+                {'hrsh7th/cmp-path'},
+            },
+            optional = true,
+
+        }
     },
     {
         'hrsh7th/nvim-cmp',
         dependencies = {
-            {'hrsh7th/cmp-nvim-lsp'},
             {'hrsh7th/cmp-buffer'},
-            {'hrsh7th/cmp-path'},
             {'hrsh7th/cmp-cmdline'},
             {'thalesmello/cmp-rg'},
             {'hrsh7th/cmp-calc'},
         },
-        opts = function ()
+        opts = function (_, opts)
             local cmp = require('cmp')
             local snippy = require('snippy')
             local vim_utils = require('vim_utils')
@@ -95,8 +107,9 @@ return {
             }
 
             return {
-                sources = {
-                    { name = 'nvim_lsp' },
+                sources = vim.list_extend(opts.sources or {}, {
+                    -- { name = 'nvim_lsp' },
+                    -- { name = 'path' },
                     { name = 'snippy' },
                     {
                         name = 'buffer',
@@ -104,14 +117,13 @@ return {
                             return vim.api.nvim_list_bufs()
                         end,
                     },
-                    { name = 'path' },
                     { name = 'calc' },
                     {
                         name = "rg",
                         -- Try it when you feel cmp performance is poor
                         -- keyword_length = 3
                     },
-                },
+                }),
 
                 mapping = cmp.mapping.preset.insert({
                     -- Enter key confirms completion item
@@ -184,12 +196,50 @@ return {
         end,
         config = function (_, opts)
             local cmp = require('cmp')
+            local vim_utils = require('vim_utils')
 
             cmp.setup(opts)
 
+            local cmdMoved = true
+
+            function string_difference(old, new)
+                for i = 1,#new do --Loop over strings
+                    if new:sub(i,i) ~= old:sub(i,i) then --If that character is not equal to it's counterpart
+                        return i --Return that index
+                    end
+                end
+                return #new+1 --Return the index after where the shorter one ends as fallback.
+            end
+
+            vim.api.nvim_create_autocmd({ 'CmdlineEnter' }, {
+                group = vim.api.nvim_create_augroup('CmpCmdlineGroup', { clear = true }),
+                pattern = "*",
+                callback = function()
+                    cmdMoved = false
+                    local lastcmdline = ""
+
+                    local cmdChangedGroup = vim.api.nvim_create_augroup('CmpCmdlineChangedGroup', { clear = true })
+                    vim.api.nvim_create_autocmd({ 'CmdlineChanged' }, {
+                        group = cmdChangedGroup,
+                        pattern = "*",
+                        callback = function()
+                            local cmdline = vim.fn.getcmdline()
+                            local diff_index = string_difference(lastcmdline, cmdline)
+
+                            if #cmdline > #lastcmdline and #lastcmdline > 0 and diff_index == #cmdline then
+                                cmdMoved = true
+                                vim.api.nvim_clear_autocmds({ group = cmdChangedGroup })
+                                return
+                            end
+
+                            lastcmdline = cmdline
+                        end,
+                    })
+                end,
+            })
+
             -- `/` cmdline setup.
             cmp.setup.cmdline('/', {
-                mapping = cmp.mapping.preset.cmdline(),
                 sources = {
                     { name = 'buffer' },
                 },
@@ -200,7 +250,26 @@ return {
 
             -- `:` cmdline setup.
             cmp.setup.cmdline(':', {
-                mapping = cmp.mapping.preset.cmdline(),
+                mapping = cmp.mapping.preset.cmdline({
+                    ['<C-n>'] = cmp.mapping(
+                        function(fallback)
+                            if cmdMoved and cmp.visible() then
+                                cmp.select_next_item()
+                            else
+                                fallback()
+                            end
+                        end, {"c"}
+                    ),
+                    ['<C-p>'] = cmp.mapping(
+                        function(fallback)
+                            if cmdMoved and cmp.visible() then
+                                cmp.select_prev_item()
+                            else
+                                fallback()
+                            end
+                        end, {"c"}
+                    ),
+                }),
                 sources = cmp.config.sources(
                     {
                         { name = 'path' },
@@ -218,7 +287,8 @@ return {
                 }
             })
 
-        end
+        end,
+        firenvim = true,
     },
     {
         'dcampos/nvim-snippy',
@@ -275,6 +345,7 @@ return {
             { 'honza/vim-snippets' },
         },
         lazy = false,
+        firenvim = true,
     },
     {
         'williamboman/mason.nvim',
@@ -307,10 +378,8 @@ return {
             },
             {
                 'mhartington/formatter.nvim',
-                config = function()
-                    local util = require "formatter.util"
-
-                    require("formatter").setup {
+                opts = function ()
+                    return {
                         logging = true,
                         log_level = vim.log.levels.WARN,
 
@@ -323,13 +392,29 @@ return {
                                 require("formatter.filetypes.python").black,
                             },
 
+                            sql = {
+                                function ()
+                                    return {
+                                        exe = "sqlfmt",
+                                        args = {
+                                            "-",
+                                        },
+                                        stdin = true,
+                                    }
+                                end
+                            },
+
                             ["*"] = {
                                 require("formatter.filetypes.any").remove_trailing_whitespace,
                             }
                         }
                     }
-                end
+                end,
+                keys = {
+                    {"g%", "<cmd>Format<cr>", mode = "n"},
+                },
 
+                firenvim = true,
             }
         },
     },
@@ -440,10 +525,8 @@ return {
         { -- optional cmp completion source for require statements and module annotations
             "hrsh7th/nvim-cmp",
             opts = function(_, opts)
-                opts.sources = opts.sources or {}
-                table.insert(opts.sources, {
-                    name = "lazydev",
-                    group_index = 0, -- set group index to 0 to skip loading LuaLS completions
+                opts.sources = vim.list_extend(opts.sources or {}, {
+                    { name = "lazydev", group_index = 0 },
                 })
             end,
         }

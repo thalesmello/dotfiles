@@ -4,4 +4,6 @@ return {
         {"*", "<Plug>(visualstar-*)", mode = {"x"}},
         {"#", "<Plug>(visualstar-#)", mode = {"x"}},
     },
+    firenvim = true,
+    vscode = true,
 }

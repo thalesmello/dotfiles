@@ -1,5 +1,16 @@
 if not vim.g.started_by_firenvim then
-    return
+    return {}
+end
+
+-- This is makes extensions not be enabled by default
+-- To enable, add "firenvim = true" to the plugin spec
+require("lazy.core.config").options.defaults.cond = function(plugin)
+  return (
+    plugin.firenvim
+    or plugin._.dep
+    or plugin.name == 'lazy.nvim'
+  )
+
 end
 
 local vim_utils = require('vim_utils')
@@ -134,8 +145,7 @@ vim.api.nvim_create_autocmd({'UIEnter'}, {
 
             vim.keymap.set({"n", "i"}, "<D-cr>", function()
                 vim.cmd("update")
-                vim.fn["firenvim#hide_frame"]()
-                -- vim.cmd("quit")
+                vim.cmd("quit")
             end)
 
             vim.keymap.set("n", "<D-v>", '"+p')
@@ -280,3 +290,14 @@ end
 --     end,
 --     group = group,
 -- })
+
+return {
+    'glacambre/firenvim',
+    build = function ()
+        vim.fn['firenvim#install'](0)
+    end,
+    config = function()
+        require('config/firenvim')
+    end,
+    cond = vim.g.started_by_firenvim,
+}
