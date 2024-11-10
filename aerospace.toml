@@ -9,7 +9,9 @@ after-login-command = []
 # You can use it to add commands that run after AeroSpace startup.
 # 'after-startup-command' is run after 'after-login-command'
 # Available commands : https://nikitabobko.github.io/AeroSpace/commands
-after-startup-command = []
+after-startup-command = [
+  'exec-and-forget borders active_color=0xffe1e3e4 inactive_color=0xff494d64 width=5.0'
+]
 
 # Start AeroSpace at login
 start-at-login = false
@@ -21,7 +23,7 @@ enable-normalization-opposite-orientation-for-nested-containers = true
 # See: https://nikitabobko.github.io/AeroSpace/guide#layouts
 # The 'accordion-padding' specifies the size of accordion padding
 # You can set 0 to disable the padding feature
-accordion-padding = 30
+accordion-padding = 60
 
 # Possible values: tiles|accordion
 default-root-container-layout = 'tiles'
@@ -41,6 +43,7 @@ key-mapping.preset = 'qwerty'
 # See https://nikitabobko.github.io/AeroSpace/commands#move-mouse
 # Fallback value (if you omit the key): on-focused-monitor-changed = []
 on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
+on-focus-changed = ['move-mouse window-lazy-center']
 
 # Gaps between windows (inner-*) and between monitor edges (outer-*).
 # Possible values:
@@ -86,6 +89,7 @@ outer.right =      10
 #     activate
 # end tell'
 # '''
+ctrl-alt-cmd-enter = 'fullscreen'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#layout
 ctrl-alt-cmd-period = 'layout tiles horizontal vertical'
@@ -104,38 +108,38 @@ ctrl-alt-cmd-shift-k = 'move up'
 ctrl-alt-cmd-shift-l = 'move right'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#resize
-ctrl-alt-cmd-minus = 'resize smart -50'
-ctrl-alt-cmd-equal = 'resize smart +50'
+ctrl-alt-cmd-minus = 'resize smart -100'
+ctrl-alt-cmd-equal = 'resize smart +100'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#workspace
-ctrl-1 = 'workspace 1'
-ctrl-2 = 'workspace 2'
-ctrl-3 = 'workspace 3'
-ctrl-4 = 'workspace 4'
-ctrl-5 = 'workspace 5'
-ctrl-6 = 'workspace 6'
-ctrl-7 = 'workspace 7'
-ctrl-8 = 'workspace 8'
-ctrl-9 = 'workspace 9'
+ctrl-alt-cmd-1 = 'workspace 1'
+ctrl-alt-cmd-2 = 'workspace 2'
+ctrl-alt-cmd-3 = 'workspace 3'
+ctrl-alt-cmd-4 = 'workspace 4'
+ctrl-alt-cmd-5 = 'workspace 5'
+ctrl-alt-cmd-6 = 'workspace 6'
+ctrl-alt-cmd-7 = 'workspace 7'
+ctrl-alt-cmd-8 = 'workspace 8'
+ctrl-alt-cmd-9 = 'workspace 9'
+
+ctrl-alt-cmd-shift-a = 'workspace audio'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#move-node-to-workspace
-ctrl-shift-1 = 'move-node-to-workspace 1'
-ctrl-shift-2 = 'move-node-to-workspace 2'
-ctrl-shift-3 = 'move-node-to-workspace 3'
-ctrl-shift-4 = 'move-node-to-workspace 4'
-ctrl-shift-5 = 'move-node-to-workspace 5'
-ctrl-shift-6 = 'move-node-to-workspace 6'
-ctrl-shift-7 = 'move-node-to-workspace 7'
-ctrl-shift-8 = 'move-node-to-workspace 8'
-ctrl-shift-9 = 'move-node-to-workspace 9'
+ctrl-alt-cmd-shift-1 = 'move-node-to-workspace 1'
+ctrl-alt-cmd-shift-2 = 'move-node-to-workspace 2'
+ctrl-alt-cmd-shift-3 = 'move-node-to-workspace 3'
+ctrl-alt-cmd-shift-4 = 'move-node-to-workspace 4'
+ctrl-alt-cmd-shift-5 = 'move-node-to-workspace 5'
+ctrl-alt-cmd-shift-6 = 'move-node-to-workspace 6'
+ctrl-alt-cmd-shift-7 = 'move-node-to-workspace 7'
+ctrl-alt-cmd-shift-8 = 'move-node-to-workspace 8'
+ctrl-alt-cmd-shift-9 = 'move-node-to-workspace 9'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#workspace-back-and-forth
 ctrl-alt-cmd-tab = 'workspace-back-and-forth'
-# See: https://nikitabobko.github.io/AeroSpace/commands#move-workspace-to-monitor
-ctrl-alt-cmd-esc = 'move-workspace-to-monitor --wrap-around next'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#mode
-ctrl-alt-cmd-backslash = 'mode service'
+ctrl-alt-cmd-semicolon = 'mode service'
 
 # 'service' binding mode declaration.
 # See: https://nikitabobko.github.io/AeroSpace/guide#binding-modes
@@ -144,11 +148,69 @@ esc = ['reload-config', 'mode main']
 r = ['flatten-workspace-tree', 'mode main'] # reset layout
 f = ['layout floating tiling', 'mode main'] # Toggle between floating and tiling layout
 backspace = ['close-all-windows-but-current', 'mode main']
+tab = ['move-workspace-to-monitor --wrap-around next', 'mode main']
+n = ['workspace --wrap-around next'] # reset layout
+p = ['workspace --wrap-around prev'] # Toggle between floating and tiling layout
+shift-n = ['move-node-to-workspace --wrap-around --focus-follows-window next'] # reset layout
+shift-p = ['move-node-to-workspace --wrap-around --focus-follows-window prev'] # Toggle between floating and tiling layout
+ctrl-n = ['focus-monitor --wrap-around next'] # reset layout
+ctrl-p = ['focus-monitor --wrap-around prev'] # Toggle between floating and tiling layout
+ctrl-shift-n = ['move-node-to-monitor --wrap-around next'] # reset layout
+ctrl-shift-p = ['move-node-to-monitor --wrap-around prev'] # Toggle between floating and tiling layout
+equal = ['balance-sizes', 'mode main']
 
 # sticky is not yet supported https://github.com/nikitabobko/AeroSpace/issues/2
 #s = ['layout sticky tiling', 'mode main']
 
-shift-h = ['join-with left', 'mode main']
-shift-j = ['join-with down', 'mode main']
-shift-k = ['join-with up', 'mode main']
-shift-l = ['join-with right', 'mode main']
+ctrl-alt-cmd-h = ['join-with left', 'mode main']
+ctrl-alt-cmd-j = ['join-with down', 'mode main']
+ctrl-alt-cmd-k = ['join-with up', 'mode main']
+ctrl-alt-cmd-l = ['join-with right', 'mode main']
+
+h = ['focus-monitor left', 'mode main']
+j = ['focus-monitor down', 'mode main']
+k = ['focus-monitor up', 'mode main']
+l = ['focus-monitor right', 'mode main']
+
+shift-h = ['move-node-to-monitor left', 'mode main']
+shift-j = ['move-node-to-monitor down', 'mode main']
+shift-k = ['move-node-to-monitor up', 'mode main']
+shift-l = ['move-node-to-monitor right', 'mode main']
+
+
+# Window detected events
+
+[[on-window-detected]]
+if.app-id = 'com.cisco.secureclient.gui'
+run = 'layout floating'
+#
+# Reference on-window-detected
+# # Workspace monitor configs
+# [[on-window-detected]]
+# # if.app-id = 'com.apple.systempreferences'
+# if.app-name-regex-substring = 'settings'
+# if.window-title-regex-substring = 'substring'
+# if.workspace = 'workspace-name'
+# if.during-aerospace-startup = true
+# check-further-callbacks = true
+# run = ['layout floating', 'move-node-to-workspace S']  # The callback itself
+# run = 'move-node-to-workspace T' # mnemonics T - Terminal
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'YouTube Music'
+if.during-aerospace-startup = true
+check-further-callbacks = true
+run = ['move-node-to-workspace 9']  # The callback itself
+
+
+# Workspace to Monitor Mapping
+
+
+[workspace-to-monitor-force-assignment]
+# 1 = 1                            # Monitor sequence number from left to right. 1-based indexing
+# 2 = 'main'                       # Main monitor
+# 3 = 'secondary'                  # Non-main monitor in case when there are only two monitors
+# 4 = 'built-in'                   # Case insensitive regex substring
+# 5 = '^built-in retina display$'  # Case insensitive regex match
+9 = ['secondary']        # You can specify multiple patterns. The first matching pattern will be used
+
