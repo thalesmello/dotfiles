@@ -10,6 +10,7 @@
   "dbt.vim": { "branch": "master", "commit": "b1b312b0e7d7912ab216486b5f4e383eea71affa" },
   "debugprint.nvim": { "branch": "main", "commit": "7b7a02c76d372818ed21f9d0755e342a25a64d31" },
   "dressing.nvim": { "branch": "master", "commit": "6ef1ca479d37d4ff66f13eed44d08912caff483a" },
+  "firenvim": { "branch": "master", "commit": "64f9389b88c8b0c7667d45c171a5f25c42d852fb" },
   "formatter.nvim": { "branch": "master", "commit": "eb89a1f3e079f1b9680bc7293b75fffccb5e1598" },
   "fugitive-gitlab.vim": { "branch": "master", "commit": "838d3a110836f511be099002ce1a71493c042615" },
   "fzf": { "branch": "master", "commit": "d4d9b99879d7f870264d4e2e9358c81b5e59981d" },

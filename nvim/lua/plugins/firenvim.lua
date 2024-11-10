@@ -201,13 +201,13 @@ return {
             end
         })
 
-        -- vim.api.nvim_create_autocmd({'BufEnter'}, {
-        --     pattern = "*.txt",
-        --     callback = function()
-        --         vim.cmd.lcd(vim.fn.expand('%:h'))
-        --     end,
-        --     group = group,
-        -- })
+        vim.api.nvim_create_autocmd({'BufEnter'}, {
+            pattern = "*.txt",
+            callback = function()
+                vim.cmd.lcd(vim.fn.expand('%:h'))
+            end,
+            group = group,
+        })
 
         vim.keymap.set("n", "<c-l>", setFontSize)
 

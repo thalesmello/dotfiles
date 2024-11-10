@@ -1,7 +1,7 @@
 return {
     { 'thalesmello/gitignore', event = "VeryLazy" },
     { 'thalesmello/lkml.vim', ft = 'lkml' },
-    { 'thalesmello/tabmessage.vim', cmd = "TabMessage" },
+    { 'thalesmello/tabmessage.vim', cmd = "TabMessage", firenvim = true },
     {
         'thalesmello/persistent.vim',
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
