@@ -231,4 +231,3 @@ run = ['move-node-to-workspace 7']  # The callback itself
 # 5 = '^built-in retina display$'  # Case insensitive regex match
 # 8 = ['secondary']        # You can specify multiple patterns. The first matching pattern will be used
 9 = ['secondary']        # You can specify multiple patterns. The first matching pattern will be used
-
