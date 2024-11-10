@@ -294,5 +294,5 @@ return {
         --     group = group,
         -- })
     end,
-    cond = vim.g.started_by_firenvim,
+    cond = vim.g.started_by_firenvim == true,
 }
