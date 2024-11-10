@@ -1,0 +1,35 @@
+// Place your key bindings in this file to override the defaults
+[
+    {
+        "key": "cmd+e",
+        "command": "vscode-neovim.stop",
+        "when": "neovim.init"
+    },
+    {
+        "key": "cmd+e",
+        "command": "vscode-neovim.restart",
+        "when": "!neovim.init"
+    },
+    {
+        "key": "cmd+alt+m",
+        "command": "runCommands",
+        "args": {
+            "commands": [
+                "workbench.action.toggleCommenting",
+                "vscode-neovim.restart"
+            ]
+        },
+        "when": "commentsView.commentFocused"
+      },
+      {
+        "key": "cmd+alt+m",
+        "command": "runCommands",
+        "args": {
+            "commands": [
+                "workbench.action.toggleCommenting",
+                "vscode-neovim.stop"
+            ]
+        },
+        "when": "!commentsView.commentFocused"
+      },
+]
