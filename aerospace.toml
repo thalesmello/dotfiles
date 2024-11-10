@@ -187,7 +187,7 @@ run = 'layout floating'
 # Reference on-window-detected
 # # Workspace monitor configs
 # [[on-window-detected]]
-# # if.app-id = 'com.apple.systempreferences'
+# if.app-id = 'com.apple.systempreferences'
 # if.app-name-regex-substring = 'settings'
 # if.window-title-regex-substring = 'substring'
 # if.workspace = 'workspace-name'
@@ -198,12 +198,29 @@ run = 'layout floating'
 
 [[on-window-detected]]
 if.app-name-regex-substring = 'YouTube Music'
-if.during-aerospace-startup = true
-check-further-callbacks = true
+run = ['move-node-to-workspace 9']  # The callback itself
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'Metamate'
+run = ['move-node-to-workspace 9']  # The callback itself
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'PomoFocus'
 run = ['move-node-to-workspace 9']  # The callback itself
 
 
-# Workspace to Monitor Mapping
+[[on-window-detected]]
+if.app-id = 'net.whatsapp.WhatsApp'
+run = ['move-node-to-workspace 8']  # The callback itself
+
+[[on-window-detected]]
+if.app-id = 'com.apple.MobileSMS'
+run = ['move-node-to-workspace 8']  # The callback itself
+
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'Workplace'
+run = ['move-node-to-workspace 7']  # The callback itself
 
 
 [workspace-to-monitor-force-assignment]
@@ -212,5 +229,6 @@ run = ['move-node-to-workspace 9']  # The callback itself
 # 3 = 'secondary'                  # Non-main monitor in case when there are only two monitors
 # 4 = 'built-in'                   # Case insensitive regex substring
 # 5 = '^built-in retina display$'  # Case insensitive regex match
+# 8 = ['secondary']        # You can specify multiple patterns. The first matching pattern will be used
 9 = ['secondary']        # You can specify multiple patterns. The first matching pattern will be used
 
