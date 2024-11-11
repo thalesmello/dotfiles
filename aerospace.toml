@@ -122,8 +122,6 @@ ctrl-alt-cmd-7 = 'workspace 7'
 ctrl-alt-cmd-8 = 'workspace 8'
 ctrl-alt-cmd-9 = 'workspace 9'
 
-ctrl-alt-cmd-shift-a = 'workspace audio'
-
 # See: https://nikitabobko.github.io/AeroSpace/commands#move-node-to-workspace
 ctrl-alt-cmd-shift-1 = 'move-node-to-workspace 1'
 ctrl-alt-cmd-shift-2 = 'move-node-to-workspace 2'
@@ -136,7 +134,8 @@ ctrl-alt-cmd-shift-8 = 'move-node-to-workspace 8'
 ctrl-alt-cmd-shift-9 = 'move-node-to-workspace 9'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#workspace-back-and-forth
-ctrl-alt-cmd-tab = 'workspace-back-and-forth'
+ctrl-alt-cmd-tab = ['workspace --wrap-around next'] # reset layout
+ctrl-alt-cmd-shift-tab = ['workspace --wrap-around prev'] # Toggle between floating and tiling layout
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#mode
 ctrl-alt-cmd-semicolon = 'mode service'
@@ -144,6 +143,7 @@ ctrl-alt-cmd-semicolon = 'mode service'
 # 'service' binding mode declaration.
 # See: https://nikitabobko.github.io/AeroSpace/guide#binding-modes
 [mode.service.binding]
+ctrl-alt-cmd-semicolon = ['workspace-back-and-forth', 'mode main']
 esc = ['reload-config', 'mode main']
 r = ['flatten-workspace-tree', 'mode main'] # reset layout
 f = ['layout floating tiling', 'mode main'] # Toggle between floating and tiling layout
@@ -195,6 +195,28 @@ run = 'layout floating'
 # check-further-callbacks = true
 # run = ['layout floating', 'move-node-to-workspace S']  # The callback itself
 # run = 'move-node-to-workspace T' # mnemonics T - Terminal
+
+[[on-window-detected]]
+if.app-id = 'com.googlecode.iterm2'
+if.during-aerospace-startup = true
+run = ['move-node-to-workspace 2']  # The callback itself
+
+[[on-window-detected]]
+if.app-id = 'com.facebook.fbvscode'
+if.during-aerospace-startup = true
+run = ['move-node-to-workspace 2']  # The callback itself
+
+[[on-window-detected]]
+if.app-id = 'md.obsidian'
+run = ['move-node-to-workspace 3']  # The callback itself
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'Google Keep'
+run = ['move-node-to-workspace 3']  # The callback itself
+
+
+
+
 
 [[on-window-detected]]
 if.app-name-regex-substring = 'YouTube Music'
