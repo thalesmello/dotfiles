@@ -13,9 +13,9 @@ function __fish_venv_run_missing_binary
 end
 
 function __fish_venv_run_complete_binaries
-    set -l venv_dir (path dirname */bin/activat?)
+    set -l venv_bin_dir (path dirname */bin/activat?)
 
-    for file in $venv_dir/*
+    for file in $venv_bin_dir/*
         set -l filename (basename $file)
 
         if test -x $file
@@ -46,10 +46,11 @@ function __fish_venv_run_get_binary_completion
         set cmd $cmd[2..]
     end
 
-    # Get binary completion from the command
-    complete -C "$cmd "(commandline -ct)
+    begin
+        set -lx PATH (path dirname */bin/activat?) $PATH
+        complete -C "$cmd "(commandline -ct)
+    end
 end
-
 
 
 complete -f -c venv-run -n "__fish_venv_run_missing_binary" -a "(__fish_venv_run_complete_binaries)"
