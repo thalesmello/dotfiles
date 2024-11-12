@@ -188,6 +188,25 @@ return {
                 end,
             })
 
+            vim.api.nvim_create_autocmd({ 'FileType' }, {
+                group = group,
+                pattern = {"markdown"},
+                callback = function()
+                    vim.b.minisurround_config = vim.tbl_deep_extend("force", vim.b.minisurround_config or {}, {
+                        custom_surroundings = {
+                            ["l"] = {
+                                output = function ()
+                                    local clipboard = vim.fn.getreg("+"):gsub("\n", "")
+
+                                    return { left = "[", right = "](" .. clipboard .. ")"  }
+                                end,
+                                input = { "%b[]%b()", "^%[().-()%]%b()$" },
+                            },
+                        }
+                    })
+                end,
+            })
+
 
             vim.api.nvim_create_autocmd({ 'FileType' }, {
                 group = group,
@@ -197,6 +216,10 @@ return {
                         custom_surroundings = {
                             ["F"] = {
                                 output = { left = "function () ", right = " end"},
+                                input = ts_input({ outer = "@function.outer", inner = "@function.inner"}),
+                            },
+                            ["<c-f>"] = {
+                                output = { left = "function ()\n\treturn ", right = "\nend"},
                                 input = ts_input({ outer = "@function.outer", inner = "@function.inner"}),
                             },
                             ["q"] = {
