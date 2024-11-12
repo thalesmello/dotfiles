@@ -38,7 +38,9 @@ return {
                                 {"%b()",  "^.%s-()()SELECT.-()()%s*.$" },
                                 { '""".-"""', "^...%s-()()SELECT.-()()%s*...$"},
                                 { "'''.-'''", "^...%s-()()SELECT.-()()%s*...$"},
-                                { '.*\n.*' , "^%s-()()SELECT.-()()%s*$"},
+                                -- This is rarely used, prefer ae
+                                -- Keeping it here in case I want to improve it in the future
+                                -- { '.*\n.*' , "^%s-()()SELECT.-()()%s*$"},
                             }}
                         },
                     })
