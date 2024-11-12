@@ -23,7 +23,7 @@ vim.keymap.set("n", "j", inferMoveKey("j"), { remap = true, expr = true })
 
 vim.keymap.set("n", "k", inferMoveKey("k"), { remap = true, expr = true })
 
-vim.keymap.set("n", "<leader><c-r>", function () vscode.action('vscode-neovim.restart') end)
+vim.keymap.set("n", "<leader>rv", function () vscode.action('vscode-neovim.restart') end)
 
 vim.keymap.set("n", "gr", function () vscode.action('editor.action.rename') end)
 

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+# https://www.reddit.com/r/neovim/comments/15gihnd/neat_trick_for_restarting_neovim_fast_when_using/
+while true; do
+    nvim "$@"
+    if [ $? -ne 1 ]; then
+        break
+    fi
+done
