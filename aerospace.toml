@@ -96,10 +96,10 @@ ctrl-alt-cmd-period = 'layout tiles horizontal vertical'
 ctrl-alt-cmd-comma = 'layout accordion horizontal vertical'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#focus
-ctrl-alt-cmd-h = 'focus left'
-ctrl-alt-cmd-j = 'focus down'
-ctrl-alt-cmd-k = 'focus up'
-ctrl-alt-cmd-l = 'focus right'
+ctrl-alt-cmd-h = 'focus --boundaries all-monitors-outer-frame left'
+ctrl-alt-cmd-j = 'focus --boundaries all-monitors-outer-frame down'
+ctrl-alt-cmd-k = 'focus --boundaries all-monitors-outer-frame up'
+ctrl-alt-cmd-l = 'focus --boundaries all-monitors-outer-frame right'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#move
 ctrl-alt-cmd-shift-h = 'move left'
