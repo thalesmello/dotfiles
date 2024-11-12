@@ -196,9 +196,23 @@ return {
         })
 
         vim.api.nvim_create_autocmd({'BufEnter'}, {
-            pattern = "*.txt",
+            pattern = "/tmp/firenvim/*.txt",
             callback = function()
-                vim.cmd.lcd(vim.fn.expand('%:h'))
+                local cmp = require('cmp')
+                local config = cmp.get_config()
+                local rg = vim.iter(config.sources)
+                    :find(function (el)
+                        return el.name == "rg"
+                    end)
+
+                rg.option = rg.option or {}
+                rg.option.cwd = '/tmp/firenvim'
+                -- table.insert(config.sources, {
+                --     name = 'rg',
+                --     option = {
+                --         cwd = '/tmp/firenvim'
+                --     },
+                -- })
             end,
             group = group,
         })
