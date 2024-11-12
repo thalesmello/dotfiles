@@ -33,11 +33,15 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
 
     vim.keymap.set("n", "k", inferMoveKey("k"), { remap = true, expr = true })
 
+    vim.keymap.set("n", "<leader><bs>", function () vscode.action('workbench.action.closeEditorsAndGroup') end)
     vim.keymap.set("n", "<leader>rv", function () vscode.action('vscode-neovim.restart') end)
+    -- vim.keymap.set("n", "<leader><leader>", function ()
+    --   vscode.action('workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup')
+    -- end)
 
     vim.keymap.set("n", "gr", function () vscode.action('editor.action.rename') end)
 
-    vim.keymap.set("n", "<c-t>", function () vscode.action('workbench.action.navigateBackInEditLocations') end)
+    vim.keymap.set({ "n" }, "<c-t>", function () vscode.action('workbench.action.navigateBackInEditLocations') end)
     vim.keymap.set("n", "<c-f>", function () vscode.action('workbench.action.findInFiles') end)
     vim.keymap.set("n", "<leader>/", "viw<cmd>lua require('vscode').action('workbench.action.findInFiles')<cr>")
 

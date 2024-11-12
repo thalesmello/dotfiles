@@ -15,6 +15,7 @@ return {
                     -- [";"] = spec_treesitter({ a = "@pair.value", i = "" }),
                     -- [":"] = spec_treesitter({ a = "@pair.key", i = "" }),
                     ["C"] = spec_treesitter({ i = "@class.inner", a = "@class.outer" }),
+                    ['.'] = { "%S()%s+()[%a_][a-zA-Z0-9_%.]*(),?()[^,]" },
                 },
                 search_method = "cover",
                 n_lines = 1000,
@@ -24,7 +25,7 @@ return {
 
             vim.api.nvim_create_autocmd({ 'FileType' }, {
                 group = group,
-                pattern = {"sql", "jinja"},
+                pattern = {"sql", "jinja", "python"},
                 callback = function()
                     vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, {
                         custom_textobjects = {
@@ -33,6 +34,12 @@ return {
                             ['-'] = spec_pair('{%-', '-%}'),
                             ['#'] = spec_pair('{#', '#}'),
                             ['\\'] = { "}()%s-()%S?.-%S?()%s-(){" },
+                            ["s"] = {{
+                                {"%b()",  "^.%s-()()SELECT.-()()%s*.$" },
+                                { '""".-"""', "^...%s-()()SELECT.-()()%s*...$"},
+                                { "'''.-'''", "^...%s-()()SELECT.-()()%s*...$"},
+                                { '.*\n.*' , "^%s-()()SELECT.-()()%s*$"},
+                            }}
                         },
                     })
                 end,
