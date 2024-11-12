@@ -43,7 +43,6 @@ return {
                     mapCapability(capabilities.referencesProvider, 'n', 'gR', '<cmd>lua vim.lsp.buf.references()<cr>')
                     mapCapability(capabilities.signatureHelpProvider, 'n', 'gK', '<cmd>lua vim.lsp.buf.signature_help()<cr>')
                     mapCapability(capabilities.renameProvider, 'n', 'gr', '<cmd>lua vim.lsp.buf.rename()<cr>')
-                    -- mapCapability(capabilities.documentFormattingProvider, { 'n', 'x' }, 'g%', '<cmd>lua vim.lsp.buf.format({async = true})<cr>')
                     mapCapability(capabilities.codeActionProvider, 'n', '<leader>.', '<cmd>lua vim.lsp.buf.code_action()<cr>')
                 end
             })
@@ -420,7 +419,6 @@ return {
         keys = {
             {"g%", "<cmd>Format<cr>", mode = "n"},
         },
-
         firenvim = true,
     },
     {

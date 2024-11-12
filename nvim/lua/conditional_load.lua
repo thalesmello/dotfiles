@@ -2,7 +2,7 @@ local M = {}
 
 local conditions = {
     {context_active = vim.g.started_by_firenvim, load_if_property = 'firenvim'},
-    {valid_context = vim.g.vscode, load_if_property = 'vscode'},
+    {context_active = vim.g.vscode, load_if_property = 'vscode'},
 }
 
 function M.should_load(spec)
@@ -10,7 +10,7 @@ function M.should_load(spec)
         if condition.context_active then
             return (
                 spec[condition.load_if_property]
-                or spec._.dep
+                or vim.tbl_get(spec, "_", "dep")
                 or spec.name == 'lazy.nvim'
             )
         end
@@ -30,6 +30,12 @@ function M.wrap(handle)
 
     return wrapper
 
+end
+
+function M.exec_when(spec, action)
+    if M.should_load(spec) then
+        return action()
+    end
 end
 
 return M
