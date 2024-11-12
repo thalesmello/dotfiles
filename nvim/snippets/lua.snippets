@@ -28,6 +28,18 @@ snippet f "Anonymous function" i
         $VISUAL${2}
     end${0}
 
+snippet if "If condition" w
+    if $1 then
+        $VISUAL$2
+    end
+
+snippet ife "If condition" w
+    if $1 then
+        $VISUAL$2
+    elseif $3 then
+        $4
+    end
+
 snippet au "Autocommand"
     vim.api.nvim_create_autocmd({ '${1:FileType}' }, {
         group = vim.api.nvim_create_augroup('${2:GroupName}', { clear = true }),

@@ -2,13 +2,7 @@ if vim.g.started_by_firenvim then
     -- This is makes extensions not be enabled by default
     -- To enable, add "firenvim = true" to the plugin spec
 
-    require("lazy.core.config").options.defaults.cond = function(plugin)
-        return (
-            plugin.firenvim
-            or plugin._.dep
-            or plugin.name == 'lazy.nvim'
-        )
-    end
+    require("lazy.core.config").options.defaults.cond = require('conditional_load').should_load
 end
 
 return {

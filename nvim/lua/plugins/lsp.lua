@@ -1,3 +1,4 @@
+local conditional_load = require("conditional_load")
 return {
     {
         'neovim/nvim-lspconfig',
@@ -49,28 +50,38 @@ return {
         end,
     },
     {
-        {
-            "hrsh7th/nvim-cmp",
-            opts = function(_, opts)
-                opts.sources = opts.sources or {}
+        "hrsh7th/nvim-cmp",
+        opts = conditional_load.wrap(function(_, opts)
+            opts.sources = opts.sources or {}
+            opts.sources = vim.list_extend(opts.sources or {}, {
+                { name = 'nvim_lsp' },
+                { name = 'path' },
+            })
+        end),
+        dependencies = {
+            { 'hrsh7th/cmp-nvim-lsp' },
+            {'hrsh7th/cmp-path'},
+        },
+        optional = true,
+    },
+    {
+        "hrsh7th/nvim-cmp",
+        opts = function(_, opts)
+            if vim.fn.getcwd() ~= vim.fn.expand('~') then
                 opts.sources = vim.list_extend(opts.sources or {}, {
-                    { name = 'nvim_lsp' },
-                    { name = 'path' },
+                    { name = 'rg' },
                 })
-            end,
-            dependencies = {
-                { 'hrsh7th/cmp-nvim-lsp' },
-                {'hrsh7th/cmp-path'},
-            },
-            optional = true,
-        }
+            end
+        end,
+        dependencies = {'thalesmello/cmp-rg'},
+        optional = true,
+        firenvim = true,
     },
     {
         'hrsh7th/nvim-cmp',
         dependencies = {
             {'hrsh7th/cmp-buffer'},
             {'hrsh7th/cmp-cmdline'},
-            {'thalesmello/cmp-rg'},
             {'hrsh7th/cmp-calc'},
         },
         opts = function (_, opts)
@@ -117,11 +128,6 @@ return {
                         end,
                     },
                     { name = 'calc' },
-                    {
-                        name = "rg",
-                        -- Try it when you feel cmp performance is poor
-                        -- keyword_length = 3
-                    },
                 }),
 
                 mapping = cmp.mapping.preset.insert({

@@ -6,14 +6,7 @@ local vscode = require('vscode')
 
 -- This is makes extensions not be enabled by default
 -- To enable, add "vscode = true" to the plugin spec
-require("lazy.core.config").options.defaults.cond = function(plugin)
-  return (
-    plugin.vscode
-    or plugin._.dep
-    or plugin.name == 'lazy.nvim'
-  )
-
-end
+require("lazy.core.config").options.defaults.cond = require('conditional_load').should_load
 
 local function inferMoveKey(direction)
   return function ()
