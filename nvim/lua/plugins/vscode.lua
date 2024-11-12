@@ -27,6 +27,7 @@ vim.keymap.set("n", "<leader><c-r>", function () vscode.action('vscode-neovim.re
 
 vim.keymap.set("n", "gr", function () vscode.action('editor.action.rename') end)
 
+vim.keymap.set("n", "<c-t>", function () vscode.action('workbench.action.navigateBackInEditLocations') end)
 vim.keymap.set("n", "<c-f>", function () vscode.action('workbench.action.findInFiles') end)
 vim.keymap.set("n", "<leader>/", "viw<cmd>lua require('vscode').action('workbench.action.findInFiles')<cr>")
 
