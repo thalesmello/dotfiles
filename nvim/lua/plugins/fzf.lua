@@ -8,7 +8,6 @@ return {
         {"<leader>/", mode = "n"},
         {"<leader>/", mode = "v"},
         {"<leader>?", mode = "v"},
-        {"<leader>ft", mode = "n"},
     },
     cmd = {
         "Files", "GFiles", "GFiles", "Buffers", "Colors", "Ag", "Rg",

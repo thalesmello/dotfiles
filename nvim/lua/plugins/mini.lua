@@ -41,7 +41,8 @@ return {
                                 -- This is rarely used, prefer ae
                                 -- Keeping it here in case I want to improve it in the future
                                 -- { '.*\n.*' , "^%s-()()SELECT.-()()%s*$"},
-                            }}
+                            }},
+                            ["T"] = {"%b<>", "^<.-:().-()>"},
                         },
                     })
                 end,
@@ -64,9 +65,9 @@ return {
                 pattern = "lua",
                 callback = function()
                     vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, {
-                        custom_text_objects = {
+                        custom_textobjects = {
                             ["q"] = { "%[=*%[().-()%]=*%]" },
-                            ["Q"] = { "%[=*%[().-()%]=*%]" },
+                            ["Q"] = { "%[=*%[%s*().-()%s*%]=*%]" },
                         }
                     })
                 end,
@@ -148,7 +149,7 @@ return {
 
             vim.api.nvim_create_autocmd({ 'FileType' }, {
                 group = group,
-                pattern = {"sql", "jinja"},
+                pattern = {"sql", "jinja", "python"},
                 callback = function()
                     vim.b.minisurround_config = vim.tbl_deep_extend("force", vim.b.minisurround_config or {}, {
                         custom_surroundings = {
@@ -170,18 +171,8 @@ return {
                             ["#"] = {
                                 output = { left = "{# ", right = " #}"},
                                 input = {"{#.-#}", "^({#%s*)().-(%s*#})()"}
-                            }
-                        }
-                    })
-                end,
-            })
+                            },
 
-            vim.api.nvim_create_autocmd({ 'FileType' }, {
-                group = group,
-                pattern = {"sql", "python"},
-                callback = function()
-                    vim.b.minisurround_config = vim.tbl_deep_extend("force", vim.b.minisurround_config or {}, {
-                        custom_surroundings = {
                             ["c"] = {
                                 output = function()
                                     local type = surround.user_input("Enter the type to cast to: ")
@@ -192,6 +183,14 @@ return {
                                 input = {"CAST%(.-%s+AS%s+%w-%)", "^([Cc][Aa][Ss][Tt]%(%s*)().-(%s+[Aa][Ss]%s+%w-%))()$"}
                             },
 
+                            ["T"] = {
+                                output = function ()
+                                    local tag = MiniSurround.user_input("Enter tag: ")
+
+                                    return { left = "<".. tag .. ':', right = ">" }
+                                end,
+                                input = {"%b<>", "^<.-:().-()>"}
+                            },
                         }
                     })
                 end,

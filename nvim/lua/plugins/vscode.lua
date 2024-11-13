@@ -3,6 +3,7 @@ if not vim.g.vscode then
 end
 
 local vscode = require('vscode')
+local vim_utils = require('vim_utils')
 
 -- This is makes extensions not be enabled by default
 -- To enable, add "vscode = true" to the plugin spec
@@ -16,6 +17,76 @@ local function inferMoveKey(direction)
       return "g" .. direction
     end
    end
+end
+
+local function vscodeMoveLines(toDirection, moveLines)
+  local range = vscode.eval([[
+    var e = vscode.window.activeTextEditor;
+
+    if (!e) {
+        return;
+    }
+
+
+    const withTimeout = timeout => promise => {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Timeout exceeded')), timeout);
+        })
+      ]);
+    }
+
+
+    var changedVisibleRange = (() => {
+      let disposableHandler
+
+      let rangePromise = new Promise((resolve) => {
+         disposableHandler = vscode.window.onDidChangeTextEditorVisibleRanges(e => {
+          resolve(e.visibleRanges)
+        })
+
+      })
+
+      return {
+        withTimeout(timeout) {
+          return rangePromise.then(withTimeout(1000)).finally(() => disposableHandler.dispose())
+        }
+      }
+    })()
+
+    const revealAt = args.to === "up" ? "bottom" : "top"
+    const delta = args.to === "up" ? -args.moveLines : args.moveLines;
+
+    const totalLines = e.document.lineCount;
+
+    let line = e.selection.active.line;
+    line += delta
+    line = Math.max(line, 0)
+    line = Math.min(line, totalLines - 1)
+
+    changedVisibleRange = changedVisibleRange.withTimeout(1000)
+
+    await Promise.all([
+      vscode.commands.executeCommand("cursorMove", {
+          to: args.to,
+          by: "line",
+          value: args.moveLines,
+        }),
+      vscode.commands.executeCommand("revealLine", {
+        lineNumber: line,
+        at: revealAt,
+      })
+     ])
+
+    let [range, ] = await changedVisibleRange
+
+    return { start_line: range.start.line, end_line: range.end.line }
+  ]], { args = { to = toDirection, moveLines = moveLines }})
+
+  vim.print(range)
+  local vscode_internal = require('vscode.internal')
+  vscode_internal.scroll_viewport(range.start_line, range.end_line)
 end
 
 local group = vim.api.nvim_create_augroup('VsCodeAugroup', { clear = true })
@@ -35,9 +106,21 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
 
     vim.keymap.set("n", "<leader><bs>", function () vscode.action('workbench.action.closeEditorsAndGroup') end)
     vim.keymap.set("n", "<leader>rv", function () vscode.action('vscode-neovim.restart') end)
-    -- vim.keymap.set("n", "<leader><leader>", function ()
-    --   vscode.action('workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup')
-    -- end)
+    vim.keymap.set("n", "<leader><leader>", function ()
+      vscode.call('workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup')
+      vscode.action('workbench.action.acceptSelectedQuickOpenItem')
+    end)
+
+
+    vim.keymap.set({ "n", "x" }, "<c-u>", function ()
+      -- vscodeMoveLines("up", 20)
+      vscode.call('cursorPageUp')
+    end)
+
+    vim.keymap.set({ "n", "x" }, "<c-d>", function ()
+      -- vscodeMoveLines("down", 20)
+      vscode.call('cursorPageDown')
+    end)
 
     vim.keymap.set("n", "gr", function () vscode.action('editor.action.rename') end)
 

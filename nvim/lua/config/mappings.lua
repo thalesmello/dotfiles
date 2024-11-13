@@ -13,7 +13,9 @@ vim.keymap.set("n", "<leader><bs>", "<c-w>q", { remap = true })
 
 -- Edit and load vimrc
 vim.keymap.set("n", "<leader>ev", ":edit $MYVIMRC<cr>", { noremap = true })
-vim.keymap.set("n", "<leader>ec", ":Econfig<space>", { noremap = true })
+vim.keymap.set("n", "<leader>el", ":edit ~/.nvim_local.lua<cr>", { noremap = true })
+vim.keymap.set("n", "<leader>ep", ":edit $MYVIMRC<cr>:Eplugin<space>", { noremap = true })
+vim.keymap.set("n", "<leader>ec", ":edit $MYVIMRC<cr>:Econfig<space>", { noremap = true })
 
 vim.keymap.set("n", "<leader>s%", function ()
   if vim.list_contains({"lua", "vim"}, vim.o.filetype) then
@@ -60,6 +62,8 @@ vim.keymap.set("n", "<leader>o", function ()
   end, { noremap = true, expr = true })
 vim.keymap.set("x", "<leader>c*", "*Ncgn", { remap=true })
 vim.keymap.set("n", "c*", "*Ncgn")
+vim.keymap.set("n", "<leader>a", "ea")
+vim.keymap.set("n", "<leader>A", "vi.A")
 vim.keymap.set("n", "Y", "y$", { noremap = true })
 vim.keymap.set({"n", "v", "o"}, "<c-e>", "2<c-e>" , {noremap = true})
 vim.keymap.set({"n", "v", "o"}, "<c-y>", "2<c-y>" , {noremap = true})
