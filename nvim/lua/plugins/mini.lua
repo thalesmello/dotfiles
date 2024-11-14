@@ -50,6 +50,20 @@ return {
 
             vim.api.nvim_create_autocmd({ 'FileType' }, {
                 group = group,
+                pattern = {"sql"},
+                callback = function()
+                    vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, {
+                        custom_textobjects = {
+                            ["n"] = spec_treesitter({ i = "@sql-term.expr", a = "@sql-term.cte" }),
+                            ["S"] = spec_treesitter({ i = "@sql-cte.statement", a = "@sql-cte.cte" }),
+                            ["s"] = spec_treesitter({ i = "@sql-select.inner", a = "@sql-select.statement" }),
+                        },
+                    })
+                end,
+            })
+
+            vim.api.nvim_create_autocmd({ 'FileType' }, {
+                group = group,
                 pattern = {"python"},
                 callback = function()
                     vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, {
@@ -181,6 +195,15 @@ return {
                                     end
                                 end,
                                 input = {"CAST%(.-%s+AS%s+%w-%)", "^([Cc][Aa][Ss][Tt]%(%s*)().-(%s+[Aa][Ss]%s+%w-%))()$"}
+                            },
+
+                            ["S"] = {
+                                input = ts_input({ outer = "@sql-cte.statement", inner = "@sql-cte.cte"}),
+                                output = function ()
+                                    local cte_name = MiniSurround.user_input("CTE name: ")
+
+                                    return { left = cte_name .. " AS (\n", right = "\n)," }
+                                end
                             },
 
                             ["T"] = {
