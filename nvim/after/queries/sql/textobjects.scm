@@ -5,7 +5,7 @@
 
 [
      (from) @sql-select.inner
-     (select) @sql-select.inner 
+     (select) @sql-select.inner
 ]
 
 ((select) @_start (from) @_end (#make-range! "sql-select.statement" @_start @_end))
