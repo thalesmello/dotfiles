@@ -55,9 +55,9 @@ return {
 
                     vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, {
                         custom_textobjects = {
-                            [","] = spec_treesitter({ i = "@sql-term.expr", a = "@sql-term.term" }),
-                            ["S"] = spec_treesitter({ i = "@sql-cte.statement", a = "@sql-cte.cte" }),
-                            ["s"] = spec_treesitter({ i = "@sql-select.inner", a = "@sql-select.statement" }),
+                            [","] = spec_treesitter({ i = "@sql-term-expr", a = "@sql-term-term" }),
+                            ["S"] = spec_treesitter({ i = "@sql-cte-inner", a = "@sql-cte-cte" }),
+                            ["s"] = spec_treesitter({ i = "@sql-select-inner", a = "@sql-select-statement" }),
                         },
                     })
                 end,
@@ -199,7 +199,7 @@ return {
                             },
 
                             ["S"] = {
-                                input = ts_input({ outer = "@sql-cte.statement", inner = "@sql-cte.cte"}),
+                                input = ts_input({ outer = "@sql-cte-cte", inner = "@sql-cte-inner"}),
                                 output = function ()
                                     local cte_name = MiniSurround.user_input("CTE name: ")
 

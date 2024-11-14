@@ -6,8 +6,8 @@ return {
         'tpope/vim-sleuth',
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
-    { 'tpope/vim-rsi', event = {"CmdlineEnter", "InsertEnter"}, firenvim = true },
-    { 'tpope/vim-unimpaired', event = "VeryLazy" },
+    { 'tpope/vim-rsi', event = {"CmdlineEnter", "InsertEnter"}, firenvim = true, vscode = true },
+    { 'tpope/vim-unimpaired', event = "VeryLazy", firenvim = true },
     {
         'tpope/vim-apathy',
         ft = {
@@ -29,4 +29,16 @@ return {
             'zsh',
         }
     },
+    {
+        'tpope/vim-scriptease',
+        keys = {"g=", modes = {"n", "x"}},
+        ft = {"vim", "help"},
+        cmd = {
+            "Messages",
+            "PP",
+            "Scriptnames",
+            "Verbose",
+        },
+        firenvim = true,
+    }
 }
