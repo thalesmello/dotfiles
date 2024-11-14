@@ -139,6 +139,7 @@ ctrl-alt-cmd-shift-tab = ['workspace --wrap-around prev'] # Toggle between float
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#mode
 ctrl-alt-cmd-semicolon = 'mode service'
+cmd-esc = 'workspace-back-and-forth'
 
 # 'service' binding mode declaration.
 # See: https://nikitabobko.github.io/AeroSpace/guide#binding-modes
