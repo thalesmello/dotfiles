@@ -5,6 +5,7 @@
                 "rules": [
                     {
                         "description": "Mouse back click",
+                        "enabled": false,
                         "manipulators": [
                             {
                                 "conditions": [
