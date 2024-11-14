@@ -181,6 +181,7 @@ return {
         })
 
         vim.api.nvim_create_autocmd({'TextChanged', 'TextChangedI'}, {
+            pattern = "*",
             group = group,
             callback = function()
                 if vim.g.firenvim_bufwrite_timer ~= nil then

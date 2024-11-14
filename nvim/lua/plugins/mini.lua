@@ -17,7 +17,7 @@ return {
                     ["C"] = spec_treesitter({ i = "@class.inner", a = "@class.outer" }),
                     ['.'] = { "%S()%s+()[%a_][a-zA-Z0-9_%.]*(),?()[^,]" },
                 },
-                search_method = "cover",
+                search_method = "cover_or_next",
                 n_lines = 1000,
             })
 
@@ -56,7 +56,7 @@ return {
                     vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, {
                         custom_textobjects = {
                             [","] = spec_treesitter({ i = "@sql-term-expr", a = "@sql-term-term" }),
-                            ["S"] = spec_treesitter({ i = "@sql-cte-inner", a = "@sql-cte-cte" }),
+                            ["S"] = { {"^[%w_].*", "[^%w_].*"}, "^[^%w_]?[%w_]*%s+[Aa][Ss]%s+%b(),?", "^.()[%w_]-%s+..%s+%(%s*().-()%s*%),?()$"},
                             ["s"] = spec_treesitter({ i = "@sql-select-inner", a = "@sql-select-statement" }),
                         },
                     })
