@@ -52,9 +52,10 @@ return {
                 group = group,
                 pattern = {"sql"},
                 callback = function()
+
                     vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, {
                         custom_textobjects = {
-                            ["x"] = spec_treesitter({ i = "@sql-term.expr", a = "@sql-term.term" }),
+                            [","] = spec_treesitter({ i = "@sql-term.expr", a = "@sql-term.term" }),
                             ["S"] = spec_treesitter({ i = "@sql-cte.statement", a = "@sql-cte.cte" }),
                             ["s"] = spec_treesitter({ i = "@sql-select.inner", a = "@sql-select.statement" }),
                         },
