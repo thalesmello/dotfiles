@@ -1,7 +1,7 @@
 ; extends
-(term value: _ @sql-term.expr) @sql-term.term
+((term value: _ @sql-term.expr) @_start ","? @_end (#make-range! "sql-term.term" @_start @_end))
 
-((cte (statement) @sql-cte.statement)) @sql-cte.cte
+((cte (statement) @sql-cte.statement) @_start ","? @_end (#make-range! "sql-cte.cte" @_start @_end))
 
 [
      (from) @sql-select.inner

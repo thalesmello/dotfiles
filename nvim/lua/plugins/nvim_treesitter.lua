@@ -15,8 +15,22 @@ return {
         config = function ()
             require('config/treesitter')
         end,
+        keys = {
+            {
+                "<leader>ets",
+                function()
+                    local config = vim.fn.stdpath("config")
+                    if vim.fn.expand("%:e") == '' then
+                        return
+                    end
+
+                    vim.cmd.edit(config .. "/after/queries/" .. vim.fn.expand("%:e") .. '/textobjects.scm')
+                end
+            }
+        },
         vscode = true,
         firenvim = true,
+        lazy = false,
     },
     {
 
