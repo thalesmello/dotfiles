@@ -123,15 +123,15 @@ ctrl-alt-cmd-8 = 'workspace 8'
 ctrl-alt-cmd-9 = 'workspace 9'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#move-node-to-workspace
-ctrl-alt-cmd-shift-1 = 'move-node-to-workspace 1'
-ctrl-alt-cmd-shift-2 = 'move-node-to-workspace 2'
-ctrl-alt-cmd-shift-3 = 'move-node-to-workspace 3'
-ctrl-alt-cmd-shift-4 = 'move-node-to-workspace 4'
-ctrl-alt-cmd-shift-5 = 'move-node-to-workspace 5'
-ctrl-alt-cmd-shift-6 = 'move-node-to-workspace 6'
-ctrl-alt-cmd-shift-7 = 'move-node-to-workspace 7'
-ctrl-alt-cmd-shift-8 = 'move-node-to-workspace 8'
-ctrl-alt-cmd-shift-9 = 'move-node-to-workspace 9'
+ctrl-alt-cmd-shift-1 = 'move-node-to-workspace --focus-follows-window 1'
+ctrl-alt-cmd-shift-2 = 'move-node-to-workspace --focus-follows-window 2'
+ctrl-alt-cmd-shift-3 = 'move-node-to-workspace --focus-follows-window 3'
+ctrl-alt-cmd-shift-4 = 'move-node-to-workspace --focus-follows-window 4'
+ctrl-alt-cmd-shift-5 = 'move-node-to-workspace --focus-follows-window 5'
+ctrl-alt-cmd-shift-6 = 'move-node-to-workspace --focus-follows-window 6'
+ctrl-alt-cmd-shift-7 = 'move-node-to-workspace --focus-follows-window 7'
+ctrl-alt-cmd-shift-8 = 'move-node-to-workspace --focus-follows-window 8'
+ctrl-alt-cmd-shift-9 = 'move-node-to-workspace --focus-follows-window 9'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#workspace-back-and-forth
 ctrl-alt-cmd-tab = ['workspace --wrap-around next'] # reset layout
@@ -160,8 +160,20 @@ ctrl-shift-n = ['move-node-to-monitor --wrap-around next'] # reset layout
 ctrl-shift-p = ['move-node-to-monitor --wrap-around prev'] # Toggle between floating and tiling layout
 equal = ['balance-sizes', 'mode main']
 
+# See: https://nikitabobko.github.io/AeroSpace/commands#move-node-to-workspace
+1 = ['move-node-to-workspace 1', 'mode main']
+2 = ['move-node-to-workspace 2', 'mode main']
+3 = ['move-node-to-workspace 3', 'mode main']
+4 = ['move-node-to-workspace 4', 'mode main']
+5 = ['move-node-to-workspace 5', 'mode main']
+6 = ['move-node-to-workspace 6', 'mode main']
+7 = ['move-node-to-workspace 7', 'mode main']
+8 = ['move-node-to-workspace 8', 'mode main']
+9 = ['move-node-to-workspace 9', 'mode main']
+
+
 # sticky is not yet supported https://github.com/nikitabobko/AeroSpace/issues/2
-#s = ['layout sticky tiling', 'mode main']
+#s = [''layout sticky tiling'', 'mode main']
 
 ctrl-alt-cmd-h = ['join-with left', 'mode main']
 ctrl-alt-cmd-j = ['join-with down', 'mode main']
@@ -248,7 +260,7 @@ check-further-callbacks = true
 
 [[on-window-detected]]
 if.app-name-regex-substring = 'Metamate'
-run = ['move-node-to-workspace 9']  # The callback itself
+run = ['layout floating']  # The callback itself
 check-further-callbacks = true
 
 [[on-window-detected]]
