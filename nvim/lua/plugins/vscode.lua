@@ -111,6 +111,8 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
       vscode.action('workbench.action.acceptSelectedQuickOpenItem')
     end)
 
+    vim.keymap.set("n", "<leader>km", function () vscode.action('workbench.action.toggleMaximizeEditorGroup') end)
+    vim.keymap.set("n", "<leader>kj", function () vscode.action('workbench.action.togglePanel') end)
 
     vim.keymap.set({ "n", "x" }, "<c-u>", function ()
       -- vscodeMoveLines("up", 20)
