@@ -29,11 +29,10 @@ return {
                 callback = function()
                     vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, {
                         custom_textobjects = {
-                            ['<c-]>'] = spec_pair('{{', '}}'),
                             ['%'] = spec_pair('{%', '%}'),
                             ['-'] = spec_pair('{%-', '-%}'),
                             ['#'] = spec_pair('{#', '#}'),
-                            ['\\'] = { "}()%s-()%S?.-%S?()%s-(){" },
+                            ['\\'] = { "%%}()%s-()%S?.-%S?()%s-(){%%" },
                             ["s"] = {{
                                 {"%b()",  "^.%s-()()SELECT.-()()%s*.$" },
                                 { '""".-"""', "^...%s-()()SELECT.-()()%s*...$"},
@@ -58,6 +57,7 @@ return {
                             [","] = spec_treesitter({ i = "@sql-term-expr", a = "@sql-term-term" }),
                             ["S"] = { {"^[%w_].*", "[^%w_].*"}, "^[^%w_]?[%w_]*%s+[Aa][Ss]%s+%b(),?", "^.()[%w_]-%s+..%s+%(%s*().-()%s*%),?()$"},
                             ["s"] = spec_treesitter({ i = "@sql-select-inner", a = "@sql-select-statement" }),
+                            ['i'] = spec_pair('{{', '}}'),
                         },
                     })
                 end,
@@ -175,17 +175,17 @@ return {
 
                             ["%"] = {
                                 output = { left = "{% ", right = " %}"},
-                                input = {"{%%%-?.-%-?%%}", "^({%%%-?%s*)().-(%s*%-?%%})()"}
+                                input = {"{%%%-?.-%-?%%}", "^{%%%-?%s*().-()%s*%-?%%}$"}
                             },
 
                             ["-"] = {
                                 output = { left = "{%- ", right = " -%}"},
-                                input = {"{%%%-?.-%-?%%}", "^({%%%-?%s*)().-(%s*%-?%%})()"}
+                                input = {"{%%%-?.-%-?%%}", "^{%%%-?%s*().-()%s*%-?%%}$"}
                             },
 
                             ["#"] = {
                                 output = { left = "{# ", right = " #}"},
-                                input = {"{#.-#}", "^({#%s*)().-(%s*#})()"}
+                                input = {"{#.-#}", "^{#%s*().-()%s*#}"}
                             },
 
                             ["c"] = {
@@ -195,7 +195,7 @@ return {
                                         return { left = "CAST(" , right = " AS " .. type .. ")"  }
                                     end
                                 end,
-                                input = {"CAST%(.-%s+AS%s+%w-%)", "^([Cc][Aa][Ss][Tt]%(%s*)().-(%s+[Aa][Ss]%s+%w-%))()$"}
+                                input = {"[Cc][Aa][Ss][Tt]%b()", "^....%(().-()%s+[Aa][Ss]%s+.-%)$"}
                             },
 
                             ["S"] = {
