@@ -1,6 +1,6 @@
 return {
-    'junegunn/fzf.vim',
-    dependencies = { 'junegunn/fzf', 'vim-projectionist' },
+    "ibhagwan/fzf-lua",
+    dependencies = { 'junegunn/fzf', 'vim-projectionist', "nvim-tree/nvim-web-devicons" },
     keys = {
         {"<c-p>", mode = "n"},
         {"<c-p>", mode = "v"},
@@ -16,6 +16,7 @@ return {
         "BCommits", "Commands", "Maps", "Helptags", "Filetypes"
     },
     config = function()
+        require("fzf-lua").setup({ "fzf-vim" })
         require('config/fzf')
     end,
 }

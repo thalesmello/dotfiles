@@ -31,7 +31,7 @@ return {
     },
     {
         'tpope/vim-scriptease',
-        keys = {"g=", modes = {"n", "x"}},
+        keys = {},
         ft = {"vim", "help"},
         cmd = {
             "Messages",
