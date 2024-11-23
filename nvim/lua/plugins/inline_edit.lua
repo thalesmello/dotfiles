@@ -6,9 +6,11 @@ return {
         {'<leader>ie', ':InlineEdit<space><up>', remap = true, mode = "x"}
     },
     config = function ()
-        vim.g.inline_edit_proxy_type = "tempfile"
+        -- require('conditional_load').exec_when({ vscode = true }, function ()
+        --     vim.g.inline_edit_proxy_type = "vscode"
+        -- end)
     end,
     cmd = "InlineEdit",
     firenvim = true,
-    vscode = true,
+    vscode = false,
 }
