@@ -329,7 +329,7 @@ return {
 
             -- Exchange text regions
             exchange = {
-                prefix = '<leader>gx',
+                prefix = 'gx',
 
                 -- Whether to reindent new text to match previous indent
                 reindent_linewise = true,
@@ -353,7 +353,7 @@ return {
 
             -- Sort text
             sort = {
-                prefix = '<leader>gs',
+                prefix = 'gs',
 
                 -- Function which does the sort
                 func = nil,

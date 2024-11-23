@@ -16,6 +16,14 @@ return {
         "BCommits", "Commands", "Maps", "Helptags", "Filetypes"
     },
     config = function()
+        vim.cmd([[
+            augroup fzf-custom
+                autocmd!
+                if has('nvim')
+                    hi NormalFloat ctermfg=LightGrey
+                endif
+            augroup END
+        ]])
         require("fzf-lua").setup({ "fzf-vim" })
         require('config/fzf')
     end,
