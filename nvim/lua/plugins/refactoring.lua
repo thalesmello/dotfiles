@@ -5,6 +5,9 @@ return {
         { "nvim-treesitter/nvim-treesitter" },
     },
     opts = {},
+    keys = {
+        {"<leader>rf", ":Refactor<space>", mode={"n", "x"}},
+    },
     cmd = "Refactor",
     firenvim = true,
     vscode = true,
