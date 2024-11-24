@@ -533,5 +533,14 @@ return {
                 })
             end,
         }
-    }
+    },
+    {
+        'ii14/lsp-command',
+        init = function ()
+            vim.g.lsp_legacy_commands = true
+        end,
+        dependencies = {
+            { "neovim/nvim-lspconfig" },
+        }
+    },
 }
