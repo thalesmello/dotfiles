@@ -12,6 +12,8 @@ else
     else
         filetype=""
     fi
+
+    test "$filetype" = "python" && filetype="py"
 fi
 
 if test -n "$filetype"; then

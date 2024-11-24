@@ -358,6 +358,8 @@ return {
                 -- Function which does the sort
                 func = nil,
             }
-        }
+        },
+        vscode = true,
+        firenvim = true,
     }
 }

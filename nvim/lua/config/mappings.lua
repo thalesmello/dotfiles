@@ -95,8 +95,12 @@ vim.keymap.set("n", "<leader>er", function ()
   vim.api.nvim_create_autocmd("CmdlineEnter", {
     pattern = "*",
     callback = function ()
-      --- @type string
-      local str = 'lua vim.fn.setreg(\'' .. x .. '\', [=[' .. vim.fn.getreg(x) .. "]=])"
+
+      local registerText = vim.fn.getreg(x)
+      -- There a funny bug that causes a sequence to be recorded in the macro when f or t are pressed.
+      -- We remove it in the line below
+      registerText = vim.fn.substitute(registerText, "€ý5", "", "g")
+      local str = 'lua vim.fn.setreg(\'' .. x .. '\', [=[' .. registerText .. "]=])"
       local _, end_idx = str:find('[=[', 1, true)
       vim.fn.setcmdline(str, end_idx + 1)
     end,
