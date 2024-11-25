@@ -4,7 +4,16 @@ return {
         dependencies = {
             { 'michaeljsmith/vim-indent-object' },
             { 'thalesmello/vim-textobj-methodcall' },
-            { 'glts/vim-textobj-comment' },
+            {
+                'glts/vim-textobj-comment',
+                init = function ()
+                    vim.g.textobj_comment_no_default_key_mappings = 1
+                end,
+                config = function ()
+                    vim.keymap.set({ "x", "o" }, 'ac', "<Plug>(textobj-comment-a)", { remap = true })
+                    vim.keymap.set({ "x", "o" }, 'ic', "<Plug>(textobj-comment-i)", { remap = true })
+                end
+            },
             { 'Julian/vim-textobj-variable-segment' },
             { 'kana/vim-textobj-entire' },
             { 'thalesmello/vim-textobj-bracketchunk' },
@@ -48,5 +57,5 @@ return {
         init = function() require('config/textobjectcolumn') end,
         vscode = true,
         firenvim = true,
-}
+    },
 }

@@ -4,50 +4,6 @@
             "complex_modifications": {
                 "rules": [
                     {
-                        "description": "Mouse back click",
-                        "enabled": false,
-                        "manipulators": [
-                            {
-                                "conditions": [
-                                    {
-                                        "identifiers": [{ "is_pointing_device": true }],
-                                        "type": "device_if"
-                                    }
-                                ],
-                                "from": { "pointing_button": "button2" },
-                                "parameters": { "basic.to_if_alone_timeout_milliseconds": 300 },
-                                "to": [
-                                    {
-                                        "set_variable": {
-                                            "key_up_value": 0,
-                                            "name": "right_click_mode",
-                                            "value": 1
-                                        }
-                                    }
-                                ],
-                                "to_if_alone": [{ "pointing_button": "button2" }],
-                                "type": "basic"
-                            },
-                            {
-                                "conditions": [
-                                    {
-                                        "name": "right_click_mode",
-                                        "type": "variable_if",
-                                        "value": 1
-                                    }
-                                ],
-                                "from": { "pointing_button": "button1" },
-                                "to_if_alone": [
-                                    {
-                                        "key_code": "open_bracket",
-                                        "modifiers": ["left_command"]
-                                    }
-                                ],
-                                "type": "basic"
-                            }
-                        ]
-                    },
-                    {
                         "description": "(TrackPoint) Ignore long middle click",
                         "manipulators": [
                             {
