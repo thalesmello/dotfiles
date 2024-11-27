@@ -91,6 +91,8 @@ outer.right =      10
 # end tell'
 # '''
 ctrl-alt-cmd-enter = 'fullscreen'
+ctrl-alt-cmd-m = 'macos-native-minimize'
+
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#layout
 ctrl-alt-cmd-period = 'layout tiles horizontal vertical'
