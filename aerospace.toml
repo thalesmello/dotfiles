@@ -140,27 +140,30 @@ ctrl-alt-cmd-shift-9 = 'move-node-to-workspace --focus-follows-window 9'
 ctrl-alt-cmd-tab = ['workspace --wrap-around next'] # reset layout
 ctrl-alt-cmd-shift-tab = ['workspace --wrap-around prev'] # Toggle between floating and tiling layout
 
+ctrl-alt-cmd-n = ['workspace --wrap-around next'] # reset layout
+ctrl-alt-cmd-p = ['workspace --wrap-around prev'] # Toggle between floating and tiling layout
+ctrl-alt-cmd-shift-n = ['move-node-to-workspace --wrap-around --focus-follows-window next'] # reset layout
+ctrl-alt-cmd-shift-p = ['move-node-to-workspace --wrap-around --focus-follows-window prev'] # Toggle between floating and tiling layout
+
 # See: https://nikitabobko.github.io/AeroSpace/commands#mode
-ctrl-alt-cmd-semicolon = 'mode service'
+ctrl-alt-cmd-space = 'mode service'
 cmd-esc = 'workspace-back-and-forth'
 
 # 'service' binding mode declaration.
 # See: https://nikitabobko.github.io/AeroSpace/guide#binding-modes
 [mode.service.binding]
 enter = ['mode main']
-ctrl-alt-cmd-semicolon = ['workspace-back-and-forth', 'mode main']
+ctrl-alt-cmd-space = ['workspace-back-and-forth', 'mode main']
+space = ['workspace-back-and-forth', 'mode main']
+
 esc = ['reload-config', 'mode main']
 r = ['flatten-workspace-tree', 'mode main'] # reset layout
 f = ['layout floating tiling', 'mode main'] # Toggle between floating and tiling layout
 backspace = ['close-all-windows-but-current', 'mode main']
 tab = ['move-workspace-to-monitor --wrap-around next', 'mode main']
 backtick = ['move-node-to-monitor --wrap-around next', 'mode main']
-n = ['workspace --wrap-around next'] # reset layout
-p = ['workspace --wrap-around prev'] # Toggle between floating and tiling layout
-shift-n = ['move-node-to-workspace --wrap-around --focus-follows-window next'] # reset layout
-shift-p = ['move-node-to-workspace --wrap-around --focus-follows-window prev'] # Toggle between floating and tiling layout
-ctrl-n = ['move-node-to-monitor --wrap-around --focus-follows-window next'] # reset layout
-ctrl-p = ['move-node-to-monitor --wrap-around --focus-follows-window prev'] # Toggle between floating and tiling layout
+ctrl-alt-cmd-n = ['move-node-to-monitor --wrap-around --focus-follows-window next', 'mode main'] # reset layout
+ctrl-alt-cmd-p = ['move-node-to-monitor --wrap-around --focus-follows-window prev', 'mode main'] # Toggle between floating and tiling layout
 equal = ['balance-sizes', 'mode main']
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#move-node-to-workspace
@@ -188,10 +191,10 @@ j = ['focus-monitor down', 'mode main']
 k = ['focus-monitor up', 'mode main']
 l = ['focus-monitor right', 'mode main']
 
-shift-h = ['move-node-to-monitor left', 'mode main']
-shift-j = ['move-node-to-monitor down', 'mode main']
-shift-k = ['move-node-to-monitor up', 'mode main']
-shift-l = ['move-node-to-monitor right', 'mode main']
+shift-h = ['move-node-to-monitor --focus-follows-window left', 'mode main']
+shift-j = ['move-node-to-monitor --focus-follows-window down', 'mode main']
+shift-k = ['move-node-to-monitor --focus-follows-window up', 'mode main']
+shift-l = ['move-node-to-monitor --focus-follows-window right', 'mode main']
 
 
 # Window detected events
