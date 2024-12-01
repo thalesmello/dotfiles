@@ -137,8 +137,7 @@ ctrl-alt-cmd-shift-8 = 'move-node-to-workspace --focus-follows-window 8'
 ctrl-alt-cmd-shift-9 = 'move-node-to-workspace --focus-follows-window 9'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#workspace-back-and-forth
-ctrl-alt-cmd-tab = ['workspace --wrap-around next'] # reset layout
-ctrl-alt-cmd-shift-tab = ['workspace --wrap-around prev'] # Toggle between floating and tiling layout
+ctrl-alt-cmd-tab = ['exec-and-forget aerospace focus-back-and-forth && aerospace fullscreen on || aerospace workspace-back-and-forth'] # reset layout
 
 ctrl-alt-cmd-n = ['workspace --wrap-around next'] # reset layout
 ctrl-alt-cmd-p = ['workspace --wrap-around prev'] # Toggle between floating and tiling layout

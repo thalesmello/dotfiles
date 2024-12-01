@@ -1,18 +1,18 @@
 return {
-   "andrewferrier/debugprint.nvim",
+   "thalesmello/debugprint.nvim",
    opts = {
       keymaps = {
          normal = {
-            plain_below = "g?p",
-            plain_above = "g?P",
-            variable_below = "g?v",
-            variable_above = "g?V",
-            variable_below_alwaysprompt = nil,
-            variable_above_alwaysprompt = nil,
-            textobj_below = "g?o",
-            textobj_above = "g?O",
-            toggle_comment_debug_prints = nil,
-            delete_debug_prints = nil,
+            plain_below = "g.",
+            plain_above = '',
+            variable_below = 'g?',
+            variable_above = '',
+            variable_below_alwaysprompt = '',
+            variable_above_alwaysprompt = '',
+            textobj_below = "g/",
+            textobj_above = '',
+            toggle_comment_debug_prints = '',
+            delete_debug_prints = '',
          },
 
          insert = {
@@ -21,8 +21,8 @@ return {
          },
 
          visual = {
-            variable_below = "g?v",
-            variable_above = "g?V",
+            variable_below = "g?",
+            variable_above = '',
          },
       },
 
