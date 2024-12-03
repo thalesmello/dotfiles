@@ -43,7 +43,7 @@ key-mapping.preset = 'qwerty'
 # See https://nikitabobko.github.io/AeroSpace/commands#move-mouse
 # Fallback value (if you omit the key): on-focused-monitor-changed = []
 on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
-on-focus-changed = ['move-mouse window-lazy-center']
+# on-focus-changed = ['move-mouse window-lazy-center']
 # exec-on-workspace-change = ['/opt/homebrew/bin/fish', '-c', 'chrome-pip-ws-change.sh']
 
 # Gaps between windows (inner-*) and between monitor edges (outer-*).
@@ -91,6 +91,7 @@ outer.right =      10
 # end tell'
 # '''
 ctrl-alt-cmd-enter = 'fullscreen'
+ctrl-alt-cmd-backtick = 'fullscreen'
 ctrl-alt-cmd-m = 'macos-native-minimize'
 
 
