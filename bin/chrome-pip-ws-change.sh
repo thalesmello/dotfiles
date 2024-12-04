@@ -6,7 +6,7 @@ IFS=$'\n' all_wins=$(aerospace list-windows --all --format '%{window-id}|%{app-n
 IFS=$'\n' all_ws=$(aerospace list-workspaces --all --format '%{workspace}|%{monitor-id}')
 
 chrome_pip=$(printf '%s\n' $all_wins | rg 'Picture in Picture')
-target_mon=$(printf '%s\n' $all_ws | rg "$ws" | cut -d'|' -f2 | xargs)
+target_mon=$(printf '%s\n' $all_ws | rg "^$ws" | cut -d'|' -f2 | xargs)
 
 move_win() {
   local win="$1"
