@@ -5,11 +5,11 @@ ws=${1:-$AEROSPACE_FOCUSED_WORKSPACE}
 IFS=$'\n' all_wins=$(aerospace list-windows --all --format '%{window-id}|%{app-name}|%{window-title}|%{monitor-id}|%{workspace}')
 IFS=$'\n' all_ws=$(aerospace list-workspaces --all --format '%{workspace}|%{monitor-id}')
 
-chrome_pip=$(printf '%s\n' $all_wins | rg 'Picture in Picture')
 target_mon=$(printf '%s\n' $all_ws | rg "^$ws" | cut -d'|' -f2 | xargs)
 
 move_win() {
-  local win="$1"
+  local filter="$1"
+  local win="$(printf '%s\n' $all_wins | rg "$filter")"
 
   [[ -n $win ]] || return 0
 
@@ -24,4 +24,8 @@ move_win() {
   aerospace move-node-to-workspace --window-id $win_id $ws
 }
 
-move_win "${chrome_pip}"
+# YouTube Picture in Picture
+move_win 'Picture in Picture'
+
+# Google Meet Window
+move_win 'about:blank - Thales (Personal)'

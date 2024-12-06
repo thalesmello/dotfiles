@@ -90,7 +90,7 @@ outer.right =      10
 #     activate
 # end tell'
 # '''
-ctrl-alt-cmd-enter = 'fullscreen'
+# ctrl-alt-cmd-enter = 'fullscreen'
 ctrl-alt-cmd-backtick = 'fullscreen'
 ctrl-alt-cmd-m = 'macos-native-minimize'
 
@@ -100,16 +100,16 @@ ctrl-alt-cmd-period = 'layout tiles horizontal vertical'
 ctrl-alt-cmd-comma = 'layout accordion horizontal vertical'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#focus
-ctrl-alt-cmd-h = 'focus --boundaries all-monitors-outer-frame --ignore-floating left'
-ctrl-alt-cmd-j = 'focus --boundaries all-monitors-outer-frame --ignore-floating down'
-ctrl-alt-cmd-k = 'focus --boundaries all-monitors-outer-frame --ignore-floating up'
-ctrl-alt-cmd-l = 'focus --boundaries all-monitors-outer-frame --ignore-floating right'
+ctrl-alt-cmd-h = ['focus --boundaries all-monitors-outer-frame --ignore-floating left', 'move-mouse window-lazy-center']
+ctrl-alt-cmd-j = ['focus --boundaries all-monitors-outer-frame --ignore-floating down', 'move-mouse window-lazy-center']
+ctrl-alt-cmd-k = ['focus --boundaries all-monitors-outer-frame --ignore-floating up', 'move-mouse window-lazy-center']
+ctrl-alt-cmd-l = ['focus --boundaries all-monitors-outer-frame --ignore-floating right', 'move-mouse window-lazy-center']
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#move
-ctrl-alt-cmd-shift-h = 'move left'
-ctrl-alt-cmd-shift-j = 'move down'
-ctrl-alt-cmd-shift-k = 'move up'
-ctrl-alt-cmd-shift-l = 'move right'
+ctrl-alt-cmd-shift-h = ['move left']
+ctrl-alt-cmd-shift-j = ['move down']
+ctrl-alt-cmd-shift-k = ['move up']
+ctrl-alt-cmd-shift-l = ['move right']
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#resize
 ctrl-alt-cmd-minus = 'resize smart -100'
