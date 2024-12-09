@@ -16,7 +16,6 @@ ln -s $(pwd)/hammerspoon ~/.hammerspoon
 ln -s $(pwd)/R ~/.R
 ln -s $(pwd)/ideavimrc ~/.ideavimrc
 ln -s $(pwd)/finicky.js ~/.finicky.js
-ln -s $(pwd)/btt_autoload_preset.json ~/.btt_autoload_preset.json
 ln -s $(pwd)/aerospace.toml ~/.aerospace.toml
 ln -s $(pwd)/fish ~/.config/fish
 ln -s $(pwd)/nvim ~/.config/nvim
