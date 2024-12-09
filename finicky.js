@@ -1,7 +1,7 @@
 const work_apps = ["Slack", "zoom.us", "iTerm2", "Workplace Chat", "Metamate"]
 const personal_apps = ["WhatsApp"]
 const personal_websites = ["youtube.com", "facebook.com"]
-const work_websites = ["internalfb.com"]
+const work_websites = ["internalfb.com", "fburl.com"]
 
 class Rule {
   constructor (props) {
