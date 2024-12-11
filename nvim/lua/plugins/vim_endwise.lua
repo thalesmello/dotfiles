@@ -5,5 +5,4 @@ return {
         {"windwp/nvim-autopairs"}
     },
     firenvim = true,
-    vscode = true,
 }
