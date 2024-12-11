@@ -223,6 +223,8 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
     vim.keymap.set("n", "<leader>9", function () vscode.action('vscode-harpoon.gotoEditor9') end)
 
     vim.keymap.set("n", "-", function () vscode.action('workbench.files.action.showActiveFileInExplorer') end)
+    vim.keymap.set("n", "[c", function () vscode.action('editor.action.accessibleDiffViewer.prev') end)
+    vim.keymap.set("n", "]c", function () vscode.action('editor.action.accessibleDiffViewer.next') end)
 
     vim.keymap.set("n", "<leader><tab>", vscodeAlternateFile)
   end,
