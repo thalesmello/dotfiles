@@ -1,7 +1,7 @@
 return {
     { 'tpope/vim-eunuch', event = 'VeryLazy'},
     { 'tpope/vim-repeat', firenvim = true, vscode = true },
-    { 'tpope/vim-abolish', keys = {"cr"}, cmd = {"Abolish", "Subvert"}},
+    { 'tpope/vim-abolish', keys = {"cr"}, cmd = {"Abolish", "Subvert", "S"}},
     {
         'tpope/vim-sleuth',
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },

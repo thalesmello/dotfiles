@@ -50,7 +50,9 @@ return {
                     vim.keymap.set("o", "a,", "<Plug>Argumentative_OpPendingOuterTextObject", { buffer = true, remap = true })
                 end,
             })
-        end
+        end,
+        firenvim = true,
+        vscode = true,
     },
     {
         'coderifous/textobj-word-column.vim',

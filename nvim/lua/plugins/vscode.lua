@@ -16,7 +16,7 @@ local function inferMoveKey(direction)
     else
       return "g" .. direction
     end
-   end
+  end
 end
 
 local function vscodeMoveLines(toDirection, moveLines)
@@ -89,6 +89,59 @@ local function vscodeMoveLines(toDirection, moveLines)
   vscode_internal.scroll_viewport(range.start_line, range.end_line)
 end
 
+
+local function vscodeOpenFile(files)
+  vscode.eval([[
+    var root = vscode.workspace.workspaceFolders[0].uri
+    var fileUri
+
+    for (let file of args.files) {
+        console.log(file)
+        var fileUri = vscode.Uri.joinPath(root, file)
+        try {
+            await vscode.workspace.fs.stat(fileUri);
+            // File exists, so we open it
+            await vscode.commands.executeCommand("vscode.open", fileUri)
+        } catch {
+            // File doesn't exist, so we continue to the next one
+        }
+    }
+  ]], { args = { files = files }})
+end
+
+local function vscodeGetProjection(file)
+  local projections = vim.g.vscode_projections
+  for projection, config in pairs(projections) do
+    local capture_group_projection = vim.pesc(projection):gsub("%%%*", "(.-)")
+    local entity = file:match(capture_group_projection)
+
+    if entity ~= nil then
+      return entity, config
+    end
+  end
+
+  return nil, nil
+end
+
+local function vscodeAlternateFile()
+  local current_file = vim.fn.expand("%")
+  local entity, config = vscodeGetProjection(current_file)
+
+  if entity ~= nil then
+    local alternate = config.alternate
+
+    local files = vim.iter(alternate):map(function (item)
+      local str = item:gsub("{}", entity)
+      return str
+    end):totable()
+
+    vscodeOpenFile(files)
+    return
+  end
+end
+
+vim.api.nvim_create_user_command("A", vscodeAlternateFile, {})
+
 local group = vim.api.nvim_create_augroup('VsCodeAugroup', { clear = true })
 
 vim.api.nvim_create_autocmd({ 'CursorHold' }, {
@@ -128,7 +181,7 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
 
     vim.keymap.set({ "n" }, "<c-t>", function () vscode.action('workbench.action.navigateBackInEditLocations') end)
     vim.keymap.set("n", "<c-f>", function () vscode.action('workbench.action.findInFiles') end)
-    vim.keymap.set("n", "<leader>/", "viw<cmd>lua require('vscode').action('workbench.action.findInFiles')<cr>")
+    vim.keymap.set("n", "<leader>/", "viw<cmd>lua vscode.action('workbench.action.findInFiles')<cr>")
 
     vim.keymap.set("v", "<leader>/", function ()
       vscode.action('workbench.action.findInFiles')
@@ -155,6 +208,23 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
 
 
     vim.keymap.set("n", "<leader>.", function () vscode.action('editor.action.quickFix') end)
+
+    vim.keymap.set("n", "<leader>a", function () vscode.action('vscode-harpoon.addEditor') end)
+    vim.keymap.set("n", "<leader>q", function () vscode.action('vscode-harpoon.editEditors') end)
+    vim.keymap.set("n", "<leader>e<space>", function () vscode.action('vscode-harpoon.editorQuickPick') end)
+    vim.keymap.set("n", "<leader>1", function () vscode.action('vscode-harpoon.gotoEditor1') end)
+    vim.keymap.set("n", "<leader>2", function () vscode.action('vscode-harpoon.gotoEditor2') end)
+    vim.keymap.set("n", "<leader>3", function () vscode.action('vscode-harpoon.gotoEditor3') end)
+    vim.keymap.set("n", "<leader>4", function () vscode.action('vscode-harpoon.gotoEditor4') end)
+    vim.keymap.set("n", "<leader>5", function () vscode.action('vscode-harpoon.gotoEditor5') end)
+    vim.keymap.set("n", "<leader>6", function () vscode.action('vscode-harpoon.gotoEditor6') end)
+    vim.keymap.set("n", "<leader>7", function () vscode.action('vscode-harpoon.gotoEditor7') end)
+    vim.keymap.set("n", "<leader>8", function () vscode.action('vscode-harpoon.gotoEditor8') end)
+    vim.keymap.set("n", "<leader>9", function () vscode.action('vscode-harpoon.gotoEditor9') end)
+
+    vim.keymap.set("n", "-", function () vscode.action('workbench.files.action.showActiveFileInExplorer') end)
+
+    vim.keymap.set("n", "<leader><tab>", vscodeAlternateFile)
   end,
 })
 

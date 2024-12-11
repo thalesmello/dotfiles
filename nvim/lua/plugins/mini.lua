@@ -359,6 +359,11 @@ return {
                 func = nil,
             }
         },
+        config = function (_, opts)
+            require("mini.operators").setup(opts)
+
+            vim.keymap.set("n", "<leader>gp", '"+gp', { remap = true })
+        end,
         vscode = true,
         firenvim = true,
     }
