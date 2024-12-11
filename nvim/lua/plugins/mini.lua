@@ -56,6 +56,8 @@ return {
                     goto("right")
                 end)
 
+            end
+
             local group = vim.api.nvim_create_augroup("MiniAiBufferGroup", { clear = true })
 
             vim.api.nvim_create_autocmd({ 'FileType' }, {
