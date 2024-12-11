@@ -15,7 +15,7 @@ return {
                     -- [";"] = spec_treesitter({ a = "@pair.value", i = "" }),
                     -- [":"] = spec_treesitter({ a = "@pair.key", i = "" }),
                     ["C"] = spec_treesitter({ i = "@class.inner", a = "@class.outer" }),
-                    ['.'] = { "%S()%s+()[%a_][a-zA-Z0-9_%.]*(),?()[^,]" },
+                    ['.'] = { { "[^a-zA-Z0-9_%.]%s*[%a_][a-zA-Z0-9_%.]*,?", "^%s*()[%a_][a-zA-Z0-9_%.]*,?" }, "^[^a-zA-Z0-9_%.]?()%s*()[%a_][a-zA-Z0-9_%.]*(),?()$" },
                 },
                 search_method = "cover_or_next",
                 n_lines = 1000,

@@ -60,6 +60,8 @@ vim.keymap.set("n", "<leader><leader>", "<c-^>", { noremap = true })
 vim.keymap.set("n", "<leader>o", function ()
     return vim.deep_equal(vim.fn.getpos('.'), vim.fn.getpos("']")) and "`[" or "`]"
   end, { noremap = true, expr = true })
+vim.keymap.set("n", "<leader>*", "*#", { remap=true })
+vim.keymap.set("x", "<leader>*", "*N", { remap=true })
 vim.keymap.set("x", "<leader>c*", "*Ncgn", { remap=true })
 vim.keymap.set("n", "c*", "*Ncgn")
 -- vim.keymap.set("n", "<leader>a", "ea")
