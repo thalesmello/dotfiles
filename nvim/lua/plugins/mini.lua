@@ -9,6 +9,11 @@ return {
             local spec_treesitter = require('mini.ai').gen_spec.treesitter
 
             require('mini.ai').setup({
+
+                mappings = {
+                    goto_left = '<Plug>(mini-ai-goto-left)',
+                    goto_right = '<Plug>(mini-ai-goto-right)',
+                },
                 custom_textobjects = {
                     ["f"] = { '%f[%w_%.][%w_%.]+%b()', '^.-%(().*()%)$' },
                     ["F"] = spec_treesitter({ a = "@function.outer", i = "@function.inner" }),
@@ -20,6 +25,36 @@ return {
                 search_method = "cover_or_next",
                 n_lines = 1000,
             })
+
+            local repeatable_ok, ts_repeat_move = pcall(require, "nvim-treesitter.textobjects.repeatable_move")
+            local vim_utils = require('vim_utils')
+
+            if repeatable_ok then
+                local function goto(direction)
+                    local ok, char = pcall(vim.fn.getcharstr)
+                    if not ok or char == '\27' then return nil end
+                    local moveLeft, moveRight = ts_repeat_move.make_repeatable_move_pair(
+                        function ()
+                            vim_utils.feedkeys("<Plug>(mini-ai-goto-left)" .. char)
+                        end,
+                        function ()
+                            vim_utils.feedkeys("<Plug>(mini-ai-goto-right)" .. char)
+                        end
+                    )
+
+                    if direction == "left" then
+                        moveLeft()
+                    else
+                        moveRight()
+                    end
+                end
+
+                vim.keymap.set({ "n", "x" }, "g[", function ()
+                    goto("left")
+                end)
+                vim.keymap.set({ "n", "x" }, "g]", function ()
+                    goto("right")
+                end)
 
             local group = vim.api.nvim_create_augroup("MiniAiBufferGroup", { clear = true })
 
