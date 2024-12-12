@@ -31,6 +31,10 @@ return {
 
                     local capabilities = client.server_capabilities
 
+                    if capabilities == nil then
+                        return
+                    end
+
                     local  mapCapability = function(cond, mode, key, cmd)
                         if cond then
                             vim.keymap.set(mode, key, cmd, opts)
@@ -207,10 +211,13 @@ return {
                 },
             }
         end,
-        config = function (_, opts)
+        extra_contexts = {"firenvim"},
+    },
+    {
+        'hrsh7th/cmp-cmdline',
+        dependencies = {'hrsh7th/nvim-cmp'},
+        config = function ()
             local cmp = require('cmp')
-
-            cmp.setup(opts)
 
             local cmdMoved = true
 
@@ -250,15 +257,6 @@ return {
                 end,
             })
 
-            -- `/` cmdline setup.
-            cmp.setup.cmdline('/', {
-                sources = {
-                    { name = 'buffer' },
-                },
-                view = {
-                    entries = "custom",
-                }
-            })
 
             -- `:` cmdline setup.
             cmp.setup.cmdline(':', {
@@ -293,14 +291,25 @@ return {
                                 ignore_cmds = { 'Man', '!', 'Shdo' }
                             }
                         },
-                    }),
+                    }
+                ),
+                view = {
+                    entries = "custom",
+                },
+            })
+
+            -- `/` cmdline setup.
+            cmp.setup.cmdline('/', {
+                sources = {
+                    { name = 'buffer' },
+                },
                 view = {
                     entries = "custom",
                 }
             })
-
         end,
-        extra_contexts = {"firenvim"},
+
+        extra_contexts = {"firenvim"}
     },
     {
         'dcampos/nvim-snippy',

@@ -24,7 +24,27 @@ function CompleteAg(A)
         return A
   end
 
-  return vim.fn.split(vim.fn.system("ag -o " .. vim.fn.shellescape([[\b\w*]] .. A .. [[\w*\b]]) .. [[ | cut -d":" -f3- | sort | uniq -c | sort -k1,1 -n -r | awk "{ print \$2 }"]]), "\n")
+  local ag_cmd = "ag -o " .. vim.fn.shellescape([[\b\w*]] .. A .. [[\w*\b]])
+
+  local output = vim.fn.split(
+    vim.system({
+      "ag",
+      "-o",
+      [[\b\w*]] .. A .. [[\w*\b]],
+    }, {text=true}):wait().stdout,
+    "\n"
+  )
+
+  local completions = vim.iter(output)
+    :map(function (line)
+      return line:match("^[^:]*:[^:]*:(.-)$")
+    end)
+    :fold({}, function (acc, line)
+      acc[line] = 1
+      return acc
+    end)
+
+  return vim.tbl_keys(completions)
 end
 
 vim.api.nvim_create_user_command("Ag", function(opts)
