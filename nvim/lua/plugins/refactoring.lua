@@ -1,7 +1,10 @@
 return {
     'ThePrimeagen/refactoring.nvim',
     dependencies = {
-        { "nvim-lua/plenary.nvim", vscode = true, firenvim = true },
+        {
+            "nvim-lua/plenary.nvim",
+            extra_contexts = {"vscode", "firenvim"}
+        },
         { "nvim-treesitter/nvim-treesitter" },
     },
     opts = {},
@@ -9,6 +12,5 @@ return {
         {"<leader>rf", ":Refactor<space>", mode={"n", "x"}},
     },
     cmd = "Refactor",
-    firenvim = true,
-    vscode = true,
+    extra_contexts = {"vscode", "firenvim"}
 }

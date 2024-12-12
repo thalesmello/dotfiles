@@ -11,6 +11,5 @@ return {
         -- end)
     end,
     cmd = "InlineEdit",
-    firenvim = true,
-    vscode = false,
+    extra_contexts = {"firenvim"}
 }

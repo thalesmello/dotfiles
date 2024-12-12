@@ -7,6 +7,5 @@ return {
         {"ga", "<Plug>(EasyAlign)", mode = {"n", "x"}}
     },
     cmd = {"EasyAlign"},
-    firenvim = true,
-    vscode = true,
+    extra_contexts = {"vscode", "firenvim"}
 }

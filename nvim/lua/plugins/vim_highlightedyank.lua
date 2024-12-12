@@ -1,7 +1,8 @@
 return {
     'machakann/vim-highlightedyank',
-    config = function() require('config/highlightedyank') end,
+    config = function()
+        vim.g.highlightedyank_highlight_duration = 200
+    end,
     event = "TextYankPost",
-    firenvim = true,
-    vscode = true,
+    extra_contexts = {"vscode", "firenvim"}
 }

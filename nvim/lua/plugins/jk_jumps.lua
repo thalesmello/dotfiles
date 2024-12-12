@@ -5,6 +5,6 @@ return {
         config = function ()
             require('jk_jumps')
         end,
-        firenvim = true,
+        extra_contexts = {"firenvim"}
     },
 }

@@ -22,6 +22,5 @@ return {
       vim.keymap.set("n", "[h", function() harpoon:list():prev() end)
       vim.keymap.set("n", "]h", function() harpoon:list():next() end)
    end,
-   vscode = true
-
+   extra_contexts = {"vscode"}
 }

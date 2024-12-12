@@ -9,8 +9,7 @@ return {
             vim.keymap.set('n', '<leader>gS', '<Cmd>SplitjoinSplit<CR>', { silent = true, desc = "Split structure" })
             vim.keymap.set('n', '<leader>gJ', '<Cmd>SplitjoinJoin<CR>', { silent = true, desc = "Join structure" })
         end,
-        vscode = true,
-        firenvim = true,
+        extra_contexts = {"vscode", "firenvim"}
     },
     {
         'Wansmer/treesj',
@@ -23,7 +22,6 @@ return {
         end,
         keys = { "gS", "gJ" },
         cmd = {"TSJSplit", "TSJJoin"},
-        vscode = true,
-        firenvim = true,
+        extra_contexts = {"vscode", "firenvim"}
     },
 }

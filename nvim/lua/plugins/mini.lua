@@ -2,8 +2,7 @@ return {
     {
         'echasnovski/mini.ai',
         version = false,
-        vscode = true,
-        firenvim = true,
+        extra_contexts = {"vscode", "firenvim"},
         config = function()
             local spec_pair = require('mini.ai').gen_spec.pair
             local spec_treesitter = require('mini.ai').gen_spec.treesitter
@@ -141,8 +140,7 @@ return {
     {
         "thalesmello/mini.surround",
         version = false,
-        vscode = true,
-        firenvim = true,
+        extra_contexts = {"vscode", "firenvim"},
         config = function ()
             local surround = require('mini.surround')
             surround.setup({
@@ -401,7 +399,6 @@ return {
 
             vim.keymap.set("n", "<leader>gp", '"+gp', { remap = true })
         end,
-        vscode = true,
-        firenvim = true,
+        extra_contexts = {"vscode", "firenvim"},
     }
 }

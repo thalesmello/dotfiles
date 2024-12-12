@@ -12,5 +12,5 @@ return {
         },
     },
     event = { "BufReadPost", "BufNewFile", "BufFilePost" },
-    firenvim = true,
+    extra_contexts = {"firenvim"},
 }

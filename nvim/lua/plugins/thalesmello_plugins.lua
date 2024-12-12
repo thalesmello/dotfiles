@@ -1,7 +1,11 @@
 return {
     { 'thalesmello/gitignore', event = "VeryLazy" },
     { 'thalesmello/lkml.vim', ft = 'lkml' },
-    { 'thalesmello/tabmessage.vim', cmd = "TabMessage", firenvim = true },
+    {
+        'thalesmello/tabmessage.vim',
+        cmd = "TabMessage",
+        extra_contexts = {"firenvim"}
+    },
     {
         'thalesmello/persistent.vim',
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
@@ -12,7 +16,7 @@ return {
         init = function()
             vim.g.tabfold_enforce_forward_or_toggle_fold = 1
         end,
-        firenvim = true,
+        extra_contexts = {"firenvim"},
     }
     -- { 'thalesmello/webcomplete.vim', cond = vim.fn.has('macunix' ) },
 }

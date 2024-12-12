@@ -1,13 +1,24 @@
 return {
     { 'tpope/vim-eunuch', event = 'VeryLazy'},
-    { 'tpope/vim-repeat', firenvim = true, vscode = true },
+    {
+        'tpope/vim-repeat',
+        extra_contexts = {"vscode", "firenvim"}
+    },
     { 'tpope/vim-abolish', keys = {"cr"}, cmd = {"Abolish", "Subvert", "S"}},
     {
         'tpope/vim-sleuth',
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     },
-    { 'tpope/vim-rsi', event = {"CmdlineEnter", "InsertEnter"}, firenvim = true, vscode = true },
-    { 'tpope/vim-unimpaired', event = "VeryLazy", firenvim = true },
+    {
+        'tpope/vim-rsi',
+        event = {"CmdlineEnter", "InsertEnter"},
+        extra_contexts = {"vscode", "firenvim"}
+    },
+    {
+        'tpope/vim-unimpaired',
+        event = "VeryLazy",
+        extra_contexts = {"firenvim"}
+    },
     {
         'tpope/vim-apathy',
         ft = {
@@ -39,6 +50,6 @@ return {
             "Scriptnames",
             "Verbose",
         },
-        firenvim = true,
+        extra_contexts = {"firenvim"}
     }
 }

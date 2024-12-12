@@ -200,8 +200,7 @@ return {
                 vim.cmd.edit(config .. "/after/queries/" .. vim.fn.expand("%:e") .. '/textobjects.scm')
             end)
         end,
-        vscode = true,
-        firenvim = true,
+        extra_contexts = {"vscode", "firenvim"},
         lazy = false,
     },
     {

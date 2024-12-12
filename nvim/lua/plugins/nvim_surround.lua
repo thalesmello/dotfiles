@@ -6,6 +6,5 @@ return {
     },
     config = function() require('config/surround') end,
     cond = false,
-    vscode = true,
-    firenvim = true,
+    extra_contexts = {"vscode", "firenvim"}
 }

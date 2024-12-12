@@ -28,8 +28,7 @@ return {
                 },
             }
         end,
-        vscode = true,
-        firenvim = true,
+    extra_contexts = {"vscode", "firenvim"}
     },
     {
         'AndrewRadev/switch.vim',
@@ -64,7 +63,6 @@ return {
                 end,
             })
         end,
-        vscode = true,
-        firenvim = true,
+        extra_contexts = {"vscode", "firenvim"}
     }
 }

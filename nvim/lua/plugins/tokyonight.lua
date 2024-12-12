@@ -8,6 +8,5 @@ return {
         vim.opt.background = "dark"
         vim.cmd.colorscheme("tokyonight")
     end,
-    vscode = true,
-    firenvim = true,
+    extra_contexts = {"vscode", "firenvim"}
 }

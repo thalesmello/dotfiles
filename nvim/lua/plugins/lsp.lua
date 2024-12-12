@@ -84,7 +84,7 @@ return {
                 end
             end,
         },
-        firenvim = true,
+        extra_contexts = {"firenvim"},
     }),
     {
         'hrsh7th/nvim-cmp',
@@ -214,7 +214,7 @@ return {
 
             local cmdMoved = true
 
-            function string_difference(old, new)
+            local function string_difference(old, new)
                 for i = 1,#new do --Loop over strings
                     if new:sub(i,i) ~= old:sub(i,i) then --If that character is not equal to it's counterpart
                         return i --Return that index
@@ -300,7 +300,7 @@ return {
             })
 
         end,
-        firenvim = true,
+        extra_contexts = {"firenvim"},
     },
     {
         'dcampos/nvim-snippy',
@@ -357,7 +357,7 @@ return {
             { 'honza/vim-snippets' },
         },
         lazy = false,
-        firenvim = true,
+        extra_contexts = {"firenvim"},
     },
     {
         'williamboman/mason.nvim',
@@ -427,7 +427,7 @@ return {
         keys = {
             {"g%", "<cmd>Format<cr>", mode = "n"},
         },
-        firenvim = true,
+        extra_contexts = {"firenvim"},
     },
     {
         'williamboman/mason-lspconfig.nvim',

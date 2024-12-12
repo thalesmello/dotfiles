@@ -1,5 +1,5 @@
 return {
     'AndrewRadev/linediff.vim',
     cmd = {"Linediff", "LinediffMerge"},
-    firenvim = true,
+    extra_contexts = {"firenvim"}
 }

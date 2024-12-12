@@ -20,8 +20,7 @@ return {
             -- Only works vim treesitter syntax, doesn't work with Tree sitter yet
             -- { 'thalesmello/vim-textobj-multiline-str' },
         },
-        vscode = true,
-        firenvim = true,
+        extra_contexts = {"vscode", "firenvim"}
     },
     {
         "PeterRincker/vim-argumentative",
@@ -51,13 +50,11 @@ return {
                 end,
             })
         end,
-        firenvim = true,
-        vscode = true,
+        extra_contexts = {"vscode", "firenvim"}
     },
     {
         'coderifous/textobj-word-column.vim',
         init = function() require('config/textobjectcolumn') end,
-        vscode = true,
-        firenvim = true,
+        extra_contexts = {"vscode", "firenvim"}
     },
 }

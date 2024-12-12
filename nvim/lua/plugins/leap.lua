@@ -43,6 +43,5 @@ return {
             paste_on_remote_yank = false,
         }
     end,
-    vscode = true,
-    firenvim = true,
+    extra_contexts = {"vscode", "firenvim"}
 }
