@@ -48,3 +48,6 @@ snippet au "Autocommand"
             $VISUAL$0
         end,
     })
+
+snippet r "require module" b
+    local ${2:${1/[.\/]/_/g} = require("${1:module}}")$0

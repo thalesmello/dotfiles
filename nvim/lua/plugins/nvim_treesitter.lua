@@ -1,3 +1,5 @@
+local vim_utils = require("vim_utils")
+
 return {
     {
         'nvim-treesitter/nvim-treesitter',
@@ -167,18 +169,18 @@ return {
             require('nvim-treesitter.configs').setup(opts)
 
             local group = vim.api.nvim_create_augroup("TreesitterAutogroup", {
-               clear = true
+                clear = true
             })
 
             for _, lang in ipairs({"python"}) do
-               vim.api.nvim_create_autocmd({ 'FileType' }, {
-                  group = group,
-                  pattern = lang,
-                  callback = function()
-                     vim.opt_local.foldmethod = "expr"
-                     vim.opt_local.foldexpr = "nvim_treesitter#foldexpr()"
-                  end,
-               })
+                vim.api.nvim_create_autocmd({ 'FileType' }, {
+                    group = group,
+                    pattern = lang,
+                    callback = function()
+                        vim.opt_local.foldmethod = "expr"
+                        vim.opt_local.foldexpr = "nvim_treesitter#foldexpr()"
+                    end,
+                })
             end
 
             local ts_repeat_move = require("nvim-treesitter.textobjects.repeatable_move")
@@ -230,4 +232,23 @@ return {
             },
         }
     },
+
+    vim_utils.injector_module({
+        'RRethy/nvim-treesitter-textsubjects',
+        injectable_opts = {
+            "nvim-treesitter/nvim-treesitter",
+            opts = {
+                textsubjects = {
+                    enable = true,
+                    prev_selection = '<bs>', -- (Optional) keymap to select the previous selection
+                    keymaps = {
+                        ['<cr>'] = 'textsubjects-smart',
+                        ['a<cr>'] = 'textsubjects-container-outer',
+                        ['i<cr>'] = { 'textsubjects-container-inner', desc = "Select inside containers (classes, functions, etc.)" },
+                    },
+                }
+            },
+        },
+        extra_contexts = {"vscode", "firenvim"}
+    })
 }
