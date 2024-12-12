@@ -1,22 +1,16 @@
+local vim_utils = require('vim_utils')
 return {
-   {
+   vim_utils.injector_module({
       "andymass/vim-matchup",
-      firenvim = true,
-   },
-   {
-      "nvim-treesitter/nvim-treesitter",
-      opts = function(_, opts)
-         return vim.tbl_deep_extend('force', opts or {}, {
+      injectable_opts = {
+         "nvim-treesitter/nvim-treesitter",
+         opts = {
             matchup = {
                enable = true,
                disable = {},
             }
-         })
-      end,
-      dependencies = {
-         'andymass/vim-matchup',
+         }
       },
-      optional = true,
-      firenvim = true,
-   },
+      extra_contexts = {"firenvim"}
+   }),
 }

@@ -91,6 +91,77 @@ endfunction
     return name
 end
 
+local function injector_module(spec)
+    local parent_module = spec[1]
+
+    local injectable_opts = spec.injectable_opts or {}
+    local extra_contexts = spec.extra_contexts
+    spec.injectable_opts = nil
+
+    if #injectable_opts >= 1 and type(injectable_opts[1]) == "string" then
+        injectable_opts = {injectable_opts}
+    end
+
+    local injected_modules = vim.iter(injectable_opts)
+        :map(function(injectable)
+            local new_opts = injectable.opts
+
+            return vim.tbl_deep_extend('force', injectable, {
+                optional = true,
+                dependencies = { parent_module },
+                extra_contexts = extra_contexts,
+                opts = function (...)
+                    local args = {...}
+                    local opts = args[2]
+                    if type(new_opts) == "function" then
+                        local ret_opts = new_opts(...)
+
+                        if ret_opts ~= nil then
+                            opts = ret_opts
+                        end
+                    else
+                        opts = vim.tbl_deep_extend('force', opts or {}, new_opts)
+                    end
+
+                    return opts
+                end
+            })
+        end)
+        :totable()
+
+    return { spec, unpack(injected_modules) }
+end
+
+local function tbl_set(tbl, ...)
+    local args = { ... }
+    local value = args[#args]
+    args[#args] = nil
+
+    local cur = value
+    for i=#args,1,-1 do
+        cur = { [args[i]] = cur }
+    end
+
+    local new_tbl = vim.tbl_deep_extend("force", tbl, cur)
+
+    for k, v in pairs(new_tbl) do
+        tbl[k] = v
+    end
+
+    return tbl
+end
+
+local function deep_list_extend(tbl, ...)
+    local args = {...}
+    local items_to_add = args[#args]
+    args[#args] = nil
+
+    local old_list = vim.tbl_get(tbl, unpack(args)) or {}
+
+    args[#args + 1] = vim.list_extend(old_list, items_to_add)
+    return tbl_set(tbl, unpack(args))
+end
+
 return {
     get_visual_selection = get_visual_selection,
     keycodes = keycodes,
@@ -99,4 +170,7 @@ return {
     concat_array = concat_array,
     temporary_highlight = temporary_highlight,
     create_vimscript_function = create_vimscript_function,
+    injector_module = injector_module,
+    deep_list_extend = deep_list_extend,
+    tbl_set = tbl_set,
 }

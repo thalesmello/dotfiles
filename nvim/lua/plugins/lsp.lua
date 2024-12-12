@@ -1,4 +1,6 @@
 local conditional_load = require("conditional_load")
+local vim_utils = require("vim_utils")
+
 return {
     {
         'neovim/nvim-lspconfig',
@@ -48,34 +50,42 @@ return {
             })
         end,
     },
-    {
-        "hrsh7th/nvim-cmp",
-        opts = conditional_load.wrap(function(_, opts)
-            opts.sources = opts.sources or {}
-            opts.sources = vim.list_extend(opts.sources or {}, {
-                { name = 'nvim_lsp' },
-                { name = 'path' },
-            })
-        end),
-        dependencies = {
-            { 'hrsh7th/cmp-nvim-lsp' },
-            {'hrsh7th/cmp-path'},
-        },
-        optional = true,
-    },
-    {
-        "hrsh7th/nvim-cmp",
-        opts = function(_, opts)
-            if vim.fn.getcwd() ~= vim.fn.expand('~') then
-                opts.sources = vim.list_extend(opts.sources or {}, {
-                    { name = 'rg' },
+    vim_utils.injector_module({
+        'hrsh7th/cmp-nvim-lsp' ,
+        injectable_opts = {
+            "hrsh7th/nvim-cmp",
+            opts = conditional_load.wrap(function(_, opts)
+                return vim_utils.deep_list_extend(opts, "sources", {
+                    { name = 'nvim_lsp' },
                 })
-            end
-        end,
-        dependencies = {'thalesmello/cmp-rg'},
-        optional = true,
+            end),
+        }
+    }),
+    vim_utils.injector_module({
+        'hrsh7th/cmp-path',
+        injectable_opts = {
+            "hrsh7th/nvim-cmp",
+            opts = conditional_load.wrap(function(_, opts)
+                return vim_utils.deep_list_extend(opts, "sources", {
+                    { name = 'path' },
+                })
+            end),
+        }
+    }),
+    vim_utils.injector_module({
+        "thalesmello/cmp-rg",
+        injectable_opts = {
+            "hrsh7th/nvim-cmp",
+            opts = function(_, opts)
+                if vim.fn.getcwd() ~= vim.fn.expand('~') then
+                    opts.sources = vim.list_extend(opts.sources or {}, {
+                        { name = 'rg' },
+                    })
+                end
+            end,
+        },
         firenvim = true,
-    },
+    }),
     {
         'hrsh7th/nvim-cmp',
         dependencies = {
@@ -86,7 +96,6 @@ return {
         opts = function (_, opts)
             local cmp = require('cmp')
             local snippy = require('snippy')
-            local vim_utils = require('vim_utils')
             local kind_icons = {
                 Text = "",
                 Method = "󰆧",
@@ -200,7 +209,6 @@ return {
         end,
         config = function (_, opts)
             local cmp = require('cmp')
-            local vim_utils = require('vim_utils')
 
             cmp.setup(opts)
 
@@ -511,29 +519,28 @@ return {
             toggle_key_flip_floatwin_setting = true,
         }
     },
-    {
-        name = "lazydev_plugins",
+    vim_utils.injector_module({
         {
             "folke/lazydev.nvim",
             ft = "lua", -- only load on lua files
+            dependencies = { "Bilal2453/luvit-meta" },
             opts = {
                 library = {
-                    -- See the configuration section for more details
-                    -- Load luvit types when the `vim.uv` word is found
                     { path = "luvit-meta/library", words = { "vim%.uv" } },
                 },
             },
+            injectable_opts = {
+                {
+                    "hrsh7th/nvim-cmp",
+                    opts = function(_, opts)
+                        opts.sources = vim.list_extend(opts.sources or {}, {
+                            { name = "lazydev", group_index = 0 },
+                        })
+                    end,
+                }
+            }
         },
-        { "Bilal2453/luvit-meta", lazy = true }, -- optional `vim.uv` typings
-        { -- optional cmp completion source for require statements and module annotations
-            "hrsh7th/nvim-cmp",
-            opts = function(_, opts)
-                opts.sources = vim.list_extend(opts.sources or {}, {
-                    { name = "lazydev", group_index = 0 },
-                })
-            end,
-        }
-    },
+    }),
     {
         'ii14/lsp-command',
         init = function ()
