@@ -1,17 +1,18 @@
-local function keycodes(str)
+local M = {}
+function M.keycodes(str)
     return vim.api.nvim_replace_termcodes(str, true, true, true)
 end
 
 --- @param str string keys to feed into editor
 --- @param mode? 'n'|'m' mode passed to the feedkeys() function call, defaults to 'n'
-local function feedkeys(str, mode)
+function M.feedkeys(str, mode)
     mode = mode or 'n'
-    vim.api.nvim_feedkeys(keycodes(str), 'n', false)
+    vim.api.nvim_feedkeys(M.keycodes(str), 'n', false)
 end
 
-local function get_visual_selection(mode)
+function M.get_visual_selection(mode)
     mode = mode or 'char'
-    vim.cmd.normal({ args = {keycodes([[<c-\><c-n>gv]])}, bang = true })
+    vim.cmd.normal({ args = {M.keycodes([[<c-\><c-n>gv]])}, bang = true })
     local line_start, column_start = unpack(vim.fn.getpos("'<"), 2, 3)
     local line_end, column_end = unpack(vim.fn.getpos("'>"), 2, 3)
     local lines = vim.api.nvim_buf_get_lines(0, line_start - 1, line_end, false)
@@ -31,24 +32,24 @@ local function get_visual_selection(mode)
     return table.concat(lines, "\n")
 end
 
-local function concat_array(a, b)
+function M.concat_array(a, b)
   local result = {unpack(a)}
   table.move(b, 1, #b, #result + 1, result)
   return result
 end
 
-local function partial(fn, ...)
+function M.partial(fn, ...)
   local args = { ... }
 
   return function(...)
     local args2 = { ... }
-    local results = concat_array(args, args2)
+    local results = M.concat_array(args, args2)
     return fn(unpack(results, 1, #results))
   end
 end
 
 
-local function temporary_highlight(start_pos, end_pos, opts)
+function M.temporary_highlight(start_pos, end_pos, opts)
     local api = vim.api
     opts = opts or {}
     local bufnr = api.nvim_get_current_buf()
@@ -79,7 +80,7 @@ local function temporary_highlight(start_pos, end_pos, opts)
 end
 
 
-local function create_vimscript_function(name, fn)
+function M.create_vimscript_function(name, fn)
     local luafunc_name = '__' .. name .. '_luafunc'
     _G[luafunc_name] = fn
     vim.cmd([[
@@ -91,7 +92,7 @@ endfunction
     return name
 end
 
-local function injector_module(spec)
+function M.injector_module(spec)
     local parent_module = spec[1]
 
     local injectable_opts = spec.injectable_opts or {}
@@ -132,7 +133,7 @@ local function injector_module(spec)
     return { spec, unpack(injected_modules) }
 end
 
-local function tbl_set(tbl, ...)
+function M.tbl_set(tbl, ...)
     local args = { ... }
     local value = args[#args]
     args[#args] = nil
@@ -151,7 +152,7 @@ local function tbl_set(tbl, ...)
     return tbl
 end
 
-local function deep_list_extend(tbl, ...)
+function M.deep_list_extend(tbl, ...)
     local args = {...}
     local items_to_add = args[#args]
     args[#args] = nil
@@ -159,18 +160,15 @@ local function deep_list_extend(tbl, ...)
     local old_list = vim.tbl_get(tbl, unpack(args)) or {}
 
     args[#args + 1] = vim.list_extend(old_list, items_to_add)
-    return tbl_set(tbl, unpack(args))
+    return M.tbl_set(tbl, unpack(args))
 end
 
-return {
-    get_visual_selection = get_visual_selection,
-    keycodes = keycodes,
-    feedkeys = feedkeys,
-    partial = partial,
-    concat_array = concat_array,
-    temporary_highlight = temporary_highlight,
-    create_vimscript_function = create_vimscript_function,
-    injector_module = injector_module,
-    deep_list_extend = deep_list_extend,
-    tbl_set = tbl_set,
-}
+function M.set_register(register, contents)
+    contents = vim.api.nvim_replace_termcodes(contents, true, true, true)
+        :gsub('^%s?(.-)%s?$', '%1')
+
+    vim.fn.setreg(register, contents)
+end
+
+return M
+
