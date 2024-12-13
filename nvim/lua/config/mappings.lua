@@ -2,8 +2,8 @@ vim.keymap.set("n", "<c-h>", "<c-w>h", { remap = true })
 vim.keymap.set("n", "<c-l>", "<c-w>l", { remap = true })
 vim.keymap.set("n", "<c-j>", "<c-w>j", { remap = true })
 vim.keymap.set("n", "<c-k>", "<c-w>k", { remap = true })
-vim.keymap.set("n", "<leader><c-p>", ":tabprevious<cr>", { remap = true })
-vim.keymap.set("n", "<leader><c-n>", ":tabnext<cr>", { remap = true })
+vim.keymap.set("n", "[<Tab>", "<cmd>tabprevious<cr>", { remap = true })
+vim.keymap.set("n", "]<Tab>", "<cmd>tabnext<cr>", { remap = true })
 
 -- Create windows
 vim.keymap.set("n", "<leader>v", "<C-w>v", { remap = true })

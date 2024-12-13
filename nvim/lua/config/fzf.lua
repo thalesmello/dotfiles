@@ -13,6 +13,7 @@ vim.g.fzf_history_dir = '~/.local/share/fzf-history'
 vim.env.FZF_DEFAULT_COMMAND = 'ag -g ""'
 
 vim.keymap.set("n", "<c-p>", '<cmd>ProjectDo Files<cr>', { noremap = true, silent = true })
+vim.keymap.set("n", "<leader><c-p>", '<cmd>ProjectDo Files<cr>'..vim.fn.expand("%:t:r"), { noremap = true, silent = true })
 vim.keymap.set("v", "<c-p>", '<cmd>ProjectDo Files<cr>', { noremap = true, silent = true })
 vim.keymap.set("n", "<c-f>", ':<c-u>ProjectDo Ag<space>', { noremap = true })
 vim.keymap.set("n", "<leader>/", function () return '<cmd>ProjectDo Ag \\b' .. vim.fn.expand('<cword>') .. '\\b<cr>' end, { silent = true, expr = true })

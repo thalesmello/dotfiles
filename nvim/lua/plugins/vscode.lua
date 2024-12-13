@@ -144,6 +144,12 @@ vim.api.nvim_create_user_command("A", vscodeAlternateFile, {})
 
 local group = vim.api.nvim_create_augroup('VsCodeAugroup', { clear = true })
 
+-- Some keycodes require forwarding to neovim
+-- e.g.
+-- { "key": "ctrl+d", "command": "vscode-neovim.send", "args": "<c-d>", "when": "editorTextFocus && neovim.init" },
+-- { "key": "ctrl+u", "command": "vscode-neovim.send", "args": "<c-u>", "when": "editorTextFocus && neovim.init" },
+-- { "key": "ctrl+p", "command": "vscode-neovim.send", "args": "<c-p>", "when": "editorTextFocus && neovim.init" },
+-- { "key": "ctrl+f", "command": "vscode-neovim.send", "args": "<c-f>", "when": "editorTextFocus && neovim.init" },
 vim.api.nvim_create_autocmd({ 'CursorHold' }, {
   group = vim.api.nvim_create_augroup('VsCodeShortcuts', { clear = true }),
   pattern = {"*"},
@@ -181,7 +187,9 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
 
     vim.keymap.set({ "n" }, "<c-t>", function () vscode.action('workbench.action.navigateBackInEditLocations') end)
     vim.keymap.set("n", "<c-f>", function () vscode.action('workbench.action.findInFiles') end)
-    vim.keymap.set("n", "<leader>/", "viw<cmd>lua vscode.action('workbench.action.findInFiles')<cr>")
+    vim.keymap.set("n", "<leader>/", "viw<cmd>lua require'vscode'.action('workbench.action.findInFiles')<cr>")
+    vim.keymap.set("n", "<leader><c-p>", function () vscode.action('workbench.action.quickOpen', { args = { vim.fn.expand("%:t:r") } }) end)
+    vim.keymap.set("n", "<c-p>", function () vscode.action('workbench.action.quickOpen') end)
 
     vim.keymap.set("v", "<leader>/", function ()
       vscode.action('workbench.action.findInFiles')
