@@ -101,9 +101,10 @@ vim.keymap.set("n", "<leader>er", function ()
       local registerText = vim.fn.getreg(x)
       -- There a funny bug that causes a sequence to be recorded in the macro when f or t are pressed.
       -- We remove it in the line below
-      registerText = vim.fn.substitute(registerText, "€ý5", "", "g")
-      local str = 'lua vim.fn.setreg(\'' .. x .. '\', [=[' .. registerText .. "]=])"
-      local _, end_idx = str:find('[=[', 1, true)
+      local escapedRegister = require("config/reverse_termcodes").reverse_termcodes(registerText)
+
+      local str = "lua vim.fn.setreg('" .. x .. "', vim.api.nvim_replace_termcodes([=[ " .. escapedRegister .. " ]=], true, true, true):gsub('^%s?(.*)%s?$', '%1'))"
+      local _, end_idx = str:find('[=[ ', 1, true)
       vim.fn.setcmdline(str, end_idx + 1)
     end,
     once = true,
