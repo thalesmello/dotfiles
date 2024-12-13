@@ -1,6 +1,7 @@
 local M = {}
 
 local K_SPECIAL = string.char(0x80)
+local KS_MODIFIER = string.char(252)
 
 local KS_EXTRA = string.char(253)
 
@@ -208,9 +209,22 @@ local ascii_codes = {
     [30] = "<C-^>",
     [31] = "<C-_>",
     [127] = "<C-?>",
- }
+}
+
+local modifiers = {
+    [0x02] = 'S',
+    [0x04] = 'C',
+    [0x08] = 'A',
+    [0x10] = 'M',
+    [0x80] = 'D',
+}
 
 function M.reverse_termcodes(str)
+	str = str:gsub(K_SPECIAL .. KS_MODIFIER .. '(.)(.)', function (modifier, char)
+	    modifier = modifiers[modifier:byte()] or modifier
+	    return "<" .. modifier .. "-" .. char .. ">"
+	end)
+
 	str = str:gsub(K_SPECIAL .. '(..)', function (cc)
 		return kspecial_codes[cc] or cc
 	end)
