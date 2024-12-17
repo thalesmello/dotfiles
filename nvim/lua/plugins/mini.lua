@@ -18,12 +18,29 @@ return {
                     ["F"] = spec_treesitter({ a = "@function.outer", i = "@function.inner" }),
                     -- [";"] = spec_treesitter({ a = "@pair.value", i = "" }),
                     -- [":"] = spec_treesitter({ a = "@pair.key", i = "" }),
+                    -- [":"] = spec_treesitter({ a = "@pair.key", i = "" }),
                     ["C"] = spec_treesitter({ i = "@class.inner", a = "@class.outer" }),
+                    ["P"] = function()
+                        local _, sline, scol, _ = unpack(vim.fn.getpos("'["))
+                        local _, eline, ecol, _ = unpack(vim.fn.getpos("']"))
+                        local mode = vim.fn.visualmode()
+
+                        return {
+                            from = { line = sline, col = scol },
+                            to = { line = eline, col = ecol },
+                            vis_mode = mode,
+                        }
+                    end,
                     ['.'] = { { "[^a-zA-Z0-9_%.]%s*[%a_][a-zA-Z0-9_%.]*,?", "^%s*()[%a_][a-zA-Z0-9_%.]*,?" }, "^[^a-zA-Z0-9_%.]?()%s*()[%a_][a-zA-Z0-9_%.]*(),?()$" },
                 },
                 search_method = "cover_or_next",
                 n_lines = 1000,
             })
+
+
+            vim.keymap.set({ "o" }, "gp", "aP", {remap = true})
+            vim.keymap.set({ "n" }, "gp", "vaP", {remap = true})
+            vim.keymap.set({ "v" }, "gp", "avP", {remap = true})
 
             local repeatable_ok, ts_repeat_move = pcall(require, "nvim-treesitter.textobjects.repeatable_move")
             local vim_utils = require('vim_utils')
@@ -380,7 +397,7 @@ return {
 
             -- Replace text with register
             replace = {
-                prefix = 'gp',
+                prefix = 'gr',
 
                 -- Whether to reindent new text to match previous indent
                 reindent_linewise = true,
@@ -388,7 +405,7 @@ return {
 
             -- Sort text
             sort = {
-                prefix = 'gs',
+                prefix = 'go',
 
                 -- Function which does the sort
                 func = nil,
@@ -397,7 +414,7 @@ return {
         config = function (_, opts)
             require("mini.operators").setup(opts)
 
-            vim.keymap.set("n", "<leader>gp", '"+gp', { remap = true })
+            vim.keymap.set("n", "<leader>gr", '"+gr', { remap = true })
         end,
         extra_contexts = {"vscode", "firenvim"},
     }

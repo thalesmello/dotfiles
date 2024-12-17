@@ -43,12 +43,12 @@ return {
 
                     mapCapability(capabilities.hoverProvider, 'n', 'K', '<cmd>lua vim.lsp.buf.hover()<cr>')
                     vim.opt_local.tagfunc = "v:lua.vim.lsp.tagfunc"
-                    mapCapability(capabilities.declarationProvider, 'n', 'gd', '<cmd>lua vim.lsp.buf.declaration()<cr>')
+                    mapCapability(capabilities.declarationProvider, 'n', 'gD', '<cmd>lua vim.lsp.buf.declaration()<cr>')
                     mapCapability(capabilities.implementationProvider, 'n', 'gI', '<cmd>lua vim.lsp.buf.implementation()<cr>')
-                    mapCapability(capabilities.typeDefinitionProvider, 'n', 'go', '<cmd>lua vim.lsp.buf.type_definition()<cr>')
-                    mapCapability(capabilities.referencesProvider, 'n', 'gR', '<cmd>lua vim.lsp.buf.references()<cr>')
+                    mapCapability(capabilities.typeDefinitionProvider, 'n', '<leader>go', '<cmd>lua vim.lsp.buf.type_definition()<cr>')
+                    mapCapability(capabilities.referencesProvider, 'n', '<leader>fr', '<cmd>lua vim.lsp.buf.references()<cr>')
                     mapCapability(capabilities.signatureHelpProvider, 'n', 'gK', '<cmd>lua vim.lsp.buf.signature_help()<cr>')
-                    mapCapability(capabilities.renameProvider, 'n', 'gr', '<cmd>lua vim.lsp.buf.rename()<cr>')
+                    mapCapability(capabilities.renameProvider, 'n', '<leader>rv', '<cmd>lua vim.lsp.buf.rename()<cr>')
                     mapCapability(capabilities.codeActionProvider, 'n', '<leader>.', '<cmd>lua vim.lsp.buf.code_action()<cr>')
                 end
             })

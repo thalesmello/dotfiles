@@ -164,7 +164,7 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
     vim.keymap.set("n", "k", inferMoveKey("k"), { remap = true, expr = true })
 
     vim.keymap.set("n", "<leader><bs>", function () vscode.action('workbench.action.closeEditorsAndGroup') end)
-    vim.keymap.set("n", "<leader>rv", function () vscode.action('vscode-neovim.restart') end)
+    vim.keymap.set("n", "<leader>rV", function () vscode.action('vscode-neovim.restart') end)
     vim.keymap.set("n", "<leader><leader>", function ()
       vscode.call('workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup')
       vscode.action('workbench.action.acceptSelectedQuickOpenItem')
@@ -183,19 +183,20 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
       vscode.call('cursorPageDown')
     end)
 
-    vim.keymap.set("n", "gr", function () vscode.action('editor.action.rename') end)
+    vim.keymap.set("n", "<leader>rv", function () vscode.action('editor.action.rename') end)
 
     vim.keymap.set({ "n" }, "<c-t>", function () vscode.action('workbench.action.navigateBackInEditLocations') end)
     vim.keymap.set("n", "<c-f>", function () vscode.action('workbench.action.findInFiles') end)
     vim.keymap.set("n", "<leader>/", "viw<cmd>lua require'vscode'.action('workbench.action.findInFiles')<cr>")
     vim.keymap.set("n", "<leader><c-p>", function () vscode.action('workbench.action.quickOpen', { args = { vim.fn.expand("%:t:r") } }) end)
     vim.keymap.set("n", "<c-p>", function () vscode.action('workbench.action.quickOpen') end)
+    vim.keymap.set("x", "<c-p>", function () vscode.action('workbench.action.quickOpen', { args = { require("vim_utils").get_visual_selection() } }) end)
 
     vim.keymap.set("v", "<leader>/", function ()
       vscode.action('workbench.action.findInFiles')
     end)
 
-    vim.keymap.set("n", "gR", function () vscode.action('references-view.findReferences') end)
+    vim.keymap.set("n", "<leader>gR", function () vscode.action('references-view.findReferences') end)
     vim.keymap.set("n", "<leader>ss", function () vscode.action('workbench.action.gotoSymbol') end)
     vim.keymap.set("n", "<leader><cr>", function () vscode.action('workbench.action.terminal.toggleTerminal') end)
     vim.keymap.set("n", "<tab>", function () vscode.action('editor.toggleFold') end)
