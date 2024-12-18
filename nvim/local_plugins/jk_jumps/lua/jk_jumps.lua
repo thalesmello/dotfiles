@@ -1,6 +1,6 @@
 local vim_utils = require "vim_utils"
 local function smart_jump(key)
-	if vim.v.count > 0 or vim.fn.reg_recording() ~= '' then
+	if vim.v.count > 0 or vim.fn.reg_recording() ~= '' or vim.fn.reg_executing() ~= '' then
 		vim.cmd("normal! " .. vim.v.count1 .. key)
 
 		if vim.v.count1 >= 7 then
