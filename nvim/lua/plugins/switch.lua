@@ -62,6 +62,21 @@ return {
                     }
                 end,
             })
+
+            vim.api.nvim_create_autocmd({ 'FileType' }, {
+                group = group,
+                pattern = {"sql"},
+                callback = function()
+                    vim.b.switch_custom_definitions = {
+                        {
+                            [ [[{%\([^-].*[^-]\)%}]] ] = [[{%-\1-%}]],
+                            [ [[{%-\([^-].*[^-]\)-%}]] ] = [[{%-\1%}]],
+                            [ [[{%-\([^-].*[^-]\)%}]] ] = [[{%\1-%}]],
+                            [ [[{%\([^-].*[^-]\)-%}]] ] = [[{%-\1-%}]],
+                        },
+                    }
+                end,
+            })
         end,
         extra_contexts = {"vscode", "firenvim"}
     }
