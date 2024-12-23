@@ -9200,44 +9200,6 @@
               "BTTEnabled2": 1,
               "BTTIsPureAction": true,
               "BTTKeyboardShortcutKeyboardType": 0,
-              "BTTLastUpdatedAt": 1734429507.0558372,
-              "BTTNamedTriggerToTrigger": "Chrome: Dai Copy Markdown Values",
-              "BTTOrder": 65,
-              "BTTPredefinedActionName": "Trigger Named Trigger (Configured in Other Tab)",
-              "BTTPredefinedActionType": 248,
-              "BTTShortcutKeyCode": -1,
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "374E9FB8-BE65-43FD-8DF5-68D63CB23B0E",
-              "BTTUUID": "C3E9ABE6-6F8B-4CA3-9BB7-E01C9F2C2E6D"
-            }
-          ],
-          "BTTAdditionalConfiguration": "1966123",
-          "BTTAutoAdaptToKeyboardLayout": 0,
-          "BTTEnabled": 1,
-          "BTTEnabled2": 1,
-          "BTTKeyboardShortcutKeyboardType": 2302,
-          "BTTLastUpdatedAt": 1734635228.717927,
-          "BTTLayoutIndependentChar": "q",
-          "BTTOrder": 20,
-          "BTTPredefinedActionName": "Empty Placeholder",
-          "BTTPredefinedActionType": 366,
-          "BTTShortcutKeyCode": 12,
-          "BTTShortcutModifierKeys": 1966080,
-          "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-          "BTTTriggerOnDown": 1,
-          "BTTTriggerType": 0,
-          "BTTUUID": "374E9FB8-BE65-43FD-8DF5-68D63CB23B0E"
-        },
-        {
-          "BTTActionCategory": 0,
-          "BTTAdditionalActions": [
-            {
-              "BTTActionCategory": 0,
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTEnabled": 1,
-              "BTTEnabled2": 1,
-              "BTTIsPureAction": true,
-              "BTTKeyboardShortcutKeyboardType": 0,
               "BTTLastUpdatedAt": 1734635243.678782,
               "BTTLayoutIndependentActionChar": "m",
               "BTTOrder": 66,
@@ -9335,5 +9297,5 @@
   "BTTPresetInfoURL": "",
   "BTTPresetName": "Thales Workflow Mac",
   "BTTPresetSnapAreas": [],
-  "BTTPresetUUID": "CDB6ED04-4CA7-41A0-A4D9-EB0ACC4667A7"
+  "BTTPresetUUID": "4859F39B-B021-4AEA-8C61-3AAFEF79B496"
 }
