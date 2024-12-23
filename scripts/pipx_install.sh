@@ -1,4 +1,5 @@
 pipx install black
+pipx install pre-commit
 pipx install flake8
 pipx install isort
 pipx install jedi-language-server
