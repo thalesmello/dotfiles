@@ -5,4 +5,4 @@ repos:
         name: Format Better Touch TOol
         entry: ./scripts/format-btt-profiles.sh
         language: script
-        files: "./bettertouchtool/*.bttpreset"
+        files: bettertouchtool/.*\.bttpreset
