@@ -53,8 +53,38 @@ return {
 
 
 
-        local group = vim.api.nvim_create_augroup("MiniSurroundConfigGroup", { clear = true })
+        local group = vim.api.nvim_create_augroup("NvimSurroungGroup", { clear = true })
         local ts_input = surround_adapter.input_treesitter
+
+
+        local filetype_map = {
+            python = {"sqljinja", "python"},
+            jinja = {"sqlfile", "jinja"},
+            sql = {"sqlfile", "sql"},
+        }
+
+
+        -- vim.api.nvim_create_autocmd({ 'FileType' }, {
+        --     group = group,
+        --     pattern = "*",
+        --     callback = function(opts)
+        --         local filetype = opts.match
+        --         local iter_filetypes = filetype_map[filetype] or {filetype}
+        --
+        --         local config = {}
+        --
+        --         for _, ft in ipairs(iter_filetypes) do
+        --             local ok, ftconfig = pcall(require, "ftmini." .. ft)
+        --             if ok then
+        --                 config = vim.tbl_deep_extend("force", config, {
+        --                     surrounds = vim.tbl_map(surround_adapter.from_mini, ftconfig.custom_surroundings)
+        --                 })
+        --             end
+        --         end
+        --
+        --         surround.buffer_setup(config)
+        --     end,
+        -- })
 
         vim.api.nvim_create_autocmd({ 'FileType' }, {
             group = group,

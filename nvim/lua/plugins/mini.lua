@@ -55,7 +55,7 @@ return {
             local repeatable_ok, ts_repeat_move = pcall(require, "nvim-treesitter.textobjects.repeatable_move")
 
             if repeatable_ok then
-                local function goto(direction)
+                local function repeatable_goto_ai(direction)
                     local ok, char = pcall(vim.fn.getcharstr)
                     if not ok or char == '\27' then return nil end
                     local moveLeft, moveRight = ts_repeat_move.make_repeatable_move_pair(
@@ -75,10 +75,11 @@ return {
                 end
 
                 vim.keymap.set({ "n", "x" }, "g[", function ()
-                    goto("left")
+                    repeatable_goto_ai("left")
                 end)
+
                 vim.keymap.set({ "n", "x" }, "g]", function ()
-                    goto("right")
+                    repeatable_goto_ai("right")
                 end)
 
                 -- local function arroundinner()
@@ -103,6 +104,7 @@ return {
                 -- end
                 --
                 -- vim.keymap.set({ "x", "o" }, "a", arroundinner)
+
             end
 
             local filetype_map = {
@@ -122,6 +124,120 @@ return {
                         local ok, ftconfig = pcall(require, "ftmini." .. ft)
                         if ok then
                             vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, ftconfig)
+                        end
+                    end
+                end,
+            })
+        end,
+    },
+    {
+        "thalesmello/mini.surround",
+        version = false,
+        extra_contexts = {"vscode", "firenvim"},
+        config = function ()
+            local surround = require('mini.surround')
+            local get_input = surround.user_input
+            surround.setup({
+                custom_surroundings = {
+                    ['?'] = {
+                        input = function()
+                            local surroundings = get_input('Left Surround ||| Right Surround')
+
+                            local left, right = unpack(vim.split(surroundings, "|||"))
+
+                            if left == nil or left == '' then return end
+                            if right == nil or right == '' then return end
+
+                            return { vim.pesc(left) .. '().-()' .. vim.pesc(right) }
+                        end,
+                        output = function()
+                            local surroundings = get_input('Left Surround ||| Right Surround')
+
+                            local left, right = unpack(vim.split(surroundings, "|||"))
+
+                            if left == nil then return end
+                            if right == nil then return end
+                            return { left = left, right = right }
+                        end,
+                    },
+                },
+                mappings = {
+                    -- add = 'ys',
+                    -- delete = 'ds',
+                    -- yank = '<leader>sy',
+                    -- paste = '<leader>sp',
+                    -- find = '<leader>sf',
+                    -- find_left = '<leader>sF',
+                    -- highlight = '<leader>sh',
+                    -- replace = 'cs',
+                    -- update_n_lines = '<leader>sn',
+                    --
+                    -- -- Add this only if you don't want to use extended mappings
+                    -- suffix_last = 'l',
+                    -- suffix_next = 'n',
+                    add = '<leader>sa',
+                    delete = '<leader>sd',
+                    yank = '<leader>sy',
+                    paste = '<leader>sp',
+                    find = '<leader>sf',
+                    find_left = '<leader>sF',
+                    highlight = '<leader>sh',
+                    replace = '<leader>sr',
+                    update_n_lines = '<leader>sn',
+
+                    -- Add this only if you don't want to use extended mappings
+                    suffix_last = 'l',
+                    suffix_next = 'n',
+                },
+                search_method = 'cover_or_next',
+                respect_selection_type = true,
+                n_lines = 1000,
+            })
+
+            -- Remap adding surrounding to Visual mode selection
+            -- vim.keymap.del('x', 'ys')
+            -- vim.keymap.set('x', 'S', [[:<C-u>lua MiniSurround.add('visual')<CR>]], { silent = true })
+
+            -- Make special mapping for "add surrounding for line"
+            -- vim.keymap.set('n', 'yss', 'ys_', { remap = true })
+
+            -- vim.keymap.set('i', '<c-s>', function ()
+            --     vim.api.nvim_create_autocmd({ 'InsertEnter' }, {
+            --         pattern = '*',
+            --         once = true,
+            --         callback = function()
+            --             local col = vim.fn.col('.')
+            --             -- For some reason, at cursor column there's a "<c2>" caracter
+            --             -- And therefore to select the character in from of the cursor I have
+            --             -- To use col + 1, even though end indices are inclusive in lua
+            --             -- I couldn't find any documentation, but I think <c2> is an internal representation
+            --             -- for the cursor output from getline('.')
+            --             local char_under_cursor = vim.fn.getline('.'):sub(1):sub(col, col+1)
+            --             if char_under_cursor == '§' then
+            --                 vim_utils.feedkeys("<c-o>x")
+            --             end
+            --         end,
+            --     })
+            --     vim_utils.feedkeys('§<left><c-o>v:<c-u>lua require("mini.surround").add("visual")<cr>', 'n')
+            -- end, {silent=true})
+
+            local filetype_map = {
+                python = {"sqljinja", "python"},
+                jinja = {"sqlfile", "jinja"},
+                sql = {"sqlfile", "sql"},
+            }
+
+            vim.api.nvim_create_autocmd({ 'FileType' }, {
+                group = vim.api.nvim_create_augroup("MiniSurroundGroup", { clear = true }),
+                pattern = "*",
+                callback = function(opts)
+                    local filetype = opts.match
+                    local iter_filetypes = filetype_map[filetype] or {filetype}
+
+                    for _, ft in ipairs(iter_filetypes) do
+                        local ok, ftconfig = pcall(require, "ftmini." .. ft)
+                        if ok then
+                            vim.b.minisurround_config = vim.tbl_deep_extend("force", vim.b.minisurround_config or {}, ftconfig)
                         end
                     end
                 end,

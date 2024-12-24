@@ -243,7 +243,7 @@ H.from_mini = function (surr_spec)
             return {
                 left = {
                     first_pos = { surr.left.from.line, surr.left.from.col },
-                    last_pos = { surr.left.to.line, surr.left.to.line },
+                    last_pos = { surr.left.to.line, surr.left.to.col },
                 },
                 right = {
                     first_pos = { surr.right.from.line, surr.right.from.col },
