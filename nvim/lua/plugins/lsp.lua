@@ -300,6 +300,26 @@ return {
 
             -- `/` cmdline setup.
             cmp.setup.cmdline('/', {
+                mapping = cmp.mapping.preset.cmdline({
+                    ['<C-n>'] = cmp.mapping(
+                        function(fallback)
+                            if cmp.visible() then
+                                cmp.select_next_item()
+                            else
+                                fallback()
+                            end
+                        end, {"c"}
+                    ),
+                    ['<C-p>'] = cmp.mapping(
+                        function(fallback)
+                            if cmp.visible() then
+                                cmp.select_prev_item()
+                            else
+                                fallback()
+                            end
+                        end, {"c"}
+                    ),
+                }),
                 sources = {
                     { name = 'buffer' },
                 },

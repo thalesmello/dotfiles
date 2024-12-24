@@ -170,5 +170,20 @@ function M.set_register(register, contents)
     vim.fn.setreg(register, contents)
 end
 
-return M
+function M.coroutine_user_input(arg_prompt)
+    local co = coroutine.running()
+    assert(co, "must be running under a coroutine")
 
+    vim.ui.input(arg_prompt, function(str)
+        -- (2) the asynchronous callback called when user inputs something
+        coroutine.resume(co, str)
+    end)
+
+    -- (1) Suspends the execution of the current coroutine, context switching occurs
+    local input = coroutine.yield()
+
+    -- (3) return the function
+    return input
+end
+
+return M

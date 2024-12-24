@@ -1,3 +1,5 @@
+local vim_utils = require('vim_utils')
+
 return {
     {
         'echasnovski/mini.ai',
@@ -43,7 +45,6 @@ return {
             vim.keymap.set({ "v" }, "gp", "avP", {remap = true})
 
             local repeatable_ok, ts_repeat_move = pcall(require, "nvim-treesitter.textobjects.repeatable_move")
-            local vim_utils = require('vim_utils')
 
             if repeatable_ok then
                 local function goto(direction)
@@ -161,6 +162,29 @@ return {
         config = function ()
             local surround = require('mini.surround')
             surround.setup({
+                custom_surroundings = {
+                    ['?'] = {
+                        input = function()
+                            local surroundings = MiniSurround.user_input('Left Surround ||| Right Surround')
+
+                            local left, right = unpack(vim.split(surroundings, "|||"))
+                            
+                            if left == nil or left == '' then return end
+                            if right == nil or right == '' then return end
+
+                            return { vim.pesc(left) .. '().-()' .. vim.pesc(right) }
+                        end,
+                        output = function()
+                            local surroundings = MiniSurround.user_input('Left Surround ||| Right Surround')
+
+                            local left, right = unpack(vim.split(surroundings, "|||"))
+
+                            if left == nil then return end
+                            if right == nil then return end
+                            return { left = left, right = right }
+                        end,
+                    },
+                },
                 mappings = {
                     add = 'ys',
                     delete = 'ds',
@@ -189,8 +213,6 @@ return {
             vim.keymap.set('n', 'yss', 'ys_', { remap = true })
 
             vim.keymap.set('i', '<c-s>', function ()
-                local vim_utils = require('vim_utils')
-
                 vim.api.nvim_create_autocmd({ 'InsertEnter' }, {
                     pattern = '*',
                     once = true,
