@@ -1,118 +1,5 @@
 local H = {}
 
-H.prepare_captures = function(captures)
-  local is_capture = function(x) return type(x) == 'string' and x:sub(1, 1) == '@' end
-
-  if not (type(captures) == 'table' and is_capture(captures.outer) and is_capture(captures.inner)) then
-    H.error('Wrong format for `captures`. See `MiniSurround.gen_spec.input.treesitter()` for details.')
-  end
-
-  return { outer = captures.outer, inner = captures.inner }
-end
-
-H.get_matched_node_pairs_plugin = function(captures)
-  local ts_queries = require('nvim-treesitter.query')
-  local ts_parsers = require('nvim-treesitter.parsers')
-
-  -- This is a modified version of `ts_queries.get_capture_matches_recursively`
-  -- source code which keeps track of match language
-  local matches = {}
-  local parser = ts_parsers.get_parser(0)
-  if parser then
-    parser:for_each_tree(function(tree, lang_tree)
-      local lang = lang_tree:lang()
-      local lang_matches = ts_queries.get_capture_matches(0, captures.outer, 'textobjects', tree:root(), lang)
-      for _, m in pairs(lang_matches) do
-        m.lang = lang
-      end
-      vim.list_extend(matches, lang_matches)
-    end)
-  end
-
-  return vim.tbl_map(
-    function(match)
-      local node_outer = match.node
-      -- Pick inner node as the biggest node matching inner query. This is
-      -- needed because query output is not quaranteed to come in order.
-      local matches_inner = ts_queries.get_capture_matches(0, captures.inner, 'textobjects', node_outer, match.lang)
-      local nodes_inner = vim.tbl_map(function(x) return x.node end, matches_inner)
-      return { outer = node_outer, inner = H.get_biggest_node(nodes_inner) }
-    end,
-    -- This call should handle multiple languages in buffer
-    matches
-  )
-end
-
-H.pos_to_left = function(pos)
-  if pos.line == 1 and pos.col == 1 then return { line = pos.line, col = pos.col } end
-  if pos.col == 1 then return { line = pos.line - 1, col = H.get_line_cols(pos.line - 1) } end
-  return { line = pos.line, col = pos.col - 1 }
-end
-
-H.get_line_cols = function(line_num) return vim.fn.getline(line_num):len() end
-
-H.pos_to_right = function(pos)
-  local n_cols = H.get_line_cols(pos.line)
-  -- Using `>` and not `>=` helps with removing '\n' and in the last line
-  if pos.line == vim.api.nvim_buf_line_count(0) and pos.col > n_cols then return { line = pos.line, col = n_cols } end
-  if pos.col > n_cols then return { line = pos.line + 1, col = 1 } end
-  return { line = pos.line, col = pos.col + 1 }
-end
-
-H.get_matched_node_pairs_builtin = function(captures)
-  -- Fetch treesitter data for buffer
-  local lang = vim.bo.filetype
-  -- TODO: Remove `opts.error` after compatibility with Neovim=0.11 is dropped
-  local has_parser, parser = pcall(vim.treesitter.get_parser, 0, lang, { error = false })
-  if not has_parser or parser == nil then H.error_treesitter('parser', lang) end
-
-  local get_query = vim.fn.has('nvim-0.9') == 1 and vim.treesitter.query.get or vim.treesitter.get_query
-  local query = get_query(lang, 'textobjects')
-  if query == nil then H.error_treesitter('query', lang) end
-
-  -- Remove leading '@'
-  local capture_outer, capture_inner = captures.outer:sub(2), captures.inner:sub(2)
-
-  -- Compute nodes matching outer capture
-  local nodes_outer = {}
-  for _, tree in ipairs(parser:trees()) do
-    vim.list_extend(nodes_outer, H.get_builtin_matched_nodes(capture_outer, tree:root(), query))
-  end
-
-  -- Make node pairs with biggest node matching inner capture inside outer node
-  return vim.tbl_map(function(node_outer)
-    local nodes_inner = H.get_builtin_matched_nodes(capture_inner, node_outer, query)
-    return { outer = node_outer, inner = H.get_biggest_node(nodes_inner) }
-  end, nodes_outer)
-end
-
-H.get_builtin_matched_nodes = function(capture, root, query)
-  local res = {}
-  for capture_id, node, _ in query:iter_captures(root, 0) do
-    if query.captures[capture_id] == capture then table.insert(res, node) end
-  end
-  return res
-end
-
-H.get_biggest_node = function(node_arr)
-  local best_node, best_byte_count = nil, -math.huge
-  for _, node in ipairs(node_arr) do
-    local _, _, start_byte = node:start()
-    local _, _, end_byte = node:end_()
-    local byte_count = end_byte - start_byte + 1
-    if best_byte_count < byte_count then
-      best_node, best_byte_count = node, byte_count
-    end
-  end
-
-  return best_node
-end
-
-H.error_treesitter = function(failed_get, lang)
-  local bufnr = vim.api.nvim_get_current_buf()
-  local msg = string.format([[Can not get %s for buffer %d and language '%s'.]], failed_get, bufnr, lang)
-  H.error(msg)
-end
 
 H.input_treesitter = function(captures, opts)
   opts = vim.tbl_deep_extend('force', { use_nvim_treesitter = true }, opts or {})
@@ -150,84 +37,21 @@ H.input_treesitter = function(captures, opts)
   end
 end
 
-
-H.wrap_callable_table = function(x)
-  if vim.is_callable(x) and type(x) == 'table' then return function(...) return x(...) end end
-  return x
-end
-
-
-H.is_composed_pattern = function(x)
-  if not (H.islist(x) and #x > 0) then return false end
-  for _, val in ipairs(x) do
-    local val_type = type(val)
-    if not (val_type == 'table' or val_type == 'string' or vim.is_callable(val)) then return false end
-  end
-  return true
-end
-
-H.ns_id = {
-  input = vim.api.nvim_create_namespace('MiniSurroundAdapter'),
-}
-
-H.user_input = function(prompt, text)
-  -- Major issue with both `vim.fn.input()` is that the only way to distinguish
-  -- cancelling with `<Esc>` and entering empty string with immediate `<CR>` is
-  -- through `cancelreturn` option (see `:h input()`). In that case the return
-  -- of `cancelreturn` will mean actual cancel, which removes possibility of
-  -- using that string. Although doable with very obscure string, this is not
-  -- very clean.
-  -- Overcome this by adding temporary keystroke listener.
-  local on_key = vim.on_key or vim.register_keystroke_callback
-  local was_cancelled = false
-  on_key(function(key)
-    if key == vim.api.nvim_replace_termcodes('<Esc>', true, true, true) then was_cancelled = true end
-  end, H.ns_id.input)
-
-  -- Ask for input
-  -- NOTE: it would be GREAT to make this work with `vim.ui.input()` but I
-  -- didn't find a way to make it work without major refactor of whole module.
-  -- The main issue is that `vim.ui.input()` is designed to perform action in
-  -- callback and current module design is to get output immediately. Although
-  -- naive approach of
-  -- `local res; vim.ui.input({...}, function(input) res = input end)`
-  -- works in default `vim.ui.input`, its reimplementations can return from it
-  -- immediately and proceed in main event loop. Couldn't find a relatively
-  -- simple way to stop execution of this current function until `ui.input()`'s
-  -- callback finished execution.
-  local opts = { prompt = '(mini.surround) ' .. prompt .. ': ', default = text or '' }
-  vim.cmd('echohl Question')
-  -- Use `pcall` to allow `<C-c>` to cancel user input
-  local ok, res = pcall(vim.fn.input, opts)
-  vim.cmd([[echohl None | echo '' | redraw]])
-
-  -- Stop key listening
-  on_key(nil, H.ns_id.input)
-
-  if not ok or was_cancelled then return end
-  return res
-end
-
 H.from_mini = function (surr_spec)
 
     local input = surr_spec.input
     local output = surr_spec.output
 
     return {
-        add = function ()
-            local res = output
-            if vim.is_callable(res) then res = res() end
-            if not H.is_surrounding_info(res, "output") then return nil end
-            if H.is_composed_pattern(res) then res = vim.tbl_map(H.wrap_callable_table, res) end
-
-            return { res.left, res.right }
+        add = function () 
+            local res = input
+          if vim.is_callable(res) then res = res() end
+            return {
+                { surr_spec.output.left, surr_spec.output.right }
+            }
         end,
         find = function ()
-            local res = input
-            if vim.is_callable(res) then res = res() end
-            if not H.is_surrounding_info(res, "input") then return nil end
-            if H.is_composed_pattern(res) then res = vim.tbl_map(H.wrap_callable_table, res) end
-            local surr = H.find_surrounding_region_pair(res)
+            local surr = H.find_surrounding_region_pair(input)
 
             return {
                 first_pos = { surr.left.from.line, surr.left.from.col },
@@ -235,11 +59,7 @@ H.from_mini = function (surr_spec)
             }
         end,
         delete = function ()
-            local res = input
-            if vim.is_callable(res) then res = res() end
-            if not H.is_surrounding_info(res, "input") then return nil end
-            if H.is_composed_pattern(res) then res = vim.tbl_map(H.wrap_callable_table, res) end
-            local surr = H.find_surrounding_region_pair(res)
+            local surr = H.find_surrounding_region_pair(input)
             return {
                 left = {
                     first_pos = { surr.left.from.line, surr.left.from.col },
@@ -247,7 +67,7 @@ H.from_mini = function (surr_spec)
                 },
                 right = {
                     first_pos = { surr.right.from.line, surr.right.from.col },
-                    last_pos = { surr.right.to.line, surr.right.to.col },
+                    last_pos = { surr.right.to.line, surr.right.to.line },
                 }
             }
         end
@@ -263,7 +83,7 @@ H.find_surrounding_region_pair = function(surr_spec, opts)
     local reference_region = { from = { line = cur_pos[1], col = cur_pos[2] + 1 } }
     local n_times, n_lines = vim.v.count1, 20
 
-    opts = vim.tbl_deep_extend('force', {search_method = "cover"}, opts or {})
+    opts = vim.tbl_deep_extend('force', {search_method = "cover"}, opts)
 
     if n_times == 0 then return end
 
@@ -726,12 +546,24 @@ H.is_better_covering_span = function(candidate, current, reference)
   return nil
 end
 
-H.is_surrounding_info = function(x, sur_type)
-  if sur_type == 'input' then
-    return H.is_composed_pattern(x) or H.is_region_pair(x) or H.is_region_pair_array(x)
-  elseif sur_type == 'output' then
-    return (type(x) == 'table' and type(x.left) == 'string' and type(x.right) == 'string')
-  end
-end
-
+--  delete -- get_selections
+--
+-- --{
+--   left = {
+--     first_pos = { 509, 40 },
+--     last_pos = { 509, 40 }
+--   },
+--   right = {
+--     first_pos = { 509, 58 },
+--     last_pos = { 509, 58 }
+--   }
+-- }
+--
+-- find -- get_selection
+--
+-- -- {
+--   first_pos = { 509, 40 },
+--   last_pos = { 509, 58 }
+-- }
+--
 return H

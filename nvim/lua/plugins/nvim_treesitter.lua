@@ -210,9 +210,9 @@ return {
         -- Calling setup is optional.
         keys = {
             {
-                "<leader>sr",
+                "<leader>st",
                 function() require("ssr").open() end,
-                { desc = "[S]tructural [R]eplace" },
+                { desc = "[S]tructural Replace [T]reesitter" },
             }
         },
         opts = {

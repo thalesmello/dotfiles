@@ -161,11 +161,12 @@ return {
         extra_contexts = {"vscode", "firenvim"},
         config = function ()
             local surround = require('mini.surround')
+            local get_input = surround.user_input
             surround.setup({
                 custom_surroundings = {
                     ['?'] = {
                         input = function()
-                            local surroundings = MiniSurround.user_input('Left Surround ||| Right Surround')
+                            local surroundings = get_input('Left Surround ||| Right Surround')
 
                             local left, right = unpack(vim.split(surroundings, "|||"))
                             
@@ -175,7 +176,7 @@ return {
                             return { vim.pesc(left) .. '().-()' .. vim.pesc(right) }
                         end,
                         output = function()
-                            local surroundings = MiniSurround.user_input('Left Surround ||| Right Surround')
+                            local surroundings = get_input('Left Surround ||| Right Surround')
 
                             local left, right = unpack(vim.split(surroundings, "|||"))
 
@@ -186,14 +187,27 @@ return {
                     },
                 },
                 mappings = {
-                    add = 'ys',
-                    delete = 'ds',
+                    -- add = 'ys',
+                    -- delete = 'ds',
+                    -- yank = '<leader>sy',
+                    -- paste = '<leader>sp',
+                    -- find = '<leader>sf',
+                    -- find_left = '<leader>sF',
+                    -- highlight = '<leader>sh',
+                    -- replace = 'cs',
+                    -- update_n_lines = '<leader>sn',
+                    --
+                    -- -- Add this only if you don't want to use extended mappings
+                    -- suffix_last = 'l',
+                    -- suffix_next = 'n',
+                    add = '<leader>sa',
+                    delete = '<leader>sd',
                     yank = '<leader>sy',
                     paste = '<leader>sp',
                     find = '<leader>sf',
                     find_left = '<leader>sF',
                     highlight = '<leader>sh',
-                    replace = 'cs',
+                    replace = '<leader>sr',
                     update_n_lines = '<leader>sn',
 
                     -- Add this only if you don't want to use extended mappings
@@ -206,31 +220,31 @@ return {
             })
 
             -- Remap adding surrounding to Visual mode selection
-            vim.keymap.del('x', 'ys')
-            vim.keymap.set('x', 'S', [[:<C-u>lua MiniSurround.add('visual')<CR>]], { silent = true })
+            -- vim.keymap.del('x', 'ys')
+            -- vim.keymap.set('x', 'S', [[:<C-u>lua MiniSurround.add('visual')<CR>]], { silent = true })
 
             -- Make special mapping for "add surrounding for line"
-            vim.keymap.set('n', 'yss', 'ys_', { remap = true })
+            -- vim.keymap.set('n', 'yss', 'ys_', { remap = true })
 
-            vim.keymap.set('i', '<c-s>', function ()
-                vim.api.nvim_create_autocmd({ 'InsertEnter' }, {
-                    pattern = '*',
-                    once = true,
-                    callback = function()
-                        local col = vim.fn.col('.')
-                        -- For some reason, at cursor column there's a "<c2>" caracter
-                        -- And therefore to select the character in from of the cursor I have
-                        -- To use col + 1, even though end indices are inclusive in lua
-                        -- I couldn't find any documentation, but I think <c2> is an internal representation
-                        -- for the cursor output from getline('.')
-                        local char_under_cursor = vim.fn.getline('.'):sub(1):sub(col, col+1)
-                        if char_under_cursor == '§' then
-                            vim_utils.feedkeys("<c-o>x")
-                        end
-                    end,
-                })
-                vim_utils.feedkeys('§<left><c-o>v:<c-u>lua require("mini.surround").add("visual")<cr>', 'n')
-            end, {silent=true})
+            -- vim.keymap.set('i', '<c-s>', function ()
+            --     vim.api.nvim_create_autocmd({ 'InsertEnter' }, {
+            --         pattern = '*',
+            --         once = true,
+            --         callback = function()
+            --             local col = vim.fn.col('.')
+            --             -- For some reason, at cursor column there's a "<c2>" caracter
+            --             -- And therefore to select the character in from of the cursor I have
+            --             -- To use col + 1, even though end indices are inclusive in lua
+            --             -- I couldn't find any documentation, but I think <c2> is an internal representation
+            --             -- for the cursor output from getline('.')
+            --             local char_under_cursor = vim.fn.getline('.'):sub(1):sub(col, col+1)
+            --             if char_under_cursor == '§' then
+            --                 vim_utils.feedkeys("<c-o>x")
+            --             end
+            --         end,
+            --     })
+            --     vim_utils.feedkeys('§<left><c-o>v:<c-u>lua require("mini.surround").add("visual")<cr>', 'n')
+            -- end, {silent=true})
 
 
             local group = vim.api.nvim_create_augroup("MiniSurroundGroup", { clear = true })
@@ -275,7 +289,7 @@ return {
                             ["S"] = {
                                 input = ts_input({ outer = "@sql-cte-cte", inner = "@sql-cte-inner"}),
                                 output = function ()
-                                    local cte_name = MiniSurround.user_input("CTE name: ")
+                                    local cte_name = get_input("CTE name: ")
 
                                     return { left = cte_name .. " AS (\n", right = "\n)," }
                                 end
@@ -283,7 +297,7 @@ return {
 
                             ["T"] = {
                                 output = function ()
-                                    local tag = MiniSurround.user_input("Enter tag: ")
+                                    local tag = get_input("Enter tag: ")
 
                                     return { left = "<".. tag .. ':', right = ">" }
                                 end,
