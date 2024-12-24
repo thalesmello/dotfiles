@@ -12,6 +12,14 @@ return {
             require('mini.ai').setup({
 
                 mappings = {
+                    around = 'a',
+                    inside = 'i',
+
+                    -- Next/last textobjects
+                    around_next = 'an',
+                    inside_next = 'in',
+                    around_last = 'al',
+                    inside_last = 'il',
                     goto_left = '<Plug>(mini-ai-goto-left)',
                     goto_right = '<Plug>(mini-ai-goto-right)',
                 },
@@ -73,6 +81,28 @@ return {
                     goto("right")
                 end)
 
+                -- local function arroundinner()
+                --     local ok, char = pcall(vim.fn.getcharstr)
+                --     if not ok or char == '\27' then return nil end
+                --
+                --     if vim.list_contains({"n", "l"}, char) then
+                --         local newchar
+                --         ok, newchar = pcall(vim.fn.getcharstr)
+                --         if not ok or newchar == '\27' then return nil end
+                --         char = char .. newchar
+                --     end
+                --
+                --
+                --     local repeatMove = ts_repeat_move.make_repeatable_move(
+                --         function ()
+                --             vim_utils.feedkeys("A" .. char)
+                --         end
+                --     )
+                --
+                --     repeatMove()
+                -- end
+                --
+                -- vim.keymap.set({ "x", "o" }, "a", arroundinner)
             end
 
             local group = vim.api.nvim_create_augroup("MiniAiBufferGroup", { clear = true })
