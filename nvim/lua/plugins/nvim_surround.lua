@@ -63,178 +63,36 @@ return {
             sql = {"sqlfile", "sql"},
         }
 
+        local function set_buffer_config(filetype)
+            local iter_filetypes = filetype_map[filetype] or {filetype}
 
-        -- vim.api.nvim_create_autocmd({ 'FileType' }, {
-        --     group = group,
-        --     pattern = "*",
-        --     callback = function(opts)
-        --         local filetype = opts.match
-        --         local iter_filetypes = filetype_map[filetype] or {filetype}
-        --
-        --         local config = {}
-        --
-        --         for _, ft in ipairs(iter_filetypes) do
-        --             local ok, ftconfig = pcall(require, "ftmini." .. ft)
-        --             if ok then
-        --                 config = vim.tbl_deep_extend("force", config, {
-        --                     surrounds = vim.tbl_map(surround_adapter.from_mini, ftconfig.custom_surroundings)
-        --                 })
-        --             end
-        --         end
-        --
-        --         surround.buffer_setup(config)
-        --     end,
-        -- })
+            local config = {}
+
+            for _, ft in ipairs(iter_filetypes) do
+                local ok, ftconfig = pcall(require, "ftmini." .. ft)
+                if ok then
+                    config = vim.tbl_deep_extend("force", config, {
+                        surrounds = vim.tbl_map(surround_adapter.from_mini, ftconfig.custom_surroundings)
+                    })
+                end
+            end
+
+            surround.buffer_setup(config)
+        end
 
         vim.api.nvim_create_autocmd({ 'FileType' }, {
             group = group,
-            pattern = {"sql", "jinja", "python"},
-            callback = function()
-                surround.buffer_setup({
-                    surrounds = {
-                        ["i"] = surround_adapter.from_mini({
-                            output = { left = "{{ ", right = " }}"},
-                            input = {"{{.-}}", "^({{%s*)().-(%s*}})()$"}
-                        }),
-
-                        ["%"] = surround_adapter.from_mini({
-                            output = { left = "{% ", right = " %}"},
-                            input = {"{%%%-?.-%-?%%}", "^{%%%-?%s*().-()%s*%-?%%}$"}
-                        }),
-
-                        ["-"] = surround_adapter.from_mini({
-                            output = { left = "{%- ", right = " -%}"},
-                            input = {"{%%%-?.-%-?%%}", "^{%%%-?%s*().-()%s*%-?%%}$"}
-                        }),
-
-                        ["#"] = surround_adapter.from_mini({
-                            output = { left = "{# ", right = " #}"},
-                            input = {"{#.-#}", "^{#%s*().-()%s*#}"}
-                        }),
-
-                        ["c"] = surround_adapter.from_mini({
-                            output = function()
-                                local type = surround.user_input("Enter the type to cast to: ")
-                                if type then
-                                    return { left = "CAST(" , right = " AS " .. type .. ")"  }
-                                end
-                            end,
-                            input = {"[Cc][Aa][Ss][Tt]%b()", "^....%(().-()%s+[Aa][Ss]%s+.-%)$"}
-                        }),
-
-                        ["S"] = surround_adapter.from_mini({
-                            input = ts_input({ outer = "@sql-cte-cte", inner = "@sql-cte-inner"}),
-                            output = function ()
-                                local cte_name = get_input("CTE name: ")
-
-                                return { left = cte_name .. " AS (\n", right = "\n)," }
-                            end
-                        }),
-
-                        ["T"] = surround_adapter.from_mini({
-                            output = function ()
-                                local tag = get_input("Enter tag: ")
-
-                                return { left = "<".. tag .. ':', right = ">" }
-                            end,
-                            input = {"%b<>", "^<.-:().-()>"}
-                        }),
-                    }
-                })
+            pattern = "*",
+            callback = function(opts)
+                set_buffer_config(opts.match)
             end,
         })
 
-        vim.api.nvim_create_autocmd({ 'FileType' }, {
+        vim.api.nvim_create_autocmd({ 'User' }, {
             group = group,
-            pattern = {"markdown"},
-            callback = function()
-                surround.buffer_setup({
-                    surrounds = {
-                        ["l"] = surround_adapter.from_mini({
-                            output = function ()
-                                local clipboard = vim.fn.getreg("+"):gsub("\n", "")
-
-                                return { left = "[", right = "](" .. clipboard .. ")"  }
-                            end,
-                            input = { "%b[]%b()", "^%[().-()%]%b()$" },
-                        }),
-                    }
-                })
-            end,
-        })
-
-
-        vim.api.nvim_create_autocmd({ 'FileType' }, {
-            group = group,
-            pattern = "lua",
-            callback = function()
-                surround.buffer_setup({
-                    surrounds = {
-                        ["F"] = surround_adapter.from_mini({
-                            output = { left = "function () ", right = " end"},
-                            input = ts_input({ outer = "@function.outer", inner = "@function.inner"}),
-                        }),
-                        ["<c-f>"] = surround_adapter.from_mini({
-                            output = { left = "function ()\n\treturn ", right = "\nend"},
-                            input = ts_input({ outer = "@function.outer", inner = "@function.inner"}),
-                        }),
-                        ["q"] = surround_adapter.from_mini({
-                            output = { left = "[[", right = "]]"},
-                            input = { "%[=*%[().-()%]=*%]" },
-                        }),
-                        ["Q"] = surround_adapter.from_mini({
-                            output = { left = "[=[", right = "]=]"},
-                            input = { "%[=*%[().-()%]=*%]" },
-                        }),
-                    }
-                })
-            end,
-        })
-
-
-        vim.api.nvim_create_autocmd({ 'FileType' }, {
-            group = group,
-            pattern = "python",
-            callback = function()
-                surround.buffer_setup({
-                    surrounds = {
-                        ["q"] = surround_adapter.from_mini({
-                            output = { left = '"""', right = '"""'},
-                            input = { { 'f?""".-"""', "f?'''.-'''" }, '^...%s*().-()%s*...$' },
-                        }),
-                        ["Q"] = surround_adapter.from_mini({
-                            output = { left = "'''", right = "'''"},
-                            input = { { 'f?""".-"""', "f?'''.-'''" }, '^...%s*().-()%s*...$' },
-                        }),
-                        ["="] = surround_adapter.from_mini({
-                            output = { left = "", right = "="},
-                            input = {[=[[%w_]+%s-=%s*]=], [=[^()[%w_]+()%s*=$]=]}
-                        }),
-                        ["+"] = surround_adapter.from_mini({
-                            output = { left = "", right = " = "},
-                            input = {[=[[%w_]+%s-=%s*]=], [=[^()[%w_]+()%s-=%s-$]=]}
-                        }),
-                        [":"] = surround_adapter.from_mini({
-                            output = { left = '"', right = '": '},
-                            input = {[=[['"][%w_]+['"]%s-:%s+]=], [=[^['"]()[%w_]+()['"]%s-:%s-$]=]}
-                        }),
-                    }
-                })
-            end,
-        })
-
-        vim.api.nvim_create_autocmd({ 'FileType' }, {
-            group = group,
-            pattern = {"snippets"},
-            callback = function()
-                surround.buffer_setup({
-                    surrounds = {
-                        ["$"] = surround_adapter.from_mini({
-                            output = { left = "${", right = "}"},
-                            input = {"%${.-}", "^%${().-()}$"}
-                        }),
-                    }
-                })
+            pattern = "TreesitterEmbeddedFileType",
+            callback = function(opts)
+                set_buffer_config(opts.data.filetype)
             end,
         })
     end,

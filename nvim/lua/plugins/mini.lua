@@ -4,6 +4,8 @@ return {
     {
         'echasnovski/mini.ai',
         version = false,
+
+
         extra_contexts = {"vscode", "firenvim"},
         config = function()
             local spec_pair = require('mini.ai').gen_spec.pair
@@ -113,19 +115,31 @@ return {
                 sql = {"sqlfile", "sql"},
             }
 
+            local function set_buffer_config(_, filetype)
+                local iter_filetypes = filetype_map[filetype] or {filetype}
+
+                for _, ft in ipairs(iter_filetypes) do
+                    local ok, ftconfig = pcall(require, "ftmini." .. ft)
+                    if ok then
+                        vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, ftconfig)
+                    end
+                end
+            end
+
+            local group = vim.api.nvim_create_augroup("MiniAiFiletypeGroup", { clear = true })
             vim.api.nvim_create_autocmd({ 'FileType' }, {
-                group = vim.api.nvim_create_augroup("MiniAiFiletypeGroup", { clear = true }),
+                group = group,
                 pattern = "*",
                 callback = function(opts)
-                    local filetype = opts.match
-                    local iter_filetypes = filetype_map[filetype] or {filetype}
+                    set_buffer_config(opts.match)
+                end,
+            })
 
-                    for _, ft in ipairs(iter_filetypes) do
-                        local ok, ftconfig = pcall(require, "ftmini." .. ft)
-                        if ok then
-                            vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, ftconfig)
-                        end
-                    end
+            vim.api.nvim_create_autocmd({ 'User' }, {
+                group = group,
+                pattern = "TreesitterEmbeddedFileType",
+                callback = function(opts)
+                    set_buffer_config(opts.data.filetype)
                 end,
             })
         end,
@@ -227,19 +241,32 @@ return {
                 sql = {"sqlfile", "sql"},
             }
 
+            local function set_buffer_config(filetype)
+                local iter_filetypes = filetype_map[filetype] or {filetype}
+
+                for _, ft in ipairs(iter_filetypes) do
+                    local ok, ftconfig = pcall(require, "ftmini." .. ft)
+                    if ok then
+                        vim.b.minisurround_config = vim.tbl_deep_extend("force", vim.b.minisurround_config or {}, ftconfig)
+                    end
+                end
+            end
+
+            local group = vim.api.nvim_create_augroup("MiniSurroundGroup", { clear = true })
             vim.api.nvim_create_autocmd({ 'FileType' }, {
-                group = vim.api.nvim_create_augroup("MiniSurroundGroup", { clear = true }),
+                group = group,
+
                 pattern = "*",
                 callback = function(opts)
-                    local filetype = opts.match
-                    local iter_filetypes = filetype_map[filetype] or {filetype}
+                    set_buffer_config(opts.match)
+                end,
+            })
 
-                    for _, ft in ipairs(iter_filetypes) do
-                        local ok, ftconfig = pcall(require, "ftmini." .. ft)
-                        if ok then
-                            vim.b.minisurround_config = vim.tbl_deep_extend("force", vim.b.minisurround_config or {}, ftconfig)
-                        end
-                    end
+            vim.api.nvim_create_autocmd({ 'User' }, {
+                group = group,
+                pattern = "TreesitterEmbeddedFileType",
+                callback = function(opts)
+                    set_buffer_config(opts.data.filetype)
                 end,
             })
         end

@@ -199,6 +199,34 @@ return {
 
                 vim.cmd.edit(config .. "/after/queries/" .. vim.fn.expand("%:e") .. '/textobjects.scm')
             end)
+
+            vim.api.nvim_create_autocmd({ 'CursorHold' }, {
+                group = group,
+                pattern = "*",
+                callback = function()
+                    local prev_filetype = vim.b.treesitter_prev_filetype
+
+                    local line = vim.fn.line('.')
+
+                    local ok, parser = pcall(vim.treesitter.get_parser)
+
+                    if not ok then
+                        return
+                    end
+
+                    local filetype = parser:language_for_range({line, 0, line, 0}):lang()
+
+                    if filetype ~= prev_filetype then
+                        vim.b.treesitter_prev_filetype = filetype
+                        vim.api.nvim_exec_autocmds("User", {
+                            pattern = "TreesitterEmbeddedFileType",
+                            data = {
+                                filetype = filetype
+                            }
+                        })
+                    end
+                end,
+            })
         end,
         extra_contexts = {"vscode", "firenvim"},
         lazy = false,
