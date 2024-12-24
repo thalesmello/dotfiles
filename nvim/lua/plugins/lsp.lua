@@ -94,7 +94,6 @@ return {
         'hrsh7th/nvim-cmp',
         dependencies = {
             {'hrsh7th/cmp-buffer'},
-            {'hrsh7th/cmp-cmdline'},
             {'hrsh7th/cmp-calc'},
         },
         opts = function (_, opts)
@@ -130,8 +129,6 @@ return {
 
             return {
                 sources = vim.list_extend(opts.sources or {}, {
-                    -- { name = 'nvim_lsp' },
-                    -- { name = 'path' },
                     { name = 'snippy' },
                     {
                         name = 'buffer',
@@ -300,10 +297,13 @@ return {
 
             -- `/` cmdline setup.
             cmp.setup.cmdline('/', {
+                completion = {
+                    autocomplete = false,
+                },
                 mapping = cmp.mapping.preset.cmdline({
                     ['<C-n>'] = cmp.mapping(
                         function(fallback)
-                            if cmp.visible() then
+                            if cmdMoved and cmp.visible() then
                                 cmp.select_next_item()
                             else
                                 fallback()
@@ -312,11 +312,12 @@ return {
                     ),
                     ['<C-p>'] = cmp.mapping(
                         function(fallback)
-                            if cmp.visible() then
-                                cmp.select_prev_item()
-                            else
-                                fallback()
-                            end
+                            fallback()
+                            -- if cmdMoved and cmp.visible() then
+                            --     cmp.select_prev_item()
+                            -- else
+                            --     fallback()
+                            -- end
                         end, {"c"}
                     ),
                 }),
