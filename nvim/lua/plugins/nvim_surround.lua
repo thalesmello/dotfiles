@@ -64,6 +64,8 @@ return {
         }
 
         local function set_buffer_config(filetype)
+            if filetype == '' then return end
+
             local iter_filetypes = filetype_map[filetype] or {filetype}
 
             local config = {}
@@ -72,7 +74,7 @@ return {
                 local ok, ftconfig = pcall(require, "ftmini." .. ft)
                 if ok then
                     config = vim.tbl_deep_extend("force", config, {
-                        surrounds = vim.tbl_map(surround_adapter.from_mini, ftconfig.custom_surroundings)
+                        surrounds = vim.tbl_map(surround_adapter.from_mini, ftconfig.custom_surroundings or {})
                     })
                 end
             end

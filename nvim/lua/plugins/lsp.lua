@@ -339,11 +339,12 @@ return {
                 "<leader>esp",
                 function()
                     local config = vim.fn.stdpath("config")
-                    if vim.fn.expand("%:e") == '' then
+                    local filetype = vim.o.filetype
+                    if filetype == '' then
                         return
                     end
 
-                    vim.cmd.edit(config .. "/snippets/" .. vim.fn.expand("%:e") .. '.snippets')
+                    vim.cmd.edit(config .. "/snippets/" .. filetype .. '.snippets')
                     vim.bo.filetype = "snippets"
                 end
             },

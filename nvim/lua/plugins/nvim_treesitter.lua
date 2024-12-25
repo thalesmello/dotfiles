@@ -193,11 +193,27 @@ return {
             vim.keymap.set({ "n", "x" }, "T", ts_repeat_move.builtin_T_expr, { expr = true })
             vim.keymap.set({ "n" }, "<leader>eto", function()
                 local config = vim.fn.stdpath("config")
-                if vim.fn.expand("%:e") == '' then
+
+                local filetype = vim.o.filetype
+
+                if filetype == '' then
                     return
                 end
 
-                vim.cmd.edit(config .. "/after/queries/" .. vim.fn.expand("%:e") .. '/textobjects.scm')
+                vim.cmd.edit(config .. "/after/queries/" .. filetype .. '/textobjects.scm')
+            end)
+
+
+            vim.keymap.set({ "n" }, "<leader>eti", function()
+                local config = vim.fn.stdpath("config")
+
+                local filetype = vim.o.filetype
+
+                if filetype == '' then
+                    return
+                end
+
+                vim.cmd.edit(config .. "/after/queries/" .. filetype .. '/injections.scm')
             end)
 
             vim.api.nvim_create_autocmd({ 'CursorHold' }, {
