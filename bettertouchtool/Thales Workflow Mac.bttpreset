@@ -5242,6 +5242,35 @@
                     },
                     {
                       "BTTActionCategory": 0,
+                      "BTTAdditionalActionData": {
+                        "BTTActionTextToPaste": "{\\rtf1\\ansi\\ansicpg1252\\cocoartf2761\n\\cocoatextscaling0\\cocoaplatform0{\\fonttbl\\f0\\fnil\\fcharset0 HelveticaNeue;}\n{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;}\n{\\*\\expandedcolortbl;;\\csgray\\c0;}\n\\pard\\tx560\\tx1120\\tx1680\\tx2240\\tx2800\\tx3360\\tx3920\\tx4480\\tx5040\\tx5600\\tx6160\\tx6720\\pardirnatural\\qc\\partightenfactor0\n\n\\f0\\fs24 \\cf2 wut (BTT)@clipboard(BTT)}"
+                      },
+                      "BTTEnabled": 1,
+                      "BTTEnabled2": 1,
+                      "BTTIsPureAction": true,
+                      "BTTLastUpdatedAt": 1731912838.1459541,
+                      "BTTMoveCursorLeftBy": "0",
+                      "BTTOrder": 9,
+                      "BTTPredefinedActionName": "Insert  or  Type  or  Paste Custom Text",
+                      "BTTPredefinedActionType": 118,
+                      "BTTTriggerClass": "BTTTriggerTypeCustomActionConfig",
+                      "BTTTriggerParentUUID": "0EC94F82-FF36-4A55-8982-3627E8DA0C8A",
+                      "BTTUUID": "7B95D75F-7939-4442-B8F0-B2D0A62526C4"
+                    },
+                    {
+                      "BTTActionCategory": 0,
+                      "BTTEnabled": 1,
+                      "BTTEnabled2": 1,
+                      "BTTIsPureAction": true,
+                      "BTTLastUpdatedAt": 1731912838.146122,
+                      "BTTOrder": 10,
+                      "BTTShortcutToSend": "36",
+                      "BTTTriggerClass": "BTTTriggerTypeCustomActionConfig",
+                      "BTTTriggerParentUUID": "0EC94F82-FF36-4A55-8982-3627E8DA0C8A",
+                      "BTTUUID": "5D80DB37-A611-4D76-9F1F-B9169092150C"
+                    },
+                    {
+                      "BTTActionCategory": 0,
                       "BTTAppToShowOrHide": "/Applications/Google Chrome.app",
                       "BTTEnabled": 1,
                       "BTTEnabled2": 1,
@@ -5296,35 +5325,6 @@
                       "BTTTriggerClass": "BTTTriggerTypeNormalMouse",
                       "BTTTriggerParentUUID": "0EC94F82-FF36-4A55-8982-3627E8DA0C8A",
                       "BTTUUID": "CB31CABE-91A8-4570-8854-DEAA4847BB6D"
-                    },
-                    {
-                      "BTTActionCategory": 0,
-                      "BTTAdditionalActionData": {
-                        "BTTActionTextToPaste": "{\\rtf1\\ansi\\ansicpg1252\\cocoartf2761\n\\cocoatextscaling0\\cocoaplatform0{\\fonttbl\\f0\\fnil\\fcharset0 HelveticaNeue;}\n{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;}\n{\\*\\expandedcolortbl;;\\csgray\\c0;}\n\\pard\\tx560\\tx1120\\tx1680\\tx2240\\tx2800\\tx3360\\tx3920\\tx4480\\tx5040\\tx5600\\tx6160\\tx6720\\pardirnatural\\qc\\partightenfactor0\n\n\\f0\\fs24 \\cf2 wut (BTT)@clipboard(BTT)}"
-                      },
-                      "BTTEnabled": 1,
-                      "BTTEnabled2": 1,
-                      "BTTIsPureAction": true,
-                      "BTTLastUpdatedAt": 1731912838.1459541,
-                      "BTTMoveCursorLeftBy": "0",
-                      "BTTOrder": 9,
-                      "BTTPredefinedActionName": "Insert  or  Type  or  Paste Custom Text",
-                      "BTTPredefinedActionType": 118,
-                      "BTTTriggerClass": "BTTTriggerTypeCustomActionConfig",
-                      "BTTTriggerParentUUID": "0EC94F82-FF36-4A55-8982-3627E8DA0C8A",
-                      "BTTUUID": "7B95D75F-7939-4442-B8F0-B2D0A62526C4"
-                    },
-                    {
-                      "BTTActionCategory": 0,
-                      "BTTEnabled": 1,
-                      "BTTEnabled2": 1,
-                      "BTTIsPureAction": true,
-                      "BTTLastUpdatedAt": 1731912838.146122,
-                      "BTTOrder": 10,
-                      "BTTShortcutToSend": "36",
-                      "BTTTriggerClass": "BTTTriggerTypeCustomActionConfig",
-                      "BTTTriggerParentUUID": "0EC94F82-FF36-4A55-8982-3627E8DA0C8A",
-                      "BTTUUID": "5D80DB37-A611-4D76-9F1F-B9169092150C"
                     }
                   ],
                   "BTTAdditionalData": "eyJCVFRDdXN0b21Db250ZXh0TWVudUljb25IZWlnaHQiOjI1LCJCVFRDdXN0b21Db250ZXh0TWVudUljb25XaWR0aCI6MjUsIkJUVEN1c3RvbUNvbnRleHRNZW51SXRlbU5hbWUiOiJ3dXQ_In0=",
@@ -5406,20 +5406,6 @@
                     },
                     {
                       "BTTActionCategory": 0,
-                      "BTTEnabled": 1,
-                      "BTTEnabled2": 1,
-                      "BTTIsPureAction": true,
-                      "BTTLastUpdatedAt": 1729879688.6039891,
-                      "BTTNamedTriggerToTrigger": "Chrome: New Tab to the Left",
-                      "BTTOrder": 5,
-                      "BTTPredefinedActionName": "Trigger Named Trigger (Configured in Other Tab)",
-                      "BTTPredefinedActionType": 248,
-                      "BTTTriggerClass": "BTTTriggerTypeNormalMouse",
-                      "BTTTriggerParentUUID": "32D7AEFA-F86D-41F3-93A5-2115A42F93FE",
-                      "BTTUUID": "AC1CA6D3-6271-4F49-AA33-924D1A3EE3EB"
-                    },
-                    {
-                      "BTTActionCategory": 0,
                       "BTTAdditionalActionData": {
                         "BTTActionTextToPaste": "{\\rtf1\\ansi\\ansicpg1252\\cocoartf2761\n\\cocoatextscaling0\\cocoaplatform0{\\fonttbl\\f0\\fnil\\fcharset0 HelveticaNeue;}\n{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;}\n{\\*\\expandedcolortbl;;\\csgray\\c0;}\n\\pard\\tx560\\tx1120\\tx1680\\tx2240\\tx2800\\tx3360\\tx3920\\tx4480\\tx5040\\tx5600\\tx6160\\tx6720\\pardirnatural\\qc\\partightenfactor0\n\n\\f0\\fs24 \\cf2 idata (BTT)@clipboard(BTT)}"
                       },
@@ -5446,6 +5432,20 @@
                       "BTTTriggerClass": "BTTTriggerTypeCustomActionConfig",
                       "BTTTriggerParentUUID": "32D7AEFA-F86D-41F3-93A5-2115A42F93FE",
                       "BTTUUID": "03826C2B-4664-454C-9317-42658761AE41"
+                    },
+                    {
+                      "BTTActionCategory": 0,
+                      "BTTEnabled": 1,
+                      "BTTEnabled2": 1,
+                      "BTTIsPureAction": true,
+                      "BTTLastUpdatedAt": 1729879688.6039891,
+                      "BTTNamedTriggerToTrigger": "Chrome: New Tab to the Left",
+                      "BTTOrder": 5,
+                      "BTTPredefinedActionName": "Trigger Named Trigger (Configured in Other Tab)",
+                      "BTTPredefinedActionType": 248,
+                      "BTTTriggerClass": "BTTTriggerTypeNormalMouse",
+                      "BTTTriggerParentUUID": "32D7AEFA-F86D-41F3-93A5-2115A42F93FE",
+                      "BTTUUID": "AC1CA6D3-6271-4F49-AA33-924D1A3EE3EB"
                     }
                   ],
                   "BTTAdditionalData": "eyJCVFRDdXN0b21Db250ZXh0TWVudUljb25IZWlnaHQiOjI1LCJCVFRDdXN0b21Db250ZXh0TWVudUljb25XaWR0aCI6MjUsIkJUVEN1c3RvbUNvbnRleHRNZW51SXRlbU5hbWUiOiJpZGF0YSJ9",
@@ -5527,20 +5527,6 @@
                     },
                     {
                       "BTTActionCategory": 0,
-                      "BTTEnabled": 1,
-                      "BTTEnabled2": 1,
-                      "BTTIsPureAction": true,
-                      "BTTLastUpdatedAt": 1729879688.609075,
-                      "BTTNamedTriggerToTrigger": "Chrome: New Tab to the Left",
-                      "BTTOrder": 4,
-                      "BTTPredefinedActionName": "Trigger Named Trigger (Configured in Other Tab)",
-                      "BTTPredefinedActionType": 248,
-                      "BTTTriggerClass": "BTTTriggerTypeNormalMouse",
-                      "BTTTriggerParentUUID": "1EAC1545-7A6F-48A3-BBD0-7ED9F6EBC27B",
-                      "BTTUUID": "8AF02E29-965B-486B-A741-CF92AE959A6E"
-                    },
-                    {
-                      "BTTActionCategory": 0,
                       "BTTAdditionalActionData": {
                         "BTTActionTextToPaste": "{\\rtf1\\ansi\\ansicpg1252\\cocoartf2761\n\\cocoatextscaling0\\cocoaplatform0{\\fonttbl\\f0\\fnil\\fcharset0 HelveticaNeue;}\n{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;}\n{\\*\\expandedcolortbl;;\\csgray\\c0;}\n\\pard\\tx560\\tx1120\\tx1680\\tx2240\\tx2800\\tx3360\\tx3920\\tx4480\\tx5040\\tx5600\\tx6160\\tx6720\\pardirnatural\\qc\\partightenfactor0\n\n\\f0\\fs24 \\cf2 cdm (BTT)@clipboard(BTT)}"
                       },
@@ -5567,6 +5553,20 @@
                       "BTTTriggerClass": "BTTTriggerTypeCustomActionConfig",
                       "BTTTriggerParentUUID": "1EAC1545-7A6F-48A3-BBD0-7ED9F6EBC27B",
                       "BTTUUID": "BBE43E89-69E3-4AB0-8577-901980961B7F"
+                    },
+                    {
+                      "BTTActionCategory": 0,
+                      "BTTEnabled": 1,
+                      "BTTEnabled2": 1,
+                      "BTTIsPureAction": true,
+                      "BTTLastUpdatedAt": 1729879688.609075,
+                      "BTTNamedTriggerToTrigger": "Chrome: New Tab to the Left",
+                      "BTTOrder": 4,
+                      "BTTPredefinedActionName": "Trigger Named Trigger (Configured in Other Tab)",
+                      "BTTPredefinedActionType": 248,
+                      "BTTTriggerClass": "BTTTriggerTypeNormalMouse",
+                      "BTTTriggerParentUUID": "1EAC1545-7A6F-48A3-BBD0-7ED9F6EBC27B",
+                      "BTTUUID": "8AF02E29-965B-486B-A741-CF92AE959A6E"
                     }
                   ],
                   "BTTAdditionalData": "eyJCVFRDdXN0b21Db250ZXh0TWVudUljb25IZWlnaHQiOjI1LCJCVFRDdXN0b21Db250ZXh0TWVudUljb25XaWR0aCI6MjUsIkJUVEN1c3RvbUNvbnRleHRNZW51SXRlbU5hbWUiOiJjZG0ifQ==",
@@ -5648,20 +5648,6 @@
                     },
                     {
                       "BTTActionCategory": 0,
-                      "BTTEnabled": 1,
-                      "BTTEnabled2": 1,
-                      "BTTIsPureAction": true,
-                      "BTTLastUpdatedAt": 1729879688.6143131,
-                      "BTTNamedTriggerToTrigger": "Chrome: New Tab to the Left",
-                      "BTTOrder": 4,
-                      "BTTPredefinedActionName": "Trigger Named Trigger (Configured in Other Tab)",
-                      "BTTPredefinedActionType": 248,
-                      "BTTTriggerClass": "BTTTriggerTypeNormalMouse",
-                      "BTTTriggerParentUUID": "57B6221E-F815-4DD5-B381-DD9F25C9E995",
-                      "BTTUUID": "7645B08B-98C9-415A-836A-E8338FBADC8A"
-                    },
-                    {
-                      "BTTActionCategory": 0,
                       "BTTAdditionalActionData": {
                         "BTTActionTextToPaste": "{\\rtf1\\ansi\\ansicpg1252\\cocoartf2761\n\\cocoatextscaling0\\cocoaplatform0{\\fonttbl\\f0\\fnil\\fcharset0 HelveticaNeue;}\n{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;}\n{\\*\\expandedcolortbl;;\\csgray\\c0;}\n\\pard\\tx560\\tx1120\\tx1680\\tx2240\\tx2800\\tx3360\\tx3920\\tx4480\\tx5040\\tx5600\\tx6160\\tx6720\\pardirnatural\\qc\\partightenfactor0\n\n\\f0\\fs24 \\cf2 zbgs (BTT)@clipboard(BTT)}"
                       },
@@ -5688,6 +5674,20 @@
                       "BTTTriggerClass": "BTTTriggerTypeCustomActionConfig",
                       "BTTTriggerParentUUID": "57B6221E-F815-4DD5-B381-DD9F25C9E995",
                       "BTTUUID": "7CD7E3DE-F7B0-4AE3-8FFA-671D3D599F36"
+                    },
+                    {
+                      "BTTActionCategory": 0,
+                      "BTTEnabled": 1,
+                      "BTTEnabled2": 1,
+                      "BTTIsPureAction": true,
+                      "BTTLastUpdatedAt": 1729879688.6143131,
+                      "BTTNamedTriggerToTrigger": "Chrome: New Tab to the Left",
+                      "BTTOrder": 4,
+                      "BTTPredefinedActionName": "Trigger Named Trigger (Configured in Other Tab)",
+                      "BTTPredefinedActionType": 248,
+                      "BTTTriggerClass": "BTTTriggerTypeNormalMouse",
+                      "BTTTriggerParentUUID": "57B6221E-F815-4DD5-B381-DD9F25C9E995",
+                      "BTTUUID": "7645B08B-98C9-415A-836A-E8338FBADC8A"
                     }
                   ],
                   "BTTAdditionalData": "eyJCVFRDdXN0b21Db250ZXh0TWVudUljb25IZWlnaHQiOjI1LCJCVFRDdXN0b21Db250ZXh0TWVudUljb25XaWR0aCI6MjUsIkJUVEN1c3RvbUNvbnRleHRNZW51SXRlbU5hbWUiOiJ6YmdzIn0=",
@@ -5769,20 +5769,6 @@
                     },
                     {
                       "BTTActionCategory": 0,
-                      "BTTEnabled": 1,
-                      "BTTEnabled2": 1,
-                      "BTTIsPureAction": true,
-                      "BTTLastUpdatedAt": 1731666417.6084871,
-                      "BTTNamedTriggerToTrigger": "Chrome: New Tab to the Left",
-                      "BTTOrder": 4,
-                      "BTTPredefinedActionName": "Trigger Named Trigger (Configured in Other Tab)",
-                      "BTTPredefinedActionType": 248,
-                      "BTTTriggerClass": "BTTTriggerTypeNormalMouse",
-                      "BTTTriggerParentUUID": "DFC27186-BF40-40D7-A92A-E74E559036AB",
-                      "BTTUUID": "44CB21A4-582F-4D70-B260-F8DF9070852E"
-                    },
-                    {
-                      "BTTActionCategory": 0,
                       "BTTAdditionalActionData": {
                         "BTTActionTextToPaste": "{\\rtf1\\ansi\\ansicpg1252\\cocoartf2818\n\\cocoatextscaling0\\cocoaplatform0{\\fonttbl\\f0\\fnil\\fcharset0 HelveticaNeue;}\n{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;}\n{\\*\\expandedcolortbl;;\\csgray\\c0;}\n\\pard\\tx560\\tx1120\\tx1680\\tx2240\\tx2800\\tx3360\\tx3920\\tx4480\\tx5040\\tx5600\\tx6160\\tx6720\\pardirnatural\\qc\\partightenfactor0\n\n\\f0\\fs24 \\cf2 daiquery (BTT)@clipboard(BTT)}"
                       },
@@ -5809,6 +5795,20 @@
                       "BTTTriggerClass": "BTTTriggerTypeCustomActionConfig",
                       "BTTTriggerParentUUID": "DFC27186-BF40-40D7-A92A-E74E559036AB",
                       "BTTUUID": "02E6F5A4-445C-411A-B0CE-F3FEC1B9936C"
+                    },
+                    {
+                      "BTTActionCategory": 0,
+                      "BTTEnabled": 1,
+                      "BTTEnabled2": 1,
+                      "BTTIsPureAction": true,
+                      "BTTLastUpdatedAt": 1731666417.6084871,
+                      "BTTNamedTriggerToTrigger": "Chrome: New Tab to the Left",
+                      "BTTOrder": 4,
+                      "BTTPredefinedActionName": "Trigger Named Trigger (Configured in Other Tab)",
+                      "BTTPredefinedActionType": 248,
+                      "BTTTriggerClass": "BTTTriggerTypeNormalMouse",
+                      "BTTTriggerParentUUID": "DFC27186-BF40-40D7-A92A-E74E559036AB",
+                      "BTTUUID": "44CB21A4-582F-4D70-B260-F8DF9070852E"
                     }
                   ],
                   "BTTAdditionalData": "eyJCVFRDdXN0b21Db250ZXh0TWVudUljb25IZWlnaHQiOjI1LCJCVFRDdXN0b21Db250ZXh0TWVudUljb25XaWR0aCI6MjUsIkJUVEN1c3RvbUNvbnRleHRNZW51SXRlbU5hbWUiOiJkYWlxdWVyeSJ9",
