@@ -5,7 +5,7 @@ local conditions = {
     {context_active = vim.g.vscode, load_if_context = 'vscode'},
 }
 
-function M.should_load(spec)
+function M.eval_conditions(spec)
     for _, condition in ipairs(conditions) do
         if condition.context_active then
             return (
@@ -17,7 +17,11 @@ function M.should_load(spec)
         end
     end
 
-    return true
+    return false
+end
+
+function M.should_load(spec)
+    return M.eval_conditions(spec) or true
 end
 
 function M.wrap(handle)
@@ -34,7 +38,7 @@ function M.wrap(handle)
 end
 
 function M.exec_when(spec, action)
-    if M.should_load(spec) then
+    if M.eval_conditions(spec) then
         return action()
     end
 end

@@ -58,22 +58,22 @@ return {
         'hrsh7th/cmp-nvim-lsp' ,
         injectable_opts = {
             "hrsh7th/nvim-cmp",
-            opts = conditional_load.wrap(function(_, opts)
+            opts = function(_, opts)
                 return vim_utils.deep_list_extend(opts, "sources", {
                     { name = 'nvim_lsp' },
                 })
-            end),
+            end,
         }
     }),
     vim_utils.injector_module({
         'hrsh7th/cmp-path',
         injectable_opts = {
             "hrsh7th/nvim-cmp",
-            opts = conditional_load.wrap(function(_, opts)
+            opts = function(_, opts)
                 return vim_utils.deep_list_extend(opts, "sources", {
                     { name = 'path' },
                 })
-            end),
+            end,
         }
     }),
     vim_utils.injector_module({
