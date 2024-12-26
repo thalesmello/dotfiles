@@ -166,7 +166,6 @@ ctrl-alt-cmd-n = ['move-node-to-monitor --wrap-around --focus-follows-window nex
 ctrl-alt-cmd-p = ['move-node-to-monitor --wrap-around --focus-follows-window prev', 'mode main'] # Toggle between floating and tiling layout
 equal = ['balance-sizes', 'mode main']
 
-# See: https://nikitabobko.github.io/AeroSpace/commands#move-node-to-workspace
 1 = ['move-node-to-workspace 1', 'mode main']
 2 = ['move-node-to-workspace 2', 'mode main']
 3 = ['move-node-to-workspace 3', 'mode main']
@@ -177,9 +176,6 @@ equal = ['balance-sizes', 'mode main']
 8 = ['move-node-to-workspace 8', 'mode main']
 9 = ['move-node-to-workspace 9', 'mode main']
 
-
-# sticky is not yet supported https://github.com/nikitabobko/AeroSpace/issues/2
-#s = [''layout sticky tiling'', 'mode main']
 
 ctrl-alt-cmd-h = ['join-with left', 'mode main']
 ctrl-alt-cmd-j = ['join-with down', 'mode main']
@@ -199,6 +195,21 @@ shift-l = ['move-node-to-monitor --focus-follows-window right', 'mode main']
 
 # Window detected events
 
+
+# Reference on-window-detected
+# # Workspace monitor configs
+# [[on-window-detected]]
+# if.app-id = 'com.apple.systempreferences'
+# if.app-name-regex-substring = 'settings'
+# if.window-title-regex-substring = 'substring'
+# if.workspace = 'workspace-name'
+# if.during-aerospace-startup = true
+# check-further-callbacks = true
+# run = ['layout floating', 'move-node-to-workspace S']  # The callback itself
+# run = 'move-node-to-workspace T' # mnemonics T - Terminal
+
+# Floating windows configuration
+
 # Not supported yet :(
 # [[on-window-detected]]
 # if.app-id = 'us.zoom.xos'
@@ -216,19 +227,6 @@ if.during-aerospace-startup = true
 run = ['move-node-to-workspace 2']  # The callback itself
 check-further-callbacks = true
 
-
-# Reference on-window-detected
-# # Workspace monitor configs
-# [[on-window-detected]]
-# if.app-id = 'com.apple.systempreferences'
-# if.app-name-regex-substring = 'settings'
-# if.window-title-regex-substring = 'substring'
-# if.workspace = 'workspace-name'
-# if.during-aerospace-startup = true
-# check-further-callbacks = true
-# run = ['layout floating', 'move-node-to-workspace S']  # The callback itself
-# run = 'move-node-to-workspace T' # mnemonics T - Terminal
-
 [[on-window-detected]]
 if.app-id = 'com.google.Chrome'
 if.window-title-regex-substring = 'Picture in Picture'
@@ -242,20 +240,11 @@ run = 'layout floating'
 check-further-callbacks = true
 
 [[on-window-detected]]
-if.app-name-regex-substring = 'YouTube Music'
-run = ['move-node-to-workspace 9']  # The callback itself
-check-further-callbacks = true
-
-[[on-window-detected]]
 if.app-name-regex-substring = 'Metamate'
 run = ['layout floating']  # The callback itself
 check-further-callbacks = true
 
-[[on-window-detected]]
-if.app-name-regex-substring = 'PomoFocus'
-run = ['move-node-to-workspace 9']  # The callback itself
-check-further-callbacks = true
-
+# Secondary workspace apps
 
 [[on-window-detected]]
 if.app-id = 'net.whatsapp.WhatsApp'
@@ -267,6 +256,15 @@ if.app-id = 'com.apple.MobileSMS'
 run = ['move-node-to-workspace 8']  # The callback itself
 check-further-callbacks = true
 
+[[on-window-detected]]
+if.app-name-regex-substring = 'YouTube Music'
+run = ['move-node-to-workspace 9']  # The callback itself
+check-further-callbacks = true
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'PomoFocus'
+run = ['move-node-to-workspace 9']  # The callback itself
+check-further-callbacks = true
 
 [workspace-to-monitor-force-assignment]
 9 = ['secondary']
