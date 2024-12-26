@@ -2,7 +2,7 @@ repos:
   - repo: local
     hooks:
       - id: format-bettertouchtool
-        name: Format Better Touch TOol
+        name: Format Better Touch Tool
         entry: ./scripts/format-btt-profiles.sh
         language: script
         files: bettertouchtool/.*\.bttpreset
