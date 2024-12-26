@@ -236,34 +236,10 @@ run = ['layout floating']  # The callback itself
 check-further-callbacks = true
 
 [[on-window-detected]]
-if.app-id = 'com.facebook.fbvscode'
-if.during-aerospace-startup = true
-run = ['move-node-to-workspace 2']  # The callback itself
-check-further-callbacks = true
-
-[[on-window-detected]]
-if.app-name-regex-substring = 'Workplace'
-run = ['move-node-to-workspace 3']  # The callback itself
-check-further-callbacks = true
-
-
-[[on-window-detected]]
-if.app-id = 'md.obsidian'
-run = ['move-node-to-workspace 4']  # The callback itself
-check-further-callbacks = true
-
-[[on-window-detected]]
-if.app-name-regex-substring = 'Google Keep'
-run = ['move-node-to-workspace 4']  # The callback itself
-check-further-callbacks = true
-
-[[on-window-detected]]
 if.app-id = 'com.googlecode.iterm2'
 if.window-title-regex-substring = 'Updating iTerm2'
 run = 'layout floating'
 check-further-callbacks = true
-
-
 
 [[on-window-detected]]
 if.app-name-regex-substring = 'YouTube Music'
@@ -293,10 +269,31 @@ check-further-callbacks = true
 
 
 [workspace-to-monitor-force-assignment]
-# 1 = 1                            # Monitor sequence number from left to right. 1-based indexing
-# 2 = 'main'                       # Main monitor
-# 3 = 'secondary'                  # Non-main monitor in case when there are only two monitors
-# 4 = 'built-in'                   # Case insensitive regex substring
-# 5 = '^built-in retina display$'  # Case insensitive regex match
-# 8 = ['secondary']        # You can specify multiple patterns. The first matching pattern will be used
-9 = ['secondary']        # You can specify multiple patterns. The first matching pattern will be used
+9 = ['secondary']
+
+
+# # Previous move window to workspace config
+# # I'm currently experimenting with removing this configuration
+# # so I keep these settings around just in case I want to reapply them
+# # in the near future
+# [[on-window-detected]]
+# if.app-id = 'com.facebook.fbvscode'
+# if.during-aerospace-startup = true
+# run = ['move-node-to-workspace 2']  # The callback itself
+# check-further-callbacks = true
+#
+# [[on-window-detected]]
+# if.app-name-regex-substring = 'Workplace'
+# run = ['move-node-to-workspace 3']  # The callback itself
+# check-further-callbacks = true
+#
+#
+# [[on-window-detected]]
+# if.app-id = 'md.obsidian'
+# run = ['move-node-to-workspace 4']  # The callback itself
+# check-further-callbacks = true
+#
+# [[on-window-detected]]
+# if.app-name-regex-substring = 'Google Keep'
+# run = ['move-node-to-workspace 4']  # The callback itself
+# check-further-callbacks = true
