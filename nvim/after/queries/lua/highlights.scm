@@ -8,4 +8,4 @@
   body: (block (return_statement . "return" @conceal (#set! conceal "→") .)) . "end" .)
 
 (function_definition . "function"
-  body: (block (return_statement . "return") .) . "end" @conceal (#set! conceal "") .)
+  body: (block . _ .) . "end" @conceal (#set! conceal "") .)

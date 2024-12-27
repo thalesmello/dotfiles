@@ -1,5 +1,5 @@
 return {
-    'tpope/vim-flagship',
+    'thalesmello/vim-flagship',
     dependencies = {
         {
             'ryanoasis/vim-devicons',
