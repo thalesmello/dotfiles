@@ -85,28 +85,30 @@ return {
                     repeatable_goto_ai("right")
                 end)
 
-                -- local function arroundinner()
+                -- local function arroundinner(mode)
                 --     local ok, char = pcall(vim.fn.getcharstr)
                 --     if not ok or char == '\27' then return nil end
                 --
-                --     if vim.list_contains({"n", "l"}, char) then
-                --         local newchar
-                --         ok, newchar = pcall(vim.fn.getcharstr)
-                --         if not ok or newchar == '\27' then return nil end
-                --         char = char .. newchar
+                --     local command
+                --     if mode == "i" then
+                --         command = "<Plug>(mini-ai-inner)"
+                --     else
+                --         command = "<Plug>(mini-ai-around)"
                 --     end
-                --
                 --
                 --     local repeatMove = ts_repeat_move.make_repeatable_move(
                 --         function ()
-                --             vim_utils.feedkeys("A" .. char)
+                --             vim_utils.feedkeys(command .. char)
                 --         end
                 --     )
                 --
-                --     repeatMove()
+                --     repeatMove({forward = true})
                 -- end
-                --
-                -- vim.keymap.set({ "x", "o" }, "a", arroundinner)
+
+                -- vim.keymap.set({ "x" }, "a", function () arroundinner("a") end, {remap=true})
+                -- vim.keymap.set({ "x" }, "i", function () arroundinner("i") end, {remap=true})
+                -- vim.keymap.set({ "o" }, "a", "<Plug>(mini-ai-around)", {remap=true})
+                -- vim.keymap.set({ "o" }, "i", "<Plug>(mini-ai-inner)", {remap=true})
 
             end
 
