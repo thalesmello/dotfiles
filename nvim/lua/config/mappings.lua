@@ -152,3 +152,7 @@ do
     do_open(table.concat(vim.iter(lines):map(vim.trim):totable()))
   end, { desc = gx_desc })
 end
+
+vim.api.nvim_create_user_command("SynStack", function ()
+  vim.cmd [[echo map(synstack(line('.'), col('.')), 'synIDattr(v:val, "name")')]]
+end, {})
