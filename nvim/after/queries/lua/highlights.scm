@@ -2,7 +2,9 @@
 
 
 
-(function_definition . "function" @conceal (#set! conceal "𝑓"))
+; (function_definition . "function" @conceal (#set! conceal "𝑓"))
+(function_definition . "function" @conceal (#set! conceal "𝑓")
+  body: (block) . "end" .)
 
 (function_definition . "function"
   body: (block (return_statement . "return" @conceal (#set! conceal "→") .)) . "end" .)
