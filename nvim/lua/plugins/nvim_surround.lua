@@ -1,4 +1,6 @@
 local surround_adapter = require("surround_adapter")
+local ftmini = require("ftmini")
+
 return {
     'kylechui/nvim-surround',
     dependencies = {
@@ -54,32 +56,14 @@ return {
 
 
         local group = vim.api.nvim_create_augroup("NvimSurroungGroup", { clear = true })
-        local ts_input = surround_adapter.input_treesitter
 
-
-        local filetype_map = {
-            python = {"sqljinja", "python"},
-            jinja = {"sqlfile", "jinja"},
-            sql = {"sqlfile", "sql"},
-        }
 
         local function set_buffer_config(filetype)
-            if filetype == '' then return end
+            local config = ftmini.ftmini_config(filetype)
 
-            local iter_filetypes = filetype_map[filetype] or {filetype}
-
-            local config = {}
-
-            for _, ft in ipairs(iter_filetypes) do
-                local ok, ftconfig = pcall(require, "ftmini." .. ft)
-                if ok then
-                    config = vim.tbl_deep_extend("force", config, {
-                        surrounds = vim.tbl_map(surround_adapter.from_mini, ftconfig.custom_surroundings or {})
-                    })
-                end
-            end
-
-            surround.buffer_setup(config)
+            surround.buffer_setup({
+                surrounds = vim.tbl_map(surround_adapter.from_mini, config.custom_surroundings or {})
+            })
         end
 
         vim.api.nvim_create_autocmd({ 'FileType' }, {

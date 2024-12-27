@@ -26,9 +26,13 @@
 priority 1000
 
 snippet f "Anonymous function" i
+    function (${1})${2: }$VISUAL${3:return $4} ${2/\([\n]\?\).*/\=submatch(1) == "\n" ? "\n\t" : ""/}end${0}
+
+snippet fn "Anonymous function" i
     function (${1})
         $VISUAL${2}
     end${0}
+
 
 snippet if "If condition" w
     if $1 then

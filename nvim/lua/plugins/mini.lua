@@ -1,4 +1,5 @@
 local vim_utils = require('vim_utils')
+local ftmini = require('ftmini')
 
 return {
     {
@@ -45,7 +46,7 @@ return {
                     end,
                     ['.'] = { { "[^a-zA-Z0-9_%.]%s*[%a_][a-zA-Z0-9_%.]*,?", "^%s*()[%a_][a-zA-Z0-9_%.]*,?" }, "^[^a-zA-Z0-9_%.]?()%s*()[%a_][a-zA-Z0-9_%.]*(),?()$" },
                 },
-                search_method = "cover_or_next",
+                search_method = "cover",
                 n_lines = 1000,
             })
 
@@ -109,38 +110,22 @@ return {
 
             end
 
-            local filetype_map = {
-                python = {"sqljinja", "python"},
-                jinja = {"sqlfile", "jinja"},
-                sql = {"sqlfile", "sql"},
-            }
-
-            local function set_buffer_config(_, filetype)
-                local iter_filetypes = filetype_map[filetype] or {filetype}
-
-                for _, ft in ipairs(iter_filetypes) do
-                    local ok, ftconfig = pcall(require, "ftmini." .. ft)
-                    if ok then
-                        vim.b.miniai_config = vim.tbl_deep_extend("force", vim.b.miniai_config or {}, ftconfig)
-                    end
-                end
+            local function set_buffer_config(filetype)
+                local config = ftmini.ftmini_config(filetype)
+                vim.b.miniai_config = { custom_textobjects = config.custom_textobjects or {} }
             end
 
             local group = vim.api.nvim_create_augroup("MiniAiFiletypeGroup", { clear = true })
             vim.api.nvim_create_autocmd({ 'FileType' }, {
                 group = group,
                 pattern = "*",
-                callback = function(opts)
-                    set_buffer_config(opts.match)
-                end,
+                callback = function(opts) set_buffer_config(opts.match) end,
             })
 
             vim.api.nvim_create_autocmd({ 'User' }, {
                 group = group,
                 pattern = "TreesitterEmbeddedFileType",
-                callback = function(opts)
-                    set_buffer_config(opts.data.filetype)
-                end,
+                callback = function(opts) set_buffer_config(opts.data.filetype) end,
             })
         end,
     },
@@ -203,7 +188,7 @@ return {
                     suffix_last = 'l',
                     suffix_next = 'n',
                 },
-                search_method = 'cover_or_next',
+                search_method = 'cover',
                 respect_selection_type = true,
                 n_lines = 1000,
             })
@@ -235,21 +220,9 @@ return {
             --     vim_utils.feedkeys('§<left><c-o>v:<c-u>lua require("mini.surround").add("visual")<cr>', 'n')
             -- end, {silent=true})
 
-            local filetype_map = {
-                python = {"sqljinja", "python"},
-                jinja = {"sqlfile", "jinja"},
-                sql = {"sqlfile", "sql"},
-            }
-
             local function set_buffer_config(filetype)
-                local iter_filetypes = filetype_map[filetype] or {filetype}
-
-                for _, ft in ipairs(iter_filetypes) do
-                    local ok, ftconfig = pcall(require, "ftmini." .. ft)
-                    if ok then
-                        vim.b.minisurround_config = vim.tbl_deep_extend("force", vim.b.minisurround_config or {}, ftconfig)
-                    end
-                end
+                local config = ftmini.ftmini_config(filetype)
+                vim.b.minisurround_config = { custom_surroundings = config.custom_surroundings or {} }
             end
 
             local group = vim.api.nvim_create_augroup("MiniSurroundGroup", { clear = true })

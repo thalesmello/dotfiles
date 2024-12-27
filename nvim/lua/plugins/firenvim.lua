@@ -153,7 +153,6 @@ return {
                         "window.getComputedStyle(document.querySelector('.active-line-number')).getPropertyValue('font-size').slice(0, -2) * window.devicePixelRatio",
                         vim_utils.create_vimscript_function('UserFirenvimSetfontCallback', function(fontsize)
                             fontsize = math.floor(tonumber(vim.json.decode(fontsize)) * 72 / 96)
-                            vim.print({fontsize = fontsize})
 
                             if fontsize > 0 then
                                 setFontSize(fontsize)
