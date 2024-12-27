@@ -25,8 +25,6 @@ function CompleteAg(A)
         return A
   end
 
-  local ag_cmd = "ag -o " .. vim.fn.shellescape([[\b\w*]] .. A .. [[\w*\b]])
-
   local output = vim.fn.split(
     vim.system({
       "ag",

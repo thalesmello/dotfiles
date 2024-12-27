@@ -1,6 +1,8 @@
 -- Display incomplete commands.
 vim.opt.cmdheight = 2
 
+vim.opt.conceallevel = 1
+
 vim.opt.showcmd = true
 
 vim.opt.wildignorecase = true
