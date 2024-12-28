@@ -241,6 +241,14 @@ check-further-callbacks = true
 
 # Secondary workspace apps
 
+
+[[on-window-detected]]
+if.app-id = 'com.google.Chrome'
+if.window-title-regex-substring = 'Thales \(Personal\)'
+run = ['move-node-to-workspace 7']  # The callback itself
+check-further-callbacks = true
+
+
 [[on-window-detected]]
 if.app-id = 'net.whatsapp.WhatsApp'
 run = ['move-node-to-workspace 8']  # The callback itself
