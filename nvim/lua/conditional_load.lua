@@ -1,12 +1,12 @@
 local M = {}
 
-local conditions = {
+local contexts_conditions = {
     {context_active = vim.g.started_by_firenvim, load_if_context = 'firenvim'},
     {context_active = vim.g.vscode, load_if_context = 'vscode'},
 }
 
-function M.eval_conditions(spec)
-    for _, condition in ipairs(conditions) do
+function M.should_load(spec)
+    for _, condition in ipairs(contexts_conditions) do
         if condition.context_active then
             return (
                 spec[condition.load_if_context]
@@ -18,10 +18,6 @@ function M.eval_conditions(spec)
     end
 
     return false
-end
-
-function M.should_load(spec)
-    return M.eval_conditions(spec) or true
 end
 
 function M.wrap(handle)
@@ -38,7 +34,7 @@ function M.wrap(handle)
 end
 
 function M.exec_when(spec, action)
-    if M.eval_conditions(spec) then
+    if M.should_load(spec) then
         return action()
     end
 end

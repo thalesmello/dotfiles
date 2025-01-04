@@ -3,7 +3,6 @@ if not vim.g.vscode then
 end
 
 local vscode = require('vscode')
-local vim_utils = require('vim_utils')
 
 -- This is makes extensions not be enabled by default
 -- To enable, add "vscode = true" to the plugin spec
@@ -110,7 +109,7 @@ local function vscodeOpenFile(files)
 end
 
 local function vscodeGetProjection(file)
-  local projections = vim.g.vscode_projections
+  local projections = vim.g.vscode_projections or {}
   for projection, config in pairs(projections) do
     local capture_group_projection = vim.pesc(projection):gsub("%%%*", "(.-)")
     local entity = file:match(capture_group_projection)
