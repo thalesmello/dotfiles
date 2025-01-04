@@ -105,23 +105,24 @@ function M.injector_module(spec)
 
     local injected_modules = vim.iter(injectable_opts)
         :map(function(injectable)
-            local new_opts = injectable.opts
+            local inject_opts = injectable.opts or {}
+            local inject_dependencies = injectable.dependencies or {}
 
             return vim.tbl_deep_extend('force', injectable, {
                 optional = true,
-                dependencies = { parent_module },
+                dependencies = vim.list_extend(inject_dependencies, { parent_module }),
                 extra_contexts = extra_contexts,
                 opts = function (...)
                     local args = {...}
                     local opts = args[2]
-                    if type(new_opts) == "function" then
-                        local ret_opts = new_opts(...)
+                    if type(inject_opts) == "function" then
+                        local ret_opts = inject_opts(...)
 
                         if ret_opts ~= nil then
                             opts = ret_opts
                         end
                     else
-                        opts = vim.tbl_deep_extend('force', opts or {}, new_opts)
+                        opts = vim.tbl_deep_extend('force', opts or {}, inject_opts)
                     end
 
                     return opts
