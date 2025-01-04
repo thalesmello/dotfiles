@@ -210,6 +210,11 @@ return {
                         return
                     end
 
+                    if not vim.b.treesitter_full_buffer_parse then
+                        parser:parse(true)
+                        vim.b.treesitter_full_buffer_parse = true
+                    end
+
                     local filetype = parser:language_for_range({line, 0, line, 0}):lang()
 
                     if filetype ~= prev_filetype then
