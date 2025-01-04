@@ -92,18 +92,31 @@ vim.keymap.set({"v"}, "<Plug>SwapVisualCursor", function ()
 end, { noremap = true, expr = true })
 
 vim.keymap.set("n", "<leader>er", function ()
-  local x = vim.fn.nr2char(vim.fn.getchar())
+  local reg = vim.fn.nr2char(vim.fn.getchar())
 
   vim.api.nvim_create_autocmd("CmdlineEnter", {
     pattern = "*",
     callback = function ()
 
-      local registerText = vim.fn.getreg(x)
+      local macro = vim.fn.getreg(reg)
       -- There a funny bug that causes a sequence to be recorded in the macro when f or t are pressed.
       -- We remove it in the line below
-      local escapedRegister = require("reverse_termcodes").reverse_termcodes(registerText)
+      local escaped_macro = require("reverse_termcodes").reverse_termcodes(macro)
 
-      local str = "lua require'vim_utils'.set_register('" .. x .. "', [=[ " .. escapedRegister .. " ]=])"
+      local quoted_macro
+
+      if not escaped_macro:find("'") then
+        quoted_macro = "'" .. escaped_macro .. "'"
+      elseif not escaped_macro:find('"') then
+        quoted_macro = '"' .. escaped_macro .. '"'
+      elseif (not escaped_macro:find("%[%["))
+        and (not escaped_macro:find("%]%]")) then
+        quoted_macro = "[[" .. escaped_macro .. "]]"
+      else
+        quoted_macro = "[=[" .. escaped_macro .. "]=]"
+      end
+
+      local str = "lua require'vim_utils'.set_register('" .. reg .. "', " .. quoted_macro .. ")"
 
       vim.fn.setcmdline(str)
     end,
@@ -112,6 +125,14 @@ vim.keymap.set("n", "<leader>er", function ()
 
   vim.fn.feedkeys(':', 'n')
 end)
+
+vim.api.nvim_create_autocmd({ 'VimResized' }, {
+  group = vim.api.nvim_create_augroup('VimResizeWindows', { clear = true }),
+  pattern = {"*"},
+  callback = function()
+    vim.cmd.wincmd("=")
+  end,
+})
 
 vim.keymap.set("n", "<bs>", ":nohlsearch<cr>:pclose<cr>:diffoff<cr>", { noremap = true, silent = true })
 vim.keymap.set("s", "<bs>", "<bs>i", { noremap = true })
@@ -152,7 +173,3 @@ do
     do_open(table.concat(vim.iter(lines):map(vim.trim):totable()))
   end, { desc = gx_desc })
 end
-
-vim.api.nvim_create_user_command("SynStack", function ()
-  vim.cmd [[echo map(synstack(line('.'), col('.')), 'synIDattr(v:val, "name")')]]
-end, {})

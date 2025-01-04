@@ -165,8 +165,6 @@ end
 
 function M.set_register(register, contents)
     contents = vim.api.nvim_replace_termcodes(contents, true, true, true)
-        :gsub('^%s?(.-)%s?$', '%1')
-
     vim.fn.setreg(register, contents)
 end
 
@@ -184,6 +182,18 @@ function M.coroutine_user_input(arg_prompt)
 
     -- (3) return the function
     return input
+end
+
+function M.has_words_before()
+    local line, col = unpack(vim.api.nvim_win_get_cursor(0))
+
+    if col == 0 then
+        return false
+    end
+
+    local current_line_text = vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]
+
+    return current_line_text:sub(col, col):match("%s") == nil
 end
 
 return M
