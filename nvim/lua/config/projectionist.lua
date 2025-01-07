@@ -31,6 +31,9 @@ return {
       ["after/queries/*/textobjects.scm"] = {
          type = "textobjects",
       },
+      ["lua/ftmini/*.lua"] = {
+         type = "ftmini",
+      },
    },
    [data .. '/lazy/'] = {
       [data .. '/lazy/**/README*'] = {

@@ -107,11 +107,7 @@ return {
         injectable_opts = {
             "hrsh7th/nvim-cmp",
             merge_opts = function(_, opts)
-                if vim.fn.getcwd() ~= vim.fn.expand('~') then
-                    return {
-                        sources = { { name = 'rg' } },
-                    }
-                end
+                return (vim.fn.getcwd() ~= vim.fn.expand('~')) and { sources = { { name = 'rg' } } }
             end,
         },
         extra_contexts = {"firenvim"},
