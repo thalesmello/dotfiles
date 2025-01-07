@@ -99,30 +99,53 @@ function M.injector_module(spec)
     local extra_contexts = spec.extra_contexts
     spec.injectable_opts = nil
 
-    if #injectable_opts >= 1 and type(injectable_opts[1]) == "string" then
-        injectable_opts = {injectable_opts}
+    if not vim.isarray(injectable_opts) and type(injectable_opts[1]) == "string" then
+        injectable_opts = { injectable_opts }
     end
 
     local injected_modules = vim.iter(injectable_opts)
         :map(function(injectable)
-            local inject_opts = injectable.opts or {}
+            local inject_opts
+            local resolution_mode = 'default'
+
+            if injectable.merge_opts then
+                inject_opts = injectable.merge_opts
+                resolution_mode = 'merge'
+            elseif injectable.opts ~= nil then
+                inject_opts = injectable.opts
+            else
+                inject_opts = {}
+            end
+
+            local eval_opts
+            if type(inject_opts) ~= "function" then
+                eval_opts = function (_, opts)
+                    if resolution_mode == 'merge' then
+                        return inject_opts
+                    else
+                        return vim.tbl_deep_extend('force', opts or {}, inject_opts)
+                    end
+                end
+            else
+                eval_opts = inject_opts
+            end
+
             local inject_dependencies = injectable.dependencies or {}
 
             return vim.tbl_deep_extend('force', injectable, {
                 optional = true,
                 dependencies = vim.list_extend(inject_dependencies, { parent_module }),
                 extra_contexts = extra_contexts,
-                opts = function (...)
-                    local args = {...}
-                    local opts = args[2]
-                    if type(inject_opts) == "function" then
-                        local ret_opts = inject_opts(...)
+                opts = function (arg_spec, arg_opts)
+                    local new_opts = eval_opts(arg_spec, arg_opts)
 
-                        if ret_opts ~= nil then
-                            opts = ret_opts
-                        end
+                    local opts
+                    if new_opts == nil then
+                        opts = arg_opts
+                    elseif resolution_mode == "merge" then
+                        opts = M.deep_tbl_merge_concat(arg_opts, new_opts)
                     else
-                        opts = vim.tbl_deep_extend('force', opts or {}, inject_opts)
+                        opts = new_opts
                     end
 
                     return opts
@@ -133,6 +156,32 @@ function M.injector_module(spec)
 
     return { spec, unpack(injected_modules) }
 end
+
+function M.deep_tbl_merge_concat(dst, ...)
+    local srcs = {...}
+
+    for _, src in ipairs(srcs) do
+        for k, src_val in pairs(src) do
+            local dst_val = dst[k]
+
+            local is_dst_array = vim.isarray(dst_val)
+            local is_src_array = vim.isarray(src_val)
+
+            if is_dst_array and is_src_array then
+                dst[k] = vim.list_extend(dst_val, src_val)
+            elseif type(dst_val) == 'table' and type(src_val) == 'table' and not is_dst_array and not is_src_array then
+                dst[k] = M.deep_tbl_merge_concat(dst_val, src_val)
+            elseif dst_val == nil and src_val ~= nil then
+                dst[k] = src_val
+            elseif dst_val ~= nil and src_val ~= nil then
+                error("merge_opts conflict on ".. k .. " with lhs=" .. vim.inspect(dst_val) .. " ~= rhs=" .. vim.inspect(src_val))
+            end
+        end
+    end
+
+    return dst
+end
+
 
 function M.tbl_set(tbl, ...)
     local args = { ... }

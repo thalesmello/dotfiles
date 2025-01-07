@@ -1,4 +1,3 @@
-local conditional_load = require("conditional_load")
 local vim_utils = require("vim_utils")
 
 return {
@@ -55,63 +54,63 @@ return {
         end,
     },
     vim_utils.injector_module({
-        'hrsh7th/cmp-buffer' ,
+        'hrsh7th/cmp-buffer',
         injectable_opts = {
             "hrsh7th/nvim-cmp",
-            opts = function(_, opts)
-                return vim_utils.deep_list_extend(opts, "sources", {
+            merge_opts = {
+                sources = {
                     {
                         name = 'buffer',
                         get_bufnrs = function()
                             return vim.api.nvim_list_bufs()
                         end,
                     },
-                })
-            end,
+                }
+            },
         }
     }),
     vim_utils.injector_module({
-        'hrsh7th/cmp-calc' ,
+        'hrsh7th/cmp-calc',
         injectable_opts = {
             "hrsh7th/nvim-cmp",
-            opts = function(_, opts)
-                return vim_utils.deep_list_extend(opts, "sources", {
+            merge_opts = {
+                sources = {
                     { name = 'calc' },
-                })
-            end,
+                }
+            },
         }
     }),
     vim_utils.injector_module({
-        'hrsh7th/cmp-nvim-lsp' ,
+        'hrsh7th/cmp-nvim-lsp',
         injectable_opts = {
             "hrsh7th/nvim-cmp",
-            opts = function(_, opts)
-                return vim_utils.deep_list_extend(opts, "sources", {
+            merge_opts = {
+                sources = {
                     { name = 'nvim_lsp' },
-                })
-            end,
+                }
+            },
         }
     }),
     vim_utils.injector_module({
         'hrsh7th/cmp-path',
         injectable_opts = {
             "hrsh7th/nvim-cmp",
-            opts = function(_, opts)
-                return vim_utils.deep_list_extend(opts, "sources", {
+            merge_opts = {
+                sources = {
                     { name = 'path' },
-                })
-            end,
+                }
+            },
         }
     }),
     vim_utils.injector_module({
         "thalesmello/cmp-rg",
         injectable_opts = {
             "hrsh7th/nvim-cmp",
-            opts = function(_, opts)
+            merge_opts = function(_, opts)
                 if vim.fn.getcwd() ~= vim.fn.expand('~') then
-                    opts.sources = vim.list_extend(opts.sources or {}, {
-                        { name = 'rg' },
-                    })
+                    return {
+                        sources = { { name = 'rg' } },
+                    }
                 end
             end,
         },
@@ -149,7 +148,7 @@ return {
                 TypeParameter = "󰅲",
             }
 
-            return {
+            return vim.tbl_deep_extend('force', opts, {
                 mapping = cmp.mapping.preset.insert({
                     -- Enter key confirms completion item
                     -- ['<tab>'] = cmp.mapping.confirm({select = false}),
@@ -200,7 +199,7 @@ return {
                         return vim_item
                     end
                 },
-            }
+            })
         end,
         extra_contexts = {"firenvim"},
     },
@@ -341,11 +340,9 @@ return {
             injectable_opts = {
                 {
                     "hrsh7th/nvim-cmp",
-                    opts = function(_, opts)
-                        opts.sources = vim.list_extend(opts.sources or {}, {
-                            { name = "lazydev", group_index = 0 },
-                        })
-                    end,
+                    merge_opts = {
+                        sources = { { name = "lazydev", group_index = 0 } },
+                    },
                 }
             }
         },

@@ -265,7 +265,7 @@ return {
         'RRethy/nvim-treesitter-textsubjects',
         injectable_opts = {
             "nvim-treesitter/nvim-treesitter",
-            opts = {
+            merge_opts = {
                 textsubjects = {
                     enable = true,
                     prev_selection = '<bs>', -- (Optional) keymap to select the previous selection

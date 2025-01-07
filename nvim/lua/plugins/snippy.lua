@@ -62,19 +62,19 @@ return {
             dependencies = {
                { 'dcampos/cmp-snippy' },
             },
-            opts = function (_, opts)
+            merge_opts = function (_, opts)
                local snippy = require('snippy')
 
-               return vim.tbl_deep_extend("force", opts, {
+               return {
                   snippet = {
                      expand = function(args)
                         snippy.expand_snippet(args.body)
                      end,
                   },
-                  sources = vim.list_extend(opts.sources or {}, {
+                  sources = {
                      { name = 'snippy' },
-                  })
-               })
+                  }
+               }
             end
          }
       },
