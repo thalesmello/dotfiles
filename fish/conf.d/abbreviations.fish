@@ -32,3 +32,4 @@ abbr vpip ./venv/bin/pip
 abbr v venv-run  --
 abbr bd betterdisplaycli
 abbr bdm betterdisplaycli perform --originalName "(osascript -e 'tell application \"System Events\" to display name of desktop 2')" --targetOriginalName "(osascript -e 'tell application \"System Events\" to display name of desktop 1')" --moveTo
+abbr o ooo --model phi4
