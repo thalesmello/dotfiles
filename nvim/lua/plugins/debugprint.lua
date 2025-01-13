@@ -31,4 +31,5 @@ return {
          delete_debug_prints = "DeleteDebugPrints",
       },
    },
+   cond = false,
 }

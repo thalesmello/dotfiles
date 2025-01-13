@@ -67,7 +67,9 @@ return {
       injectable_opts = {
          "hrsh7th/nvim-cmp",
          merge_opts = function()
-            return (vim.fn.getcwd() ~= vim.fn.expand('~')) and { sources = { { name = 'rg' } } }
+            if (vim.fn.getcwd() ~= vim.fn.expand('~')) then
+               return { sources = { { name = 'rg' } } }
+            end
          end,
       },
       extra_contexts = {"firenvim"},
@@ -140,5 +142,115 @@ return {
             }
          }
       },
-   })
+   }),
+   {
+      'thalesmello/cmp-cmdline',
+      branch = 'patch-1',
+      dependencies = {'hrsh7th/nvim-cmp'},
+      config = function ()
+         local cmp = require('cmp')
+
+         local cmdMoved = true
+
+         local function string_difference(old, new)
+            for i = 1,#new do --Loop over strings
+               if new:sub(i,i) ~= old:sub(i,i) then --If that character is not equal to it's counterpart
+                  return i --Return that index
+               end
+            end
+            return #new+1 --Return the index after where the shorter one ends as fallback.
+         end
+
+         vim.api.nvim_create_autocmd({ 'CmdlineEnter' }, {
+            group = vim.api.nvim_create_augroup('CmpCmdlineGroup', { clear = true }),
+            pattern = "*",
+            callback = function()
+               cmdMoved = false
+               local lastcmdline = ""
+
+               local cmdChangedGroup = vim.api.nvim_create_augroup('CmpCmdlineChangedGroup', { clear = true })
+               vim.api.nvim_create_autocmd({ 'CmdlineChanged' }, {
+                  group = cmdChangedGroup,
+                  pattern = "*",
+                  callback = function()
+                     local cmdline = vim.fn.getcmdline()
+                     local diff_index = string_difference(lastcmdline, cmdline)
+
+                     if #cmdline > #lastcmdline and #lastcmdline > 0 and diff_index == #cmdline then
+                        cmdMoved = true
+                        vim.api.nvim_clear_autocmds({ group = cmdChangedGroup })
+                        return
+                     end
+
+                     lastcmdline = cmdline
+                  end,
+               })
+            end,
+         })
+
+
+         -- `:` cmdline setup.
+         cmp.setup.cmdline(':', {
+            mapping = cmp.mapping.preset.cmdline({
+               ['<C-n>'] = cmp.mapping(
+                  function(fallback)
+                     if cmdMoved and cmp.visible() then
+                        cmp.select_next_item()
+                     else
+                        fallback()
+                     end
+                  end, {"c"}
+               ),
+               ['<C-p>'] = cmp.mapping(
+                  function(fallback)
+                     if cmdMoved and cmp.visible() then
+                        cmp.select_prev_item()
+                     else
+                        fallback()
+                     end
+                  end, {"c"}
+               ),
+            }),
+            sources = cmp.config.sources(
+               {
+                  { name = 'path' },
+               },
+               {
+                  {
+                     name = 'cmdline',
+                     option = {
+                        -- ignore_cmds = { 'Man',  'read!', 'r!', '!', 'Shdo' }
+                        ignore_cmds = {"foo"}
+                     }
+                  },
+               }
+            ),
+            view = {
+               entries = "custom",
+            },
+         })
+
+         -- `/` cmdline setup.
+         cmp.setup.cmdline('/', {
+            completion = {
+               autocomplete = false,
+            },
+            mapping = cmp.mapping.preset.cmdline({
+               ['<C-n>'] = cmp.mapping(
+                  function(fallback) fallback() end, {"c"}
+               ),
+               ['<C-p>'] = cmp.mapping(
+                  function(fallback) fallback() end, {"c"}
+               ),
+            }),
+            sources = {
+               { name = 'buffer' },
+            },
+            view = {
+               entries = "custom",
+            }
+         })
+      end,
+      extra_contexts = {"firenvim"}
+   },
 }
