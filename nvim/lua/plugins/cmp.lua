@@ -219,8 +219,7 @@ return {
                   {
                      name = 'cmdline',
                      option = {
-                        -- ignore_cmds = { 'Man',  'read!', 'r!', '!', 'Shdo' }
-                        ignore_cmds = {"foo"}
+                        ignore_cmds = { 'Man',  'read!', 'r!', '!', 'Shdo' }
                      }
                   },
                }
