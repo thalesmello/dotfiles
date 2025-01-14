@@ -1,7 +1,7 @@
 return {
     'hashivim/vim-terraform',
-    config = function()
-        require('config/terraform')
+    init = function()
+        vim.g.terraform_fmt_on_save = 1
     end,
     ft = "terraform",
 }
