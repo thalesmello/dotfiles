@@ -137,7 +137,7 @@ function M.injector_module(spec)
                 dependencies = vim.list_extend(inject_dependencies, { parent_module }),
                 extra_contexts = extra_contexts,
                 opts = function (arg_spec, arg_opts)
-                    local new_opts = eval_opts(arg_spec, arg_opts)
+                    local new_opts = eval_opts(arg_spec, arg_opts) or {}
 
                     local opts
                     if new_opts == nil then

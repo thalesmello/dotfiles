@@ -1,5 +1,6 @@
 return {
    {
+      cond = false,
       "folke/noice.nvim",
       opts = {
          lsp = {

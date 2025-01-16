@@ -47,9 +47,9 @@ return {
                end, { "i", "s" })
             }),
 
-            view = {
-               entries = "native",
-            },
+            -- view = {
+            --    entries = "native",
+            -- },
 
             formatting = {
                format = function(entry, vim_item)

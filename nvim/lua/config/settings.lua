@@ -1,5 +1,5 @@
 -- Display incomplete commands.
-vim.opt.cmdheight = 2
+vim.opt.cmdheight = 1
 
 vim.opt.conceallevel = 1
 
