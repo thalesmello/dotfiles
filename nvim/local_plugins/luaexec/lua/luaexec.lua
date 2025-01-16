@@ -3,9 +3,7 @@ local M = {}
 function M.setup()
   local vim_utils = require("vim_utils")
 
-  vim.keymap.set({'n', 'x'}, '<Plug>LuaExecOperator', function ()
-    return '<cmd>set opfunc=v:lua.LuaExecOperator<cr>g@'
-  end, {noremap = true, silent = true, expr = true})
+  vim.keymap.set({'n', 'x'}, '<Plug>LuaExecOperator', '<cmd>set opfunc=v:lua.LuaExecOperator<cr>g@', {noremap = true, silent = true})
 
   function LuaExecOperator(mode)
     local line1 = vim.fn.line("'[")

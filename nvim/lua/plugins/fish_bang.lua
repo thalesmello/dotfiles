@@ -6,6 +6,8 @@ return {
          require('fish_bang').setup()
 
          vim.keymap.set("x", "!", ":Fish<space>", { remap = false })
+         vim.keymap.set("n", "!", "<Plug>FishBangFilterOperator", {})
+         vim.keymap.set("n", "!!", "<Plug>FishBangFilterOperator_", {})
       end
    }
 }

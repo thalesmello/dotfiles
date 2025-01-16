@@ -1,3 +1,5 @@
+local vim_utils = require('vim_utils')
+
 local M = {}
 
 function M.setup ()
@@ -46,6 +48,27 @@ function M.setup ()
             end
         }
     )
+
+    vim.keymap.set({'n'}, '<Plug>FishBangFilterOperator', '<cmd>set opfunc=v:lua.FishBangFilterOperator<cr>g@', {noremap = true, silent = true})
+
+    function FishBangFilterOperator(mode)
+        local line1 = vim.fn.line("'[")
+        local line2 = vim.fn.line("']")
+        local curline = vim.fn.line(".")
+        local visline1 = vim.fn.line("'<")
+        local visline2 = vim.fn.line("'>")
+
+        if line1 == line2 and line1 == curline then
+            return vim_utils.feedkeys(":.Fish<space>")
+        elseif visline1 == line1 and visline2 == line2 then
+            return vim_utils.feedkeys(":'<,'>Fish<space>")
+        elseif line1 == curline then
+            local diff = line2 - line1
+            return vim_utils.feedkeys(":.,+" .. diff .. "Fish<space>")
+        else
+            return vim_utils.feedkeys(":" .. line1 .. "," .. line2 .. "Fish<space>")
+        end
+    end
 end
 
 return M
