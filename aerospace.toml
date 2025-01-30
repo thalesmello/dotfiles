@@ -229,6 +229,12 @@ run = ['layout floating']  # The callback itself
 check-further-callbacks = true
 
 [[on-window-detected]]
+if.app-id = 'com.google.Chrome'
+if.window-title-regex-substring = 'about:blank - Thales \(Personal\)'
+run = ['layout floating']  # The callback itself
+check-further-callbacks = true
+
+[[on-window-detected]]
 if.app-id = 'com.googlecode.iterm2'
 if.window-title-regex-substring = 'Updating iTerm2'
 run = 'layout floating'
