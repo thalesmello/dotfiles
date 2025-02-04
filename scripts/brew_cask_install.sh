@@ -11,4 +11,6 @@ brew install --cask notunes
 brew install --cask karabiner-elements
 brew install --cask rectangle-pro
 brew install --cask betterdisplay
+brew install --cask homerow
+brew install --cask superwhisper
 brew install waydabber/betterdisplay/betterdisplaycli
