@@ -12,6 +12,7 @@ after-login-command = []
 after-startup-command = [
   'exec-and-forget borders active_color=0xffe1e3e4 inactive_color=0xff494d64 width=5.0',
   'exec-and-forget /opt/homebrew/bin/fish -c aerospace-personal-windows.fish',
+  'layout accordion',
 ]
 
 # Start AeroSpace at login
@@ -274,6 +275,12 @@ check-further-callbacks = true
 if.app-name-regex-substring = 'PomoFocus'
 run = ['move-node-to-workspace 9']  # The callback itself
 check-further-callbacks = true
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'Timery'
+run = ['move-node-to-workspace 9']  # The callback itself
+check-further-callbacks = true
+
 
 [workspace-to-monitor-force-assignment]
 9 = ['secondary']
