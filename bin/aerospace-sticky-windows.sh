@@ -25,7 +25,7 @@ move_win() {
 }
 
 # YouTube Picture in Picture
-move_win 'Picture in Picture'
+move_win '\|Picture in Picture\|'
 
 # Google Meet Window
 move_win 'about:blank - Thales \(Personal\)'
