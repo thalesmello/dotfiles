@@ -1,7 +1,7 @@
 function aerospace-preset
     set preset $argv[1]
     set -e argv[1]
-    argparse \
+    argparse -i \
         'back-workspace=!test -n "$_flag_value"' \
         -- $argv
 
@@ -33,6 +33,34 @@ function aerospace-preset
             aerospace focus --window-id $window
             aerospace macos-native-minimize
         end
+    else if test "$preset" = "arrange-workspaces"
+        #argparse -i \
+        #    'arg=+' \
+        #    -- $argv
+        #
+        #set workspaces (string split -f1 '|' $_flag_arg)
+        #
+        #if contains $current_workspace $workspaces
+        #    set back_workspace (math 1 + (printf '%s\n' $workspaces | sort)[-1])
+        #end
+        #
+        #for arg in $_flag_arg
+        #    echo $arg | read -d '|' workspace app
+        #
+        #    aerospace workspace $workspace
+        #
+        #    for window in (aerspace list-windows --workspace focused --format '%{window-id}')
+        #        aerospace move-node-to-workspace --window-id $window $back_workspace
+        #    end
+        #
+        #    for 
+        #end
+        #aerospace workspace
+        #
+        #for window in $windows
+        #    aerospace focus --window-id $window
+        #    aerospace macos-native-minimize
+        #end
     end
 end
 
