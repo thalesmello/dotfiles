@@ -17,25 +17,47 @@ return {
         local fzf_lua = require('fzf-lua')
         local utils = fzf_lua.utils
 
-        local function visual_ag(word_boundary)
-            local selection = vim_utils.get_visual_selection()
-            if word_boundary then
-                -- vim.cmd.ProjectDo('Ag \\b' .. selection .. '\\b')
-                vim.cmd.ProjectDo('Ag ' .. selection)
-            else
-                vim.cmd.ProjectDo('Ag ' .. selection)
-            end
-        end
-
         vim.g.fzf_history_dir = '~/.local/share/fzf-history'
         vim.env.FZF_DEFAULT_COMMAND = 'ag -g ""'
 
-        vim.keymap.set("n", "<c-p>", '<cmd>ProjectDo Files<cr>', { noremap = true, silent = true })
-        vim.keymap.set("n", "<leader><c-p>", '<cmd>ProjectDo Files<cr>'..vim.fn.expand("%:t:r"), { noremap = true, silent = true })
-        vim.keymap.set("v", "<c-p>", '<cmd>ProjectDo Files<cr>', { noremap = true, silent = true })
-        vim.keymap.set("n", "<c-f>", ':<c-u>ProjectDo Ag<space>', { noremap = true })
-        vim.keymap.set("n", "<leader>/", function () return '<cmd>ProjectDo Ag ' .. vim.fn.expand('<cword>') .. '<cr>' end, { silent = true, expr = true })
-        vim.keymap.set("v", "<leader>/", function () visual_ag(true) end, { noremap = true, silent = true })
+        vim.keymap.set("n", "<c-p>", function ()
+            vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
+            fzf_lua.files({ cwd = vim.b.project_do_cwd })
+        end, { noremap = true, silent = true })
+        vim.keymap.set("n", "<leader><c-p>",
+            function ()
+                vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
+                fzf_lua.files({
+                    cwd = vim.b.project_do_cwd,
+                    query = vim.fn.expand("%:t:r")
+                })
+            end,
+            { noremap = true, silent = true }
+        )
+        vim.keymap.set("v", "<c-p>", function ()
+            vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
+            local selection = vim_utils.get_visual_selection()
+            fzf_lua.files({
+                cwd = vim.b.project_do_cwd,
+                query = selection,
+            })
+        end, { noremap = true, silent = true })
+        vim.keymap.set("n", "<c-f>", function ()
+            return ':<c-u>Ag!<space>'
+        end, { noremap = true, expr = true })
+        vim.keymap.set("n", "<leader>/", function ()
+            vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
+            fzf_lua.grep_cword({ cwd = vim.b.project_do_cwd })
+        end, { silent = true, expr = true })
+        vim.keymap.set("v", "<leader>/", function ()
+            vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
+            local selection = vim_utils.get_visual_selection()
+            fzf_lua.live_grep({
+                cwd = vim.b.project_do_cwd,
+                query = selection,
+                no_esc = true,
+            })
+        end, { noremap = true, silent = true })
 
         function CompleteAg(A)
             if A == '' then
@@ -63,7 +85,14 @@ return {
             return vim.tbl_keys(completions)
         end
 
-        vim.api.nvim_create_user_command("Ag", utils.create_user_command_callback("grep", "search"), {
+        vim.api.nvim_create_user_command("Ag", function (ops)
+            vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
+            local callback = utils.create_user_command_callback("live_grep", "search", {
+                cwd = opts.bang and vim.b.project_do_cwd or vim.fn.getcwd(),
+                no_esc = true,
+            })
+            callback(ops)
+        end, {
             bang = true,
             complete = CompleteAg,
             nargs=1,
