@@ -34,36 +34,67 @@ function aerospace-preset
             aerospace macos-native-minimize
         end
     else if test "$preset" = "arrange-workspaces"
-        #argparse -i \
-        #    'arg=+' \
-        #    -- $argv
-        #
-        #set workspaces (string split -f1 '|' $_flag_arg)
-        #
-        #if contains $current_workspace $workspaces
-        #    set back_workspace (math 1 + (printf '%s\n' $workspaces | sort)[-1])
-        #end
-        #
-        #for arg in $_flag_arg
-        #    echo $arg | read -d '|' workspace app
-        #
-        #    aerospace workspace $workspace
-        #
-        #    for window in (aerspace list-windows --workspace focused --format '%{window-id}')
-        #        aerospace move-node-to-workspace --window-id $window $back_workspace
-        #    end
-        #
-        #    for 
-        #end
-        #aerospace workspace
-        #
-        #for window in $windows
-        #    aerospace focus --window-id $window
-        #    aerospace macos-native-minimize
-        #end
+        argparse -i \
+            'a/app=+' \
+            'w/window=+' \
+            -- $argv
+
+        set workspaces (
+            string split -f1 ':' $_flag_app
+            string split -f1 ':' $_flag_window
+        )
+
+        if contains $current_workspace $workspaces
+            set back_workspace (math 1 + (printf '%s\n' $workspaces | sort)[-1])
+        end
+
+        # Move windows to back workspace
+        for workspace in $workspaces
+            for window in (aerospace list-windows --workspace $workspace --format '%{window-id}')
+                aerospace move-node-to-workspace --window-id $window $back_workspace
+            end
+        end
+
+        for line in $_flag_app
+            echo $line | read -l -d: workspace app
+
+            aerospace list-windows --all --format '%{window-id}:%{app-name}:' | rg ":$app:" | while read -l -d: window __
+                aerospace move-node-to-workspace --window-id $window $workspace
+            end
+        end
+
+        for line in $_flag_window
+            echo $line | read -l -d: workspace window_title
+
+            aerospace list-windows --all --format '%{window-id}:%{window-title}:' | rg ":$window_title:" | while read -l -d: window __
+                aerospace move-node-to-workspace --window-id $window $workspace
+            end
+        end
+    end
+end
+
+function __aerospace_complete_workspace_app
+    set workspaces (aerospace list-workspaces --all --format '%{workspace}')
+    set apps (aerospace list-apps --format ':%{app-name}')
+
+    for completion in $workspaces$apps
+        echo $completion
+    end
+end
+
+function __aerospace_complete_workspace_window
+    set workspaces (aerospace list-workspaces --all --format '%{workspace}')
+    # Some windows have no title, so we add a character so the format string isn't empty
+    # Prevents a segfault error
+    set windows (aerospace list-windows --all --format ':%{window-title}')
+
+    for completion in $workspaces$windows
+        echo $completion
     end
 end
 
 complete -c aerospace-preset -f
-complete -c aerospace-preset -n "__fish_is_nth_token 1" -f -d "Name of the preset to use" -a "move-other-windows minimize-windows minimize-other-windows"
+complete -c aerospace-preset -n "__fish_is_nth_token 1" -f -d "Name of the preset to use" -a "move-other-windows minimize-windows minimize-other-windows arrange-workspaces"
 complete -c aerospace-preset -n "test (count (commandline -opc)) -gt 1" -x -l "back-workspace" -d "Workspace to send windows to" -a "(aerospace list-workspaces --all --format '%{workspace}%{tab}%{monitor-name}')"
+complete -c aerospace-preset -n "__fish_seen_subcommand_from arrange-workspaces" -x -s "a" -l "app" -d "WORKSPACE:APP_NAME specification" -a "(__aerospace_complete_workspace_app)"
+complete -c aerospace-preset -n "__fish_seen_subcommand_from arrange-workspaces" -x -s "w" -l "window" -d "WORKSPACE:WINDOW_TITLE specification" -a "(__aerospace_complete_workspace_window)"
