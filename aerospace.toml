@@ -157,6 +157,7 @@ cmd-esc = 'workspace-back-and-forth'
 enter = ['mode main']
 ctrl-alt-cmd-space = ['fullscreen', 'mode main']
 space = ['fullscreen', 'mode main']
+s = ['mode preset']
 
 esc = ['reload-config', 'mode main']
 r = ['flatten-workspace-tree', 'mode main'] # reset layout
@@ -217,6 +218,40 @@ shift-l = ['move-node-to-monitor --focus-follows-window right', 'mode main']
 # if.app-id = 'us.zoom.xos'
 # if.window-title-regex-substring = 'Login'
 # run = ['macos-native-minimize']  # The callback itself
+
+
+[mode.preset.binding]
+esc = ['mode main']
+
+1 = [
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset arrange-workspaces -w "1:.*Thales \\(Work\\).*" -a "2:iTerm2" -a "3:.*VS Code.*"'''',
+  'mode main',
+]
+
+w = [
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset summon --app Workplace'''',
+  'mode main',
+]
+shift-w = [
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset summon --move-others --app Workplace'''',
+  'mode main',
+]
+z = [
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset summon --app Obsidian'''',
+  'mode main',
+]
+shift-z = [
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset summon --move-others --app Obsidian'''',
+  'mode main',
+]
+f = [
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset move-other-windows'''',
+  'mode main',
+]
+m = [
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset minimize-other-windows'''',
+  'mode main',
+]
 
 [[on-window-detected]]
 if.app-id = 'com.cisco.secureclient.gui'
