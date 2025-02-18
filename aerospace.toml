@@ -163,7 +163,7 @@ g = ['mode goto']
 esc = ['reload-config', 'mode main']
 r = ['flatten-workspace-tree', 'mode main'] # reset layout
 f = ['layout floating tiling', 'mode main'] # Toggle between floating and tiling layout
-backspace = ['close-all-windows-but-current', 'mode main']
+backspace = ['''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset minimize-other-windows'''', 'mode main']
 tab = ['move-workspace-to-monitor --wrap-around next', 'mode main']
 backtick = ['move-node-to-monitor --wrap-around next', 'mode main']
 ctrl-alt-cmd-n = ['move-node-to-monitor --wrap-around --focus-follows-window next', 'mode main'] # reset layout
@@ -234,7 +234,7 @@ w = [
   'mode main',
 ]
 shift-w = [
-  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset summon --move-others --app Workplace'''',
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset summon --minimize-others --app Workplace'''',
   'mode main',
 ]
 z = [
@@ -242,7 +242,7 @@ z = [
   'mode main',
 ]
 shift-z = [
-  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset summon --move-others --app Obsidian'''',
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset summon --minimize-others --app Obsidian'''',
   'mode main',
 ]
 f = [
