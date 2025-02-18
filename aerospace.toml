@@ -158,6 +158,7 @@ enter = ['mode main']
 ctrl-alt-cmd-space = ['fullscreen', 'mode main']
 space = ['fullscreen', 'mode main']
 s = ['mode preset']
+g = ['mode goto']
 
 esc = ['reload-config', 'mode main']
 r = ['flatten-workspace-tree', 'mode main'] # reset layout
@@ -252,6 +253,13 @@ m = [
   '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset minimize-other-windows'''',
   'mode main',
 ]
+
+[mode.goto.binding]
+esc = ['mode main']
+
+t = ['''exec-and-forget open 'https://www.internalfb.com/intern/bunny?tasks'''', 'mode main']
+c = ['''exec-and-forget open 'https://www.internalfb.com/intern/bunny?calendar'''', 'mode main']
+1 = ['''exec-and-forget open 'https://www.internalfb.com/intern/bunny?11'''', 'mode main']
 
 [[on-window-detected]]
 if.app-id = 'com.cisco.secureclient.gui'
