@@ -61,7 +61,8 @@ function aerospace-preset
         for line in $_flag_app
             echo $line | read -l -d: workspace app
 
-            aerospace list-windows --all --format '%{window-id}:%{app-name}:' | rg ":$app:" | while read -l -d: window __
+            for line2 in (aerospace list-windows --all --format '%{window-id}:%{app-name}:' | rg ":$app:") 
+                echo $line2 | read -l -d: window __
                 aerospace move-node-to-workspace --window-id $window $workspace
             end
         end
@@ -69,7 +70,8 @@ function aerospace-preset
         for line in $_flag_window
             echo $line | read -l -d: workspace window_title
 
-            aerospace list-windows --all --format '%{window-id}:%{window-title}:' | rg ":$window_title:" | while read -l -d: window __
+            for line2 in (aerospace list-windows --all --format '%{window-id}:%{window-title}:' | rg ":$window_title:")
+                echo $line2 | read -l -d: window __
                 aerospace move-node-to-workspace --window-id $window $workspace
             end
         end
