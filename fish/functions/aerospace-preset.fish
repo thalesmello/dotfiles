@@ -37,21 +37,24 @@ function aerospace-preset
         argparse -i \
             'a/app=+' \
             'w/window=+' \
+            'keep-windows' \
             -- $argv
 
-        set workspaces (
+        if not set -q _flag_keep_windows
+            set workspaces (
             string split -f1 ':' $_flag_app
             string split -f1 ':' $_flag_window
-        )
+            )
 
-        if contains $current_workspace $workspaces
-            set back_workspace (math 1 + (printf '%s\n' $workspaces | sort)[-1])
-        end
+            if contains $current_workspace $workspaces
+                set back_workspace (math 1 + (printf '%s\n' $workspaces | sort)[-1])
+            end
 
-        # Move windows to back workspace
-        for workspace in $workspaces
-            for window in (aerospace list-windows --workspace $workspace --format '%{window-id}')
-                aerospace move-node-to-workspace --window-id $window $back_workspace
+            # Move windows to back workspace
+            for workspace in $workspaces
+                for window in (aerospace list-windows --workspace $workspace --format '%{window-id}')
+                    aerospace move-node-to-workspace --window-id $window $back_workspace
+                end
             end
         end
 
@@ -70,6 +73,26 @@ function aerospace-preset
                 aerospace move-node-to-workspace --window-id $window $workspace
             end
         end
+    else if test "$preset" = "summon"
+        argparse -i \
+            --exclusive move-others,minimize-others \
+            'a/app=+' \
+            'w/window=+' \
+            'move-others=?' \
+            'minimize-others=?' \
+            -- $argv
+
+        if set -q _flag_minimize_others
+            aerospace-preset minimize-other-windows
+        end
+
+        if set -q _flag_move_others
+            aerospace-preset move-other-windows
+        end
+
+        set workspace (aerospace list-workspaces --focused --format '%{workspace}')
+        set arrange_args "--app=$workspace:"$_flag_app "--window=$workspace:"$_flag_window
+        aerospace-preset arrange-workspaces --keep-windows $arrange_args
     end
 end
 
@@ -98,3 +121,7 @@ complete -c aerospace-preset -n "__fish_is_nth_token 1" -f -d "Name of the prese
 complete -c aerospace-preset -n "test (count (commandline -opc)) -gt 1" -x -l "back-workspace" -d "Workspace to send windows to" -a "(aerospace list-workspaces --all --format '%{workspace}%{tab}%{monitor-name}')"
 complete -c aerospace-preset -n "__fish_seen_subcommand_from arrange-workspaces" -x -s "a" -l "app" -d "WORKSPACE:APP_NAME specification" -a "(__aerospace_complete_workspace_app)"
 complete -c aerospace-preset -n "__fish_seen_subcommand_from arrange-workspaces" -x -s "w" -l "window" -d "WORKSPACE:WINDOW_TITLE specification" -a "(__aerospace_complete_workspace_window)"
+complete -c aerospace-preset -n "__fish_seen_subcommand_from summon" -x -s "a" -l "app" -d "APP_NAME specification" -a "(aerospace list-apps --format '%{app-name}')"
+complete -c aerospace-preset -n "__fish_seen_subcommand_from summon" -x -s "w" -l "window" -d "WINDOW_TITLE specification" -a "(aerospace list-windows --all --format ':%{window-title}' | string sub -s 2 | string match -vr '^\$' )"
+complete -c aerospace-preset -n "__fish_seen_subcommand_from summon" -f -l "move-others" -d "Move other windows to back workspace"
+complete -c aerospace-preset -n "__fish_seen_subcommand_from summon" -f -l "minimize-others" -d "Minimize other windows"
