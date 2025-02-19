@@ -156,6 +156,11 @@ enter = ['mode main']
 ctrl-alt-cmd-space = ['exec-and-forget aerospace focus-back-and-forth || aerospace workspace-back-and-forth', 'mode main']
 space = ['exec-and-forget aerospace focus-back-and-forth || aerospace workspace-back-and-forth', 'mode main']
 shift-space = ['''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset move-to-previous-workspace'''', 'mode main']
+shift-comma = ['''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset move-to-previous-workspace --move-others'''', 'mode main']
+shift-semicolon = [
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset move-all-but-two'''',
+  'mode main',
+]
 s = ['mode preset']
 g = ['mode goto']
 
@@ -163,7 +168,10 @@ f = ['fullscreen', 'mode main']
 
 r = ['flatten-workspace-tree', 'mode main'] # reset layout
 t = ['layout floating tiling', 'mode main'] # Toggle between floating and tiling layout
-backspace = ['close-all-windows-but-current', 'mode main']
+backspace = [
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset minimize-other-windows'''',
+  'mode main',
+]
 tab = ['move-workspace-to-monitor --wrap-around next', 'mode main']
 backtick = ['move-node-to-monitor --wrap-around next', 'mode main']
 ctrl-alt-cmd-n = ['move-node-to-monitor --wrap-around --focus-follows-window next', 'mode main'] # reset layout
@@ -247,6 +255,10 @@ shift-z = [
 ]
 f = [
   '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset move-other-windows'''',
+  'mode main',
+]
+shift-f = [
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset move-all-but-two'''',
   'mode main',
 ]
 m = [

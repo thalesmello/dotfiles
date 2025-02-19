@@ -34,11 +34,35 @@ function aerospace-preset
             aerospace macos-native-minimize
         end
     else if test "$preset" = "move-to-previous-workspace"
-        set window (aerospace list-windows --focused --format '%{window-id}')
+        argparse -i 'move-others=?' -- $argv
+
+        set summon_window (aerospace list-windows --focused --format '%{window-id}')
         aerospace workspace-back-and-forth
         set workspace (aerospace list-workspaces --focused --format '%{workspace}')
-        aerospace move-node-to-workspace --window-id $window $workspace
-        aerospace focus --window-id $window
+        set other_window (aerospace list-windows --focused --format '%{window-id}')
+
+        if set -q _flag_move_others
+            for window in (aerospace list-windows --workspace focused --format '%{window-id}')
+                contains $window $summon_window $other_window; and continue
+                aerospace move-node-to-workspace --window-id $window $back_workspace
+            end
+        end
+
+        aerospace move-node-to-workspace --window-id $summon_window $workspace
+        aerospace focus --window-id $summon_window
+    else if test "$preset" = "move-all-but-two"
+        set main_window (aerospace list-windows --focused --format '%{window-id}')
+        aerospace focus-back-and-forth; or aerospace workspace-back-and-forth
+        set workspace (aerospace list-workspaces --focused --format '%{workspace}')
+        set other_window (aerospace list-windows --focused --format '%{window-id}')
+
+        for window in (aerospace list-windows --workspace focused --format '%{window-id}')
+            contains $window $main_window $other_window; and continue
+            aerospace move-node-to-workspace --window-id $window $back_workspace
+        end
+
+        aerospace move-node-to-workspace --window-id $main_window $workspace
+        aerospace focus --window-id $main_window
     else if test "$preset" = "arrange-workspaces"
         set windows
         set workspaces
@@ -130,7 +154,7 @@ function __aerospace_complete_workspace_window
 end
 
 complete -c aerospace-preset -f
-complete -c aerospace-preset -n "__fish_is_nth_token 1" -f -d "Name of the preset to use" -a "move-other-windows minimize-windows minimize-other-windows arrange-workspaces move-to-previous-workspace"
+complete -c aerospace-preset -n "__fish_is_nth_token 1" -f -d "Name of the preset to use" -a "move-other-windows minimize-windows minimize-other-windows arrange-workspaces move-to-previous-workspace move-all-but-two"
 complete -c aerospace-preset -n "test (count (commandline -opc)) -gt 1" -x -l "back-workspace" -d "Workspace to send windows to" -a "(aerospace list-workspaces --all --format '%{workspace}%{tab}%{monitor-name}')"
 complete -c aerospace-preset -n "__fish_seen_subcommand_from arrange-workspaces" -x -s "a" -l "app" -d "WORKSPACE:APP_NAME specification" -a "(__aerospace_complete_workspace_app)"
 complete -c aerospace-preset -n "__fish_seen_subcommand_from arrange-workspaces" -x -s "w" -l "window" -d "WORKSPACE:WINDOW_TITLE specification" -a "(__aerospace_complete_workspace_window)"
@@ -138,3 +162,4 @@ complete -c aerospace-preset -n "__fish_seen_subcommand_from summon" -x -s "a" -
 complete -c aerospace-preset -n "__fish_seen_subcommand_from summon" -x -s "w" -l "window" -d "WINDOW_TITLE specification" -a "(aerospace list-windows --all --format ':%{window-title}' | string sub -s 2 | string match -vr '^\$' )"
 complete -c aerospace-preset -n "__fish_seen_subcommand_from summon" -f -l "move-others" -d "Move other windows to back workspace"
 complete -c aerospace-preset -n "__fish_seen_subcommand_from summon" -f -l "minimize-others" -d "Minimize other windows"
+complete -c aerospace-preset -n "__fish_seen_subcommand_from move-to-previous-workspace" -f -l "move-others" -d "Move other windows to back workspace"
