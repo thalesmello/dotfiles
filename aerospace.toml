@@ -92,8 +92,7 @@ outer.right =      10
 #     activate
 # end tell'
 # '''
-# ctrl-alt-cmd-enter = 'fullscreen'
-ctrl-alt-cmd-backtick = 'fullscreen'
+ctrl-alt-cmd-backtick = 'macos-native-minimize'
 ctrl-alt-cmd-m = 'macos-native-minimize'
 
 
@@ -139,9 +138,6 @@ ctrl-alt-cmd-shift-7 = 'move-node-to-workspace --focus-follows-window 7'
 ctrl-alt-cmd-shift-8 = 'move-node-to-workspace --focus-follows-window 8'
 ctrl-alt-cmd-shift-9 = 'move-node-to-workspace --focus-follows-window 9'
 
-# See: https://nikitabobko.github.io/AeroSpace/commands#workspace-back-and-forth
-ctrl-alt-cmd-tab = ['exec-and-forget aerospace focus-back-and-forth && aerospace fullscreen on || aerospace workspace-back-and-forth'] # reset layout
-
 ctrl-alt-cmd-n = ['workspace --wrap-around next'] # reset layout
 ctrl-alt-cmd-p = ['workspace --wrap-around prev'] # Toggle between floating and tiling layout
 ctrl-alt-cmd-shift-n = ['move-node-to-workspace --wrap-around --focus-follows-window next'] # reset layout
@@ -154,16 +150,20 @@ cmd-esc = 'workspace-back-and-forth'
 # 'service' binding mode declaration.
 # See: https://nikitabobko.github.io/AeroSpace/guide#binding-modes
 [mode.service.binding]
+esc = ['reload-config', 'mode main']
 enter = ['mode main']
-ctrl-alt-cmd-space = ['fullscreen', 'mode main']
-space = ['fullscreen', 'mode main']
+# See: https://nikitabobko.github.io/AeroSpace/commands#workspace-back-and-forth
+ctrl-alt-cmd-space = ['exec-and-forget aerospace focus-back-and-forth || aerospace workspace-back-and-forth', 'mode main']
+space = ['exec-and-forget aerospace focus-back-and-forth || aerospace workspace-back-and-forth', 'mode main']
+shift-space = ['''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset move-to-previous-workspace'''', 'mode main']
 s = ['mode preset']
 g = ['mode goto']
 
-esc = ['reload-config', 'mode main']
+f = ['fullscreen', 'mode main']
+
 r = ['flatten-workspace-tree', 'mode main'] # reset layout
-f = ['layout floating tiling', 'mode main'] # Toggle between floating and tiling layout
-backspace = ['''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset minimize-other-windows'''', 'mode main']
+t = ['layout floating tiling', 'mode main'] # Toggle between floating and tiling layout
+backspace = ['close-all-windows-but-current', 'mode main']
 tab = ['move-workspace-to-monitor --wrap-around next', 'mode main']
 backtick = ['move-node-to-monitor --wrap-around next', 'mode main']
 ctrl-alt-cmd-n = ['move-node-to-monitor --wrap-around --focus-follows-window next', 'mode main'] # reset layout
@@ -234,7 +234,7 @@ w = [
   'mode main',
 ]
 shift-w = [
-  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset summon --minimize-others --app Workplace'''',
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset summon --move-others --app Workplace'''',
   'mode main',
 ]
 z = [
@@ -242,7 +242,7 @@ z = [
   'mode main',
 ]
 shift-z = [
-  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset summon --minimize-others --app Obsidian'''',
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset summon --move-others --app Obsidian'''',
   'mode main',
 ]
 f = [
