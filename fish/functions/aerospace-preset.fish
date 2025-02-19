@@ -40,47 +40,52 @@ function aerospace-preset
         aerospace move-node-to-workspace --window-id $window $workspace
         aerospace focus --window-id $window
     else if test "$preset" = "arrange-workspaces"
+        set windows
+        set workspaces
+
         argparse -i \
             'a/app=+' \
             'w/window=+' \
             'keep-windows' \
             -- $argv
 
+        for line in "%{app-name}:"$_flag_app "%{window-title}:"$_flag_window
+            echo $line | read -l -d: format workspace filter
+
+            for line2 in (aerospace list-windows --all --format "%{window-id}:$format:" | rg ":$filter:")
+                echo $line2 | read -l -d: window __
+
+                set -a specs "$workspace:$window"
+                set -a workspaces "$workspace"
+                set -a windows "$window"
+            end
+        end
+
         if not set -q _flag_keep_windows
-            set workspaces (
-            string split -f1 ':' $_flag_app
-            string split -f1 ':' $_flag_window
-            )
+            set workspaces (printf '%s\n' $workspaces | sort -un)
+
+            echo workspaces $workspaces
+            echo windows $windows
 
             if contains $current_workspace $workspaces
-                set back_workspace (math 1 + (printf '%s\n' $workspaces | sort)[-1])
+                set back_workspace (math 1 + $workspaces[-1])
             end
 
             # Move windows to back workspace
             for workspace in $workspaces
                 for window in (aerospace list-windows --workspace $workspace --format '%{window-id}')
+                    contains $window $windows; and continue
+
                     aerospace move-node-to-workspace --window-id $window $back_workspace
                 end
             end
         end
 
-        for line in $_flag_app
-            echo $line | read -l -d: workspace app
-
-            for line2 in (aerospace list-windows --all --format '%{window-id}:%{app-name}:' | rg ":$app:") 
-                echo $line2 | read -l -d: window __
-                aerospace move-node-to-workspace --window-id $window $workspace
-            end
+        for line in $specs
+            echo $line | read -d: workspace window
+            aerospace move-node-to-workspace --window-id $window $workspace
         end
 
-        for line in $_flag_window
-            echo $line | read -l -d: workspace window_title
-
-            for line2 in (aerospace list-windows --all --format '%{window-id}:%{window-title}:' | rg ":$window_title:")
-                echo $line2 | read -l -d: window __
-                aerospace move-node-to-workspace --window-id $window $workspace
-            end
-        end
     else if test "$preset" = "summon"
         argparse -i \
             --exclusive move-others,minimize-others \
