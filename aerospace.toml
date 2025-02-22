@@ -233,7 +233,12 @@ shift-l = ['move-node-to-monitor --focus-follows-window right', 'mode main']
 esc = ['mode main']
 
 1 = [
-  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset arrange-workspaces -w "1:.*Thales \\(Work\\).*" -a "2:iTerm2" -a "3:.*VS Code.*"'''',
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset arrange-workspaces \
+    -w "1:.*Thales \\(Work\\).*" \
+    -a "2:iTerm2" \
+    -a "3:.*VS Code.*" \
+    -a "4:Workplace" \
+    '''',
   'mode main',
 ]
 

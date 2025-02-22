@@ -76,7 +76,7 @@ function aerospace-preset
         for line in "%{app-name}:"$_flag_app "%{window-title}:"$_flag_window
             echo $line | read -l -d: format workspace filter
 
-            for line2 in (aerospace list-windows --all --format "%{window-id}:$format:" | rg ":$filter:")
+            for line2 in (aerospace list-windows --all --format "%{window-id}:$format:" | string match -er ":$filter:")
                 echo $line2 | read -l -d: window __
 
                 set -a specs "$workspace:$window"
