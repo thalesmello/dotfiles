@@ -84,7 +84,8 @@
     {
         :des "Hyperkey as Leader Key"
         :rules [
-            [:#Scaps_lock :!CTleft_option ["hyper-layer" 0] {:alone [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]]}]
+            [:caps_lock :!CTleft_option ["hyper-layer" 0] {:alone [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]]}]
+            [:!Scaps_lock :!CSTleft_option ["hyper-layer" 0] {:alone :escape}]
             :hyper-layer
             [:#Scaps_lock [:escape ["hyper-layer" 0] [:noti :hyper-hud]] nil]
             [:#Sa [:!CTOa ["hyper-layer" 0] [:noti :hyper-hud]] nil]

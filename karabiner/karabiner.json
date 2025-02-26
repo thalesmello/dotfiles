@@ -370,10 +370,7 @@
                                         "value": 0
                                     }
                                 ],
-                                "from": {
-                                    "key_code": "caps_lock",
-                                    "modifiers": { "optional": ["left_shift"] }
-                                },
+                                "from": { "key_code": "caps_lock" },
                                 "to": [
                                     {
                                         "key_code": "left_option",
@@ -394,6 +391,27 @@
                                         }
                                     }
                                 ],
+                                "type": "basic"
+                            },
+                            {
+                                "conditions": [
+                                    {
+                                        "name": "hyper-layer",
+                                        "type": "variable_if",
+                                        "value": 0
+                                    }
+                                ],
+                                "from": {
+                                    "key_code": "caps_lock",
+                                    "modifiers": { "mandatory": ["left_shift"] }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "left_option",
+                                        "modifiers": ["left_command", "left_control", "left_shift"]
+                                    }
+                                ],
+                                "to_if_alone": [{ "key_code": "escape" }],
                                 "type": "basic"
                             },
                             {
@@ -1965,6 +1983,7 @@
                     },
                     {
                         "description": "Home row mods - ctrl, opt, shift, command",
+                        "enabled": false,
                         "manipulators": [
                             {
                                 "from": {
@@ -2812,10 +2831,7 @@
                                         "value": 0
                                     }
                                 ],
-                                "from": {
-                                    "key_code": "caps_lock",
-                                    "modifiers": { "optional": ["left_shift"] }
-                                },
+                                "from": { "key_code": "caps_lock" },
                                 "to": [
                                     {
                                         "key_code": "left_option",
@@ -2836,6 +2852,27 @@
                                         }
                                     }
                                 ],
+                                "type": "basic"
+                            },
+                            {
+                                "conditions": [
+                                    {
+                                        "name": "hyper-layer",
+                                        "type": "variable_if",
+                                        "value": 0
+                                    }
+                                ],
+                                "from": {
+                                    "key_code": "caps_lock",
+                                    "modifiers": { "mandatory": ["left_shift"] }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "left_option",
+                                        "modifiers": ["left_command", "left_control", "left_shift"]
+                                    }
+                                ],
+                                "to_if_alone": [{ "key_code": "escape" }],
                                 "type": "basic"
                             },
                             {
