@@ -85,6 +85,10 @@ return {
                     repeatable_goto_ai("right")
                 end)
 
+                vim.keymap.set({"o"}, "g[", "<Plug>(mini-ai-goto-left)", { remap = true })
+
+                vim.keymap.set({"o"}, "g]", "<Plug>(mini-ai-goto-right)", { remap = true })
+
                 -- local function arroundinner(mode)
                 --     local ok, char = pcall(vim.fn.getcharstr)
                 --     if not ok or char == '\27' then return nil end
