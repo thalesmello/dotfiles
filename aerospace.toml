@@ -276,6 +276,7 @@ esc = ['mode main']
 
 t = ['''exec-and-forget open 'https://www.internalfb.com/intern/bunny?tasks'''', 'mode main']
 c = ['''exec-and-forget open 'https://www.internalfb.com/intern/bunny?calendar'''', 'mode main']
+d = ['''exec-and-forget open 'https://www.internalfb.com/intern/bunny?daiquery'''', 'mode main']
 1 = ['''exec-and-forget open 'https://www.internalfb.com/intern/bunny?11'''', 'mode main']
 
 [[on-window-detected]]
