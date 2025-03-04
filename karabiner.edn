@@ -200,10 +200,10 @@
             [[:z :v] :!Tleft_command]
             [[:x :v] :!Oleft_command]
             ;; singles
-            [:z :left_control]
-            [:x :left_option]
-            [:c :left_shift]
-            [:v :left_command]
+            [:z nil nil { :held { :key :left_control :halt true } :alone { :key :z :halt true } :delayed {:canceled :z :invoked :vk_none} }]
+            [:x nil nil { :held { :key :left_option :halt true } :alone { :key :x :halt true } :delayed {:canceled :x :invoked :vk_none} }]
+            [:c nil nil { :held { :key :left_shift :halt true } :alone { :key :c :halt true } :delayed {:canceled :c :invoked :vk_none} }]
+            [:v nil nil { :held { :key :left_command :halt true } :alone { :key :v :halt true } :delayed {:canceled :v :invoked :vk_none} }]
 
             ;; right side
             [[:slash :period :comma :m] :!TOSleft_command]
@@ -220,10 +220,10 @@
             [[:slash :m] :!Tleft_command]
             [[:period :m] :!Oleft_command]
             ;; singles
-            [:slash :left_control]
-            [:period :left_option]
-            [:comma :left_shift]
-            [:m :left_command]
+            [:slash nil nil { :held { :key :left_control :halt true } :alone { :key :slash :halt true } :delayed {:canceled :slash :invoked :vk_none} }]
+            [:period nil nil { :held { :key :left_option :halt true } :alone { :key :period :halt true } :delayed {:canceled :period :invoked :vk_none} }]
+            [:comma nil nil { :held { :key :left_shift :halt true } :alone { :key :comma :halt true } :delayed {:canceled :comma :invoked :vk_none} }]
+            [:m nil nil { :held { :key :left_command :halt true } :alone { :key :m :halt true } :delayed {:canceled :m :invoked :vk_none} }]
         ]
     }
 
