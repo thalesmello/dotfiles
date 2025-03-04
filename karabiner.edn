@@ -62,7 +62,9 @@
     ; :tab-mode {:key :tab} ;; move cursor by letter
     ;;How to have tab and ctrl-tab as layers? Error 'Duplicate key'     :layers {:ctrl-tab-mode {:key :!Ttab}} ;; move cursor by letter
     ;;  :caps-mode {:key :caps_lock :alone {:key :escape}}
-    :space-mode       {:key :spacebar}
+    ;; Commenting out space-mode because it creates the layer rule with precedence higher than
+    ;; other rules, and we need Hyper key rules to take precedence over space fn for shortcuts to work
+    ; :space-mode       {:key :spacebar}
         }
 
 :simlayers  {
@@ -142,8 +144,14 @@
             [:#Squote [:!CTOquote ["hyper-layer" 0] [:noti :hyper-hud]] nil]
             [:#Ssemicolon [:!CTOsemicolon ["hyper-layer" 0] [:noti :hyper-hud]] nil]
             [:#Sgrave_accent_and_tilde [:!CTOgrave_accent_and_tilde ["hyper-layer" 0] [:noti :hyper-hud]] nil]
+            [:spacebar [:!CTOspacebar ["hyper-layer" 0] [:noti :hyper-hud]] nil]
             [:#Sspacebar [:!CTOspacebar ["hyper-layer" 0] [:noti :hyper-hud]] nil]
         ]
+    }
+
+    {
+        :des "Space FN Trigger Key"
+        :rules [[:spacebar ["space-mode" 1] nil {:afterup ["space-mode" 0] :alone :spacebar}]]
     }
 
     {
@@ -162,9 +170,10 @@
             [:##e :!Cright_arrow]
             [:##b :!Oleft_arrow]
             [:##w :!Oright_arrow]
-            [:##tab :delete_or_backspace]
+            [:##left_shift :delete_or_backspace]
+            [:left_control :!Odelete_or_backspace]
         ]
-    }
+     }
 
     {
         :des "(TrackPoint) Ignore long middle click"
