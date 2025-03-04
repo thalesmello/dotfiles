@@ -38,6 +38,12 @@
 } ;; templates
 
 
+:devices {
+                 ;; vendor_id and product_id can be found in Karabiner EventViewer gui
+    ;; Lenovo THinkpad Trackpoint Keyboard
+    :trackpoint_kb [{:vendor_id 6127 :product_id 24801}]
+}
+
 :applications {
     ; :slack ["com.tinyspeck.slackmacgap"]
     ; :vscode ["com.microsoft.VSCode"]
@@ -56,12 +62,12 @@
     ; :tab-mode {:key :tab} ;; move cursor by letter
     ;;How to have tab and ctrl-tab as layers? Error 'Duplicate key'     :layers {:ctrl-tab-mode {:key :!Ttab}} ;; move cursor by letter
     ;;  :caps-mode {:key :caps_lock :alone {:key :escape}}
+    :space-mode       {:key :spacebar}
         }
 
 :simlayers  {
     ; :o-mode           {:key :o }
     ; :p-mode           {:key :p }
-    ; :space-mode       {:key :spacebar}
             }
 ;; :simlayer-threshold 250
 ;; ☝️ from https://oliverfalvai.com/notes/posts/karabiner-setup/
@@ -85,7 +91,8 @@
         :des "Hyperkey as Leader Key"
         :rules [
             [:caps_lock :!CTleft_option ["hyper-layer" 0] {:alone [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]]}]
-            [:!Scaps_lock :!CSTleft_option ["hyper-layer" 0] {:alone :escape}]
+            [:!Scaps_lock :!CSTleft_option ["hyper-layer" 0]]
+            [:!Ccaps_lock :return_or_enter ["hyper-layer" 0]]
             :hyper-layer
             [:#Scaps_lock [:escape ["hyper-layer" 0] [:noti :hyper-hud]] nil]
             [:#Sa [:!CTOa ["hyper-layer" 0] [:noti :hyper-hud]] nil]
@@ -138,6 +145,88 @@
             [:#Sspacebar [:!CTOspacebar ["hyper-layer" 0] [:noti :hyper-hud]] nil]
         ]
     }
+
+    {
+        :des "Space FN"
+        :rules [
+            :space-mode
+            [:#Scaps_lock [:escape ["hyper-layer" 0] [:noti :hyper-hud]] nil]
+            [:##h :left_arrow]
+            [:##j :down_arrow]
+            [:##k :up_arrow]
+            [:##l :right_arrow]
+            [:##d :page_down]
+            [:##u :page_up]
+            [:##s :spacebar]
+            [:##a :!Cleft_arrow]
+            [:##e :!Cright_arrow]
+            [:##b :!Oleft_arrow]
+            [:##w :!Oright_arrow]
+            [:##tab :delete_or_backspace]
+        ]
+    }
+
+    {
+        :des "(TrackPoint) Ignore long middle click"
+        :rules [
+            :trackpoint_kb
+            [:button3 :vk_none  nil {:alone :button3}]
+            ; Testing whether the key above is enough for the rule
+            ; [{:pkey :button3} :vk_none  nil {:alone {:pkey :button3 :halt true}}]
+        ]
+    }
+
+    {
+        :des "Right Command to Left Option"
+        :rules [
+            [:right_command :right_option]
+        ]
+    }
+
+    {
+        :des "Baserow Mod"
+        :rules [
+            [[:z :x :c :v] :!TOSleft_command]
+            ;; tripples
+            [[:x :c :v] :!OSleft_command]
+            [[:z :c :v] :!TSleft_command]
+            [[:z :x :v] :!TOleft_command]
+            [[:z :x :c] :!TOleft_shift]
+            ;; pairs
+            [[:z :x] :!Tleft_option]
+            [[:x :c] :!Oleft_shift]
+            [[:c :v] :!Sleft_command]
+            [[:z :c] :!Tleft_shift]
+            [[:z :v] :!Tleft_command]
+            [[:x :v] :!Oleft_command]
+            ;; singles
+            [:z :left_control]
+            [:x :left_option]
+            [:c :left_shift]
+            [:v :left_command]
+
+            ;; right side
+            [[:slash :period :comma :m] :!TOSleft_command]
+            ;; tripples
+            [[:period :comma :m] :!OSleft_command]
+            [[:slash :comma :m] :!TSleft_command]
+            [[:slash :period :m] :!TOleft_command]
+            [[:slash :period :comma] :!TOleft_shift]
+            ;; pairs
+            [[:slash :period] :!Tleft_option]
+            [[:period :comma] :!Oleft_shift]
+            [[:comma :m] :!Sleft_command]
+            [[:slash :comma] :!Tleft_shift]
+            [[:slash :m] :!Tleft_command]
+            [[:period :m] :!Oleft_command]
+            ;; singles
+            [:slash :left_control]
+            [:period :left_option]
+            [:comma :left_shift]
+            [:m :left_command]
+        ]
+    }
+
 
 ;     {
 ;         :des "right_command to Alfred"
