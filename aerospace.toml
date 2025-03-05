@@ -92,8 +92,7 @@ outer.right =      10
 #     activate
 # end tell'
 # '''
-ctrl-alt-cmd-backtick = 'macos-native-minimize'
-ctrl-alt-cmd-m = 'macos-native-minimize'
+ctrl-alt-cmd-m = '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset move-window''''
 
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#layout
@@ -282,100 +281,48 @@ d = ['''exec-and-forget open 'https://www.internalfb.com/intern/bunny?daiquery''
 [[on-window-detected]]
 if.app-id = 'com.cisco.secureclient.gui'
 run = 'layout floating'
-check-further-callbacks = true
 
 [[on-window-detected]]
 if.app-id = 'com.google.Chrome'
 if.window-title-regex-substring = 'Picture in Picture'
 run = ['layout floating']  # The callback itself
-check-further-callbacks = true
 
 [[on-window-detected]]
 if.app-id = 'com.google.Chrome'
 if.window-title-regex-substring = 'about:blank - Thales \(Personal\)'
 run = ['layout floating']  # The callback itself
-check-further-callbacks = true
 
 [[on-window-detected]]
 if.app-id = 'com.googlecode.iterm2'
 if.window-title-regex-substring = 'Updating iTerm2'
 run = 'layout floating'
-check-further-callbacks = true
 
 [[on-window-detected]]
 if.app-name-regex-substring = 'Metamate'
 run = ['layout floating']  # The callback itself
-check-further-callbacks = true
 
 # Secondary workspace apps
-
-
-[[on-window-detected]]
-if.app-id = 'com.google.Chrome'
-if.window-title-regex-substring = 'Thales \(Personal\)'
-run = ['move-node-to-workspace 7']  # The callback itself
-check-further-callbacks = true
-
 
 [[on-window-detected]]
 if.app-id = 'net.whatsapp.WhatsApp'
 run = ['move-node-to-workspace 8']  # The callback itself
-check-further-callbacks = true
 
 [[on-window-detected]]
 if.app-id = 'com.apple.MobileSMS'
 run = ['move-node-to-workspace 8']  # The callback itself
-check-further-callbacks = true
 
 [[on-window-detected]]
 if.app-name-regex-substring = 'YouTube Music'
 run = ['move-node-to-workspace 9']  # The callback itself
-check-further-callbacks = true
 
 [[on-window-detected]]
 if.app-name-regex-substring = 'PomoFocus'
 run = ['move-node-to-workspace 9']  # The callback itself
-check-further-callbacks = true
 
 [[on-window-detected]]
 if.app-name-regex-substring = 'Timery'
 run = ['move-node-to-workspace 9']  # The callback itself
-check-further-callbacks = true
 
 
 [workspace-to-monitor-force-assignment]
 9 = ['secondary']
-
-
-# # Previous move window to workspace config
-# # I'm currently experimenting with removing this configuration
-# # so I keep these settings around just in case I want to reapply them
-# # in the near future
-# [[on-window-detected]]
-# if.app-id = 'com.facebook.fbvscode'
-# if.during-aerospace-startup = true
-# run = ['move-node-to-workspace 2']  # The callback itself
-# check-further-callbacks = true
-#
-# [[on-window-detected]]
-# if.app-name-regex-substring = 'Workplace'
-# run = ['move-node-to-workspace 3']  # The callback itself
-# check-further-callbacks = true
-#
-#
-# [[on-window-detected]]
-# if.app-id = 'md.obsidian'
-# run = ['move-node-to-workspace 4']  # The callback itself
-# check-further-callbacks = true
-#
-# [[on-window-detected]]
-# if.app-name-regex-substring = 'Google Keep'
-# run = ['move-node-to-workspace 4']  # The callback itself
-# check-further-callbacks = true
-#
-# [[on-window-detected]]
-# if.app-id = 'com.googlecode.iterm2'
-# if.during-aerospace-startup = true
-# run = ['move-node-to-workspace 2']  # The callback itself
-# check-further-callbacks = true
-#

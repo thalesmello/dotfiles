@@ -12,7 +12,11 @@ function aerospace-preset
     set other_windows (string match -v -e "$current_window" $windows)
 
     if test -z "$back_workspace"
-        set back_workspace 2
+        set back_workspace (math 1 + "$current_workspace" 2>/dev/null; or echo 2)
+
+        if test "$back_workspace" -gt 9
+            set back_workspace 1
+        end
     end
 
     if test "$back_workspace" = "$current_workspace"
@@ -23,6 +27,8 @@ function aerospace-preset
         for window in $other_windows
             aerospace move-node-to-workspace --window-id $window $back_workspace
         end
+    else if test "$preset" = "move-window"
+        aerospace move-node-to-workspace $back_workspace
     else if test "$preset" = "minimize-other-windows"
         for window in $other_windows
             aerospace focus --window-id $window
@@ -154,7 +160,7 @@ function __aerospace_complete_workspace_window
 end
 
 complete -c aerospace-preset -f
-complete -c aerospace-preset -n "__fish_is_nth_token 1" -f -d "Name of the preset to use" -a "move-other-windows minimize-windows minimize-other-windows arrange-workspaces move-to-previous-workspace move-all-but-two"
+complete -c aerospace-preset -n "__fish_is_nth_token 1" -f -d "Name of the preset to use" -a "move-other-windows minimize-windows minimize-other-windows arrange-workspaces move-to-previous-workspace move-all-but-two move-window"
 complete -c aerospace-preset -n "test (count (commandline -opc)) -gt 1" -x -l "back-workspace" -d "Workspace to send windows to" -a "(aerospace list-workspaces --all --format '%{workspace}%{tab}%{monitor-name}')"
 complete -c aerospace-preset -n "__fish_seen_subcommand_from arrange-workspaces" -x -s "a" -l "app" -d "WORKSPACE:APP_NAME specification" -a "(__aerospace_complete_workspace_app)"
 complete -c aerospace-preset -n "__fish_seen_subcommand_from arrange-workspaces" -x -s "w" -l "window" -d "WORKSPACE:WINDOW_TITLE specification" -a "(__aerospace_complete_workspace_window)"
