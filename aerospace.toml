@@ -125,6 +125,7 @@ ctrl-alt-cmd-6 = 'workspace 6'
 ctrl-alt-cmd-7 = 'workspace 7'
 ctrl-alt-cmd-8 = 'workspace 8'
 ctrl-alt-cmd-9 = 'workspace 9'
+ctrl-alt-cmd-0 = 'workspace 0'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#move-node-to-workspace
 ctrl-alt-cmd-shift-1 = 'move-node-to-workspace --focus-follows-window 1'
@@ -136,6 +137,7 @@ ctrl-alt-cmd-shift-6 = 'move-node-to-workspace --focus-follows-window 6'
 ctrl-alt-cmd-shift-7 = 'move-node-to-workspace --focus-follows-window 7'
 ctrl-alt-cmd-shift-8 = 'move-node-to-workspace --focus-follows-window 8'
 ctrl-alt-cmd-shift-9 = 'move-node-to-workspace --focus-follows-window 9'
+ctrl-alt-cmd-shift-0 = 'move-node-to-workspace --focus-follows-window 0'
 
 ctrl-alt-cmd-n = ['workspace --wrap-around next'] # reset layout
 ctrl-alt-cmd-p = ['workspace --wrap-around prev'] # Toggle between floating and tiling layout
@@ -186,6 +188,7 @@ equal = ['balance-sizes', 'mode main']
 7 = ['move-node-to-workspace 7', 'mode main']
 8 = ['move-node-to-workspace 8', 'mode main']
 9 = ['move-node-to-workspace 9', 'mode main']
+0 = ['move-node-to-workspace 0', 'mode main']
 
 
 ctrl-alt-cmd-h = ['join-with left', 'mode main']
