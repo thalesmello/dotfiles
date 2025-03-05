@@ -2913,8 +2913,7 @@
             }
           },
           "to" : [ {
-            "key_code" : "left_arrow",
-            "modifiers" : [ "left_command" ]
+            "key_code" : "home"
           } ],
           "conditions" : [ {
             "name" : "space-mode",
@@ -2933,8 +2932,7 @@
               "value" : 1
             }
           }, {
-            "key_code" : "left_arrow",
-            "modifiers" : [ "left_command" ]
+            "key_code" : "home"
           } ],
           "from" : {
             "simultaneous" : [ {
@@ -2963,8 +2961,7 @@
             }
           },
           "to" : [ {
-            "key_code" : "right_arrow",
-            "modifiers" : [ "left_command" ]
+            "key_code" : "end"
           } ],
           "conditions" : [ {
             "name" : "space-mode",
@@ -2983,8 +2980,7 @@
               "value" : 1
             }
           }, {
-            "key_code" : "right_arrow",
-            "modifiers" : [ "left_command" ]
+            "key_code" : "end"
           } ],
           "from" : {
             "simultaneous" : [ {
