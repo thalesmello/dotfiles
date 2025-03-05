@@ -107,8 +107,8 @@
         :des "Hyperkey as Leader Key"
         :rules [
             :!hyper-layer
-            [:caps_lock :!CTleft_option nil { :alone { :key :escape :halt true } :delayed {:canceled {:key :vk_none, :halt true}} :afterup [{:set ["hyper-layer" 1]} [:noti :hyper-hud "Hyper-layer Active"]] :params {:alone 150 :delay 10000 }}]
-            [:!Scaps_lock :!CSTleft_option nil {:alone :escape} ]
+            [:caps_lock { :key :!CTleft_option :lazy true } nil { :alone { :key :escape :halt true } :delayed {:canceled {:key :vk_none, :halt true} :invoked {:key :vk_none, :halt true}} :afterup [{:set ["hyper-layer" 1]} [:noti :hyper-hud "Hyper-layer Active"]] :params {:alone 150 :delay 2000 }}]
+            [:!Scaps_lock {:key :!CSTleft_option :lazy true} nil {:alone :!Sescape} ]
             [:!Ccaps_lock :return_or_enter]
             :hyper-layer
             ; [:!Scaps_lock [:!CSTleft_option ["hyper-layer" 0] [:noti :hyper-hud]] nil {:alone :escape}]

@@ -3393,6 +3393,10 @@
             }
           } ],
           "to_delayed_action" : {
+            "to_if_invoked" : [ {
+              "key_code" : "vk_none",
+              "halt" : true
+            } ],
             "to_if_canceled" : [ {
               "key_code" : "vk_none",
               "halt" : true
@@ -3400,14 +3404,15 @@
           },
           "parameters" : {
             "basic.to_if_alone_timeout_milliseconds" : 150,
-            "basic.to_delayed_action_delay_milliseconds" : 10000
+            "basic.to_delayed_action_delay_milliseconds" : 2000
           },
           "from" : {
             "key_code" : "caps_lock"
           },
           "to" : [ {
             "key_code" : "left_option",
-            "modifiers" : [ "left_command", "left_control" ]
+            "modifiers" : [ "left_command", "left_control" ],
+            "lazy" : true
           } ],
           "conditions" : [ {
             "name" : "hyper-layer",
@@ -3417,7 +3422,8 @@
           "type" : "basic"
         }, {
           "to_if_alone" : [ {
-            "key_code" : "escape"
+            "key_code" : "escape",
+            "modifiers" : [ "left_shift" ]
           } ],
           "from" : {
             "key_code" : "caps_lock",
@@ -3427,7 +3433,8 @@
           },
           "to" : [ {
             "key_code" : "left_option",
-            "modifiers" : [ "left_command", "left_control", "left_shift" ]
+            "modifiers" : [ "left_command", "left_control", "left_shift" ],
+            "lazy" : true
           } ],
           "conditions" : [ {
             "name" : "hyper-layer",
