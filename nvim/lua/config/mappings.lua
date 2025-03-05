@@ -55,6 +55,9 @@ vim.keymap.set("v", "<leader>y", '"+y', { noremap = true })
 vim.keymap.set("v", "<leader>p", '"+p', { noremap = true })
 vim.keymap.set("v", "<leader>P", '"+P', { noremap = true })
 
+vim.keymap.set({ "n", "x" }, "x", '"_x', { remap = false })
+vim.keymap.set({ "n", "x" }, "X", '"_X', { remap = false })
+
 vim.keymap.set("v", "@", ":<c-u>noautocmd '<,'> normal @", { noremap = true })
 vim.keymap.set("n", "<leader><leader>", "<c-^>", { noremap = true })
 vim.keymap.set("n", "<leader>o", function ()

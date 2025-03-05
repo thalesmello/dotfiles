@@ -3378,6 +3378,10 @@
         "description" : "Hyperkey as Leader Key",
         "manipulators" : [ {
           "to_if_alone" : [ {
+            "key_code" : "escape",
+            "halt" : true
+          } ],
+          "to_after_key_up" : [ {
             "set_variable" : {
               "name" : "hyper-layer",
               "value" : 1
@@ -3388,6 +3392,16 @@
               "text" : "Hyper-layer Active"
             }
           } ],
+          "to_delayed_action" : {
+            "to_if_canceled" : [ {
+              "key_code" : "vk_none",
+              "halt" : true
+            } ]
+          },
+          "parameters" : {
+            "basic.to_if_alone_timeout_milliseconds" : 150,
+            "basic.to_delayed_action_delay_milliseconds" : 10000
+          },
           "from" : {
             "key_code" : "caps_lock"
           },
@@ -3397,11 +3411,14 @@
           } ],
           "conditions" : [ {
             "name" : "hyper-layer",
-            "value" : 0,
-            "type" : "variable_if"
+            "value" : 1,
+            "type" : "variable_unless"
           } ],
           "type" : "basic"
         }, {
+          "to_if_alone" : [ {
+            "key_code" : "escape"
+          } ],
           "from" : {
             "key_code" : "caps_lock",
             "modifiers" : {
@@ -3414,8 +3431,8 @@
           } ],
           "conditions" : [ {
             "name" : "hyper-layer",
-            "value" : 0,
-            "type" : "variable_if"
+            "value" : 1,
+            "type" : "variable_unless"
           } ],
           "type" : "basic"
         }, {
@@ -3430,20 +3447,15 @@
           } ],
           "conditions" : [ {
             "name" : "hyper-layer",
-            "value" : 0,
-            "type" : "variable_if"
+            "value" : 1,
+            "type" : "variable_unless"
           } ],
           "type" : "basic"
         }, {
-          "from" : {
-            "key_code" : "caps_lock",
-            "modifiers" : {
-              "optional" : [ "left_shift" ]
-            }
-          },
-          "to" : [ {
+          "to_if_alone" : [ {
             "key_code" : "escape"
-          }, {
+          } ],
+          "to_after_key_up" : [ {
             "set_variable" : {
               "name" : "hyper-layer",
               "value" : 0
@@ -3453,6 +3465,16 @@
               "id" : "hyper-hud",
               "text" : ""
             }
+          } ],
+          "from" : {
+            "key_code" : "caps_lock",
+            "modifiers" : {
+              "optional" : [ "left_shift" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "left_option",
+            "modifiers" : [ "left_command", "left_control" ]
           } ],
           "conditions" : [ {
             "name" : "hyper-layer",
