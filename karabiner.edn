@@ -14,6 +14,7 @@
 ;; another article: https://kau.sh/blog/hacking-your-keyboard/
 ;; very well documented edn file by Kaushik Gopal: https://github.com/kaushikgopal/dotfiles/blob/master/.karabiner.edn
 ;; key names: https://github.com/yqrashawn/GokuRakuJoudo/blob/master/src/karabiner_configurator/keys_info.clj
+;; https://oliverfalvai.com/notes/posts/karabiner-setup/
 
 
 :profiles {
@@ -22,24 +23,19 @@
         :sim        50      ;; if keydown event for two different keys are pressed within :sim ms, the keypresses are considered simultaneous
         :delay      500     ;; after :delay ms, the key press is considered to be delayed (TODO WHAT IS THIS??)
         :alone      1000    ;; if keyup event comes within :alone ms from keydown, the key is not just pressed but held
-        :held       150     ;; key is fired twice when :held ms is elapsed (otherwise seen as a hold command) (TODO WHAT IS THIS??)
+        :held       250     ;; key is fired twice when :held ms is elapsed (otherwise seen as a hold command) (TODO WHAT IS THIS??)
     }
 } ;; profiles
 
 ;; you can create templates for running shell commands. These follow clojure string template syntax.
 :templates {
-    ; :echo "echo \"%s\""
-    ; :open "open \"%s\""
-    ; :open-app "open -a \"%s\""
+    :open "open \"%s\""
+    :open-app "open -a \"%s\""
     ; :alfred "osascript -e 'tell application id \"com.runningwithcrayons.Alfred\" to run trigger \"%s\" in workflow \"%s\" with argument \"%s\"'"
-    ; :km "osascript -e 'tell application \"Keyboard Maestro Engine\" to do script \"%s\"'"
-    ; :km2 "osascript -e 'tell application \"Keyboard Maestro Engine\" to do script \"%s\"' & osascript -e 'tell application \"Keyboard Maestro Engine\" to do script \"%s\"'"
-    ; :launch "osascript -e 'tell application \"%s\" to activate'"
-} ;; templates
+}
 
 
 :devices {
-                 ;; vendor_id and product_id can be found in Karabiner EventViewer gui
     ;; Lenovo THinkpad Trackpoint Keyboard
     :trackpoint_kb [{:vendor_id 6127 :product_id 24801}]
 }
@@ -57,29 +53,13 @@
     ;              "^com\\.googlecode\\.iterm2$"]
 }
 
-;; layers are active while :FROM is held. Only recommended for non-typing keys like . or tab. Otherwise use simlayers.
-:layers {
-    ; :tab-mode {:key :tab} ;; move cursor by letter
-    ;;How to have tab and ctrl-tab as layers? Error 'Duplicate key'     :layers {:ctrl-tab-mode {:key :!Ttab}} ;; move cursor by letter
-    ;;  :caps-mode {:key :caps_lock :alone {:key :escape}}
-    ;; Commenting out space-mode because it creates the layer rule with precedence higher than
-    ;; other rules, and we need Hyper key rules to take precedence over space fn for shortcuts to work
-    ; :space-mode       {:key :spacebar}
-        }
+:layers {}
 
-:simlayers  {
-    ; :o-mode           {:key :o }
-    ; :p-mode           {:key :p }
-            }
-;; :simlayer-threshold 250
-;; ☝️ from https://oliverfalvai.com/notes/posts/karabiner-setup/
+:simlayers  {:space-mode { :key :spacebar }}
+:simlayer-threshold 250
 
-
-
-;; with tos you can predefine 'to' keypresses to easily parse them
 :tos {
-    ;; in order for OSX to register a caps lock press, it has to be held for a little under 100ms
-    :toggle_caps {:key :caps_lock :hold_down_ms 100}
+    :end-hyper ["hyper-layer" 0]
 }
 
 
@@ -90,75 +70,9 @@
 ;; This is where you define the modifications
 :main [
     {
-        :des "Hyperkey as Leader Key"
-        :rules [
-            [:caps_lock :!CTleft_option ["hyper-layer" 0] {:alone [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]]}]
-            [:!Scaps_lock :!CSTleft_option ["hyper-layer" 0]]
-            [:!Ccaps_lock :return_or_enter ["hyper-layer" 0]]
-            :hyper-layer
-            [:#Scaps_lock [:escape ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sa [:!CTOa ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sb [:!CTOb ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sc [:!CTOc ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sd [:!CTOd ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Se [:!CTOe ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sf [:!CTOf ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sg [:!CTOg ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sh [:!CTOh ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Si [:!CTOi ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sj [:!CTOj ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sk [:!CTOk ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sl [:!CTOl ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sm [:!CTOm ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sn [:!CTOn ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#So [:!CTOo ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sp [:!CTOp ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sq [:!CTOq ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sr [:!CTOr ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Ss [:!CTOs ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#St [:!CTOt ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Su [:!CTOu ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sw [:!CTOw ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sv [:!CTOv ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sx [:!CTOx ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sz [:!CTOz ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#S0 [:!CTO0 ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#S1 [:!CTO1 ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#S2 [:!CTO2 ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#S3 [:!CTO3 ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#S4 [:!CTO4 ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#S5 [:!CTO5 ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#S6 [:!CTO6 ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#S7 [:!CTO7 ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#S8 [:!CTO8 ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#S9 [:!CTO9 ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Shyphen [:!CTOhyphen ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sequal_sign [:!CTOequal_sign ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sopen_bracket [:!CTOopen_bracket ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sclose_bracket [:!CTOclose_bracket ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sbackslash [:!CTObackslash ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Scomma [:!CTOcomma ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Speriod [:!CTOperiod ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sslash [:!CTOslash ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sreturn_or_enter [:!CTOreturn_or_enter ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Squote [:!CTOquote ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Ssemicolon [:!CTOsemicolon ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sgrave_accent_and_tilde [:!CTOgrave_accent_and_tilde ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:spacebar [:!CTOspacebar ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-            [:#Sspacebar [:!CTOspacebar ["hyper-layer" 0] [:noti :hyper-hud]] nil]
-        ]
-    }
-
-    {
-        :des "Space FN Trigger Key"
-        :rules [[:spacebar ["space-mode" 1] nil {:afterup ["space-mode" 0] :alone :spacebar}]]
-    }
-
-    {
         :des "Space FN"
         :rules [
             :space-mode
-            [:#Scaps_lock [:escape ["hyper-layer" 0] [:noti :hyper-hud]] nil]
             [:##h :left_arrow]
             [:##j :down_arrow]
             [:##k :up_arrow]
@@ -170,10 +84,84 @@
             [:##e :!Cright_arrow]
             [:##b :!Oleft_arrow]
             [:##w :!Oright_arrow]
-            [:##left_shift :delete_or_backspace]
-            [:left_control :!Odelete_or_backspace]
+            [:caps_lock :!Odelete_or_backspace]
         ]
-     }
+    }
+
+    {
+        :des "Goto apps"
+        :rules [
+            [:g [["goto-mode" 1] [:noti :goto-hud "Goto Active"]] :space-mode]
+            :goto-mode
+            [:escape [["goto-mode" 0] [:noti :goto-hud]]]
+            [:caps_lock [["goto-mode" 0] [:noti :goto-hud]]]
+            [:c [[:open "https://www.internalfb.com/intern/bunny?calendar"] ["goto-mode" 0] [:noti :goto-hud]]]
+            [:t [[:open "https://www.internalfb.com/intern/bunny?tasks"] ["goto-mode" 0] [:noti :goto-hud]]]
+            [:1 [[:open "https://www.internalfb.com/intern/bunny?11"] ["goto-mode" 0] [:noti :goto-hud]]]
+            [:2 [[:open "https://www.internalfb.com/intern/bunny?dai-ar"] ["goto-mode" 0] [:noti :goto-hud]]]
+            [:3 [[:open "https://www.internalfb.com/intern/bunny?dai-c50"] ["goto-mode" 0] [:noti :goto-hud]]]
+        ]
+    }
+
+    {
+        :des "Hyperkey as Leader Key"
+        :rules [
+            [:caps_lock :!CTleft_option ["hyper-layer" 0] {:alone [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]]}]
+            [:!Scaps_lock :!CSTleft_option ["hyper-layer" 0]]
+            [:!Ccaps_lock :return_or_enter ["hyper-layer" 0]]
+            :hyper-layer
+            [:#Scaps_lock [:escape ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sa [:!CTOa ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sb [:!CTOb ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sc [:!CTOc ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sd [:!CTOd ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Se [:!CTOe ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sf [:!CTOf ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sg [:!CTOg ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sh [:!CTOh ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Si [:!CTOi ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sj [:!CTOj ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sk [:!CTOk ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sl [:!CTOl ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sm [:!CTOm ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sn [:!CTOn ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#So [:!CTOo ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sp [:!CTOp ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sq [:!CTOq ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sr [:!CTOr ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Ss [:!CTOs ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#St [:!CTOt ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Su [:!CTOu ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sw [:!CTOw ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sv [:!CTOv ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sx [:!CTOx ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sz [:!CTOz ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#S0 [:!CTO0 ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#S1 [:!CTO1 ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#S2 [:!CTO2 ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#S3 [:!CTO3 ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#S4 [:!CTO4 ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#S5 [:!CTO5 ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#S6 [:!CTO6 ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#S7 [:!CTO7 ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#S8 [:!CTO8 ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#S9 [:!CTO9 ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Shyphen [:!CTOhyphen ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sequal_sign [:!CTOequal_sign ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sopen_bracket [:!CTOopen_bracket ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sclose_bracket [:!CTOclose_bracket ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sbackslash [:!CTObackslash ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Scomma [:!CTOcomma ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Speriod [:!CTOperiod ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sslash [:!CTOslash ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sreturn_or_enter [:!CTOreturn_or_enter ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Squote [:!CTOquote ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Ssemicolon [:!CTOsemicolon ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sgrave_accent_and_tilde [:!CTOgrave_accent_and_tilde ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:spacebar [:!CTOspacebar ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#Sspacebar [:!CTOspacebar ["hyper-layer" 0] [:noti :hyper-hud]]]
+        ]
+    }
 
     {
         :des "(TrackPoint) Ignore long middle click"
@@ -235,104 +223,6 @@
             [:m nil nil { :held { :key :left_command :halt true } :alone { :key :m :halt true } :delayed {:canceled :m :invoked :vk_none} }]
         ]
     }
-
-
-;     {
-;         :des "right_command to Alfred"
-;         :rules [
-;             [
-;                 :right_command                          ;; FROM
-;                 [:!Cspacebar [:km "right_command"]]     ;; TO
-;                 nil                                     ;; with no conditionals
-;             ]
-;         ]
-;     }
-;     {
-;         :des "o mode: quick launch applications"
-;         :rules [
-;             :o-mode                                      ;; when open-mode is active (o is held)
-;                 [:t [:open-app "iTerm"]]                   ;; and t is pressed, open Terminal
-;                 [:f [:open-app "finder"]]                     ;; and f is pressed, open Finder
-;                 [:d [:open "/users/josh/Desktop"]]         ;; and d is pressed, open the Desktop in finder
-;                 [:m [:open "https://theministry.co"]]         ;; and m is pressed, open the Ministry website
-;         ]
-;     }
-;
-;        {
-;         :des "p mode: palette launcher"
-;         :rules [
-;             :p-mode                                      ;; when open-mode is active (o is held)
-;                 [:1 [:km "0878B851-9985-4E67-8EFC-4DA56AEE33D1"]]           ;; and t is pressed, open Terminal
-;                 [:f [:open-app "finder"]]                     ;; and f is pressed, open Finder
-;                 [:d [:open "/users/josh/Desktop"]]         ;; and d is pressed, open the Desktop in finder
-;                 [:m [:open "https://theministry.co"]]         ;; and m is pressed, open the Ministry website
-;         ]
-;     }
-;
-;     {
-;         :des "Tab mode arrow keys"
-;         :rules [:tab-mode
-;                 [:##h :left_arrow]
-;                 [:##j :down_arrow]
-;                 [:##k :up_arrow]
-;                 [:##l :right_arrow]
-;                 [:##u :delete_or_backspace]]
-;     }
-;
-;
-;     {
-;         :des "simultaneous jk"
-;         :rules [
-;                  [[:h :j]
-;                 :!Cspacebar ;; TO
-;                  ]
-;         ]
-;     }
-;
-;         {
-;         :des "simultaneous kl"
-;         :rules [
-;                  [[:k :l]
-;                 :!Cspacebar] ;; TO
-;
-;         ]
-;     }
-;
-;         {:des "Quit application by command + Q only when pressing twice"
-;          :rules [[:!Cq
-;                   [:!Cq ["command-q" 0]]
-;                   ["command-q" 1]]
-;                  [:!Cq
-;                   ["command-q" 1]
-;                   nil
-;                   {:delayed {:invoked ["command-q" 0] :canceled ["command-q" 0]}}]]}
-;
-;
-; {
-;         :des "if leftShift isAlone, ctrlOptCmd+0, +shell"
-;         :rules [
-;             [
-;                 :left_shift           ;; FROM left_shift
-;                 :left_shift           ;; TO left_shift (same)
-;                 nil                    ;; with no conditionals
-;                 {:alone [:km2 "ECCACE86-8137-4E29-AE1B-F72A372AFF98" "left_shift"] }
-;             ]
-;         ]
-;     }
-;
-; {
-;         :des "Caps lock to hyper key when held and toggle_caps when tapped"
-;         :rules [
-;             [
-;                 :##caps_lock             ;; FROM caps lock key
-;                 :!COTleft_shift        ;; TO hyper
-;                 nil                    ;; with no conditionals
-;                 {:alone :delete_or_backspace}  ;; OPTIONS: if pressed alone, press caps_lock event, but hold it for 100ms
-;             ]
-;         ]
-;     }
-
-
 ]
 }
 
