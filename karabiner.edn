@@ -74,6 +74,11 @@
         :des "Space FN"
         :rules [
             :space-mode
+            [:left_shift :left_shift]
+            [:##a :!Cleft_arrow]
+            [:##e :!Cright_arrow]
+            [:##b :!Oleft_arrow]
+            [:##w :!Oright_arrow]
             [:##h :left_arrow]
             [:##j :down_arrow]
             [:##k :up_arrow]
@@ -81,10 +86,6 @@
             [:##d :page_down]
             [:##u :page_up]
             [:##s :spacebar]
-            [:##a [:!Cleft_arrow]]
-            [:##e [:!Cright_arrow]]
-            [:##b :!Oleft_arrow]
-            [:##w :!Oright_arrow]
             [:caps_lock :!Odelete_or_backspace]
         ]
     }
