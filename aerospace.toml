@@ -152,7 +152,7 @@ ctrl-alt-cmd-shift-p = ['move-node-to-workspace --wrap-around --focus-follows-wi
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#mode
 ctrl-alt-cmd-space = 'mode service'
-cmd-esc = 'workspace-back-and-forth'
+ctrl-alt-cmd-i = 'mode invoke'
 
 # 'service' binding mode declaration.
 # See: https://nikitabobko.github.io/AeroSpace/guide#binding-modes
@@ -168,15 +168,16 @@ shift-semicolon = [
   '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset move-all-but-two'''',
   'mode main',
 ]
-s = ['mode preset']
-g = ['mode goto']
 
-f = ['fullscreen', 'mode main']
+f = [
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset move-other-windows'''',
+  'mode main',
+]
 
 r = ['flatten-workspace-tree', 'mode main'] # reset layout
 t = ['layout floating tiling', 'mode main'] # Toggle between floating and tiling layout
 backspace = [
-  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset minimize-other-windows'''',
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset move-other-windows --back-workspace \?'''',
   'mode main',
 ]
 tab = ['move-workspace-to-monitor --wrap-around next', 'mode main']
@@ -237,7 +238,7 @@ shift-l = ['move-node-to-monitor --focus-follows-window right', 'mode main']
 # run = ['macos-native-minimize']
 
 
-[mode.preset.binding]
+[mode.invoke.binding]
 esc = ['mode main']
 
 1 = [
@@ -283,17 +284,9 @@ shift-f = [
   'mode main',
 ]
 m = [
-  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset minimize-other-windows'''',
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset move-other-windows --back-workspace \?'''',
   'mode main',
 ]
-
-[mode.goto.binding]
-esc = ['mode main']
-
-t = ['''exec-and-forget open 'https://www.internalfb.com/intern/bunny?tasks'''', 'mode main']
-c = ['''exec-and-forget open 'https://www.internalfb.com/intern/bunny?calendar'''', 'mode main']
-d = ['''exec-and-forget open 'https://www.internalfb.com/intern/bunny?daiquery'''', 'mode main']
-1 = ['''exec-and-forget open 'https://www.internalfb.com/intern/bunny?11'''', 'mode main']
 
 [[on-window-detected]]
 if.app-id = 'com.cisco.secureclient.gui'
