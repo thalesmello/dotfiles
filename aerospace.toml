@@ -46,7 +46,7 @@ key-mapping.preset = 'qwerty'
 # Fallback value (if you omit the key): on-focused-monitor-changed = []
 on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
 # on-focus-changed = ['move-mouse window-lazy-center']
-exec-on-workspace-change = ['/opt/homebrew/bin/fish', '-c', 'aerospace-sticky-windows.sh']
+exec-on-workspace-change = ['/opt/homebrew/bin/fish', '-c', 'aerospace-on-workspace-change']
 
 # Gaps between windows (inner-*) and between monitor edges (outer-*).
 # Possible values:
@@ -92,7 +92,8 @@ outer.right =      10
 #     activate
 # end tell'
 # '''
-ctrl-alt-cmd-m = '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset move-window''''
+ctrl-alt-cmd-shift-m = '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset move-window''''
+ctrl-alt-cmd-m = ['move-node-to-workspace 0']
 
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#layout
