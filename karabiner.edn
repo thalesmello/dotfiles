@@ -183,6 +183,14 @@
     }
 
     {
+        :des "Mouseless: Right Shift + Space = Click"
+        :rules [
+            [:!Rspacebar :button1]
+            [:right_shift :right_shift nil {:alone :f13}]
+        ]
+    }
+
+    {
         :des "Baserow Mod"
         :rules [
             [[:z :x :c :v] :!TOSleft_command]

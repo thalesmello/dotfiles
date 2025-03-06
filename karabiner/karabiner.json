@@ -4839,6 +4839,31 @@
           "type" : "basic"
         } ]
       }, {
+        "description" : "Mouseless: Right Shift + Space = Click",
+        "manipulators" : [ {
+          "from" : {
+            "key_code" : "spacebar",
+            "modifiers" : {
+              "mandatory" : [ "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "pointing_button" : "button1"
+          } ],
+          "type" : "basic"
+        }, {
+          "to_if_alone" : [ {
+            "key_code" : "f13"
+          } ],
+          "from" : {
+            "key_code" : "right_shift"
+          },
+          "to" : [ {
+            "key_code" : "right_shift"
+          } ],
+          "type" : "basic"
+        } ]
+      }, {
         "description" : "Baserow Mod",
         "manipulators" : [ {
           "from" : {

@@ -69,7 +69,7 @@ keymaps:
     jump to left edge: null
     jump to right edge: null
     jump to top: null
-    left mouse button (w/o overlay): null
+    left mouse button (w/o overlay): F13
     middle mouse button (w/o overlay): null
     release hold/drag: null
     repeat last mouse action: null
