@@ -1,7 +1,8 @@
 function aerospace-on-workspace-change
-    aerospace-auto-summon --when-workspace 0
+    aerospace-auto-summon \
+        --when-workspace "?"
     aerospace-sticky-windows \
-        --except-workspace 0 \
+        --except-workspace "?" \
         -w "Picture in Picture" \
         -w ".*about:blank - Thales \(Personal\).*"
 end

@@ -93,7 +93,7 @@ outer.right =      10
 # end tell'
 # '''
 ctrl-alt-cmd-shift-m = '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset move-window''''
-ctrl-alt-cmd-m = ['move-node-to-workspace 0']
+ctrl-alt-cmd-m = ['move-node-to-workspace ?']
 
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#layout
@@ -126,7 +126,7 @@ ctrl-alt-cmd-6 = 'workspace 6'
 ctrl-alt-cmd-7 = 'workspace 7'
 ctrl-alt-cmd-8 = 'workspace 8'
 ctrl-alt-cmd-9 = 'workspace 9'
-ctrl-alt-cmd-0 = 'workspace 0'
+ctrl-alt-cmd-0 = 'workspace ?'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#move-node-to-workspace
 ctrl-alt-cmd-shift-1 = 'move-node-to-workspace --focus-follows-window 1'
@@ -138,7 +138,7 @@ ctrl-alt-cmd-shift-6 = 'move-node-to-workspace --focus-follows-window 6'
 ctrl-alt-cmd-shift-7 = 'move-node-to-workspace --focus-follows-window 7'
 ctrl-alt-cmd-shift-8 = 'move-node-to-workspace --focus-follows-window 8'
 ctrl-alt-cmd-shift-9 = 'move-node-to-workspace --focus-follows-window 9'
-ctrl-alt-cmd-shift-0 = 'move-node-to-workspace --focus-follows-window 0'
+ctrl-alt-cmd-shift-0 = 'move-node-to-workspace --focus-follows-window ?'
 
 ctrl-alt-cmd-n = ['workspace --wrap-around next'] # reset layout
 ctrl-alt-cmd-p = ['workspace --wrap-around prev'] # Toggle between floating and tiling layout
@@ -189,7 +189,7 @@ equal = ['balance-sizes', 'mode main']
 7 = ['move-node-to-workspace 7', 'mode main']
 8 = ['move-node-to-workspace 8', 'mode main']
 9 = ['move-node-to-workspace 9', 'mode main']
-0 = ['move-node-to-workspace 0', 'mode main']
+0 = ['move-node-to-workspace ?', 'mode main']
 
 
 ctrl-alt-cmd-h = ['join-with left', 'mode main']
@@ -220,7 +220,7 @@ shift-l = ['move-node-to-monitor --focus-follows-window right', 'mode main']
 # if.workspace = 'workspace-name'
 # if.during-aerospace-startup = true
 # check-further-callbacks = true
-# run = ['layout floating', 'move-node-to-workspace S']  # The callback itself
+# run = ['layout floating', 'move-node-to-workspace S']
 # run = 'move-node-to-workspace T' # mnemonics T - Terminal
 
 # Floating windows configuration
@@ -229,7 +229,7 @@ shift-l = ['move-node-to-monitor --focus-follows-window right', 'mode main']
 # [[on-window-detected]]
 # if.app-id = 'us.zoom.xos'
 # if.window-title-regex-substring = 'Login'
-# run = ['macos-native-minimize']  # The callback itself
+# run = ['macos-native-minimize']
 
 
 [mode.preset.binding]
@@ -244,6 +244,14 @@ esc = ['mode main']
     '''',
   'mode main',
 ]
+
+p = [
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset arrange-workspaces \
+    -w "7:.*Thales \\(Personal\\).*" \
+    '''',
+  'mode main',
+]
+
 
 w = [
   '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-preset summon --app Workplace'''',
@@ -289,12 +297,12 @@ run = 'layout floating'
 [[on-window-detected]]
 if.app-id = 'com.google.Chrome'
 if.window-title-regex-substring = 'Picture in Picture'
-run = ['layout floating']  # The callback itself
+run = ['layout floating']
 
 [[on-window-detected]]
 if.app-id = 'com.google.Chrome'
 if.window-title-regex-substring = 'about:blank - Thales \(Personal\)'
-run = ['layout floating']  # The callback itself
+run = ['layout floating']
 
 [[on-window-detected]]
 if.app-id = 'com.googlecode.iterm2'
@@ -303,29 +311,34 @@ run = 'layout floating'
 
 [[on-window-detected]]
 if.app-name-regex-substring = 'Metamate'
-run = ['layout floating']  # The callback itself
+run = ['layout floating']
+
+[[on-window-detected]]
+if.app-id = 'net.sonuscape.mouseless'
+run = ['layout floating']
+
 
 # Secondary workspace apps
 
 [[on-window-detected]]
 if.app-id = 'net.whatsapp.WhatsApp'
-run = ['move-node-to-workspace 8']  # The callback itself
+run = ['move-node-to-workspace 8']
 
 [[on-window-detected]]
 if.app-id = 'com.apple.MobileSMS'
-run = ['move-node-to-workspace 8']  # The callback itself
+run = ['move-node-to-workspace 8']
 
 [[on-window-detected]]
 if.app-name-regex-substring = 'YouTube Music'
-run = ['move-node-to-workspace 9']  # The callback itself
+run = ['move-node-to-workspace 9']
 
 [[on-window-detected]]
 if.app-name-regex-substring = 'PomoFocus'
-run = ['move-node-to-workspace 9']  # The callback itself
+run = ['move-node-to-workspace 9']
 
 [[on-window-detected]]
 if.app-name-regex-substring = 'Timery'
-run = ['move-node-to-workspace 9']  # The callback itself
+run = ['move-node-to-workspace 9']
 
 
 [workspace-to-monitor-force-assignment]
