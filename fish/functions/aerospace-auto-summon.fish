@@ -8,13 +8,14 @@ function aerospace-auto-summon
     set focused_workspace (default "$_flag_focused_workspace" "$AEROSPACE_FOCUSED_WORKSPACE")
     set previous_workspace (default "$_flag_previous_workspace" "$AEROSPACE_PREV_WORKSPACE")
 
-    echo runs $focused_workspace $_flag_when_workspace
-
     if test "$focused_workspace" != "$_flag_when_workspace"
         return 0
     end
 
-    echo prev workspace
+    if set -qU __AEROSPACE_DISABLE_AUTO_SUMMON
+        set -eU __AEROSPACE_AUTO_SUMMON_DISABLE_ONCE
+        return 0
+    end
 
     aerospace move-node-to-workspace --focus-follows-window "$previous_workspace"
 end
