@@ -38,6 +38,7 @@
 :devices {
     ;; Lenovo THinkpad Trackpoint Keyboard
     :trackpoint_kb [{:vendor_id 6127 :product_id 24801}]
+    :keystogo [{:vendor_id 5824 :product_id 10202}]
 }
 
 :applications {
@@ -56,7 +57,7 @@
 :layers {}
 
 :simlayers  {:space-mode { :key :spacebar }}
-:simlayer-threshold 250
+:simlayer-threshold 500
 
 :tos {
     :end-hyper ["hyper-layer" 0]
@@ -107,7 +108,7 @@
         :des "Hyperkey as Leader Key"
         :rules [
             :!hyper-layer
-            [:caps_lock { :key :!CTleft_option :lazy true } nil { :alone { :key :escape :halt true } :delayed {:canceled {:key :vk_none, :halt true} :invoked {:key :vk_none, :halt true}} :afterup [{:set ["hyper-layer" 1]} [:noti :hyper-hud "Hyper-layer Active"]] :params {:alone 150 :delay 2000 }}]
+            [:caps_lock { :key :!CTleft_option :lazy true } nil { :alone { :key :escape :halt true } :delayed {:canceled {:key :vk_none, :halt true} :invoked {:key :vk_none, :halt true}} :afterup [{:set ["hyper-layer" 1]} [:noti :hyper-hud "Hyper-layer Active"]] :params {:alone 500 :delay 2000 }}]
             [:!Scaps_lock {:key :!CSTleft_option :lazy true} nil {:alone :!Sescape} ]
             [:!Ccaps_lock :return_or_enter]
             :hyper-layer
@@ -174,6 +175,17 @@
             ; [{:pkey :button3} :vk_none  nil {:alone {:pkey :button3 :halt true}}]
         ]
     }
+
+    ; Fn key would only be supported via a pull request
+    ; Check unkown events in event view
+    ; Follow guide https://karabiner-elements.pqrs.org/docs/help/advanced-topics/unknown-events/
+    ; {
+    ;     :des "Bluetooth Keyboard FN -> Ctrl"
+    ;     :rules [
+    ;         :keystogo
+    ;         [:!Fa :!Ta]
+    ;     ]
+    ; }
 
     {
         :des "Right Command to Left Option"
