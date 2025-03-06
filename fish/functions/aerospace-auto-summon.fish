@@ -5,12 +5,12 @@ function aerospace-auto-summon
         'previous-workspace=' \
         -- $argv
 
-    set current_workspace (default "$_flag_focused_workspace" "$AEROSPACE_FOCUSED_WORKSPACE")
+    set focused_workspace (default "$_flag_focused_workspace" "$AEROSPACE_FOCUSED_WORKSPACE")
     set previous_workspace (default "$_flag_previous_workspace" "$AEROSPACE_PREV_WORKSPACE")
 
-    echo runs $current_workspace $_flag_when_workspace
+    echo runs $focused_workspace $_flag_when_workspace
 
-    if test "$current_workspace" != "$_flag_when_workspace"
+    if test "$focused_workspace" != "$_flag_when_workspace"
         return 0
     end
 
