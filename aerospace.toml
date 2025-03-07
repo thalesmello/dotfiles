@@ -127,7 +127,7 @@ ctrl-alt-cmd-7 = 'workspace 7'
 ctrl-alt-cmd-8 = 'workspace 8'
 ctrl-alt-cmd-9 = 'workspace 9'
 ctrl-alt-cmd-0 = [
-  '''exec-and-forget /opt/homebrew/bin/fish -c 'set -U __AEROSPACE_AUTO_SUMMON_DISABLE_ONCE 1; and aerospace workspace \?'''',
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-auto-summon --disable-once; and aerospace workspace \?'''',
 ]
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#move-node-to-workspace
@@ -141,7 +141,7 @@ ctrl-alt-cmd-shift-7 = 'move-node-to-workspace --focus-follows-window 7'
 ctrl-alt-cmd-shift-8 = 'move-node-to-workspace --focus-follows-window 8'
 ctrl-alt-cmd-shift-9 = 'move-node-to-workspace --focus-follows-window 9'
 ctrl-alt-cmd-shift-0 = [
-  '''exec-and-forget /opt/homebrew/bin/fish -c 'set -U __AEROSPACE_AUTO_SUMMON_DISABLE_ONCE 1; and aerospace move-node-to-workspace --focus-follow-window \?'''',
+  '''exec-and-forget /opt/homebrew/bin/fish -c 'aerospace-auto-summon --disable-once; and aerospace move-node-to-workspace --focus-follow-window \?'''',
 ]
 
 
