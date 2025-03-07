@@ -4901,6 +4901,17 @@
           } ],
           "type" : "basic"
         }, {
+          "from" : {
+            "key_code" : "spacebar",
+            "modifiers" : {
+              "mandatory" : [ "left_option", "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "pointing_button" : "button2"
+          } ],
+          "type" : "basic"
+        }, {
           "to_if_alone" : [ {
             "key_code" : "f13"
           } ],

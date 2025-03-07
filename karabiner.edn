@@ -199,6 +199,7 @@
         :des "Mouseless: Right Shift + Space = Click"
         :rules [
             [:!Rspacebar :button1]
+            [:!ROspacebar :button2]
             [:right_shift :right_shift nil {:alone :f13}]
         ]
     }
