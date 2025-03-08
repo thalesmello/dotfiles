@@ -21,6 +21,7 @@ ln -s $(pwd)/fish ~/.config/fish
 ln -s $(pwd)/nvim ~/.config/nvim
 ln -s $(pwd)/linearmouse ~/.config/linearmouse
 ln -s $(pwd)/karabiner ~/.config/karabiner
+ln -s $(pwd)/karabiner.edn ~/.config/karabiner.edn
 ```
 
 Set `fish` as default shell
