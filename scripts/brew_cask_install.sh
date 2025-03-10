@@ -14,3 +14,4 @@ brew install --cask betterdisplay
 brew install --cask homerow
 brew install --cask superwhisper
 brew install waydabber/betterdisplay/betterdisplaycli
+brew install --cask mouseless
