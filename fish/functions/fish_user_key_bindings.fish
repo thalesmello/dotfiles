@@ -13,4 +13,5 @@ function fish_user_key_bindings
   bind -M insert \cq 'commandline (commandline | format-shell)'
   bind -M insert \cg expand-abbr
   bind -M visual -m insert i end-selection repaint-mode
+  bind -M insert ctrl-n down-or-search
 end
