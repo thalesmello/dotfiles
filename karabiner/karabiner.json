@@ -5546,6 +5546,13 @@
         "vendor_id" : 13364
       },
       "ignore" : false
+    }, {
+      "identifiers" : {
+        "is_pointing_device" : true,
+        "product_id" : 50489,
+        "vendor_id" : 1133
+      },
+      "ignore" : false
     } ],
     "name" : "Default",
     "selected" : true,
