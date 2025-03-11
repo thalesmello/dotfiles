@@ -199,6 +199,10 @@
     {
         :des "Mouseless: Right Shift + Space = Click"
         :rules [
+            [:!Rcomma {:mkey {:x -1546}}]
+            [:!Rslash {:mkey {:x 1546}}]
+            [:!Rl {:mkey {:y -1546}}]
+            [:!Rperiod {:mkey {:y 1546}}]
             [:!Rspacebar :button1]
             [:!ROspacebar :button2]
             [:!Sright_shift :!Sright_shift nil {:alone :f14}]

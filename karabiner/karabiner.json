@@ -4902,6 +4902,58 @@
         "description" : "Mouseless: Right Shift + Space = Click",
         "manipulators" : [ {
           "from" : {
+            "key_code" : "comma",
+            "modifiers" : {
+              "mandatory" : [ "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "mouse_key" : {
+              "x" : -1546
+            }
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "slash",
+            "modifiers" : {
+              "mandatory" : [ "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "mouse_key" : {
+              "x" : 1546
+            }
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "l",
+            "modifiers" : {
+              "mandatory" : [ "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "mouse_key" : {
+              "y" : -1546
+            }
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "period",
+            "modifiers" : {
+              "mandatory" : [ "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "mouse_key" : {
+              "y" : 1546
+            }
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
             "key_code" : "spacebar",
             "modifiers" : {
               "mandatory" : [ "right_shift" ]
