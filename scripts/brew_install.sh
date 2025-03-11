@@ -24,3 +24,4 @@ brew install up
 brew install rg
 brew install nictap/tap/ooo
 brew install yqrashawn/goku/goku
+brew install patchutils
