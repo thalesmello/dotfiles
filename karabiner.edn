@@ -200,6 +200,7 @@
         :rules [
             [:!Rspacebar :button1]
             [:!ROspacebar :button2]
+            [:!Sright_shift :!Sright_shift nil {:alone :f14}]
             [:right_shift :right_shift nil {:alone :f13}]
         ]
     }

@@ -63,7 +63,7 @@ keymaps:
     hold for move: ShiftLeft
     hold for right button: OptionLeft
     hold for speed decrease: null
-    hold for speed increase: CommandLeft
+    hold for speed increase: ShiftLeft
     increase overlay opacity: ArrowUp
     jump to bottom: null
     jump to left edge: null
@@ -78,7 +78,7 @@ keymaps:
     switch monitor left: null
     switch monitor right: Tab
     toggle overlay: null
-    toggle wheel mode: Option+ShiftRight tap
+    toggle wheel mode: F14
     undo last key:
     - ShiftLeft tap
     - Backspace
