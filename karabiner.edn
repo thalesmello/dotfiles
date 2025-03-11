@@ -73,6 +73,7 @@
     {
         :des "Space FN"
         :rules [
+            [:!Sspacebar :spacebar]
             :space-mode
             [:left_shift :left_shift]
             [:##a :!Cleft_arrow]
