@@ -2571,17 +2571,6 @@
         "description" : "Space FN",
         "manipulators" : [ {
           "from" : {
-            "key_code" : "spacebar",
-            "modifiers" : {
-              "mandatory" : [ "left_shift" ]
-            }
-          },
-          "to" : [ {
-            "key_code" : "spacebar"
-          } ],
-          "type" : "basic"
-        }, {
-          "from" : {
             "key_code" : "left_shift"
           },
           "to" : [ {
@@ -5629,6 +5618,15 @@
         "is_pointing_device" : true,
         "product_id" : 50489,
         "vendor_id" : 1133
+      },
+      "ignore" : false
+    }, {
+      "identifiers" : {
+        "is_game_pad" : true,
+        "is_keyboard" : true,
+        "is_pointing_device" : true,
+        "product_id" : 32779,
+        "vendor_id" : 10730
       },
       "ignore" : false
     } ],
