@@ -1,0 +1,9 @@
+https://alfred.app/workflows/alfredapp/alfred-gallery/
+https://alfred.app/workflows/chrisgrieser/atop/
+https://alfred.app/workflows/tobiasmende/audio-switcher/
+https://alfred.app/workflows/epilande/browser-tabs/
+https://alfred.app/workflows/dnnsmnstrr/btt/
+https://www.packal.org/workflow/div
+https://alfred.app/workflows/alfredapp/system-settings/
+https://alfred.app/workflows/godbout/wooshy-window-to-the-foreground/
+
