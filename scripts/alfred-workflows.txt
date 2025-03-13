@@ -6,4 +6,5 @@ https://alfred.app/workflows/dnnsmnstrr/btt/
 https://www.packal.org/workflow/div
 https://alfred.app/workflows/alfredapp/system-settings/
 https://alfred.app/workflows/godbout/wooshy-window-to-the-foreground/
+https://alfred.app/workflows/bosha/blueman/
 
