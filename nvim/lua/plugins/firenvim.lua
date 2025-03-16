@@ -145,7 +145,8 @@ return {
                         vim.cmd("quit")
                     end)
 
-                    vim.keymap.set("n", "<D-v>", '"+p')
+                    vim.keymap.set({"n", "v"}, "<D-v>", '"+p')
+                    vim.keymap.set("v", "<D-c>", '"+ygv')
                     vim.keymap.set({ "i", "c" }, "<D-v>", '<c-r><c-r>+')
 
                     -- The two following settings work with Monaco editors in web browser pages
