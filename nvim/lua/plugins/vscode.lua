@@ -217,9 +217,9 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
 
     vim.keymap.set("n", "<leader>.", function () vscode.action('editor.action.quickFix') end)
 
-    vim.keymap.set("n", "<leader>a", function () vscode.action('vscode-harpoon.addEditor') end)
-    vim.keymap.set("n", "<leader>q", function () vscode.action('vscode-harpoon.editEditors') end)
-    vim.keymap.set("n", "<leader>e<space>", function () vscode.action('vscode-harpoon.editorQuickPick') end)
+    vim.keymap.set("n", "<leader>ka", function () vscode.action('vscode-harpoon.addEditor') end)
+    vim.keymap.set("n", "<leader>ke", function () vscode.action('vscode-harpoon.editEditors') end)
+    vim.keymap.set("n", "<leader>kE", function () vscode.action('vscode-harpoon.editorQuickPick') end)
     vim.keymap.set("n", "<leader>1", function () vscode.action('vscode-harpoon.gotoEditor1') end)
     vim.keymap.set("n", "<leader>2", function () vscode.action('vscode-harpoon.gotoEditor2') end)
     vim.keymap.set("n", "<leader>3", function () vscode.action('vscode-harpoon.gotoEditor3') end)

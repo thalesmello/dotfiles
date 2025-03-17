@@ -10,8 +10,8 @@ return {
 
       harpoon.setup(opts)
 
-      vim.keymap.set("n", "<leader>ha", function() harpoon:list():add() end)
-      vim.keymap.set("n", "<leader>he", function() harpoon.ui:toggle_quick_menu(harpoon:list()) end)
+      vim.keymap.set("n", "<leader>ka", function() harpoon:list():add() end)
+      vim.keymap.set("n", "<leader>ke", function() harpoon.ui:toggle_quick_menu(harpoon:list()) end)
 
       vim.keymap.set("n", "<leader>1", function() harpoon:list():select(1) end)
       vim.keymap.set("n", "<leader>2", function() harpoon:list():select(2) end)
