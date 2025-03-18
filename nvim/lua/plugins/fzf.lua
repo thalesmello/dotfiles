@@ -21,6 +21,12 @@ return {
         vim.env.FZF_DEFAULT_COMMAND = 'ag -g ""'
 
         vim.keymap.set("n", "<c-p>", function ()
+            if vim.o.filetype == 'qf' then
+                vim_utils.feedkeys("<up>")
+
+                return
+            end
+
             vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
             fzf_lua.files({ cwd = vim.b.project_do_cwd })
         end, { noremap = true, silent = true })
@@ -48,7 +54,7 @@ return {
         vim.keymap.set("n", "<leader>/", function ()
             vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
             fzf_lua.grep_cword({ cwd = vim.b.project_do_cwd })
-        end, { silent = true, expr = true })
+        end, { silent = true })
         vim.keymap.set("v", "<leader>/", function ()
             vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
             local selection = vim_utils.get_visual_selection()
