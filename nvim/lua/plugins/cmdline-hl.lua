@@ -1,6 +1,8 @@
 return {
     {
         'Sam-programs/cmdline-hl.nvim',
+        -- Add vim-rsi as dependenci so it's possible to overwrite <c-f>
+        dependencies = {'tpope/vim-rsi'},
         event = 'VimEnter',
         config = function()
             local cmdline_hl = require('cmdline-hl')
@@ -52,6 +54,35 @@ return {
                 -- you can also use this to get the wildmenu(default completion)'s suggestion
                 -- ghost_text_provider = require("cmdline-hl.ghost_text").wildmenu,
                 })
+
+
+            vim.keymap.set("c", "<right>", function ()
+                -- Completes ghost text when autosuggest is visible
+                local cmdpos = vim.fn.getcmdpos()
+                local cmdval = vim.fn.getcmdline()
+                if (
+                    cmdpos > vim.fn.strlen(cmdval)
+                    and #require('cmdline-hl').config.ghost_text_provider(':', cmdval, cmdpos) > 0
+                ) then
+                    return "<Up>"
+                else
+                    return "<Right>"
+                end
+            end, {expr = true})
+            vim.keymap.set("c", "<c-f>", function ()
+                -- Completes ghost text when autosuggest is visible
+                local cmdpos = vim.fn.getcmdpos()
+                local cmdval = vim.fn.getcmdline()
+                if cmdpos > vim.fn.strlen(cmdval) then
+                    if #cmdval > 0 and #require('cmdline-hl').config.ghost_text_provider(':', cmdval, cmdpos) > 0 then
+                        return "<up>"
+                    else
+                        return vim.o.cedit
+                    end
+                else
+                    return "<right>"
+                end
+            end, {expr = true, remap = false})
         end
     }
 }
