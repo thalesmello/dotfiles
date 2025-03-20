@@ -1,0 +1,6 @@
+.quick-input-widget {
+    width: 90% !important;
+    margin-left: 0 !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+}
