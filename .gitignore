@@ -15,3 +15,4 @@ fish/fundle
 fish/fish_variables
 karabiner/automatic_backups/
 .DS_Store
+nvim/tmp/
