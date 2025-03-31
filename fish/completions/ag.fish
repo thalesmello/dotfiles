@@ -7,7 +7,7 @@ end
 
 
 # Load rest of completions
-set --local ag_paths $fish_complete_path/ag.fis?
+set --local ag_paths $fish_complete_path/ag.fish*
 
 for path in $ag_paths[-1..1]
   if test "$path" != "$(status --current-filename)"

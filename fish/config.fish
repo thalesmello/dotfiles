@@ -45,6 +45,8 @@ set -gx LESS_TERMCAP_ue \e'[0m'        # reset underline
 
 set -gx LIBGL_ALWAYS_INDIRECT 1
 
+ set -U fish_features qmark-noglob
+
 # Setup envs
 fzf --fish | source
 set -xg FZF_DEFAULT_OPTS '--bind "ctrl-n:down,ctrl-p:up,ctrl-r:previous-history,ctrl-s:next-history,ctrl-q:select-all,ctrl-x:toggle-out" --height 40%'
