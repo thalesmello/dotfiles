@@ -4891,7 +4891,7 @@
         "description" : "Mouseless: Right Shift + Space = Click",
         "manipulators" : [ {
           "from" : {
-            "key_code" : "comma",
+            "key_code" : "k",
             "modifiers" : {
               "mandatory" : [ "right_shift" ]
             }
@@ -4904,7 +4904,7 @@
           "type" : "basic"
         }, {
           "from" : {
-            "key_code" : "slash",
+            "key_code" : "semicolon",
             "modifiers" : {
               "mandatory" : [ "right_shift" ]
             }
@@ -4917,7 +4917,7 @@
           "type" : "basic"
         }, {
           "from" : {
-            "key_code" : "l",
+            "key_code" : "o",
             "modifiers" : {
               "mandatory" : [ "right_shift" ]
             }
@@ -4930,7 +4930,7 @@
           "type" : "basic"
         }, {
           "from" : {
-            "key_code" : "period",
+            "key_code" : "l",
             "modifiers" : {
               "mandatory" : [ "right_shift" ]
             }
@@ -4961,6 +4961,17 @@
           },
           "to" : [ {
             "pointing_button" : "button2"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "spacebar",
+            "modifiers" : {
+              "mandatory" : [ "left_command", "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "pointing_button" : "button3"
           } ],
           "type" : "basic"
         }, {
