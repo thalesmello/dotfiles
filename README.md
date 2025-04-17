@@ -15,6 +15,8 @@ ln -s $(pwd)/kitty ~/.config/kitty
 ln -s $(pwd)/hammerspoon ~/.hammerspoon
 ln -s $(pwd)/R ~/.R
 ln -s $(pwd)/ideavimrc ~/.ideavimrc
+ln -s $(pwd)/yabairc ~/.yabairc
+ln -s $(pwd)/skhdrc ~/.skhdrc
 ln -s $(pwd)/finicky.js ~/.finicky.js
 ln -s $(pwd)/aerospace.toml ~/.aerospace.toml
 ln -s $(pwd)/fish ~/.config/fish

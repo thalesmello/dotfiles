@@ -1,0 +1,299 @@
+# ################################################################ #
+# THE FOLLOWING IS AN EXPLANATION OF THE GRAMMAR THAT SKHD PARSES. #
+# FOR SIMPLE EXAMPLE MAPPINGS LOOK FURTHER DOWN THIS FILE..        #
+# ################################################################ #
+
+# A list of all built-in modifier and literal keywords can
+# be found at https://github.com/koekeishiya/skhd/issues/1
+#
+# A hotkey is written according to the following rules:
+#
+#   hotkey       = <mode> '<' <action> | <action>
+#
+#   mode         = 'name of mode' | <mode> ',' <mode>
+#
+#   action       = <keysym> '[' <proc_map_lst> ']' | <keysym> '->' '[' <proc_map_lst> ']'
+#                  <keysym> ':' <command>          | <keysym> '->' ':' <command>
+#                  <keysym> ';' <mode>             | <keysym> '->' ';' <mode>
+#
+#   keysym       = <mod> '-' <key> | <key>
+#
+#   mod          = 'modifier keyword' | <mod> '+' <mod>
+#
+#   key          = <literal> | <keycode>
+#
+#   literal      = 'single letter or built-in keyword'
+#
+#   keycode      = 'apple keyboard kVK_<Key> values (0x3C)'
+#
+#   proc_map_lst = * <proc_map>
+#
+#   proc_map     = <string> ':' <command> | <string>     '~' |
+#                  '*'      ':' <command> | '*'          '~'
+#
+#   string       = '"' 'sequence of characters' '"'
+#
+#   command      = command is executed through '$SHELL -c' and
+#                  follows valid shell syntax. if the $SHELL environment
+#                  variable is not set, it will default to '/bin/bash'.
+#                  when bash is used, the ';' delimeter can be specified
+#                  to chain commands.
+#
+#                  to allow a command to extend into multiple lines,
+#                  prepend '\' at the end of the previous line.
+#
+#                  an EOL character signifies the end of the bind.
+#
+#   ->           = keypress is not consumed by skhd
+#
+#   *            = matches every application not specified in <proc_map_lst>
+#
+#   ~            = application is unbound and keypress is forwarded per usual, when specified in a <proc_map>
+#
+# A mode is declared according to the following rules:
+#
+#   mode_decl = '::' <name> '@' ':' <command> | '::' <name> ':' <command> |
+#               '::' <name> '@'               | '::' <name>
+#
+#   name      = desired name for this mode,
+#
+#   @         = capture keypresses regardless of being bound to an action
+#
+#   command   = command is executed through '$SHELL -c' and
+#               follows valid shell syntax. if the $SHELL environment
+#               variable is not set, it will default to '/bin/bash'.
+#               when bash is used, the ';' delimeter can be specified
+#               to chain commands.
+#
+#               to allow a command to extend into multiple lines,
+#               prepend '\' at the end of the previous line.
+#
+#               an EOL character signifies the end of the bind.
+
+# ############################################################### #
+# THE FOLLOWING SECTION CONTAIN SIMPLE MAPPINGS DEMONSTRATING HOW #
+# TO INTERACT WITH THE YABAI WM. THESE ARE SUPPOSED TO BE USED AS #
+# A REFERENCE ONLY, WHEN MAKING YOUR OWN CONFIGURATION..          #
+# ############################################################### #
+
+# focus window
+# alt - h : yabai -m window --focus west
+
+# swap managed window
+# shift + alt - h : yabai -m window --swap north
+
+# move managed window
+# shift + cmd - h : yabai -m window --warp east
+
+# balance size of windows
+# shift + alt - 0 : yabai -m space --balance
+
+# make floating window fill screen
+# shift + alt - up     : yabai -m window --grid 1:1:0:0:1:1
+
+# make floating window fill left-half of screen
+# shift + alt - left   : yabai -m window --grid 1:2:0:0:1:1
+
+# create desktop, move window and follow focus - uses jq for parsing json (brew install jq)
+# shift + cmd - n : yabai -m space --create && \
+#                   index="$(yabai -m query --spaces --display | jq 'map(select(."is-native-fullscreen" == false))[-1].index')" && \
+#                   yabai -m window --space "${index}" && \
+#                   yabai -m space --focus "${index}"
+
+# fast focus desktop
+# cmd + alt - x : yabai -m space --focus recent
+# cmd + alt - 1 : yabai -m space --focus 1
+
+# send window to desktop and follow focus
+# shift + cmd - z : yabai -m window --space next; yabai -m space --focus next
+# shift + cmd - 2 : yabai -m window --space  2; yabai -m space --focus 2
+
+# focus monitor
+# ctrl + alt - z  : yabai -m display --focus prev
+# ctrl + alt - 3  : yabai -m display --focus 3
+
+# send window to monitor and follow focus
+# ctrl + cmd - c  : yabai -m window --display next; yabai -m display --focus next
+# ctrl + cmd - 1  : yabai -m window --display 1; yabai -m display --focus 1
+
+# move floating window
+# shift + ctrl - a : yabai -m window --move rel:-20:0
+# shift + ctrl - s : yabai -m window --move rel:0:20
+
+# increase window size
+# shift + alt - a : yabai -m window --resize left:-20:0
+# shift + alt - w : yabai -m window --resize top:0:-20
+
+# decrease window size
+# shift + cmd - s : yabai -m window --resize bottom:0:-20
+# shift + cmd - w : yabai -m window --resize top:0:20
+
+# set insertion point in focused container
+# ctrl + alt - h : yabai -m window --insert west
+
+# toggle window zoom
+# alt - d : yabai -m window --toggle zoom-parent
+# alt - f : yabai -m window --toggle zoom-fullscreen
+
+# toggle window split type
+# alt - e : yabai -m window --toggle split
+
+# float / unfloat window and center on screen
+# alt - t : yabai -m window --toggle float --grid 4:4:1:1:2:2
+
+# toggle sticky(+float), picture-in-picture
+# alt - p : yabai -m window --toggle sticky --toggle pip
+
+# Gemini completion
+
+# skhd equivalent for aerospace.toml
+
+# After login and startup commands are not directly translatable to skhd.
+# skhd focuses on keybindings. You would typically handle these
+# using other tools or scripts that run on login/startup.
+
+# start-at-login = false
+# This is a macOS setting, not skhd configuration.
+
+# Normalizations: These are AeroSpace specific and don't have direct skhd equivalents.
+# enable-normalization-flatten-containers = true
+# enable-normalization-opposite-orientation-for-nested-containers = true
+
+# Layout settings are AeroSpace specific.
+# accordion-padding = 120
+# default-root-container-layout = 'tiles'
+# default-root-container-orientation = 'auto'
+
+# Key mapping preset: This is AeroSpace specific.
+# key-mapping.preset = 'qwerty'
+
+# Mouse follows focus on monitor change: This can be achieved with a separate script
+# triggered by AeroSpace's on-focused-monitor-changed event, not directly in skhd.
+# on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
+
+# Exec on workspace change: This would be handled by AeroSpace's event system,
+# not directly by skhd.
+# exec-on-workspace-change = ['/opt/homebrew/bin/fish', '-c', 'aerospace-on-workspace-change']
+
+# Gaps: These are window manager specific settings. skhd doesn't handle window management.
+# [gaps]
+# inner.horizontal = 10
+# inner.vertical =    10
+# outer.left =        10
+# outer.bottom =      10
+# outer.top =         10
+# outer.right =       10
+
+# 'main' binding mode
+ctrl + alt + cmd + shift - m : /opt/homebrew/bin/fish -c 'aerospace-preset move-window'
+ctrl + alt + cmd - m : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace ?'
+
+ctrl + alt + cmd - . : /opt/homebrew/bin/fish -c 'aerospace layout tiles horizontal vertical'
+ctrl + alt + cmd - , : /opt/homebrew/bin/fish -c 'aerospace layout accordion horizontal vertical'
+
+ctrl + alt + cmd - h : /opt/homebrew/bin/fish -c 'aerospace focus --boundaries all-monitors-outer-frame --ignore-floating left; aerospace move-mouse window-lazy-center'
+ctrl + alt + cmd - j : /opt/homebrew/bin/fish -c 'aerospace focus --boundaries all-monitors-outer-frame --ignore-floating down; aerospace move-mouse window-lazy-center'
+ctrl + alt + cmd - k : /opt/homebrew/bin/fish -c 'aerospace focus --boundaries all-monitors-outer-frame --ignore-floating up; aerospace move-mouse window-lazy-center'
+ctrl + alt + cmd - l : /opt/homebrew/bin/fish -c 'aerospace focus --boundaries all-monitors-outer-frame --ignore-floating right; aerospace move-mouse window-lazy-center'
+
+ctrl + alt + cmd + shift - h : /opt/homebrew/bin/fish -c 'aerospace move left'
+ctrl + alt + cmd + shift - j : /opt/homebrew/bin/fish -c 'aerospace move down'
+ctrl + alt + cmd + shift - k : /opt/homebrew/bin/fish -c 'aerospace move up'
+ctrl + alt + cmd + shift - l : /opt/homebrew/bin/fish -c 'aerospace move right'
+
+ctrl + alt + cmd - minus : /opt/homebrew/bin/fish -c 'aerospace resize smart -100'
+ctrl + alt + cmd - equal : /opt/homebrew/bin/fish -c 'aerospace resize smart +100'
+
+ctrl + alt + cmd - 1 : /opt/homebrew/bin/fish -c 'aerospace workspace 1'
+ctrl + alt + cmd - 2 : /opt/homebrew/bin/fish -c 'aerospace workspace 2'
+ctrl + alt + cmd - 3 : /opt/homebrew/bin/fish -c 'aerospace workspace 3'
+ctrl + alt + cmd - 4 : /opt/homebrew/bin/fish -c 'aerospace workspace 4'
+ctrl + alt + cmd - 5 : /opt/homebrew/bin/fish -c 'aerospace workspace 5'
+ctrl + alt + cmd - 6 : /opt/homebrew/bin/fish -c 'aerospace workspace 6'
+ctrl + alt + cmd - 7 : /opt/homebrew/bin/fish -c 'aerospace workspace 7'
+ctrl + alt + cmd - 8 : /opt/homebrew/bin/fish -c 'aerospace workspace 8'
+ctrl + alt + cmd - 9 : /opt/homebrew/bin/fish -c 'aerospace workspace 9'
+ctrl + alt + cmd - 0 : /opt/homebrew/bin/fish -c 'aerospace-auto-summon --disable-once; and aerospace workspace \?'
+
+ctrl + alt + cmd + shift - 1 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace --focus-follows-window 1'
+ctrl + alt + cmd + shift - 2 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace --focus-follows-window 2'
+ctrl + alt + cmd + shift - 3 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace --focus-follows-window 3'
+ctrl + alt + cmd + shift - 4 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace --focus-follows-window 4'
+ctrl + alt + cmd + shift - 5 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace --focus-follows-window 5'
+ctrl + alt + cmd + shift - 6 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace --focus-follows-window 6'
+ctrl + alt + cmd + shift - 7 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace --focus-follows-window 7'
+ctrl + alt + cmd + shift - 8 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace --focus-follows-window 8'
+ctrl + alt + cmd + shift - 9 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace --focus-follows-window 9'
+ctrl + alt + cmd + shift - 0 : /opt/homebrew/bin/fish -c 'aerospace-auto-summon --disable-once; and aerospace move-node-to-workspace --focus-follow-window \?'
+
+ctrl + alt + cmd - n : /opt/homebrew/bin/fish -c 'aerospace workspace --wrap-around next'
+ctrl + alt + cmd - p : /opt/homebrew/bin/fish -c 'aerospace workspace --wrap-around prev'
+ctrl + alt + cmd + shift - n : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace --wrap-around --focus-follows-window next'
+ctrl + alt + cmd + shift - p : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace --wrap-around --focus-follows-window prev'
+
+ctrl + alt + cmd - space : /opt/homebrew/bin/fish -c 'aerospace mode service'
+ctrl + alt + cmd - i : /opt/homebrew/bin/fish -c 'aerospace mode invoke'
+
+# 'service' binding mode
+::service
+  esc : /opt/homebrew/bin/fish -c 'aerospace reload-config; aerospace mode main'
+  enter : /opt/homebrew/bin/fish -c 'aerospace mode main'
+  ctrl + alt + cmd - space : /opt/homebrew/bin/fish -c 'aerospace focus-back-and-forth || aerospace workspace-back-and-forth; aerospace mode main'
+  space : /opt/homebrew/bin/fish -c 'aerospace focus-back-and-forth || aerospace workspace-back-and-forth; aerospace mode main'
+  shift - space : /opt/homebrew/bin/fish -c 'aerospace-preset move-to-previous-workspace; aerospace mode main'
+  shift - , : /opt/homebrew/bin/fish -c 'aerospace-preset move-to-previous-workspace --move-others; aerospace mode main'
+  shift - semicolon : /opt/homebrew/bin/fish -c 'aerospace-preset move-all-but-two; aerospace mode main'
+  f : /opt/homebrew/bin/fish -c 'aerospace-preset move-other-windows; aerospace mode main'
+  r : /opt/homebrew/bin/fish -c 'aerospace flatten-workspace-tree; aerospace mode main'
+  t : /opt/homebrew/bin/fish -c 'aerospace layout floating tiling; aerospace mode main'
+  backspace : /opt/homebrew/bin/fish -c 'aerospace-preset move-other-windows --back-workspace \?; aerospace mode main'
+  tab : /opt/homebrew/bin/fish -c 'aerospace move-workspace-to-monitor --wrap-around next; aerospace mode main'
+  grave : /opt/homebrew/bin/fish -c 'aerospace move-node-to-monitor --wrap-around next; aerospace mode main'
+  ctrl + alt + cmd - n : /opt/homebrew/bin/fish -c 'aerospace move-node-to-monitor --wrap-around --focus-follows-window next; aerospace mode main'
+  ctrl + alt + cmd - p : /opt/homebrew/bin/fish -c 'aerospace move-node-to-monitor --wrap-around --focus-follows-window prev; aerospace mode main'
+  equal : /opt/homebrew/bin/fish -c 'aerospace balance-sizes; aerospace mode main'
+  1 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace 1; aerospace mode main'
+  2 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace 2; aerospace mode main'
+  3 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace 3; aerospace mode main'
+  4 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace 4; aerospace mode main'
+  5 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace 5; aerospace mode main'
+  6 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace 6; aerospace mode main'
+  7 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace 7; aerospace mode main'
+  8 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace 8; aerospace mode main'
+  9 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace 9; aerospace mode main'
+  0 : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace \?; aerospace mode main'
+  ctrl + alt + cmd - h : /opt/homebrew/bin/fish -c 'aerospace join-with left; aerospace mode main'
+  ctrl + alt + cmd - j : /opt/homebrew/bin/fish -c 'aerospace join-with down; aerospace mode main'
+  ctrl + alt + cmd - k : /opt/homebrew/bin/fish -c 'aerospace join-with up; aerospace mode main'
+  ctrl + alt + cmd - l : /opt/homebrew/bin/fish -c 'aerospace join-with right; aerospace mode main'
+  h : /opt/homebrew/bin/fish -c 'aerospace focus-monitor left; aerospace mode main'
+  j : /opt/homebrew/bin/fish -c 'aerospace focus-monitor down; aerospace mode main'
+  k : /opt/homebrew/bin/fish -c 'aerospace focus-monitor up; aerospace mode main'
+  l : /opt/homebrew/bin/fish -c 'aerospace focus-monitor right; aerospace mode main'
+  shift - h : /opt/homebrew/bin/fish -c 'aerospace move-node-to-monitor --focus-follows-window left; aerospace mode main'
+  shift - j : /opt/homebrew/bin/fish -c 'aerospace move-node-to-monitor --focus-follows-window down; aerospace mode main'
+  shift - k : /opt/homebrew/bin/fish -c 'aerospace move-node-to-monitor --focus-follows-window up; aerospace mode main'
+  shift - l : /opt/homebrew/bin/fish -c 'aerospace move-node-to-monitor --focus-follows-window right; aerospace mode main'
+
+# Window detected events: These are AeroSpace specific and don't have direct skhd equivalents.
+# You would handle these with AeroSpace's configuration.
+
+# Floating windows configuration: Handled by AeroSpace.
+
+# Secondary workspace apps: Handled by AeroSpace's on-window-detected.
+
+# 'invoke' binding mode
+::invoke
+  esc : /opt/homebrew/bin/fish -c 'aerospace mode main'
+  1 : /opt/homebrew/bin/fish -c 'aerospace-preset arrange-workspaces -w "1:.*Thales \\(Work\\).*" -a "2:iTerm2" -a "3:.*VS Code.*" -a "4:Workplace" ; aerospace mode main'
+  p : /opt/homebrew/bin/fish -c 'aerospace-preset arrange-workspaces -w "7:.*Thales \\(Personal\\).*" ; aerospace mode main'
+  w : /opt/homebrew/bin/fish -c 'aerospace-preset summon --app Workplace; aerospace mode main'
+  shift - w : /opt/homebrew/bin/fish -c 'aerospace-preset summon --move-others --app Workplace; aerospace mode main'
+  z : /opt/homebrew/bin/fish -c 'aerospace-preset summon --app Obsidian; aerospace mode main'
+  shift - z : /opt/homebrew/bin/fish -c 'aerospace-preset summon --move-others --app Obsidian; aerospace mode main'
+  f : /opt/homebrew/bin/fish -c 'aerospace-preset move-other-windows; aerospace mode main'
+  shift - f : /opt/homebrew/bin/fish -c 'aerospace-preset move-all-but-two; aerospace mode main'
+  m : /opt/homebrew/bin/fish -c 'aerospace-preset move-other-windows --back-workspace \?; aerospace mode main'
+
+# workspace-to-monitor-force-assignment: This is AeroSpace specific.
+# 9 = ['secondary']
