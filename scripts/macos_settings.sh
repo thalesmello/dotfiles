@@ -8,7 +8,7 @@ defaults write -g KeyRepeat -int 2
 defaults -currentHost write NSGlobalDomain com.apple.trackpad.threeFingerSwipeGesture -int 1
 
 # disable hold key for accent mac os
-defaults write -g ApplePressAndHoldEnabled -bool true
+defaults write -g ApplePressAndHoldEnabled -bool false
 
 # disable tap to click
 defaults write "com.apple.AppleMultitouchTrackpad" "Clicking" -bool false
