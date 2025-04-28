@@ -197,10 +197,10 @@ ctrl + alt + cmd - 0x2F : yabai -m space --layout bsp
 # Comma
 ctrl + alt + cmd - 0x2B : yabai -m space --layout stack
 
-ctrl + alt + cmd - h : yabai -m window --focus west
-ctrl + alt + cmd - j : yabai -m window --focus south
-ctrl + alt + cmd - k : yabai -m window --focus north
-ctrl + alt + cmd - l : yabai -m window --focus east
+ctrl + alt + cmd - h : yabai-preset focus west
+ctrl + alt + cmd - j : yabai-preset focus south
+ctrl + alt + cmd - k : yabai-preset focus north
+ctrl + alt + cmd - l : yabai-preset focus east
 
 ctrl + alt + cmd + shift - h : yabai -m window --warp west
 ctrl + alt + cmd + shift - j : yabai -m window --warp south
