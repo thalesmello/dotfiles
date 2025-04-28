@@ -25,3 +25,6 @@ brew install rg
 brew install nictap/tap/ooo
 brew install yqrashawn/goku/goku
 brew install patchutils
+brew install blueutil
+brew install koekeishiya/formulae/yabai
+brew install koekeishiya/formulae/skhd
