@@ -7,7 +7,8 @@ function yabai-preset
     if test "$preset" = "focus-window"
         set direction $argv[1]
         set -e argv[1]
-        set winid (yabai -m query --windows | jq -e --arg direction "$direction" '. | map(.frame |= . + {x: (.x/2 + .w/2), y: (.y/2 + .h/2)}) | (.[] | select(."has-focus")) as {$id, $app, frame: $zero}
+        set winid (yabai -m query --windows --space | jq -e --arg direction "$direction" '.
+        | (.[] | select(."has-focus")) as {$id, $app, frame: $zero}
         | map(select(."is-visible" and (."is-sticky"|not)) | .zero = $zero)
         | map(.frame |= . + {distance: (pow(.x - $zero.x; 2) + pow(.y - $zero.y; 2)), angle: atan2(-.y + $zero.y; .x - $zero.x)})
         | {
