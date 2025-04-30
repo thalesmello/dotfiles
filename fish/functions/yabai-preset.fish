@@ -61,17 +61,14 @@ function yabai-preset
 
         yabai -m display --focus "$display" || yabai -m display --focus "$fallback"
     else if test "$preset" = "move-window-to-display-with-fallback"
-        set display $argv[1]
-        set -e argv[1]
+        # Yabai needs SPI for this, so we use btt
+        # btt only supports next monitor, so we focus next with yabai regardless
 
-        if test "$display" = north -o "$display" = west
-            set fallback prev
-        else
-            set fallback next
-        end
-
-        yabai -m window --display "$display" || yabai -m window --display "$fallback"
-        yabai -m display --focus "$display" || yabai -m display --focus "$fallback"
+        set win (yabai -m query --windows --window | jq '.id')
+        set fallback next
+        set json '{"BTTPredefinedActionType":47}'
+        curl "$btt_url" --url-query "json=$json"
+        yabai -m window "$win" --focus
     else if false
     end
 
