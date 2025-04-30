@@ -1,8 +1,10 @@
 function yabai-preset
+    # We use btt_url to execute some action in order to fill in the gap of workspaces not working by default
+    set btt_url 'http://localhost:12000/trigger_action/'
     set preset $argv[1]
     set -e argv[1]
 
-    if test "$preset" = "focus"
+    if test "$preset" = "focus-window"
         set direction $argv[1]
         set -e argv[1]
         set winid (yabai -m query --windows | jq -e --arg direction "$direction" '. | map(.frame |= . + {x: (.x/2 + .w/2), y: (.y/2 + .h/2)}) | (.[] | select(."has-focus")) as {$id, $app, frame: $zero}
@@ -20,6 +22,55 @@ function yabai-preset
         | .id')
 
         yabai -m window "$winid" --focus
+    else if test "$preset" = "focus-space"
+        set space $argv[1]
+        set -e argv[1]
+
+        if test "$space" = next
+            set json '{"BTTPredefinedActionType":114}'
+        else if test "$space" = prev
+            set json '{"BTTPredefinedActionType":113}'
+        else
+            set json (jq -nc --argjson spc "$space" '{"BTTPredefinedActionType":(206 + $spc)}')
+        end
+
+        curl "$btt_url" --url-query "json=$json"
+    else if test "$preset" = "move-window-to-space"
+        set space $argv[1]
+        set -e argv[1]
+
+        if test "$space" = next
+            set json '{"BTTPredefinedActionType":152}'
+        else if test "$space" = prev
+            set json '{"BTTPredefinedActionType":151}'
+        else
+            set json (jq -nc --argjson spc "$space" '{"BTTPredefinedActionType":(215 + $spc)}')
+        end
+
+        curl "$btt_url" --url-query "json=$json"
+    else if test "$preset" = "focus-display-with-fallback"
+        set display $argv[1]
+        set -e argv[1]
+
+        if test "$display" = north -o "$display" = west
+            set fallback prev
+        else
+            set fallback next
+        end
+
+        yabai -m display --focus "$display" || yabai -m display --focus "$fallback"
+    else if test "$preset" = "move-window-to-display-with-fallback"
+        set display $argv[1]
+        set -e argv[1]
+
+        if test "$display" = north -o "$display" = west
+            set fallback prev
+        else
+            set fallback next
+        end
+
+        yabai -m window --display "$display" || yabai -m window --display "$fallback"
+        yabai -m display --focus "$display" || yabai -m display --focus "$fallback"
     else if false
     end
 
