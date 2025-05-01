@@ -211,9 +211,11 @@ ctrl + alt + cmd + shift - k : yabai -m window --swap north
 ctrl + alt + cmd + shift - l : yabai -m window --swap east
 
 # minus
-ctrl + alt + cmd - 0x1B : yabai -m window --resize left:-100:0
+ctrl + alt + cmd - 0x1B : yabai -m window --resize bottom_right:-100:0
+ctrl + alt + cmd + shift - 0x1B : yabai -m window --resize bottom_right:0:-100
 # equals
-ctrl + alt + cmd - 0x18 : yabai -m window --resize right:100:0
+ctrl + alt + cmd - 0x18 : yabai -m window --resize bottom_right:100:0
+ctrl + alt + cmd + shift - 0x18 : yabai -m window --resize bottom_right:0:100
 
 ctrl + alt + cmd - 1 : yabai-preset focus-space 1
 ctrl + alt + cmd - 2 : yabai-preset focus-space 2
@@ -258,7 +260,7 @@ service < shift - space : skhd -k "escape"; yabai-preset move-window-to-space re
 # comma
 # service < shift - 0x2B : yabai-preset move-window-to--space recent ; skhd -k "escape"
 # semicolon
-# service < shift - 0x29 : yabai -m window --space next; yabai -m space --focus next ; skhd -k "escape"
+service < shift - 0x29 : skhd -k "escape"; yabai-preset arrange-windows-side-by-side
 # service < f : yabai -m window --space next; yabai -m space --focus next ; skhd -k "escape"
 # service < r : yabai -m space --balance ; skhd -k "escape"
 # service < t : yabai -m window --toggle float ; skhd -k "escape"

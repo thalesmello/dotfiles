@@ -75,6 +75,12 @@ function yabai-preset
         set json '{"BTTPredefinedActionType":47}'
         curl "$btt_url" --url-query "json=$json"
         yabai -m window "$win" --focus
+    else if test "$preset" = "arrange-windows-side-by-side"
+        yabai -m query --windows --space | jq 'map(select(."is-visible" and (."is-sticky"|not))) | "\(first(.[] | select(."has-focus") | .id)):\(first(.[] | select(."has-focus"|not) | .id))"'
+        yabai -m query --windows --space | jq -r 'map(select(."is-visible" and (."is-sticky"|not))) | "\(first(.[] | select(."has-focus") | .id)):\(first(.[] | select(."has-focus"|not) | .id))"' | read -d: active_win back_win
+
+        yabai -m window "$active_win" --grid "1:2:0:0:1:1"
+        yabai -m window "$back_win" --grid "1:2:1:0:1:1"
     else if false
     end
 
