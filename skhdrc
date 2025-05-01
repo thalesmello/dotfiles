@@ -252,47 +252,47 @@ ctrl + alt + cmd - space ; service
 
 # Service mode bindings
 service < escape ; default
-service < return : yabai -m space --focus recent ; skhd -k "escape"
-service < ctrl + alt + cmd - space : yabai -m window --focus mouse ; skhd -k "escape"
-service < space : yabai -m window --focus mouse ; skhd -k "escape"
-service < shift - space : yabai -m window --space prev; yabai -m space --focus prev ; skhd -k "escape"
+# service < return : yabai -m space --focus recent ; skhd -k "escape"
+service < ctrl + alt + cmd - space : skhd -k "escape"; yabai-preset focus-space recent
+service < space : skhd -k "escape"; yabai-preset focus-space recent
+service < shift - space : skhd -k "escape"; yabai-preset move-window-to-space recent
 # comma
-service < shift - 0x2B : yabai -m window --space prev; yabai -m space --focus prev ; skhd -k "escape"
+# service < shift - 0x2B : yabai-preset move-window-to--space recent ; skhd -k "escape"
 # semicolon
-service < shift - 0x29 : yabai -m window --space next; yabai -m space --focus next ; skhd -k "escape"
-service < f : yabai -m window --space next; yabai -m space --focus next ; skhd -k "escape"
-service < r : yabai -m space --balance ; skhd -k "escape"
-service < t : yabai -m window --toggle float ; skhd -k "escape"
-service < backspace : yabai -m window --space next; yabai -m space --focus next ; skhd -k "escape"
-service < tab : yabai -m display --focus next ; skhd -k "escape"
+# service < shift - 0x29 : yabai -m window --space next; yabai -m space --focus next ; skhd -k "escape"
+# service < f : yabai -m window --space next; yabai -m space --focus next ; skhd -k "escape"
+# service < r : yabai -m space --balance ; skhd -k "escape"
+# service < t : yabai -m window --toggle float ; skhd -k "escape"
+# service < backspace : yabai -m window --space next; yabai -m space --focus next ; skhd -k "escape"
+# service < tab : yabai -m display --focus next ; skhd -k "escape"
 # grave
-service < 0x32 : yabai -m window --display next; yabai -m display --focus next ; skhd -k "escape"
-service < ctrl + alt + cmd - n : yabai -m window --display next; yabai -m display --focus next ; skhd -k "escape"
-service < ctrl + alt + cmd - p : yabai -m window --display prev; yabai -m display --focus prev ; skhd -k "escape"
+# service < 0x32 : yabai -m window --display next; yabai -m display --focus next ; skhd -k "escape"
+# service < ctrl + alt + cmd - n : yabai -m window --display next; yabai -m display --focus next ; skhd -k "escape"
+# service < ctrl + alt + cmd - p : yabai -m window --display prev; yabai -m display --focus prev ; skhd -k "escape"
 # equals
-service < 0x18 : yabai -m space --balance ; skhd -k "escape"
+service < 0x18 : skhd -k "escape"; yabai -m space --balance
 # move window to space with number
-service < 1 : yabai-preset move-window-to-space 1; skhd -k "escape"
-service < 2 : yabai-preset move-window-to-space 2; skhd -k "escape"
-service < 3 : yabai-preset move-window-to-space 3; skhd -k "escape"
-service < 4 : yabai-preset move-window-to-space 4; skhd -k "escape"
-service < 5 : yabai-preset move-window-to-space 5; skhd -k "escape"
-service < 6 : yabai-preset move-window-to-space 6; skhd -k "escape"
-service < 7 : yabai-preset move-window-to-space 7; skhd -k "escape"
-service < 8 : yabai-preset move-window-to-space 8; skhd -k "escape"
-service < 9 : yabai-preset move-window-to-space 9; skhd -k "escape"
-service < ctrl + alt + cmd - h : yabai -m window --warp west ; skhd -k "escape"
-service < ctrl + alt + cmd - j : yabai -m window --warp south ; skhd -k "escape"
-service < ctrl + alt + cmd - k : yabai -m window --warp north ; skhd -k "escape"
-service < ctrl + alt + cmd - l : yabai -m window --warp east ; skhd -k "escape"
-service < h : yabai-preset focus-display-with-fallback west; skhd -k "escape"
-service < j : yabai-preset focus-display-with-fallback west; skhd -k "escape"
-service < k : yabai-preset focus-display-with-fallback west; skhd -k "escape"
-service < l : yabai-preset focus-display-with-fallback west; skhd -k "escape"
-service < shift - h : yabai-preset move-window-to-display-with-fallback west; skhd -k "escape"
-service < shift - j : yabai-preset move-window-to-display-with-fallback south; skhd -k "escape"
-service < shift - k : yabai-preset move-window-to-display-with-fallback north; skhd -k "escape"
-service < shift - l : yabai-preset move-window-to-display-with-fallback east; skhd -k "escape"
+service < 1 : skhd -k "escape"; yabai-preset move-window-to-space 1
+service < 2 : skhd -k "escape"; yabai-preset move-window-to-space 2
+service < 3 : skhd -k "escape"; yabai-preset move-window-to-space 3
+service < 4 : skhd -k "escape"; yabai-preset move-window-to-space 4
+service < 5 : skhd -k "escape"; yabai-preset move-window-to-space 5
+service < 6 : skhd -k "escape"; yabai-preset move-window-to-space 6
+service < 7 : skhd -k "escape"; yabai-preset move-window-to-space 7
+service < 8 : skhd -k "escape"; yabai-preset move-window-to-space 8
+service < 9 : skhd -k "escape"; yabai-preset move-window-to-space 9
+service < ctrl + alt + cmd - h : skhd -k "escape"; yabai -m window --warp west
+service < ctrl + alt + cmd - j : skhd -k "escape"; yabai -m window --warp south
+service < ctrl + alt + cmd - k : skhd -k "escape"; yabai -m window --warp north
+service < ctrl + alt + cmd - l : skhd -k "escape"; yabai -m window --warp east
+service < h : skhd -k "escape"; yabai-preset focus-display-with-fallback west
+service < j : skhd -k "escape"; yabai-preset focus-display-with-fallback west
+service < k : skhd -k "escape"; yabai-preset focus-display-with-fallback west
+service < l : skhd -k "escape"; yabai-preset focus-display-with-fallback west
+service < shift - h : skhd -k "escape"; yabai-preset move-window-to-display-with-fallback west
+service < shift - j : skhd -k "escape"; yabai-preset move-window-to-display-with-fallback south
+service < shift - k : skhd -k "escape"; yabai-preset move-window-to-display-with-fallback north
+service < shift - l : skhd -k "escape"; yabai-preset move-window-to-display-with-fallback east
 
 
 
@@ -303,12 +303,12 @@ service < shift - l : yabai-preset move-window-to-display-with-fallback east; sk
 # ::invoke @
 # ctrl + alt + cmd - i ; invoke
 # invoke < escape ; default
-# invoke < 1 : yabai -m window --space 1; yabai -m space --focus 1 ; skhd -k "escape"
-# invoke < p : yabai -m window --space 7; yabai -m space --focus 7 ; skhd -k "escape"
-# invoke < w : yabai -m window --space 4; yabai -m space --focus 4 ; skhd -k "escape"
-# invoke < shift - w : yabai -m window --space 4; yabai -m space --focus 4 ; skhd -k "escape"
-# invoke < z : yabai -m window --space 5; yabai -m space --focus 5 ; skhd -k "escape"
-# invoke < shift - z : yabai -m window --space 5; yabai -m space --focus 5 ; skhd -k "escape"
-# invoke < f : yabai -m window --space next; yabai -m space --focus next ; skhd -k "escape"
-# invoke < shift - f : yabai -m window --space next; yabai -m space --focus next ; skhd -k "escape"
-# invoke < m : yabai -m window --space next; yabai -m space --focus next ; skhd -k "escape"
+# invoke < 1 : skhd -k "escape"; yabai -m window --space 1
+# invoke < p : skhd -k "escape"; yabai -m window --space 7
+# invoke < w : skhd -k "escape"; yabai -m window --space 4
+# invoke < shift - w : skhd -k "escape"; yabai -m window --space 4
+# invoke < z : skhd -k "escape"; yabai -m window --space 5
+# invoke < shift - z : skhd -k "escape"; yabai -m window --space 5
+# invoke < f : skhd -k "escape"; yabai -m window --space next
+# invoke < shift - f : skhd -k "escape"; yabai -m window --space next
+# invoke < m : skhd -k "escape"; yabai -m window --space next
