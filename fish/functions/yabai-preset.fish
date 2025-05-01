@@ -31,6 +31,9 @@ function yabai-preset
             set json '{"BTTPredefinedActionType":114}'
         else if test "$space" = prev
             set json '{"BTTPredefinedActionType":113}'
+        else if test "$space" = recent
+            set spc (yabai -m query --spaces --space recent | jq .index)
+            set json (jq -nc --argjson spc "$spc" '{"BTTPredefinedActionType":(206 + $spc)}')
         else
             set json (jq -nc --argjson spc "$space" '{"BTTPredefinedActionType":(206 + $spc)}')
         end
@@ -44,6 +47,9 @@ function yabai-preset
             set json '{"BTTPredefinedActionType":152}'
         else if test "$space" = prev
             set json '{"BTTPredefinedActionType":151}'
+        else if test "$space" = recent
+            set spc (yabai -m query --spaces --space recent | jq .index)
+            set json (jq -nc --argjson spc "$spc" '{"BTTPredefinedActionType":(215 + $spc)}')
         else
             set json (jq -nc --argjson spc "$space" '{"BTTPredefinedActionType":(215 + $spc)}')
         end
