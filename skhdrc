@@ -185,11 +185,8 @@
 # outer.right =       10
 
 
-::service @
-
-# 'main' binding mode
-ctrl + alt + cmd + shift - m : /opt/homebrew/bin/fish -c 'aerospace-preset move-window'
-ctrl + alt + cmd - m : /opt/homebrew/bin/fish -c 'aerospace move-node-to-workspace ?'
+ctrl + alt + cmd + shift - m : yabai -m window --deminimize "$(yabai -m query --windows | jq 'map(select(."is-minimized")) | first | .id')"
+ctrl + alt + cmd - m : yabai -m window --minimize
 
 # Comma
 ctrl + alt + cmd - 0x2B : yabai -m space --layout stack
@@ -246,6 +243,8 @@ ctrl + alt + cmd - p : yabai-preset focus-space prev
 ctrl + alt + cmd + shift - n : yabai-preset move-window-to-space next
 # move window left a space
 ctrl + alt + cmd + shift - p : yabai-preset move-window-to-space prev
+
+::service @
 
 ctrl + alt + cmd - space ; service
 
