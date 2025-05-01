@@ -7,6 +7,39 @@ function yabai-preset
     if test "$preset" = "focus-window"
         set direction $argv[1]
         set -e argv[1]
+        set winid ( yabai -m query --windows --space | jq --arg dir "$direction" '
+        def hidden($under_win; $above_win):
+        [$under_win.frame, $above_win.frame] as [$under, $above]
+        | ($under.x >= $above.x
+        and ($under.x + $under.w) <=($above.x + $above.w)
+        and $under.y >= $above.y
+        and ($under.y + $under.h) <= ($above.y + $above.h));
+        def visible($under; $many):
+        $many | any(hidden($under; .)) | not;
+        .
+        | map(select(."is-visible" and (."is-sticky"|not)))
+        | reverse
+        | { under: .[0], many: .[1:] }
+        | [recurse({ under: .many[0], many: .many[1:] }; .under != null)]
+        | map(select(visible(.under; .many)) | .under)
+        | (first(.[] | select(."has-focus")) // .[-1]) as {$id, frame: $zero}
+        | sort_by(
+        if $dir == "east" then [.frame.x, .id]
+        elif $dir == "west" then [-.frame.x, -.id]
+        elif $dir == "south" then [.frame.y, .id]
+        elif $dir == "north" then [-.frame.y, -.id]
+        end
+        )
+        | .[(map(.id) | index($id))+1:]
+        | sort_by((.frame.x - $zero.x|abs) + (.frame.y - $zero.y|abs))
+        | first.id
+        '
+        )
+
+        yabai -m window "$winid" --focus
+    else if test "$preset" = "focus-window-classic"
+        set direction $argv[1]
+        set -e argv[1]
         set winid (yabai -m query --windows --space | jq -e --arg direction "$direction" '.
         | (.[] | select(."has-focus")) as {$id, $app, frame: $zero}
         | map(select(."is-visible" and (."is-sticky"|not)) | .zero = $zero)
