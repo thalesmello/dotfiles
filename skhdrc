@@ -239,23 +239,23 @@ ctrl + alt + cmd + shift - 8 : yabai-preset move-window-to-space 8
 ctrl + alt + cmd + shift - 9 : yabai-preset move-window-to-space 9
 
 # Move right a space
-ctrl + alt + cmd - n : yabai -m window --focus stack.next
+ctrl + alt + cmd - n : yabai -m window --focus stack.next; and yabai-preset display-message "Stack $(yabai -m query --windows --window | jq '."stack-index"') / $(yabai -m query --windows --window stack.last | jq '."stack-index"')"
 # Move left a space
-ctrl + alt + cmd - p : yabai -m window --focus stack.prev
+ctrl + alt + cmd - p : yabai -m window --focus stack.prev; and yabai-preset display-message "Stack $(yabai -m query --windows --window | jq '."stack-index"') / $(yabai -m query --windows --window stack.last | jq '."stack-index"')"
 # move window right a space
-ctrl + alt + cmd + shift - n : yabai -m window --swap stack.next; yabai -m window --focus stack.next
+ctrl + alt + cmd + shift - n : yabai -m window --swap stack.next; yabai -m window --focus stack.next; and yabai-preset display-message "Stack $(yabai -m query --windows --window | jq '."stack-index"') / $(yabai -m query --windows --window stack.last | jq '."stack-index"')"
 # move window left a space
-ctrl + alt + cmd + shift - p : yabai -m window --swap stack.prev; yabai -m window --focus stack.prev
+ctrl + alt + cmd + shift - p : yabai -m window --swap stack.prev; yabai -m window --focus stack.prev; and yabai-preset display-message "Stack $(yabai -m query --windows --window | jq '."stack-index"') / $(yabai -m query --windows --window stack.last | jq '."stack-index"')"
 
 
-::stack @
+::stack @ : yabai-preset display-message "Stack"
 stack < escape ; default
 stack < j : skhd -k escape; yabai -m window --stack south
 stack < k : skhd -k escape; yabai -m window --stack north
 stack < h : skhd -k escape; yabai -m window --stack west
 stack < l : skhd -k escape; yabai -m window --stack east
 
-::service @
+::service @ : yabai-preset display-message "Service"
 
 ctrl + alt + cmd - space ; service
 
