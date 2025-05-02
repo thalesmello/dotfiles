@@ -13,30 +13,40 @@ function yabai-preset
         and ($under.x + $under.w) <=($above.x + $above.w)
         and $under.y >= $above.y
         and ($under.y + $under.h) <= ($above.y + $above.h));
-        def intersect($under; $above):
-        $above |
-        [[.x, .y], [.x+.w, .y], [.x, .y+.h], [.x+.w,.y+.h]]
-        | map(. as [$x, $y] | {$x, $y})
-        | first(.[] | select(
-                ($under.x < .x)
-                and (.x < $under.x + $under.w)
-                and ($under.y < .y)
-                and (.y < $under.y + $under.h)));
+
+        def intersect($u; $a):
+        if 
+                ($u.x >= ($a.x + $a.w)
+                or ($u.x + $u.w) <= $a.x
+                or ($u.y + $u.h) <= $a.y
+                or $u.y >= ($a.y + $a.h)) then empty
+        else
+                ([$u.x, $a.x] | max) as $x
+                | ([$u.y, $a.y] | max) as $y
+                | (([$u.x + $u.w, $a.x + $a.w] | min) - $x) as $w
+                | (([$u.y + $u.h, $a.y + $a.h] | min) - $y) as $h
+                | {$x, $y, $w, $h}
+        end;
 
         def visible_area($under_list; $many):
         $under_list
         | [.[0], .[1:]] as [$under, $tail]
-        | debug({$under, $tail, $many})
         | if $under == null then 0
         elif ($many | any(hidden($under; .))) then visible_area($tail; $many)
         else (
-                [first($many[] | intersect($under; .))] as [$intersect]
-                | if $intersect == null then (($under.w * $under.h) + visible_area($tail; $many))
+                [first($many[] | intersect($under; .))] as [$i]
+                | $under as $u
+                | if $i == null then (($u.w * $u.h) + visible_area($tail; $many))
                 else visible_area(([
-                        {x: $under.x, y: $under.y, w: ($intersect.x - $under.x), h: ($intersect.y - $under.y)},
-                        {x: $intersect.x, y: $under.y, w: ($under.w - $intersect.x + $under.x), h: ($intersect.y - $under.y)},
-                        {x: $under.x, y: $intersect.y, w: ($intersect.x - $under.x), h: ($under.h - $intersect.y + $under.y)},
-                        {x: $intersect.x, y: $intersect.y, w: ($under.w - $intersect.x + $under.x), h: ($under.h - $intersect.y + $under.y)}
+                        {x: $u.x, y: $u.y, w: ($i.x - $u.x), h: ($i.y - $u.y)},
+                        {x: $i.x, y: $u.y, w: $i.w, h: ($i.y - $u.y)},
+                        {x: ($i.x + $i.w), y: $u.y, w: ($u.x + $u.w - $i.x - $i.w), h: ($i.y - $u.y)},
+                        {x: $u.x, y: $i.y, w: ($i.x - $u.x), h: $i.h},
+                        {x: $i.x, y: $i.y, w: $i.w, h: $i.h},
+                        {x: ($i.x + $i.w), y: $i.y, w: ($u.x + $u.w - $i.x - $i.w), h: $i.h},
+                        {x: $u.x, y: ($i.y + $i.h), w: ($i.x - $u.x), h: ($u.y + $u.h - $i.y - $i.h)},
+                        {x: $i.x, y: ($i.y + $i.h), w: $i.w, h: ($u.y + $u.h - $i.y - $i.h)},
+                        {x: ($i.x + $i.w), y: ($i.y + $i.h), w: ($u.x + $u.w - $i.x - $i.w), h: ($u.y + $u.h - $i.y - $i.h)}
                 ]|map(select((.h>0) and (.w>0)))) + $tail; $many) end
         )
         end;
@@ -45,24 +55,24 @@ function yabai-preset
         | reverse
         | { under: .[0], many: .[1:] }
         | [recurse({ under: .many[0], many: .many[1:] }; .under != null)]
-        | map(.under.visible_area = visible_area([.under.frame]; .many|map(.frame)))
+        | map(.under.visible_area = visible_area([.under.frame + {title: .under.title}]; .many|map(.frame)))
         | map(.under)
         | map(.percentage_visible = (.visible_area / (.frame|.w*.h)))
         | map(select(.percentage_visible > 0.01))
         | (first(.[] | select(."has-focus")) // .[-1]) as {$id, $title, frame: $zero}
         | sort_by(
-if $dir == "east" then [.frame.x, .id]
-elif $dir == "west" then [-.frame.x, -.id]
-elif $dir == "south" then [.frame.y, .id]
-elif $dir == "north" then [-.frame.y, -.id]
-end
+            if $dir == "east" then [.frame.x, .id]
+            elif $dir == "west" then [-.frame.x, -.id]
+            elif $dir == "south" then [.frame.y, .id]
+            elif $dir == "north" then [-.frame.y, -.id]
+            end
         )
         | .[(map(.id) | index($id))+1:]
         | map(.zero = $zero | .zero_title = $title)
         | map(.distance = 
-        if ($dir == "east" or $dir == "west") then ((.frame.x - $zero.x|abs) + pow(.frame.y - $zero.y; 2))
-        elif ($dir == "north" or $dir == "south") then ((.frame.y - $zero.y|abs) + pow(.frame.x - $zero.x; 2))
-        end
+            if ($dir == "east" or $dir == "west") then ((.frame.x - $zero.x|abs) + pow(.frame.y - $zero.y; 2))
+            elif ($dir == "north" or $dir == "south") then ((.frame.y - $zero.y|abs) + pow(.frame.x - $zero.x; 2))
+            end
         )
         | sort_by(.distance)
         | first.id'
