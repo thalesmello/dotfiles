@@ -155,6 +155,15 @@ function yabai-preset
 
         yabai -m window "$active_win" --grid "1:2:0:0:1:1"
         yabai -m window "$back_win" --grid "1:2:1:0:1:1"
+    else if test "$preset" = "stack-or-warp-window"
+        set direction $argv[1]
+        set -e argv[1]
+
+        if yabai -m query --windows --window | jq -e '."stack-index" > 0'
+            yabai -m window --warp "$direction"
+        else
+            yabai -m window --stack "$direction"
+        end
     else if false
     end
 
