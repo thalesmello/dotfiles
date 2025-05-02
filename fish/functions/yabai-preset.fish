@@ -7,35 +7,66 @@ function yabai-preset
     if test "$preset" = "focus-window"
         set direction $argv[1]
         set -e argv[1]
-        set winid ( yabai -m query --windows --space | jq --arg dir "$direction" '
-        def hidden($under_win; $above_win):
-        [$under_win.frame, $above_win.frame] as [$under, $above]
-        | ($under.x >= $above.x
+        set winid (yabai -m query --windows --space | jq --arg dir "$direction" '
+        def hidden($under; $above):
+        ($under.x >= $above.x
         and ($under.x + $under.w) <=($above.x + $above.w)
         and $under.y >= $above.y
         and ($under.y + $under.h) <= ($above.y + $above.h));
-        def visible($under; $many):
-        $many | any(hidden($under; .)) | not;
+        def intersect($under; $above):
+        $above |
+        [[.x, .y], [.x+.w, .y], [.x, .y+.h], [.x+.w,.y+.h]]
+        | map(. as [$x, $y] | {$x, $y})
+        | first(.[] | select(
+                ($under.x < .x)
+                and (.x < $under.x + $under.w)
+                and ($under.y < .y)
+                and (.y < $under.y + $under.h)));
+
+        def visible_area($under_list; $many):
+        $under_list
+        | [.[0], .[1:]] as [$under, $tail]
+        | debug({$under, $tail, $many})
+        | if $under == null then 0
+        elif ($many | any(hidden($under; .))) then visible_area($tail; $many)
+        else (
+                [first($many[] | intersect($under; .))] as [$intersect]
+                | if $intersect == null then (($under.w * $under.h) + visible_area($tail; $many))
+                else visible_area(([
+                        {x: $under.x, y: $under.y, w: ($intersect.x - $under.x), h: ($intersect.y - $under.y)},
+                        {x: $intersect.x, y: $under.y, w: ($under.w - $intersect.x + $under.x), h: ($intersect.y - $under.y)},
+                        {x: $under.x, y: $intersect.y, w: ($intersect.x - $under.x), h: ($under.h - $intersect.y + $under.y)},
+                        {x: $intersect.x, y: $intersect.y, w: ($under.w - $intersect.x + $under.x), h: ($under.h - $intersect.y + $under.y)}
+                ]|map(select((.h>0) and (.w>0)))) + $tail; $many) end
+        )
+        end;
         .
         | map(select(."is-visible" and (."is-sticky"|not)))
         | reverse
         | { under: .[0], many: .[1:] }
         | [recurse({ under: .many[0], many: .many[1:] }; .under != null)]
-        | map(select(visible(.under; .many)) | .under)
-        | (first(.[] | select(."has-focus")) // .[-1]) as {$id, frame: $zero}
+        | map(.under.visible_area = visible_area([.under.frame]; .many|map(.frame)))
+        | map(.under)
+        | map(.percentage_visible = (.visible_area / (.frame|.w*.h)))
+        | map(select(.percentage_visible > 0.01))
+        | (first(.[] | select(."has-focus")) // .[-1]) as {$id, $title, frame: $zero}
         | sort_by(
-        if $dir == "east" then [.frame.x, .id]
-        elif $dir == "west" then [-.frame.x, -.id]
-        elif $dir == "south" then [.frame.y, .id]
-        elif $dir == "north" then [-.frame.y, -.id]
-        end
+if $dir == "east" then [.frame.x, .id]
+elif $dir == "west" then [-.frame.x, -.id]
+elif $dir == "south" then [.frame.y, .id]
+elif $dir == "north" then [-.frame.y, -.id]
+end
         )
         | .[(map(.id) | index($id))+1:]
-        | sort_by((.frame.x - $zero.x|abs) + (.frame.y - $zero.y|abs))
-        | first.id
-        '
+        | map(.zero = $zero | .zero_title = $title)
+        | map(.distance = 
+        if ($dir == "east" or $dir == "west") then ((.frame.x - $zero.x|abs) + pow(.frame.y - $zero.y; 2))
+        elif ($dir == "north" or $dir == "south") then ((.frame.y - $zero.y|abs) + pow(.frame.x - $zero.x; 2))
+        end
         )
-
+        | sort_by(.distance)
+        | first.id'
+        )
         yabai -m window "$winid" --focus
     else if test "$preset" = "focus-window-classic"
         set direction $argv[1]
