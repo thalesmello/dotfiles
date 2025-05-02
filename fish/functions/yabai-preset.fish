@@ -122,6 +122,37 @@ function yabai-preset
 
         curl -G "$btt_url" -d "json=$json"
         yabai-preset display-message "Space $space"
+    else if test "$preset" = "focus-window-in-stack"
+        set stack $argv[1]
+        set -e argv[1]
+
+        if contains "$stack" "next" "prev" "recent" "first" "last"
+            set stack (yabai -m query --windows --window "stack.$stack" | jq -e '."stack-index"')
+        end
+
+        if not test -n "$stack" -a "$stack" -gt 0
+            return
+        end
+
+        set last (yabai -m query --windows --window "stack.last" | jq -e '."stack-index"')
+        yabai -m window --focus "stack.$stack"
+        yabai-preset display-message "Stack $stack / $last"
+    else if test "$preset" = "move-window-in-stack"
+        set stack $argv[1]
+        set -e argv[1]
+
+        if contains "$stack" "next" "prev" "recent" "first" "last"
+            set stack (yabai -m query --windows --window "stack.$stack" | jq -e '."stack-index"')
+        end
+
+        if not test -n "$stack" -a "$stack" -gt 0
+            return
+        end
+
+        set last (yabai -m query --windows --window "stack.last" | jq -e '."stack-index"')
+        yabai -m window --swap "stack.$stack"
+        yabai -m window --focus "stack.$stack"
+        yabai-preset display-message "Stack $stack / $last"
     else if test "$preset" = "focus-display-with-fallback"
         set display $argv[1]
         set -e argv[1]
