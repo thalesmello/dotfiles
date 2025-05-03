@@ -126,7 +126,7 @@ local function vscodeAlternateFile()
   local current_file = vim.fn.expand("%")
   local entity, config = vscodeGetProjection(current_file)
 
-  if entity ~= nil then
+  if entity ~= nil and config ~= nil then
     local alternate = config.alternate
 
     local files = vim.iter(alternate):map(function (item)
@@ -136,6 +136,26 @@ local function vscodeAlternateFile()
 
     vscodeOpenFile(files)
     return
+  end
+end
+
+local function vscodeProjectionistCreateEditCommands()
+  local function snakeToCamel(str)
+    return str:gsub("_%l", function(w) return w:sub(2, 2):upper() end)
+  end
+
+  local projections = vim.g.vscode_projections or {}
+
+  for projection, config in pairs(projections) do
+    local prefix = projection:match("^(.-)%*")
+
+    if prefix ~= nil then
+      local type = config.type
+
+      vim.api.nvim_create_user_command("E" .. snakeToCamel(type), function ()
+        vscode.action('workbench.action.quickOpen', { args = { prefix.." " } })
+      end, {})
+    end
   end
 end
 
@@ -155,6 +175,8 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
   once = true,
   callback = function()
     -- Wait for vscode to load
+    vscodeProjectionistCreateEditCommands()
+
     vim.keymap.set({ "n", "x", "o" }, "=", "=", { noremap = true })
     vim.keymap.set({ "n" }, "==", "==", { noremap = true })
 
@@ -195,7 +217,7 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
       vscode.action('workbench.action.findInFiles')
     end)
 
-    vim.keymap.set("n", "<leader>gR", function () vscode.action('references-view.findReferences') end)
+    vim.keymap.set("n", "<leader>fr", function () vscode.action('references-view.findReferences') end)
     vim.keymap.set("n", "<leader>ss", function () vscode.action('workbench.action.gotoSymbol') end)
     vim.keymap.set("n", "<leader><cr>", function () vscode.action('workbench.action.terminal.toggleTerminal') end)
     vim.keymap.set("n", "<tab>", function () vscode.action('editor.toggleFold') end)
