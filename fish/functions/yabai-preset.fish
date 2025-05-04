@@ -15,7 +15,7 @@ function yabai-preset
         and ($under.y + $under.h) <= ($above.y + $above.h));
 
         def intersect($u; $a):
-        if 
+        if
                 ($u.x >= ($a.x + $a.w)
                 or ($u.x + $u.w) <= $a.x
                 or ($u.y + $u.h) <= $a.y
@@ -53,6 +53,9 @@ function yabai-preset
         .
         | map(select(."is-visible" and (."is-sticky"|not)))
         | reverse
+        | with_entries(.value += {z_index: .key} | .key |= "key_\(.)")
+        | to_entries
+        | map(.value)
         | { under: .[0], many: .[1:] }
         | [recurse({ under: .many[0], many: .many[1:] }; .under != null)]
         | map(.under.visible_area = visible_area([.under.frame + {title: .under.title}]; .many|map(.frame)))
@@ -60,21 +63,49 @@ function yabai-preset
         | map(.percentage_visible = (.visible_area / (.frame|.w*.h)))
         | map(select(.percentage_visible > 0.01))
         | (first(.[] | select(."has-focus")) // .[-1]) as {$id, $title, frame: $zero}
+        | ($zero |
+            if $dir == "east" then {x: (.x + .w), y: (.y/2 + .h/2)}
+            elif $dir == "west" then {x: .x, y: (.y/2 + .h/2)}
+            elif $dir == "south" then {x: (.x/2 + .w/2), y: (.y + .h)}
+            elif $dir == "north" then {x: (.x/2 + .w/2), y: .y}
+            end | . + {w: $zero.w, h: $zero.h}) as $zero
         | sort_by(
-            if $dir == "east" then [.frame.x, .id]
+            if $dir == "east" then [.frame.x + .frame.w, .id]
             elif $dir == "west" then [-.frame.x, -.id]
-            elif $dir == "south" then [.frame.y, .id]
+            elif $dir == "south" then [.frame.y + .frame.h, .id]
             elif $dir == "north" then [-.frame.y, -.id]
             end
         )
         | .[(map(.id) | index($id))+1:]
-        | map(.zero = $zero | .zero_title = $title)
-        | map(.distance = 
-            if ($dir == "east" or $dir == "west") then ((.frame.x - $zero.x|abs) + pow(.frame.y - $zero.y; 2))
-            elif ($dir == "north" or $dir == "south") then ((.frame.y - $zero.y|abs) + pow(.frame.x - $zero.x; 2))
+        | (if ($dir == "east" or $dir == "west") then [2, 1]
+        elif ($dir == "north" or $dir == "south") then [1, 2]
+        end) as [$x_exp, $y_exp]
+        | map(.ref = {
+
+        })
+        | map(
+        .distance =
+            if $dir == "east" then ([.frame.x + .frame.w, .frame.x]|map(.-$zero.x|select(.>0))|min) + ([.frame.y/2 + .frame.h/2 - $zero.y -$zero.h/2, 0]|max)
+            elif $dir == "west" then ([.frame.x + .frame.w, .frame.x]|map($zero.x-.|select(.>0))|min) + ([.frame.y/2 + .frame.h/2 - $zero.y - $zero.h/2, 0]|max)
+            elif $dir == "south" then ([.frame.x/2 + .frame.w/2 - $zero.x - $zero.w/2, 0]|max) + ([.frame.y + .frame.h, .frame.y]|map(.-$zero.y|select(.>0))|min)
+            elif $dir == "north" then ([.frame.x/2 + .frame.w/2 - $zero.x - $zero.w/2, 0]|max) + ([.frame.y + .frame.h, .frame.y]|map($zero.y-.|select(.>0))|min)
+            end
+        | .x_distance =
+            if $dir == "east" then pow([.frame.x + .frame.w, .frame.x]|map(.-$zero.x|select(.>0))|min; 1)
+            elif $dir == "west" then pow([.frame.x + .frame.w, .frame.x]|map($zero.x-.|select(.>0))|min; 1)
+            elif $dir == "south" then pow(.frame.x/2 + .frame.h/2 - $zero.x; 2)
+            elif $dir == "north" then pow(.frame.y/2 + .frame.w/2 - $zero.y; 2)
+            end
+        |.y_distance =
+            if $dir == "east" then pow(.frame.y/2 + .frame.h/2 - $zero.y; 2)
+            elif $dir == "west" then pow(.frame.y/2 + .frame.h/2 - $zero.y; 2)
+            elif $dir == "south" then pow([.frame.y + .frame.h, .frame.y]|map(.-$zero.y|select(.>0))|min; 1)
+            elif $dir == "north" then pow([.frame.y + .frame.h, .frame.y]|map($zero.y-.|select(.>0))|min; 1)
             end
         )
-        | sort_by(.distance)
+        | sort_by([.distance, -.z_index])
+        | map(.zero = $zero)
+        | map(debug(. | {title, zero, distance, frame, x_distance, y_distance, z_index}))
         | first.id'
         )
         yabai -m window "$winid" --focus
@@ -152,8 +183,7 @@ function yabai-preset
             | sort_by([.frame.x, .frame.y, .id])
             | (map(.id) | index($focus)) as $pos
             | ({first: 0, last: (length - 1), prev: ([0, $pos - 1]|max), next: ([length - 1, $pos + 1]|min)}[$window]) as $window_pos
-            | "\(.[$window_pos].id):\($window_pos+1):\(length)"
-            | debug(.)' | read -d: window window_pos total
+            | "\(.[$window_pos].id):\($window_pos+1):\(length)" ' | read -d: window window_pos total
 
         yabai -m window --focus "$window"
         yabai-preset display-message "Windows $window_pos / $total"
