@@ -286,6 +286,7 @@ service < shift - 0x29 : skhd -k "escape"; yabai-preset arrange-windows-side-by-
 # service < r : yabai -m space --balance ; skhd -k "escape"
 service < s ; stack
 service < r ; resize
+service < R : skhd -k "escape"; yabai --stop-service && yabai --start-service
 service < v : skhd -k "escape"; yabai -m window --insert east
 # double quotes
 service < shift - 0x27 : skhd -k escape; yabai -m window --insert south

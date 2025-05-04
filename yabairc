@@ -46,4 +46,6 @@ yabai -m config                                 \
 
 yabai -m rule --add app="iTerm2" manage=off
 
+# yabai -m signal --add event=space_changed action="/opt/homebrew/bin/fish -c 'yabai-preset display-message \"Space \$YABAI_SPACE_INDEX\"'"
+
 echo "yabai configuration loaded.."
