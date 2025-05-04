@@ -239,9 +239,9 @@ ctrl + alt + cmd + shift - 8 : yabai-preset move-window-to-space 8
 ctrl + alt + cmd + shift - 9 : yabai-preset move-window-to-space 9
 
 # Move right a space
-ctrl + alt + cmd - n : yabai-preset focus-window-in-stack next
+ctrl + alt + cmd - n : yabai-preset focus-window-in-stack next || yabai-preset focus-window-in-space next
 # Move left a space
-ctrl + alt + cmd - p : yabai-preset focus-window-in-stack prev
+ctrl + alt + cmd - p : yabai-preset focus-window-in-stack prev || yabai-preset focus-window-in-space prev
 # move window right a space
 ctrl + alt + cmd + shift - n : yabai-preset move-window-in-stack next
 # move window left a space
@@ -254,6 +254,18 @@ stack < j : skhd -k escape; yabai -m window --stack south
 stack < k : skhd -k escape; yabai -m window --stack north
 stack < h : skhd -k escape; yabai -m window --stack west
 stack < l : skhd -k escape; yabai -m window --stack east
+
+::resize @ : yabai-preset display-message "Resize"
+resize < escape ; default
+resize < return ; default
+resize < j : yabai -m window --resize bottom_right:0:100
+resize < k : yabai -m window --resize bottom_right:0:-100
+resize < h : yabai -m window --resize bottom_right:-100:0
+resize < l : yabai -m window --resize bottom_right:100:0
+resize < shift - j : yabai -m window --resize top_left:0:100
+resize < shift - k : yabai -m window --resize top_left:0:-100
+resize < shift - h : yabai -m window --resize top_left:-100:0
+resize < shift - l : yabai -m window --resize top_left:100:0
 
 ::service @
 
@@ -273,6 +285,7 @@ service < shift - 0x29 : skhd -k "escape"; yabai-preset arrange-windows-side-by-
 # service < f : skhd -k "escape"; yabai -m window --toggle zoom-parent
 # service < r : yabai -m space --balance ; skhd -k "escape"
 service < s ; stack
+service < r ; resize
 service < v : skhd -k "escape"; yabai -m window --insert east
 # double quotes
 service < shift - 0x27 : skhd -k escape; yabai -m window --insert south

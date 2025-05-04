@@ -131,12 +131,32 @@ function yabai-preset
         end
 
         if not test -n "$stack" -a "$stack" -gt 0
-            return
+            return 1
         end
 
         set last (yabai -m query --windows --window "stack.last" | jq -e '."stack-index"')
         yabai -m window --focus "stack.$stack"
         yabai-preset display-message "Stack $stack / $last"
+    else if test "$preset" = "focus-window-in-space"
+        set window $argv[1]
+        set -e argv[1]
+
+        if not contains "$window" "next" "prev" "first" "last"
+            echoerr "Invalid argument: $window"
+            return 1
+        end
+
+        yabai -m query --windows --space | jq -er --arg window "$window" '.
+            | map(select(."is-visible" and (."is-sticky"|not)))
+            | (first(.[] | select(."has-focus")) // .[0]).id as $focus
+            | sort_by([.frame.x, .frame.y, .id])
+            | (map(.id) | index($focus)) as $pos
+            | ({first: 0, last: (length - 1), prev: ([0, $pos - 1]|max), next: ([length - 1, $pos + 1]|min)}[$window]) as $window_pos
+            | "\(.[$window_pos].id):\($window_pos+1):\(length)"
+            | debug(.)' | read -d: window window_pos total
+
+        yabai -m window --focus "$window"
+        yabai-preset display-message "Windows $window_pos / $total"
     else if test "$preset" = "move-window-in-stack"
         set stack $argv[1]
         set -e argv[1]
