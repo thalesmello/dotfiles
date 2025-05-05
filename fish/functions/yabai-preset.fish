@@ -252,6 +252,30 @@ function yabai-preset
         set -e argv[1]
 
         yabai -m window --insert "$direction" --toggle float --toggle float
+    else if test "$preset" = "arrange-spaces"
+        argparse -i \
+            'a/app=+' \
+            'w/window=+' \
+            -- $argv
+
+        for line in "app:"$_flag_app "title:"$_flag_window
+            echo $line | read -l -d: format space filter
+
+            for line2 in (yabai -m query --windows | jq -er --arg format "$format" --argjson space "$space" '.[] | select(.space != $space) | "\(.id):\(.[$format]):"' | string match -er ":$filter:")
+                echo $line2 | read -l -d: window __
+
+                set -a specs "$space:$window"
+            end
+        end
+
+
+        for line in $specs
+            echo $line | read -d: space window
+            yabai -m window "$window" --focus
+            sleep 0.5
+            yabai-preset move-window-to-space "$space"
+        end
+
     else if false
     end
 
