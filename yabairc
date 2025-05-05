@@ -20,7 +20,7 @@ yabai -m config                                 \
     display_arrangement_order    default        \
     window_origin_display        default        \
     window_placement             second_child   \
-    window_insertion_point       focused        \
+    window_insertion_point       last           \
     window_zoom_persist          on             \
     window_shadow                on             \
     window_animation_duration    0.0            \
@@ -45,7 +45,8 @@ yabai -m config                                 \
     mouse_drop_action            swap
 
 yabai -m rule --add app="iTerm2" manage=off
+yabai -m rule --add app="Activity Monitor" manage=off
 
-# yabai -m signal --add event=space_changed action="/opt/homebrew/bin/fish -c 'yabai-preset display-message \"Space \$YABAI_SPACE_INDEX\"'"
+yabai -m signal --add event=space_changed action="display-message \"Space \$YABAI_SPACE_INDEX\""
 
 echo "yabai configuration loaded.."
