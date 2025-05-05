@@ -103,25 +103,25 @@ ctrl + alt + cmd + shift - 0x1B : yabai -m window --resize bottom_right:0:-100
 ctrl + alt + cmd - 0x18 : yabai -m window --resize bottom_right:100:0
 ctrl + alt + cmd + shift - 0x18 : yabai -m window --resize bottom_right:0:100
 
-ctrl + alt + cmd - 1 : yabai-preset focus-space 1
-ctrl + alt + cmd - 2 : yabai-preset focus-space 2
-ctrl + alt + cmd - 3 : yabai-preset focus-space 3
-ctrl + alt + cmd - 4 : yabai-preset focus-space 4
-ctrl + alt + cmd - 5 : yabai-preset focus-space 5
-ctrl + alt + cmd - 6 : yabai-preset focus-space 6
-ctrl + alt + cmd - 7 : yabai-preset focus-space 7
-ctrl + alt + cmd - 8 : yabai-preset focus-space 8
-ctrl + alt + cmd - 9 : yabai-preset focus-space 9
+ctrl + alt + cmd - 1 : yabai-preset focus-pinned-object 1
+ctrl + alt + cmd - 2 : yabai-preset focus-pinned-object 2
+ctrl + alt + cmd - 3 : yabai-preset focus-pinned-object 3
+ctrl + alt + cmd - 4 : yabai-preset focus-pinned-object 4
+ctrl + alt + cmd - 5 : yabai-preset focus-pinned-object 5
+ctrl + alt + cmd - 6 : yabai-preset focus-pinned-object 6
+ctrl + alt + cmd - 7 : yabai-preset focus-pinned-object 7
+ctrl + alt + cmd - 8 : yabai-preset focus-pinned-object 8
+ctrl + alt + cmd - 9 : yabai-preset focus-pinned-object 9
 
-ctrl + alt + cmd + shift - 1 : yabai-preset move-window-to-space 1
-ctrl + alt + cmd + shift - 2 : yabai-preset move-window-to-space 2
-ctrl + alt + cmd + shift - 3 : yabai-preset move-window-to-space 3
-ctrl + alt + cmd + shift - 4 : yabai-preset move-window-to-space 4
-ctrl + alt + cmd + shift - 5 : yabai-preset move-window-to-space 5
-ctrl + alt + cmd + shift - 6 : yabai-preset move-window-to-space 6
-ctrl + alt + cmd + shift - 7 : yabai-preset move-window-to-space 7
-ctrl + alt + cmd + shift - 8 : yabai-preset move-window-to-space 8
-ctrl + alt + cmd + shift - 9 : yabai-preset move-window-to-space 9
+ctrl + alt + cmd + shift - 1 : yabai-preset pin-object 1
+ctrl + alt + cmd + shift - 2 : yabai-preset pin-object 2
+ctrl + alt + cmd + shift - 3 : yabai-preset pin-object 3
+ctrl + alt + cmd + shift - 4 : yabai-preset pin-object 4
+ctrl + alt + cmd + shift - 5 : yabai-preset pin-object 5
+ctrl + alt + cmd + shift - 6 : yabai-preset pin-object 6
+ctrl + alt + cmd + shift - 7 : yabai-preset pin-object 7
+ctrl + alt + cmd + shift - 8 : yabai-preset pin-object 8
+ctrl + alt + cmd + shift - 9 : yabai-preset pin-object 9
 
 # Move right a space
 ctrl + alt + cmd - n : yabai -m query --spaces --space | jq -e '.type == "float"' && yabai-preset focus-window-in-space next || yabai-preset focus-window-in-stack next
@@ -193,24 +193,24 @@ service < y : skhd -k "escape"; yabai -m window --toggle split
 # equals
 service < 0x18 : skhd -k "escape"; yabai -m space --balance
 # move window to space with number
-service < 1 : skhd -k "escape"; yabai-preset focus-window-in-stack 1
-service < 2 : skhd -k "escape"; yabai-preset focus-window-in-stack 2
-service < 3 : skhd -k "escape"; yabai-preset focus-window-in-stack 3
-service < 4 : skhd -k "escape"; yabai-preset focus-window-in-stack 4
-service < 5 : skhd -k "escape"; yabai-preset focus-window-in-stack 5
-service < 6 : skhd -k "escape"; yabai-preset focus-window-in-stack 6
-service < 7 : skhd -k "escape"; yabai-preset focus-window-in-stack 7
-service < 8 : skhd -k "escape"; yabai-preset focus-window-in-stack 8
-service < 9 : skhd -k "escape"; yabai-preset focus-window-in-stack 9
-service < shift - 1 : skhd -k "escape"; yabai-preset move-window-in-stack 1
-service < shift - 2 : skhd -k "escape"; yabai-preset move-window-in-stack 2
-service < shift - 3 : skhd -k "escape"; yabai-preset move-window-in-stack 3
-service < shift - 4 : skhd -k "escape"; yabai-preset move-window-in-stack 4
-service < shift - 5 : skhd -k "escape"; yabai-preset move-window-in-stack 5
-service < shift - 6 : skhd -k "escape"; yabai-preset move-window-in-stack 6
-service < shift - 7 : skhd -k "escape"; yabai-preset move-window-in-stack 7
-service < shift - 8 : skhd -k "escape"; yabai-preset move-window-in-stack 8
-service < shift - 9 : skhd -k "escape"; yabai-preset move-window-in-stack 9
+service < 1 : skhd -k "escape"; yabai-preset focus-space 1
+service < 2 : skhd -k "escape"; yabai-preset focus-space 2
+service < 3 : skhd -k "escape"; yabai-preset focus-space 3
+service < 4 : skhd -k "escape"; yabai-preset focus-space 4
+service < 5 : skhd -k "escape"; yabai-preset focus-space 5
+service < 6 : skhd -k "escape"; yabai-preset focus-space 6
+service < 7 : skhd -k "escape"; yabai-preset focus-space 7
+service < 8 : skhd -k "escape"; yabai-preset focus-space 8
+service < 9 : skhd -k "escape"; yabai-preset focus-space 9
+service < shift - 1 : skhd -k "escape"; yabai-preset move-window-to-space 1
+service < shift - 2 : skhd -k "escape"; yabai-preset move-window-to-space 2
+service < shift - 3 : skhd -k "escape"; yabai-preset move-window-to-space 3
+service < shift - 4 : skhd -k "escape"; yabai-preset move-window-to-space 4
+service < shift - 5 : skhd -k "escape"; yabai-preset move-window-to-space 5
+service < shift - 6 : skhd -k "escape"; yabai-preset move-window-to-space 6
+service < shift - 7 : skhd -k "escape"; yabai-preset move-window-to-space 7
+service < shift - 8 : skhd -k "escape"; yabai-preset move-window-to-space 8
+service < shift - 9 : skhd -k "escape"; yabai-preset move-window-to-space 9
 service < ctrl + alt + cmd - h : skhd -k "escape"; yabai -m window --warp west || yabai-preset unstack-window west
 service < ctrl + alt + cmd - j : skhd -k "escape"; yabai -m window --warp south || yabai-preset unstack-window south
 service < ctrl + alt + cmd - k : skhd -k "escape"; yabai -m window --warp north || yabai-preset unstack-window north
@@ -227,7 +227,7 @@ service < tab : skhd -k "escape"; yabai-preset move-window-to-display-with-fallb
 # But currently there's no support for presetting windows in a specific space without disabling SIP
 # I'm keeping this commented in case it's useful in the future
 # # Invoke mode bindings
-::invoke @
+::invoke @ : display-message "Invoke"
 ctrl + alt + cmd - i ; invoke
 invoke < escape ; default
 invoke < 1 : skhd -k "escape"; yabai-preset arrange-spaces \
@@ -239,11 +239,26 @@ invoke < 1 : skhd -k "escape"; yabai-preset arrange-spaces \
 invoke < p : skhd -k "escape"; yabai-preset arrange-spaces \
     -w "7:.*Thales \\(Personal\\).*"
 
-# invoke < p : skhd -k "escape"; yabai -m window --space 7
-# invoke < w : skhd -k "escape"; yabai -m window --space 4
-# invoke < shift - w : skhd -k "escape"; yabai -m window --space 4
-# invoke < z : skhd -k "escape"; yabai -m window --space 5
-# invoke < shift - z : skhd -k "escape"; yabai -m window --space 5
-# invoke < f : skhd -k "escape"; yabai -m window --space next
-# invoke < shift - f : skhd -k "escape"; yabai -m window --space next
-# invoke < m : skhd -k "escape"; yabai -m window --space next
+
+
+::chrome @ : display-message "Chrome"
+service < c ; chrome
+chrome < escape ; default
+chrome < 1 : skhd -k "escape"; chrome-preset focus-pinned-tab 1
+chrome < 2 : skhd -k "escape"; chrome-preset focus-pinned-tab 2
+chrome < 3 : skhd -k "escape"; chrome-preset focus-pinned-tab 3
+chrome < 4 : skhd -k "escape"; chrome-preset focus-pinned-tab 4
+chrome < 5 : skhd -k "escape"; chrome-preset focus-pinned-tab 5
+chrome < 6 : skhd -k "escape"; chrome-preset focus-pinned-tab 6
+chrome < 7 : skhd -k "escape"; chrome-preset focus-pinned-tab 7
+chrome < 8 : skhd -k "escape"; chrome-preset focus-pinned-tab 8
+chrome < 9 : skhd -k "escape"; chrome-preset focus-pinned-tab 9
+chrome < shift - 1 : skhd -k "escape"; chrome-preset pin-tab 1
+chrome < shift - 2 : skhd -k "escape"; chrome-preset pin-tab 2
+chrome < shift - 3 : skhd -k "escape"; chrome-preset pin-tab 3
+chrome < shift - 4 : skhd -k "escape"; chrome-preset pin-tab 4
+chrome < shift - 5 : skhd -k "escape"; chrome-preset pin-tab 5
+chrome < shift - 6 : skhd -k "escape"; chrome-preset pin-tab 6
+chrome < shift - 7 : skhd -k "escape"; chrome-preset pin-tab 7
+chrome < shift - 8 : skhd -k "escape"; chrome-preset pin-tab 8
+chrome < shift - 9 : skhd -k "escape"; chrome-preset pin-tab 9
