@@ -301,15 +301,11 @@ function yabai-preset
         read json < "/tmp/yabai-preset/pins/$position.json"
 
         if jq -en --argjson json "$json" '$json.type == "chrome_tab"'
-            set type "tab"
             chrome-cli activate -t "$(jq -nr --argjson json "$json" '$json.tab_id')"
             yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
         else if jq -en --argjson json "$json" '$json.type == "window"'
-            set type "window"
             yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
         end
-
-        display-message "Focus tab $position"
     else if false
     end
 
