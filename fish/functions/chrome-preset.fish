@@ -21,5 +21,25 @@ function chrome-preset
         yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
 
         display-message "Focus tab $position"
+    else if test "$preset" = "focus-window"
+        set window_id $argv[1]
+        set -e argv[1]
+
+        echo window_id $window_id
+        osascript -e "tell application \"Google Chrome\" to set index of (first window whose id is $window_id) to 1"
+        and open -a "Google Chrome"
+    else if test "$preset" = "focus-url"
+        set url $argv[1]
+        set -e argv[1]
+
+        echo args
+        env OUTPUT_FORMAT=json chrome-cli list links \
+            | jq -r --arg url "$url" '
+                first(.tabs.[] | select(.url | test($url)))
+                | "\(.windowId):\(.id)"' \
+            | read -d: window_id tab_id
+        echo $window_id $tab_id
+        chrome-preset focus-window "$window_id"
+        chrome-cli activate -t "$tab_id"
     end
 end
