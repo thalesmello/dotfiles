@@ -147,7 +147,7 @@ function yabai-preset
             set space (yabai -m query --spaces --space "$space" | jq .index)
         end
 
-        set json (jq -nc --argjson spc "$space" '{"BTTPredefinedActionType":(215 + $spc)}')
+        set json (jq -nc --argjson spc "$space" '{"BTTPredefinedActionType":(215 + $spc + if $spc >= 6 then 1 else 0 end)}')
         set json (string escape --style=url "$json")
 
         curl -G "$btt_url" -d "json=$json"
