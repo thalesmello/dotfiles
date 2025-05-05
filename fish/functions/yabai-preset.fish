@@ -167,6 +167,44 @@ function yabai-preset
         yabai -m window --focus "stack.$stack"
         display-message "Stack $stack / $last"
     else if test "$preset" = "focus-window-in-space"
+        argparse -i \
+            'floating-only=?' \
+            -- $argv
+
+        set window $argv[1]
+        set -e argv[1]
+
+        if not contains "$window" "next" "prev" "first" "last"
+            echoerr "Invalid argument: $window"
+            return 1
+        end
+
+        set floating_only (set -q _flag_floating_only && echo "true" || echo "false")
+
+        yabai -m query --windows --space | jq -er --arg window "$window" --argjson floating_only "$floating_only" '.
+        | map(select(."is-visible" and (."is-sticky"|not) and (if $floating_only then ."split-type" == "none" else true end)))
+            | (first(.[] | select(."has-focus")) // .[0]).id as $focus
+            | sort_by([
+                # Floating windows appear last
+                if ."split-type" == "none" then 2
+                else 1 end,
+                .frame.x,
+                .frame.y,
+                ."stack-index",
+                .id
+            ])
+            | (map(.id) | index($focus)) as $pos
+            | ({first: 0, last: (length - 1), prev: ([0, $pos - 1]|max), next: ([length - 1, $pos + 1]|min)}[$window]) as $window_pos
+            | "\(.[$window_pos].id):\($window_pos+1):\(length)" ' | read -d: window window_pos total
+
+        yabai -m window --focus "$window"
+
+        if set -q $_flag_floating_only
+            display-message "Floating $window_pos / $total"
+        else
+            display-message "Windows $window_pos / $total"
+        end
+    else if test "$preset" = "focus-floating-window-in-space"
         set window $argv[1]
         set -e argv[1]
 
@@ -176,7 +214,7 @@ function yabai-preset
         end
 
         yabai -m query --windows --space | jq -er --arg window "$window" '.
-            | map(select(."is-visible" and (."is-sticky"|not)))
+            | map(select(."is-visible" and (."is-sticky"|not) and ."split-type" == "none"))
             | (first(.[] | select(."has-focus")) // .[0]).id as $focus
             | sort_by([.frame.x, .frame.y, .id])
             | (map(.id) | index($focus)) as $pos

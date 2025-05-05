@@ -124,9 +124,9 @@ ctrl + alt + cmd + shift - 8 : yabai-preset pin-object 8
 ctrl + alt + cmd + shift - 9 : yabai-preset pin-object 9
 
 # Move right a space
-ctrl + alt + cmd - n : yabai -m query --spaces --space | jq -e '.type == "float"' && yabai-preset focus-window-in-space next || yabai-preset focus-window-in-stack next
+ctrl + alt + cmd - n :   yabai-preset focus-window-in-stack next || yabai-preset focus-window-in-space next
 # Move left a space
-ctrl + alt + cmd - p : yabai -m query --spaces --space | jq -e '.type == "float"' && yabai-preset focus-window-in-space prev || yabai-preset focus-window-in-stack prev
+ctrl + alt + cmd - p :   yabai-preset focus-window-in-stack prev || yabai-preset focus-window-in-space prev
 # move window right a space
 ctrl + alt + cmd + shift - n : yabai-preset move-window-in-stack next
 # move window left a space
