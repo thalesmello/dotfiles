@@ -216,9 +216,9 @@ service < ctrl + alt + cmd - j : skhd -k "escape"; yabai -m window --warp south 
 service < ctrl + alt + cmd - k : skhd -k "escape"; yabai -m window --warp north || yabai-preset unstack-window north
 service < ctrl + alt + cmd - l : skhd -k "escape"; yabai -m window --warp east || yabai-preset unstack-window east
 service < h : skhd -k "escape"; yabai-preset focus-display-with-fallback west
-service < j : skhd -k "escape"; yabai-preset focus-display-with-fallback west
-service < k : skhd -k "escape"; yabai-preset focus-display-with-fallback west
-service < l : skhd -k "escape"; yabai-preset focus-display-with-fallback west
+service < j : skhd -k "escape"; yabai-preset focus-display-with-fallback south
+service < k : skhd -k "escape"; yabai-preset focus-display-with-fallback north
+service < l : skhd -k "escape"; yabai-preset focus-display-with-fallback east
 service < tab : skhd -k "escape"; yabai-preset move-window-to-display-with-fallback next
 
 
