@@ -56,5 +56,22 @@ function chrome-preset
 
         chrome-preset focus-url "$regex"
         or chrome-cli open "$url"
+    else if test "$preset" = "close-tabs-with-url"
+        set regex $argv[1]
+        set -e argv[1]
+
+        set tabs (env OUTPUT_FORMAT=json chrome-cli list links \
+            | jq -er --arg regex "$regex" '
+                .tabs.[]
+                | select(.url | test($regex))
+                | debug(.)
+                | .id')
+        and for tab_id in $tabs
+            echo $tab_id
+            chrome-cli close -t "$tab_id"
+        end
+        or return 1
+    else
+        return 1
     end
 end

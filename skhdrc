@@ -78,7 +78,7 @@
 
 ctrl + alt + cmd + shift - m : yabai -m window --deminimize "$(yabai -m query --windows | jq 'map(select(."is-minimized")) | first | .id')"
 ctrl + alt + cmd - m : yabai -m window --minimize
-ctrl + alt + cmd - return : yabai -m window --toggle windowed-fullscreen
+ctrl + alt + cmd - return : yabai -m window --toggle zoom-fullscreen || yabai -m window --toggle windowed-fullscreen
 
 
 # # Open square bracket [
@@ -244,6 +244,7 @@ invoke < p : skhd -k "escape"; yabai-preset arrange-spaces \
 ::chrome @ : display-message "Chrome"
 service < c ; chrome
 chrome < escape ; default
+chrome < backspace : skhd -k "escape"; chrome-preset close-tabs-with-url '^.*\.zoom\.us/j/.*$'
 chrome < 1 : skhd -k "escape"; chrome-preset focus-pinned-tab 1
 chrome < 2 : skhd -k "escape"; chrome-preset focus-pinned-tab 2
 chrome < 3 : skhd -k "escape"; chrome-preset focus-pinned-tab 3
@@ -263,4 +264,4 @@ chrome < shift - 7 : skhd -k "escape"; chrome-preset pin-tab 7
 chrome < shift - 8 : skhd -k "escape"; chrome-preset pin-tab 8
 chrome < shift - 9 : skhd -k "escape"; chrome-preset pin-tab 9
 
-.load ".yabairc_local"
+.load ".skhdrc_local"
