@@ -51,7 +51,7 @@ function chrome-preset
             set url "$_flag_fallback"
         else
             set url "https://$regex"
-            set regex (string escape --sryle=regex "$regex")
+            set regex (string escape --style=regex "$regex")
         end
 
         chrome-preset focus-url "$regex"
