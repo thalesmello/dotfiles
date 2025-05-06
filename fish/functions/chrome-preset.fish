@@ -25,21 +25,36 @@ function chrome-preset
         set window_id $argv[1]
         set -e argv[1]
 
-        echo window_id $window_id
         osascript -e "tell application \"Google Chrome\" to set index of (first window whose id is $window_id) to 1"
         and open -a "Google Chrome"
     else if test "$preset" = "focus-url"
         set url $argv[1]
         set -e argv[1]
 
-        echo args
         env OUTPUT_FORMAT=json chrome-cli list links \
-            | jq -r --arg url "$url" '
+            | jq -er --arg url "$url" '
                 first(.tabs.[] | select(.url | test($url)))
                 | "\(.windowId):\(.id)"' \
-            | read -d: window_id tab_id
-        echo $window_id $tab_id
-        chrome-preset focus-window "$window_id"
-        chrome-cli activate -t "$tab_id"
+            | read -d: -l window_id tab_id
+        and chrome-preset focus-window "$window_id"
+        and chrome-cli activate -t "$tab_id"
+        or return 1
+
+    else if test "$preset" = "focus-or-open-url"
+        argparse fallback= -- $argv
+        or return 1
+
+        set regex $argv[1]
+        set -e argv[1]
+
+        if set -q _flag_fallback
+            set url "$_flag_fallback"
+        else
+            set url "https://$regex"
+            set regex (string escape --sryle=regex "$regex")
+        end
+
+        chrome-preset focus-url "$regex"
+        or chrome-cli open "$url"
     end
 end
