@@ -78,7 +78,7 @@
 
 ctrl + alt + cmd + shift - m : yabai -m window --deminimize "$(yabai -m query --windows | jq 'map(select(."is-minimized")) | first | .id')"
 ctrl + alt + cmd - m : yabai -m window --minimize
-ctrl + alt + cmd - return : yabai -m window --toggle zoom-fullscreen || yabai -m window --toggle windowed-fullscreen
+ctrl + alt + cmd - return : yabai-preset toggle-window-zoom-or-fullscreen
 
 
 # # Open square bracket [

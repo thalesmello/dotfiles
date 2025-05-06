@@ -344,7 +344,28 @@ function yabai-preset
         else if jq -en --argjson json "$json" '$json.type == "window"'
             yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
         end
-    else if false
+    else if test "$preset" = "is-window-floating"
+        set window $argv[1]
+        set -e argv[1]
+
+        yabai -m query --windows --window "$window" | jq -e '."split-type" == "none"' >/dev/null
+
+        return $status
+    else if test "$preset" = "toggle-window-zoom-or-fullscreen"
+        set window $argv[1]
+        set -e argv[1]
+
+        if test -z "$window"
+            set window (yabai -m query --windows | jq -r 'first(.[] | select(."has-focus")) | .id')
+        end
+
+        if yabai-preset is-window-floating "$window"
+            yabai -m window "$window" --toggle windowed-fullscreen
+        else
+            yabai -m window "$window" --toggle zoom-fullscreen
+        end
+    else
+        return 1
     end
 
 end
