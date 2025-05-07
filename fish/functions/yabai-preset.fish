@@ -320,10 +320,25 @@ function yabai-preset
 
         set window (yabai -m query --windows --space | jq  'first(.[] | select(."has-focus")) | {app, id}')
 
-        echo $window
-        if jq -en --argjson window "$window" 'debug(.) | $window.app == "Google Chrome"'
+        if jq -en --argjson window "$window" '$window.app == "Google Chrome"'
             set type "tab"
-            set json (jq -n --argjson tab "$(env OUTPUT_FORMAT=json chrome-cli info)" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab.id, window_id: $window.id}')
+            env OUTPUT_FORMAT=json chrome-cli info \
+            | jq -r '"\(.windowId):\(.id)"' \
+            | read -d: -l chrome_window_id tab_id
+
+            # The following is a prototyped solution using cmd - index to select the tab
+            # Commented out because it doesn't seem very fast
+            #set tab_index (env OUTPUT_FORMAT=json chrome-cli list tabs -w "$chrome_window_id" \
+            #|  jq -r --arg tab_id "$tab_id" '.tabs | map(.id) | index($tab_id) + 1')
+            #
+            #and if test "$tab_index" -le 8
+            #    # Index is <= 8 then it's faster to use cmd + index
+            #    set json (jq -n --argjson tab_index "$tab_index" --argjson window "$window" '{type: "yabai_chrome_tab", tab_index: $tab_index, window_id: $window.id}')
+            #else
+            #    set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab_id, window_id: $window.id}')
+            #end
+
+            set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab_id, window_id: $window.id}')
         else
             set type "window"
             set json (jq -n --argjson window "$window" '{type: "window", window_id: $window.id}')
@@ -341,6 +356,9 @@ function yabai-preset
         if jq -en --argjson json "$json" '$json.type == "chrome_tab"'
             chrome-cli activate -t "$(jq -nr --argjson json "$json" '$json.tab_id')"
             yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
+        else if jq -en --argjson json "$json" '$json.type == "yabai_chrome_tab"'
+            yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
+            skhd -k "cmd - $(jq -nr --argjson json "$json" '$json.tab_index')"
         else if jq -en --argjson json "$json" '$json.type == "window"'
             yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
         end
