@@ -382,6 +382,13 @@ function yabai-preset
         else
             yabai -m window "$window" --toggle zoom-fullscreen
         end
+    else if test "$preset" = "toggle-yabai"
+        yabai --stop-service
+        and display-message "Yabai Stopped"
+        or begin
+            yabai --start-service
+            and display-message "Yabai Started"
+        end
     else
         return 1
     end

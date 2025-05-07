@@ -258,13 +258,16 @@ ctrl + alt + cmd - x : open -a "iTerm"
 ctrl + alt + cmd - q : open -a "ChatGPT"
 ctrl + alt + cmd - w : open -a "WhatsApp"
 ctrl + alt + cmd - z : open -a "Obsidian"
-ctrl + alt + cmd - y : chrome-preset focus-or-open-url calendar.google.com
 ctrl + alt + cmd - s : open -a "YouTube Music"
-ctrl + alt + cmd + shift - a : open -a "Timery"
+ctrl + alt + cmd - e : open -a "Google Chrome"
+ctrl + alt + cmd - r : open -a "Google Chrome"
+ctrl + alt + cmd - a : open -a "Timery"
 ctrl + alt + cmd + shift - z : open -a "Google Keep"
 ctrl + alt + cmd + shift - w : open -a "zoom.us"
 ctrl + alt + cmd + shift - f : open -a "WhatsApp"
 ctrl + alt + cmd + shift - g : open -a "Messages"
 ctrl + alt + cmd + shift - q : open -a "Activity Monitor"
+ctrl + alt + cmd + shift - a : yabai-preset toggle-yabai
+ctrl + alt + cmd - y : chrome-preset focus-or-open-url calendar.google.com
 
 .load ".skhdrc_local"
