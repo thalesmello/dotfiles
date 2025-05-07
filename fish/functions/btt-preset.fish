@@ -64,5 +64,50 @@ function btt-preset
         }')"
 
         btt-preset trigger-action "$json"
+    else if test "$preset" = "print-app-path"
+        set app $argv[1]
+        set -e argv[1]
+
+        osascript -e "POSIX path of (path to application \"$app\")"
+    else if test "$preset" = "show-or-hide-app"
+        argparse only-show only-hide -- $argv
+        or return 1
+
+        set only_show (count $_flag_only_show)
+        set only_hide (count $_flag_only_hide)
+
+        set app $argv[1]
+        set -e argv[1]
+
+        echo $only_hide
+
+        set json "$(jq -n --arg app "$app" \
+            --argjson only_hide "$only_hide" \
+            --argjson only_show "$only_show" '
+        {
+            "BTTActionCategory" : 0,
+            "BTTIsPureAction" : true,
+            "BTTPredefinedActionType" : 177,
+            "BTTPredefinedActionName" : "Show  or  Hide Specific Application",
+            "BTTAppToShowOrHide" : $app,
+            "BTTShowHideAppConfig" : {
+                "BTTShowHideSpecificAppMoveToSpace":"BTTShowHideSpecificAppNoSpaceChange",
+                "BTTShowHideSpecificAppOnlyShow": ($only_show > 0),
+                "BTTShowHideSpecificAppOnlyHide": ($only_hide > 0),
+                "BTTShowHideSpecificAffectedWindow":"BTTShowHideSpecificAppAffectLastUsedWindow",
+                "BTTShowHideSpecificMinimizeInstead":false,
+                "BTTShowHideSpecificAppRegex":"",
+                "BTTShowHideSpecificAppOnlyTreatActiveAsVisible":true,
+                "BTTShowHideSpecificAppOnlyIfRunning":false,
+                "BTTShowHideSpecificAppCMDN":false,
+                "BTTShowHideSpecificAppMoveToCurrentSpace":false,
+                "BTTShowHideSpecificAppMoveAllToCurrentSpace":false
+            } | @json,
+            "BTTEnabled2" : 1,
+            "BTTOrder" : 0
+        }
+        ')"
+
+        btt-preset trigger-action "$json"
     end
 end
