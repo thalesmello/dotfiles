@@ -76,6 +76,8 @@
 # A REFERENCE ONLY, WHEN MAKING YOUR OWN CONFIGURATION..          #
 # ############################################################### #
 
+.load ".skhdrc_local"
+
 ctrl + alt + cmd + shift - m : yabai -m window --deminimize "$(yabai -m query --windows | jq 'map(select(."is-minimized")) | first | .id')"
 ctrl + alt + cmd - m : yabai -m window --minimize
 ctrl + alt + cmd - return : yabai-preset toggle-window-zoom-or-fullscreen
