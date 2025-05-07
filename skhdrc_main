@@ -251,4 +251,20 @@ chrome < shift - 7 : skhd -k "escape"; chrome-preset pin-tab 7
 chrome < shift - 8 : skhd -k "escape"; chrome-preset pin-tab 8
 chrome < shift - 9 : skhd -k "escape"; chrome-preset pin-tab 9
 
+# App Shortcuts
+ctrl + alt + cmd - b : open -a "BetterTouchTool"
+ctrl + alt + cmd - c : open -a "VS Code"
+ctrl + alt + cmd - x : open -a "iTerm"
+ctrl + alt + cmd - q : open -a "ChatGPT"
+ctrl + alt + cmd - w : open -a "WhatsApp"
+ctrl + alt + cmd - z : open -a "Obsidian"
+ctrl + alt + cmd - y : chrome-preset focus-or-open-url calendar.google.com
+ctrl + alt + cmd - s : open -a "YouTube Music"
+ctrl + alt + cmd + shift - a : open -a "Timery"
+ctrl + alt + cmd + shift - z : open -a "Google Keep"
+ctrl + alt + cmd + shift - w : open -a "zoom.us"
+ctrl + alt + cmd + shift - f : open -a "WhatsApp"
+ctrl + alt + cmd + shift - g : open -a "Messages"
+ctrl + alt + cmd + shift - q : open -a "Activity Monitor"
+
 .load ".skhdrc_local"
