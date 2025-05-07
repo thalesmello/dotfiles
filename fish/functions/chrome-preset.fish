@@ -41,7 +41,7 @@ function chrome-preset
         or return 1
 
     else if test "$preset" = "focus-or-open-url"
-        argparse fallback= -- $argv
+        argparse fallback= profile= -- $argv
         or return 1
 
         set regex $argv[1]
@@ -55,7 +55,11 @@ function chrome-preset
         end
 
         chrome-preset focus-url "$regex"
-        or chrome-cli open "$url"
+        or if set -q _flag_profile
+            open -n -a "Google Chrome" --args "$url" --profile-directory="$_flag_profile"
+        else
+            open -n -a "Google Chrome" --args "$url"
+        end
     else if test "$preset" = "close-tabs-with-url"
         set regex $argv[1]
         set -e argv[1]
