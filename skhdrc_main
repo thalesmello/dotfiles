@@ -76,7 +76,6 @@
 # A REFERENCE ONLY, WHEN MAKING YOUR OWN CONFIGURATION..          #
 # ############################################################### #
 
-.load ".skhdrc_local"
 
 ctrl + alt + cmd + shift - m : yabai -m window --deminimize "$(yabai -m query --windows | jq 'map(select(."is-minimized")) | first | .id')"
 ctrl + alt + cmd - m : yabai -m window --minimize
@@ -134,16 +133,11 @@ ctrl + alt + cmd + shift - n : yabai-preset move-window-in-stack next
 # move window left a space
 ctrl + alt + cmd + shift - p : yabai-preset move-window-in-stack prev
 
-
-::stack @ : display-message "Stack"
-stack < escape ; default
 stack < j : skhd -k escape; yabai -m window --stack south
 stack < k : skhd -k escape; yabai -m window --stack north
 stack < h : skhd -k escape; yabai -m window --stack west
 stack < l : skhd -k escape; yabai -m window --stack east
 
-::resize @ : display-message "Resize"
-resize < escape ; default
 resize < return ; default
 resize < j : yabai -m window --resize bottom_right:0:100
 resize < k : yabai -m window --resize bottom_right:0:-100
@@ -154,13 +148,10 @@ resize < shift - k : yabai -m window --resize top_left:0:-100
 resize < shift - h : yabai -m window --resize top_left:-100:0
 resize < shift - l : yabai -m window --resize top_left:100:0
 
-::service @
 
 ctrl + alt + cmd - space ; service
 
-
 # Service mode bindings
-service < escape ; default
 service < ctrl + alt + cmd - space : skhd -k "escape"; yabai-preset focus-space recent
 service < space : skhd -k "escape"; yabai-preset focus-space recent
 service < shift - space : skhd -k "escape"; yabai-preset move-window-to-space recent
@@ -229,9 +220,6 @@ service < tab : skhd -k "escape"; yabai-preset move-window-to-display-with-fallb
 # But currently there's no support for presetting windows in a specific space without disabling SIP
 # I'm keeping this commented in case it's useful in the future
 # # Invoke mode bindings
-::invoke @ : display-message "Invoke"
-ctrl + alt + cmd - i ; invoke
-invoke < escape ; default
 invoke < 1 : skhd -k "escape"; yabai-preset arrange-spaces \
     -w "1:.*Thales \\(Work\\).*" \
     -a "2:iTerm2" \
@@ -242,10 +230,7 @@ invoke < p : skhd -k "escape"; yabai-preset arrange-spaces \
     -w "7:.*Thales \\(Personal\\).*"
 
 
-
-::chrome @ : display-message "Chrome"
 service < c ; chrome
-chrome < escape ; default
 chrome < backspace : skhd -k "escape"; chrome-preset close-tabs-with-url '^.*\.zoom\.us/j/.*$'
 chrome < 1 : skhd -k "escape"; chrome-preset focus-pinned-tab 1
 chrome < 2 : skhd -k "escape"; chrome-preset focus-pinned-tab 2

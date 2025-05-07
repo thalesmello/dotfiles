@@ -1,0 +1,21 @@
+# Define modes
+::default
+
+::service @
+service < escape ; default
+
+::chrome @ : display-message "Chrome"
+chrome < escape ; default
+
+::invoke @ : display-message "Invoke"
+invoke < escape ; default
+
+::resize @ : display-message "Resize"
+resize < escape ; default
+
+::stack @ : display-message "Stack"
+stack < escape ; default
+
+# skhdrc_local is loaded first so that mappings there can override main
+.load ".skhdrc_local"
+.load ".skhdrc_main"

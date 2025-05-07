@@ -15,6 +15,7 @@
   "ideavimrc": "~/.ideavimrc",
   "yabairc": "~/.yabairc",
   "skhdrc": "~/.skhdrc",
+  "skhdrc_main": "~/.skhdrc_main",
   "finicky.js": "~/.finicky.js",
   "aerospace.toml": "~/.aerospace.toml",
   "fish": "~/.config/fish",
