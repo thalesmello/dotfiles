@@ -179,14 +179,15 @@ function yabai-preset
             return 1
         end
 
-        set floating_only (set -q _flag_floating_only && echo "true" || echo "false")
+        set floating_only (test -n "$_flag_floating_only" && echo "true" || echo "false")
+        set is_layout_float (yabai-preset is-space-float-layout && echo true || echo false)
 
-        yabai -m query --windows --space | jq -er --arg window "$window" --argjson floating_only "$floating_only" '.
-        | map(select(."is-visible" and (."is-sticky"|not) and (if $floating_only then ."split-type" == "none" else true end)))
+        yabai -m query --windows --space | jq -er --arg window "$window" --argjson floating_only "$floating_only" --argjson is_layout_float "$is_layout_float" '.
+        | map(select(."is-visible" and (."is-sticky"|not) and (if $is_layout_float then true elif $floating_only then ."split-type" == "none" and ."is-floating" else true end)))
             | (first(.[] | select(."has-focus")) // .[0]).id as $focus
             | sort_by([
                 # Floating windows appear last
-                if ."split-type" == "none" then 2
+                if ."split-type" == "none" and ."is-floating" then 2
                 else 1 end,
                 .frame.x,
                 .frame.y,
@@ -214,7 +215,7 @@ function yabai-preset
         end
 
         yabai -m query --windows --space | jq -er --arg window "$window" '.
-            | map(select(."is-visible" and (."is-sticky"|not) and ."split-type" == "none"))
+            | map(select(."is-visible" and (."is-sticky"|not) and ."split-type" == "none" and ."is-floating"))
             | (first(.[] | select(."has-focus")) // .[0]).id as $focus
             | sort_by([.frame.x, .frame.y, .id])
             | (map(.id) | index($focus)) as $pos
@@ -366,9 +367,21 @@ function yabai-preset
         set window $argv[1]
         set -e argv[1]
 
-        yabai -m query --windows --window "$window" | jq -e '."split-type" == "none"' >/dev/null
+        set space (yabai -m query --windows --window "$window" | jq -r '.space')
+
+        if yabai -m query --spaces --space "$space" | jq -e '.type == "float"' >/dev/null
+            return 0
+        end
+
+        yabai -m query --windows --window "$window" | jq -e '."is-floating"' >/dev/null
 
         return $status
+    else if test "$preset" = "is-space-float-layout"
+        set space $argv[1]
+        set -e argv[1]
+
+        yabai -m query --spaces --space "$space" | jq -e '.type == "float"' >/dev/null
+        or return 1
     else if test "$preset" = "toggle-window-zoom-or-fullscreen"
         set window $argv[1]
         set -e argv[1]
@@ -389,10 +402,27 @@ function yabai-preset
             yabai --start-service
             and display-message "Yabai Started"
         end
-    else
-        return 1
+
+    else if test "$preset" = "store-window-position"
+        set winid $argv[1]; set -e argv[1]
+
+        set window (yabai -m query --windows --window "$window")
+
+        yabai-preset is-window-floating "$winid" || return 1
+
+        set frame (jq -enc --argjson window "$window" --argjson winid "$winid" '$window | .frame')
+
+        mkdir -p "/tmp/yabai-preset/window-positions/"
+        echo "$frame" > "/tmp/yabai-preset/window-positions/$winid.json"
+    else if test "$preset" = "restore-window-position"
+        set winid $argv[1]; set -e argv[1]
+
+        set winid (default "$winid" "$(yabai -m query --windows --window | jq '.id')")
+
+        jq -erc '.x, .y, .w, .h | floor' < "/tmp/yabai-preset/window-positions/$winid.json" \
+        | read --line x y w h
+
+        and yabai -m window "$winid" --move "abs:$x:$y"
+        and yabai -m window "$winid" --resize "abs:$w:$h"
     end
-
 end
-
-

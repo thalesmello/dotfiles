@@ -162,7 +162,7 @@ service < R : skhd -k "escape"; yabai --stop-service && yabai --start-service &&
 service < v : skhd -k "escape"; yabai -m window --insert east
 # double quotes
 service < shift - 0x27 : skhd -k "escape"; yabai -m window --insert south
-service < t : skhd -k "escape"; yabai -m window --toggle float
+service < t : skhd -k "escape"; yabai -m window --toggle float; yabai-preset is-window-floating && yabai-preset restore-window-position
 
 # comma
 service < z :  skhd -k "escape"; yabai -m window --insert stack
@@ -172,7 +172,7 @@ service < shift - s : skhd -k "escape"; yabai-preset stack-windows-in-space
 service < 0x2B : skhd -k "escape"; yabai -m space --layout stack; display-message "Laybout stack"
 # Period
 service < 0x2F : skhd -k "escape"; yabai -m space --layout bsp; display-message "Laybout bsp"
-service < 0 : skhd -k "escape"; yabai -m space --layout float; display-message "Laybout float"
+service < 0 : skhd -k "escape"; yabai -m space --layout float; display-message "Laybout float"; yabai -m query --windows --space | jq -r ".[] | .id" | while read --line winid; yabai-preset restore-window-position "$winid"; end
 
 # Pipe |
 service < shift - 0x2A : skhd -k "escape"; yabai -m space --mirror y-axis
