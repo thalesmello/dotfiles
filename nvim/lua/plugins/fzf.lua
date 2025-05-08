@@ -3,6 +3,7 @@ return {
     dependencies = { 'vim-projectionist' },
     keys = {
         {"<c-p>", mode = {"n", "v"}},
+        {"<c-t>", mode = {"n", "v"}},
         {"<c-f>", mode = "n"},
         {"<leader>/", mode = {"n", "v"}},
     },
@@ -20,7 +21,7 @@ return {
         vim.g.fzf_history_dir = '~/.local/share/fzf-history'
         vim.env.FZF_DEFAULT_COMMAND = 'ag -g ""'
 
-        vim.keymap.set("n", "<c-p>", function ()
+        local function cwd_files ()
             if vim.o.filetype == 'qf' then
                 vim_utils.feedkeys("<up>")
 
@@ -29,7 +30,11 @@ return {
 
             vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
             fzf_lua.files({ cwd = vim.b.project_do_cwd })
-        end, { noremap = true, silent = true })
+        end
+
+        vim.keymap.set("n", "<c-p>", cwd_files, { noremap = true, silent = true })
+        vim.keymap.set("n", "<c-t>", cwd_files, { noremap = true, silent = true })
+
         vim.keymap.set("n", "<leader><c-p>",
             function ()
                 vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])

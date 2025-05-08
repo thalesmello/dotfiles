@@ -147,6 +147,8 @@ vim.keymap.set("c", "<c-9>", '\\(\\)<left><left>', { noremap = true })
 vim.keymap.set("c", "<c-_>", '\\{-}', { noremap = true })
 vim.keymap.set("c", "<c-->", '\\{-}', { noremap = true })
 
+-- Map default C-t
+vim.keymap.set("n", "<leader><c-t>", '<c-t>', { noremap = true })
 
 --- Map |gx| to call |vim.ui.open| on the <cfile> at cursor.
 do
