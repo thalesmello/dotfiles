@@ -390,6 +390,20 @@ function yabai-preset
 
         yabai -m query --spaces --space "$space" | jq -e '.type == "float"' >/dev/null
         or return 1
+    else if test "$preset" = "is-window-fullscreen"
+        set window $argv[1]
+        set -e argv[1]
+
+        if test -z "$window"
+            set window (yabai -m query --windows | jq -r 'first(.[] | select(."has-focus")) | .id')
+        end
+
+        yabai -m query --windows --window "$window" | jq -r '.frame.w, .frame.h, .display' | read --line w h display
+        yabai -m query --displays --display "$display" | jq -r '.frame | .w, .h' | read --line display_w display_h
+
+        echo "$(math "0.9 * $display_w")" -le "$w" -a "$(math "0.9 * $display_h")" -le "$h"
+        test "$(math "0.9 * $display_w")" -le "$w" -a "$(math "0.9 * $display_h")" -le "$h"
+        or return 1
     else if test "$preset" = "toggle-window-zoom-or-fullscreen"
         set window $argv[1]
         set -e argv[1]
@@ -399,7 +413,11 @@ function yabai-preset
         end
 
         if yabai-preset is-window-floating "$window"
-            yabai -m window "$window" --toggle windowed-fullscreen
+            if yabai-preset is-window-fullscreen "$window"
+                yabai-preset restore-window-position
+            else
+                yabai -m window "$window" --grid "1:1:0:0:1:1"
+            end
         else
             yabai -m window "$window" --toggle zoom-fullscreen
         end
@@ -417,6 +435,7 @@ function yabai-preset
         set window (yabai -m query --windows --window "$window")
 
         yabai-preset is-window-floating "$winid" || return 1
+        yabai-preset is-window-fullscreen "$winid" && return 1
 
         set frame (jq -enc --argjson window "$window" --argjson winid "$winid" '$window | .frame')
 
