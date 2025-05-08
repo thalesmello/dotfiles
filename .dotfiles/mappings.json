@@ -21,6 +21,7 @@
   "fish": "~/.config/fish",
   "nvim": "~/.config/nvim",
   "linearmouse": "~/.config/linearmouse",
+  "sketchybar": "~/.config/sketchybar",
   "karabiner": "~/.config/karabiner",
   "karabiner.edn": "~/.config/karabiner.edn"
 }
