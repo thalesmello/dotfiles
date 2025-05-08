@@ -158,7 +158,7 @@ service < shift - space : skhd -k "escape"; yabai-preset move-window-to-space re
 # semicolon
 service < shift - 0x29 : skhd -k "escape"; yabai-preset arrange-windows-side-by-side
 service < r ; resize
-service < R : skhd -k "escape"; yabai --stop-service && yabai --start-service
+service < R : skhd -k "escape"; yabai --stop-service && yabai --start-service && display-message "Yabai Restarted" || begin; yabai --start-service && display-message "Yabai Started"; end
 service < v : skhd -k "escape"; yabai -m window --insert east
 # double quotes
 service < shift - 0x27 : skhd -k "escape"; yabai -m window --insert south
@@ -269,5 +269,8 @@ ctrl + alt + cmd + shift - g : open -a "Messages"
 ctrl + alt + cmd + shift - q : open -a "Activity Monitor"
 ctrl + alt + cmd + shift - a : yabai-preset toggle-yabai
 ctrl + alt + cmd - y : chrome-preset focus-or-open-url calendar.google.com
+
+ctrl + alt + cmd - u : workflow-preset perform-default-ui
+ctrl + alt + cmd + shift - o : skhd -k "ctrl + shift - space"
 
 .load ".skhdrc_local"

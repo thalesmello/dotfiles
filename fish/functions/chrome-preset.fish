@@ -28,14 +28,15 @@ function chrome-preset
         osascript -e "tell application \"Google Chrome\" to set index of (first window whose id is $window_id) to 1"
         and open -a "Google Chrome"
     else if test "$preset" = "focus-url"
-        set url $argv[1]
+        set regex $argv[1]
         set -e argv[1]
 
         env OUTPUT_FORMAT=json chrome-cli list links \
-            | jq -er --arg url "$url" '
-                first(.tabs.[] | select(.url | test($url)))
+            | jq -er --arg regex "$regex" '
+                first(.tabs.[] | select(.url | test($regex)))
                 | "\(.windowId):\(.id)"' \
             | read -d: -l window_id tab_id
+
         and chrome-preset focus-window "$window_id"
         and chrome-cli activate -t "$tab_id"
         or return 1
@@ -47,15 +48,29 @@ function chrome-preset
         set regex $argv[1]
         set -e argv[1]
 
-        if set -q _flag_fallback
+        if test -n "$_flag_fallback"
             set url "$_flag_fallback"
         else
-            set url "https://$regex"
+            set url "$regex"
             set regex (string escape --style=regex "$regex")
         end
 
+
         chrome-preset focus-url "$regex"
-        or if set -q _flag_profile
+        or chrome-preset open-url --profile="$_flag_profile" "$url"
+    else if test "$preset" = "open-url"
+        argparse profile= -- $argv
+        or return 1
+
+        set url $argv[1]
+        set -e argv[1]
+
+        if not string match -qr '^https?://' "$url"
+            set url "https://$url"
+        end
+
+
+        if test -n "$_flag_profile"
             open -n -a "Google Chrome" --args "$url" --profile-directory="$_flag_profile"
         else
             open -n -a "Google Chrome" --args "$url"
@@ -71,7 +86,6 @@ function chrome-preset
                 | debug(.)
                 | .id')
         and for tab_id in $tabs
-            echo $tab_id
             chrome-cli close -t "$tab_id"
         end
         or return 1

@@ -46,6 +46,7 @@ yabai -m config                                 \
 
 # yabai -m rule --add app="iTerm2" manage=off
 yabai -m rule --add app="Activity Monitor" manage=off
+yabai -m rule --add app="System Settings" manage=off
 
 yabai -m signal --add event=space_changed action="display-message \"Space \$YABAI_SPACE_INDEX\""
 

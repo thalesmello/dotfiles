@@ -1,0 +1,14 @@
+function workflow-preset
+
+    set preset $argv[1]; set -e argv[1]
+
+    if test "$preset" = "perform-default-ui"
+        set app (btt-preset get-string-variable "active_app_name")
+
+        if test "$app" = "Google Chrome"
+            skhd -k 'cmd - l'
+        else if test "$app" = "BetterTouchTool"
+            btt-preset trigger-named-trigger 'BTT: Click search button'
+        end
+    end
+end

@@ -1,17 +1,31 @@
 function btt-preset
     set preset $argv[1]
     set -e argv[1]
-    set btt_url 'http://localhost:12000/trigger_action/'
+    set btt_url 'http://localhost:12000/'
 
     if test "$preset" = "trigger-action"
         set json $argv[1]
         set -e argv[1]
 
         set json (string escape --style=url "$json")
-        curl -G "$btt_url" -d "json=$json"
+        curl -sSG "$btt_url""trigger_action/" -d "json=$json"
+    else if test "$preset" = "get-string-variable"
+        set var $argv[1]
+        set -e argv[1]
+
+        set var (string escape --style=url "$var")
+
+        curl -sSG "$btt_url""get_string_variable/" -d "variableName=$var"
+    else if test "$preset" = "get-number-variable"
+        set var $argv[1]
+        set -e argv[1]
+
+        set var (string escape --style=url "$var")
+
+        curl -SG "$btt_url""get_number_variable/" -d "variableName=$var"
     else if test "$preset" = "focus-space"
         set space $argv[1]
-        set -e argv[1]
+        set -sSe argv[1]
 
         set json (jq -nc --argjson spc "$space" '{"BTTPredefinedActionType":(206 + $spc)}')
 
@@ -107,6 +121,26 @@ function btt-preset
             "BTTOrder" : 0
         }
         ')"
+
+        btt-preset trigger-action "$json"
+    else if test "$preset" = "trigger-named-trigger"
+        set trigger $argv[1]; set -e argv[1]
+
+        set json (jq -n --arg trigger "$trigger" '{
+        "BTTPredefinedActionType" : 248,
+        "BTTNamedTriggerToTrigger" : $trigger,
+        }'
+        )
+
+        btt-preset trigger-action "$json"
+    else if test "$preset" = "get-variable"
+        set trigger $argv[1]; set -e argv[1]
+
+        set json (jq -n --arg trigger "$trigger" '{
+        "BTTPredefinedActionType" : 248,
+        "BTTNamedTriggerToTrigger" : $trigger,
+        }'
+        )
 
         btt-preset trigger-action "$json"
     end
