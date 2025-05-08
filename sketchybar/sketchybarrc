@@ -78,6 +78,13 @@ sketchybar --add item chevron left \
 # volume is registered. More info about the event system can be found here:
 # https://felixkratz.github.io/SketchyBar/config/events
 
+# Yabai
+sketchybar -m --add item yabai right
+sketchybar -m --set yabai update_freq=3
+sketchybar -m --set yabai script="~/.config/sketchybar/plugins/yabai.sh"
+sketchybar -m --subscribe yabai space_change
+sketchybar -m --set yabai click_script="~/.config/sketchybar/plugins/yabai_click.sh"
+
 sketchybar --add item clock right \
            --set clock update_freq=10 icon=  script="$PLUGIN_DIR/clock.sh" \
            --add item volume right \
