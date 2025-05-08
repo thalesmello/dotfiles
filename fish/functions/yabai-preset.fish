@@ -257,10 +257,18 @@ function yabai-preset
 
         set win (yabai -m query --windows --window | jq '.id')
         set fallback next
-        set json '{"BTTPredefinedActionType":47}'
+        set json '{"BTTPredefinedActionType" : 98}'
         set json (string escape --style=url "$json")
-        curl -G "$btt_url" -d "json=$json"
-        yabai -m window "$win" --focus
+
+        if yabai-preset is-window-floating
+            curl -G "$btt_url" -d "json=$json"
+            yabai -m window --focus "$win" 
+        else
+            yabai -m window "$win" --toggle float
+            yabai -m window --focus "$win" 
+            curl -G "$btt_url" -d "json=$json"
+            yabai -m window "$win" --toggle float
+        end
     else if test "$preset" = "arrange-windows-side-by-side"
         yabai -m query --windows --space | jq 'map(select(."is-visible" and (."is-sticky"|not))) | "\(first(.[] | select(."has-focus") | .id)):\(first(.[] | select(."has-focus"|not) | .id))"'
         yabai -m query --windows --space | jq -r 'map(select(."is-visible" and (."is-sticky"|not))) | "\(first(.[] | select(."has-focus") | .id)):\(first(.[] | select(."has-focus"|not) | .id))"' | read -d: active_win back_win
