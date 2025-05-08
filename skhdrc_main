@@ -220,6 +220,7 @@ service < tab : skhd -k "escape"; yabai-preset move-window-to-display-with-fallb
 # But currently there's no support for presetting windows in a specific space without disabling SIP
 # I'm keeping this commented in case it's useful in the future
 # # Invoke mode bindings
+ctrl + alt + cmd - i ; invoke
 invoke < 1 : skhd -k "escape"; yabai-preset arrange-spaces \
     -w "1:.*Thales \\(Work\\).*" \
     -a "2:iTerm2" \
