@@ -1,7 +1,9 @@
 #!/opt/homebrew/bin/fish
 
-set space_number "$(yabai -m query --spaces --display | jq 'map(select(."has-focus"))[-1].index')"
-set yabai_mode "$(yabai -m query --spaces --display | jq -r 'map(select(."has-focus"))[-1].type')"
+yabai -m query --spaces \
+| jq -r 'length, (map(select(."has-focus"))[0] | .index, .type)' \
+| read --line spaces_count space_number space_mode
 
 set window_mode "$(yabai-preset print-window-mode)"
-sketchybar -m --set yabai label="$space_number:$yabai_mode ($window_mode)"
+
+sketchybar -m --set yabai label="$space_mode:$space_number/$spaces_count ($window_mode)"
