@@ -23,23 +23,24 @@ function aerospace-preset
         set back_workspace 1
     end
 
-    if test "$preset" = "move-other-windows"
+    switch "$preset"
+    case "move-other-windows"
         for window in $other_windows
             aerospace move-node-to-workspace --window-id $window $back_workspace
         end
-    else if test "$preset" = "move-window"
+    case "move-window"
         aerospace move-node-to-workspace $back_workspace
-    else if test "$preset" = "minimize-other-windows"
+    case "minimize-other-windows"
         for window in $other_windows
             aerospace focus --window-id $window
             aerospace macos-native-minimize
         end
-    else if test "$preset" = "minimize-windows"
+    case "minimize-windows"
         for window in $windows
             aerospace focus --window-id $window
             aerospace macos-native-minimize
         end
-    else if test "$preset" = "move-to-previous-workspace"
+    case "move-to-previous-workspace"
         argparse -i 'move-others=?' -- $argv
 
         set summon_window (aerospace list-windows --focused --format '%{window-id}')
@@ -56,7 +57,7 @@ function aerospace-preset
 
         aerospace move-node-to-workspace --window-id $summon_window $workspace
         aerospace focus --window-id $summon_window
-    else if test "$preset" = "move-all-but-two"
+    case "move-all-but-two"
         set main_window (aerospace list-windows --focused --format '%{window-id}')
         aerospace focus-back-and-forth; or aerospace workspace-back-and-forth
         set workspace (aerospace list-workspaces --focused --format '%{workspace}')
@@ -69,7 +70,7 @@ function aerospace-preset
 
         aerospace move-node-to-workspace --window-id $main_window $workspace
         aerospace focus --window-id $main_window
-    else if test "$preset" = "arrange-workspaces"
+    case "arrange-workspaces"
         set windows
         set workspaces
 
@@ -116,7 +117,7 @@ function aerospace-preset
             aerospace move-node-to-workspace --window-id $window $workspace
         end
 
-    else if test "$preset" = "summon"
+    case "summon"
         argparse -i \
             --exclusive move-others,minimize-others \
             'a/app=+' \

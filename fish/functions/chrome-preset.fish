@@ -2,7 +2,8 @@ function chrome-preset
     set preset $argv[1]
     set -e argv[1]
 
-    if test "$preset" = "pin-tab"
+    switch "$preset"
+    case "pin-tab"
         set position $argv[1]
         set -e argv[1]
 
@@ -11,7 +12,7 @@ function chrome-preset
         mkdir -p "/tmp/chrome-preset/pinned-tabs/"
         echo $json > "/tmp/chrome-preset/pinned-tabs/$position.json"
         display-message "Pin tab $position"
-    else if test "$preset" = "focus-pinned-tab"
+    case "focus-pinned-tab"
         set position $argv[1]
         set -e argv[1]
 
@@ -21,13 +22,13 @@ function chrome-preset
         yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
 
         display-message "Focus tab $position"
-    else if test "$preset" = "focus-window"
+    case "focus-window"
         set window_id $argv[1]
         set -e argv[1]
 
         osascript -e "tell application \"Google Chrome\" to set index of (first window whose id is $window_id) to 1"
         and open -a "Google Chrome"
-    else if test "$preset" = "focus-url"
+    case "focus-url"
         set regex $argv[1]
         set -e argv[1]
 
@@ -41,7 +42,7 @@ function chrome-preset
         and chrome-cli activate -t "$tab_id"
         or return 1
 
-    else if test "$preset" = "focus-or-open-url"
+    case "focus-or-open-url"
         argparse fallback= profile= -- $argv
         or return 1
 
@@ -58,7 +59,7 @@ function chrome-preset
 
         chrome-preset focus-url "$regex"
         or chrome-preset open-url --profile="$_flag_profile" "$url"
-    else if test "$preset" = "open-url"
+    case "open-url"
         argparse profile= -- $argv
         or return 1
 
@@ -75,7 +76,7 @@ function chrome-preset
         else
             open -n -a "Google Chrome" --args "$url"
         end
-    else if test "$preset" = "close-tabs-with-url"
+    case "close-tabs-with-url"
         set regex $argv[1]
         set -e argv[1]
 

@@ -3,44 +3,45 @@ function btt-preset
     set -e argv[1]
     set btt_url 'http://localhost:12000/'
 
-    if test "$preset" = "trigger-action"
+    switch "$preset"
+    case "trigger-action"
         set json $argv[1]
         set -e argv[1]
 
         set json (string escape --style=url "$json")
         curl -sSG "$btt_url""trigger_action/" -d "json=$json"
-    else if test "$preset" = "get-string-variable"
+    case "get-string-variable"
         set var $argv[1]
         set -e argv[1]
 
         set var (string escape --style=url "$var")
 
         curl -sSG "$btt_url""get_string_variable/" -d "variableName=$var"
-    else if test "$preset" = "get-number-variable"
+    case "get-number-variable"
         set var $argv[1]
         set -e argv[1]
 
         set var (string escape --style=url "$var")
 
         curl -SG "$btt_url""get_number_variable/" -d "variableName=$var"
-    else if test "$preset" = "focus-space"
+    case "focus-space"
         set space $argv[1]
         set -sSe argv[1]
 
         set json (jq -nc --argjson spc "$space" '{"BTTPredefinedActionType":(206 + $spc)}')
 
         btt-preset trigger-action "$json"
-    else if test "$preset" = "move-window-to-space"
+    case "move-window-to-space"
         set space $argv[1]
         set -e argv[1]
 
         set json (jq -nc --argjson spc "$space" '{"BTTPredefinedActionType":(215 + $spc + if $spc >= 6 then 1 else 0 end)}')
 
         btt-preset trigger-action "$json"
-    else if test "$preset" = "move-window-to-next-display"
+    case "move-window-to-next-display"
         set json (jq -nc --argjson spc "$space" '{"BTTPredefinedActionType":(206 + $spc)}')
         btt-preset trigger-action "$json"
-    else if test "$preset" = "display-message"
+    case "display-message"
         set message $argv[1]
         set -e argv[1]
 
@@ -68,7 +69,7 @@ function btt-preset
 
         echo "$json"
         btt-preset trigger-action "$json"
-    else if test "$preset" = "trigger-menu-bar"
+    case "trigger-menu-bar"
         set path $argv[1]
         set -e argv[1]
 
@@ -78,12 +79,12 @@ function btt-preset
         }')"
 
         btt-preset trigger-action "$json"
-    else if test "$preset" = "print-app-path"
+    case "print-app-path"
         set app $argv[1]
         set -e argv[1]
 
         osascript -e "POSIX path of (path to application \"$app\")"
-    else if test "$preset" = "show-or-hide-app"
+    case "show-or-hide-app"
         argparse only-show only-hide -- $argv
         or return 1
 
@@ -123,7 +124,7 @@ function btt-preset
         ')"
 
         btt-preset trigger-action "$json"
-    else if test "$preset" = "trigger-named-trigger"
+    case "trigger-named-trigger"
         set trigger $argv[1]; set -e argv[1]
 
         set json (jq -n --arg trigger "$trigger" '{
@@ -133,7 +134,7 @@ function btt-preset
         )
 
         btt-preset trigger-action "$json"
-    else if test "$preset" = "get-variable"
+    case "get-variable"
         set trigger $argv[1]; set -e argv[1]
 
         set json (jq -n --arg trigger "$trigger" '{

@@ -4,7 +4,8 @@ function yabai-preset
     set preset $argv[1]
     set -e argv[1]
 
-    if test "$preset" = "focus-window"
+    switch "$preset"
+    case "focus-window"
         set direction $argv[1]
         set -e argv[1]
         set winid (yabai -m query --windows --space | jq --arg dir "$direction" '
@@ -109,7 +110,7 @@ function yabai-preset
         | first.id'
         )
         yabai -m window "$winid" --focus
-    else if test "$preset" = "focus-window-classic"
+    case "focus-window-classic"
         set direction $argv[1]
         set -e argv[1]
         set winid (yabai -m query --windows --space | jq -e --arg direction "$direction" '.
@@ -128,7 +129,7 @@ function yabai-preset
         | .id')
 
         yabai -m window "$winid" --focus
-    else if test "$preset" = "focus-space"
+    case "focus-space"
         set space $argv[1]
         set -e argv[1]
 
@@ -139,7 +140,7 @@ function yabai-preset
         set json (jq -nc --argjson spc "$space" '{"BTTPredefinedActionType":(206 + $spc)}')
         set json (string escape --style=url "$json")
         curl -G "$btt_url" -d "json=$json"
-    else if test "$preset" = "move-window-to-space"
+    case "move-window-to-space"
         set space $argv[1]
         set -e argv[1]
 
@@ -151,7 +152,7 @@ function yabai-preset
         set json (string escape --style=url "$json")
 
         curl -G "$btt_url" -d "json=$json"
-    else if test "$preset" = "focus-window-in-stack"
+    case "focus-window-in-stack"
         set stack $argv[1]
         set -e argv[1]
 
@@ -166,7 +167,7 @@ function yabai-preset
         set last (yabai -m query --windows --window "stack.last" | jq -e '."stack-index"')
         yabai -m window --focus "stack.$stack"
         display-message "Stack $stack / $last"
-    else if test "$preset" = "focus-window-in-space"
+    case "focus-window-in-space"
         argparse -i \
             'floating-only=?' \
             -- $argv
@@ -205,7 +206,7 @@ function yabai-preset
         else
             display-message "Windows $window_pos / $total"
         end
-    else if test "$preset" = "focus-floating-window-in-space"
+    case "focus-floating-window-in-space"
         set window $argv[1]
         set -e argv[1]
 
@@ -224,7 +225,7 @@ function yabai-preset
 
         yabai -m window --focus "$window"
         display-message "Windows $window_pos / $total"
-    else if test "$preset" = "move-window-in-stack"
+    case "move-window-in-stack"
         set stack $argv[1]
         set -e argv[1]
 
@@ -240,7 +241,7 @@ function yabai-preset
         yabai -m window --swap "stack.$stack"
         yabai -m window --focus "stack.$stack"
         display-message "Stack $stack / $last"
-    else if test "$preset" = "focus-display-with-fallback"
+    case "focus-display-with-fallback"
         set display $argv[1]
         set -e argv[1]
 
@@ -251,7 +252,7 @@ function yabai-preset
         end
 
         yabai -m display --focus "$display" || yabai -m display --focus "$fallback"
-    else if test "$preset" = "move-window-to-display-with-fallback"
+    case "move-window-to-display-with-fallback"
         # Yabai needs SPI for this, so we use btt
         # btt only supports next monitor, so we focus next with yabai regardless
 
@@ -269,13 +270,13 @@ function yabai-preset
             curl -G "$btt_url" -d "json=$json"
             yabai -m window "$win" --toggle float
         end
-    else if test "$preset" = "arrange-windows-side-by-side"
+    case "arrange-windows-side-by-side"
         yabai -m query --windows --space | jq 'map(select(."is-visible" and (."is-sticky"|not))) | "\(first(.[] | select(."has-focus") | .id)):\(first(.[] | select(."has-focus"|not) | .id))"'
         yabai -m query --windows --space | jq -r 'map(select(."is-visible" and (."is-sticky"|not))) | "\(first(.[] | select(."has-focus") | .id)):\(first(.[] | select(."has-focus"|not) | .id))"' | read -d: active_win back_win
 
         yabai -m window "$active_win" --grid "1:2:0:0:1:1"
         yabai -m window "$back_win" --grid "1:2:1:0:1:1"
-    else if test "$preset" = "stack-or-warp-window"
+    case "stack-or-warp-window"
         set direction $argv[1]
         set -e argv[1]
 
@@ -284,7 +285,7 @@ function yabai-preset
         else
             yabai -m window --stack "$direction"
         end
-    else if test "$preset" = "stack-windows-in-space"
+    case "stack-windows-in-space"
         set windows (yabai -m query --windows --space | jq -er '.
             | map(select(."is-visible" and (."is-sticky"|not)))
             | (first(.[] | select(."has-focus")) // .[0]) as $focus
@@ -294,12 +295,12 @@ function yabai-preset
         set current $windows[1]
         yabai -m window "$current" (printf "--stack\n%s\n" $windows[2..])
         display-message "$(count $windows) windows stacked"
-    else if test "$preset" = "unstack-window"
+    case "unstack-window"
         set direction $argv[1]
         set -e argv[1]
 
         yabai -m window --insert "$direction" --toggle float --toggle float
-    else if test "$preset" = "arrange-spaces"
+    case "arrange-spaces"
         argparse -i \
             'a/app=+' \
             'w/window=+' \
@@ -323,7 +324,7 @@ function yabai-preset
             yabai-preset move-window-to-space "$space"
         end
 
-    else if test "$preset" = "pin-object"
+    case "pin-object"
         set position $argv[1]
         set -e argv[1]
 
@@ -356,7 +357,7 @@ function yabai-preset
         mkdir -p "/tmp/yabai-preset/pins/"
         echo $json > "/tmp/yabai-preset/pins/$position.json"
         display-message "Pin $type $position"
-    else if test "$preset" = "focus-pinned-object"
+    case "focus-pinned-object"
         set position $argv[1]
         set -e argv[1]
 
@@ -371,7 +372,7 @@ function yabai-preset
         else if jq -en --argjson json "$json" '$json.type == "window"'
             yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
         end
-    else if test "$preset" = "is-window-floating"
+    case "is-window-floating"
         set window $argv[1]; set -e argv[1]
 
         yabai -m query --windows --window "$window" \
@@ -384,13 +385,13 @@ function yabai-preset
 
         test "$is_floating" = true
         or return 1
-    else if test "$preset" = "is-space-float-layout"
+    case "is-space-float-layout"
         set space $argv[1]
         set -e argv[1]
 
         yabai -m query --spaces --space "$space" | jq -e '.type == "float"' >/dev/null
         or return 1
-    else if test "$preset" = "is-window-fullscreen"
+    case "is-window-fullscreen"
         set window $argv[1]
         set -e argv[1]
 
@@ -404,7 +405,7 @@ function yabai-preset
         echo "$(math "0.9 * $display_w")" -le "$w" -a "$(math "0.9 * $display_h")" -le "$h"
         test "$(math "0.9 * $display_w")" -le "$w" -a "$(math "0.9 * $display_h")" -le "$h"
         or return 1
-    else if test "$preset" = "toggle-window-zoom-or-fullscreen"
+    case "toggle-window-zoom-or-fullscreen"
         set window $argv[1]
         set -e argv[1]
 
@@ -421,7 +422,7 @@ function yabai-preset
         else
             yabai -m window "$window" --toggle zoom-fullscreen
         end
-    else if test "$preset" = "toggle-yabai"
+    case "toggle-yabai"
         yabai --stop-service
         and display-message "Yabai Stopped"
         or begin
@@ -429,7 +430,7 @@ function yabai-preset
             and display-message "Yabai Started"
         end
 
-    else if test "$preset" = "store-window-position"
+    case "store-window-position"
         set winid $argv[1]; set -e argv[1]
 
         set window (yabai -m query --windows --window "$window")
@@ -441,7 +442,7 @@ function yabai-preset
 
         mkdir -p "/tmp/yabai-preset/window-positions/"
         echo "$frame" > "/tmp/yabai-preset/window-positions/$winid.json"
-    else if test "$preset" = "restore-window-position"
+    case "restore-window-position"
         set winid $argv[1]; set -e argv[1]
 
         set winid (default "$winid" "$(yabai -m query --windows --window | jq '.id')")
@@ -451,7 +452,7 @@ function yabai-preset
 
         and yabai -m window "$winid" --move "abs:$x:$y"
         and yabai -m window "$winid" --resize "abs:$w:$h"
-    else if test "$preset" = "print-window-mode"
+    case "print-window-mode"
         set winid $argv[1]; set -e argv[1]
         yabai -m query --windows --window | jq -r '.id, ."stack-index", ."has-fullscreen-zoom"' | read --line id stack_index has_zoom
 
@@ -465,5 +466,8 @@ function yabai-preset
         else
             echo "tile"
         end
+
+    case "*"
+        return 1
     end
 end
