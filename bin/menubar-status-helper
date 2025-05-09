@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# This function is useful for getting the name to use in bartender
+# converting from a sketchybar name
+ALIAS_NAME="$1"
+
+BARTENDER_MIID="$(printf "%s-%s" \
+  "$(lsappinfo info -only bundleID -app "${ALIAS_NAME%,*}" | cut -d= -f2 | tr -d \")" \
+  "${ALIAS_NAME##*,}"
+)"
+
+echo "$ALIAS_NAME"
+echo "-> $BARTENDER_MIID"
+echo "script: $(which osascript) -e 'tell application \"Bartender 5\" to activate \"$BARTENDER_MIID\"'"
