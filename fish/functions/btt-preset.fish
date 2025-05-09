@@ -144,5 +144,33 @@ function btt-preset
         )
 
         btt-preset trigger-action "$json"
+    case "trigger-menu-status"
+        argparse --min 1 --exclusive left-click,right-click,just-move left-click right-click just-move -- $argv
+        or return 1
+
+        if test -n "$_flag_left_click"
+            set click_type 0
+        else if test -n "$_flag_right_click"
+            set click_type 1
+        else if test -n "$_flag_just_move"
+            set click_type 2
+        else
+            return 1
+        end
+
+        set menu $argv[1]; set -e argv[1]
+
+        set json (jq -n --arg menu "$menu" --arg click_type "$click_type" -- '
+        {
+        "BTTPredefinedActionType" : 375,
+        "BTTActionStatusItem" : $menu,
+        "BTTActionStatusItemClickType" : $click_type,
+        "BTTEnabled2" : 1,
+        "BTTOrder" : 0
+        }
+        '
+        )
+
+        btt-preset trigger-action "$json"
     end
 end
