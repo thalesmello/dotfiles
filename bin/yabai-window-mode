@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set winid $argv[1]; set -e argv[1]
+
+read id stack_index is_floating < <(yabai -m query --windows --window | jq -r '[.id, ."stack-index", ."is-floating"] | @tsv')
+
+if test is_floating = true; then
+    echo "float"
+elif test "$stack_index" -gt 0 ; then
+    stack_count=$(yabai -m query --windows --window stack.last | jq -r '."stack-index"')
+    echo "stack $stack_index/$stack_count"
+else
+    echo "tile"
+fi

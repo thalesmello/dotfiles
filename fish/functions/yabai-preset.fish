@@ -372,18 +372,18 @@ function yabai-preset
             yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
         end
     else if test "$preset" = "is-window-floating"
-        set window $argv[1]
-        set -e argv[1]
+        set window $argv[1]; set -e argv[1]
 
-        set space (yabai -m query --windows --window "$window" | jq -r '.space')
+        yabai -m query --windows --window "$window" \
+        | jq -r '.space, ."is-floating"' \
+        | read --line space is_floating
 
         if yabai -m query --spaces --space "$space" | jq -e '.type == "float"' >/dev/null
             return 0
         end
 
-        yabai -m query --windows --window "$window" | jq -e '."is-floating"' >/dev/null
-
-        return $status
+        test "$is_floating" = true
+        or return 1
     else if test "$preset" = "is-space-float-layout"
         set space $argv[1]
         set -e argv[1]
@@ -451,5 +451,19 @@ function yabai-preset
 
         and yabai -m window "$winid" --move "abs:$x:$y"
         and yabai -m window "$winid" --resize "abs:$w:$h"
+    else if test "$preset" = "print-window-mode"
+        set winid $argv[1]; set -e argv[1]
+        yabai -m query --windows --window | jq -r '.id, ."stack-index", ."has-fullscreen-zoom"' | read --line id stack_index has_zoom
+
+        if yabai-preset is-window-floating
+            echo "float"
+        else if test "$stack_index" -gt 0
+            yabai -m query --windows --window stack.last | jq -r '."stack-index"' | read --line stack_count
+            echo "stack $stack_index/$stack_count"
+        else if test "$has_zoom" = true 
+            echo "zoom"
+        else
+            echo "tile"
+        end
     end
 end
