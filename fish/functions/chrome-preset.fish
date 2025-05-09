@@ -90,7 +90,7 @@ function chrome-preset
             chrome-cli close -t "$tab_id"
         end
         or return 1
-    else
+    case '*'
         return 1
     end
 end
