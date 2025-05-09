@@ -12,8 +12,8 @@ return {
          vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Telescope help tags' })
          -- builtin.
          vim.keymap.set('n', '<leader>fv', function () builtin.find_files({ cwd = vim.fn.stdpath("config") }) end, { desc = 'Telescope vim config files' })
+         vim.keymap.set('n', '<leader>fd', function () builtin.find_files({ cwd = "~/src/dotfiles" }) end, { desc = 'Telescope dotfiles' })
          vim.keymap.set('n', '<leader>fV', function () builtin.find_files({ search_dirs = vim.api.nvim_list_runtime_paths() }) end, { desc = 'Telescope plugin files' })
-         
       end
    }
 }

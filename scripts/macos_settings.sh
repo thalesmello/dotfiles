@@ -33,7 +33,7 @@ defaults write com.apple.dock "mineffect" -string "scale"
 defaults write com.apple.dock "mru-spaces" -bool "false"
 
 # group windows based on application
-defaults write com.apple.dock "expose-group-apps" -bool "true"
+defaults write com.apple.dock "expose-group-apps" -bool "false"
 
 # displays have separate spaces
 defaults write com.apple.spaces "spans-displays" -bool "true"
