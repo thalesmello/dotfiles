@@ -62,11 +62,13 @@ sketchybar --default "${default[@]}"
 # only the properties deviating from the current defaults need to be set
 
 # Yabai
-sketchybar -m --add item yabai left
-sketchybar -m --set yabai update_freq=3
-sketchybar -m --set yabai script="~/.config/sketchybar/plugins/yabai.sh"
-sketchybar -m --subscribe yabai space_change
-sketchybar -m --set yabai click_script="~/.config/sketchybar/plugins/yabai_click.sh"
+           # --set yabai update_freq=3 \
+sketchybar --add item yabai left \
+           --set yabai script="~/.config/sketchybar/plugins/yabai.sh" \
+           --subscribe yabai space_change \
+           --set yabai click_script="~/.config/sketchybar/plugins/yabai_click.sh" \
+           --add event yabai_update \
+           --subscribe yabai yabai_update
 
 sketchybar --add item chevron left \
            --set chevron icon= label.drawing=off \
@@ -85,9 +87,9 @@ sketchybar --add item chevron left \
 # volume is registered. More info about the event system can be found here:
 # https://felixkratz.github.io/SketchyBar/config/events
 sketchybar --add alias "Control Center,BentoBox" right
-sketchybar --set "Control Center,BentoBox" \
-  click_script="skhd -k 'fn - c'" \
-  alias.update_freq="0"
+           --set "Control Center,BentoBox" \
+               click_script="skhd -k 'fn - c'" \
+               alias.update_freq="0"
 
 
 
