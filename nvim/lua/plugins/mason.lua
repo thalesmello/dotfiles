@@ -2,10 +2,12 @@ return {
 
    {
       'williamboman/mason.nvim',
+      version = "^1.0.0",
       opts = {},
    },
    {
       'williamboman/mason-lspconfig.nvim',
+      version = "^1.0.0",
       dependencies = { 'williamboman/mason.nvim' },
       opts = function ()
          local capabilities = require('cmp_nvim_lsp').default_capabilities()
