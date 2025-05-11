@@ -2,6 +2,7 @@ local vim_utils = require('vim_utils')
 local ftmini = require('ftmini')
 
 return {
+    { 'echasnovski/mini.comment', version = false, opts = {} },
     {
         'echasnovski/mini.ai',
         version = false,
@@ -33,6 +34,17 @@ return {
                     -- [":"] = spec_treesitter({ a = "@pair.key", i = "" }),
                     -- [":"] = spec_treesitter({ a = "@pair.key", i = "" }),
                     ["C"] = spec_treesitter({ i = "@class.inner", a = "@class.outer" }),
+                    ["e"] = function()
+                        local _, sline, scol, _ = unpack(vim.fn.getpos("1"))
+                        local _, eline, ecol, _ = unpack(vim.fn.getpos("$"))
+                        local mode = vim.fn.visualmode()
+
+                        return {
+                            from = { line = sline, col = scol },
+                            to = { line = eline, col = ecol },
+                            vis_mode = "V",
+                        }
+                    end,
                     ["P"] = function()
                         local _, sline, scol, _ = unpack(vim.fn.getpos("'["))
                         local _, eline, ecol, _ = unpack(vim.fn.getpos("']"))

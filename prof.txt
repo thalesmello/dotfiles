@@ -1,0 +1,1069 @@
+Time	Sum	Command
+2991	27838	> builtin source /opt/homebrew/Cellar/fish/4.0.1/share/fish/config.fish
+110	110	-> set -g IFS \n\ \t
+11	11	-> set -qg __fish_added_user_paths
+6	6	-> set -g __fish_added_user_paths
+44	44	-> function __fish_default_command_not_found_handler...
+5	19	-> if not status --is-interactive...
+14	14	--> not status --is-interactive
+5	5	-> set -l __extra_completionsdir
+4	4	-> set -l __extra_functionsdir
+5	5	-> set -l __extra_confdir
+7	1365	-> if test -f $__fish_data_dir/__fish_build_paths.fish...
+133	133	--> test -f $__fish_data_dir/__fish_build_paths.fish
+1196	1225	--> source $__fish_data_dir/__fish_build_paths.fish
+17	17	---> set __extra_completionsdir /opt/homebrew/share/fish/vendor_completions.d
+6	6	---> set __extra_functionsdir /opt/homebrew/share/fish/vendor_functions.d
+6	6	---> set __extra_confdir /opt/homebrew/share/fish/vendor_conf.d
+6	6	-> set -l xdg_data_dirs
+7	20	-> if set -q XDG_DATA_DIRS...
+4	4	--> set -q XDG_DATA_DIRS
+9	9	--> set xdg_data_dirs $__fish_data_dir
+5	5	-> set -g __fish_vendor_completionsdirs
+5	5	-> set -g __fish_vendor_functionsdirs
+55	55	-> set -g __fish_vendor_confdirs
+361	685	-> if not set -q FISH_UNIT_TESTS_RUNNING...
+5	5	--> not set -q FISH_UNIT_TESTS_RUNNING
+184	184	--> set __fish_vendor_completionsdirs $__fish_user_data_dir/vendor_completions.d $xdg_data_dirs/vendor_completions.d
+15	15	--> set __fish_vendor_functionsdirs $__fish_user_data_dir/vendor_functions.d $xdg_data_dirs/vendor_functions.d
+11	11	--> set __fish_vendor_confdirs $__fish_user_data_dir/vendor_conf.d $xdg_data_dirs/vendor_conf.d
+6	60	--> if not contains -- $__extra_completionsdir $__fish_vendor_completionsdirs...
+45	45	---> not contains -- $__extra_completionsdir $__fish_vendor_completionsdirs
+9	9	---> set -a __fish_vendor_completionsdirs $__extra_completionsdir
+7	28	--> if not contains -- $__extra_functionsdir $__fish_vendor_functionsdirs...
+10	10	---> not contains -- $__extra_functionsdir $__fish_vendor_functionsdirs
+11	11	---> set -a __fish_vendor_functionsdirs $__extra_functionsdir
+4	21	--> if not contains -- $__extra_confdir $__fish_vendor_confdirs...
+9	9	---> not contains -- $__extra_confdir $__fish_vendor_confdirs
+8	8	---> set -a __fish_vendor_confdirs $__extra_confdir
+5	30	-> if not set -q fish_function_path...
+4	4	--> not set -q fish_function_path
+21	21	--> set fish_function_path $__fish_config_dir/functions $__fish_sysconf_dir/functions $__fish_vendor_functionsdirs $__fish_data_dir/functions
+20	136	-> if not set -q fish_complete_path...
+3	3	--> not set -q fish_complete_path
+113	113	--> set fish_complete_path $__fish_config_dir/completions $__fish_sysconf_dir/completions $__fish_vendor_completionsdirs $__fish_data_dir/completions $__fish_cache_dir/generated_completions
+16	16	-> function __fish_reconstruct_path -d "Update PATH when fish_user_paths changes" --on-variable fish_user_paths...
+13	13	-> function fish_sigtrap_handler --on-signal TRAP --no-scope-shadowing --description "TRAP handler: debug prompt"...
+5	5	-> function __fish_on_interactive --on-event fish_prompt --on-event fish_read...
+5	5	-> not set -q LANG
+2	8	-> if status --is-login...
+6	6	--> status --is-login
+46	2207	-> __fish_reconstruct_path
+4	4	--> set -l new_user_path
+271	610	--> for path in (string split : -- $fish_user_paths)...
+46	46	---> string split : -- $fish_user_paths
+4	154	---> if not contains -- $path $new_user_path...
+142	142	----> not contains -- $path $new_user_path
+8	8	----> set -a new_user_path $path
+5	19	---> if not contains -- $path $new_user_path...
+8	8	----> not contains -- $path $new_user_path
+6	6	----> set -a new_user_path $path
+5	19	---> if not contains -- $path $new_user_path...
+8	8	----> not contains -- $path $new_user_path
+6	6	----> set -a new_user_path $path
+6	20	---> if not contains -- $path $new_user_path...
+8	8	----> not contains -- $path $new_user_path
+6	6	----> set -a new_user_path $path
+3	18	---> if not contains -- $path $new_user_path...
+8	8	----> not contains -- $path $new_user_path
+7	7	----> set -a new_user_path $path
+5	21	---> if not contains -- $path $new_user_path...
+10	10	----> not contains -- $path $new_user_path
+6	6	----> set -a new_user_path $path
+3	21	---> if not contains -- $path $new_user_path...
+11	11	----> not contains -- $path $new_user_path
+7	7	----> set -a new_user_path $path
+3	21	---> if not contains -- $path $new_user_path...
+11	11	----> not contains -- $path $new_user_path
+7	7	----> set -a new_user_path $path
+2	167	--> if test (count $new_user_path) -lt (count $fish_user_paths)...
+104	165	---> test (count $new_user_path) -lt (count $fish_user_paths)
+47	47	----> count $new_user_path
+14	14	----> count $fish_user_paths
+31	31	--> set -l local_path $PATH
+4	4	--> for x in $__fish_added_user_paths...
+4	4	--> set -g __fish_added_user_paths
+5	1303	--> if set -q fish_user_paths...
+3	3	---> set -q fish_user_paths
+111	1295	---> for x in (string split ":" -- $fish_user_paths[-1..1])...
+27	27	----> string split ":" -- $fish_user_paths[-1..1]
+4	103	----> if set -l idx (contains --index -- $x $local_path)...
+53	83	-----> set -l idx (contains --index -- $x $local_path)
+30	30	------> contains --index -- $x $local_path
+16	16	-----> set -e local_path[$idx]
+11	11	----> set -p local_path $x
+6	300	----> if set -l idx (contains --index -- $x $local_path)...
+253	280	-----> set -l idx (contains --index -- $x $local_path)
+27	27	------> contains --index -- $x $local_path
+14	14	-----> set -e local_path[$idx]
+14	14	----> set -p local_path $x
+7	173	----> if set -l idx (contains --index -- $x $local_path)...
+93	152	-----> set -l idx (contains --index -- $x $local_path)
+59	59	------> contains --index -- $x $local_path
+14	14	-----> set -e local_path[$idx]
+11	11	----> set -p local_path $x
+6	113	----> if set -l idx (contains --index -- $x $local_path)...
+66	96	-----> set -l idx (contains --index -- $x $local_path)
+30	30	------> contains --index -- $x $local_path
+11	11	-----> set -e local_path[$idx]
+11	11	----> set -p local_path $x
+4	96	----> if set -l idx (contains --index -- $x $local_path)...
+53	81	-----> set -l idx (contains --index -- $x $local_path)
+28	28	------> contains --index -- $x $local_path
+11	11	-----> set -e local_path[$idx]
+10	10	----> set -p local_path $x
+5	95	----> if set -l idx (contains --index -- $x $local_path)...
+51	79	-----> set -l idx (contains --index -- $x $local_path)
+28	28	------> contains --index -- $x $local_path
+11	11	-----> set -e local_path[$idx]
+10	10	----> set -p local_path $x
+7	97	----> if set -l idx (contains --index -- $x $local_path)...
+52	79	-----> set -l idx (contains --index -- $x $local_path)
+27	27	------> contains --index -- $x $local_path
+11	11	-----> set -e local_path[$idx]
+11	11	----> set -p local_path $x
+5	92	----> if set -l idx (contains --index -- $x $local_path)...
+47	76	-----> set -l idx (contains --index -- $x $local_path)
+29	29	------> contains --index -- $x $local_path
+11	11	-----> set -e local_path[$idx]
+10	10	----> set -p local_path $x
+38	38	--> set -xg PATH $local_path
+3	3	-> function __fish_expand_pid_args...
+12	28	-> for jobbltn in bg wait disown...
+6	6	--> function $jobbltn -V jobbltn...
+4	4	--> function $jobbltn -V jobbltn...
+6	6	--> function $jobbltn -V jobbltn...
+1	1	-> function fg...
+5	140	-> if command -q kill...
+133	133	--> command -q kill
+2	2	--> function kill...
+6	6	-> set -l sourcelist
+888	19904	-> for file in $__fish_config_dir/conf.d/*.fish $__fish_sysconf_dir/conf.d/*.fish $__fish_vendor_confdirs/*.fish...
+75	157	--> set -l basename (string replace -r '^.*/' '' -- $file)
+82	82	---> string replace -r '^.*/' '' -- $file
+10	10	--> contains -- $basename $sourcelist
+7	7	--> set sourcelist $sourcelist $basename
+63	63	--> test -f $file -a -r $file
+913	2780	--> source $file
+93	1445	---> abbr be 'bundle exec'
+1352	1352	----> source /opt/homebrew/Cellar/fish/4.0.1/share/fish/functions/abbr.fish
+8	8	---> abbr dc devctl
+4	4	---> abbr dv devbox
+6	6	---> abbr ga 'git add'
+7	7	---> abbr gblame 'git log -p -M --follow --stat --'
+7	7	---> abbr gcal 'gcalcli --defaultCalendar thalesmello@gmail.com --calendar Profissional'
+5	5	---> abbr gco 'git checkout'
+5	5	---> abbr gd 'git diff'
+6	6	---> abbr gf 'git fetch'
+5	5	---> abbr gfo 'git fetch origin'
+5	5	---> abbr gm 'git commit -m'
+5	5	---> abbr gp 'git push'
+4	4	---> abbr gr 'git remote'
+4	4	---> abbr gs 'git status'
+5	5	---> abbr gu 'git reset HEAD'
+5	5	---> abbr how 'howdoi -n 5'
+4	4	---> abbr ovim /usr/local/bin/vim
+7	7	---> abbr ssx 'ssh -C -c blowfish -X'
+4	4	---> abbr vim svim
+4	4	---> abbr p pvim
+6	6	---> abbr wsite 'wget -r --no-parent'
+5	5	---> abbr k kubectl
+5	5	---> abbr ka kubectl -n airflow
+5	5	---> abbr kc kubectl config use-context
+5	5	---> abbr gssh gcloud compute ssh
+5	5	---> abbr gscp gcloud compute scp
+4	4	---> abbr e cvim E
+4	4	---> abbr ec cvim Econfig
+6	6	---> abbr vpython ./venv/bin/python
+4	4	---> abbr vpy ./venv/bin/python
+4	4	---> abbr vpip ./venv/bin/pip
+5	5	---> abbr v venv-run  --
+12	12	---> abbr bd betterdisplaycli
+242	242	---> abbr bdm betterdisplaycli perform --originalName "(osascript -e 'tell application \"System Events\" to display name of desktop 2')" --targetOriginalName "(osascript -e 'tell application \"System Events\" to display name of desktop 1')" --moveTo
+6	6	---> abbr o ooo --model phi4
+4	4	---> abbr sb sketchybar
+286	321	--> set -l basename (string replace -r '^.*/' '' -- $file)
+35	35	---> string replace -r '^.*/' '' -- $file
+10	10	--> contains -- $basename $sourcelist
+8	8	--> set sourcelist $sourcelist $basename
+124	124	--> test -f $file -a -r $file
+7538	10623	--> source $file
+176	3085	---> alias plist="plutil -convert xml1 -o /dev/stdout"
+2017	2032	----> source /opt/homebrew/Cellar/fish/4.0.1/share/fish/functions/alias.fish
+15	15	-----> function alias --description 'Creates a function wrapping a command'...
+13	13	----> set -l options h/help s/save
+31	31	----> argparse -n alias --max-args=2 $options -- $argv
+3	7	----> if set -q _flag_help...
+4	4	-----> set -q _flag_help
+4	4	----> set -l name
+4	4	----> set -l body
+4	4	----> set -l prefix
+12	256	----> if not set -q argv[1]...
+4	4	-----> not set -q argv[1]
+2	2	-----> not set -q argv[2]
+205	225	-----> set -l tmp (string split -m 1 "=" -- $argv) ""
+20	20	------> string split -m 1 "=" -- $argv
+8	8	-----> set name $tmp[1]
+5	5	-----> set body $tmp[2]
+3	18	----> if test -z "$name"...
+9	9	-----> test -z "$name"
+6	6	-----> test -z "$body"
+206	206	----> printf '%s\n' $body | read -l --list words
+12	12	----> set -l first_word $words[1]
+9	9	----> set -l last_word $words[-1]
+3	11	----> if test $first_word = $name...
+8	8	-----> test $first_word = $name
+58	72	----> set -l cmd_string (string escape -- "alias $argv")
+14	14	-----> string escape -- "alias $argv"
+4	4	----> set -l wraps
+7	84	----> if test $first_word != $name...
+7	7	-----> test $first_word != $name
+6	6	-----> test $last_word != $name
+56	64	-----> set wraps --wraps (string escape -- $body)
+8	8	------> string escape -- $body
+117	136	----> echo "function $name $wraps --description $cmd_string; $prefix $body \$argv
+        end" | source
+19	19	-----> function plist --wraps 'plutil -convert xml1 -o /dev/stdout' --description 'alias plist=plutil -convert xml1 -o /dev/stdout'...
+2	6	----> if set -q _flag_save...
+4	4	-----> set -q _flag_save
+57	97	--> set -l basename (string replace -r '^.*/' '' -- $file)
+40	40	---> string replace -r '^.*/' '' -- $file
+11	11	--> contains -- $basename $sourcelist
+9	9	--> set sourcelist $sourcelist $basename
+57	57	--> test -f $file -a -r $file
+607	783	--> source $file
+9	9	---> set -l foreground c8d3f5
+4	4	---> set -l selection 2d3f76
+5	5	---> set -l comment 636da6
+4	4	---> set -l red ff757f
+4	4	---> set -l orange ff966c
+4	4	---> set -l yellow ffc777
+5	5	---> set -l green c3e88d
+4	4	---> set -l purple fca7ea
+4	4	---> set -l cyan 86e1fc
+4	4	---> set -l pink c099ff
+7	7	---> set -g fish_color_normal $foreground
+5	5	---> set -g fish_color_command $cyan
+5	5	---> set -g fish_color_keyword $pink
+6	6	---> set -g fish_color_quote $yellow
+6	6	---> set -g fish_color_redirection $foreground
+6	6	---> set -g fish_color_end $orange
+16	16	---> set -g fish_color_option $pink
+5	5	---> set -g fish_color_error $red
+5	5	---> set -g fish_color_param $purple
+6	6	---> set -g fish_color_comment $comment
+7	7	---> set -g fish_color_selection --background=$selection
+6	6	---> set -g fish_color_search_match --background=$selection
+6	6	---> set -g fish_color_operator $green
+6	6	---> set -g fish_color_escape $pink
+6	6	---> set -g fish_color_autosuggestion $comment
+6	6	---> set -g fish_pager_color_progress $comment
+6	6	---> set -g fish_pager_color_prefix $cyan
+6	6	---> set -g fish_pager_color_completion $foreground
+6	6	---> set -g fish_pager_color_description $comment
+7	7	---> set -g fish_pager_color_selected_background --background=$selection
+107	133	--> set -l basename (string replace -r '^.*/' '' -- $file)
+26	26	---> string replace -r '^.*/' '' -- $file
+13	13	--> contains -- $basename $sourcelist
+10	10	--> set sourcelist $sourcelist $basename
+72	72	--> test -f $file -a -r $file
+303	303	--> source $file
+65	90	--> set -l basename (string replace -r '^.*/' '' -- $file)
+25	25	---> string replace -r '^.*/' '' -- $file
+11	11	--> contains -- $basename $sourcelist
+10	10	--> set sourcelist $sourcelist $basename
+58	58	--> test -f $file -a -r $file
+1311	3256	--> source $file
+13	13	---> status is-interactive
+4	4	---> function fzf_key_bindings...
+68	1928	---> fzf_key_bindings
+2	2	----> function __fzf_defaults...
+9	9	----> function fzf-file-widget -d "List files and folders"...
+4	4	----> function fzf-history-widget -d "Show command history"...
+3	3	----> function fzf-cd-widget -d "Change directory"...
+1	1	----> function __fzfcmd...
+75	75	----> bind \cr fzf-history-widget
+20	1186	----> if not set -q FZF_CTRL_T_COMMAND...
+5	5	-----> not set -q FZF_CTRL_T_COMMAND
+1147	1147	-----> test -n "$FZF_CTRL_T_COMMAND"
+14	14	-----> bind \ct fzf-file-widget
+6	17	----> if not set -q FZF_ALT_C_COMMAND...
+5	5	-----> not set -q FZF_ALT_C_COMMAND
+6	6	-----> bind \ec fzf-cd-widget
+14	499	----> if bind -M insert > /dev/null 2>&1...
+438	438	-----> bind -M insert > /dev/null 2>&1
+10	10	-----> bind -M insert \cr fzf-history-widget
+6	24	-----> if not set -q FZF_CTRL_T_COMMAND...
+4	4	------> not set -q FZF_CTRL_T_COMMAND
+7	7	------> test -n "$FZF_CTRL_T_COMMAND"
+7	7	------> bind -M insert \ct fzf-file-widget
+3	13	-----> if not set -q FZF_ALT_C_COMMAND...
+4	4	------> not set -q FZF_ALT_C_COMMAND
+6	6	------> bind -M insert \ec fzf-cd-widget
+10	10	----> function __fzf_parse_commandline -d 'Parse the current command line token and return split of existing filepath, fzf query, and optional -option= prefix'...
+54	54	----> function __fzf_get_dir -d 'Find the longest existing filepath from input string'...
+877	877	> builtin source /opt/homebrew/etc/fish/config.fish
+1389	407122	> builtin source /Users/thalesmello/.config/fish/config.fish
+53	4468	-> fundle plugin brgmnn/fish-docker-compose
+2620	2754	--> source /Users/thalesmello/.config/fish/functions/fundle.fish
+24	24	---> set __fundle_current_version '0.7.1'
+5	5	---> function __fundle_seq -a upto...
+2	2	---> function __fundle_next_arg -a index...
+3	3	---> function __fundle_compare_versions -a version1 -a version2...
+3	3	---> function __fundle_date -d "returns a date"...
+3	3	---> function __fundle_self_update -d "updates fundle"...
+4	4	---> function __fundle_url_rev -d "prints the revision from the url" -a git_url...
+5	5	---> function __fundle_remote_url -d "prints the remote url from the full git url" -a git_url...
+5	5	---> function __fundle_rev_parse -d "prints the revision if any" -a dir -a commitish...
+8	8	---> function __fundle_commit_sha -d "returns sha of the commit-ish" -a dir -a commitish...
+3	3	---> function __fundle_plugins_dir -d "returns fundle directory"...
+4	4	---> function __fundle_no_git -d "check if git is installed"...
+3	3	---> function __fundle_check_date -d "check date"...
+4	4	---> function __fundle_get_url -d "returns the url for the given plugin" -a repo...
+4	4	---> function __fundle_plugin_index -d "returns the index of the plugin" -a plugin...
+3	3	---> function __fundle_checkout_revision -a plugin -a git_url...
+5	5	---> function __fundle_update_plugin -d "update the given plugin" -a plugin -a git_url...
+4	4	---> function __fundle_install_plugin -d "install the given plugin" -a plugin -a git_url...
+4	4	---> function __fundle_update -d "update the given plugin, or all if unspecified" -a plugin...
+4	4	---> function __fundle_show_doc_msg -d "show a link to fundle docs"...
+6	6	---> function __fundle_load_plugin -a plugin -a path -a fundle_dir -a profile -d "load a plugin"...
+3	3	---> function __fundle_bind -d "set up bindings"...
+3	3	---> function __fundle_init -d "initialize fundle"...
+3	3	---> function __fundle_install -d "install plugin"...
+3	3	---> function __fundle_clean -d "cleans fundle directory"...
+4	4	---> function __fundle_plugin -d "add plugin to fundle" -a name...
+3	3	---> function __fundle_version -d "prints fundle version"...
+3	3	---> function __fundle_print_help -d "prints fundle help"...
+3	3	---> function __fundle_list -d "list registered plugins"...
+3	3	---> function fundle -d "run fundle"...
+2	982	--> if __fundle_no_git...
+20	980	---> __fundle_no_git
+5	953	----> if not command -s git > /dev/null 2>&1...
+948	948	-----> not command -s git > /dev/null 2>&1
+7	7	----> return 1
+39	39	--> set -l sub_args ""
+81	104	--> switch (count $argv)...
+13	13	---> count $argv
+10	10	---> set sub_args $argv[2..-1]
+10	536	--> switch $argv[1]...
+33	526	---> __fundle_plugin $sub_args
+6	6	----> set -l plugin_url ""
+6	6	----> set -l plugin_path "."
+52	59	----> set -l argv_count (count $argv)
+7	7	-----> count $argv
+4	4	----> set -l skip_next true
+4	79	----> if test $argv_count -eq 0 -o -z "$argv"...
+69	69	-----> test $argv_count -eq 0 -o -z "$argv"
+6	6	-----> test $argv_count -gt 1
+5	5	----> test -z "$plugin_url"
+59	238	----> set plugin_url (__fundle_get_url $name)
+20	179	-----> __fundle_get_url $name
+77	88	------> set split (string split @ $repo)
+11	11	-------> string split @ $repo
+7	7	------> set repo $split[1]
+6	6	------> set tag  $split[2]
+8	8	------> set url "https://github.com/$repo.git"
+6	6	------> test ! -z "$tag"
+44	44	------> echo "$url"
+46	54	----> set name (string split @ $name)[1]
+8	8	-----> string split @ $name
+9	42	----> if not contains $name $__fundle_plugin_names...
+8	8	-----> not contains $name $__fundle_plugin_names
+8	8	-----> set -g __fundle_plugin_names $__fundle_plugin_names $name
+8	8	-----> set -g __fundle_plugin_urls $__fundle_plugin_urls $plugin_url
+9	9	-----> set -g __fundle_plugin_name_paths $__fundle_plugin_name_paths $name:$plugin_path
+17	3737	-> fundle plugin fischerling/plugin-wd
+2	3134	--> if __fundle_no_git...
+22	3132	---> __fundle_no_git
+7	3102	----> if not command -s git > /dev/null 2>&1...
+3095	3095	-----> not command -s git > /dev/null 2>&1
+8	8	----> return 1
+14	14	--> set -l sub_args ""
+82	106	--> switch (count $argv)...
+13	13	---> count $argv
+11	11	---> set sub_args $argv[2..-1]
+12	466	--> switch $argv[1]...
+34	454	---> __fundle_plugin $sub_args
+7	7	----> set -l plugin_url ""
+6	6	----> set -l plugin_path "."
+50	60	----> set -l argv_count (count $argv)
+10	10	-----> count $argv
+5	5	----> set -l skip_next true
+4	24	----> if test $argv_count -eq 0 -o -z "$argv"...
+15	15	-----> test $argv_count -eq 0 -o -z "$argv"
+5	5	-----> test $argv_count -gt 1
+4	4	----> test -z "$plugin_url"
+76	216	----> set plugin_url (__fundle_get_url $name)
+48	140	-----> __fundle_get_url $name
+48	57	------> set split (string split @ $repo)
+9	9	-------> string split @ $repo
+7	7	------> set repo $split[1]
+6	6	------> set tag  $split[2]
+7	7	------> set url "https://github.com/$repo.git"
+6	6	------> test ! -z "$tag"
+9	9	------> echo "$url"
+44	51	----> set name (string split @ $name)[1]
+7	7	-----> string split @ $name
+9	47	----> if not contains $name $__fundle_plugin_names...
+9	9	-----> not contains $name $__fundle_plugin_names
+9	9	-----> set -g __fundle_plugin_names $__fundle_plugin_names $name
+10	10	-----> set -g __fundle_plugin_urls $__fundle_plugin_urls $plugin_url
+10	10	-----> set -g __fundle_plugin_name_paths $__fundle_plugin_name_paths $name:$plugin_path
+17	1125	-> fundle plugin thalesmello/theme-cmorrell.com
+1	303	--> if __fundle_no_git...
+17	302	---> __fundle_no_git
+4	280	----> if not command -s git > /dev/null 2>&1...
+276	276	-----> not command -s git > /dev/null 2>&1
+5	5	----> return 1
+8	8	--> set -l sub_args ""
+141	333	--> switch (count $argv)...
+182	182	---> count $argv
+10	10	---> set sub_args $argv[2..-1]
+11	464	--> switch $argv[1]...
+32	453	---> __fundle_plugin $sub_args
+6	6	----> set -l plugin_url ""
+6	6	----> set -l plugin_path "."
+91	99	----> set -l argv_count (count $argv)
+8	8	-----> count $argv
+5	5	----> set -l skip_next true
+2	22	----> if test $argv_count -eq 0 -o -z "$argv"...
+14	14	-----> test $argv_count -eq 0 -o -z "$argv"
+6	6	-----> test $argv_count -gt 1
+5	5	----> test -z "$plugin_url"
+49	174	----> set plugin_url (__fundle_get_url $name)
+19	125	-----> __fundle_get_url $name
+62	70	------> set split (string split @ $repo)
+8	8	-------> string split @ $repo
+7	7	------> set repo $split[1]
+6	6	------> set tag  $split[2]
+8	8	------> set url "https://github.com/$repo.git"
+6	6	------> test ! -z "$tag"
+9	9	------> echo "$url"
+46	54	----> set name (string split @ $name)[1]
+8	8	-----> string split @ $name
+7	50	----> if not contains $name $__fundle_plugin_names...
+10	10	-----> not contains $name $__fundle_plugin_names
+10	10	-----> set -g __fundle_plugin_names $__fundle_plugin_names $name
+11	11	-----> set -g __fundle_plugin_urls $__fundle_plugin_urls $plugin_url
+12	12	-----> set -g __fundle_plugin_name_paths $__fundle_plugin_name_paths $name:$plugin_path
+15	958	-> fundle plugin thalesmello/plugin-hubflow
+2	353	--> if __fundle_no_git...
+16	351	---> __fundle_no_git
+3	331	----> if not command -s git > /dev/null 2>&1...
+328	328	-----> not command -s git > /dev/null 2>&1
+4	4	----> return 1
+8	8	--> set -l sub_args ""
+53	71	--> switch (count $argv)...
+8	8	---> count $argv
+10	10	---> set sub_args $argv[2..-1]
+9	511	--> switch $argv[1]...
+28	502	---> __fundle_plugin $sub_args
+5	5	----> set -l plugin_url ""
+5	5	----> set -l plugin_path "."
+49	56	----> set -l argv_count (count $argv)
+7	7	-----> count $argv
+5	5	----> set -l skip_next true
+4	20	----> if test $argv_count -eq 0 -o -z "$argv"...
+12	12	-----> test $argv_count -eq 0 -o -z "$argv"
+4	4	-----> test $argv_count -gt 1
+4	4	----> test -z "$plugin_url"
+147	259	----> set plugin_url (__fundle_get_url $name)
+17	112	-----> __fundle_get_url $name
+51	58	------> set split (string split @ $repo)
+7	7	-------> string split @ $repo
+8	8	------> set repo $split[1]
+6	6	------> set tag  $split[2]
+8	8	------> set url "https://github.com/$repo.git"
+6	6	------> test ! -z "$tag"
+9	9	------> echo "$url"
+58	66	----> set name (string split @ $name)[1]
+8	8	-----> string split @ $name
+11	54	----> if not contains $name $__fundle_plugin_names...
+10	10	-----> not contains $name $__fundle_plugin_names
+10	10	-----> set -g __fundle_plugin_names $__fundle_plugin_names $name
+11	11	-----> set -g __fundle_plugin_urls $__fundle_plugin_urls $plugin_url
+12	12	-----> set -g __fundle_plugin_name_paths $__fundle_plugin_name_paths $name:$plugin_path
+16	850	-> fundle plugin ankitsumitg/docker-fish-completions
+1	280	--> if __fundle_no_git...
+17	279	---> __fundle_no_git
+2	258	----> if not command -s git > /dev/null 2>&1...
+256	256	-----> not command -s git > /dev/null 2>&1
+4	4	----> return 1
+6	6	--> set -l sub_args ""
+48	65	--> switch (count $argv)...
+8	8	---> count $argv
+9	9	---> set sub_args $argv[2..-1]
+9	483	--> switch $argv[1]...
+29	474	---> __fundle_plugin $sub_args
+5	5	----> set -l plugin_url ""
+6	6	----> set -l plugin_path "."
+52	59	----> set -l argv_count (count $argv)
+7	7	-----> count $argv
+5	5	----> set -l skip_next true
+3	21	----> if test $argv_count -eq 0 -o -z "$argv"...
+13	13	-----> test $argv_count -eq 0 -o -z "$argv"
+5	5	-----> test $argv_count -gt 1
+5	5	----> test -z "$plugin_url"
+80	237	----> set plugin_url (__fundle_get_url $name)
+42	157	-----> __fundle_get_url $name
+50	59	------> set split (string split @ $repo)
+9	9	-------> string split @ $repo
+6	6	------> set repo $split[1]
+6	6	------> set tag  $split[2]
+7	7	------> set url "https://github.com/$repo.git"
+28	28	------> test ! -z "$tag"
+9	9	------> echo "$url"
+46	53	----> set name (string split @ $name)[1]
+7	7	-----> string split @ $name
+10	54	----> if not contains $name $__fundle_plugin_names...
+10	10	-----> not contains $name $__fundle_plugin_names
+10	10	-----> set -g __fundle_plugin_names $__fundle_plugin_names $name
+12	12	-----> set -g __fundle_plugin_urls $__fundle_plugin_urls $plugin_url
+12	12	-----> set -g __fundle_plugin_name_paths $__fundle_plugin_name_paths $name:$plugin_path
+14	1022	-> fundle plugin lgathy/google-cloud-sdk-fish-completion
+1	285	--> if __fundle_no_git...
+15	284	---> __fundle_no_git
+2	265	----> if not command -s git > /dev/null 2>&1...
+263	263	-----> not command -s git > /dev/null 2>&1
+4	4	----> return 1
+7	7	--> set -l sub_args ""
+121	192	--> switch (count $argv)...
+21	21	---> count $argv
+50	50	---> set sub_args $argv[2..-1]
+11	524	--> switch $argv[1]...
+33	513	---> __fundle_plugin $sub_args
+5	5	----> set -l plugin_url ""
+6	6	----> set -l plugin_path "."
+133	141	----> set -l argv_count (count $argv)
+8	8	-----> count $argv
+5	5	----> set -l skip_next true
+3	22	----> if test $argv_count -eq 0 -o -z "$argv"...
+14	14	-----> test $argv_count -eq 0 -o -z "$argv"
+5	5	-----> test $argv_count -gt 1
+4	4	----> test -z "$plugin_url"
+51	163	----> set plugin_url (__fundle_get_url $name)
+19	112	-----> __fundle_get_url $name
+51	60	------> set split (string split @ $repo)
+9	9	-------> string split @ $repo
+7	7	------> set repo $split[1]
+5	5	------> set tag  $split[2]
+7	7	------> set url "https://github.com/$repo.git"
+5	5	------> test ! -z "$tag"
+9	9	------> echo "$url"
+46	54	----> set name (string split @ $name)[1]
+8	8	-----> string split @ $name
+10	80	----> if not contains $name $__fundle_plugin_names...
+16	16	-----> not contains $name $__fundle_plugin_names
+13	13	-----> set -g __fundle_plugin_names $__fundle_plugin_names $name
+13	13	-----> set -g __fundle_plugin_urls $__fundle_plugin_urls $plugin_url
+28	28	-----> set -g __fundle_plugin_name_paths $__fundle_plugin_name_paths $name:$plugin_path
+255	1805	-> fundle plugin franciscolourenco/done
+1	331	--> if __fundle_no_git...
+15	330	---> __fundle_no_git
+4	311	----> if not command -s git > /dev/null 2>&1...
+307	307	-----> not command -s git > /dev/null 2>&1
+4	4	----> return 1
+7	7	--> set -l sub_args ""
+52	68	--> switch (count $argv)...
+8	8	---> count $argv
+8	8	---> set sub_args $argv[2..-1]
+10	1144	--> switch $argv[1]...
+67	1134	---> __fundle_plugin $sub_args
+5	5	----> set -l plugin_url ""
+6	6	----> set -l plugin_path "."
+49	56	----> set -l argv_count (count $argv)
+7	7	-----> count $argv
+4	4	----> set -l skip_next true
+2	19	----> if test $argv_count -eq 0 -o -z "$argv"...
+12	12	-----> test $argv_count -eq 0 -o -z "$argv"
+5	5	-----> test $argv_count -gt 1
+4	4	----> test -z "$plugin_url"
+46	172	----> set plugin_url (__fundle_get_url $name)
+19	126	-----> __fundle_get_url $name
+48	57	------> set split (string split @ $repo)
+9	9	-------> string split @ $repo
+7	7	------> set repo $split[1]
+6	6	------> set tag  $split[2]
+8	8	------> set url "https://github.com/$repo.git"
+5	5	------> test ! -z "$tag"
+24	24	------> echo "$url"
+77	100	----> set name (string split @ $name)[1]
+23	23	-----> string split @ $name
+11	701	----> if not contains $name $__fundle_plugin_names...
+14	14	-----> not contains $name $__fundle_plugin_names
+13	13	-----> set -g __fundle_plugin_names $__fundle_plugin_names $name
+522	522	-----> set -g __fundle_plugin_urls $__fundle_plugin_urls $plugin_url
+141	141	-----> set -g __fundle_plugin_name_paths $__fundle_plugin_name_paths $name:$plugin_path
+19	1420	-> fundle plugin PatrickF1/colored_man_pages.fish
+3	780	--> if __fundle_no_git...
+20	777	---> __fundle_no_git
+5	750	----> if not command -s git > /dev/null 2>&1...
+745	745	-----> not command -s git > /dev/null 2>&1
+7	7	----> return 1
+12	12	--> set -l sub_args ""
+77	101	--> switch (count $argv)...
+14	14	---> count $argv
+10	10	---> set sub_args $argv[2..-1]
+11	508	--> switch $argv[1]...
+33	497	---> __fundle_plugin $sub_args
+6	6	----> set -l plugin_url ""
+6	6	----> set -l plugin_path "."
+115	122	----> set -l argv_count (count $argv)
+7	7	-----> count $argv
+6	6	----> set -l skip_next true
+3	26	----> if test $argv_count -eq 0 -o -z "$argv"...
+17	17	-----> test $argv_count -eq 0 -o -z "$argv"
+6	6	-----> test $argv_count -gt 1
+5	5	----> test -z "$plugin_url"
+50	167	----> set plugin_url (__fundle_get_url $name)
+24	117	-----> __fundle_get_url $name
+50	61	------> set split (string split @ $repo)
+11	11	-------> string split @ $repo
+7	7	------> set repo $split[1]
+5	5	------> set tag  $split[2]
+7	7	------> set url "https://github.com/$repo.git"
+5	5	------> test ! -z "$tag"
+8	8	------> echo "$url"
+46	53	----> set name (string split @ $name)[1]
+7	7	-----> string split @ $name
+10	73	----> if not contains $name $__fundle_plugin_names...
+14	14	-----> not contains $name $__fundle_plugin_names
+14	14	-----> set -g __fundle_plugin_names $__fundle_plugin_names $name
+18	18	-----> set -g __fundle_plugin_urls $__fundle_plugin_urls $plugin_url
+17	17	-----> set -g __fundle_plugin_name_paths $__fundle_plugin_name_paths $name:$plugin_path
+22	390187	-> fundle init
+2	265	--> if __fundle_no_git...
+14	263	---> __fundle_no_git
+2	245	----> if not command -s git > /dev/null 2>&1...
+243	243	-----> not command -s git > /dev/null 2>&1
+4	4	----> return 1
+7	7	--> set -l sub_args ""
+60	77	--> switch (count $argv)...
+17	17	---> count $argv
+9	389816	--> switch $argv[1]...
+38	389807	---> __fundle_init $sub_args
+96	139	----> set -l fundle_dir (__fundle_plugins_dir)
+8	43	-----> __fundle_plugins_dir
+8	35	------> if test -z "$fundle_plugins_dir"...
+9	9	-------> test -z "$fundle_plugins_dir"
+4	18	-------> if test -n "$XDG_CONFIG_HOME"...
+5	5	--------> test -n "$XDG_CONFIG_HOME"
+9	9	--------> echo $HOME/.config/fish/fundle
+2	70	----> if test (count $__fundle_plugin_names) -eq 0...
+53	68	-----> test (count $__fundle_plugin_names) -eq 0
+15	15	------> count $__fundle_plugin_names
+5	5	----> set -l profile 0
+1	19	----> if begin; contains -- -p $argv; or contains -- --profile $argv; and __fundle_check_date; end...
+7	18	-----> ...
+6	6	------> contains -- -p $argv
+5	5	------> contains -- --profile $argv
+5	5	----> set -l has_uninstalled_plugins 0
+150	387904	----> for name_path in $__fundle_plugin_name_paths...
+49	59	-----> set -l name_path (string split : -- $name_path)
+10	10	------> string split : -- $name_path
+7	33427	-----> if test "$profile" -eq 1...
+7	7	------> test "$profile" -eq 1
+82	33413	------> __fundle_load_plugin $name_path[1] $name_path[2] $fundle_dir $profile
+1	12	-------> if begin; set -q __fundle_loaded_plugins; and contains $plugin $__fundle_loaded_plugins; end...
+7	11	--------> ...
+4	4	---------> set -q __fundle_loaded_plugins
+53	113	-------> set -l plugin_dir (string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path")
+60	60	--------> string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path"
+3	35	-------> if not test -d $plugin_dir...
+32	32	--------> not test -d $plugin_dir
+52	82	-------> set -l plugin_name (string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin)
+30	30	--------> string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin
+10	10	-------> set -l init_file "$plugin_dir/init.fish"
+7	7	-------> set -l conf_dir "$plugin_dir/conf.d"
+8	8	-------> set -l bindings_file  "$plugin_dir/key_bindings.fish"
+8	8	-------> set -l functions_dir "$plugin_dir/functions"
+7	7	-------> set -l completions_dir  "$plugin_dir/completions"
+20	20	-------> set -l plugin_paths $__fundle_plugin_name_paths
+2	25	-------> if begin; test -d $functions_dir; and not contains $functions_dir $fish_function_path; end...
+5	23	--------> ...
+18	18	---------> test -d $functions_dir
+6	66	-------> if begin; test -d $completions_dir; and not contains $completions_dir $fish_complete_path; end...
+5	39	--------> ...
+18	18	---------> test -d $completions_dir
+16	16	---------> not contains $completions_dir $fish_complete_path
+21	21	--------> set fish_complete_path $fish_complete_path[1] $completions_dir $fish_complete_path[2..-1]
+9	106	-------> if test -f $init_file...
+14	14	--------> test -f $init_file
+15	15	--------> test -d $conf_dir
+5	68	--------> if not contains $plugin_dir $fish_function_path...
+14	14	---------> not contains $plugin_dir $fish_function_path
+49	49	---------> set fish_function_path $fish_function_path[1] $plugin_dir $fish_function_path[2..-1]
+1	16	-------> if test -f $bindings_file...
+15	15	--------> test -f $bindings_file
+9	9	-------> set -g __fundle_loaded_plugins $plugin $__fundle_loaded_plugins
+127	32711	-------> set -l dependencies (printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u)
+32584	32584	--------> printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u
+17	17	-------> for dependency in $dependencies...
+79	79	-------> emit "init_$plugin_name" $plugin_dir
+106	199	-----> set -l name_path (string split : -- $name_path)
+93	93	------> string split : -- $name_path
+8	37593	-----> if test "$profile" -eq 1...
+13	13	------> test "$profile" -eq 1
+82	37572	------> __fundle_load_plugin $name_path[1] $name_path[2] $fundle_dir $profile
+2	63	-------> if begin; set -q __fundle_loaded_plugins; and contains $plugin $__fundle_loaded_plugins; end...
+11	61	--------> ...
+4	4	---------> set -q __fundle_loaded_plugins
+46	46	---------> contains $plugin $__fundle_loaded_plugins
+59	100	-------> set -l plugin_dir (string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path")
+41	41	--------> string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path"
+2	23	-------> if not test -d $plugin_dir...
+21	21	--------> not test -d $plugin_dir
+57	84	-------> set -l plugin_name (string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin)
+27	27	--------> string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin
+9	9	-------> set -l init_file "$plugin_dir/init.fish"
+7	7	-------> set -l conf_dir "$plugin_dir/conf.d"
+8	8	-------> set -l bindings_file  "$plugin_dir/key_bindings.fish"
+7	7	-------> set -l functions_dir "$plugin_dir/functions"
+7	7	-------> set -l completions_dir  "$plugin_dir/completions"
+14	14	-------> set -l plugin_paths $__fundle_plugin_name_paths
+6	68	-------> if begin; test -d $functions_dir; and not contains $functions_dir $fish_function_path; end...
+7	40	--------> ...
+18	18	---------> test -d $functions_dir
+15	15	---------> not contains $functions_dir $fish_function_path
+22	22	--------> set fish_function_path $fish_function_path[1] $functions_dir $fish_function_path[2..-1]
+7	172	-------> if begin; test -d $completions_dir; and not contains $completions_dir $fish_complete_path; end...
+9	140	--------> ...
+55	55	---------> test -d $completions_dir
+76	76	---------> not contains $completions_dir $fish_complete_path
+25	25	--------> set fish_complete_path $fish_complete_path[1] $completions_dir $fish_complete_path[2..-1]
+11	84	-------> if test -f $init_file...
+15	15	--------> test -f $init_file
+13	13	--------> test -d $conf_dir
+6	45	--------> if not contains $plugin_dir $fish_function_path...
+18	18	---------> not contains $plugin_dir $fish_function_path
+21	21	---------> set fish_function_path $fish_function_path[1] $plugin_dir $fish_function_path[2..-1]
+3	17	-------> if test -f $bindings_file...
+14	14	--------> test -f $bindings_file
+11	11	-------> set -g __fundle_loaded_plugins $plugin $__fundle_loaded_plugins
+117	36727	-------> set -l dependencies (printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u)
+36610	36610	--------> printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u
+12	12	-------> for dependency in $dependencies...
+77	77	-------> emit "init_$plugin_name" $plugin_dir
+86	100	-----> set -l name_path (string split : -- $name_path)
+14	14	------> string split : -- $name_path
+8	47048	-----> if test "$profile" -eq 1...
+12	12	------> test "$profile" -eq 1
+84	47028	------> __fundle_load_plugin $name_path[1] $name_path[2] $fundle_dir $profile
+1	74	-------> if begin; set -q __fundle_loaded_plugins; and contains $plugin $__fundle_loaded_plugins; end...
+11	73	--------> ...
+4	4	---------> set -q __fundle_loaded_plugins
+58	58	---------> contains $plugin $__fundle_loaded_plugins
+447	495	-------> set -l plugin_dir (string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path")
+48	48	--------> string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path"
+3	31	-------> if not test -d $plugin_dir...
+28	28	--------> not test -d $plugin_dir
+53	82	-------> set -l plugin_name (string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin)
+29	29	--------> string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin
+10	10	-------> set -l init_file "$plugin_dir/init.fish"
+8	8	-------> set -l conf_dir "$plugin_dir/conf.d"
+773	773	-------> set -l bindings_file  "$plugin_dir/key_bindings.fish"
+152	152	-------> set -l functions_dir "$plugin_dir/functions"
+9	9	-------> set -l completions_dir  "$plugin_dir/completions"
+15	15	-------> set -l plugin_paths $__fundle_plugin_name_paths
+2	62	-------> if begin; test -d $functions_dir; and not contains $functions_dir $fish_function_path; end...
+7	60	--------> ...
+53	53	---------> test -d $functions_dir
+1	21	-------> if begin; test -d $completions_dir; and not contains $completions_dir $fish_complete_path; end...
+4	20	--------> ...
+16	16	---------> test -d $completions_dir
+11	93	-------> if test -f $init_file...
+17	17	--------> test -f $init_file
+13	13	--------> test -d $conf_dir
+6	52	--------> if not contains $plugin_dir $fish_function_path...
+21	21	---------> not contains $plugin_dir $fish_function_path
+25	25	---------> set fish_function_path $fish_function_path[1] $plugin_dir $fish_function_path[2..-1]
+2	17	-------> if test -f $bindings_file...
+15	15	--------> test -f $bindings_file
+12	12	-------> set -g __fundle_loaded_plugins $plugin $__fundle_loaded_plugins
+1017	44955	-------> set -l dependencies (printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u)
+43938	43938	--------> printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u
+20	20	-------> for dependency in $dependencies...
+115	115	-------> emit "init_$plugin_name" $plugin_dir
+64	75	-----> set -l name_path (string split : -- $name_path)
+11	11	------> string split : -- $name_path
+9	41765	-----> if test "$profile" -eq 1...
+8	8	------> test "$profile" -eq 1
+84	41748	------> __fundle_load_plugin $name_path[1] $name_path[2] $fundle_dir $profile
+1	97	-------> if begin; set -q __fundle_loaded_plugins; and contains $plugin $__fundle_loaded_plugins; end...
+11	96	--------> ...
+4	4	---------> set -q __fundle_loaded_plugins
+81	81	---------> contains $plugin $__fundle_loaded_plugins
+559	681	-------> set -l plugin_dir (string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path")
+122	122	--------> string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path"
+2	32	-------> if not test -d $plugin_dir...
+30	30	--------> not test -d $plugin_dir
+73	112	-------> set -l plugin_name (string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin)
+39	39	--------> string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin
+12	12	-------> set -l init_file "$plugin_dir/init.fish"
+8	8	-------> set -l conf_dir "$plugin_dir/conf.d"
+9	9	-------> set -l bindings_file  "$plugin_dir/key_bindings.fish"
+8	8	-------> set -l functions_dir "$plugin_dir/functions"
+8	8	-------> set -l completions_dir  "$plugin_dir/completions"
+14	14	-------> set -l plugin_paths $__fundle_plugin_name_paths
+2	38	-------> if begin; test -d $functions_dir; and not contains $functions_dir $fish_function_path; end...
+6	36	--------> ...
+30	30	---------> test -d $functions_dir
+5	75	-------> if begin; test -d $completions_dir; and not contains $completions_dir $fish_complete_path; end...
+7	46	--------> ...
+17	17	---------> test -d $completions_dir
+22	22	---------> not contains $completions_dir $fish_complete_path
+24	24	--------> set fish_complete_path $fish_complete_path[1] $completions_dir $fish_complete_path[2..-1]
+11	88	-------> if test -f $init_file...
+14	14	--------> test -f $init_file
+13	13	--------> test -d $conf_dir
+6	50	--------> if not contains $plugin_dir $fish_function_path...
+18	18	---------> not contains $plugin_dir $fish_function_path
+26	26	---------> set fish_function_path $fish_function_path[1] $plugin_dir $fish_function_path[2..-1]
+3	18	-------> if test -f $bindings_file...
+15	15	--------> test -f $bindings_file
+12	12	-------> set -g __fundle_loaded_plugins $plugin $__fundle_loaded_plugins
+134	40327	-------> set -l dependencies (printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u)
+40193	40193	--------> printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u
+17	17	-------> for dependency in $dependencies...
+108	108	-------> emit "init_$plugin_name" $plugin_dir
+81	97	-----> set -l name_path (string split : -- $name_path)
+16	16	------> string split : -- $name_path
+7	55244	-----> if test "$profile" -eq 1...
+13	13	------> test "$profile" -eq 1
+81	55224	------> __fundle_load_plugin $name_path[1] $name_path[2] $fundle_dir $profile
+2	88	-------> if begin; set -q __fundle_loaded_plugins; and contains $plugin $__fundle_loaded_plugins; end...
+12	86	--------> ...
+4	4	---------> set -q __fundle_loaded_plugins
+70	70	---------> contains $plugin $__fundle_loaded_plugins
+55	98	-------> set -l plugin_dir (string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path")
+43	43	--------> string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path"
+3	24	-------> if not test -d $plugin_dir...
+21	21	--------> not test -d $plugin_dir
+55	85	-------> set -l plugin_name (string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin)
+30	30	--------> string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin
+9	9	-------> set -l init_file "$plugin_dir/init.fish"
+8	8	-------> set -l conf_dir "$plugin_dir/conf.d"
+8	8	-------> set -l bindings_file  "$plugin_dir/key_bindings.fish"
+7	7	-------> set -l functions_dir "$plugin_dir/functions"
+8	8	-------> set -l completions_dir  "$plugin_dir/completions"
+13	13	-------> set -l plugin_paths $__fundle_plugin_name_paths
+2	23	-------> if begin; test -d $functions_dir; and not contains $functions_dir $fish_function_path; end...
+4	21	--------> ...
+17	17	---------> test -d $functions_dir
+5	79	-------> if begin; test -d $completions_dir; and not contains $completions_dir $fish_complete_path; end...
+6	47	--------> ...
+19	19	---------> test -d $completions_dir
+22	22	---------> not contains $completions_dir $fish_complete_path
+27	27	--------> set fish_complete_path $fish_complete_path[1] $completions_dir $fish_complete_path[2..-1]
+11	129	-------> if test -f $init_file...
+14	14	--------> test -f $init_file
+13	13	--------> test -d $conf_dir
+13	91	--------> if not contains $plugin_dir $fish_function_path...
+42	42	---------> not contains $plugin_dir $fish_function_path
+36	36	---------> set fish_function_path $fish_function_path[1] $plugin_dir $fish_function_path[2..-1]
+3	28	-------> if test -f $bindings_file...
+25	25	--------> test -f $bindings_file
+14	14	-------> set -g __fundle_loaded_plugins $plugin $__fundle_loaded_plugins
+118	54350	-------> set -l dependencies (printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u)
+54232	54232	--------> printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u
+14	14	-------> for dependency in $dependencies...
+158	158	-------> emit "init_$plugin_name" $plugin_dir
+78	91	-----> set -l name_path (string split : -- $name_path)
+13	13	------> string split : -- $name_path
+7	69980	-----> if test "$profile" -eq 1...
+11	11	------> test "$profile" -eq 1
+81	69962	------> __fundle_load_plugin $name_path[1] $name_path[2] $fundle_dir $profile
+7	5134	-------> if begin; set -q __fundle_loaded_plugins; and contains $plugin $__fundle_loaded_plugins; end...
+14	5127	--------> ...
+4	4	---------> set -q __fundle_loaded_plugins
+5109	5109	---------> contains $plugin $__fundle_loaded_plugins
+98	141	-------> set -l plugin_dir (string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path")
+43	43	--------> string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path"
+3	47	-------> if not test -d $plugin_dir...
+44	44	--------> not test -d $plugin_dir
+55	82	-------> set -l plugin_name (string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin)
+27	27	--------> string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin
+10	10	-------> set -l init_file "$plugin_dir/init.fish"
+8	8	-------> set -l conf_dir "$plugin_dir/conf.d"
+9	9	-------> set -l bindings_file  "$plugin_dir/key_bindings.fish"
+7	7	-------> set -l functions_dir "$plugin_dir/functions"
+7	7	-------> set -l completions_dir  "$plugin_dir/completions"
+14	14	-------> set -l plugin_paths $__fundle_plugin_name_paths
+7	90	-------> if begin; test -d $functions_dir; and not contains $functions_dir $fish_function_path; end...
+9	52	--------> ...
+19	19	---------> test -d $functions_dir
+24	24	---------> not contains $functions_dir $fish_function_path
+31	31	--------> set fish_function_path $fish_function_path[1] $functions_dir $fish_function_path[2..-1]
+6	157	-------> if begin; test -d $completions_dir; and not contains $completions_dir $fish_complete_path; end...
+7	122	--------> ...
+17	17	---------> test -d $completions_dir
+98	98	---------> not contains $completions_dir $fish_complete_path
+29	29	--------> set fish_complete_path $fish_complete_path[1] $completions_dir $fish_complete_path[2..-1]
+11	97	-------> if test -f $init_file...
+15	15	--------> test -f $init_file
+13	13	--------> test -d $conf_dir
+7	58	--------> if not contains $plugin_dir $fish_function_path...
+23	23	---------> not contains $plugin_dir $fish_function_path
+28	28	---------> set fish_function_path $fish_function_path[1] $plugin_dir $fish_function_path[2..-1]
+2	17	-------> if test -f $bindings_file...
+15	15	--------> test -f $bindings_file
+15	15	-------> set -g __fundle_loaded_plugins $plugin $__fundle_loaded_plugins
+184	63922	-------> set -l dependencies (printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u)
+63738	63738	--------> printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u
+13	13	-------> for dependency in $dependencies...
+111	111	-------> emit "init_$plugin_name" $plugin_dir
+74	86	-----> set -l name_path (string split : -- $name_path)
+12	12	------> string split : -- $name_path
+6	89291	-----> if test "$profile" -eq 1...
+10	10	------> test "$profile" -eq 1
+68	89275	------> __fundle_load_plugin $name_path[1] $name_path[2] $fundle_dir $profile
+2	105	-------> if begin; set -q __fundle_loaded_plugins; and contains $plugin $__fundle_loaded_plugins; end...
+10	103	--------> ...
+4	4	---------> set -q __fundle_loaded_plugins
+89	89	---------> contains $plugin $__fundle_loaded_plugins
+58	89	-------> set -l plugin_dir (string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path")
+31	31	--------> string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path"
+2	21	-------> if not test -d $plugin_dir...
+19	19	--------> not test -d $plugin_dir
+61	85	-------> set -l plugin_name (string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin)
+24	24	--------> string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin
+12	12	-------> set -l init_file "$plugin_dir/init.fish"
+8	8	-------> set -l conf_dir "$plugin_dir/conf.d"
+8	8	-------> set -l bindings_file  "$plugin_dir/key_bindings.fish"
+7	7	-------> set -l functions_dir "$plugin_dir/functions"
+7	7	-------> set -l completions_dir  "$plugin_dir/completions"
+14	14	-------> set -l plugin_paths $__fundle_plugin_name_paths
+2	28	-------> if begin; test -d $functions_dir; and not contains $functions_dir $fish_function_path; end...
+6	26	--------> ...
+20	20	---------> test -d $functions_dir
+1	21	-------> if begin; test -d $completions_dir; and not contains $completions_dir $fish_complete_path; end...
+4	20	--------> ...
+16	16	---------> test -d $completions_dir
+10	80168	-------> if test -f $init_file...
+14	14	--------> test -f $init_file
+15	15	--------> test -d $conf_dir
+7036	80129	--------> for f in $conf_dir/*.fish...
+2170	73093	---------> source $f
+5	17	----------> if not status is-interactive...
+12	12	-----------> not status is-interactive
+9	9	----------> set -g __done_version 1.19.3
+6	6	----------> function __done_run_powershell_script...
+4	4	----------> function __done_windows_notification -a title -a message...
+1	1	----------> function __done_get_focused_window_id...
+1	1	----------> function __done_is_tmux_window_active...
+1	1	----------> function __done_is_screen_window_active...
+1	1	----------> function __done_is_process_window_focused...
+2	2	----------> function __done_humanize_duration -a milliseconds...
+12	70809	----------> if test -z "$SSH_CLIENT"...
+10	10	-----------> test -z "$SSH_CLIENT"
+772	70772	-----------> count (__done_get_focused_window_id) >/dev/null
+23	70000	------------> __done_get_focused_window_id
+31	69977	-------------> if type -q lsappinfo...
+261	261	--------------> type -q lsappinfo
+38022	69685	--------------> lsappinfo info -only bundleID (lsappinfo front | string replace 'ASN:0x0-' '0x') | cut -d '"' -f4
+31663	31663	---------------> lsappinfo front | string replace 'ASN:0x0-' '0x'
+15	15	-----------> set __done_enabled
+1	3	----------> if set -q __done_allow_nongraphical...
+2	2	-----------> set -q __done_allow_nongraphical
+31	68	----------> if set -q __done_enabled...
+1	1	-----------> set -q __done_enabled
+6	6	-----------> set -g __done_initial_window_id ''
+2	2	-----------> set -q __done_min_cmd_duration
+2	2	-----------> set -g __done_min_cmd_duration 5000
+1	1	-----------> set -q __done_exclude
+2	2	-----------> set -g __done_exclude '^git (?!push|pull|fetch)'
+1	1	-----------> set -q __done_notify_sound
+1	1	-----------> set -g __done_notify_sound 0
+1	1	-----------> set -q __done_sway_ignore_visible
+1	1	-----------> set -g __done_sway_ignore_visible 0
+1	1	-----------> set -q __done_tmux_pane_format
+2	2	-----------> set -g __done_tmux_pane_format '[#{window_index}]'
+1	1	-----------> set -q __done_notification_duration
+3	3	-----------> set -g __done_notification_duration 3000
+3	3	-----------> function __done_started --on-event fish_preexec...
+9	9	-----------> function __done_ended --on-event fish_postexec...
+1	1	----------> function __done_uninstall -e done_uninstall...
+1	21	-------> if test -f $bindings_file...
+20	20	--------> test -f $bindings_file
+8	8	-------> set -g __fundle_loaded_plugins $plugin $__fundle_loaded_plugins
+89	8585	-------> set -l dependencies (printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u)
+8496	8496	--------> printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u
+6	6	-------> for dependency in $dependencies...
+14	14	-------> emit "init_$plugin_name" $plugin_dir
+56	64	-----> set -l name_path (string split : -- $name_path)
+8	8	------> string split : -- $name_path
+6	12635	-----> if test "$profile" -eq 1...
+10	10	------> test "$profile" -eq 1
+64	12619	------> __fundle_load_plugin $name_path[1] $name_path[2] $fundle_dir $profile
+0	15	-------> if begin; set -q __fundle_loaded_plugins; and contains $plugin $__fundle_loaded_plugins; end...
+5	15	--------> ...
+2	2	---------> set -q __fundle_loaded_plugins
+8	8	---------> contains $plugin $__fundle_loaded_plugins
+33	59	-------> set -l plugin_dir (string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path")
+26	26	--------> string replace -r '/.$' '' -- "$fundle_dir/$plugin/$path"
+0	13	-------> if not test -d $plugin_dir...
+13	13	--------> not test -d $plugin_dir
+29	40	-------> set -l plugin_name (string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin)
+11	11	--------> string replace -r '.*/(plugin-)?(.*)$' '$2' -- $plugin
+5	5	-------> set -l init_file "$plugin_dir/init.fish"
+3	3	-------> set -l conf_dir "$plugin_dir/conf.d"
+3	3	-------> set -l bindings_file  "$plugin_dir/key_bindings.fish"
+5	5	-------> set -l functions_dir "$plugin_dir/functions"
+3	3	-------> set -l completions_dir  "$plugin_dir/completions"
+7	7	-------> set -l plugin_paths $__fundle_plugin_name_paths
+3	44	-------> if begin; test -d $functions_dir; and not contains $functions_dir $fish_function_path; end...
+5	26	--------> ...
+10	10	---------> test -d $functions_dir
+11	11	---------> not contains $functions_dir $fish_function_path
+15	15	--------> set fish_function_path $fish_function_path[1] $functions_dir $fish_function_path[2..-1]
+0	8	-------> if begin; test -d $completions_dir; and not contains $completions_dir $fish_complete_path; end...
+1	8	--------> ...
+7	7	---------> test -d $completions_dir
+4	122	-------> if test -f $init_file...
+6	6	--------> test -f $init_file
+5	5	--------> test -d $conf_dir
+12	107	--------> if not contains $plugin_dir $fish_function_path...
+82	82	---------> not contains $plugin_dir $fish_function_path
+13	13	---------> set fish_function_path $fish_function_path[1] $plugin_dir $fish_function_path[2..-1]
+0	6	-------> if test -f $bindings_file...
+6	6	--------> test -f $bindings_file
+6	6	-------> set -g __fundle_loaded_plugins $plugin $__fundle_loaded_plugins
+106	12055	-------> set -l dependencies (printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u)
+11949	11949	--------> printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u
+15	15	-------> for dependency in $dependencies...
+146	146	-------> emit "init_$plugin_name" $plugin_dir
+16	1618	----> __fundle_bind
+12	1599	-----> if functions -q fish_user_key_bindings...
+155	1421	------> functions -q fish_user_key_bindings
+1258	1266	-------> source /Users/thalesmello/.config/fish/functions/fish_user_key_bindings.fish
+8	8	--------> function fish_user_key_bindings...
+144	144	------> not functions -q __fish_user_key_bindings
+22	22	------> functions -c fish_user_key_bindings __fish_user_key_bindings
+3	3	-----> function fish_user_key_bindings...
+9	9	----> return $has_uninstalled_plugins
+10	10	-> set -g theme_display_docker_machine no
+5	5	-> set -g theme_display_vi yes
+5	5	-> set -g theme_display_date no
+5	5	-> set -g theme_display_cmd_duration yes
+4	4	-> set -g theme_nerd_fonts yes
+5	5	-> set -g theme_powerline_fonts no
+5	5	-> set -g theme_show_exit_status yes
+4	4	-> set -g theme_display_virtualenv no
+5	5	-> set -g theme_color_scheme zenburn
+6	6	-> set -g fish_prompt_pwd_dir_length 2
+5	5	-> set -gx EDITOR nvim
+5	5	-> set -gx VISUAL nvim
+9	9	-> set -gx LESS "--ignore-case --LONG-PROMPT --RAW-CONTROL-CHARS --tabs=4 --quit-if-one-screen --mouse"
+7	7	-> set -gx LESS_TERMCAP_mb \e'[1;31m'
+6	6	-> set -gx LESS_TERMCAP_md \e'[1;36m'
+6	6	-> set -gx LESS_TERMCAP_me \e'[0m'
+6	6	-> set -gx LESS_TERMCAP_so \e'[01;44;33m'
+6	6	-> set -gx LESS_TERMCAP_se \e'[0m'
+6	6	-> set -gx LESS_TERMCAP_us \e'[1;32m'
+6	6	-> set -gx LESS_TERMCAP_ue \e'[0m'
+5	5	-> set -gx LIBGL_ALWAYS_INDIRECT 1
+17	17	-> set -U fish_features qmark-noglob
+10	10	-> set -xg FZF_DEFAULT_OPTS '--bind "ctrl-n:down,ctrl-p:up,ctrl-r:previous-history,ctrl-s:next-history,ctrl-q:select-all,ctrl-x:toggle-out" --height 40%'
+7	7	-> set -xg FZF_CTRL_T_COMMAND 'ag -l'
+3	6	-> if set -q USE_WSL_CONFIG...
+3	3	--> set -q USE_WSL_CONFIG

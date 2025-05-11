@@ -1,12 +1,3 @@
-# We list possible brew locations, in order of precedence
-set brews '/opt/homebrew/bin/original-brew' '/opt/homebrew/bin/brew' '/home/linuxbrew/.linuxbrew/bin/brew'
-
-for brew in $brews
-	test -x "$brew"
-	and eval ("$brew" shellenv)
-	and break
-end
-
 fundle plugin brgmnn/fish-docker-compose
 fundle plugin fischerling/plugin-wd
 fundle plugin thalesmello/theme-cmorrell.com
@@ -48,7 +39,7 @@ set -gx LIBGL_ALWAYS_INDIRECT 1
  set -U fish_features qmark-noglob
 
 # Setup envs
-fzf --fish | source
+#fzf --fish | source
 set -xg FZF_DEFAULT_OPTS '--bind "ctrl-n:down,ctrl-p:up,ctrl-r:previous-history,ctrl-s:next-history,ctrl-q:select-all,ctrl-x:toggle-out" --height 40%'
 set -xg FZF_CTRL_T_COMMAND 'ag -l'
 

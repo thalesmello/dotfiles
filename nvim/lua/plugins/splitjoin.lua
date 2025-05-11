@@ -9,9 +9,35 @@ return {
             vim.keymap.set('n', '<leader>gS', '<Cmd>SplitjoinSplit<CR>', { silent = true, desc = "Split structure" })
             vim.keymap.set('n', '<leader>gJ', '<Cmd>SplitjoinJoin<CR>', { silent = true, desc = "Join structure" })
         end,
+        keys = {
+            {
+                "<leader>gS",
+                function () vim.cmd.SplitjoinSplit() end,
+                mode = "n"
+            },
+            {
+                "<leader>gJ",
+                function () vim.cmd.SplitjoinJoin() end,
+                mode = "n",
+            },
+        },
         extra_contexts = {"vscode", "firenvim"}
     },
     {
+        'echasnovski/mini.splitjoin',
+        version = '*',
+        keys = {"gS"},
+        opts = {
+            mappings = {
+              toggle = '',
+              split = 'gS',
+              join = 'gJ',
+            },
+        }
+    },
+
+    {
+        enabled = false,
         'Wansmer/treesj',
         dependencies = {
             'nvim-treesitter/nvim-treesitter',
@@ -64,7 +90,7 @@ return {
             },
         },
         cmd = {"TSJSplit", "TSJJoin"},
-        lazy = false,
+        lazy = true,
         extra_contexts = {"vscode", "firenvim"}
     },
 }

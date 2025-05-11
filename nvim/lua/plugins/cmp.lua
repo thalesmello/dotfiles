@@ -144,8 +144,7 @@ return {
       },
    }),
    {
-      'thalesmello/cmp-cmdline',
-      branch = 'patch-1',
+      'hrsh7th/cmp-cmdline',
       dependencies = {'hrsh7th/nvim-cmp'},
       config = function ()
          local cmp = require('cmp')
@@ -219,7 +218,7 @@ return {
                   {
                      name = 'cmdline',
                      option = {
-                        ignore_cmds = { 'Man',  'read!', 'r!', '!', 'Shdo' }
+                        ignore_cmds = { 'Man',  'read!', 'r!', '!', 'Shdo', 'Fish' }
                      }
                   },
                }

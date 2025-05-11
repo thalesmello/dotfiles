@@ -263,20 +263,15 @@ return {
 
     vim_utils.injector_module({
         'RRethy/nvim-treesitter-textsubjects',
-        injectable_opts = {
-            "nvim-treesitter/nvim-treesitter",
-            merge_opts = {
-                textsubjects = {
-                    enable = true,
-                    prev_selection = '<bs>', -- (Optional) keymap to select the previous selection
-                    keymaps = {
-                        ['<cr>'] = 'textsubjects-smart',
-                        ['a<cr>'] = 'textsubjects-container-outer',
-                        ['i<cr>'] = { 'textsubjects-container-inner', desc = "Select inside containers (classes, functions, etc.)" },
-                    },
-                }
+        opt = {
+            prev_selection = '<bs>',
+            keymaps = {
+                ['<cr>'] = 'textsubjects-smart',
+                ['a<cr>'] = 'textsubjects-container-outer',
+                ['i<cr>'] = 'textsubjects-container-inner' ,
             },
         },
+        dependencies = {"nvim-treesitter/nvim-treesitter"},
         extra_contexts = {"vscode", "firenvim"}
     })
 }

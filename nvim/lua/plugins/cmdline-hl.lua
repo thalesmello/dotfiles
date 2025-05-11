@@ -1,5 +1,7 @@
 return {
     {
+        -- Disabling because I suspect this makes nvim very slow
+        enabled = false,
         'Sam-programs/cmdline-hl.nvim',
         -- Add vim-rsi as dependenci so it's possible to overwrite <c-f>
         dependencies = {'tpope/vim-rsi'},

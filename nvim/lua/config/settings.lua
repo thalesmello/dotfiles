@@ -1,3 +1,5 @@
+-- Use zsh as startup to prevent slowdown
+vim.opt.shell = "/bin/bash"
 -- Display incomplete commands.
 vim.opt.cmdheight = 1
 
