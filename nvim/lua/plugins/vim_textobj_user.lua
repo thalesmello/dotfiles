@@ -68,10 +68,10 @@ return {
     {
         "chrisgrieser/nvim-various-textobjs",
         keys = {
-            {"ii" , "<cmd>lua require('various-textobjs').indentation('inner', 'inner')<CR>", { desc = "inner-inner indentation textobj", mode = { "o", "x" }}},
-            {"ai" , "<cmd>lua require('various-textobjs').indentation('outer', 'inner')<CR>", { desc = "outer-inner indentation textobj", mode = { "o", "x" }}},
-            {"iI" , "<cmd>lua require('various-textobjs').indentation('inner', 'inner')<CR>", { desc = "inner-inner indentation textobj", mode = { "o", "x" }}},
-            {"aI" , "<cmd>lua require('various-textobjs').indentation('outer', 'outer')<CR>", { desc = "outer-outer indentation textobj", mode = { "o", "x" }}},
+            {"ii" , "<cmd>lua require('various-textobjs').indentation('inner', 'inner')<CR>",  desc = "inner-inner indentation textobj", mode = { "o", "x" }},
+            {"ai" , "<cmd>lua require('various-textobjs').indentation('outer', 'inner')<CR>",  desc = "outer-inner indentation textobj", mode = { "o", "x" }},
+            {"iI" , "<cmd>lua require('various-textobjs').indentation('inner', 'inner')<CR>",  desc = "inner-inner indentation textobj", mode = { "o", "x" }},
+            {"aI" , "<cmd>lua require('various-textobjs').indentation('outer', 'outer')<CR>",  desc = "outer-outer indentation textobj", mode = { "o", "x" }},
             { "R", '<cmd>lua require("various-textobjs").restOfIndentation()<CR>', mode = { "o", "x" } },
             { "ag", '<cmd>lua require("various-textobjs").greedyOuterIndentation("outer")<CR>', mode = { "o", "x" } },
             { "ig", '<cmd>lua require("various-textobjs").greedyOuterIndentation("inner")<CR>', mode = { "o", "x" } },
