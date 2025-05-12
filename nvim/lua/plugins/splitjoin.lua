@@ -31,7 +31,8 @@ return {
               split = '<leader>gS',
               join = '<leader>gJ',
             },
-        }
+        },
+        extra_contexts = {"vscode", "firenvim"},
     },
 
     {
