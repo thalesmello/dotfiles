@@ -153,7 +153,8 @@ ctrl + alt + cmd - space ; service
 
 # Service mode bindings
 service < ctrl + alt + cmd - space : skhd -k "escape"; yabai-preset focus-space recent
-service < space : skhd -k "escape"; yabai-preset focus-space recent
+# service < space : skhd -k "escape"; if test "$_YABAI_MRU" = chrome_tab; skhd -k "alt - q"; else; yabai -m window --focus recent || yabai-preset focus-space recent; end
+service < space : skhd -k "escape"; yabai -m window --focus recent || yabai-preset focus-space recent
 service < shift - space : skhd -k "escape"; yabai-preset move-window-to-space recent
 # semicolon
 service < shift - 0x29 : skhd -k "escape"; yabai-preset arrange-windows-side-by-side
@@ -229,6 +230,8 @@ invoke < 1 : skhd -k "escape"; yabai-preset arrange-spaces \
     -a "5:Obsidian"
 invoke < p : skhd -k "escape"; yabai-preset arrange-spaces \
     -w "7:.*Thales \\(Personal\\).*"
+invoke < b : skhd -k "escape"; open "alfred://runtrigger/com.dnnsmnstrr.btt/triggerbtt/"
+invoke < y : skhd -k "escape"; open 'raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D'
 
 
 service < c ; chrome
