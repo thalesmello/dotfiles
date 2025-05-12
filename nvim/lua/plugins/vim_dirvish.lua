@@ -25,5 +25,5 @@ return {
         })
 
     end,
-    cond = false,
+    cond = true,
 }
