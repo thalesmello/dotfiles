@@ -133,10 +133,10 @@ ctrl + alt + cmd + shift - n : yabai-preset move-window-in-stack next
 # move window left a space
 ctrl + alt + cmd + shift - p : yabai-preset move-window-in-stack prev
 
-stack < j : skhd -k escape; yabai -m window --stack south
-stack < k : skhd -k escape; yabai -m window --stack north
-stack < h : skhd -k escape; yabai -m window --stack west
-stack < l : skhd -k escape; yabai -m window --stack east
+stack < j : skhd -k "escape" &; yabai -m window --stack south
+stack < k : skhd -k "escape" &; yabai -m window --stack north
+stack < h : skhd -k "escape" &; yabai -m window --stack west
+stack < l : skhd -k "escape" &; yabai -m window --stack east
 
 resize < return ; default
 resize < j : yabai -m window --resize bottom_right:0:100
@@ -152,68 +152,68 @@ resize < shift - l : yabai -m window --resize top_left:100:0
 ctrl + alt + cmd - space ; service
 
 # Service mode bindings
-service < ctrl + alt + cmd - space : skhd -k "escape"; yabai-preset focus-space recent
-# service < space : skhd -k "escape"; if test "$_YABAI_MRU" = chrome_tab; skhd -k "alt - q"; else; yabai -m window --focus recent || yabai-preset focus-space recent; end
-service < space : skhd -k "escape"; yabai -m window --focus recent || yabai-preset focus-space recent
-service < shift - space : skhd -k "escape"; yabai-preset move-window-to-space recent
+service < ctrl + alt + cmd - space : skhd -k "escape" &; yabai-preset focus-space recent
+# service < space : skhd -k "escape" &; if test "$_YABAI_MRU" = chrome_tab; skhd -k "alt - q"; else; yabai -m window --focus recent || yabai-preset focus-space recent; end
+service < space : skhd -k "escape" &; yabai -m window --focus recent || yabai-preset focus-space recent
+service < shift - space : skhd -k "escape" &; yabai-preset move-window-to-space recent
 # semicolon
-service < shift - 0x29 : skhd -k "escape"; yabai-preset arrange-windows-side-by-side
+service < shift - 0x29 : skhd -k "escape" &; yabai-preset arrange-windows-side-by-side
 service < r ; resize
-service < shift - r : skhd -k "escape"; yabai --stop-service && yabai --start-service && display-message "Yabai Restarted" || begin; yabai --start-service && display-message "Yabai Started"; end
-service < v : skhd -k "escape"; yabai -m window --insert east
+service < shift - r : skhd -k "escape" &; yabai --stop-service && yabai --start-service && display-message "Yabai Restarted" || begin; yabai --start-service && display-message "Yabai Started"; end
+service < v : skhd -k "escape" &; yabai -m window --insert east
 # double quotes
-service < shift - 0x27 : skhd -k "escape"; yabai -m window --insert south
-service < t : skhd -k "escape"; yabai -m window --toggle float; yabai-preset is-window-floating && yabai-preset restore-window-position
+service < shift - 0x27 : skhd -k "escape" &; yabai -m window --insert south
+service < t : skhd -k "escape" &; yabai -m window --toggle float; yabai-preset is-window-floating && yabai-preset restore-window-position
 
 # comma
-service < z :  skhd -k "escape"; yabai -m window --insert stack
+service < z :  skhd -k "escape" &; yabai -m window --insert stack
 service < s ; stack
-service < shift - s : skhd -k "escape"; yabai-preset stack-windows-in-space
+service < shift - s : skhd -k "escape" &; yabai-preset stack-windows-in-space
 # Comma
-service < 0x2B : skhd -k "escape"; yabai -m space --layout stack; display-message "Laybout stack"
+service < 0x2B : skhd -k "escape" &; yabai -m space --layout stack; display-message "Laybout stack"
 # Period
-service < 0x2F : skhd -k "escape"; yabai -m space --layout bsp; display-message "Laybout bsp"
-service < 0 : skhd -k "escape"; yabai -m space --layout float; display-message "Laybout float"; yabai -m query --windows --space | jq -r ".[] | .id" | while read --line winid; yabai-preset restore-window-position "$winid"; end
+service < 0x2F : skhd -k "escape" &; yabai -m space --layout bsp; display-message "Laybout bsp"
+service < 0 : skhd -k "escape" &; yabai -m space --layout float; display-message "Laybout float"; yabai -m query --windows --space | jq -r ".[] | .id" | while read --line winid; yabai-preset restore-window-position "$winid"; end
 
 # Pipe |
-service < shift - 0x2A : skhd -k "escape"; yabai -m space --mirror y-axis
+service < shift - 0x2A : skhd -k "escape" &; yabai -m space --mirror y-axis
 # minus
-service < 0x1B : skhd -k "escape"; yabai -m space --mirror x-axis
+service < 0x1B : skhd -k "escape" &; yabai -m space --mirror x-axis
 # Comma
-service < shift - 0x2B : skhd -k "escape"; yabai -m space --rotate 90
+service < shift - 0x2B : skhd -k "escape" &; yabai -m space --rotate 90
 # Period
-service < shift - 0x2F : skhd -k "escape"; yabai -m space --rotate 270
-service < y : skhd -k "escape"; yabai -m window --toggle split
+service < shift - 0x2F : skhd -k "escape" &; yabai -m space --rotate 270
+service < y : skhd -k "escape" &; yabai -m window --toggle split
 # equals
-service < 0x18 : skhd -k "escape"; yabai -m space --balance
+service < 0x18 : skhd -k "escape" &; yabai -m space --balance
 # move window to space with number
-service < 1 : skhd -k "escape"; yabai-preset focus-space 1
-service < 2 : skhd -k "escape"; yabai-preset focus-space 2
-service < 3 : skhd -k "escape"; yabai-preset focus-space 3
-service < 4 : skhd -k "escape"; yabai-preset focus-space 4
-service < 5 : skhd -k "escape"; yabai-preset focus-space 5
-service < 6 : skhd -k "escape"; yabai-preset focus-space 6
-service < 7 : skhd -k "escape"; yabai-preset focus-space 7
-service < 8 : skhd -k "escape"; yabai-preset focus-space 8
-service < 9 : skhd -k "escape"; yabai-preset focus-space 9
-service < shift - 1 : skhd -k "escape"; yabai-preset move-window-to-space 1
-service < shift - 2 : skhd -k "escape"; yabai-preset move-window-to-space 2
-service < shift - 3 : skhd -k "escape"; yabai-preset move-window-to-space 3
-service < shift - 4 : skhd -k "escape"; yabai-preset move-window-to-space 4
-service < shift - 5 : skhd -k "escape"; yabai-preset move-window-to-space 5
-service < shift - 6 : skhd -k "escape"; yabai-preset move-window-to-space 6
-service < shift - 7 : skhd -k "escape"; yabai-preset move-window-to-space 7
-service < shift - 8 : skhd -k "escape"; yabai-preset move-window-to-space 8
-service < shift - 9 : skhd -k "escape"; yabai-preset move-window-to-space 9
-service < ctrl + alt + cmd - h : skhd -k "escape"; yabai -m window --warp west || yabai-preset unstack-window west
-service < ctrl + alt + cmd - j : skhd -k "escape"; yabai -m window --warp south || yabai-preset unstack-window south
-service < ctrl + alt + cmd - k : skhd -k "escape"; yabai -m window --warp north || yabai-preset unstack-window north
-service < ctrl + alt + cmd - l : skhd -k "escape"; yabai -m window --warp east || yabai-preset unstack-window east
-service < h : skhd -k "escape"; yabai-preset focus-display-with-fallback west
-service < j : skhd -k "escape"; yabai-preset focus-display-with-fallback south
-service < k : skhd -k "escape"; yabai-preset focus-display-with-fallback north
-service < l : skhd -k "escape"; yabai-preset focus-display-with-fallback east
-service < tab : skhd -k "escape"; yabai-preset move-window-to-display-with-fallback
+service < 1 : skhd -k "escape" &; yabai-preset focus-space 1
+service < 2 : skhd -k "escape" &; yabai-preset focus-space 2
+service < 3 : skhd -k "escape" &; yabai-preset focus-space 3
+service < 4 : skhd -k "escape" &; yabai-preset focus-space 4
+service < 5 : skhd -k "escape" &; yabai-preset focus-space 5
+service < 6 : skhd -k "escape" &; yabai-preset focus-space 6
+service < 7 : skhd -k "escape" &; yabai-preset focus-space 7
+service < 8 : skhd -k "escape" &; yabai-preset focus-space 8
+service < 9 : skhd -k "escape" &; yabai-preset focus-space 9
+service < shift - 1 : skhd -k "escape" &; yabai-preset move-window-to-space 1
+service < shift - 2 : skhd -k "escape" &; yabai-preset move-window-to-space 2
+service < shift - 3 : skhd -k "escape" &; yabai-preset move-window-to-space 3
+service < shift - 4 : skhd -k "escape" &; yabai-preset move-window-to-space 4
+service < shift - 5 : skhd -k "escape" &; yabai-preset move-window-to-space 5
+service < shift - 6 : skhd -k "escape" &; yabai-preset move-window-to-space 6
+service < shift - 7 : skhd -k "escape" &; yabai-preset move-window-to-space 7
+service < shift - 8 : skhd -k "escape" &; yabai-preset move-window-to-space 8
+service < shift - 9 : skhd -k "escape" &; yabai-preset move-window-to-space 9
+service < ctrl + alt + cmd - h : skhd -k "escape" &; yabai -m window --warp west || yabai-preset unstack-window west
+service < ctrl + alt + cmd - j : skhd -k "escape" &; yabai -m window --warp south || yabai-preset unstack-window south
+service < ctrl + alt + cmd - k : skhd -k "escape" &; yabai -m window --warp north || yabai-preset unstack-window north
+service < ctrl + alt + cmd - l : skhd -k "escape" &; yabai -m window --warp east || yabai-preset unstack-window east
+service < h : skhd -k "escape" &; yabai-preset focus-display-with-fallback west
+service < j : skhd -k "escape" &; yabai-preset focus-display-with-fallback south
+service < k : skhd -k "escape" &; yabai-preset focus-display-with-fallback north
+service < l : skhd -k "escape" &; yabai-preset focus-display-with-fallback east
+service < tab : skhd -k "escape" &; yabai-preset move-window-to-display-with-fallback
 
 
 
@@ -222,38 +222,38 @@ service < tab : skhd -k "escape"; yabai-preset move-window-to-display-with-fallb
 # I'm keeping this commented in case it's useful in the future
 # # Invoke mode bindings
 ctrl + alt + cmd - i ; invoke
-invoke < 1 : skhd -k "escape"; yabai-preset arrange-spaces \
+invoke < 1 : skhd -k "escape" &; yabai-preset arrange-spaces \
     -w "1:.*Thales \\(Work\\).*" \
     -a "2:iTerm2" \
     -a "3:.*VS Code.*" \
     -a "4:Workchat" \
     -a "5:Obsidian"
-invoke < p : skhd -k "escape"; yabai-preset arrange-spaces \
+invoke < p : skhd -k "escape" &; yabai-preset arrange-spaces \
     -w "7:.*Thales \\(Personal\\).*"
-invoke < b : skhd -k "escape"; open "alfred://runtrigger/com.dnnsmnstrr.btt/triggerbtt/"
-invoke < y : skhd -k "escape"; open 'raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D'
+invoke < b : skhd -k "escape" &; open "alfred://runtrigger/com.dnnsmnstrr.btt/triggerbtt/"
+invoke < y : skhd -k "escape" &; open 'raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D'
 
 
 service < c ; chrome
-chrome < backspace : skhd -k "escape"; chrome-preset close-tabs-with-url '^.*\.zoom\.us/j/.*$'
-chrome < 1 : skhd -k "escape"; chrome-preset focus-pinned-tab 1
-chrome < 2 : skhd -k "escape"; chrome-preset focus-pinned-tab 2
-chrome < 3 : skhd -k "escape"; chrome-preset focus-pinned-tab 3
-chrome < 4 : skhd -k "escape"; chrome-preset focus-pinned-tab 4
-chrome < 5 : skhd -k "escape"; chrome-preset focus-pinned-tab 5
-chrome < 6 : skhd -k "escape"; chrome-preset focus-pinned-tab 6
-chrome < 7 : skhd -k "escape"; chrome-preset focus-pinned-tab 7
-chrome < 8 : skhd -k "escape"; chrome-preset focus-pinned-tab 8
-chrome < 9 : skhd -k "escape"; chrome-preset focus-pinned-tab 9
-chrome < shift - 1 : skhd -k "escape"; chrome-preset pin-tab 1
-chrome < shift - 2 : skhd -k "escape"; chrome-preset pin-tab 2
-chrome < shift - 3 : skhd -k "escape"; chrome-preset pin-tab 3
-chrome < shift - 4 : skhd -k "escape"; chrome-preset pin-tab 4
-chrome < shift - 5 : skhd -k "escape"; chrome-preset pin-tab 5
-chrome < shift - 6 : skhd -k "escape"; chrome-preset pin-tab 6
-chrome < shift - 7 : skhd -k "escape"; chrome-preset pin-tab 7
-chrome < shift - 8 : skhd -k "escape"; chrome-preset pin-tab 8
-chrome < shift - 9 : skhd -k "escape"; chrome-preset pin-tab 9
+chrome < backspace : skhd -k "escape" &; chrome-preset close-tabs-with-url '^.*\.zoom\.us/j/.*$'
+chrome < 1 : skhd -k "escape" &; chrome-preset focus-pinned-tab 1
+chrome < 2 : skhd -k "escape" &; chrome-preset focus-pinned-tab 2
+chrome < 3 : skhd -k "escape" &; chrome-preset focus-pinned-tab 3
+chrome < 4 : skhd -k "escape" &; chrome-preset focus-pinned-tab 4
+chrome < 5 : skhd -k "escape" &; chrome-preset focus-pinned-tab 5
+chrome < 6 : skhd -k "escape" &; chrome-preset focus-pinned-tab 6
+chrome < 7 : skhd -k "escape" &; chrome-preset focus-pinned-tab 7
+chrome < 8 : skhd -k "escape" &; chrome-preset focus-pinned-tab 8
+chrome < 9 : skhd -k "escape" &; chrome-preset focus-pinned-tab 9
+chrome < shift - 1 : skhd -k "escape" &; chrome-preset pin-tab 1
+chrome < shift - 2 : skhd -k "escape" &; chrome-preset pin-tab 2
+chrome < shift - 3 : skhd -k "escape" &; chrome-preset pin-tab 3
+chrome < shift - 4 : skhd -k "escape" &; chrome-preset pin-tab 4
+chrome < shift - 5 : skhd -k "escape" &; chrome-preset pin-tab 5
+chrome < shift - 6 : skhd -k "escape" &; chrome-preset pin-tab 6
+chrome < shift - 7 : skhd -k "escape" &; chrome-preset pin-tab 7
+chrome < shift - 8 : skhd -k "escape" &; chrome-preset pin-tab 8
+chrome < shift - 9 : skhd -k "escape" &; chrome-preset pin-tab 9
 
 # App Shortcuts
 ctrl + alt + cmd - b : btt-preset show-or-hide-app --only-show "/Applications/BetterTouchTool.app"
@@ -262,7 +262,7 @@ ctrl + alt + cmd - x : btt-preset show-or-hide-app --only-show "/Applications/iT
 ctrl + alt + cmd - q : btt-preset show-or-hide-app --only-show "/Applications/ChatGPT.app"
 ctrl + alt + cmd - w : btt-preset show-or-hide-app --only-show "/Applications/WhatsApp.app"
 ctrl + alt + cmd - z : btt-preset show-or-hide-app --only-show "/Applications/Obsidian.app"
-ctrl + alt + cmd - s : btt-preset show-or-hide-app --only-show "~/Applications/Chrome Apps.localized/YouTube Music.app"
+ctrl + alt + cmd - s : btt-preset show-or-hide-app --only-show "/Applications/YouTube Music.app"
 ctrl + alt + cmd - e : btt-preset show-or-hide-app --only-show "/Applications/Google Chrome.app"
 ctrl + alt + cmd - r : btt-preset show-or-hide-app --only-show "/Applications/Google Chrome.app"
 ctrl + alt + cmd - a : btt-preset show-or-hide-app --only-show "/Applications/Timery.app"

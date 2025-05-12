@@ -75,7 +75,12 @@ sketchybar --add item chevron left \
            --set chevron icon= label.drawing=off \
            --add item front_app left \
            --set front_app icon.drawing=off script="$PLUGIN_DIR/front_app.sh" \
+           --subscribe front_app front_app_switched \
+           --add item chevron2 left \
+           --set chevron2 icon= label.drawing=off \
            --subscribe front_app front_app_switched
+
+source "$ITEM_DIR/yt-music.sh"
 
 ##### Adding Right Items #####
 # In the same way as the left items we can add items to the right side.
@@ -90,11 +95,8 @@ sketchybar --add item chevron left \
 sketchybar --add alias "Control Center,BentoBox" right \
            --set "Control Center,BentoBox" \
                click_script="skhd -k 'fn - c'" \
-               alias.update_freq="0"
-
-
-
-sketchybar --add item clock right \
+               alias.update_freq="0" \
+           --add item clock right \
            --set clock update_freq=10 icon=  script="$PLUGIN_DIR/clock.sh" \
            --add item volume right \
            --set volume script="$PLUGIN_DIR/volume.sh" \
@@ -102,10 +104,12 @@ sketchybar --add item clock right \
            --add item battery right \
            --set battery update_freq=120 script="$PLUGIN_DIR/battery.sh" \
            --subscribe battery system_woke power_source_change
+           # --add alias "Control Center,Bluetooth" right \
+           # --set "Control Center,Bluetooth" \
+           #     alias.update_freq="0" \
+           # --subscribe "Control Center,Bluetooth" com.apple.bluetooth.status
 
 ~/.sketchybarrc_local
-
-# source "$ITEM_DIR/yt-music.sh"
 
 ##### Force all scripts to run the first time (never do this in a script) #####
 sketchybar --update

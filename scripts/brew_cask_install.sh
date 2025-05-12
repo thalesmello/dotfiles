@@ -17,3 +17,4 @@ brew install --cask superwhisper
 brew install waydabber/betterdisplay/betterdisplaycli
 brew install --cask mouseless
 brew install choose-gui
+brew install --cask sf-symbols
