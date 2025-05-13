@@ -1,12 +1,14 @@
-fundle plugin brgmnn/fish-docker-compose
-fundle plugin fischerling/plugin-wd
-fundle plugin thalesmello/theme-cmorrell.com
-fundle plugin thalesmello/plugin-hubflow
-fundle plugin ankitsumitg/docker-fish-completions
-fundle plugin lgathy/google-cloud-sdk-fish-completion
-fundle plugin franciscolourenco/done
-fundle plugin PatrickF1/colored_man_pages.fish
-fundle init
+if status --is-interactive
+	fundle plugin brgmnn/fish-docker-compose
+	fundle plugin fischerling/plugin-wd
+	fundle plugin thalesmello/theme-cmorrell.com
+	fundle plugin thalesmello/plugin-hubflow
+	fundle plugin ankitsumitg/docker-fish-completions
+	fundle plugin lgathy/google-cloud-sdk-fish-completion
+	fundle plugin franciscolourenco/done
+	fundle plugin PatrickF1/colored_man_pages.fish
+	fundle init
+end
 
 # Configure theme
 set -g theme_display_docker_machine no
