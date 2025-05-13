@@ -23,6 +23,5 @@
   "linearmouse": "~/.config/linearmouse",
   "sketchybar": "~/.config/sketchybar",
   "karabiner": "~/.config/karabiner",
-  "karabiner.edn": "~/.config/karabiner.edn",
-   "mouseless": "~/Library/Containers/net.sonuscape.mouseless/Data/.mouseless/configs/"
+  "karabiner.edn": "~/.config/karabiner.edn"
 }
