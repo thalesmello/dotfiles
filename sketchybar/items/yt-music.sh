@@ -7,6 +7,7 @@ music=(
   # label.font="Hack Nerd Font:Bold:17.0"
   padding_right=0
   # icon=􁁒
+  icon=""
   icon.drawing=off
   # display=1
   # drawing=off
@@ -20,17 +21,19 @@ music=(
   # icon.padding_right=8
   label.align=left
   # label.width=130
-  update_freq=10
+  # update_freq=10
   label.max_chars=40
-  scroll_texts=on
+  # scroll_texts=on
+  scroll_texts=off
   # --subscribe music mouse.entered
   # mouse.clicked
   # mouse.exited
   # mouse.exited.global
+  --subscribe music mouse.entered mouse.exited media_change
 )
 
 music_artwork=(
-  click_script="curl -s -X POST 0.0.0.0:26538/api/v1/toggle-play && $PLUGIN_DIR/yt-music.sh"
+  click_script="open -a 'YouTube Music'"
   label.padding_right=8
   padding_right=16
   # display=1

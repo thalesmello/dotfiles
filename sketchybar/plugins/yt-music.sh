@@ -2,6 +2,12 @@
 
 # FROM: https://github.com/manishprivet/.dotfiles/blob/4c265e350b5fe81ab61dcda3a7ec46c3c5f73b4c/.config/sketchybar/plugins/youtube-music.sh
 
+if [ "$SENDER" = 'mouse.entered' ]; then
+  sketchybar --set "$NAME" scroll_texts=on icon.drawing=on
+elif [ "$SENDER" = 'mouse.exited' ]; then
+  sketchybar --set "$NAME" scroll_texts=off icon.drawing=off
+fi
+
 # Open app on middle click
 if [ "$BUTTON" = "other" ]; then
   open -a 'YouTube Music'
@@ -28,7 +34,7 @@ ARTWORK_LOCATION="$(curl -O --output-dir "$TMPDIR" -s --remote-name -w "%{filena
 if [ "$PAUSED" = true ]; then
   ICON=􀊄
 else
-  ICON=􁁒
+  ICON=""
 fi
-sketchybar --set "$NAME" label="$CURRENT_SONG" icon="$ICON" drawing=on 
+sketchybar --set "$NAME" label="$CURRENT_SONG" icon="$ICON"
 sketchybar --set "$NAME"-artwork background.image="$ARTWORK_LOCATION"
