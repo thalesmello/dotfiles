@@ -22,6 +22,7 @@
   "nvim": "~/.config/nvim",
   "linearmouse": "~/.config/linearmouse",
   "sketchybar": "~/.config/sketchybar",
+  "ghostty": "~/Library/Application Support/com.mitchellh.ghostty/",
   "karabiner": "~/.config/karabiner",
   "karabiner.edn": "~/.config/karabiner.edn"
 }
