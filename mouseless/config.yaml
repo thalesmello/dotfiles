@@ -22,7 +22,7 @@ grid_configs:
     callback: build_cell_strings
     num_cells_x: 5
     num_cells_y: 6
-  - border_width: 1.0
+  - border_width: 1
     callback: build_cell_strings
     num_cells_x: 5
     num_cells_y: 6
@@ -83,12 +83,12 @@ keymaps:
     - ShiftLeft tap
     - Backspace
     - Option+Backspace
-    wheel down: J
-    wheel down fast: null
-    wheel left: H
-    wheel left fast: null
-    wheel right: L
-    wheel right fast: null
+    wheel down: null
+    wheel down fast: J
+    wheel left: null
+    wheel left fast: H
+    wheel right: null
+    wheel right fast: L
     wheel step down: null
     wheel step down large: null
     wheel step left: null
@@ -97,8 +97,8 @@ keymaps:
     wheel step right large: null
     wheel step up: null
     wheel step up large: null
-    wheel up: K
-    wheel up fast: null
+    wheel up: null
+    wheel up fast: K
   name: mac
 monitor_assignment_mode: auto
 name: ''
@@ -109,10 +109,10 @@ style_configs:
   - 1.0
   - 0.2
   background_rgba:
-  - 0.0
-  - 0.0
-  - 0.0
-  - 0.35
+  - 0.47843137254901963
+  - 0.28627450980392155
+  - 0.28627450980392155
+  - 0.8
   char_spacing_cell_width_ratio: 0.5
   char_spacing_font_size_ratio: 0.5
   char_spacing_strategy: cell_width_relative
@@ -142,43 +142,43 @@ style_configs:
   - 0.32
   - 0.7
   cursor_size: 7
-  font_size_multiplier: 0.4
+  font_size_multiplier: 0.5
   grid_line_style: lines
   grid_rgba:
-  - 1.0
-  - 1.0
-  - 1.0
-  - 0.5
+  - 1
+  - 1
+  - 1
+  - 0
   highlight_rgba:
   - 0.77
   - 0.44
   - 0.15
-  - 0.25
+  - 0.5
   name: default
   show_initial_highlight: false
-  subgrid_font_size_multiplier: 0.75
+  subgrid_font_size_multiplier: 0.85
   subgrid_rgba:
-  - 1.0
-  - 1.0
-  - 1.0
-  - 0.5
+  - 1
+  - 1
+  - 1
+  - 0
   subgrid_text_rgba:
-  - 1.0
-  - 1.0
-  - 1.0
-  - 0.5
+  - 1
+  - 1
+  - 1
+  - 1
   text_rgba:
-  - 1.0
-  - 1.0
-  - 1.0
-  - 1.0
-  text_shadow_blur_radius: 2.0
+  - 0.996078431372549
+  - 0.996078431372549
+  - 0.996078431372549
+  - 1
+  text_shadow_blur_radius: 1
   text_shadow_offset:
-  - 0.0
-  - 0.0
+  - 2
+  - -1
   text_shadow_rgba:
   - 0.0
   - 0.0
   - 0.0
   - 1.0
-  window_opacity: 1.0
+  window_opacity: 0.8
