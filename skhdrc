@@ -4,6 +4,9 @@
 ::service @
 service < escape ; default
 
+::goto @ : display-message "Go To" &
+goto < escape ; default
+
 ::chrome @ : display-message "Chrome" &
 chrome < escape ; default
 

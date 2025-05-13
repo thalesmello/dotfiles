@@ -214,7 +214,7 @@ service < j : skhd -k "escape" &; yabai-preset focus-display-with-fallback south
 service < k : skhd -k "escape" &; yabai-preset focus-display-with-fallback north
 service < l : skhd -k "escape" &; yabai-preset focus-display-with-fallback east
 service < tab : skhd -k "escape" &; yabai-preset move-window-to-display-with-fallback
-# Tilde
+# Backtick
 service < shift - 0x32 : skhd -k "escape" &; osascript -e 'tell application "iTerm" to tell current window to create tab with default profile command "/opt/homebrew/bin/fish -C \"cd ~/src/dotfiles\""'
 
 
@@ -236,7 +236,9 @@ invoke < b : skhd -k "escape" &; open "alfred://runtrigger/com.dnnsmnstrr.btt/tr
 invoke < y : skhd -k "escape" &; open 'raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D'
 
 
+f17 ; chrome
 service < c ; chrome
+ctrl + alt + cmd + shift - c ; chrome
 chrome < backspace : skhd -k "escape" &; chrome-preset close-tabs-with-url '^.*\.zoom\.us/j/.*$'
 chrome < 1 : skhd -k "escape" &; chrome-preset focus-pinned-tab 1
 chrome < 2 : skhd -k "escape" &; chrome-preset focus-pinned-tab 2
@@ -256,6 +258,8 @@ chrome < shift - 6 : skhd -k "escape" &; chrome-preset pin-tab 6
 chrome < shift - 7 : skhd -k "escape" &; chrome-preset pin-tab 7
 chrome < shift - 8 : skhd -k "escape" &; chrome-preset pin-tab 8
 chrome < shift - 9 : skhd -k "escape" &; chrome-preset pin-tab 9
+
+f18 ; goto
 
 # App Shortcuts
 ctrl + alt + cmd - b : btt-preset show-or-hide-app --only-show "/Applications/BetterTouchTool.app"

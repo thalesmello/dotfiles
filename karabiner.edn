@@ -87,21 +87,8 @@
             [:##u :page_up]
             [:##s :spacebar]
             [:caps_lock :!Odelete_or_backspace]
-        ]
-    }
-
-    {
-        :des "Goto apps"
-        :rules [
-            [:g [["goto-mode" 1] [:noti :goto-hud "Goto Active"]] :space-mode]
-            :goto-mode
-            [:escape [["goto-mode" 0] [:noti :goto-hud]]]
-            [:caps_lock [["goto-mode" 0] [:noti :goto-hud]]]
-            [:c [[:open "https://www.internalfb.com/intern/bunny?calendar"] ["goto-mode" 0] [:noti :goto-hud]]]
-            [:t [[:open "https://www.internalfb.com/intern/bunny?tasks"] ["goto-mode" 0] [:noti :goto-hud]]]
-            [:1 [[:open "https://www.internalfb.com/intern/bunny?11"] ["goto-mode" 0] [:noti :goto-hud]]]
-            [:2 [[:open "https://www.internalfb.com/intern/bunny?dai-ar"] ["goto-mode" 0] [:noti :goto-hud]]]
-            [:3 [[:open "https://www.internalfb.com/intern/bunny?dai-c50"] ["goto-mode" 0] [:noti :goto-hud]]]
+            [:c :f17]
+            [:g :f18]
         ]
     }
 
