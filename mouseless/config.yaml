@@ -62,7 +62,7 @@ keymaps:
     hold for middle button: CommandLeft
     hold for move: ShiftLeft
     hold for right button: OptionLeft
-    hold for speed decrease: null
+    hold for speed decrease: ControlLeft
     hold for speed increase: ShiftLeft
     increase overlay opacity: ArrowUp
     jump to bottom: null
@@ -87,7 +87,7 @@ keymaps:
     wheel down fast: J
     wheel left: null
     wheel left fast: H
-    wheel right: null
+    wheel right: k
     wheel right fast: L
     wheel step down: null
     wheel step down large: null
