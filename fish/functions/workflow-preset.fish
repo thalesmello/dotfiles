@@ -7,7 +7,7 @@ function workflow-preset
         set app (btt-preset get-string-variable "active_app_name")
 
         if test "$app" = "Google Chrome"
-            skhd -k 'cmd - l'
+            skhd -k 'cmd + shift - a'
         else if test "$app" = "BetterTouchTool"
             btt-preset trigger-named-trigger 'BTT: Click search button'
         end
