@@ -22,7 +22,7 @@ grid_configs:
     callback: build_cell_strings
     num_cells_x: 5
     num_cells_y: 6
-  - border_width: 1
+  - border_width: 1.0
     callback: build_cell_strings
     num_cells_x: 5
     num_cells_y: 6
@@ -145,37 +145,37 @@ style_configs:
   font_size_multiplier: 0.5
   grid_line_style: lines
   grid_rgba:
-  - 1
-  - 1
-  - 1
-  - 0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 0.0
   highlight_rgba:
-  - 0.77
-  - 0.44
-  - 0.15
+  - 0.7215686274509804
+  - 0.4627450980392157
+  - 0.44313725490196076
   - 0.5
   name: default
   show_initial_highlight: false
   subgrid_font_size_multiplier: 0.85
   subgrid_rgba:
-  - 1
-  - 1
-  - 1
-  - 0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 0.0
   subgrid_text_rgba:
-  - 1
-  - 1
-  - 1
-  - 1
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
   text_rgba:
   - 0.996078431372549
   - 0.996078431372549
   - 0.996078431372549
-  - 1
-  text_shadow_blur_radius: 1
+  - 1.0
+  text_shadow_blur_radius: 1.0
   text_shadow_offset:
-  - 2
-  - -1
+  - 2.0
+  - -1.0
   text_shadow_rgba:
   - 0.0
   - 0.0
