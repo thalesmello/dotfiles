@@ -87,8 +87,7 @@
             [:##u :page_up]
             [:##s :spacebar]
             [:caps_lock :!Odelete_or_backspace]
-            [:c :f17]
-            [:g :f18]
+            [:##g :f18]
         ]
     }
 
