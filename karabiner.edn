@@ -31,6 +31,8 @@
 :templates {
     :open "open \"%s\""
     :open-app "open -a \"%s\""
+    :btt-named "/opt/homebrew/bin/fish -c 'btt-preset trigger-named-trigger \"%s\"'"
+    :fish "/opt/homebrew/bin/fish fish -c \"%s\""
     ; :alfred "osascript -e 'tell application id \"com.runningwithcrayons.Alfred\" to run trigger \"%s\" in workflow \"%s\" with argument \"%s\"'"
 }
 
@@ -177,7 +179,9 @@
     {
         :des "Right Command to Left Option"
         :rules [
-            [:right_command :right_option]
+            [:!Sright_command [:!Ctab :!Ctab]]
+            [:right_command :right_option nil {:alone :!Ctab}]
+            [:right_option :right_option nil {:alone :!Cgrave_accent_and_tilde}]
         ]
     }
 
