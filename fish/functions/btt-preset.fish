@@ -172,5 +172,27 @@ function btt-preset
         )
 
         btt-preset trigger-action "$json"
+    case "send-keys"
+        set json (
+            printf "%s\n" $argv | jq -Rs '
+                {
+                    "ctrl": 59, "shift": 56, "alt": 58, "cmd": 55,
+                    "a": 0, "b": 11, "c": 8, "d": 2, "e": 14, "f": 3,
+                    "g": 5, "h": 4, "i": 34, "j": 38, "k": 40, "l": 37,
+                    "m": 46, "n": 45, "o": 31, "p": 35, "q": 12, "r": 15,
+                    "s": 1, "t": 17, "u": 32, "v": 9, "w": 13, "x": 7,
+                    "y": 16, "z": 6, "space": 49, "return": 36, "left": 123,
+                    "right": 124, "up": 126, "down": 125
+                } as $map
+                | rtrimstr("\n")
+                | split("\n")
+                | map(. as $key | $map[.] | if . == null then error("\($key) is not mapped") else . end)
+                | {
+                    "BTTShortcutToSend" : (. | join(","))
+                }
+            '
+        )
+
+        btt-preset trigger-action "$json"
     end
 end
