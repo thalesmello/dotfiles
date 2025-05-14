@@ -225,6 +225,15 @@ return {
                      end
                   end, {"c"}
                ),
+               ['<CR>'] = cmp.mapping(
+                  function(fallback)
+                     if cmp.visible() and cmp.get_selected_entry() ~= nil then
+                        cmp.confirm({ select = false })
+                     else
+                        fallback()
+                     end
+                  end, {"c"}
+               ),
             }),
             sources = cmp.config.sources(
                {
