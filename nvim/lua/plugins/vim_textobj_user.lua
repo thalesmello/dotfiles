@@ -84,7 +84,7 @@ return {
             -- { "aq", '<cmd>lua require("various-textobjs").anyQuote("outer")<CR>', mode = { "o", "x" } },
             { "io", '<cmd>lua require("various-textobjs").anyBracket("inner")<CR>', mode = { "o", "x" } },
             { "ao", '<cmd>lua require("various-textobjs").anyBracket("outer")<CR>', mode = { "o", "x" } },
-            { "gG", '<cmd>lua require("various-textobjs").entireBuffer()<CR>', mode = { "o", "x" } },
+            { "ae", '<cmd>lua require("various-textobjs").entireBuffer()<CR>', mode = { "o", "x" } },
             -- { "n", '<cmd>lua require("various-textobjs").nearEoL()<CR>', mode = { "o", "x" } },
             { "i\\", '<cmd>lua require("various-textobjs").lineCharacterwise("inner")<CR>', mode = { "o", "x" } },
             { "a\\", '<cmd>lua require("various-textobjs").lineCharacterwise("outer")<CR>', mode = { "o", "x" } },

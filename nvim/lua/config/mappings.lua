@@ -5,6 +5,11 @@ vim.keymap.set("n", "<c-k>", "<c-w>k", { remap = true })
 vim.keymap.set("n", "[<Tab>", "<cmd>tabprevious<cr>", { remap = true })
 vim.keymap.set("n", "]<Tab>", "<cmd>tabnext<cr>", { remap = true })
 
+local lineContinuationToggle = [=[:luado if line:match('\\?%s*#.*$') ~= nil then return line:gsub('^(%s*)\\?.-# ', '%1') elseif vim.fn.getline('.'):match('\\$') then return line:gsub('^(%s*)(%S-.-)$', '%1\\ # %2') else return line:gsub('^(%s*)(%S-.-)$', '%1# %2') end<cr>]=]
+
+vim.keymap.set({'x'}, 'g\\', lineContinuationToggle, { silent = true })
+vim.keymap.set({'n'}, 'g\\\\', "V" .. lineContinuationToggle, { silent = true })
+
 -- Create windows
 vim.keymap.set("n", "<leader>v", "<C-w>v", { remap = true })
 vim.keymap.set("n", "<leader>%", "<C-w>v", { remap = true })
