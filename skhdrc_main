@@ -288,6 +288,4 @@ ctrl + alt + cmd - y : chrome-preset focus-or-open-url calendar.google.com
 ctrl + alt + cmd - u : workflow-preset perform-default-ui
 ctrl + alt + cmd + shift - o : skhd -k "ctrl + shift - space"
 
-ctrl + shift - space : workflow-preset complete-text-before-cursor
-
 .load ".skhdrc_local"
