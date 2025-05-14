@@ -188,8 +188,8 @@ return {
          })
 
 
-         -- `:` cmdline setup.
-         cmp.setup.cmdline(':', {
+         local cmdconfig
+         cmdconfig = {
             mapping = cmp.mapping.preset.cmdline({
                ['<C-n>'] = cmp.mapping(
                   function(fallback)
@@ -206,6 +206,22 @@ return {
                         cmp.select_prev_item()
                      else
                         fallback()
+                     end
+                  end, {"c"}
+               ),
+               ['<Tab>'] = cmp.mapping(
+                  function()
+                     if cmp.visible() then
+                        cmp.select_next_item()
+                     else
+                        cmp.complete({
+                           config = vim.tbl_deep_extend('force', cmdconfig or {}, {
+                              sources = cmp.config.sources(
+                                 { { name = 'path' } },
+                                 { { name = 'cmdline' } }
+                              )
+                           })
+                        })
                      end
                   end, {"c"}
                ),
@@ -226,7 +242,9 @@ return {
             view = {
                entries = "custom",
             },
-         })
+         }
+         -- `:` cmdline setup.
+         cmp.setup.cmdline(':', cmdconfig)
 
          -- `/` cmdline setup.
          cmp.setup.cmdline('/', {
