@@ -94,7 +94,7 @@ source "$ITEM_DIR/yt-music.sh"
 # https://felixkratz.github.io/SketchyBar/config/events
 sketchybar --add alias "Control Center,BentoBox" right \
            --set "Control Center,BentoBox" \
-               click_script="skhd -k 'fn - c'" \
+               click_script="/usr/bin/env fish -c 'btt-preset send-keys fn c'" \
                alias.update_freq="0" \
            --add item clock right \
            --set clock update_freq=10 icon=  script="$PLUGIN_DIR/clock.sh" \
