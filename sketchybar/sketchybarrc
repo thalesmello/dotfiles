@@ -92,6 +92,12 @@ source "$ITEM_DIR/yt-music.sh"
   #   \ # click_script="/usr/bin/env fish -c 'btt-preset send-keys fn c'" \
   #   \ # alias.update_freq="0" \
 
+  # --add item mic right \
+  # --set mic update_freq=3 \
+  #   script="$PLUGIN_DIR/mic.sh" \
+  #   click_script="$PLUGIN_DIR/mic_click.sh" \
+  # --subscribe mic volume_change
+
 # Some items refresh on a fixed cycle, e.g. the clock runs its script once
 # every 10s. Other items respond to events they subscribe to, e.g. the
 # volume.sh script is only executed once an actual change in system audio
@@ -105,12 +111,7 @@ sketchybar \
   --subscribe volume volume_change \
   --add item battery right \
   --set battery update_freq=120 script="$PLUGIN_DIR/battery.sh" \
-  --subscribe battery system_woke power_source_change \
-  --add item mic right \
-  --set mic update_freq=3 \
-    script="$PLUGIN_DIR/mic.sh" \
-    click_script="$PLUGIN_DIR/mic_click.sh" \
-  --subscribe mic volume_change
+  --subscribe battery system_woke power_source_change
 
 ###############################################################################
 
