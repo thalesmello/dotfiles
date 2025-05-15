@@ -73,6 +73,27 @@
 ;; This is where you define the modifications
 :main [
     {
+        :des "Mouseless: Right Shift + Space = Click"
+        :rules [
+            [:!Rleft_shift [["mouseless-mode" 1] [:noti :mouseless-hud "Mouseless Mode"]] nil {:afterup [["mouseless-mode" 0] [:noti :mouseless-hud]]}]
+            [:!Rspacebar :button1]
+            [:!ROspacebar :button2]
+            [:!RCspacebar :button3]
+            ; opens wheel scroll mode in mouseless
+            [:!Sright_shift :!Sright_shift nil {:alone :f14 :params {:alone 150}}]
+            :mouseless-mode
+            [:h {:mkey {:x -1546}}]
+            [:j {:mkey {:y 1546}}]
+            [:l {:mkey {:x 1546}}]
+            [:i {:mkey {:y -1546}}]
+            [:k {:mkey {:y -1546}}]
+            [:spacebar :button1]
+            [:!Ospacebar :button2]
+            [:!Cspacebar :button3]
+        ]
+    }
+
+    {
         :des "Space FN"
         :rules [
             :space-mode
@@ -174,26 +195,6 @@
     ;         :keystogo
     ;         [:!Fa :!Ta] ]
     ; }
-
-    {
-        :des "Mouseless: Right Shift + Space = Click"
-        :rules [
-            [:!Rleft_shift [["mouseless-mode" 1] [:noti :mouseless-hud "Mouseless Mode"]] nil {:afterup [["mouseless-mode" 0] [:noti :mouseless-hud]]}]
-            [:!Rspacebar :button1]
-            [:!ROspacebar :button2]
-            [:!RCspacebar :button3]
-            ; opens wheel scroll mode in mouseless
-            [:!Sright_shift :!Sright_shift nil {:alone :f14 :params {:alone 150}}]
-            :mouseless-mode
-            [:j {:mkey {:x -1546}}]
-            [:l {:mkey {:x 1546}}]
-            [:i {:mkey {:y -1546}}]
-            [:k {:mkey {:y 1546}}]
-            [:spacebar :button1]
-            [:!Ospacebar :button2]
-            [:!Cspacebar :button3]
-        ]
-    }
 
     {
         :des "Workflow Modifier Tap Behavior"
