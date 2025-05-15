@@ -160,6 +160,7 @@ service < shift - space : skhd -k "escape" &; yabai-preset move-window-to-space 
 service < shift - 0x29 : skhd -k "escape" &; yabai-preset arrange-windows-side-by-side
 service < r ; resize
 service < shift - r : skhd -k "escape" &; yabai --stop-service && yabai --start-service && display-message "Yabai Restarted" || begin; yabai --start-service && display-message "Yabai Started"; end
+service < y : yabai-preset toggle-yabai
 service < v : skhd -k "escape" &; yabai -m window --insert east
 # double quotes
 service < shift - 0x27 : skhd -k "escape" &; yabai -m window --insert south
@@ -283,7 +284,6 @@ ctrl + alt + cmd + shift - f : btt-preset show-or-hide-app --only-show "/Applica
 ctrl + alt + cmd + shift - g : btt-preset show-or-hide-app --only-show "/System/Applications/Messages.app"
 ctrl + alt + cmd + shift - q : btt-preset show-or-hide-app --only-show "/System/Applications/Utilities/Activity Monitor.app"
 
-ctrl + alt + cmd + shift - a : yabai-preset toggle-yabai
 ctrl + alt + cmd - y : chrome-preset focus-or-open-url calendar.google.com
 
 ctrl + alt + cmd - u : workflow-preset perform-default-ui
