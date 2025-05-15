@@ -88,7 +88,7 @@ return {
             -- { "n", '<cmd>lua require("various-textobjs").nearEoL()<CR>', mode = { "o", "x" } },
             { "i\\", '<cmd>lua require("various-textobjs").lineCharacterwise("inner")<CR>', mode = { "o", "x" } },
             { "a\\", '<cmd>lua require("various-textobjs").lineCharacterwise("outer")<CR>', mode = { "o", "x" } },
-            { "|", '<cmd>lua require("various-textobjs").column("down")<CR>', mode = { "o", "x" }},
+            { "i|", '<cmd>lua require("various-textobjs").column("down")<CR>', mode = { "o", "x" }},
             { "a|", '<cmd>lua require("various-textobjs").column("both")<CR>', mode = { "o", "x" }},
             { "iv", '<cmd>lua require("various-textobjs").value("inner")<CR>', mode = { "o", "x" } },
             { "av", '<cmd>lua require("various-textobjs").value("outer")<CR>', mode = { "o", "x" } },
