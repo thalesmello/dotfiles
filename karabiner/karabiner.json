@@ -4704,180 +4704,34 @@
           "type" : "basic"
         } ]
       }, {
-        "description" : "Workflow Modifier Tap Behavior",
+        "description" : "Mouseless: Right Shift + Space = Click",
         "manipulators" : [ {
-          "from" : {
-            "key_code" : "right_command",
-            "modifiers" : {
-              "mandatory" : [ "left_shift" ]
-            }
-          },
-          "to" : [ {
-            "key_code" : "tab",
-            "modifiers" : [ "left_command" ]
-          }, {
-            "key_code" : "tab",
-            "modifiers" : [ "left_command" ]
-          } ],
-          "type" : "basic"
-        }, {
-          "to_if_alone" : [ {
-            "key_code" : "q",
-            "modifiers" : [ "left_option" ]
-          } ],
-          "from" : {
-            "key_code" : "right_command"
-          },
-          "to" : [ {
-            "key_code" : "right_option"
-          } ],
-          "type" : "basic"
-        }, {
-          "to_if_alone" : [ {
-            "key_code" : "q",
-            "modifiers" : [ "left_option" ]
-          } ],
-          "from" : {
-            "key_code" : "right_option"
-          },
-          "to" : [ {
-            "key_code" : "right_option"
-          } ],
-          "type" : "basic"
-        }, {
-          "to_if_alone" : [ {
-            "key_code" : "tab",
-            "modifiers" : [ "left_command" ]
-          } ],
-          "from" : {
-            "key_code" : "left_option",
-            "modifiers" : {
-              "optional" : [ "any" ]
-            }
-          },
-          "to" : [ {
-            "key_code" : "left_option"
-          } ],
-          "type" : "basic"
-        }, {
-          "to_if_alone" : [ {
-            "key_code" : "c",
-            "modifiers" : [ "left_command" ]
-          } ],
-          "from" : {
-            "key_code" : "left_command",
-            "modifiers" : {
-              "optional" : [ "any" ]
-            }
-          },
-          "to" : [ {
-            "key_code" : "left_command"
-          } ],
-          "type" : "basic"
-        } ]
-      }, {
-        "description" : "Press left_ctrl twice to enter clipboard history",
-        "manipulators" : [ {
-          "from" : {
-            "key_code" : "left_control"
-          },
-          "to" : [ {
-            "key_code" : "c",
-            "modifiers" : [ "left_control", "left_option" ]
-          }, {
+          "to_after_key_up" : [ {
             "set_variable" : {
-              "name" : "ctrl-pressed-once",
+              "name" : "mouseless-mode",
               "value" : 0
             }
+          }, {
+            "set_notification_message" : {
+              "id" : "mouseless-hud",
+              "text" : ""
+            }
           } ],
-          "conditions" : [ {
-            "name" : "ctrl-pressed-once",
-            "value" : 1,
-            "type" : "variable_if"
-          } ],
-          "type" : "basic"
-        }, {
-          "to_delayed_action" : {
-            "to_if_invoked" : [ {
-              "set_variable" : {
-                "name" : "ctrl-pressed-once",
-                "value" : 0
-              }
-            } ],
-            "to_if_canceled" : [ {
-              "set_variable" : {
-                "name" : "ctrl-pressed-once",
-                "value" : 0
-              }
-            } ]
-          },
           "from" : {
-            "key_code" : "left_control",
+            "key_code" : "left_shift",
             "modifiers" : {
-              "optional" : [ "any" ]
+              "mandatory" : [ "right_shift" ]
             }
           },
           "to" : [ {
             "set_variable" : {
-              "name" : "ctrl-pressed-once",
+              "name" : "mouseless-mode",
               "value" : 1
             }
           }, {
-            "key_code" : "left_control"
-          } ],
-          "type" : "basic"
-        } ]
-      }, {
-        "description" : "Mouseless: Right Shift + Space = Click",
-        "manipulators" : [ {
-          "from" : {
-            "key_code" : "k",
-            "modifiers" : {
-              "mandatory" : [ "right_shift" ]
-            }
-          },
-          "to" : [ {
-            "mouse_key" : {
-              "x" : -1546
-            }
-          } ],
-          "type" : "basic"
-        }, {
-          "from" : {
-            "key_code" : "semicolon",
-            "modifiers" : {
-              "mandatory" : [ "right_shift" ]
-            }
-          },
-          "to" : [ {
-            "mouse_key" : {
-              "x" : 1546
-            }
-          } ],
-          "type" : "basic"
-        }, {
-          "from" : {
-            "key_code" : "o",
-            "modifiers" : {
-              "mandatory" : [ "right_shift" ]
-            }
-          },
-          "to" : [ {
-            "mouse_key" : {
-              "y" : -1546
-            }
-          } ],
-          "type" : "basic"
-        }, {
-          "from" : {
-            "key_code" : "l",
-            "modifiers" : {
-              "mandatory" : [ "right_shift" ]
-            }
-          },
-          "to" : [ {
-            "mouse_key" : {
-              "y" : 1546
+            "set_notification_message" : {
+              "id" : "mouseless-hud",
+              "text" : "Mouseless Mode"
             }
           } ],
           "type" : "basic"
@@ -4918,6 +4772,9 @@
           "to_if_alone" : [ {
             "key_code" : "f14"
           } ],
+          "parameters" : {
+            "basic.to_if_alone_timeout_milliseconds" : 150
+          },
           "from" : {
             "key_code" : "right_shift",
             "modifiers" : {
@@ -4930,9 +4787,354 @@
           } ],
           "type" : "basic"
         }, {
+          "from" : {
+            "key_code" : "j"
+          },
+          "to" : [ {
+            "mouse_key" : {
+              "x" : -1546
+            }
+          } ],
+          "conditions" : [ {
+            "name" : "mouseless-mode",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "l"
+          },
+          "to" : [ {
+            "mouse_key" : {
+              "x" : 1546
+            }
+          } ],
+          "conditions" : [ {
+            "name" : "mouseless-mode",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "i"
+          },
+          "to" : [ {
+            "mouse_key" : {
+              "y" : -1546
+            }
+          } ],
+          "conditions" : [ {
+            "name" : "mouseless-mode",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "k"
+          },
+          "to" : [ {
+            "mouse_key" : {
+              "y" : 1546
+            }
+          } ],
+          "conditions" : [ {
+            "name" : "mouseless-mode",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "spacebar"
+          },
+          "to" : [ {
+            "pointing_button" : "button1"
+          } ],
+          "conditions" : [ {
+            "name" : "mouseless-mode",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "spacebar",
+            "modifiers" : {
+              "mandatory" : [ "left_option" ]
+            }
+          },
+          "to" : [ {
+            "pointing_button" : "button2"
+          } ],
+          "conditions" : [ {
+            "name" : "mouseless-mode",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "spacebar",
+            "modifiers" : {
+              "mandatory" : [ "left_command" ]
+            }
+          },
+          "to" : [ {
+            "pointing_button" : "button3"
+          } ],
+          "conditions" : [ {
+            "name" : "mouseless-mode",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        } ]
+      }, {
+        "description" : "Workflow Modifier Tap Behavior",
+        "manipulators" : [ {
+          "from" : {
+            "key_code" : "1",
+            "modifiers" : {
+              "mandatory" : [ "right_option" ],
+              "optional" : [ "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "1",
+            "modifiers" : [ "left_command", "left_control", "left_option" ]
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "2",
+            "modifiers" : {
+              "mandatory" : [ "right_option" ],
+              "optional" : [ "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "2",
+            "modifiers" : [ "left_command", "left_control", "left_option" ]
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "3",
+            "modifiers" : {
+              "mandatory" : [ "right_option" ],
+              "optional" : [ "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "3",
+            "modifiers" : [ "left_command", "left_control", "left_option" ]
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "4",
+            "modifiers" : {
+              "mandatory" : [ "right_option" ],
+              "optional" : [ "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "4",
+            "modifiers" : [ "left_command", "left_control", "left_option" ]
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "5",
+            "modifiers" : {
+              "mandatory" : [ "right_option" ],
+              "optional" : [ "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "5",
+            "modifiers" : [ "left_command", "left_control", "left_option" ]
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "6",
+            "modifiers" : {
+              "mandatory" : [ "right_option" ],
+              "optional" : [ "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "6",
+            "modifiers" : [ "left_command", "left_control", "left_option" ]
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "7",
+            "modifiers" : {
+              "mandatory" : [ "right_option" ],
+              "optional" : [ "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "7",
+            "modifiers" : [ "left_command", "left_control", "left_option" ]
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "8",
+            "modifiers" : {
+              "mandatory" : [ "right_option" ],
+              "optional" : [ "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "8",
+            "modifiers" : [ "left_command", "left_control", "left_option" ]
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "9",
+            "modifiers" : {
+              "mandatory" : [ "right_option" ],
+              "optional" : [ "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "9",
+            "modifiers" : [ "left_command", "left_control", "left_option" ]
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "right_command",
+            "modifiers" : {
+              "mandatory" : [ "left_shift" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "tab",
+            "modifiers" : [ "left_command" ]
+          }, {
+            "key_code" : "tab",
+            "modifiers" : [ "left_command" ]
+          } ],
+          "type" : "basic"
+        }, {
+          "to_if_alone" : [ {
+            "key_code" : "q",
+            "modifiers" : [ "left_option" ]
+          } ],
+          "parameters" : {
+            "basic.to_if_alone_timeout_milliseconds" : 150
+          },
+          "from" : {
+            "key_code" : "right_command"
+          },
+          "to" : [ {
+            "key_code" : "right_option"
+          } ],
+          "type" : "basic"
+        }, {
+          "to_if_alone" : [ {
+            "key_code" : "q",
+            "modifiers" : [ "left_option" ]
+          } ],
+          "parameters" : {
+            "basic.to_if_alone_timeout_milliseconds" : 150
+          },
+          "from" : {
+            "key_code" : "right_option"
+          },
+          "to" : [ {
+            "key_code" : "right_option"
+          } ],
+          "type" : "basic"
+        }, {
+          "to_if_alone" : [ {
+            "key_code" : "tab",
+            "modifiers" : [ "left_command" ]
+          } ],
+          "parameters" : {
+            "basic.to_if_alone_timeout_milliseconds" : 150
+          },
+          "from" : {
+            "key_code" : "left_shift",
+            "modifiers" : {
+              "optional" : [ "any" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "left_shift"
+          } ],
+          "type" : "basic"
+        }, {
+          "to_if_alone" : [ {
+            "key_code" : "q",
+            "modifiers" : [ "left_option" ]
+          } ],
+          "parameters" : {
+            "basic.to_if_alone_timeout_milliseconds" : 150
+          },
+          "from" : {
+            "key_code" : "left_option",
+            "modifiers" : {
+              "optional" : [ "any" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "left_option"
+          } ],
+          "type" : "basic"
+        }, {
+          "to_if_alone" : [ {
+            "key_code" : "c",
+            "modifiers" : [ "left_control", "left_option" ]
+          } ],
+          "parameters" : {
+            "basic.to_if_alone_timeout_milliseconds" : 150
+          },
+          "from" : {
+            "key_code" : "left_control",
+            "modifiers" : {
+              "optional" : [ "any" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "left_control"
+          } ],
+          "type" : "basic"
+        }, {
+          "to_if_alone" : [ {
+            "key_code" : "c",
+            "modifiers" : [ "left_command" ]
+          } ],
+          "parameters" : {
+            "basic.to_if_alone_timeout_milliseconds" : 150
+          },
+          "from" : {
+            "key_code" : "left_command",
+            "modifiers" : {
+              "optional" : [ "any" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "left_command"
+          } ],
+          "type" : "basic"
+        }, {
           "to_if_alone" : [ {
             "key_code" : "f13"
           } ],
+          "parameters" : {
+            "basic.to_if_alone_timeout_milliseconds" : 150
+          },
           "from" : {
             "key_code" : "right_shift",
             "modifiers" : {

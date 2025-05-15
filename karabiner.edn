@@ -172,43 +172,60 @@
     ;     :des "Bluetooth Keyboard FN -> Ctrl"
     ;     :rules [
     ;         :keystogo
-    ;         [:!Fa :!Ta]
-    ;     ]
+    ;         [:!Fa :!Ta] ]
     ; }
-
-    {
-        :des "Workflow Modifier Tap Behavior"
-        :rules [
-            [:!Sright_command [:!Ctab :!Ctab]]
-            [:right_command :right_option nil {:alone :!Oq}]
-            [:right_option :right_option nil {:alone :!Oq}]
-            [:##left_option :##left_option nil {:alone :!Ctab}]
-            [:##left_command :##left_command nil {:alone :!Cc}]
-        ]
-    }
-
-    {
-        :des   "Press left_ctrl twice to enter clipboard history"
-        :rules [
-            [:left_control [:!TOc ["ctrl-pressed-once" 0]] ["ctrl-pressed-once" 1]]
-            [:##left_control [["ctrl-pressed-once" 1] :left_control] nil {:delayed {:invoked ["ctrl-pressed-once" 0] :canceled ["ctrl-pressed-once" 0]}}]
-        ]
-    }
 
     {
         :des "Mouseless: Right Shift + Space = Click"
         :rules [
-            [:!Rk {:mkey {:x -1546}}]
-            [:!Rsemicolon {:mkey {:x 1546}}]
-            [:!Ro {:mkey {:y -1546}}]
-            [:!Rl {:mkey {:y 1546}}]
+            [:!Rleft_shift [["mouseless-mode" 1] [:noti :mouseless-hud "Mouseless Mode"]] nil {:afterup [["mouseless-mode" 0] [:noti :mouseless-hud]]}]
             [:!Rspacebar :button1]
             [:!ROspacebar :button2]
             [:!RCspacebar :button3]
-            [:!Sright_shift :!Sright_shift nil {:alone :f14}]
-            [:##right_shift :right_shift nil {:alone :f13}]
+            ; opens wheel scroll mode in mouseless
+            [:!Sright_shift :!Sright_shift nil {:alone :f14 :params {:alone 150}}]
+            :mouseless-mode
+            [:j {:mkey {:x -1546}}]
+            [:l {:mkey {:x 1546}}]
+            [:i {:mkey {:y -1546}}]
+            [:k {:mkey {:y 1546}}]
+            [:spacebar :button1]
+            [:!Ospacebar :button2]
+            [:!Cspacebar :button3]
         ]
     }
+
+    {
+        :des "Workflow Modifier Tap Behavior"
+        :rules [
+            [:!E#R1 :!TOC1]
+            [:!E#R2 :!TOC2]
+            [:!E#R3 :!TOC3]
+            [:!E#R4 :!TOC4]
+            [:!E#R5 :!TOC5]
+            [:!E#R6 :!TOC6]
+            [:!E#R7 :!TOC7]
+            [:!E#R8 :!TOC8]
+            [:!E#R9 :!TOC9]
+            [:!Sright_command [:!Ctab :!Ctab]]
+            [:right_command :right_option nil {:alone :!Oq :params {:alone 150}}]
+            [:right_option :right_option nil {:alone :!Oq :params {:alone 150}}]
+            [:##left_shift :##left_shift nil {:alone :!Ctab :params {:alone 150}}]
+            [:##left_option :##left_option nil {:alone :!Oq :params {:alone 150}}]
+            [:##left_control :##left_control nil {:alone :!TOc :params {:alone 150}}]
+            [:##left_command :##left_command nil {:alone :!Cc :params {:alone 150}}]
+            ; opens mouseless
+            [:##right_shift :right_shift nil {:alone :f13 :params {:alone 150}}]
+        ]
+    }
+
+    ; {
+    ;     :des   "Press left_ctrl twice to enter clipboard history"
+    ;     :rules [
+    ;         [:left_control [:!TOc ["ctrl-pressed-once" 0]] ["ctrl-pressed-once" 1]]
+    ;         [:##left_control [["ctrl-pressed-once" 1] :left_control] nil {:delayed {:invoked ["ctrl-pressed-once" 0] :canceled ["ctrl-pressed-once" 0]}}]
+    ;     ]
+    ; }
 
     {
         :des "Baserow Mod"
