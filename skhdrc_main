@@ -219,7 +219,7 @@ service < k : skhd -k "escape" &; yabai-preset focus-display-with-fallback north
 service < l : skhd -k "escape" &; yabai-preset focus-display-with-fallback east
 service < tab : skhd -k "escape" &; yabai-preset move-window-to-display-with-fallback
 # Backtick
-service < shift - 0x32 : skhd -k "escape" &; osascript -e 'tell application "iTerm" to tell current window to create tab with default profile command "/opt/homebrew/bin/fish -C \"cd ~/src/dotfiles\""'
+service < shift - 0x32 : skhd -k "escape" &; osascript -e 'tell application "iTerm" to tell current window to create tab with default profile command "/opt/homebrew/bin/fish -C \"cd ~/src/dotfiles\" -C \"nvim (fzf)\""'
 
 
 
