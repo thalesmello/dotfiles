@@ -87,7 +87,7 @@ keymaps:
     wheel down fast: J
     wheel left: null
     wheel left fast: H
-    wheel right: k
+    wheel right: null
     wheel right fast: L
     wheel step down: null
     wheel step down large: null
