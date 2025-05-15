@@ -5,6 +5,8 @@ vim.keymap.set("n", "<c-k>", "<c-w>k", { remap = true })
 vim.keymap.set("n", "[<Tab>", "<cmd>tabprevious<cr>", { remap = true })
 vim.keymap.set("n", "]<Tab>", "<cmd>tabnext<cr>", { remap = true })
 vim.keymap.set("n", "<leader>ww", "<cmd>w<cr>", { remap = true })
+vim.keymap.set({"n", "x", "o"}, "H", "^", { remap = false })
+vim.keymap.set({"n", "x", "o"}, "L", "$", { remap = false })
 
 local lineContinuationToggle = [=[:luado if line:match('\\?%s*#.*$') ~= nil then return line:gsub('^(%s*)\\?.-# ', '%1') elseif vim.fn.getline('.'):match('\\$') then return line:gsub('^(%s*)(%S-.-)$', '%1\\ # %2') else return line:gsub('^(%s*)(%S-.-)$', '%1# %2') end<cr>]=]
 

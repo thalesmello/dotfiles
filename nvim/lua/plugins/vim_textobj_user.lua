@@ -94,7 +94,7 @@ return {
             { "av", '<cmd>lua require("various-textobjs").value("outer")<CR>', mode = { "o", "x" } },
             { "ik", '<cmd>lua require("various-textobjs").key("inner")<CR>', mode = { "o", "x" } },
             { "ak", '<cmd>lua require("various-textobjs").key("outer")<CR>', mode = { "o", "x" } },
-            { "L", '<cmd>lua require("various-textobjs").url()<CR>', mode = { "o", "x" } },
+            -- { "L", '<cmd>lua require("various-textobjs").url()<CR>', mode = { "o", "x" } },
             -- { "in", '<cmd>lua require("various-textobjs").number("inner")<CR>', mode = { "o", "x" } },
             -- { "an", '<cmd>lua require("various-textobjs").number("outer")<CR>', mode = { "o", "x" } },
             { "!", '<cmd>lua require("various-textobjs").diagnostic()<CR>', mode = { "o", "x" } },
