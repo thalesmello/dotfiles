@@ -4,5 +4,6 @@
   "fish/functions/*.fish": {"type": "fishfunction"},
   "fish/conf.d/*.fish": {"type": "fishconf"},
   "fish/config.fish": {"type": "fishinit"},
-  "README.markdown": {"type": "doc"}
+  "README.markdown": {"type": "doc"},
+  "karabiner.edn": { "type": "karabiner", "dispatch": "goku" }
 }

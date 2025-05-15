@@ -196,7 +196,7 @@
             [:!ROspacebar :button2]
             [:!RCspacebar :button3]
             [:!Sright_shift :!Sright_shift nil {:alone :f14}]
-            [:right_shift :right_shift nil {:alone :f13}]
+            [:##right_shift :right_shift nil {:alone :f13}]
         ]
     }
 

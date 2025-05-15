@@ -4852,7 +4852,10 @@
             "key_code" : "f13"
           } ],
           "from" : {
-            "key_code" : "right_shift"
+            "key_code" : "right_shift",
+            "modifiers" : {
+              "optional" : [ "any" ]
+            }
           },
           "to" : [ {
             "key_code" : "right_shift"
