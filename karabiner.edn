@@ -177,12 +177,21 @@
     ; }
 
     {
-        :des "Right Command to Left Option"
+        :des "Workflow Modifier Tap Behavior"
         :rules [
             [:!Sright_command [:!Ctab :!Ctab]]
             [:right_command :right_option nil {:alone :!Oq}]
             [:right_option :right_option nil {:alone :!Oq}]
-            [:##left_option :left_option nil {:alone :!Ctab}]
+            [:##left_option :##left_option nil {:alone :!Ctab}]
+            [:##left_command :##left_command nil {:alone :!Cc}]
+        ]
+    }
+
+    {
+        :des   "Press left_ctrl twice to enter clipboard history"
+        :rules [
+            [:left_control [:!TOc ["ctrl-pressed-once" 0]] ["ctrl-pressed-once" 1]]
+            [:##left_control [["ctrl-pressed-once" 1] :left_control] nil {:delayed {:invoked ["ctrl-pressed-once" 0] :canceled ["ctrl-pressed-once" 0]}}]
         ]
     }
 

@@ -81,6 +81,8 @@ ctrl + alt + cmd + shift - m : yabai -m window --deminimize "$(yabai -m query --
 ctrl + alt + cmd - m : yabai -m window --minimize
 ctrl + alt + cmd - return : yabai-preset toggle-window-zoom-or-fullscreen
 
+ctrl + alt + cmd - v : skhd -k "escape" &; btt-preset trigger-named-trigger "Edit Selection in Vim"
+ctrl + alt + cmd - t : skhd -k "escape" &; btt-preset trigger-named-trigger "Chrome: Open New Tab (with selection is One Line)"
 
 # # Open square bracket [
 ctrl + alt + cmd - 0x21 : yabai-preset focus-space prev
@@ -219,6 +221,11 @@ service < j : skhd -k "escape" &; yabai-preset focus-display-with-fallback south
 service < k : skhd -k "escape" &; yabai-preset focus-display-with-fallback north
 service < l : skhd -k "escape" &; yabai-preset focus-display-with-fallback east
 service < tab : skhd -k "escape" &; yabai-preset move-window-to-display-with-fallback
+# slash / question mark
+service < shift - 0x2C : skhd -k "escape" &; btt-preset trigger-menu-bar 'Help'
+
+service < ctrl + alt + cmd - v : skhd -k "escape" &; btt-preset trigger-menu-bar 'Window;Full Screen Tile; Left of Screen'
+service < ctrl + alt + cmd - return : skhd -k "escape" &; btt-preset send-keys ctrl cmd f
 # Backtick
 service < shift - 0x32 : skhd -k "escape" &; osascript -e 'tell application "iTerm" to tell current window to create tab with default profile command "/opt/homebrew/bin/fish -C \"cd ~/src/dotfiles\" -C \"nvim (fzf)\""'
 

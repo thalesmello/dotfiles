@@ -4704,7 +4704,7 @@
           "type" : "basic"
         } ]
       }, {
-        "description" : "Right Command to Left Option",
+        "description" : "Workflow Modifier Tap Behavior",
         "manipulators" : [ {
           "from" : {
             "key_code" : "right_command",
@@ -4757,6 +4757,73 @@
           },
           "to" : [ {
             "key_code" : "left_option"
+          } ],
+          "type" : "basic"
+        }, {
+          "to_if_alone" : [ {
+            "key_code" : "c",
+            "modifiers" : [ "left_command" ]
+          } ],
+          "from" : {
+            "key_code" : "left_command",
+            "modifiers" : {
+              "optional" : [ "any" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "left_command"
+          } ],
+          "type" : "basic"
+        } ]
+      }, {
+        "description" : "Press left_ctrl twice to enter clipboard history",
+        "manipulators" : [ {
+          "from" : {
+            "key_code" : "left_control"
+          },
+          "to" : [ {
+            "key_code" : "c",
+            "modifiers" : [ "left_control", "left_option" ]
+          }, {
+            "set_variable" : {
+              "name" : "ctrl-pressed-once",
+              "value" : 0
+            }
+          } ],
+          "conditions" : [ {
+            "name" : "ctrl-pressed-once",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "to_delayed_action" : {
+            "to_if_invoked" : [ {
+              "set_variable" : {
+                "name" : "ctrl-pressed-once",
+                "value" : 0
+              }
+            } ],
+            "to_if_canceled" : [ {
+              "set_variable" : {
+                "name" : "ctrl-pressed-once",
+                "value" : 0
+              }
+            } ]
+          },
+          "from" : {
+            "key_code" : "left_control",
+            "modifiers" : {
+              "optional" : [ "any" ]
+            }
+          },
+          "to" : [ {
+            "set_variable" : {
+              "name" : "ctrl-pressed-once",
+              "value" : 1
+            }
+          }, {
+            "key_code" : "left_control"
           } ],
           "type" : "basic"
         } ]
