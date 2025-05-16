@@ -4226,6 +4226,33 @@
           "type" : "basic"
         }, {
           "from" : {
+            "key_code" : "y",
+            "modifiers" : {
+              "optional" : [ "left_shift", "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "y",
+            "modifiers" : [ "left_command", "left_control", "left_option" ]
+          }, {
+            "set_variable" : {
+              "name" : "hyper-layer",
+              "value" : 0
+            }
+          }, {
+            "set_notification_message" : {
+              "id" : "hyper-hud",
+              "text" : ""
+            }
+          } ],
+          "conditions" : [ {
+            "name" : "hyper-layer",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
             "key_code" : "z",
             "modifiers" : {
               "optional" : [ "left_shift", "right_shift" ]
@@ -4476,6 +4503,33 @@
           },
           "to" : [ {
             "key_code" : "8",
+            "modifiers" : [ "left_command", "left_control", "left_option" ]
+          }, {
+            "set_variable" : {
+              "name" : "hyper-layer",
+              "value" : 0
+            }
+          }, {
+            "set_notification_message" : {
+              "id" : "hyper-hud",
+              "text" : ""
+            }
+          } ],
+          "conditions" : [ {
+            "name" : "hyper-layer",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "9",
+            "modifiers" : {
+              "optional" : [ "left_shift", "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "9",
             "modifiers" : [ "left_command", "left_control", "left_option" ]
           }, {
             "set_variable" : {
@@ -4827,6 +4881,33 @@
           },
           "to" : [ {
             "key_code" : "grave_accent_and_tilde",
+            "modifiers" : [ "left_command", "left_control", "left_option" ]
+          }, {
+            "set_variable" : {
+              "name" : "hyper-layer",
+              "value" : 0
+            }
+          }, {
+            "set_notification_message" : {
+              "id" : "hyper-hud",
+              "text" : ""
+            }
+          } ],
+          "conditions" : [ {
+            "name" : "hyper-layer",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "delete_or_backspace",
+            "modifiers" : {
+              "optional" : [ "left_shift", "right_shift" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "delete_or_backspace",
             "modifiers" : [ "left_command", "left_control", "left_option" ]
           }, {
             "set_variable" : {
@@ -5038,21 +5119,6 @@
           } ],
           "type" : "basic"
         }, {
-          "from" : {
-            "key_code" : "right_command",
-            "modifiers" : {
-              "mandatory" : [ "left_shift" ]
-            }
-          },
-          "to" : [ {
-            "key_code" : "tab",
-            "modifiers" : [ "left_command" ]
-          }, {
-            "key_code" : "tab",
-            "modifiers" : [ "left_command" ]
-          } ],
-          "type" : "basic"
-        }, {
           "to_if_alone" : [ {
             "set_variable" : {
               "name" : "hyper-layer",
@@ -5076,8 +5142,11 @@
           "type" : "basic"
         }, {
           "to_if_alone" : [ {
-            "key_code" : "q",
-            "modifiers" : [ "left_option" ]
+            "key_code" : "tab",
+            "modifiers" : [ "left_command" ]
+          }, {
+            "key_code" : "tab",
+            "modifiers" : [ "left_command" ]
           } ],
           "parameters" : {
             "basic.to_if_alone_timeout_milliseconds" : 150
@@ -5087,6 +5156,24 @@
           },
           "to" : [ {
             "key_code" : "right_option"
+          } ],
+          "type" : "basic"
+        }, {
+          "to_if_alone" : [ {
+            "key_code" : "tab",
+            "modifiers" : [ "left_command" ]
+          }, {
+            "key_code" : "tab",
+            "modifiers" : [ "left_command" ]
+          } ],
+          "parameters" : {
+            "basic.to_if_alone_timeout_milliseconds" : 150
+          },
+          "from" : {
+            "key_code" : "right_control"
+          },
+          "to" : [ {
+            "key_code" : "right_control"
           } ],
           "type" : "basic"
         }, {
@@ -5127,8 +5214,8 @@
           "type" : "basic"
         }, {
           "to_if_alone" : [ {
-            "key_code" : "c",
-            "modifiers" : [ "left_control", "left_option" ]
+            "key_code" : "slash",
+            "modifiers" : [ "left_command", "left_control", "left_option" ]
           } ],
           "parameters" : {
             "basic.to_if_alone_timeout_milliseconds" : 150
@@ -5146,7 +5233,7 @@
         }, {
           "to_if_alone" : [ {
             "key_code" : "c",
-            "modifiers" : [ "left_command" ]
+            "modifiers" : [ "left_control", "left_option" ]
           } ],
           "parameters" : {
             "basic.to_if_alone_timeout_milliseconds" : 150
