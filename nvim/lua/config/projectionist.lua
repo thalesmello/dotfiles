@@ -6,11 +6,11 @@ local function template(str)
 end
 
 vim.g.projectionist_heuristics = {
-   ["init.lua"] = {
-      ["lua/config/*.lua"] = {
+   ["nvim/init.lua"] = {
+      ["nvim/lua/config/*.lua"] = {
          type = "config",
       },
-      ["lua/plugins/*.lua"] = {
+      ["nvim/lua/plugins/*.lua"] = {
          type = "plugin",
          template = template([=[
 return {
@@ -22,16 +22,16 @@ return {
 }
 ]=])
       },
-      ["lua/*.lua"] = {
+      ["nvim/lua/*.lua"] = {
          type = "lua",
       },
-      ["local_plugins/**/lua/*.lua"] = {
+      ["nvim/local_plugins/**/lua/*.lua"] = {
          type = "localplugins",
       },
-      ["after/queries/*/textobjects.scm"] = {
+      ["nvim/after/queries/*/textobjects.scm"] = {
          type = "textobjects",
       },
-      ["lua/ftmini/*.lua"] = {
+      ["nvim/lua/ftmini/*.lua"] = {
          type = "ftmini",
       },
    },
