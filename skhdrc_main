@@ -94,10 +94,10 @@ ctrl + alt + cmd - j : yabai -m window --focus south || yabai-preset focus-windo
 ctrl + alt + cmd - k : yabai -m window --focus north || yabai-preset focus-window north
 ctrl + alt + cmd - l : yabai -m window --focus east || yabai-preset focus-window east
 
-ctrl + alt + cmd + shift - h : yabai -m window --swap west || yabai-preset send-keys ctrl alt cmd left
-ctrl + alt + cmd + shift - j : yabai -m window --swap south || yabai-preset send-keys ctrl alt cmd down
-ctrl + alt + cmd + shift - k : yabai -m window --swap north || yabai-preset send-keys ctrl alt cmd up
-ctrl + alt + cmd + shift - l : yabai -m window --swap east || yabai-preset send-keys ctrl alt cmd right
+ctrl + alt + cmd + shift - h : yabai -m window --swap west || skhd -k "ctrl + alt + cmd - left"
+ctrl + alt + cmd + shift - j : yabai -m window --swap south || skhd -k "ctrl + alt + cmd - down"
+ctrl + alt + cmd + shift - k : yabai -m window --swap north || skhd -k "ctrl + alt + cmd - up"
+ctrl + alt + cmd + shift - l : yabai -m window --swap east || skhd -k "ctrl + alt + cmd - right"
 
 # minus
 ctrl + alt + cmd - 0x1B : yabai -m window --resize bottom_right:-100:0

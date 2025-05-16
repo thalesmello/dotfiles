@@ -30,3 +30,4 @@ brew install koekeishiya/formulae/yabai
 brew install koekeishiya/formulae/skhd
 brew install FelixKratz/formulae/sketchybar
 brew install th-ch/youtube-music/youtube-music
+brew install mas

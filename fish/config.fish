@@ -60,3 +60,7 @@ if set -q USE_WSL_CONFIG
 		set -x SSH_AUTH_SOCK "$(find '/tmp/ssh-*' -name 'agent.*')"
 	end
 end
+
+if status --is-interactive
+	source $__fish_config_dir/iterm_integration.fish
+end

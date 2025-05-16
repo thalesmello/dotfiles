@@ -117,6 +117,7 @@
     {
         :des "Hyperkey as Leader Key"
         :rules [
+            [:!Ecaps_lock :f17]
             :!hyper-layer
             [:caps_lock { :key :!CTleft_option :lazy true } nil { :alone { :key :escape :halt true } :delayed {:canceled {:key :vk_none, :halt true} :invoked {:key :vk_none, :halt true}} :afterup [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]] :params {:alone 500 :delay 2000 }}]
             [:!Scaps_lock {:key :!CSTleft_option :lazy true} nil {:alone :!Sescape} ]

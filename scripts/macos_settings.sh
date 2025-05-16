@@ -33,7 +33,7 @@ defaults write com.apple.dock "mineffect" -string "scale"
 defaults write com.apple.dock "mru-spaces" -bool "false"
 
 # group windows based on application
-defaults write com.apple.dock "expose-group-apps" -bool "false"
+defaults write com.apple.dock "expose-group-apps" -bool "true"
 
 # displays have separate spaces
 defaults write com.apple.spaces "spans-displays" -bool "true"
@@ -43,5 +43,5 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true
 defaults write NSGlobalDomain AppleMenuBarVisibleInFullscreen -bool true
 
 # Set top hight of rectangle pro to have space for Sketchy bar
-defaults write com.knollsoft.Rectangle screenEdgeGapTop -int 45
-defaults write com.knollsoft.Hookshot screenEdgeGapTop -int 45
+defaults write com.knollsoft.Rectangle screenEdgeGapTop -int 30
+defaults write com.knollsoft.Hookshot screenEdgeGapTop -int 30
