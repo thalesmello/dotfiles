@@ -4271,7 +4271,7 @@
           "from" : {
             "key_code" : "1",
             "modifiers" : {
-              "optional" : [ "left_shift" ]
+              "optional" : [ "left_shift", "right_shift" ]
             }
           },
           "to" : [ {
@@ -5043,8 +5043,15 @@
           "type" : "basic"
         }, {
           "to_if_alone" : [ {
-            "key_code" : "q",
-            "modifiers" : [ "left_option" ]
+            "set_variable" : {
+              "name" : "hyper-layer",
+              "value" : 1
+            }
+          }, {
+            "set_notification_message" : {
+              "id" : "hyper-hud",
+              "text" : "Hyper-layer Active"
+            }
           } ],
           "parameters" : {
             "basic.to_if_alone_timeout_milliseconds" : 150
