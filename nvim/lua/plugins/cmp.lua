@@ -243,7 +243,7 @@ return {
                   {
                      name = 'cmdline',
                      option = {
-                        ignore_cmds = { 'Man',  'read!', 'r!', '!', 'Shdo', 'Fish' }
+                        ignore_cmds = { 'Man',  'read!', 'r!', '!', 'Shdo', 'Fish', 'Ag', 'Ag!' }
                      }
                   },
                }

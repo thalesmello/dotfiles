@@ -83,7 +83,6 @@ local function vscodeMoveLines(toDirection, moveLines)
     return { start_line: range.start.line, end_line: range.end.line }
   ]], { args = { to = toDirection, moveLines = moveLines }})
 
-  vim.print(range)
   local vscode_internal = require('vscode.internal')
   vscode_internal.scroll_viewport(range.start_line, range.end_line)
 end
@@ -106,6 +105,15 @@ local function vscodeOpenFile(files)
         }
     }
   ]], { args = { files = files }})
+end
+
+local function vscodeWorkspaceUri()
+  local uri = vscode.eval([[
+    var workspaceUri = vscode.workspace.workspaceFolders[0].uri
+    return workspaceUri
+  ]])
+
+  return uri
 end
 
 local function vscodeGetProjection(file)
@@ -162,6 +170,22 @@ end
 vim.api.nvim_create_user_command("A", vscodeAlternateFile, {})
 
 local group = vim.api.nvim_create_augroup('VsCodeAugroup', { clear = true })
+
+local normalize_path = function(uri, root)
+  if uri == root then
+    uri = "."
+  else
+    if root:sub(#root, #root) ~= '/' then
+      root = root .. '/'
+    end
+
+    if uri:sub(1, #root) == root then
+      uri = uri:sub(#root + 1, -1)
+    end
+  end
+
+  return uri
+end
 
 -- Some keycodes require forwarding to neovim
 -- e.g.
@@ -239,24 +263,141 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
 
     vim.keymap.set("n", "<leader>.", function () vscode.action('editor.action.quickFix') end)
 
-    vim.keymap.set("n", "<leader>ka", function () vscode.action('vscode-harpoon.addEditor') end)
-    vim.keymap.set("n", "<leader>ke", function () vscode.action('vscode-harpoon.editEditors') end)
-    vim.keymap.set("n", "<leader>kE", function () vscode.action('vscode-harpoon.editorQuickPick') end)
-    vim.keymap.set("n", "<leader>1", function () vscode.action('vscode-harpoon.gotoEditor1') end)
-    vim.keymap.set("n", "<leader>2", function () vscode.action('vscode-harpoon.gotoEditor2') end)
-    vim.keymap.set("n", "<leader>3", function () vscode.action('vscode-harpoon.gotoEditor3') end)
-    vim.keymap.set("n", "<leader>4", function () vscode.action('vscode-harpoon.gotoEditor4') end)
-    vim.keymap.set("n", "<leader>5", function () vscode.action('vscode-harpoon.gotoEditor5') end)
-    vim.keymap.set("n", "<leader>6", function () vscode.action('vscode-harpoon.gotoEditor6') end)
-    vim.keymap.set("n", "<leader>7", function () vscode.action('vscode-harpoon.gotoEditor7') end)
-    vim.keymap.set("n", "<leader>8", function () vscode.action('vscode-harpoon.gotoEditor8') end)
-    vim.keymap.set("n", "<leader>9", function () vscode.action('vscode-harpoon.gotoEditor9') end)
+    -- vim.keymap.set("n", "<leader>ka", function () vscode.action('vscode-harpoon.addEditor') end)
+    -- vim.keymap.set("n", "<leader>ke", function () vscode.action('vscode-harpoon.editEditors') end)
+    -- vim.keymap.set("n", "<leader>kE", function () vscode.action('vscode-harpoon.editorQuickPick') end)
+    -- vim.keymap.set("n", "<leader>1", function () vscode.action('vscode-harpoon.gotoEditor1') end)
+    -- vim.keymap.set("n", "<leader>2", function () vscode.action('vscode-harpoon.gotoEditor2') end)
+    -- vim.keymap.set("n", "<leader>3", function () vscode.action('vscode-harpoon.gotoEditor3') end)
+    -- vim.keymap.set("n", "<leader>4", function () vscode.action('vscode-harpoon.gotoEditor4') end)
+    -- vim.keymap.set("n", "<leader>5", function () vscode.action('vscode-harpoon.gotoEditor5') end)
+    -- vim.keymap.set("n", "<leader>6", function () vscode.action('vscode-harpoon.gotoEditor6') end)
+    -- vim.keymap.set("n", "<leader>7", function () vscode.action('vscode-harpoon.gotoEditor7') end)
+    -- vim.keymap.set("n", "<leader>8", function () vscode.action('vscode-harpoon.gotoEditor8') end)
+    -- vim.keymap.set("n", "<leader>9", function () vscode.action('vscode-harpoon.gotoEditor9') end)
+    vim.keymap.set("n", "<leader>ka", function () require('harpoon'):list('vscode'):add() end)
+    vim.keymap.set("n", "<leader>ke", function ()
+      vim.fn.setreg('"', vim.fn.join(require('harpoon'):list('vscode'):display(), '\n'))
+      vim.cmd.put()
+    end)
+    vim.keymap.set("n", "<leader>kE", function ()
+      local harpoon = require('harpoon')
+      local list = vim.fn.split(vim.fn.getreg('"'), "\n")
+      local length = #list
+      harpoon:list('vscode'):resolve_displayed(list, length)
+    end)
+    vim.keymap.set("n", "<leader>k<bs>", function () require('harpoon'):list('vscode'):clear() end)
+    vim.keymap.set("n", "<leader>k?", function () vim.print(require('harpoon'):list('vscode'):display()) end)
+    vim.keymap.set("n", "<leader>1", function ()  require('harpoon'):list('vscode'):select(1) end)
+    vim.keymap.set("n", "<leader>2", function ()  require('harpoon'):list('vscode'):select(2) end)
+    vim.keymap.set("n", "<leader>3", function ()  require('harpoon'):list('vscode'):select(3) end)
+    vim.keymap.set("n", "<leader>4", function ()  require('harpoon'):list('vscode'):select(4) end)
+    vim.keymap.set("n", "<leader>5", function ()  require('harpoon'):list('vscode'):select(5) end)
+    vim.keymap.set("n", "<leader>6", function ()  require('harpoon'):list('vscode'):select(6) end)
+    vim.keymap.set("n", "<leader>7", function ()  require('harpoon'):list('vscode'):select(7) end)
+    vim.keymap.set("n", "<leader>8", function ()  require('harpoon'):list('vscode'):select(8) end)
+    vim.keymap.set("n", "<leader>9", function ()  require('harpoon'):list('vscode'):select(9) end)
 
     vim.keymap.set("n", "-", function () vscode.action('workbench.files.action.showActiveFileInExplorer') end)
     vim.keymap.set("n", "[c", function () vscode.action('editor.action.accessibleDiffViewer.prev') end)
     vim.keymap.set("n", "]c", function () vscode.action('editor.action.accessibleDiffViewer.next') end)
 
     vim.keymap.set("n", "<leader><tab>", vscodeAlternateFile)
+
+    local ok, harpoon = pcall(require, 'harpoon')
+
+    if ok then
+      local Extensions = require("harpoon.extensions")
+      local Logger = require("harpoon.logger")
+
+      ---@diagnostic disable-next-line: missing-fields
+      harpoon.setup({
+        vscode = {
+          get_root_dir = function ()
+            local uri = vscodeWorkspaceUri()
+
+            if uri.scheme == 'vscode-remote' then
+              return uri.external
+            else
+              return uri.path
+            end
+          end,
+
+          create_list_item = function(config, name)
+            name = name or normalize_path(
+              vim.api.nvim_buf_get_name(
+                vim.api.nvim_get_current_buf()
+              ),
+              config.get_root_dir()
+            )
+
+            Logger:log("config_default#create_list_item", name)
+
+            local bufnr = vim.fn.bufnr(name, false)
+
+            local pos = { 1, 0 }
+            if bufnr ~= -1 then
+              pos = vim.api.nvim_win_get_cursor(0)
+            end
+
+            return {
+              value = name,
+              context = {
+                row = pos[1],
+                col = pos[2],
+              },
+            }
+          end,
+
+          ---@param arg {buf: number}
+          ---@param list HarpoonList
+          BufLeave = function(arg, list)
+            local bufnr = arg.buf
+            local bufname = normalize_path(
+              vim.api.nvim_buf_get_name(bufnr),
+              list.config.get_root_dir()
+            )
+            local item = list:get_by_value(bufname)
+
+            if item then
+              local pos = vim.api.nvim_win_get_cursor(0)
+
+              Logger:log(
+                "config_default#BufLeave updating position",
+                bufnr,
+                bufname,
+                item,
+                "to position",
+                pos
+              )
+
+              item.context.row = pos[1]
+              item.context.col = pos[2]
+
+              Extensions.extensions:emit(
+                Extensions.event_names.POSITION_UPDATED,
+                item
+              )
+            end
+          end,
+
+
+          select = function(list_item, list, options)
+            Logger:log(
+              "config_default#select",
+              list_item,
+              list.name,
+              options
+            )
+            if list_item == nil then
+              return
+            end
+
+            vscodeOpenFile({ list_item.value })
+          end,
+        }
+      })
+    end
   end,
 })
 

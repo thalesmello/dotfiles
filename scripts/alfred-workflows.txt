@@ -7,4 +7,4 @@ https://www.packal.org/workflow/div
 https://alfred.app/workflows/alfredapp/system-settings/
 https://alfred.app/workflows/godbout/wooshy-window-to-the-foreground/
 https://alfred.app/workflows/bosha/blueman/
-
+https://alfred.app/workflows/vitor/calm-notifications/
