@@ -99,6 +99,7 @@
         :rules [
             :space-mode
             [:left_shift :left_shift]
+            [:right_shift :left_shift]
             [:##a :!Cleft_arrow]
             [:##e :!Cright_arrow]
             [:##b :!Oleft_arrow]
