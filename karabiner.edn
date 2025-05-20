@@ -220,7 +220,10 @@
             [:##left_control :##left_control nil {:alone :!TOCslash :params {:alone 150}}]
             [:##left_command :##left_command nil {:alone :!TOc :params {:alone 150}}]
             ; opens mouseless
-            [:##right_shift :right_shift nil {:alone :f13 :params {:alone 150}}]
+            ; [:##right_shift :right_shift nil {:alone :f13 :params {:alone 150}}]
+
+            [:right_shift [["shift-pressed-once" 0] :!Cf13] ["shift-pressed-once" 1]]
+            [:##right_shift [["shift-pressed-once" 1] :##right_shift] ["shift-pressed-once" 0] {:delayed {:invoked [["shift-pressed-once" 0] :f13] :canceled ["shift-pressed-once" 0]} :params {:delay 200}}]
         ]
     }
 
