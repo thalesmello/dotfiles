@@ -5268,6 +5268,13 @@
           } ],
           "type" : "basic"
         }, {
+          "to_if_held_down" : [ {
+            "set_variable" : {
+              "name" : "shift-pressed-once",
+              "value" : 0
+            },
+            "halt" : true
+          } ],
           "to_delayed_action" : {
             "to_if_invoked" : [ {
               "set_variable" : {
@@ -5285,6 +5292,7 @@
             } ]
           },
           "parameters" : {
+            "basic.to_if_held_down_threshold_milliseconds" : 200,
             "basic.to_delayed_action_delay_milliseconds" : 200
           },
           "from" : {

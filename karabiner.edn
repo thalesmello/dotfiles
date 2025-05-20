@@ -223,7 +223,7 @@
             ; [:##right_shift :right_shift nil {:alone :f13 :params {:alone 150}}]
 
             [:right_shift [["shift-pressed-once" 0] :!Cf13] ["shift-pressed-once" 1]]
-            [:##right_shift [["shift-pressed-once" 1] :##right_shift] ["shift-pressed-once" 0] {:delayed {:invoked [["shift-pressed-once" 0] :f13] :canceled ["shift-pressed-once" 0]} :params {:delay 200}}]
+            [:##right_shift [["shift-pressed-once" 1] :##right_shift] ["shift-pressed-once" 0] {:delayed {:invoked [["shift-pressed-once" 0] :f13] :canceled ["shift-pressed-once" 0]} :held {:set ["shift-pressed-once" 0] :halt true} :params {:delay 200 :held 200}}]
         ]
     }
 
