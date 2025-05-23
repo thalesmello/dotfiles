@@ -45,16 +45,8 @@
 }
 
 :applications {
-    ; :slack ["com.tinyspeck.slackmacgap"]
-    ; :vscode ["com.microsoft.VSCode"]
-    ; :notion ["notion.id"]
-    ; :spotify ["com.spotify.client"]
-    ; :intellij ["com.google.android.studio", "^com\\.jetbrains\\..*$"]
-    ; :firefox ["org.mozilla.firefox"]
-    ; :chrome ["com.google.Chrome"]
-    ; :mail ["com.apple.mail"]
-    ; :terminals  [ "^com\\.apple\\.Terminal$",
-    ;              "^com\\.googlecode\\.iterm2$"]
+    :vscode ["com.microsoft.VSCode", "com.facebook.fbvscode"]
+    :chrome ["com.google.Chrome"]
 }
 
 :layers {}
@@ -95,6 +87,41 @@
     }
 
     {
+        :des "Workflow Modifier Tap Behavior"
+        :rules [
+            [:!E#R1 :!TOC1]
+            [:!E#R2 :!TOC2]
+            [:!E#R3 :!TOC3]
+            [:!E#R4 :!TOC4]
+            [:!E#R5 :!TOC5]
+            [:!E#R6 :!TOC6]
+            [:!E#R7 :!TOC7]
+            [:!E#R8 :!TOC8]
+            [:!E#R9 :!TOC9]
+            [:right_command :right_option nil {:alone [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]] :params {:alone 150}}]
+            [:right_option :right_option nil {:alone [:!Ctab :!Ctab] :params {:alone 150}}]
+            [:right_control :right_control nil {:alone [:!Ctab :!Ctab] :params {:alone 150}}]
+            [:##left_shift :##left_shift nil {:alone :!Ctab :params {:alone 150}}]
+            [:##left_option :##left_option :chrome {:alone :!Oq :params {:alone 150}}]
+            [:##left_option :##left_option :vscode {:alone [{:key :left_control :held_down_ms 100} :!Ttab] :params {:alone 150}}]
+            [:##left_option :##left_option nil {:alone :!Cgrave_accent_and_tilde :params {:alone 150}}]
+            [:##left_control :##left_control nil {:alone :!TOCslash :params {:alone 150}}]
+            [:##left_command :##left_command nil {:alone :!TOc :params {:alone 150}}]
+            ; opens mouseless
+            [:##right_shift :right_shift nil {:alone :f13 :params {:alone 150}}]
+
+            ; [:right_shift [["shift-pressed-once" 0] :!Cf13] ["shift-pressed-once" 1]]
+            ; [:##right_shift
+               ;  {:key :##right_shift :lazy true :halt true}
+               ;  ["shift-pressed-once" 0]
+               ;  {
+                   ;   :afterup {:invoked [["shift-pressed-once" 0] :f13] :canceled ["shift-pressed-once" 0]}
+                   ;   :held ["shift-pressed-once" 1]
+                   ;   :params {:delay 200 :held 200 :alone 200}}]
+            ]
+    }
+
+    {
         :des "Space FN"
         :rules [
             :space-mode
@@ -121,9 +148,12 @@
         :rules [
             [:!Ecaps_lock :f17]
             :!hyper-layer
-            [:caps_lock { :key :!CTleft_option :lazy true } nil { :alone { :key :escape :halt true } :delayed {:canceled {:key :vk_none, :halt true} :invoked {:key :vk_none, :halt true}} :afterup [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]] :params {:alone 500 :delay 2000 }}]
+            ; Right control now triggers hyper mode, so the hold behavior is actually a little troublesome at times. Temporarily disabling it.
+            ; [:caps_lock { :key :!CTleft_option :lazy true } nil { :alone { :key :escape :halt true } :delayed {:canceled {:key :vk_none, :halt true} :invoked {:key :vk_none, :halt true}} :afterup [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]] :params {:alone 500 :delay 2000 }}]
             [:!Scaps_lock {:key :!CSTleft_option :lazy true} nil {:alone :!Sescape} ]
             [:!Ccaps_lock :return_or_enter]
+            [:!Tcaps_lock :!Tescape]
+            [:##caps_lock { :key :!CTleft_option :lazy true } nil { :alone { :key :escape } :params {:alone 150}}]
             :hyper-layer
             ; [:!Scaps_lock [:!CSTleft_option ["hyper-layer" 0] [:noti :hyper-hud]] nil {:alone :escape}]
             [:#SRcaps_lock :!CTleft_option nil {:alone :escape :afterup [["hyper-layer" 0] [:noti :hyper-hud]]}]
@@ -202,39 +232,6 @@
     ;         [:!Fa :!Ta] ]
     ; }
 
-    {
-        :des "Workflow Modifier Tap Behavior"
-        :rules [
-            [:!E#R1 :!TOC1]
-            [:!E#R2 :!TOC2]
-            [:!E#R3 :!TOC3]
-            [:!E#R4 :!TOC4]
-            [:!E#R5 :!TOC5]
-            [:!E#R6 :!TOC6]
-            [:!E#R7 :!TOC7]
-            [:!E#R8 :!TOC8]
-            [:!E#R9 :!TOC9]
-            [:right_command :right_option nil {:alone [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]] :params {:alone 150}}]
-            [:right_option :right_option nil {:alone [:!Ctab :!Ctab] :params {:alone 150}}]
-            [:right_control :right_control nil {:alone [:!Ctab :!Ctab] :params {:alone 150}}]
-            [:##left_shift :##left_shift nil {:alone :!Ctab :params {:alone 150}}]
-            [:##left_option :##left_option nil {:alone :!Oq :params {:alone 150}}]
-            [:##left_control :##left_control nil {:alone :!TOCslash :params {:alone 150}}]
-            [:##left_command :##left_command nil {:alone :!TOc :params {:alone 150}}]
-            ; opens mouseless
-            [:##right_shift :right_shift nil {:alone :f13 :params {:alone 150}}]
-
-            ; [:right_shift [["shift-pressed-once" 0] :!Cf13] ["shift-pressed-once" 1]]
-            ; [:##right_shift
-            ;  {:key :##right_shift :lazy true :halt true}
-            ;  ["shift-pressed-once" 0]
-            ;  {
-            ;   :afterup {:invoked [["shift-pressed-once" 0] :f13] :canceled ["shift-pressed-once" 0]}
-            ;   :held ["shift-pressed-once" 1]
-            ;   :params {:delay 200 :held 200 :alone 200}}]
-        ]
-    }
-
     ; {
     ;     :des   "Press left_ctrl twice to enter clipboard history"
     ;     :rules [
@@ -243,49 +240,52 @@
     ;     ]
     ; }
 
-    {
-        :des "Baserow Mod"
-        :rules [
-            [[:z :x :c :v] :!TOSleft_command]
-            ;; tripples
-            [[:x :c :v] :!OSleft_command]
-            [[:z :c :v] :!TSleft_command]
-            [[:z :x :v] :!TOleft_command]
-            [[:z :x :c] :!TOleft_shift]
-            ;; pairs
-            [[:z :x] :!Tleft_option]
-            [[:x :c] :!Oleft_shift]
-            [[:c :v] :!Sleft_command]
-            [[:z :c] :!Tleft_shift]
-            [[:z :v] :!Tleft_command]
-            [[:x :v] :!Oleft_command]
-            ;; singles
-            [:z nil nil { :held { :key :left_control :halt true } :alone { :key :z :halt true } :delayed {:canceled :z :invoked :vk_none} }]
-            [:x nil nil { :held { :key :left_option :halt true } :alone { :key :x :halt true } :delayed {:canceled :x :invoked :vk_none} }]
-            [:c nil nil { :held { :key :left_shift :halt true } :alone { :key :c :halt true } :delayed {:canceled :c :invoked :vk_none} }]
-            [:v nil nil { :held { :key :left_command :halt true } :alone { :key :v :halt true } :delayed {:canceled :v :invoked :vk_none} }]
-
-            ;; right side
-            [[:slash :period :comma :m] :!TOSleft_command]
-            ;; tripples
-            [[:period :comma :m] :!OSleft_command]
-            [[:slash :comma :m] :!TSleft_command]
-            [[:slash :period :m] :!TOleft_command]
-            [[:slash :period :comma] :!TOleft_shift]
-            ;; pairs
-            [[:slash :period] :!Tleft_option]
-            [[:period :comma] :!Oleft_shift]
-            [[:comma :m] :!Sleft_command]
-            [[:slash :comma] :!Tleft_shift]
-            [[:slash :m] :!Tleft_command]
-            [[:period :m] :!Oleft_command]
-            ;; singles
-            [:slash nil nil { :held { :key :left_control :halt true } :alone { :key :slash :halt true } :delayed {:canceled :slash :invoked :vk_none} }]
-            [:period nil nil { :held { :key :left_option :halt true } :alone { :key :period :halt true } :delayed {:canceled :period :invoked :vk_none} }]
-            [:comma nil nil { :held { :key :left_shift :halt true } :alone { :key :comma :halt true } :delayed {:canceled :comma :invoked :vk_none} }]
-            [:m nil nil { :held { :key :left_command :halt true } :alone { :key :m :halt true } :delayed {:canceled :m :invoked :vk_none} }]
-        ]
-    }
+    ; Doesn't work very well and I don't use thig
+    ; But the config might become useful someday
+    ; I might attempt kanata that appears to support the mod tap behavior I'm after
+    ; {
+    ;     :des "Baserow Mod"
+    ;     :rules [
+    ;         [[:z :x :c :v] :!TOSleft_command]
+    ;         ;; tripples
+    ;         [[:x :c :v] :!OSleft_command]
+    ;         [[:z :c :v] :!TSleft_command]
+    ;         [[:z :x :v] :!TOleft_command]
+    ;         [[:z :x :c] :!TOleft_shift]
+    ;         ;; pairs
+    ;         [[:z :x] :!Tleft_option]
+    ;         [[:x :c] :!Oleft_shift]
+    ;         [[:c :v] :!Sleft_command]
+    ;         [[:z :c] :!Tleft_shift]
+    ;         [[:z :v] :!Tleft_command]
+    ;         [[:x :v] :!Oleft_command]
+    ;         ;; singles
+    ;         [:z nil nil { :held { :key :left_control :halt true } :alone { :key :z :halt true } :delayed {:canceled :z :invoked :vk_none} }]
+    ;         [:x nil nil { :held { :key :left_option :halt true } :alone { :key :x :halt true } :delayed {:canceled :x :invoked :vk_none} }]
+    ;         [:c nil nil { :held { :key :left_shift :halt true } :alone { :key :c :halt true } :delayed {:canceled :c :invoked :vk_none} }]
+    ;         [:v nil nil { :held { :key :left_command :halt true } :alone { :key :v :halt true } :delayed {:canceled :v :invoked :vk_none} }]
+    ;
+    ;         ;; right side
+    ;         [[:slash :period :comma :m] :!TOSleft_command]
+    ;         ;; tripples
+    ;         [[:period :comma :m] :!OSleft_command]
+    ;         [[:slash :comma :m] :!TSleft_command]
+    ;         [[:slash :period :m] :!TOleft_command]
+    ;         [[:slash :period :comma] :!TOleft_shift]
+    ;         ;; pairs
+    ;         [[:slash :period] :!Tleft_option]
+    ;         [[:period :comma] :!Oleft_shift]
+    ;         [[:comma :m] :!Sleft_command]
+    ;         [[:slash :comma] :!Tleft_shift]
+    ;         [[:slash :m] :!Tleft_command]
+    ;         [[:period :m] :!Oleft_command]
+    ;         ;; singles
+    ;         [:slash nil nil { :held { :key :left_control :halt true } :alone { :key :slash :halt true } :delayed {:canceled :slash :invoked :vk_none} }]
+    ;         [:period nil nil { :held { :key :left_option :halt true } :alone { :key :period :halt true } :delayed {:canceled :period :invoked :vk_none} }]
+    ;         [:comma nil nil { :held { :key :left_shift :halt true } :alone { :key :comma :halt true } :delayed {:canceled :comma :invoked :vk_none} }]
+    ;         [:m nil nil { :held { :key :left_command :halt true } :alone { :key :m :halt true } :delayed {:canceled :m :invoked :vk_none} }]
+    ;     ]
+    ; }
 ]
 }
 

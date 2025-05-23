@@ -1,6 +1,6 @@
 app_version: 0.4.0-preview.2
 behavior_configs:
-- base_move_speed: 5
+- base_move_speed: 5.0
   base_wheel_speed: 16.0
   free_mode_auto_off_s: 10
   grid_action_level: subgrid
@@ -10,7 +10,7 @@ behavior_configs:
   initial_overlay_monitor: with_keyboard_focus
   move_duration_ms: 100
   move_real_cursor_with_virtual: false
-  move_speed_multiplier: 3
+  move_speed_multiplier: 3.0
   movement_easing: 0.1
   multi_action_timeout_ms: 400
   name: main_behavior
@@ -273,10 +273,10 @@ keymaps:
     cycle click count: null
     cycle font: null
     cycle font reverse: null
-    cycle grid action level: null
+    cycle grid action level: '`'
     cycle mouse action type: null
     cycle mouse button: null
-    decrease overlay opacity: ArrowDown
+    decrease overlay opacity: '-'
     edit config: Command+,
     enter free mode: null
     execute mouse action:
@@ -287,8 +287,8 @@ keymaps:
     forward mouse button: Ctrl+i
     forward mouse button (w/o overlay): null
     hide overlay:
-    - F13
     - Escape
+    - F13
     hold for back button: null
     hold for drag: ControlLeft
     hold for forward button: null
@@ -297,7 +297,7 @@ keymaps:
     hold for right button: OptionLeft
     hold for speed decrease: ControlLeft
     hold for speed increase: ShiftLeft
-    increase overlay opacity: ArrowUp
+    increase overlay opacity: +
     jump to bottom: null
     jump to left edge: null
     jump to right edge: null
@@ -315,17 +315,26 @@ keymaps:
     right mouse button: Opt+space
     right mouse button (w/o overlay): null
     show overlay: F13
-    subgrid nudge down: null
-    subgrid nudge left: null
-    subgrid nudge right: null
-    subgrid nudge up: null
+    subgrid nudge down:
+    - J
+    - S
+    subgrid nudge left:
+    - H
+    - A
+    subgrid nudge right:
+    - L
+    - D
+    subgrid nudge up:
+    - K
+    - I
+    - W
     switch monitor left: null
     switch monitor right: Tab
-    toggle continuous mode: null
-    toggle continuous mode until closed: Command+F13
+    toggle continuous mode: Command+F13
+    toggle continuous mode until closed: null
     toggle free mode: F14
     toggle overlay: null
-    toggle overlay lock: null
+    toggle overlay lock: Ctrl+F13
     undo last key:
     - ShiftLeft tap
     - Backspace
@@ -431,5 +440,5 @@ style_configs:
   - 0.0
   - 0.0
   - 1.0
-  text_y_offset: 0
+  text_y_offset: 0.0
   window_opacity: 0.8
