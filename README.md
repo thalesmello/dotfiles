@@ -32,4 +32,5 @@ Create a symbolic links for your files:
 
 ```
 stow --target "$HOME" --dotfiles stow
+stow --target "$HOME" --dotfiles local
 ```
