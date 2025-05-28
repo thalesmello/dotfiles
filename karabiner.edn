@@ -153,7 +153,7 @@
             [:!Scaps_lock {:key :!CSTleft_option :lazy true} nil {:alone :!Sescape} ]
             [:!Ccaps_lock :return_or_enter]
             [:!Tcaps_lock :!Tescape]
-            [:##caps_lock { :key :!CTleft_option :lazy true } nil { :alone { :key :escape } :params {:alone 150}}]
+            [:##caps_lock { :key :!CTleft_option :lazy true } nil { :alone { :key :escape } :params {:alone 400}}]
             :hyper-layer
             ; [:!Scaps_lock [:!CSTleft_option ["hyper-layer" 0] [:noti :hyper-hud]] nil {:alone :escape}]
             [:#SRcaps_lock :!CTleft_option nil {:alone :escape :afterup [["hyper-layer" 0] [:noti :hyper-hud]]}]
