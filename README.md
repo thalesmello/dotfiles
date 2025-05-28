@@ -1,8 +1,7 @@
 Install dependencies:
 
 ```
-bash ./scripts/brew_install.sh
-bash ./scripts/brew_cask_install.sh
+brew bundle install
 bash ./scripts/pipx_install.sh
 bash ./scripts/go_install.sh
 ```
@@ -32,5 +31,5 @@ mkdir -p ~/go/bin && fish_add_path ~/go/bin
 Create a symbolic links for your files:
 
 ```
-dotfiles link
+stow --target "$HOME" --dotfiles stow
 ```
