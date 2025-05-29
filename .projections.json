@@ -1,9 +1,9 @@
 {
-  "fish/fundle/*.fish": {"type": "fishplugin"},
-  "fish/completions/*.fish": {"type": "fishcompletion"},
-  "fish/functions/*.fish": {"type": "fishfunction"},
-  "fish/conf.d/*.fish": {"type": "fishconf"},
-  "fish/config.fish": {"type": "fishinit"},
+  "stow/dot-config/fish/fundle/*.fish": {"type": "fishplugin"},
+  "stow/dot-config/fish/completions/*.fish": {"type": "fishcompletion"},
+  "stow/dot-config/fish/functions/*.fish": {"type": "fishfunction"},
+  "stow/dot-config/fish/conf.d/*.fish": {"type": "fishconf"},
+  "stow/dot-config/fish/config.fish": {"type": "fishinit"},
   "README.markdown": {"type": "doc"},
-  "karabiner.edn": { "type": "karabiner", "dispatch": "goku" }
+  "stow/dot-config/karabiner.edn": { "type": "karabiner", "dispatch": "goku" }
 }
