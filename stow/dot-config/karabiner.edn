@@ -146,7 +146,7 @@
     {
         :des "Hyperkey as Leader Key"
         :rules [
-            [:!Ecaps_lock :f17]
+            ; [:!Ecaps_lock :f17]
             :!hyper-layer
             ; Right control now triggers hyper mode, so the hold behavior is actually a little troublesome at times. Temporarily disabling it.
             ; [:caps_lock { :key :!CTleft_option :lazy true } nil { :alone { :key :escape :halt true } :delayed {:canceled {:key :vk_none, :halt true} :invoked {:key :vk_none, :halt true}} :afterup [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]] :params {:alone 500 :delay 2000 }}]
