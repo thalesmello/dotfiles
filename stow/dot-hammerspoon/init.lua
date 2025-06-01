@@ -11,7 +11,7 @@ local mash = {
   ctrlShiftCmd = {"ctrl", "cmd", "shift"},
 }
 
-hs.hotkey.bind(mash.hyperShift, 'H', function() hs.toggleConsole() end)
+hs.hotkey.bind(mash.hyperShift, 'B', function() hs.toggleConsole() end)
 
 -- }}} Config --
 -- Octomux {{{ --
