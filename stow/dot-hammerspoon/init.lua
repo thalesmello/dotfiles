@@ -7,8 +7,11 @@ local mash = {
   ctrlShift      = {"ctrl", "shift"},
   ctrlAlt      = {"ctrl", "alt"},
   altCmd       = {"ctrl", "cmd", "alt"},
+  hyperShift       = {"ctrl", "cmd", "alt", "shift"},
   ctrlShiftCmd = {"ctrl", "cmd", "shift"},
 }
+
+hs.hotkey.bind(mash.hyperShift, 'H', function() hs.toggleConsole() end)
 
 -- }}} Config --
 -- Octomux {{{ --
@@ -85,9 +88,8 @@ end
 -- Mappings {{{ --
 -- hs.hotkey.bind(mash.ctrlCmd, 'h', function() hs.eventtap.keyStroke({"ctrl"}, "left") end)
 -- hs.hotkey.bind(mash.ctrlCmd, 'l', function() hs.eventtap.keyStroke({"ctrl"}, "right") end)
-hs.hotkey.bind(mash.ctrlShiftCmd, 'R', function() hs.reload() end)
-hs.hotkey.bind(mash.ctrlShiftCmd, 'H', function() hs.toggleConsole() end)
-hs.hotkey.bind(mash.ctrlShiftCmd, 'P', function() quickSystemStroke("PLAY") end)
+-- hs.hotkey.bind(mash.ctrlShiftCmd, 'R', function() hs.reload() end)
+-- hs.hotkey.bind(mash.ctrlShiftCmd, 'P', function() quickSystemStroke("PLAY") end)
 
 -- }}} Mappings --
 -- Mappings {{{ --
@@ -102,72 +104,72 @@ hs.hotkey.bind(mash.ctrlShiftCmd, 'P', function() quickSystemStroke("PLAY") end)
 -- }}} Mappings --
 -- Vim compatibility {{{ --
 
-hs.hotkey.bind(mash.altCmd, 'H', function()
-  hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
-  hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
-  hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
-  hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
-end)
-
-hs.hotkey.bind(mash.altCmd, 'L', function()
-  hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
-  hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
-  hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
-  hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
-end)
-
-hs.hotkey.bind(mash.ctrl, '[', function() hs.eventtap.keyStroke({}, "escape") end)
--- nonRecursiveBind({"alt"}, "delete", only({ "iTerm2" }, function() quickKeyStroke({"ctrl"}, "W")  end))
--- nonRecursiveBind({"cmd"}, "delete", only({ "iTerm2" }, function() quickKeyStroke({"ctrl"}, "U")  end))
-nonRecursiveBind({"ctrl"}, "w", only({ "RStudio" }, function() quickKeyStroke({"alt"}, "delete")  end))
-nonRecursiveBind({"ctrl"}, "u", only({ "RStudio" }, function()
-  quickKeyStroke({}, "up")
-  quickKeyStroke({}, "up")
-  quickKeyStroke({}, "up")
-  quickKeyStroke({}, "up")
-  quickKeyStroke({}, "up")
-  quickKeyStroke({}, "up")
-  quickKeyStroke({}, "up")
-  quickKeyStroke({}, "up")
-  quickKeyStroke({}, "up")
-  quickKeyStroke({}, "up")
-end))
-nonRecursiveBind({"ctrl"}, "d", only({ "RStudio" }, function()
-  quickKeyStroke({}, "down")
-  quickKeyStroke({}, "down")
-  quickKeyStroke({}, "down")
-  quickKeyStroke({}, "down")
-  quickKeyStroke({}, "down")
-  quickKeyStroke({}, "down")
-  quickKeyStroke({}, "down")
-  quickKeyStroke({}, "down")
-  quickKeyStroke({}, "down")
-  quickKeyStroke({}, "down")
-end))
-nonRecursiveBind({"ctrl"}, "e", only({ "RStudio" }, function()
-  quickKeyStroke({}, "down")
-  quickKeyStroke({}, "down")
-  quickKeyStroke({}, "down")
-  quickKeyStroke({}, "down")
-  quickKeyStroke({}, "down")
-end))
-nonRecursiveBind({"ctrl"}, "y", only({ "RStudio" }, function()
-  quickKeyStroke({}, "up")
-  quickKeyStroke({}, "up")
-  quickKeyStroke({}, "up")
-  quickKeyStroke({}, "up")
-  quickKeyStroke({}, "up")
-end))
-
-nonRecursiveBind({"cmd", "shift"}, "[", only({ "iTerm2" }, function()
-  quickKeyStroke({"ctrl"}, "space")
-  quickKeyStroke({"ctrl"}, "H")
-end))
-
-nonRecursiveBind({"cmd", "shift"}, "]", only({ "iTerm2" }, function()
-  quickKeyStroke({"ctrl"}, "space")
-  quickKeyStroke({"ctrl"}, "L")
-end))
+-- hs.hotkey.bind(mash.altCmd, 'H', function()
+--   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
+--   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
+--   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
+--   hs.eventtap.scrollWheel({ 0, 1 }, {"shift"}, 'pixel')
+-- end)
+--
+-- hs.hotkey.bind(mash.altCmd, 'L', function()
+--   hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
+--   hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
+--   hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
+--   hs.eventtap.scrollWheel({ 0, -1 }, {"shift"}, 'pixel')
+-- end)
+--
+-- hs.hotkey.bind(mash.ctrl, '[', function() hs.eventtap.keyStroke({}, "escape") end)
+-- -- nonRecursiveBind({"alt"}, "delete", only({ "iTerm2" }, function() quickKeyStroke({"ctrl"}, "W")  end))
+-- -- nonRecursiveBind({"cmd"}, "delete", only({ "iTerm2" }, function() quickKeyStroke({"ctrl"}, "U")  end))
+-- nonRecursiveBind({"ctrl"}, "w", only({ "RStudio" }, function() quickKeyStroke({"alt"}, "delete")  end))
+-- nonRecursiveBind({"ctrl"}, "u", only({ "RStudio" }, function()
+--   quickKeyStroke({}, "up")
+--   quickKeyStroke({}, "up")
+--   quickKeyStroke({}, "up")
+--   quickKeyStroke({}, "up")
+--   quickKeyStroke({}, "up")
+--   quickKeyStroke({}, "up")
+--   quickKeyStroke({}, "up")
+--   quickKeyStroke({}, "up")
+--   quickKeyStroke({}, "up")
+--   quickKeyStroke({}, "up")
+-- end))
+-- nonRecursiveBind({"ctrl"}, "d", only({ "RStudio" }, function()
+--   quickKeyStroke({}, "down")
+--   quickKeyStroke({}, "down")
+--   quickKeyStroke({}, "down")
+--   quickKeyStroke({}, "down")
+--   quickKeyStroke({}, "down")
+--   quickKeyStroke({}, "down")
+--   quickKeyStroke({}, "down")
+--   quickKeyStroke({}, "down")
+--   quickKeyStroke({}, "down")
+--   quickKeyStroke({}, "down")
+-- end))
+-- nonRecursiveBind({"ctrl"}, "e", only({ "RStudio" }, function()
+--   quickKeyStroke({}, "down")
+--   quickKeyStroke({}, "down")
+--   quickKeyStroke({}, "down")
+--   quickKeyStroke({}, "down")
+--   quickKeyStroke({}, "down")
+-- end))
+-- nonRecursiveBind({"ctrl"}, "y", only({ "RStudio" }, function()
+--   quickKeyStroke({}, "up")
+--   quickKeyStroke({}, "up")
+--   quickKeyStroke({}, "up")
+--   quickKeyStroke({}, "up")
+--   quickKeyStroke({}, "up")
+-- end))
+--
+-- nonRecursiveBind({"cmd", "shift"}, "[", only({ "iTerm2" }, function()
+--   quickKeyStroke({"ctrl"}, "space")
+--   quickKeyStroke({"ctrl"}, "H")
+-- end))
+--
+-- nonRecursiveBind({"cmd", "shift"}, "]", only({ "iTerm2" }, function()
+--   quickKeyStroke({"ctrl"}, "space")
+--   quickKeyStroke({"ctrl"}, "L")
+-- end))
 
 -- nonRecursiveBind({"cmd"}, "C", only({ "iTerm2" }, function()
 --   quickKeyStroke({}, "return")
@@ -178,10 +180,10 @@ end))
 --   quickKeyStroke({}, "C")
 -- end))
 
-nonRecursiveBind({"cmd"}, "W", only({ "iTerm2" }, function()
-  quickKeyStroke({"ctrl"}, "space")
-  quickKeyStroke({}, "X")
-end))
+-- nonRecursiveBind({"cmd"}, "W", only({ "iTerm2" }, function()
+--   quickKeyStroke({"ctrl"}, "space")
+--   quickKeyStroke({}, "X")
+-- end))
 
 -- -- Horizontal scroll
 -- scrollBind = hs.eventtap.new({hs.eventtap.event.types.scrollWheel}, function(e)
@@ -252,26 +254,26 @@ end
 
 -- }}} ctrlShiftCmd --
 -- Caffeine {{{ --
-local caffeine = hs.menubar.new()
-function setCaffeineDisplay(state)
-    local result
-    if state then
-        result = caffeine:setIcon("caffeine-on.pdf")
-    else
-        result = caffeine:setIcon("caffeine-off.pdf")
-    end
-end
-
-function caffeineClicked()
-    setCaffeineDisplay(hs.caffeinate.toggle("displayIdle"))
-end
-
-if caffeine then
-    caffeine:setClickCallback(caffeineClicked)
-    setCaffeineDisplay(hs.caffeinate.get("displayIdle"))
-end
-
-hs.hotkey.bind(mash.ctrlShiftCmd, "c", function() caffeineClicked() end)
+-- local caffeine = hs.menubar.new()
+-- function setCaffeineDisplay(state)
+--     local result
+--     if state then
+--         result = caffeine:setIcon("caffeine-on.pdf")
+--     else
+--         result = caffeine:setIcon("caffeine-off.pdf")
+--     end
+-- end
+--
+-- function caffeineClicked()
+--     setCaffeineDisplay(hs.caffeinate.toggle("displayIdle"))
+-- end
+--
+-- if caffeine then
+--     caffeine:setClickCallback(caffeineClicked)
+--     setCaffeineDisplay(hs.caffeinate.get("displayIdle"))
+-- end
+--
+-- hs.hotkey.bind(mash.ctrlShiftCmd, "c", function() caffeineClicked() end)
 
 function quickKeyStroke (modifiers, character)
     local event = require("hs.eventtap").event
@@ -286,102 +288,102 @@ end
 -- }}} Caffeine --
 -- Windows {{{ --
 -- Setup animation to avoid lag
-hs.window.animationDuration = 0
+-- hs.window.animationDuration = 0
 
 -- Resize windows
-local function approximatelyEqual(a, b)
-  local diff = math.abs(a - b)
-  return diff < 0.01
-end
+-- local function approximatelyEqual(a, b)
+--   local diff = math.abs(a - b)
+--   return diff < 0.01
+-- end
 
-local function adjust(x, y, w, h)
-  return function()
-    local win = hs.window.focusedWindow()
+-- local function adjust(x, y, w, h)
+--   return function()
+--     local win = hs.window.focusedWindow()
+--
+--     if not win or win:isFullScreen() then return end
+--
+--     local f = win:frame()
+--     local max = win:screen():frame()
+--
+--     f.w = math.floor(max.w * w)
+--     f.h = math.floor(max.h * h)
+--     f.x = math.floor((max.w * x) + max.x)
+--     f.y = math.floor((max.h * y) + max.y)
+--
+--     win:setFrame(f)
+--   end
+-- end
+--
+-- local function adjustCenter(w, h)
+--   return function()
+--     local win = hs.window.focusedWindow()
+--     if not win then return end
+--
+--     local f = win:frame()
+--     local max = win:screen():frame()
+--
+--     f.w = math.floor(max.w * w)
+--     f.h = math.floor(max.h * h)
+--     f.x = math.floor((max.w / 2) - (f.w / 2))
+--     f.y = math.floor((max.h / 2) - (f.h / 2))
+--     win:setFrame(f)
+--   end
+-- end
 
-    if not win or win:isFullScreen() then return end
-
-    local f = win:frame()
-    local max = win:screen():frame()
-
-    f.w = math.floor(max.w * w)
-    f.h = math.floor(max.h * h)
-    f.x = math.floor((max.w * x) + max.x)
-    f.y = math.floor((max.h * y) + max.y)
-
-    win:setFrame(f)
-  end
-end
-
-local function adjustCenter(w, h)
-  return function()
-    local win = hs.window.focusedWindow()
-    if not win then return end
-
-    local f = win:frame()
-    local max = win:screen():frame()
-
-    f.w = math.floor(max.w * w)
-    f.h = math.floor(max.h * h)
-    f.x = math.floor((max.w / 2) - (f.w / 2))
-    f.y = math.floor((max.h / 2) - (f.h / 2))
-    win:setFrame(f)
-  end
-end
-
-local function getCurrentProportions()
-  local win = hs.window.focusedWindow()
-  if not win then return end
-
-  local f = win:frame()
-  local max = win:screen():frame()
-
-  return {
-    w = f.w / max.w,
-    h = f.h / max.h,
-    x = f.x / max.w,
-    y = f.y / max.h
-  }
-end
-
-local function setWindowConfig(config)
-  local win = hs.window.focusedWindow()
-  if not win or win:isFullScreen() then return end
-
-  local f = win:frame()
-  local max = win:screen():frame()
-
-  f.w = math.floor(max.w * config.w)
-  f.h = math.floor(max.h * config.h)
-  f.x = math.floor((max.w * config.x) + max.x)
-  f.y = math.floor((max.h * config.y) + max.y)
-
-  win:setFrame(f)
-end
-
-local function adjustCycle(windowConfigs)
-  return function()
-    local win = hs.window.focusedWindow()
-    if not win or win:isFullScreen() then return end
-
-    local current = getCurrentProportions()
-
-    local config
-    local nextConfig
-
-    for i = 1, #windowConfigs do
-      config = windowConfigs[i]
-
-      if approximatelyEqual(config.w, current.w) and approximatelyEqual(config.x, current.x) then
-        nextConfig = windowConfigs[(i % #windowConfigs) + 1]
-
-        setWindowConfig(nextConfig)
-        return
-      end
-    end
-
-    setWindowConfig(windowConfigs[1])
-  end
-end
+-- local function getCurrentProportions()
+--   local win = hs.window.focusedWindow()
+--   if not win then return end
+--
+--   local f = win:frame()
+--   local max = win:screen():frame()
+--
+--   return {
+--     w = f.w / max.w,
+--     h = f.h / max.h,
+--     x = f.x / max.w,
+--     y = f.y / max.h
+--   }
+-- end
+--
+-- local function setWindowConfig(config)
+--   local win = hs.window.focusedWindow()
+--   if not win or win:isFullScreen() then return end
+--
+--   local f = win:frame()
+--   local max = win:screen():frame()
+--
+--   f.w = math.floor(max.w * config.w)
+--   f.h = math.floor(max.h * config.h)
+--   f.x = math.floor((max.w * config.x) + max.x)
+--   f.y = math.floor((max.h * config.y) + max.y)
+--
+--   win:setFrame(f)
+-- end
+--
+-- local function adjustCycle(windowConfigs)
+--   return function()
+--     local win = hs.window.focusedWindow()
+--     if not win or win:isFullScreen() then return end
+--
+--     local current = getCurrentProportions()
+--
+--     local config
+--     local nextConfig
+--
+--     for i = 1, #windowConfigs do
+--       config = windowConfigs[i]
+--
+--       if approximatelyEqual(config.w, current.w) and approximatelyEqual(config.x, current.x) then
+--         nextConfig = windowConfigs[(i % #windowConfigs) + 1]
+--
+--         setWindowConfig(nextConfig)
+--         return
+--       end
+--     end
+--
+--     setWindowConfig(windowConfigs[1])
+--   end
+-- end
 
 -- -- top half
 -- hs.hotkey.bind(mash.ctrlCmd, "up", adjust(0, 0, 1, 0.5))
@@ -432,17 +434,17 @@ end
 -- hs.hotkey.bind(mash.ctrlCmd, "m", adjust(0, 0, 1, 1))
 -- }}} Windows --
 -- Wifi {{{ --
-hs.hotkey.bind(mash.ctrlShiftCmd, "I", function()
-  local ssid = hs.wifi.currentNetwork()
-  if not ssid then return end
-
-  hs.alert.show("Reconnecting to: " .. ssid)
-  hs.execute("networksetup -setairportpower en0 off")
-  hs.execute("networksetup -setairportpower en0 on")
-end)
+-- hs.hotkey.bind(mash.ctrlShiftCmd, "I", function()
+--   local ssid = hs.wifi.currentNetwork()
+--   if not ssid then return end
+--
+--   hs.alert.show("Reconnecting to: " .. ssid)
+--   hs.execute("networksetup -setairportpower en0 off")
+--   hs.execute("networksetup -setairportpower en0 on")
+-- end)
 -- }}} Wifi --
 -- Battery {{{ --
-local previousPowerSource = hs.battery.powerSource()
+-- local previousPowerSource = hs.battery.powerSource()
 
 function minutesToHours(minutes)
   if minutes <= 0 then
@@ -454,48 +456,48 @@ function minutesToHours(minutes)
   end
 end
 
-function showBatteryStatus()
-  local message
+-- function showBatteryStatus()
+--   local message
+--
+--   if hs.battery.isCharging() then
+--     local pct = hs.battery.percentage()
+--     local untilFull = hs.battery.timeToFullCharge()
+--     message = "Charging"
+--
+--     if untilFull == -1 then
+--       message = string.format("%s %.0f%% (calculating...)", message, pct);
+--     else
+--       message = string.format("%s %.0f%% (%s remaining)", message, pct, minutesToHours(untilFull))
+--     end
+--   elseif hs.battery.powerSource() == "Battery Power" then
+--     local pct = hs.battery.percentage()
+--     local untilEmpty = hs.battery.timeRemaining()
+--     message = "Battery"
+--
+--     if untilEmpty == -1 then
+--       message = string.format("%s %.0f%% (calculating...)", message, pct)
+--     else
+--       message = string.format("%s %.0f%% (%s remaining)", message, pct, minutesToHours(untilEmpty))
+--     end
+--   else
+--     message = "Fully charged"
+--   end
+--
+--   hs.alert.show(message)
+-- end
 
-  if hs.battery.isCharging() then
-    local pct = hs.battery.percentage()
-    local untilFull = hs.battery.timeToFullCharge()
-    message = "Charging"
+-- function batteryChangedCallback()
+--   local powerSource = hs.battery.powerSource()
+--
+--   if powerSource ~= previousPowerSource then
+--     showBatteryStatus()
+--     previousPowerSource = powerSource;
+--   end
+-- end
 
-    if untilFull == -1 then
-      message = string.format("%s %.0f%% (calculating...)", message, pct);
-    else
-      message = string.format("%s %.0f%% (%s remaining)", message, pct, minutesToHours(untilFull))
-    end
-  elseif hs.battery.powerSource() == "Battery Power" then
-    local pct = hs.battery.percentage()
-    local untilEmpty = hs.battery.timeRemaining()
-    message = "Battery"
+-- hs.battery.watcher.new(batteryChangedCallback):start()
 
-    if untilEmpty == -1 then
-      message = string.format("%s %.0f%% (calculating...)", message, pct)
-    else
-      message = string.format("%s %.0f%% (%s remaining)", message, pct, minutesToHours(untilEmpty))
-    end
-  else
-    message = "Fully charged"
-  end
-
-  hs.alert.show(message)
-end
-
-function batteryChangedCallback()
-  local powerSource = hs.battery.powerSource()
-
-  if powerSource ~= previousPowerSource then
-    showBatteryStatus()
-    previousPowerSource = powerSource;
-  end
-end
-
-hs.battery.watcher.new(batteryChangedCallback):start()
-
-hs.hotkey.bind(mash.ctrlShiftCmd, "b", showBatteryStatus)
+-- hs.hotkey.bind(mash.ctrlShiftCmd, "b", showBatteryStatus)
 -- }}} battery --
 -- Report {{{ --
 notify("Hammerspoon!")
