@@ -54,7 +54,10 @@ return {
          end
 
          return {
-            ensure_installed = {},
+            ensure_installed = {
+               "jsonls",
+               "lua_ls",
+            },
             handlers = {
                default_setup,
                lua_ls = function()
