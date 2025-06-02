@@ -1,4 +1,6 @@
+hs.loadSpoon("EmmyLua")
 require("hs.ipc")
+local util = require('util')
 
 -- Config {{{ --
 local mash = {
@@ -15,63 +17,8 @@ hs.hotkey.bind(mash.hyperShift, 'B', function() hs.toggleConsole() end)
 
 -- }}} Config --
 -- Octomux {{{ --
-if not hs.ipc.cliStatus(null, true) then
+if not hs.ipc.cliStatus(nil, true) then
   hs.ipc.cliInstall()
-end
-
-function nonRecursiveBind(mods, key, callback)
-  local hotkey
-  hotkey = hs.hotkey.bind(mods, key, function()
-    callback(hotkey, mods, key)
-  end)
-end
-
-function as_list(list)
-  if type(list) ~= 'table' then
-    list = { list }
-  end
-
-  return list
-end
-
-function currentWindowInList (listOfPrograms)
-  local activeWindowName = hs.window.focusedWindow():application():name()
-  for _, currentName in ipairs (listOfPrograms) do
-
-      if currentName == activeWindowName then
-          return true
-      end
-  end
-
-  return false
-end
-
-function except(listOfPrograms, callback)
-  listOfPrograms = as_list(listOfPrograms)
-
-  return function(hotkey, mods, key)
-    if currentWindowInList(listOfPrograms) then
-      hotkey:disable()
-      hs.eventtap.keyStroke(mods, key)
-      hotkey:enable()
-    else
-      callback()
-    end
-  end
-end
-
-function only(listOfPrograms, callback)
-  listOfPrograms = as_list(listOfPrograms)
-
-  return function(hotkey, mods, key)
-    if currentWindowInList(listOfPrograms) then
-      callback()
-    else
-      hotkey:disable()
-      hs.eventtap.keyStroke(mods, key)
-      hotkey:enable()
-    end
-  end
 end
 
 -- nonRecursiveBind({"ctrl"}, "H", except({ "iTerm2", "RStudio" }, function() hs.window.focusedWindow():focusWindowWest()  end))
@@ -201,51 +148,6 @@ end
 
 -- }}}  Vim compatibility --
 -- Utils {{{ --
-function notify(str)
-  hs.alert.show(str)
-end
-
-function table_print (tt, indent, done)
-  done = done or {}
-  indent = indent or 0
-  if type(tt) == "table" then
-    local sb = {}
-    for key, value in pairs (tt) do
-      table.insert(sb, string.rep (" ", indent)) -- indent it
-      if type (value) == "table" and not done [value] then
-        done [value] = true
-        table.insert(sb, "{\n");
-        table.insert(sb, table_print (value, indent + 2, done))
-        table.insert(sb, string.rep (" ", indent)) -- indent it
-        table.insert(sb, "}\n");
-      elseif "number" == type(key) then
-        table.insert(sb, string.format("\"%s\"\n", tostring(value)))
-      else
-        table.insert(sb, string.format(
-            "%s = \"%s\"\n", tostring (key), tostring(value)))
-       end
-    end
-    return table.concat(sb)
-  else
-    return tt .. "\n"
-  end
-end
-
-function to_string( tbl )
-    if  "nil"       == type( tbl ) then
-        return tostring(nil)
-    elseif  "table" == type( tbl ) then
-        return table_print(tbl)
-    elseif  "string" == type( tbl ) then
-        return tbl
-    else
-        return tostring(tbl)
-    end
-end
-
-function log(obj)
-  hs.logger.new('log', 'debug'):d('\n' .. to_string(obj))
-end
 
 -- function is_active(program_name)
 --   local active_window_name = hs.window.focusedWindow():application():name()
@@ -275,16 +177,6 @@ end
 --
 -- hs.hotkey.bind(mash.ctrlShiftCmd, "c", function() caffeineClicked() end)
 
-function quickKeyStroke (modifiers, character)
-    local event = require("hs.eventtap").event
-    event.newKeyEvent(modifiers, string.lower(character), true):post()
-    event.newKeyEvent(modifiers, string.lower(character), false):post()
-end
-
-function quickSystemStroke (key)
-    hs.eventtap.event.newSystemKeyEvent(key, true):post()
-    hs.eventtap.event.newSystemKeyEvent(key, false):post()
-end
 -- }}} Caffeine --
 -- Windows {{{ --
 -- Setup animation to avoid lag
@@ -446,16 +338,6 @@ end
 -- Battery {{{ --
 -- local previousPowerSource = hs.battery.powerSource()
 
-function minutesToHours(minutes)
-  if minutes <= 0 then
-    return "0:00";
-  else
-    hours = string.format("%d", math.floor(minutes / 60))
-    mins = string.format("%02.f", math.floor(minutes - (hours * 60)))
-    return string.format("%s:%s", hours, mins)
-  end
-end
-
 -- function showBatteryStatus()
 --   local message
 --
@@ -500,6 +382,6 @@ end
 -- hs.hotkey.bind(mash.ctrlShiftCmd, "b", showBatteryStatus)
 -- }}} battery --
 -- Report {{{ --
-notify("Hammerspoon!")
+util.notify("Hammerspoon!")
 -- }}} Report --
 

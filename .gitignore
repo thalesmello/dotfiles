@@ -13,3 +13,4 @@ stow/dot-config/karabiner/automatic_backups/
 .DS_Store
 stow/dot-config/nvim/tmp/
 .watchman-cookie*
+stow/dot-hammerspoon/Spoons/EmmyLua.spoon/annotations/
