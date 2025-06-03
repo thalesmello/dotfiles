@@ -271,9 +271,21 @@ chrome < shift - 6 : skhd -k "escape"; chrome-preset pin-tab 6
 chrome < shift - 7 : skhd -k "escape"; chrome-preset pin-tab 7
 chrome < shift - 8 : skhd -k "escape"; chrome-preset pin-tab 8
 chrome < shift - 9 : skhd -k "escape"; chrome-preset pin-tab 9
-chrome < y : skhd -k "escape"; chrome-preset open-url --profile="Profile 1" youtube.com
 
 shift - f18 ; goto
+
+#chrome_start
+chrome < y : skhd -k "escape"; chrome-preset focus-or-open-url --profile="Default" youtube.com
+chrome < g : skhd -k "escape"; chrome-preset focus-or-open-url --profile="Default" gmail.com
+#chrome_end
+
+# Cmd to sync Chrome and goto links
+# :/^#chrome_start/+1,/^#chrome_end/yank a | /^#goto_start/+1,/^#goto_end/delete | /^#goto_start/put a | '[,']s/chrome/goto/ | '[,']s/focus-or-open-url/open-url/e
+
+#goto_start
+goto < y : skhd -k "escape"; chrome-preset open-url --profile="Default" youtube.com
+goto < g : skhd -k "escape"; chrome-preset open-url --profile="Default" gmail.com
+#goto_end
 
 # App Shortcuts
 ctrl + alt + cmd - b : btt-preset show-or-hide-app --only-show "/Applications/BetterTouchTool.app"
