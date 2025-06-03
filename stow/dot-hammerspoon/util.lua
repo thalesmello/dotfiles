@@ -32,6 +32,8 @@ function M.except(listOfPrograms, callback)
     end
   end
 end
+-- Example:
+-- nonRecursiveBind({"ctrl"}, "H", except({ "iTerm2", "RStudio" }, function() hs.window.focusedWindow():focusWindowWest()  end))
 
 function M.only(listOfPrograms, callback)
   listOfPrograms = M.as_list(listOfPrograms)
@@ -46,6 +48,9 @@ function M.only(listOfPrograms, callback)
     end
   end
 end
+
+-- Example
+-- -- nonRecursiveBind({"alt"}, "delete", only({ "iTerm2" }, function() quickKeyStroke({"ctrl"}, "W")  end))
 
 function M.table_print (tt, indent, done)
   done = done or {}
