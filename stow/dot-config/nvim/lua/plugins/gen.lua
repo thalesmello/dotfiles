@@ -1,6 +1,7 @@
 return {
    {
       "David-Kunz/gen.nvim",
+      enabled = false,
       opts = {
          model = "deepseek-r1:1.5b", -- The default model to use.
          ---@param opts { result_string: string,  }

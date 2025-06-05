@@ -14,7 +14,9 @@ return {
         },
         opts = function(_, opts)
             return vim.tbl_deep_extend('force', opts or {}, {
-                ensure_installed = {"lua", "vim", "python", "ruby", "query", "sql", "regex"},
+                ensure_installed = { "lua", "vim", "python", "ruby", "query",
+                    "sql", "regex", "markdown", "markdown_inline", "html",
+                    "latex", "typst", "yaml" },
 
                 modules = {},
                 sync_install = false,
