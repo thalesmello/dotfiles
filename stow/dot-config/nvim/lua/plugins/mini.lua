@@ -4,6 +4,15 @@ local ftmini = require('ftmini')
 return {
     { 'echasnovski/mini.comment', version = false, opts = {} },
     {
+        "echasnovski/mini.diff",
+        config = function()
+            local diff = require("mini.diff")
+            diff.setup({
+                source = diff.gen_source.none(),
+            })
+        end,
+    },
+    {
         'echasnovski/mini.ai',
         version = false,
 
