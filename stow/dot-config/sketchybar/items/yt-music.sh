@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if ! nc -z localhost 1200; then
+  exit 0
+fi
+
 music=(
   script="$PLUGIN_DIR/yt-music.sh"
   click_script="$PLUGIN_DIR/yt-music.sh"
