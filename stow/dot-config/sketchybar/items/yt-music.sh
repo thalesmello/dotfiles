@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if ! nc -z localhost 1200; then
+if ! nc -w 1 -z localhost 26538; then
   exit 0
 fi
 
