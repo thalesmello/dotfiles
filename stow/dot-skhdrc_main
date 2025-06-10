@@ -289,7 +289,8 @@ goto < g : skhd -k "escape"; chrome-preset open-url --profile="Default" gmail.co
 
 # App Shortcuts
 ctrl + alt + cmd - b : btt-preset show-or-hide-app --only-show "/Applications/BetterTouchTool.app"
-ctrl + alt + cmd - c : btt-preset show-or-hide-app --only-show "/Applications/VS Code.app/"
+ctrl + alt + cmd - c : btt-preset show-or-hide-app --only-show "/Applications/Cursor.app"
+
 ctrl + alt + cmd - x : btt-preset show-or-hide-app --only-show "/Applications/iTerm.app"
 ctrl + alt + cmd - q : btt-preset show-or-hide-app --only-show "/Applications/ChatGPT.app"
 ctrl + alt + cmd - w : btt-preset show-or-hide-app --only-show "/Applications/WhatsApp.app"
