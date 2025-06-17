@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if ! nc -w 1 -z localhost 26538; then
-  exit 0
+  return 0
 fi
 
 music=(

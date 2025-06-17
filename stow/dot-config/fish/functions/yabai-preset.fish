@@ -271,7 +271,6 @@ function yabai-preset
             yabai -m window "$win" --toggle float
         end
     case "arrange-windows-side-by-side"
-        yabai -m query --windows --space | jq 'map(select(."is-visible" and (."is-sticky"|not))) | "\(first(.[] | select(."has-focus") | .id)):\(first(.[] | select(."has-focus"|not) | .id))"'
         yabai -m query --windows --space | jq -r 'map(select(."is-visible" and (."is-sticky"|not))) | "\(first(.[] | select(."has-focus") | .id)):\(first(.[] | select(."has-focus"|not) | .id))"' | read -d: active_win back_win
 
         yabai -m window "$active_win" --grid "1:2:0:0:1:1"
