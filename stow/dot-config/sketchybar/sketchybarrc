@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # This is a demo config to showcase some of the most important commands.
 # It is meant to be changed and configured, as it is intentionally kept sparse.
 # For a (much) more advanced configuration example see my dotfiles:
@@ -98,22 +100,52 @@ source "$ITEM_DIR/yt-music.sh"
   #   click_script="$PLUGIN_DIR/mic_click.sh" \
   # --subscribe mic volume_change
 
+svim=(
+  --add item svim.mode right
+  --set svim.mode
+    icon=
+    popup.align=right
+    icon.font="Hack Nerd Font Mono:Bold:28.0"
+    label.font="Hack Nerd Font Mono:Bold:13.0"
+    icon.color=0xffff6578
+    script="sketchybar --set svim.mode popup.drawing=off"
+  --subscribe svim.mode front_app_switched window_focus
+  --add item svim.cmdline popup.svim.mode
+  --set svim.cmdline icon="Command: "
+)
+
+clock=(
+  --add item clock right
+  --set clock update_freq=10 icon=  script="$PLUGIN_DIR/clock.sh"
+)
+
+volume=(
+  --add item volume right
+  --set volume script="$PLUGIN_DIR/volume.sh"
+  --subscribe volume volume_change
+)
+
+battery=(
+  --add item battery right
+  --set battery update_freq=120 script="$PLUGIN_DIR/battery.sh"
+  --subscribe battery system_woke power_source_change
+)
+
 # Some items refresh on a fixed cycle, e.g. the clock runs its script once
 # every 10s. Other items respond to events they subscribe to, e.g. the
 # volume.sh script is only executed once an actual change in system audio
 # volume is registered. More info about the event system can be found here:
 # https://felixkratz.github.io/SketchyBar/config/events
 sketchybar \
-  --add item clock right \
-  --set clock update_freq=10 icon=  script="$PLUGIN_DIR/clock.sh" \
-  --add item volume right \
-  --set volume script="$PLUGIN_DIR/volume.sh" \
-  --subscribe volume volume_change \
-  --add item battery right \
-  --set battery update_freq=120 script="$PLUGIN_DIR/battery.sh" \
-  --subscribe battery system_woke power_source_change
+  "${clock[@]}" \
+  "${svim[@]}" \
+  "${volume[@]}" \
+  "${battery[@]}"
 
 ###############################################################################
+
+
+# This is the setup command needed for sketchybar in sketchybarrc:
 
 ~/.sketchybarrc_local
 
