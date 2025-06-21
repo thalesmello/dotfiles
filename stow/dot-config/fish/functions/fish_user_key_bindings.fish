@@ -10,8 +10,8 @@ function fish_user_key_bindings
   # # The argument specifies the initial mode (insert, "default" or visual).
   # # Shift Tab
   bind -M insert \cv edit_cmd
-  bind -M insert \cq 'commandline (commandline | format-shell)'
-  bind -M insert \cg 'fzf | xargs -I{} nvim {}' repaint
+  bind -M insert \cq 'commandline -- (commandline | format-shell)'
+  bind -M insert \cg 'commandline -- (fzf | xargs -I{} echo nvim {})' repaint
   bind -M insert \ch fzf-cd-widget
   bind -M visual -m insert i end-selection repaint-mode
   bind -M insert ctrl-n down-or-search
