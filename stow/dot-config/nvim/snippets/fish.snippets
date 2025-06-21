@@ -8,3 +8,11 @@ snippet if "if clause"
         $VISUAL$0
     end
 
+snippet __nth "complete check function for positional argument" i
+    __fish_is_nth_token ${1:1}$0
+
+snippet __seen "complete check function for subcommand" i
+    __fish_seen_subcommand_from ${1:cmd}$0
+
+snippet comp "complete template"
+        complete -c `expand('%:t:r')` $0
