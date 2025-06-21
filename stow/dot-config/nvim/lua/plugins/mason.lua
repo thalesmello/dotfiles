@@ -2,17 +2,12 @@ return {
 
    {
       'williamboman/mason.nvim',
-      version = "^1.0.0",
       opts = {},
    },
    {
       'williamboman/mason-lspconfig.nvim',
-      version = "^1.0.0",
       dependencies = { 'williamboman/mason.nvim' },
       opts = function ()
-         local capabilities = require('cmp_nvim_lsp').default_capabilities()
-         local lspconfig = require('lspconfig')
-
          -- local configs = require 'lspconfig.configs'
          -- local lspconfig_util = require("lspconfig.util")
 
@@ -46,40 +41,41 @@ return {
          --     },
          -- }
 
+         vim.lsp.config('lua_ls', {
+            settings = {
+               Lua = {
+                  runtime = {
+                     version = 'LuaJIT'
+                  },
+                  diagnostics = {
+                     globals = { 'vim' },
+                  },
+                  workspace = {
+                     library = {
+                        vim.env.VIMRUNTIME,
+                     }
+                  }
+               }
+            }
+         })
 
-         local default_setup = function(server)
-            lspconfig[server].setup({
-               capabilities = capabilities,
-            })
-         end
+         -- local fish_lsp_caps = vim.lsp.protocol.make_client_capabilities()
+         --
+         -- fish_lsp_caps.textDocument.signatureHelp = nil
+
+         -- vim.lsp.config("fish_lsp", {
+            -- capabilities = fish_lsp_caps,
+            -- cmd_env = {
+            --    -- fish_lsp_enabled_handlers = vim.fn.join({"complete"}, '\x1e'),
+            --    -- fish_lsp_log_file = vim.fn.join({"/tmp/fish_lsp.logs"}, '\x1e'),
+            -- }
+         -- })
 
          return {
             ensure_installed = {
                "jsonls",
                "lua_ls",
-            },
-            handlers = {
-               default_setup,
-               lua_ls = function()
-                  lspconfig.lua_ls.setup({
-                     capabilities = capabilities,
-                     settings = {
-                        Lua = {
-                           runtime = {
-                              version = 'LuaJIT'
-                           },
-                           diagnostics = {
-                              globals = { 'vim' },
-                           },
-                           workspace = {
-                              library = {
-                                 vim.env.VIMRUNTIME,
-                              }
-                           }
-                        }
-                     }
-                  })
-               end
+               "fish_lsp",
             },
          }
       end

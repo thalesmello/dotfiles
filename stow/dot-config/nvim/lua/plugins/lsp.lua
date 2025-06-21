@@ -64,7 +64,24 @@ return {
             -- max_width = 80,
             toggle_key = "<c-/>",
             toggle_key_flip_floatwin_setting = true,
-        }
+        },
+        config = function (_, opts)
+            vim.api.nvim_create_autocmd('LspAttach', {
+                desc = 'LspSignatureGroup',
+                group = vim.api.nvim_create_augroup("LspSignatureGroup", { clear = true}),
+                callback = function(event)
+                    local buf = event.buf
+                    local client = vim.lsp.get_client_by_id(event.data.client_id)
+
+                    -- Ignore events servers known to be problematic
+                    if client == nil or vim.list_contains({"fish_lsp"}, client.name) then
+                        return
+                    end
+
+                    require "lsp_signature".on_attach(opts, buf)
+                end
+            })
+        end
     },
     {
         'ii14/lsp-command',
