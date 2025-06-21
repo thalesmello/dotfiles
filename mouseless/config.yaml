@@ -278,7 +278,7 @@ keymaps:
     cycle mouse button: null
     decrease overlay opacity: '-'
     edit config: Command+,
-    enter free mode: null
+    enter free mode: ctrl+cmd+option+d
     execute mouse action:
     - Space
     - Enter
@@ -295,20 +295,20 @@ keymaps:
     hold for middle button: CommandLeft
     hold for move: ShiftLeft
     hold for right button: OptionLeft
-    hold for speed decrease: ControlLeft
+    hold for speed decrease: OptionLeft
     hold for speed increase: ShiftLeft
     increase overlay opacity: +
-    jump to bottom: null
-    jump to left edge: null
-    jump to right edge: null
-    jump to top: null
+    jump to bottom: shift+g
+    jump to left edge: shift+6
+    jump to right edge: shift+4
+    jump to top: g
     left mouse button: space
     left mouse button (w/o overlay): null
     middle mouse button: Cmd+space
     middle mouse button (w/o overlay): null
     move down: S
     move left: A
-    move right: D
+    move right: E
     move up: W
     release hold/drag: null
     repeat last mouse action: null
@@ -340,21 +340,21 @@ keymaps:
     - Backspace
     - Option+Backspace
     wheel down: null
-    wheel down fast: J
+    wheel down fast: j
     wheel left: null
-    wheel left fast: H
+    wheel left fast: h
     wheel right: null
-    wheel right fast: L
+    wheel right fast: l
     wheel step down: null
-    wheel step down large: null
+    wheel step down large: ctrl+d
     wheel step left: null
     wheel step left large: null
     wheel step right: null
     wheel step right large: null
     wheel step up: null
-    wheel step up large: null
+    wheel step up large: ctrl+u
     wheel up: null
-    wheel up fast: K
+    wheel up fast: k
   name: mac
 monitor_assignment_mode: auto
 name: ''
