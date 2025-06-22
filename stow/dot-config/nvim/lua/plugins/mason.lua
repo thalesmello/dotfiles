@@ -63,13 +63,14 @@ return {
          --
          -- fish_lsp_caps.textDocument.signatureHelp = nil
 
-         -- vim.lsp.config("fish_lsp", {
+         vim.lsp.config("fish_lsp", {
             -- capabilities = fish_lsp_caps,
-            -- cmd_env = {
-            --    -- fish_lsp_enabled_handlers = vim.fn.join({"complete"}, '\x1e'),
-            --    -- fish_lsp_log_file = vim.fn.join({"/tmp/fish_lsp.logs"}, '\x1e'),
-            -- }
-         -- })
+            cmd_env = {
+               -- fish_lsp_enabled_handlers = vim.fn.join({"complete"}, '\x1e'),
+               -- fish_lsp_log_file = vim.fn.join({"/tmp/fish_lsp.logs"}, '\x1e'),
+               fish_lsp_diagnostic_disable_error_codes = vim.fn.join({"2003"}, '\x1e'),
+            }
+         })
 
          return {
             ensure_installed = {

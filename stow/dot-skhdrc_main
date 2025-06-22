@@ -244,7 +244,7 @@ invoke < 1 : skhd -k "escape"; yabai-preset arrange-spaces \
     -a "5:Obsidian"
 invoke < p : skhd -k "escape"; yabai-preset arrange-spaces \
     -w "7:.*Thales \\(Personal\\).*"
-invoke < b : skhd -k "escape"; open "alfred://runtrigger/com.dnnsmnstrr.btt/triggerbtt/"
+invoke < b : skhd -k "escape"; osascript -e 'tell application "Alfred" to search "btt "'
 invoke < t : skhd -k "escape"; osascript -e 'tell application "Alfred" to search "top "'
 invoke < y : skhd -k "escape"; open 'raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D'
 
