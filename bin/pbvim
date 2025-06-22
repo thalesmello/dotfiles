@@ -2,8 +2,6 @@
 
 set -e
 
-
-
 if test -n "$1" -a "$1" != "--guess"; then
     filetype="$1"
 else
@@ -26,7 +24,7 @@ pbpaste >"$tmpfile"
 
 before=$(stat -c %y "$tmpfile")
 
-svim "$tmpfile" -c 'autocmd FileType * silent !test <amatch> \!= cmp_menu && echo <amatch> > /tmp/pbvim-last-filetype'
+nvim "$tmpfile" -c 'autocmd FileType * silent !test <amatch> \!= cmp_menu && echo <amatch> > /tmp/pbvim-last-filetype'
 after=$(stat -c %y "$tmpfile")
 
 if [[ $before != $after ]]; then

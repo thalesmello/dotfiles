@@ -4,20 +4,24 @@
 ::service @
 service < escape ; default
 
-::goto @ : display-message "Go To" &
+::goto @ : display-message "Go To"
 goto < escape ; default
 
-::chrome @ : display-message "Chrome" &
+::chrome @ : display-message "Chrome"
 chrome < escape ; default
 
-::invoke @ : display-message "Invoke" &
+::invoke @ : display-message "Invoke"
 invoke < escape ; default
 
-::resize @ : display-message "Resize" &
+::resize @ : display-message "Resize"
 resize < escape ; default
 
-::stack @ : display-message "Stack" &
+::stack @ : display-message "Stack"
 stack < escape ; default
+
+::svim : display-message "SVIM"; and svim-preset enter
+svim < shift - escape : skhd -k 'ctrl + shift - q'; and display-message "Exit SVIM"; and svim-preset exit
+svim < ctrl + shift - q ; default
 
 # skhdrc_local is loaded first so that mappings there can override main
 .load ".skhdrc_local"
