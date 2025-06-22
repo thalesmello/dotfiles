@@ -52,7 +52,7 @@
 :layers {}
 
 :simlayers  {:space-mode { :key :spacebar }}
-:simlayer-threshold 500
+:simlayer-threshold 250
 
 :tos {
     :end-hyper ["hyper-layer" 0]
