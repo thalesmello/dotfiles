@@ -35,6 +35,7 @@ brew "FelixKratz/formulae/borders"
 cask "th-ch/youtube-music/youtube-music"
 brew "mas"
 brew "stow"
+brew "pre-commit"
 
 
 brew "waydabber/betterdisplay/betterdisplaycli" if OS.mac?
