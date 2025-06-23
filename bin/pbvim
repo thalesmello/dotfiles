@@ -1,34 +1,40 @@
-#!/usr/bin/env bash
+#!/usr/bin/env fish
 
-set -e
+set filetype $argv[1]
+set -e argv[1]
 
-if test -n "$1" -a "$1" != "--guess"; then
-    filetype="$1"
-else
-    if test -f "/tmp/pbvim-last-filetype"; then
-        filetype="$(cat /tmp/pbvim-last-filetype)"
+
+if test -z "$filetype"; or test "$filetype" = "--guess"
+    if test -f "/tmp/pbvim-last-filetype"
+        set -l filetype (cat /tmp/pbvim-last-filetype)
     else
-        filetype=""
-    fi
+        set -l filetype ""
+    end
 
-    test "$filetype" = "python" && filetype="py"
-fi
+    if test "$filetype" = "python"
+        set filetype "py"
+    end
+end
 
-if test -n "$filetype"; then
-    tmpfile=$(mktemp --suffix ".$filetype")
+if test -n "$filetype"
+    set tmpfile (mktemp --suffix ".$filetype")
 else
-    tmpfile=$(mktemp)
-fi
+    set tmpfile (mktemp)
+end
 
-pbpaste >"$tmpfile"
+pbpaste > "$tmpfile"
 
-before=$(stat -c %y "$tmpfile")
+set -l modified_before (stat -c %y "$tmpfile")
 
+# Create special command to save pbvim filetype to be used at a later try
 nvim "$tmpfile" -c 'autocmd FileType * silent !test <amatch> \!= cmp_menu && echo <amatch> > /tmp/pbvim-last-filetype'
-after=$(stat -c %y "$tmpfile")
 
-if [[ $before != $after ]]; then
-    pbcopy <"$tmpfile"
-fi
+set -l modified_after (stat -c %y "$tmpfile")
+
+if test "$modified_before" != "$modified_after"
+    set contents (cat "$tmpfile" | string collect)
+    set contents (string replace -r '\n[^\n]*$' '' -- "$contents")
+    printf '%s' "$contents" | pbcopy
+end
 
 rm "$tmpfile"
