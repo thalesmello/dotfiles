@@ -38,6 +38,16 @@ brew "stow"
 brew "pre-commit"
 mas "Klack keyboard sounds", id: 6446206067
 
+# Yazi dependencies
+brew "yazi"
+brew "ffmpeg"
+brew "sevenzip"
+brew "poppler" # pdf renderer
+brew "fd"
+brew "ripgrep"
+brew "resvg" # SVG renderer
+brew "imagemagick"
+brew "font-symbols-only-nerd-font"
 
 brew "waydabber/betterdisplay/betterdisplaycli" if OS.mac?
 brew "choose-gui" if OS.mac?
