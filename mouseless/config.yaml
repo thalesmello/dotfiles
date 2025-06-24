@@ -287,8 +287,8 @@ keymaps:
     forward mouse button: Ctrl+i
     forward mouse button (w/o overlay): null
     hide overlay:
-    - Escape
     - F13
+    - Command+Tab
     hold for back button: null
     hold for drag: ControlLeft
     hold for forward button: null
@@ -336,6 +336,7 @@ keymaps:
     toggle overlay: null
     toggle overlay lock: Ctrl+F13
     undo last key:
+    - Escape
     - ShiftLeft tap
     - Backspace
     - Option+Backspace
