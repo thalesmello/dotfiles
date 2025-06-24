@@ -138,7 +138,6 @@ battery=(
 # https://felixkratz.github.io/SketchyBar/config/events
 sketchybar \
   "${clock[@]}" \
-  "${svim[@]}" \
   "${volume[@]}" \
   "${battery[@]}"
 
