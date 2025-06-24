@@ -36,6 +36,7 @@ cask "th-ch/youtube-music/youtube-music"
 brew "mas"
 brew "stow"
 brew "pre-commit"
+mas "Klack keyboard sounds", id: 6446206067
 
 
 brew "waydabber/betterdisplay/betterdisplaycli" if OS.mac?
