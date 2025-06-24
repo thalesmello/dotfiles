@@ -32,8 +32,7 @@ nvim "$tmpfile" -c 'autocmd FileType * silent !test <amatch> \!= cmp_menu && ech
 set -l modified_after (stat -c %y "$tmpfile")
 
 if test "$modified_before" != "$modified_after"
-    set contents (cat "$tmpfile" | string collect)
-    set contents (string replace -r '\n[^\n]*$' '' -- "$contents")
+    set contents (string replace -r '\n[^\n]*$' '' < $tmpfile | string collect)
     printf '%s' "$contents" | pbcopy
 end
 
