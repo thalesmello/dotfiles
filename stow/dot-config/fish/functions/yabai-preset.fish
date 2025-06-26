@@ -323,14 +323,10 @@ function yabai-preset
             yabai-preset move-window-to-space "$space"
         end
 
-    case "pin-object"
-        set position $argv[1]
-        set -e argv[1]
+    case "get-pin-json"
+        set window (yabai -m query --windows --space | jq  'first(.[] | select(."has-focus"))')
 
-        set window (yabai -m query --windows --space | jq  'first(.[] | select(."has-focus")) | {app, id}')
-
-        if jq -en --argjson window "$window" '$window.app == "Google Chrome"'
-            set type "tab"
+        if jq -en --argjson window "$window" '$window.app == "Google Chrome"' >/dev/null
             env OUTPUT_FORMAT=json chrome-cli info \
             | jq -r '"\(.windowId):\(.id)"' \
             | read -d: -l chrome_window_id tab_id
@@ -347,11 +343,18 @@ function yabai-preset
             #    set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab_id, window_id: $window.id}')
             #end
 
-            set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab_id, window_id: $window.id}')
+            set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab_id, window_id: $window.id, app: $window.app, title: $window.title}')
         else
-            set type "window"
-            set json (jq -n --argjson window "$window" '{type: "window", window_id: $window.id}')
+            set json (jq -n --argjson window "$window" '{type: "window", window_id: $window.id, app: $window.app, title: $window.title}')
         end
+
+        echo "$json"
+    case "pin-object"
+        set position $argv[1]
+        set -e argv[1]
+
+        set json (yabai-preset get-pin-json)
+        set type (jq -n --argjson json "$json" '.type')
 
         mkdir -p "/tmp/yabai-preset/pins/"
         echo $json > "/tmp/yabai-preset/pins/$position.json"
