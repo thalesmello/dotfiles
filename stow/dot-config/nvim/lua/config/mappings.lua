@@ -70,6 +70,7 @@ vim.keymap.set("v", "<M-w>", '"+ygv', { noremap = true })
 
 vim.keymap.set({ "n", "x" }, "x", '"_x', { remap = false })
 vim.keymap.set({ "n", "x" }, "X", '"_X', { remap = false })
+vim.keymap.set({ "n" }, "xp", '"xx"xp', { remap = false })
 
 vim.keymap.set("v", "@", ":<c-u>noautocmd '<,'> normal @", { noremap = true })
 vim.keymap.set("n", "<leader><leader>", "<c-^>", { noremap = true })
