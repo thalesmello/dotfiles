@@ -23,7 +23,7 @@ snippet shift "Shifts argv in fish shell"
     $0
 
 snippet switch "switch a variable"
-    switch "$${1:variable}"
+    switch "\$${1:variable}"
     case "${2:value}"
         $0
     end
