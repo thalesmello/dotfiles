@@ -298,7 +298,7 @@ ctrl + alt + cmd - b : btt-preset show-or-hide-app --only-show "/Applications/Be
 ctrl + alt + cmd - c : btt-preset show-or-hide-app --only-show "/Applications/Cursor.app"
 
 ctrl + alt + cmd - x : btt-preset show-or-hide-app --only-show "/Applications/iTerm.app"
-ctrl + alt + cmd - q : btt-preset show-or-hide-app --only-show "/Applications/ChatGPT.app"
+ctrl + alt + cmd - q : chrome-preset focus-or-open-url "gemini.google.com"
 ctrl + alt + cmd - w : btt-preset show-or-hide-app --only-show "/Applications/WhatsApp.app"
 ctrl + alt + cmd - z : btt-preset show-or-hide-app --only-show "/Applications/Obsidian.app"
 ctrl + alt + cmd - s : btt-preset show-or-hide-app --only-show "/Applications/YouTube Music.app"
