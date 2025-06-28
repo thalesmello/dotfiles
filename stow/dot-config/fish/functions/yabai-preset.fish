@@ -363,16 +363,34 @@ function yabai-preset
         set position $argv[1]
         set -e argv[1]
 
-        read json < "/tmp/yabai-preset/pins/$position.json"
+        yabai-preset focus-pin-json < "/tmp/yabai-preset/pins/$position.json"
+    case "focus-pin-json"
+        read json
 
-        if jq -en --argjson json "$json" '$json.type == "chrome_tab"'
+        set type (jq -n --argjson json "$json" '$json.type')
+
+        set has_failed 0
+
+        if jq -en --argjson type "$type" '$type == "chrome_tab"' >/dev/null
             chrome-cli activate -t "$(jq -nr --argjson json "$json" '$json.tab_id')"
+            and yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
+            or set has_failed 1
+        else if jq -en --argjson type "$type" '$type == "yabai_chrome_tab"' >/dev/null
             yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
-        else if jq -en --argjson json "$json" '$json.type == "yabai_chrome_tab"'
+            and skhd -k "cmd - $(jq -nr --argjson json "$json" '$json.tab_index')"
+            or set has_failed 1
+        else if jq -en --argjson type "$type" '$type == "window"' >/dev/null
             yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
-            skhd -k "cmd - $(jq -nr --argjson json "$json" '$json.tab_index')"
-        else if jq -en --argjson json "$json" '$json.type == "window"'
-            yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
+            or set has_failed 1
+        else
+            set type unkown_pin
+            set has_failed 1
+        end
+
+        echo $has_failed
+        if test has_failed = 1
+            display-message "Load $type failed"
+            return 1
         end
     case "is-window-floating"
         set window $argv[1]; set -e argv[1]

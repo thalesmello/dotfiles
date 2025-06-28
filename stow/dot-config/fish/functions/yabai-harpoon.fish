@@ -25,6 +25,8 @@ function yabai-harpoon
         yabai-harpoon reset-file
         display-message "Delete list"
     case "edit"
+        display-message "Edit Yabai-harpoon"
+
         if test ! -e "$FILE"
             yabai-harpoon reset-file
         end
@@ -33,7 +35,7 @@ function yabai-harpoon
 
         and jq -c '.pins[]' < "$FILE" > "$tmpfile"
 
-        and neovide "$tmpfile"
+        and neovide "$tmpfile" -- -u NONE
 
         and jq -s '{ pins: . }' < "$tmpfile" > "$FILE"
 
@@ -47,19 +49,7 @@ function yabai-harpoon
         end
 
         jq -ec --argjson pos "$position" '.pins[$pos - 1]' < "$FILE" | read json
-
-        and if jq -en --argjson json "$json" '$json.type == "chrome_tab"' >/dev/null
-            chrome-cli activate -t "$(jq -nr --argjson json "$json" '$json.tab_id')"
-            yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
-        else if jq -en --argjson json "$json" '$json.type == "yabai_chrome_tab"' >/dev/null
-            yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
-            skhd -k "cmd - $(jq -nr --argjson json "$json" '$json.tab_index')"
-        else if jq -en --argjson json "$json" '$json.type == "window"' >/dev/null
-            yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
-        else
-            display-message "Invalid pin"
-            return 1
-        end
+        and echo "$json" | yabai-preset focus-pin-json
     end
 end
 
