@@ -305,7 +305,7 @@ ctrl + alt + cmd - s : btt-preset show-or-hide-app --only-show "/Applications/Yo
 ctrl + alt + cmd - e : btt-preset show-or-hide-app --only-show "/Applications/Google Chrome.app"
 ctrl + alt + cmd - r : btt-preset show-or-hide-app --only-show "/Applications/Google Chrome.app"
 ctrl + alt + cmd - a : btt-preset show-or-hide-app --only-show "/Applications/Timery.app"
-ctrl + alt + cmd + shift - a : btt-preset show-or-hide-app --only-show "/Applications/PomoFocus.app"
+ctrl + alt + cmd + shift - a : btt-preset show-or-hide-app --only-show "~/Applications/Chrome Apps.localized/Pomofocus.app"
 ctrl + alt + cmd + shift - z : btt-preset show-or-hide-app --only-show "~/Applications/Chrome Apps.localized/Google Keep.app"
 ctrl + alt + cmd + shift - w : btt-preset show-or-hide-app --only-show "/Applications/zoom.us.app"
 ctrl + alt + cmd + shift - f : btt-preset show-or-hide-app --only-show "/Applications/WhatsApp.app"
