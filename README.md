@@ -31,7 +31,7 @@ mkdir -p ~/go/bin && fish_add_path ~/go/bin
 Create a symbolic links for your files:
 
 ```
-stow --target "$HOME" --dotfiles stow
+stow --target "$HOME" --dotfiles main
 stow --target "$HOME" --dotfiles local
 ln "$(pwd)/mouseless/config.yaml" "$HOME/Library/Containers/net.sonuscape.mouseless/Data/.mouseless/configs/config.yaml"
 ```
