@@ -346,14 +346,14 @@ keymaps:
     wheel left fast: h
     wheel right: null
     wheel right fast: l
-    wheel step down: null
-    wheel step down large: ctrl+d
+    wheel step down: ctrl+d
+    wheel step down large: null
     wheel step left: null
     wheel step left large: null
     wheel step right: null
     wheel step right large: null
-    wheel step up: null
-    wheel step up large: ctrl+u
+    wheel step up: ctrl+u
+    wheel step up large: null
     wheel up: null
     wheel up fast: k
   name: mac
