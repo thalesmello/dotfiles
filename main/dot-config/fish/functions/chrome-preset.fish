@@ -42,12 +42,13 @@ function chrome-preset
         | jq -r --arg tab_id "$tab_id" '.tabs | map(.id) | index($tab_id) + 1')
 
         chrome-preset focus-window "$chrome_window_id"
-        and if test "$tab_index" -le 8
-            # Index is <= 8 then it's faster to use cmd + index
-            btt-preset send-keys cmd "$tab_index"
-        else
-            chrome-cli activate -t "$tab_id"
-        end
+        and chrome-cli activate -t "$tab_id"
+        # and if test "$tab_index" -le 8
+        #     # Index is <= 8 then it's faster to use cmd + index
+        #     btt-preset send-keys cmd "$tab_index"
+        # else
+        #     chrome-cli activate -t "$tab_id"
+        # end
 
         or return 1
 

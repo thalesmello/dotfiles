@@ -12,7 +12,7 @@ function yabai-harpoon
             yabai-harpoon reset-file
         end
 
-        set json (jq --argjson pin_json "$pin_json" '.pins |= . + [$pin_json]' < "$FILE" | string collect)
+        set json (jq --argjson pin_json "$pin_json" '.pins |= ([. + [$pin_json] | to_entries | unique_by(.value) | sort_by(.key) | .[] | .value])' < "$FILE" | string collect)
 
         and echo "$json" > "$FILE"
 
@@ -37,7 +37,7 @@ function yabai-harpoon
 
         and neovide "$tmpfile" -- -u NONE
 
-        and jq -s '{ pins: . }' < "$tmpfile" > "$FILE"
+        and jq -s '{ pins: [. | to_entries | unique_by(.value) | sort_by(.key) | .[] | .value] }' < "$tmpfile" > "$FILE"
 
         and display-message "Updated list"
     case "focus"
