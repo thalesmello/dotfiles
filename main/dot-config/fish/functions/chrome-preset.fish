@@ -33,13 +33,22 @@ function chrome-preset
         set -e argv[1]
 
         env OUTPUT_FORMAT=json chrome-cli list links \
-            | jq -er --arg regex "$regex" '
-                first(.tabs.[] | select(.url | test($regex)))
-                | "\(.windowId):\(.id)"' \
-            | read -d: -l window_id tab_id
+        | jq -er --arg regex "$regex" '
+        first(.tabs.[] | select(.url | test($regex)))
+        | "\(.windowId):\(.id)"' \
+        | read -d: -l chrome_window_id tab_id
 
-        and chrome-preset focus-window "$window_id"
-        and chrome-cli activate -t "$tab_id"
+        set tab_index (env OUTPUT_FORMAT=json chrome-cli list tabs -w "$chrome_window_id" \
+        | jq -r --arg tab_id "$tab_id" '.tabs | map(.id) | index($tab_id) + 1')
+
+        chrome-preset focus-window "$chrome_window_id"
+        and if test "$tab_index" -le 8
+            # Index is <= 8 then it's faster to use cmd + index
+            btt-preset send-keys cmd "$tab_index"
+        else
+            chrome-cli activate -t "$tab_id"
+        end
+
         or return 1
 
     case "focus-or-open-url"
@@ -81,11 +90,11 @@ function chrome-preset
         set -e argv[1]
 
         set tabs (env OUTPUT_FORMAT=json chrome-cli list links \
-            | jq -er --arg regex "$regex" '
-                .tabs.[]
-                | select(.url | test($regex))
-                | debug(.)
-                | .id')
+        | jq -er --arg regex "$regex" '
+        .tabs.[]
+        | select(.url | test($regex))
+        | debug(.)
+        | .id')
         and for tab_id in $tabs
             chrome-cli close -t "$tab_id"
         end

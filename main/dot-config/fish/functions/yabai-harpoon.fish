@@ -6,7 +6,7 @@ function yabai-harpoon
 
     switch "$mode"
     case "add"
-        set pin_json (yabai-preset get-pin-json)
+        set pin_json (yabai-preset get-pin-json-prototype)
 
         and if test ! -e "$FILE"
             yabai-harpoon reset-file

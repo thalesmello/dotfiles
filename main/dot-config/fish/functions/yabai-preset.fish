@@ -349,6 +349,30 @@ function yabai-preset
         end
 
         echo "$json"
+    case "get-pin-json-prototype"
+        set window (yabai -m query --windows --space | jq  'first(.[] | select(."has-focus"))')
+
+        if jq -en --argjson window "$window" '$window.app == "Google Chrome"' >/dev/null
+            env OUTPUT_FORMAT=json chrome-cli info \
+            | jq -r '"\(.windowId):\(.id)"' \
+            | read -d: -l chrome_window_id tab_id
+
+            set tab_index (env OUTPUT_FORMAT=json chrome-cli list tabs -w "$chrome_window_id" \
+            | jq -r --arg tab_id "$tab_id" '.tabs | map(.id) | index($tab_id) + 1')
+
+            and if test "$tab_index" -le 8
+               # Index is <= 8 then it's faster to use cmd + index
+               set json (jq -n --argjson tab_index "$tab_index" --argjson window "$window" '{type: "yabai_chrome_tab", tab_index: $tab_index, window_id: $window.id, app: $window.app, title: $window.title}')
+            else
+               set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab_id, window_id: $window.id, app: $window.app, title: $window.title}')
+            end
+
+            # set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab_id, window_id: $window.id, app: $window.app, title: $window.title}')
+        else
+           set json (jq -n --argjson window "$window" '{type: "window", window_id: $window.id, app: $window.app, title: $window.title}')
+        end
+
+        echo "$json"
     case "pin-object"
         set position $argv[1]
         set -e argv[1]
@@ -377,7 +401,8 @@ function yabai-preset
             or set has_failed 1
         else if jq -en --argjson type "$type" '$type == "yabai_chrome_tab"' >/dev/null
             yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
-            and skhd -k "cmd - $(jq -nr --argjson json "$json" '$json.tab_index')"
+            # and skhd -k "cmd - $(jq -nr --argjson json "$json" '$json.tab_index')"
+            and btt-preset send-keys cmd "$(jq -nr --argjson json "$json" '$json.tab_index')"
             or set has_failed 1
         else if jq -en --argjson type "$type" '$type == "window"' >/dev/null
             yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
