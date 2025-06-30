@@ -106,16 +106,16 @@ ctrl + alt + cmd - 0x1B : yabai -m window --resize bottom_right:-100:0
 ctrl + alt + cmd - 0x18 : yabai -m window --resize bottom_right:100:0
 # ctrl + alt + cmd + shift - 0x18 : yabai -m window --resize bottom_right:0:100
 
-ctrl + alt + cmd - 1 : yabai-harpoon focus 1
-ctrl + alt + cmd - 2 : yabai-harpoon focus 2
-ctrl + alt + cmd - 3 : yabai-harpoon focus 3
-ctrl + alt + cmd - 4 : yabai-harpoon focus 4
-ctrl + alt + cmd - 5 : yabai-harpoon focus 5
-ctrl + alt + cmd - 6 : yabai-harpoon focus 6
-ctrl + alt + cmd - 7 : yabai-harpoon focus 7
-ctrl + alt + cmd - 8 : yabai-harpoon focus 8
-ctrl + alt + cmd - 9 : yabai-harpoon focus 9
-ctrl + alt + cmd - 9 : yabai-harpoon focus 9
+ctrl + alt + cmd - 1 : display-message "Focus 1"; yabai-harpoon focus 1
+ctrl + alt + cmd - 2 : display-message "Focus 2"; yabai-harpoon focus 2
+ctrl + alt + cmd - 3 : display-message "Focus 3"; yabai-harpoon focus 3
+ctrl + alt + cmd - 4 : display-message "Focus 4"; yabai-harpoon focus 4
+ctrl + alt + cmd - 5 : display-message "Focus 5"; yabai-harpoon focus 5
+ctrl + alt + cmd - 6 : display-message "Focus 6"; yabai-harpoon focus 6
+ctrl + alt + cmd - 7 : display-message "Focus 7"; yabai-harpoon focus 7
+ctrl + alt + cmd - 8 : display-message "Focus 8"; yabai-harpoon focus 8
+ctrl + alt + cmd - 9 : display-message "Focus 9"; yabai-harpoon focus 9
+
 # equals
 ctrl + alt + cmd + shift - 0x18 : skhd -k "escape"; yabai-harpoon add
 service < a : skhd -k "escape"; yabai-harpoon add

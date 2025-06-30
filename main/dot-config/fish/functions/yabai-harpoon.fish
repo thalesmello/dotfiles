@@ -6,19 +6,19 @@ function yabai-harpoon
 
     switch "$mode"
     case "add"
-        set pin_json (yabai-preset get-pin-json-prototype)
+        set pin (yabai-preset get-pin-json-prototype)
 
         and if test ! -e "$FILE"
             yabai-harpoon reset-file
         end
 
-        set json (jq --argjson pin_json "$pin_json" '.pins |= ([. + [$pin_json] | to_entries | unique_by(.value) | sort_by(.key) | .[] | .value])' < "$FILE" | string collect)
+        set json (jq --argjson pin "$pin" '.pins |= ([. + [$pin] | to_entries | unique_by(.value) | sort_by(.key) | .[] | .value])' < "$FILE" | string collect)
 
         and echo "$json" > "$FILE"
 
-        and set type (jq -nr --argjson json "$pin_json" '$json.type')
+        and jq -nr --argjson pin "$pin" --argjson json "$json" '$pin.type, ($json.pins | length)' | read --line type count_pins
 
-        and display-message "Add $type to list"
+        and display-message "Add $type to pin $count_pins"
     case "reset-file"
         echo '{ "pins": [] }' > "$FILE"
     case "delete"
