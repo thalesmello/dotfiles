@@ -47,7 +47,7 @@ brew "fd"
 brew "ripgrep"
 brew "resvg" # SVG renderer
 brew "imagemagick"
-brew "font-symbols-only-nerd-font"
+cask "font-symbols-only-nerd-font"
 
 brew "waydabber/betterdisplay/betterdisplaycli" if OS.mac?
 brew "choose-gui" if OS.mac?
