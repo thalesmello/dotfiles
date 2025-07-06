@@ -45,7 +45,11 @@
 }
 
 :applications {
-    :vscode ["com.microsoft.VSCode", "com.facebook.fbvscode"]
+    :vscode [
+        "com.microsoft.VSCode"
+        "com.facebook.fbvscode"
+        "com.todesktop.230313mzl4w4u92" ; Cursor has a weird bundleid
+    ]
     :chrome ["com.google.Chrome"]
 }
 
