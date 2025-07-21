@@ -159,6 +159,8 @@ resize < shift - l : yabai -m window --resize top_left:100:0
 
 ctrl + alt + cmd - space ; service
 
+service < ctrl + alt + cmd - e : display-message "Edit SKHD"; neovide "$HOME/.skhdrc_main"
+
 # Service mode bindings
 service < ctrl + alt + cmd - space : skhd -k "escape"; yabai-preset focus-space recent
 # service < space : skhd -k "escape"; if test "$_YABAI_MRU" = chrome_tab; skhd -k "alt - q"; else; yabai -m window --focus recent || yabai-preset focus-space recent; end
@@ -279,6 +281,7 @@ chrome < shift - 8 : skhd -k "escape"; chrome-preset pin-tab 8
 chrome < shift - 9 : skhd -k "escape"; chrome-preset pin-tab 9
 
 shift - f18 ; goto
+service < shift - c ; goto
 
 #chrome_start
 chrome < y : skhd -k "escape"; chrome-preset focus-or-open-url --profile="Default" youtube.com
@@ -298,7 +301,7 @@ ctrl + alt + cmd - b : btt-preset show-or-hide-app --only-show "/Applications/Be
 ctrl + alt + cmd - c : btt-preset show-or-hide-app --only-show "/Applications/Cursor.app"
 
 ctrl + alt + cmd - x : btt-preset show-or-hide-app --only-show "/Applications/iTerm.app"
-ctrl + alt + cmd - q : chrome-preset focus-or-open-url "gemini.google.com"
+ctrl + alt + cmd - q : chrome-preset focus-or-open-url "gemini.google.com" --label "Gemini"
 ctrl + alt + cmd - w : btt-preset show-or-hide-app --only-show "/Applications/WhatsApp.app"
 ctrl + alt + cmd - z : btt-preset show-or-hide-app --only-show "/Applications/Obsidian.app"
 ctrl + alt + cmd - s : btt-preset show-or-hide-app --only-show "/Applications/YouTube Music.app"
@@ -312,7 +315,7 @@ ctrl + alt + cmd + shift - f : btt-preset show-or-hide-app --only-show "/Applica
 ctrl + alt + cmd + shift - g : btt-preset show-or-hide-app --only-show "/System/Applications/Messages.app"
 ctrl + alt + cmd + shift - q : btt-preset show-or-hide-app --only-show "/System/Applications/Utilities/Activity Monitor.app"
 
-ctrl + alt + cmd - y : chrome-preset focus-or-open-url calendar.google.com
+ctrl + alt + cmd - y : chrome-preset focus-or-open-url calendar.google.com --label "Calendar"
 
 ctrl + alt + cmd - u : workflow-preset perform-default-ui
 ctrl + alt + cmd + shift - o : btt-preset send-keys ctrl shift space

@@ -176,4 +176,4 @@ vim.api.nvim_create_autocmd("User", {
 })
 
 vim.keymap.set("n", "<leader>cd", "<cmd>Plcd<cr>", { noremap = true, silent = true })
-vim.keymap.set("n", "<leader>k<space>", "<cmd>A<cr>", { noremap = true, silent = true })
+vim.keymap.set("n", "<leader><tab>", "<cmd>A<cr>", { noremap = true, silent = true })

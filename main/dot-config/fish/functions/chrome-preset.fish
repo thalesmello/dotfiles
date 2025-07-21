@@ -38,8 +38,8 @@ function chrome-preset
         | "\(.windowId):\(.id)"' \
         | read -d: -l chrome_window_id tab_id
 
-        set tab_index (env OUTPUT_FORMAT=json chrome-cli list tabs -w "$chrome_window_id" \
-        | jq -r --arg tab_id "$tab_id" '.tabs | map(.id) | index($tab_id) + 1')
+        # set tab_index (env OUTPUT_FORMAT=json chrome-cli list tabs -w "$chrome_window_id" \
+        # | jq -r --arg tab_id "$tab_id" '.tabs | map(.id) | index($tab_id) + 1')
 
         chrome-preset focus-window "$chrome_window_id"
         and chrome-cli activate -t "$tab_id"
@@ -53,7 +53,7 @@ function chrome-preset
         or return 1
 
     case "focus-or-open-url"
-        argparse fallback= profile= -- $argv
+        argparse fallback= profile= label= -- $argv
         or return 1
 
         set regex $argv[1]
@@ -66,15 +66,22 @@ function chrome-preset
             set regex (string escape --style=regex "$regex")
         end
 
+        if test -n "$_flag_label"
+            display-message "Open $_flag_label"
+        end
 
         chrome-preset focus-url "$regex"
         or chrome-preset open-url --profile="$_flag_profile" "$url"
     case "open-url"
-        argparse profile= -- $argv
+        argparse profile= label= -- $argv
         or return 1
 
         set url $argv[1]
         set -e argv[1]
+
+        if test -n "$_flag_label"
+            display-message "Open $_flag_label"
+        end
 
         if not string match -qr '^https?://' "$url"
             set url "https://$url"
