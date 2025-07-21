@@ -320,5 +320,10 @@ ctrl + alt + cmd - y : chrome-preset focus-or-open-url calendar.google.com --lab
 ctrl + alt + cmd - u : workflow-preset perform-default-ui
 ctrl + alt + cmd + shift - o : btt-preset send-keys ctrl shift space
 
-ctrl + alt + cmd + shift - v ; svim
-svim < ctrl + alt + cmd + shift - v : skhd -k "shift - escape"
+ctrl + alt + cmd + shift - v : if pgrep "kindaVim" >/dev/null; \
+        display-message "Exit kindaVim"; \
+        killall "kindaVim"; \
+    else; \
+        display-message "Enter kindaVim"; \
+        open -a "kindaVim"; \
+    end;
