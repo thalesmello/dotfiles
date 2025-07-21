@@ -159,7 +159,7 @@ resize < shift - l : yabai -m window --resize top_left:100:0
 
 ctrl + alt + cmd - space ; service
 
-service < ctrl + alt + cmd - e : display-message "Edit SKHD"; neovide "$HOME/.skhdrc_main"
+service < ctrl + alt + cmd - e : skhd -k "escape"; display-message "Edit SKHD"; neovide "$HOME/.skhdrc_main"
 
 # Service mode bindings
 service < ctrl + alt + cmd - space : skhd -k "escape"; yabai-preset focus-space recent
