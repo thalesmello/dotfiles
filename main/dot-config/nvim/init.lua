@@ -51,6 +51,7 @@ require("lazy").setup({
 require('config/settings')
 require('config/mappings')
 require('config/clipboard')
+require('config/neovide')
 
 local nvim_local = vim.fn.expand("$HOME/.nvim_local.lua")
 if vim.loop.fs_stat(nvim_local) then

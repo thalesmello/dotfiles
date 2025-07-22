@@ -132,6 +132,7 @@
             [:left_shift :left_shift]
             [:right_shift :left_shift]
             [:##a :!Cleft_arrow]
+            [:##0 :!Cleft_arrow]
             [:e :!Cright_arrow]
             [:##e :!Oright_arrow]
             [:##r :!Cright_arrow]
