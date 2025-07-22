@@ -2,6 +2,10 @@ local vim_utils = require('vim_utils')
 
 local terminal_cmd = 'neovim-fish'
 
+vim.keymap.set({"n", "t"}, "<c-space>h", '<c-\\><C-n><C-w><C-h>', { noremap = true, silent = true })
+vim.keymap.set({"n", "t"}, "<c-space>j", '<c-\\><C-n><C-w><C-j>', { noremap = true, silent = true })
+vim.keymap.set({"n", "t"}, "<c-space>k", '<c-\\><C-n><C-w><C-k>', { noremap = true, silent = true })
+vim.keymap.set({"n", "t"}, "<c-space>l", '<c-\\><C-n><C-w><C-l>', { noremap = true, silent = true })
 vim.keymap.set({"n", "t"}, "<c-space><c-h>", '<c-\\><C-n><C-w><C-h>', { noremap = true, silent = true })
 vim.keymap.set({"n", "t"}, "<c-space><c-j>", '<c-\\><C-n><C-w><C-j>', { noremap = true, silent = true })
 vim.keymap.set({"n", "t"}, "<c-space><c-k>", '<c-\\><C-n><C-w><C-k>', { noremap = true, silent = true })
@@ -36,34 +40,58 @@ vim.keymap.set({"n", "t"}, "<c-space>7", '<c-\\><c-n>7gt', { noremap = true })
 vim.keymap.set({"n", "t"}, "<c-space>8", '<c-\\><c-n>8gt', { noremap = true })
 vim.keymap.set({"n", "t"}, "<c-space>9", '<c-\\><c-n>9gt', { noremap = true })
 
-local function close_on_exit(bufnr, _, status)
-  vim.g.neovimterm_last_channel = nil
-  if status == 0 then
-    vim.cmd.bdelete({ args = {bufnr}, bang = true})
+vim.api.nvim_create_autocmd("TermClose", {
+  callback = function(ev)
+    local status = vim.v.event.status
+    local bufnr = ev.buf
 
-    if vim.opt.buftype:get() == "terminal" then
-      vim_utils.feedkeys([[<c-\><c-n>i]])
+    if status == 0 then
+      vim.cmd.bdelete({ args = {bufnr}, bang = true})
+
+      if vim.opt.buftype:get() == "terminal" then
+        vim_utils.feedkeys([[<c-\><c-n>i]])
+      end
     end
   end
-end
+})
 
-local function start_terminal()
+-- local function close_on_exit(bufnr, _, status)
+--   vim.g.neovimterm_last_channel = nil
+--   if status == 0 then
+--     vim.cmd.bdelete({ args = {bufnr}, bang = true})
+--
+--     if vim.opt.buftype:get() == "terminal" then
+--       vim_utils.feedkeys([[<c-\><c-n>i]])
+--     end
+--   end
+-- end
+
+local function start_terminal(split)
+  local path = vim.fn["projectionist#path"]()
+
+  if split == "vertical" then
+    vim.cmd.vnew()
+  elseif split == "horizontal" then
+    vim.cmd.new()
+  elseif split == "tab" then
+    vim.cmd.tabnew()
+  end
+
   local bufnr = vim.fn.bufnr('')
-  vim.fn.termopen(terminal_cmd, { on_exit = vim_utils.partial(close_on_exit, bufnr) })
+
+  -- vim.fn.jobstart(terminal_cmd, { on_exit = vim_utils.partial(close_on_exit, bufnr), term = true, cwd = path})
+  vim.fn.jobstart(terminal_cmd, {term = true, cwd = path})
   vim_utils.feedkeys([[<c-\><c-n>i]])
 end
 
 vim.keymap.set({'n', 't'}, '<c-space>v', function ()
-  vim.cmd.vnew()
-  start_terminal()
+  start_terminal("vertical")
 end, { noremap = true, silent = true })
 vim.keymap.set({'n', 't'}, '<c-space>"', function ()
-  vim.cmd.new()
-  start_terminal()
+  start_terminal("horizontal")
 end, { noremap = true, silent = true })
 vim.keymap.set({'n', 't'}, '<c-space>c',  function ()
-  vim.cmd.tabnew()
-  start_terminal()
+  start_terminal("tab")
 end, { noremap = true, silent = true })
 
 vim.keymap.set("t", "<4-ScrollWheelUp>", '<nop>', { noremap = true })
@@ -103,6 +131,7 @@ vim.api.nvim_create_autocmd("TermOpen", {
     vim.keymap.set("n", "q", "i", { buffer = true })
     vim.opt_local.number = false
     vim.opt_local.relativenumber = false
+    vim.cmd.startinsert()
   end
 })
 

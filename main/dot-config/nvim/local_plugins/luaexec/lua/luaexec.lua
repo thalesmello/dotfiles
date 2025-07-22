@@ -15,7 +15,7 @@ function M.setup()
       inclusive = true,
       mode = mode,
     })
-    vim.fn.setcursorcharpos(unpack(vim.fn.getpos("'["), 2))
+    -- vim.fn.setcursorcharpos(unpack(vim.fn.getpos("'["), 2))
   end
 end
 

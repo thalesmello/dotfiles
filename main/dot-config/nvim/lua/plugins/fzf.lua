@@ -21,6 +21,16 @@ return {
         vim.g.fzf_history_dir = '~/.local/share/fzf-history'
         vim.env.FZF_DEFAULT_COMMAND = 'ag -g ""'
 
+        local function get_project_cwd()
+            local path = vim.fn["projectionist#path"]()
+
+            if path == "/" or path == nil or path == '' then
+                path = vim.fn.getcwd()
+            end
+
+            return path
+        end
+
         local function cwd_files ()
             if vim.o.filetype == 'qf' then
                 vim_utils.feedkeys("<up>")
@@ -28,8 +38,8 @@ return {
                 return
             end
 
-            vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
-            fzf_lua.files({ cwd = vim.b.project_do_cwd })
+            local path = get_project_cwd()
+            fzf_lua.files({ cwd = path })
         end
 
         vim.keymap.set("n", "<c-p>", cwd_files, { noremap = true, silent = true })
@@ -37,19 +47,20 @@ return {
 
         vim.keymap.set("n", "<leader><c-p>",
             function ()
-                vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
+                local path = get_project_cwd()
+
                 fzf_lua.files({
-                    cwd = vim.b.project_do_cwd,
+                    cwd = path,
                     query = vim.fn.expand("%:t:r")
                 })
             end,
             { noremap = true, silent = true }
         )
         vim.keymap.set("v", "<c-p>", function ()
-            vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
+            local path = get_project_cwd()
             local selection = vim_utils.get_visual_selection()
             fzf_lua.files({
-                cwd = vim.b.project_do_cwd,
+                cwd = path,
                 query = selection,
             })
         end, { noremap = true, silent = true })
@@ -57,14 +68,14 @@ return {
             return ':<c-u>Ag!<space>'
         end, { noremap = true, expr = true })
         vim.keymap.set("n", "<leader>/", function ()
-            vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
-            fzf_lua.grep_cword({ cwd = vim.b.project_do_cwd })
+                local path = get_project_cwd()
+            fzf_lua.grep_cword({ cwd = path })
         end, { silent = true })
         vim.keymap.set("v", "<leader>/", function ()
-            vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
+            local path = get_project_cwd()
             local selection = vim_utils.get_visual_selection()
             fzf_lua.live_grep({
-                cwd = vim.b.project_do_cwd,
+                cwd = path,
                 query = selection,
                 no_esc = true,
             })
@@ -97,9 +108,9 @@ return {
         end
 
         vim.api.nvim_create_user_command("Ag", function (ops)
-            vim.cmd([[ProjectDo let b:project_do_cwd = getcwd()]])
+            local path = get_project_cwd()
             local callback = utils.create_user_command_callback("live_grep", "search", {
-                cwd = opts.bang and vim.b.project_do_cwd or vim.fn.getcwd(),
+                cwd = opts.bang and path or vim.fn.getcwd(),
                 no_esc = true,
             })
             callback(ops)

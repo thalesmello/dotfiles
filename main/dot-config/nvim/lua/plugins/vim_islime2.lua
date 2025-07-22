@@ -12,6 +12,9 @@ return {
         config = function ()
             require('neovimterminal')
             require('smart_send_text')
-        end
+        end,
+        dependencies = {
+            "thalesmello/vim-projectionist"
+        }
     },
 }

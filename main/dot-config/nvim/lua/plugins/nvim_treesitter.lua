@@ -56,8 +56,8 @@ return {
                             -- ["if"] = "@function.inner",
                             -- ["i,"] = "@parameter.inner",
                             -- ["a,"] = "@parameter.outer",
-                            ["a;"] = "@pair.value",
-                            ["a:"] = "@pair.key",
+                            -- ["a;"] = "@pair.value",
+                            -- ["a:"] = "@pair.key",
                             -- ["aq"] = "@multiline_string.outer",
                             -- ["iq"] = "@multiline_string.inner",
                             -- You can optionally set descriptions to the mappings (used in the desc parameter of
@@ -265,7 +265,7 @@ return {
 
     vim_utils.injector_module({
         'RRethy/nvim-treesitter-textsubjects',
-        opt = {
+        opts = {
             prev_selection = '<bs>',
             keymaps = {
                 ['<cr>'] = 'textsubjects-smart',
@@ -273,6 +273,7 @@ return {
                 ['i<cr>'] = 'textsubjects-container-inner' ,
             },
         },
+        config = function (_, opts) require('nvim-treesitter-textsubjects').configure(opts) end,
         dependencies = {"nvim-treesitter/nvim-treesitter"},
         extra_contexts = {"vscode", "firenvim"}
     })

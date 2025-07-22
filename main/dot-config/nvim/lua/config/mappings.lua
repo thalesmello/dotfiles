@@ -28,7 +28,7 @@ vim.keymap.set("n", "<leader>el", ":edit ~/.nvim_local.lua<cr>", { noremap = tru
 vim.keymap.set("n", "<leader>ep", ":edit $MYVIMRC<cr>:Eplugin<space>", { noremap = true })
 vim.keymap.set("n", "<leader>ec", ":edit $MYVIMRC<cr>:Econfig<space>", { noremap = true })
 
-vim.keymap.set("n", "<leader>s%", function ()
+vim.keymap.set("n", "<leader>sb", function ()
   if vim.list_contains({"lua", "vim"}, vim.o.filetype) then
     vim.cmd.source("%")
   end
