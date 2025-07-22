@@ -270,7 +270,6 @@ invoke < t : skhd -k "escape"; osascript -e 'tell application "Alfred" to search
 invoke < y : skhd -k "escape"; open 'raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D'
 
 
-f18 ; chrome
 service < c ; chrome
 ctrl + alt + cmd + shift - c ; chrome
 # single quote
@@ -295,7 +294,6 @@ chrome < shift - 7 : skhd -k "escape"; chrome-preset pin-tab 7
 chrome < shift - 8 : skhd -k "escape"; chrome-preset pin-tab 8
 chrome < shift - 9 : skhd -k "escape"; chrome-preset pin-tab 9
 
-shift - f18 ; goto
 service < shift - c ; goto
 # single quote
 ctrl + alt + cmd + shift - 0x27 ; goto
