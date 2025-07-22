@@ -3,5 +3,6 @@ if not vim.g.neovide then
 end
 
 vim.keymap.set({"n", "v", "t"}, "<D-d>", "<C-Space>v", { remap = true })
-vim.keymap.set({"n", "v", "t"}, "<D-D>", "<C-Space>V", { remap = true })
+vim.keymap.set({"n", "v", "t"}, "<D-D>", "<C-Space>\"", { remap = true })
 vim.keymap.set({"n", "v", "t"}, "<D-p>", "<c-t>", { remap = true })
+vim.keymap.set({"n", "v", "t"}, "<D-w>", "<leader><bs>", { remap = true })
