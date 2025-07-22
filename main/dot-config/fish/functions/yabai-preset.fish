@@ -356,9 +356,9 @@ function yabai-preset
             #    set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab_id, window_id: $window.id}')
             #end
 
-            set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab_id, window_id: $window.id, app: $window.app, title: $window.title}')
+            set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", uuid: ([$window.id, $tab_id] | @base64), tab_id: $tab_id, window_id: $window.id, app: $window.app, title: $window.title}')
         else
-            set json (jq -n --argjson window "$window" '{type: "window", window_id: $window.id, app: $window.app, title: $window.title}')
+            set json (jq -n --argjson window "$window" '{type: "window",  uuid: ([$window.id] | @base64), window_id: $window.id, app: $window.app, title: $window.title}')
         end
 
         echo "$json"
@@ -375,14 +375,14 @@ function yabai-preset
 
             and if test "$tab_index" -le 8
                # Index is <= 8 then it's faster to use cmd + index
-               set json (jq -n --argjson tab_index "$tab_index" --argjson window "$window" '{type: "yabai_chrome_tab", tab_index: $tab_index, window_id: $window.id, app: $window.app, title: $window.title}')
+               set json (jq -n --argjson tab_index "$tab_index" --argjson window "$window" '{type: "yabai_chrome_tab",  uuid: ([$window.id, $tab_index] | @base64), tab_index: $tab_index, window_id: $window.id, app: $window.app, title: $window.title}')
             else
-               set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab_id, window_id: $window.id, app: $window.app, title: $window.title}')
+               set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab",  uuid: ([$window.id, $tab_id] | @base64), tab_id: $tab_id, window_id: $window.id, app: $window.app, title: $window.title}')
             end
 
             # set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab_id, window_id: $window.id, app: $window.app, title: $window.title}')
         else
-           set json (jq -n --argjson window "$window" '{type: "window", window_id: $window.id, app: $window.app, title: $window.title}')
+           set json (jq -n --argjson window "$window" '{type: "window",  uuid: ([$window.id] | @base64), window_id: $window.id, app: $window.app, title: $window.title}')
         end
 
         echo "$json"

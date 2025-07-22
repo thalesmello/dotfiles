@@ -6,13 +6,13 @@ function yabai-harpoon
 
     switch "$mode"
     case "add"
-        set pin (yabai-preset get-pin-json-prototype)
+        set pin (yabai-preset get-pin-json)
 
         and if test ! -e "$FILE"
             yabai-harpoon reset-file
         end
 
-        set json (jq --argjson pin "$pin" '.pins |= ([. + [$pin] | to_entries | unique_by(.value) | sort_by(.key) | .[] | .value])' < "$FILE" | string collect)
+        set json (jq --argjson pin "$pin" '.pins |= ([. + [$pin] | to_entries | unique_by(.value.uuid) | sort_by(.key) | .[] | .value])' < "$FILE" | string collect)
 
         and echo "$json" > "$FILE"
 
@@ -37,7 +37,7 @@ function yabai-harpoon
 
         and neovide "$tmpfile" -- -u NONE
 
-        and jq -s '{ pins: [. | to_entries | unique_by(.value) | sort_by(.key) | .[] | .value] }' < "$tmpfile" > "$FILE"
+        and jq -s '{ pins: [. | to_entries | unique_by(.value.uuid) | sort_by(.key) | .[] | .value] }' < "$tmpfile" > "$FILE"
 
         and display-message "Updated list"
     case "focus"
