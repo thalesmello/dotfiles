@@ -475,6 +475,7 @@ function yabai-preset
             if yabai-preset is-window-fullscreen "$window"
                 yabai-preset restore-window-position
             else
+                yabai-preset store-window-position
                 yabai -m window "$window" --grid "1:1:0:0:1:1"
             end
         else
@@ -483,15 +484,25 @@ function yabai-preset
     case "toggle-monocle-mode"
         if yabai -m query --windows --window | jq -re '."has-fullscreen-zoom"' > /dev/null
             display-message "Exit Monocle"
-            yabai -m query --windows --space \
-                | jq -re '.[] | select(."has-fullscreen-zoom") | .id' \
-                | xargs -I{} yabai -m window {} --toggle zoom-fullscreen
-
+            set fullscreen true
         else
             display-message "Enter Monocle"
-            yabai -m query --windows --space \
-                | jq -re '.[] | select(."has-fullscreen-zoom" | not) | .id' \
-                | xargs -I{} yabai -m window {} --toggle zoom-fullscreen
+            set fullscreen false
+        end
+
+        set windows (yabai -m query --windows --space | jq -re --argjson fullscreen "$fullscreen" '
+            .[]
+            | debug($fullscreen)
+            | select(
+                ."is-visible"
+                and (."is-sticky" | not)
+                and (."stack-index" <= 1)
+                and (."has-fullscreen-zoom" == $fullscreen))
+            | .id')
+
+        for window in $windows
+            echo window "$window"
+            yabai -m window "$window" --toggle zoom-fullscreen
         end
     case "toggle-yabai"
         yabai --stop-service
@@ -509,7 +520,8 @@ function yabai-preset
         yabai-preset is-window-floating "$winid" || return 1
         yabai-preset is-window-fullscreen "$winid" && return 1
 
-        set frame (jq -enc --argjson window "$window" --argjson winid "$winid" '$window | .frame')
+        set frame (jq -enc --argjson window "$window" '$window | .frame')
+        set winid (jq -nr --argjson window "$window" '$window.id')
 
         mkdir -p "/tmp/yabai-preset/window-positions/"
         echo "$frame" > "/tmp/yabai-preset/window-positions/$winid.json"
