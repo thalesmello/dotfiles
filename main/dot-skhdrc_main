@@ -268,6 +268,8 @@ invoke < y : skhd -k "escape"; open 'raycast://extensions/tonka3000/youtube/sear
 f18 ; chrome
 service < c ; chrome
 ctrl + alt + cmd + shift - c ; chrome
+# single quote
+ctrl + alt + cmd - 0x27 ; chrome
 chrome < backspace : skhd -k "escape"; chrome-preset close-tabs-with-url '^.*\.zoom\.us/j/.*$'
 chrome < 1 : skhd -k "escape"; chrome-preset focus-pinned-tab 1
 chrome < 2 : skhd -k "escape"; chrome-preset focus-pinned-tab 2
@@ -290,6 +292,8 @@ chrome < shift - 9 : skhd -k "escape"; chrome-preset pin-tab 9
 
 shift - f18 ; goto
 service < shift - c ; goto
+# single quote
+ctrl + alt + cmd + shift - 0x27 ; goto
 
 #chrome_start
 chrome < y : skhd -k "escape"; chrome-preset focus-or-open-url --profile="Default" youtube.com

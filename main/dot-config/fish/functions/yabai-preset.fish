@@ -558,6 +558,7 @@ function yabai-preset
         if set -q pending_stack_id
             yabai -m window --focus "$pending_stack_id"
             yabai -m window west --stack "$pending_stack_id"
+            yabai -m window --focus "$pending_stack_id"
             yabai -m window --focus "$focus_id"
         end
     case "*"
