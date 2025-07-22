@@ -545,6 +545,21 @@ function yabai-preset
         set window_mode "$(yabai-preset print-window-mode)"
 
         echo "$space_mode:$space_number/$spaces_count ($window_mode)"
+    case "unstacked-swap-largest"
+        set focus_id (yabai -m query --windows --window | jq -r '.id')
+
+        if yabai -m query --windows --window | jq -e '."stack-index" > 0'
+            set pending_stack_id (yabai -m query --windows --window largest | jq -r '.id')
+            yabai-preset unstack-window east
+        end
+
+        yabai -m window --swap largest
+
+        if set -q pending_stack_id
+            yabai -m window --focus "$pending_stack_id"
+            yabai -m window west --stack "$pending_stack_id"
+            yabai -m window --focus "$focus_id"
+        end
     case "*"
         return 1
     end

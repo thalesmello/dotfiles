@@ -80,7 +80,7 @@
 ctrl + alt + cmd + shift - m : yabai -m window --deminimize "$(yabai -m query --windows | jq 'map(select(."is-minimized")) | first | .id')"
 ctrl + alt + cmd - m : yabai -m window --minimize
 ctrl + alt + cmd - return : yabai-preset toggle-window-zoom-or-fullscreen
-ctrl + alt + cmd + shift - return : yabai -m window --swap largest
+ctrl + alt + cmd + shift - return : yabai-preset unstacked-swap-largest
 
 ctrl + alt + cmd - v : btt-preset trigger-named-trigger "Edit Selection in Vim"
 ctrl + alt + cmd - t : btt-preset trigger-named-trigger "Chrome: Open New Tab (with selection is One Line)"
