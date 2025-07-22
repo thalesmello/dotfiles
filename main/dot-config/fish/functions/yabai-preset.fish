@@ -263,10 +263,10 @@ function yabai-preset
 
         if yabai-preset is-window-floating
             curl -G "$btt_url" -d "json=$json"
-            yabai -m window --focus "$win" 
+            yabai -m window --focus "$win"
         else
             yabai -m window "$win" --toggle float
-            yabai -m window --focus "$win" 
+            yabai -m window --focus "$win"
             curl -G "$btt_url" -d "json=$json"
             yabai -m window "$win" --toggle float
         end
@@ -293,6 +293,19 @@ function yabai-preset
 
         set current $windows[1]
         yabai -m window "$current" (printf "--stack\n%s\n" $windows[2..])
+        display-message "$(count $windows) windows stacked"
+    case "stack-after-nth-window"
+        set nth $argv[1]
+        set -e argv[1]
+
+        echo $nth
+        set windows (yabai -m query --windows --space | jq -er --argjson nth "$nth" '.
+            | map(select(."is-visible" and (."is-sticky"|not)))
+            | .[$nth-1:]
+            | .[].id')
+
+        set nth_window $windows[1]
+        yabai -m window "$nth_window" (printf "--stack\n%s\n" $windows[2..])
         display-message "$(count $windows) windows stacked"
     case "unstack-window"
         set direction $argv[1]
@@ -467,6 +480,19 @@ function yabai-preset
         else
             yabai -m window "$window" --toggle zoom-fullscreen
         end
+    case "toggle-monocle-mode"
+        if yabai -m query --windows --window | jq -re '."has-fullscreen-zoom"' > /dev/null
+            display-message "Exit Monocle"
+            yabai -m query --windows --space \
+                | jq -re '.[] | select(."has-fullscreen-zoom") | .id' \
+                | xargs -I{} yabai -m window {} --toggle zoom-fullscreen
+
+        else
+            display-message "Enter Monocle"
+            yabai -m query --windows --space \
+                | jq -re '.[] | select(."has-fullscreen-zoom" | not) | .id' \
+                | xargs -I{} yabai -m window {} --toggle zoom-fullscreen
+        end
     case "toggle-yabai"
         yabai --stop-service
         and display-message "Yabai Stopped"
@@ -506,7 +532,7 @@ function yabai-preset
         else if test "$stack_index" -gt 0
             yabai -m query --windows --window stack.last | jq -r '."stack-index"' | read --line stack_count
             echo "stack $stack_index/$stack_count"
-        else if test "$has_zoom" = true 
+        else if test "$has_zoom" = true
             echo "zoom"
         else
             echo "tile"

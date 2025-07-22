@@ -80,6 +80,7 @@
 ctrl + alt + cmd + shift - m : yabai -m window --deminimize "$(yabai -m query --windows | jq 'map(select(."is-minimized")) | first | .id')"
 ctrl + alt + cmd - m : yabai -m window --minimize
 ctrl + alt + cmd - return : yabai-preset toggle-window-zoom-or-fullscreen
+ctrl + alt + cmd + shift - return : yabai -m window --swap largest
 
 ctrl + alt + cmd - v : btt-preset trigger-named-trigger "Edit Selection in Vim"
 ctrl + alt + cmd - t : btt-preset trigger-named-trigger "Chrome: Open New Tab (with selection is One Line)"
@@ -155,6 +156,11 @@ resize < shift - j : yabai -m window --resize top_left:0:100
 resize < shift - k : yabai -m window --resize top_left:0:-100
 resize < shift - h : yabai -m window --resize top_left:-100:0
 resize < shift - l : yabai -m window --resize top_left:100:0
+# Comma
+resize < shift - 0x2B : yabai -m space --rotate 90
+# Period
+resize < shift - 0x2F : yabai -m space --rotate 270
+
 
 
 ctrl + alt + cmd - space ; service
@@ -182,10 +188,12 @@ service < t : skhd -k "escape"; yabai -m window --toggle float; yabai-preset is-
 service < z :  skhd -k "escape"; yabai -m window --insert stack
 service < s ; stack
 service < shift - s : skhd -k "escape"; yabai-preset stack-windows-in-space
+service < m : skhd -k "escape"; yabai-preset toggle-monocle-mode
 # Comma
 service < 0x2B : skhd -k "escape"; yabai -m space --layout stack; display-message "Laybout stack"
 # Period
-service < 0x2F : skhd -k "escape"; yabai -m space --layout bsp; display-message "Laybout bsp"
+service < 0x2F : skhd -k "escape"; yabai -m space --layout bsp; yabai-preset stack-after-nth-window 4
+service < shift - 0x2F : skhd -k "escape"; yabai -m space --layout bsp; display-message "Laybout bsp"
 service < 0 : skhd -k "escape"; yabai -m space --layout float; display-message "Laybout float"
 # Temporaily disable window restore to debug later
 #; yabai -m query --windows --space | jq -r ".[] | .id" | while read --line winid; yabai-preset restore-window-position "$winid"; end
