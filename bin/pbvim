@@ -28,7 +28,7 @@ pbpaste > "$tmpfile"
 set -l modified_before (stat -c %y "$tmpfile")
 
 # Create special command to save pbvim filetype to be used at a later try
-eval $NVIMCMD (string escape "$tmpfile") -c (string escape 'autocmd FileType * silent !test <amatch> \!= cmp_menu && echo <amatch> > /tmp/pbvim-last-filetype')
+eval $NVIMCMD (string escape -- "$tmpfile" -c 'autocmd FileType * silent !test <amatch> \!= cmp_menu && echo <amatch> > /tmp/pbvim-last-filetype')
 
 set -l modified_after (stat -c %y "$tmpfile")
 
