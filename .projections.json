@@ -10,6 +10,33 @@
   },
   "main/dot-config/fish/conf.d/*.fish": {"type": "fishconf"},
   "main/dot-config/fish/config.fish": {"type": "fishinit"},
-  "README.markdown": {"type": "doc"},
-  "main/dot-config/karabiner.edn": { "type": "karabiner", "dispatch": "goku" }
+  "README.md": {"type": "doc"},
+  "main/dot-config/karabiner.edn": { "type": "karabiner", "dispatch": "goku" },
+  "main/dot-config/nvim/lua/config/*.lua":{
+    "type":"config"
+  },
+  "main/dot-config/nvim/lua/plugins/*.lua":{
+    "type":"plugin",
+    "template": [
+      "  return {",
+      "  {",
+      "  \"plugin\",",
+      "  -- opts:{}",
+      "  -- config:function () end",
+      "  }",
+      "}"
+    ]
+  },
+  "main/dot-config/nvim/lua/*.lua":{
+    "type":"lua"
+  },
+  "main/dot-config/nvim/local_plugins/**/lua/*.lua":{
+    "type":"localplugins"
+  },
+  "main/dot-config/nvim/after/queries/*/textobjects.scm":{
+    "type":"textobjects"
+  },
+  "main/dot-config/nvim/lua/ftmini/*.lua":{
+    "type":"ftmini"
+  }
 }

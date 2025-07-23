@@ -6,35 +6,6 @@ local function template(str)
 end
 
 vim.g.projectionist_heuristics = {
-   ["nvim/init.lua"] = {
-      ["nvim/lua/config/*.lua"] = {
-         type = "config",
-      },
-      ["nvim/lua/plugins/*.lua"] = {
-         type = "plugin",
-         template = template([=[
-return {
-   {
-      "plugin",
-      -- opts = {}
-      -- config = function () end
-   }
-}
-]=])
-      },
-      ["nvim/lua/*.lua"] = {
-         type = "lua",
-      },
-      ["nvim/local_plugins/**/lua/*.lua"] = {
-         type = "localplugins",
-      },
-      ["nvim/after/queries/*/textobjects.scm"] = {
-         type = "textobjects",
-      },
-      ["nvim/lua/ftmini/*.lua"] = {
-         type = "ftmini",
-      },
-   },
    [data .. '/lazy/'] = {
       [data .. '/lazy/**/README*'] = {
          type = "lazyplugin",
