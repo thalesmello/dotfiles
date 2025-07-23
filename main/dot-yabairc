@@ -48,7 +48,8 @@ yabai -m config                                 \
 yabai -m rule --add app="Activity Monitor" manage=off
 yabai -m rule --add app="System Settings" manage=off
 yabai -m rule --add app="mouseless" manage=off
-yabai -m rule --add title="BetterTouchTool Settings" manage=off
+yabai -m rule --add app="BetterTouchTool" title="BetterTouchTool Settings" manage=off
+yabai -m rule --add app="BetterTouchTool" title="Variables \& Scripting" manage=off
 yabai -m rule --add app="Google Chrome" title="Picture in Picture" manage=off
 
 yabai -m signal --add event=space_changed action="display-message \"Space \$YABAI_SPACE_INDEX\""
