@@ -170,7 +170,17 @@ resize < shift - 0x2F : yabai -m space --rotate 270
 
 ctrl + alt + cmd - space ; service
 
-service < ctrl + alt + cmd - e : skhd -k "escape"; display-message "Edit SKHD"; neovide "$HOME/.skhdrc_main"
+# If PID file exists and has a running process, focus window instead of creating a new one
+service < ctrl + alt + cmd - e : skhd -k "escape"; if pgrep -q -F "$TMPDIR/nvim_skhd.pid"; \
+        display-message "Focus SKHD"; \
+        osascript -e "tell application \"System Events\" to set frontmost of every process whose unix id is $(cat "$TMPDIR/nvim_skhd.pid") to true" ; \
+    else; \
+        display-message "Edit SKHD"; \
+        neovide "$HOME/.skhdrc_main" &; \
+        echo "$last_pid" > "$TMPDIR/nvim_skhd.pid"; \
+        wait; \
+        rm "$TMPDIR/nvim_skhd.pid"; \
+    end;
 
 # Service mode bindings
 service < ctrl + alt + cmd - space : skhd -k "escape"; yabai-preset focus-space recent
@@ -325,7 +335,11 @@ ctrl + alt + cmd - r : btt-preset show-or-hide-app --only-show "/Applications/Go
 ctrl + alt + cmd - a : btt-preset show-or-hide-app --only-show "/Applications/Timery.app"
 ctrl + alt + cmd + shift - a : btt-preset show-or-hide-app --only-show "~/Applications/Chrome Apps.localized/Pomofocus.app"
 ctrl + alt + cmd + shift - z : btt-preset show-or-hide-app --only-show "~/Applications/Chrome Apps.localized/Google Keep.app"
-ctrl + alt + cmd + shift - w : btt-preset show-or-hide-app --only-show "/Applications/zoom.us.app"
+ctrl + alt + cmd + shift - w : if pgrep "zoom.us" >/dev/null; \
+        btt-preset show-or-hide-app --only-show "/Applications/zoom.us.app"; \
+    else; \
+        chrome-preset focus-or-open-url meet.google.com --label "Google Meet"; \
+    end;
 ctrl + alt + cmd + shift - f : btt-preset show-or-hide-app --only-show "/Applications/WhatsApp.app"
 ctrl + alt + cmd + shift - g : btt-preset show-or-hide-app --only-show "/System/Applications/Messages.app"
 ctrl + alt + cmd + shift - q : btt-preset show-or-hide-app --only-show "/System/Applications/Utilities/Activity Monitor.app"
