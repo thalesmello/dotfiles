@@ -19,7 +19,7 @@ behavior_configs:
   wheel_easing: 0.1
   wheel_speed_multiplier: 4.0
   wheel_step_size: 100.0
-  wheel_step_size_large: 500.0
+  wheel_step_size_large: 200.0
 classname: AppConfig
 custom_monitor_assignments: []
 display_input: none
@@ -346,14 +346,14 @@ keymaps:
     wheel left fast: h
     wheel right: null
     wheel right fast: l
-    wheel step down: ctrl+d
-    wheel step down large: null
+    wheel step down: d
+    wheel step down large: ctrl+d
     wheel step left: null
     wheel step left large: null
     wheel step right: null
     wheel step right large: null
-    wheel step up: ctrl+u
-    wheel step up large: null
+    wheel step up: u
+    wheel step up large: ctrl+u
     wheel up: null
     wheel up fast: k
   name: mac
