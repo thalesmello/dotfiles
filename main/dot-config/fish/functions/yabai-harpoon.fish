@@ -25,21 +25,37 @@ function yabai-harpoon
         yabai-harpoon reset-file
         display-message "Delete list"
     case "edit"
-        display-message "Edit Yabai-harpoon"
+        if pgrep -q -F "$TMPDIR/nvim_yabai_harpoon_edit.pid"
+            display-message "Focus Yabai-harpoon"
+            osascript -e "tell application \"System Events\" to set frontmost of every process whose unix id is $(cat "$TMPDIR/nvim_yabai_harpoon_edit.pid") to true"
+        else
+            display-message "Edit Yabai-harpoon"
 
-        if test ! -e "$FILE"
-            yabai-harpoon reset-file
-        end
+            if test ! -e "$FILE"
+                yabai-harpoon reset-file
+            end
 
-        set tmpfile (mktemp --suffix ".js")
+            set tmpfile (mktemp --suffix ".js")
 
-        and jq -c '.pins[]' < "$FILE" > "$tmpfile"
+            and jq -c '.pins[]' < "$FILE" > "$tmpfile"
 
-        and neovide "$tmpfile" -- -u NONE
+            set -l modified_before (stat -c %y "$tmpfile")
 
-        and jq -s '{ pins: [. | to_entries | unique_by(.value.uuid) | sort_by(.key) | .[] | .value] }' < "$tmpfile" > "$FILE"
+            neovide "$tmpfile" -- -u NONE &
+            echo "$last_pid" > "$TMPDIR/nvim_yabai_harpoon_edit.pid"
+            wait
+            rm "$TMPDIR/nvim_yabai_harpoon_edit.pid"
 
-        and display-message "Updated list"
+            set -l modified_after (stat -c %y "$tmpfile")
+
+            if test "$modified_before" != "$modified_after"
+                jq -s '{ pins: [. | to_entries | unique_by(.value.uuid) | sort_by(.key) | .[] | .value] }' < "$tmpfile" > "$FILE"
+                display-message "Updated list"
+            else
+                display-message "Exit Update"
+            end
+        end;
+
     case "focus"
         set position $argv[1]
         set -e argv[1]
