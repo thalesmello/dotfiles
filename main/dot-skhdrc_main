@@ -77,6 +77,7 @@
 # ############################################################### #
 
 
+ctrl + alt + cmd - 0x29 : skhd-preset search-and-execute-command
 ctrl + alt + cmd + shift - m : yabai -m window --deminimize "$(yabai -m query --windows | jq 'map(select(."is-minimized")) | first | .id')"
 ctrl + alt + cmd - m : yabai -m window --minimize
 ctrl + alt + cmd - return : if yabai-preset is-window-floating; \
@@ -90,10 +91,8 @@ ctrl + alt + cmd + shift - return : yabai-preset unstacked-swap-largest
 ctrl + alt + cmd - v : btt-preset trigger-named-trigger "Edit Selection in Vim"
 ctrl + alt + cmd - t : btt-preset trigger-named-trigger "Chrome: Open New Tab (with selection is One Line)"
 
-# # Open square bracket [
-ctrl + alt + cmd - 0x21 : yabai-preset focus-space prev
-# # Clsoe square bracket ]
-ctrl + alt + cmd - 0x1E : yabai-preset focus-space next
+ctrl + alt + cmd - 0x21 : yabai-preset focus-space prev # Open square bracket [
+ctrl + alt + cmd - 0x1E : yabai-preset focus-space next # Clsoe square bracket ]
 
 ctrl + alt + cmd - h : yabai -m window --focus west || yabai-preset focus-window west
 ctrl + alt + cmd - j : yabai -m window --focus south || yabai-preset focus-window south
@@ -105,12 +104,10 @@ ctrl + alt + cmd + shift - j : yabai -m window --swap south || skhd -k "ctrl + a
 ctrl + alt + cmd + shift - k : yabai -m window --swap north || skhd -k "ctrl + alt + cmd - up"
 ctrl + alt + cmd + shift - l : yabai -m window --swap east || skhd -k "ctrl + alt + cmd - right"
 
-# minus
-ctrl + alt + cmd - 0x1B : yabai -m window --resize bottom_right:-100:0
-# ctrl + alt + cmd + shift - 0x1B : yabai -m window --resize bottom_right:0:-100
-# equals
-ctrl + alt + cmd - 0x18 : yabai -m window --resize bottom_right:100:0
-# ctrl + alt + cmd + shift - 0x18 : yabai -m window --resize bottom_right:0:100
+ctrl + alt + cmd - 0x1B : yabai -m window --resize bottom_right:-100:0 # minus
+# ctrl + alt + cmd + shift - 0x1B : yabai -m window --resize bottom_right:0:-100 # minus
+ctrl + alt + cmd - 0x18 : yabai -m window --resize bottom_right:100:0 # equals
+# ctrl + alt + cmd + shift - 0x18 : yabai -m window --resize bottom_right:0:100 # equals
 
 ctrl + alt + cmd - 1 : display-message "Focus 1"; yabai-harpoon focus 1
 ctrl + alt + cmd - 2 : display-message "Focus 2"; yabai-harpoon focus 2
@@ -122,29 +119,15 @@ ctrl + alt + cmd - 7 : display-message "Focus 7"; yabai-harpoon focus 7
 ctrl + alt + cmd - 8 : display-message "Focus 8"; yabai-harpoon focus 8
 ctrl + alt + cmd - 9 : display-message "Focus 9"; yabai-harpoon focus 9
 
-# equals
-ctrl + alt + cmd + shift - 0x18 : skhd -k "escape"; yabai-harpoon add
+
+ctrl + alt + cmd + shift - 0x18 : skhd -k "escape"; yabai-harpoon add # equals
 service < a : skhd -k "escape"; yabai-harpoon add
 service < backspace : skhd -k "escape"; yabai-harpoon delete
 service < e : skhd -k "escape"; yabai-harpoon edit
 
-# ctrl + alt + cmd + shift - 1 : yabai-preset pin-object 1
-# ctrl + alt + cmd + shift - 2 : yabai-preset pin-object 2
-# ctrl + alt + cmd + shift - 3 : yabai-preset pin-object 3
-# ctrl + alt + cmd + shift - 4 : yabai-preset pin-object 4
-# ctrl + alt + cmd + shift - 5 : yabai-preset pin-object 5
-# ctrl + alt + cmd + shift - 6 : yabai-preset pin-object 6
-# ctrl + alt + cmd + shift - 7 : yabai-preset pin-object 7
-# ctrl + alt + cmd + shift - 8 : yabai-preset pin-object 8
-# ctrl + alt + cmd + shift - 9 : yabai-preset pin-object 9
-
-# Move right a space
 ctrl + alt + cmd - n :   yabai-preset focus-window-in-stack next || yabai-preset focus-window-in-space next
-# Move left a space
 ctrl + alt + cmd - p :   yabai-preset focus-window-in-stack prev || yabai-preset focus-window-in-space prev
-# move window right a space
 ctrl + alt + cmd + shift - n : yabai-preset move-window-in-stack next
-# move window left a space
 ctrl + alt + cmd + shift - p : yabai-preset move-window-in-stack prev
 
 stack < j : skhd -k "escape"; yabai -m window --stack south
@@ -161,10 +144,8 @@ resize < shift - j : yabai -m window --resize top_left:0:100
 resize < shift - k : yabai -m window --resize top_left:0:-100
 resize < shift - h : yabai -m window --resize top_left:-100:0
 resize < shift - l : yabai -m window --resize top_left:100:0
-# Comma
-resize < shift - 0x2B : yabai -m space --rotate 90
-# Period
-resize < shift - 0x2F : yabai -m space --rotate 270
+resize < shift - 0x2B : yabai -m space --rotate 90 # comma
+resize < shift - 0x2F : yabai -m space --rotate 270 # period
 
 
 
@@ -187,43 +168,33 @@ service < ctrl + alt + cmd - space : skhd -k "escape"; yabai-preset focus-space 
 # service < space : skhd -k "escape"; if test "$_YABAI_MRU" = chrome_tab; skhd -k "alt - q"; else; yabai -m window --focus recent || yabai-preset focus-space recent; end
 service < space : skhd -k "escape"; yabai -m window --focus recent || yabai-preset focus-space recent
 service < shift - space : skhd -k "escape"; yabai-preset move-window-to-space recent
-# semicolon
-service < shift - 0x29 : skhd -k "escape"; yabai-preset arrange-windows-side-by-side
+service < shift - 0x29 : skhd -k "escape"; yabai-preset arrange-windows-side-by-side # semicolon
 service < r ; resize
 service < shift - r : skhd -k "escape"; yabai --stop-service && yabai --start-service && display-message "Yabai Restarted" || begin; yabai --start-service && display-message "Yabai Started"; end
 service < y : skhd -k "escape"; yabai-preset toggle-yabai
 service < v : skhd -k "escape"; yabai -m window --insert east
-# double quotes
-service < shift - 0x27 : skhd -k "escape"; yabai -m window --insert south
+service < shift - 0x27 : skhd -k "escape"; yabai -m window --insert south # double quotes
 # Temporaily disable window restore to debug later
 # service < t : skhd -k "escape"; yabai -m window --toggle float; yabai-preset is-window-floating && yabai-preset restore-window-position
 service < t : skhd -k "escape"; yabai -m window --toggle float; yabai-preset is-window-floating && yabai -m window --grid "8:8:1:1:6:6"
 
-# comma
-service < z :  skhd -k "escape"; yabai -m window --insert stack
+service < z :  skhd -k "escape"; yabai -m window --insert stack # comma
 service < s ; stack
 service < shift - s : skhd -k "escape"; yabai-preset stack-windows-in-space
 service < m : skhd -k "escape"; yabai-preset toggle-monocle-mode
-# Comma
-service < 0x2B : skhd -k "escape"; yabai -m space --layout stack; display-message "Laybout stack"
-# Period
-service < 0x2F : skhd -k "escape"; yabai -m space --layout bsp; yabai-preset stack-after-nth-window 4
+service < 0x2B : skhd -k "escape"; yabai -m space --layout stack; display-message "Laybout stack" # Comma
+service < 0x2F : skhd -k "escape"; yabai -m space --layout bsp; yabai-preset stack-after-nth-window 4 # Period
 service < shift - 0x2F : skhd -k "escape"; yabai -m space --layout bsp; display-message "Laybout bsp"
 service < 0 : skhd -k "escape"; yabai -m space --layout float; display-message "Laybout float"
 # Temporaily disable window restore to debug later
 #; yabai -m query --windows --space | jq -r ".[] | .id" | while read --line winid; yabai-preset restore-window-position "$winid"; end
 
-# Pipe |
-service < shift - 0x2A : skhd -k "escape"; yabai -m space --mirror y-axis
-# minus
-service < 0x1B : skhd -k "escape"; yabai -m space --mirror x-axis
-# Comma
-service < shift - 0x2B : skhd -k "escape"; yabai -m space --rotate 90
-# Period
-service < shift - 0x2F : skhd -k "escape"; yabai -m space --rotate 270
+service < shift - 0x2A : skhd -k "escape"; yabai -m space --mirror y-axis # Pipe |
+service < 0x1B : skhd -k "escape"; yabai -m space --mirror x-axis # minus
+service < shift - 0x2B : skhd -k "escape"; yabai -m space --rotate 90 # Comma
+service < shift - 0x2F : skhd -k "escape"; yabai -m space --rotate 270 # Period
 service < q : skhd -k "escape"; yabai -m window --toggle split
-# equals
-service < 0x18 : skhd -k "escape"; yabai -m space --balance
+service < 0x18 : skhd -k "escape"; yabai -m space --balance # equals
 # move window to space with number
 service < 1 : skhd -k "escape"; yabai-preset focus-space 1
 service < 2 : skhd -k "escape"; yabai-preset focus-space 2
@@ -252,20 +223,19 @@ service < j : skhd -k "escape"; yabai-preset focus-display-with-fallback south
 service < k : skhd -k "escape"; yabai-preset focus-display-with-fallback north
 service < l : skhd -k "escape"; yabai-preset focus-display-with-fallback east
 service < tab : skhd -k "escape"; yabai-preset move-window-to-display-with-fallback
-# slash / question mark
-service < shift - 0x2C : skhd -k "escape"; btt-preset trigger-menu-bar 'Help'
+service < shift - 0x2C : skhd -k "escape"; btt-preset trigger-menu-bar 'Help' # slash / question mark
+service < ctrl + alt + cmd - 0x2C : skhd -k "escape"; skhd-preset search-and-display-mapping # slash / question mark
 
 service < ctrl + alt + cmd - v : skhd -k "escape"; btt-preset trigger-menu-bar 'Window;Full Screen Tile; Left of Screen'
 service < ctrl + alt + cmd - return : skhd -k "escape" ; btt-preset send-keys ctrl cmd f
-# Backtick
-service < shift - 0x32 : skhd -k "escape"; osascript -e 'tell application "iTerm" to tell current window to create tab with default profile command "/opt/homebrew/bin/fish -C \"cd ~/src/dotfiles\" "'
+service < shift - 0x32 : skhd -k "escape"; osascript -e 'tell application "iTerm" to tell current window to create tab with default profile command "/opt/homebrew/bin/fish -C \"cd ~/src/dotfiles\" "' # Backtick
 
 
 
 # Below is a list of keybinidng that would be equivalent to "Invoke" move on Aerospace
 # But currently there's no support for presetting windows in a specific space without disabling SIP
 # I'm keeping this commented in case it's useful in the future
-# # Invoke mode bindings
+# Invoke mode bindings
 ctrl + alt + cmd - i ; invoke
 invoke < 1 : skhd -k "escape"; yabai-preset arrange-spaces \
     -w "1:.*Thales \\(Work\\).*" \
@@ -282,8 +252,7 @@ invoke < y : skhd -k "escape"; open 'raycast://extensions/tonka3000/youtube/sear
 
 service < c ; chrome
 ctrl + alt + cmd + shift - c ; chrome
-# single quote
-ctrl + alt + cmd - 0x27 ; chrome
+ctrl + alt + cmd - 0x27 ; chrome # single quote
 chrome < backspace : skhd -k "escape"; chrome-preset close-tabs-with-url '^.*\.zoom\.us/j/.*$'
 chrome < 1 : skhd -k "escape"; chrome-preset focus-pinned-tab 1
 chrome < 2 : skhd -k "escape"; chrome-preset focus-pinned-tab 2
@@ -305,8 +274,7 @@ chrome < shift - 8 : skhd -k "escape"; chrome-preset pin-tab 8
 chrome < shift - 9 : skhd -k "escape"; chrome-preset pin-tab 9
 
 service < shift - c ; goto
-# single quote
-ctrl + alt + cmd + shift - 0x27 ; goto
+ctrl + alt + cmd + shift - 0x27 ; goto # single quote
 
 #chrome_start
 chrome < y : skhd -k "escape"; chrome-preset focus-or-open-url --profile="Default" youtube.com

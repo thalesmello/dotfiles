@@ -42,8 +42,13 @@ function btt-preset
         set json (jq -nc --argjson spc "$space" '{"BTTPredefinedActionType":(206 + $spc)}')
         btt-preset trigger-action "$json"
     case "display-message"
+        argparse duration= -- $argv
+        or return 1
+
         set message $argv[1]
         set -e argv[1]
+
+        set duration (default "$_flag_duration" 0.15)
 
         set json "$(jq -n --arg message "$message" '{
           "BTTPredefinedActionType": 254,
@@ -53,7 +58,7 @@ function btt-preset
             "BTTIconConfigImageHeight": 100,
             "BTTActionHUDPosition": 0,
             "BTTActionHUDDetail": "",
-            "BTTActionHUDDuration": 0.15000000596046448,
+            "BTTActionHUDDuration": '$duration',
             "BTTActionHUDDisplayToUse": 0,
             "BTTIconConfigImageWidth": 100,
             "BTTActionHUDSlideDirection": 0,
