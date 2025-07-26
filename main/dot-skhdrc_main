@@ -308,6 +308,15 @@ ctrl + alt + cmd + shift - w : if pgrep "zoom.us" >/dev/null; \
     else; \
         chrome-preset focus-or-open-url meet.google.com --label "Google Meet"; \
     end;
+ctrl + alt + cmd + shift - s : if pgrep "zoom.us" >/dev/null; \
+        btt-preset show-or-hide-app --only-show "/Applications/zoom.us.app"; \
+        sleep 0.5; \
+        btt-preset send-keys cmd shift a; \
+    else; \
+        chrome-preset focus-or-open-url meet.google.com --label "Google Meet"; \
+        sleep 0.5; \
+        btt-preset send-keys cmd d; \
+    end;
 ctrl + alt + cmd + shift - f : btt-preset show-or-hide-app --only-show "/Applications/WhatsApp.app"
 ctrl + alt + cmd + shift - g : btt-preset show-or-hide-app --only-show "/System/Applications/Messages.app"
 ctrl + alt + cmd + shift - q : btt-preset show-or-hide-app --only-show "/System/Applications/Utilities/Activity Monitor.app"
