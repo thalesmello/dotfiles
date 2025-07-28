@@ -340,9 +340,10 @@ function yabai-preset
         set window (yabai -m query --windows --space | jq  'first(.[] | select(."has-focus"))')
 
         if jq -en --argjson window "$window" '$window.app == "Google Chrome"' >/dev/null
-            env OUTPUT_FORMAT=json chrome-cli info \
-            | jq -r '"\(.windowId):\(.id)"' \
-            | read -d: -l chrome_window_id tab_id
+            set chrome_tab (env OUTPUT_FORMAT=json chrome-cli info | string collect)
+            # env OUTPUT_FORMAT=json chrome-cli info \
+            # | jq -r '"\(.windowId):\(.id)"' \
+            # | read -d: -l chrome_window_id tab_id
 
             # The following is a prototyped solution using cmd - index to select the tab
             # Commented out because it doesn't seem very fast
@@ -356,7 +357,7 @@ function yabai-preset
             #    set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab_id, window_id: $window.id}')
             #end
 
-            set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", uuid: ([$window.id, $tab_id] | @base64), tab_id: $tab_id, window_id: $window.id, app: $window.app, title: $window.title}')
+            set json (jq -n --argjson chrome_tab "$chrome_tab" --argjson window "$window" '{type: "chrome_tab", uuid: ([$chrome_tab.windowId, $chrome_tab.id] | @base64), tab_id: $chrome_tab.id, window_id: $window.id, app: $window.app, title: $chrome_tab.title}')
         else
             set json (jq -n --argjson window "$window" '{type: "window",  uuid: ([$window.id] | @base64), window_id: $window.id, app: $window.app, title: $window.title}')
         end

@@ -228,7 +228,6 @@ service < ctrl + alt + cmd - 0x2C : skhd -k "escape"; skhd-preset search-and-dis
 
 service < ctrl + alt + cmd - v : skhd -k "escape"; btt-preset trigger-menu-bar 'Window;Full Screen Tile; Left of Screen'
 service < ctrl + alt + cmd - return : skhd -k "escape" ; btt-preset send-keys ctrl cmd f
-service < shift - 0x32 : skhd -k "escape"; osascript -e 'tell application "iTerm" to tell current window to create tab with default profile command "/opt/homebrew/bin/fish -C \"cd ~/src/dotfiles\" "' # Backtick
 
 
 
