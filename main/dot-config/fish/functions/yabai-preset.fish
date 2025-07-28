@@ -357,33 +357,9 @@ function yabai-preset
             #    set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab_id, window_id: $window.id}')
             #end
 
-            set json (jq -n --argjson chrome_tab "$chrome_tab" --argjson window "$window" '{type: "chrome_tab", uuid: ([$chrome_tab.windowId, $chrome_tab.id] | @base64), tab_id: $chrome_tab.id, window_id: $window.id, app: $window.app, title: $chrome_tab.title}')
+            set json (jq -n --argjson chrome_tab "$chrome_tab" --argjson window "$window" '{type: "chrome_tab", uuid: ({chrome_tab: $chrome_tab.id} | @base64), tab_id: $chrome_tab.id, tab_window_id: $chrome_tab.windowId, app: $window.app, title: $chrome_tab.title}')
         else
-            set json (jq -n --argjson window "$window" '{type: "window",  uuid: ([$window.id] | @base64), window_id: $window.id, app: $window.app, title: $window.title}')
-        end
-
-        echo "$json"
-    case "get-pin-json-prototype"
-        set window (yabai -m query --windows --space | jq  'first(.[] | select(."has-focus"))')
-
-        if jq -en --argjson window "$window" '$window.app == "Google Chrome"' >/dev/null
-            env OUTPUT_FORMAT=json chrome-cli info \
-            | jq -r '"\(.windowId):\(.id)"' \
-            | read -d: -l chrome_window_id tab_id
-
-            set tab_index (env OUTPUT_FORMAT=json chrome-cli list tabs -w "$chrome_window_id" \
-            | jq -r --arg tab_id "$tab_id" '.tabs | map(.id) | index($tab_id) + 1')
-
-            and if test "$tab_index" -le 8
-               # Index is <= 8 then it's faster to use cmd + index
-               set json (jq -n --argjson tab_index "$tab_index" --argjson window "$window" '{type: "yabai_chrome_tab",  uuid: ([$window.id, $tab_index] | @base64), tab_index: $tab_index, window_id: $window.id, app: $window.app, title: $window.title}')
-            else
-               set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab",  uuid: ([$window.id, $tab_id] | @base64), tab_id: $tab_id, window_id: $window.id, app: $window.app, title: $window.title}')
-            end
-
-            # set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab_id, window_id: $window.id, app: $window.app, title: $window.title}')
-        else
-           set json (jq -n --argjson window "$window" '{type: "window",  uuid: ([$window.id] | @base64), window_id: $window.id, app: $window.app, title: $window.title}')
+            set json (jq -n --argjson window "$window" '{type: "window",  uuid: ({window: $window.id} | @base64), window_id: $window.id, app: $window.app, title: $window.title}')
         end
 
         echo "$json"
@@ -411,12 +387,7 @@ function yabai-preset
 
         if jq -en --argjson type "$type" '$type == "chrome_tab"' >/dev/null
             chrome-cli activate -t "$(jq -nr --argjson json "$json" '$json.tab_id')"
-            and yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
-            or set has_failed 1
-        else if jq -en --argjson type "$type" '$type == "yabai_chrome_tab"' >/dev/null
-            yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
-            # and skhd -k "cmd - $(jq -nr --argjson json "$json" '$json.tab_index')"
-            and btt-preset send-keys cmd "$(jq -nr --argjson json "$json" '$json.tab_index')"
+            and chrome-preset focus-window "$(jq -nr --argjson json "$json" '$json.tab_window_id')"
             or set has_failed 1
         else if jq -en --argjson type "$type" '$type == "window"' >/dev/null
             yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"

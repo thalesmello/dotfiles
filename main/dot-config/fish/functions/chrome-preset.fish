@@ -26,8 +26,9 @@ function chrome-preset
         set window_id $argv[1]
         set -e argv[1]
 
-        osascript -e "tell application \"Google Chrome\" to set index of (first window whose id is $window_id) to 1"
-        and open -a "Google Chrome"
+        open -a "Google Chrome"
+        and osascript -e "tell application \"Google Chrome\" to set index of (first window whose id is $window_id) to 1"
+        or return 1
     case "focus-url"
         set regex $argv[1]
         set -e argv[1]

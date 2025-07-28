@@ -71,8 +71,8 @@ function yabai-harpoon
     case "write-pins-to-file"
         jq -s '{ pins: [. | to_entries | unique_by(.value.uuid) | sort_by(.key) | .[] | .value] }' > "$FILE"
     case "normalize-pins"
-        set yabai_wins (yabai -m query --windows | jq -c 'map({([.id] | @base64): {title}}) | add')
-        set chrome_tabs (env OUTPUT_FORMAT=json chrome-cli list tabs | jq -c '.tabs | map({([.windowId, .id] | @base64): {title}}) | add')
+        set yabai_wins (yabai -m query --windows | jq -c 'map({({window: .id} | @base64): {title}}) | add')
+        set chrome_tabs (env OUTPUT_FORMAT=json chrome-cli list tabs | jq -c '.tabs | map({({chrome_tab: .id} | @base64): {title, tab_window_id: .windowId}}) | add')
 
         jq -c --argjson "yabai_wins" "$yabai_wins" --argjson "chrome_tabs" "$chrome_tabs" '
             $yabai_wins + $chrome_tabs as $registry
