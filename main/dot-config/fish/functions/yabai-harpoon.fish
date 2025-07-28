@@ -75,7 +75,10 @@ function yabai-harpoon
         set chrome_tabs (env OUTPUT_FORMAT=json chrome-cli list tabs | jq -c '.tabs | map({([.windowId, .id] | @base64): {title}}) | add')
 
         jq -c --argjson "yabai_wins" "$yabai_wins" --argjson "chrome_tabs" "$chrome_tabs" '
-            . + ((($yabai_wins + $chrome_tabs)[.uuid] // {}) | del(.[] | nulls))'
+            $yabai_wins + $chrome_tabs as $registry
+            | try ( . + (($registry[.uuid] // error("not in registry")) | del(.[] | nulls)) )
+                catch {type: "window_not_found"}
+            '
     end
 end
 
