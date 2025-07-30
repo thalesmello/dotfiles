@@ -129,7 +129,6 @@
             [:!E#R6 :!TOC6]
             [:!E#R7 :!TOC7]
             [:!E#R8 :!TOC8]
-            [:!E#R9 :!TOC9]
             [:right_command :right_option nil {:alone [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]] :params {:alone 150}}]
             [:right_option :right_option nil {:alone [:!Ctab :!Ctab] :params {:alone 150}}]
             [:right_control :right_control nil {:alone [:!Ctab :!Ctab] :params {:alone 150}}]

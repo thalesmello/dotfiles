@@ -3844,19 +3844,6 @@
           } ],
           "type" : "basic"
         }, {
-          "from" : {
-            "key_code" : "9",
-            "modifiers" : {
-              "mandatory" : [ "right_option" ],
-              "optional" : [ "right_shift" ]
-            }
-          },
-          "to" : [ {
-            "key_code" : "9",
-            "modifiers" : [ "left_command", "left_control", "left_option" ]
-          } ],
-          "type" : "basic"
-        }, {
           "to_if_alone" : [ {
             "set_variable" : {
               "name" : "hyper-layer",
