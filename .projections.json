@@ -28,7 +28,8 @@
     ]
   },
   "main/dot-config/nvim/lua/*.lua":{
-    "type":"lua"
+    "type":"lua",
+    "dispatch": "source {}"
   },
   "main/dot-config/nvim/local_plugins/**/lua/*.lua":{
     "type":"localplugins"
