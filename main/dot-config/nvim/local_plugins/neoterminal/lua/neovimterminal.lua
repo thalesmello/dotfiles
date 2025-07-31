@@ -1,6 +1,6 @@
 local vim_utils = require('vim_utils')
 
-local terminal_cmd = 'neovim-fish'
+local TERMINAL_CMD = 'neovim-fish'
 
 vim.keymap.set({"n", "t"}, "<c-space>h", '<c-\\><C-n><C-w><C-h>', { noremap = true, silent = true })
 vim.keymap.set({"n", "t"}, "<c-space>j", '<c-\\><C-n><C-w><C-j>', { noremap = true, silent = true })
@@ -40,33 +40,27 @@ vim.keymap.set({"n", "t"}, "<c-space>7", '<c-\\><c-n>7gt', { noremap = true })
 vim.keymap.set({"n", "t"}, "<c-space>8", '<c-\\><c-n>8gt', { noremap = true })
 vim.keymap.set({"n", "t"}, "<c-space>9", '<c-\\><c-n>9gt', { noremap = true })
 
-vim.api.nvim_create_autocmd("TermClose", {
-  callback = function(ev)
-    local status = vim.v.event.status
-    local bufnr = ev.buf
+local function close_on_exit(bufnr, _, status)
+  vim.g.neovimterm_last_channel = nil
+  if status == 0 then
+    local winids = vim.fn.win_findbuf(bufnr)
 
-    if status == 0 then
-      vim.cmd.bdelete({ args = {bufnr}, bang = true})
+    if #winids>0 then
+      local winid = winids[1]
+      local winnum = vim.fn.win_id2win(winid)
 
-      if vim.opt.buftype:get() == "terminal" then
-        vim_utils.feedkeys([[<c-\><c-n>i]])
-      end
+      vim.cmd(winnum.."quit")
+    end
+
+    if vim.opt.buftype:get() == "terminal" then
+      vim_utils.feedkeys([[<c-\><c-n>i]])
     end
   end
-})
+end
 
--- local function close_on_exit(bufnr, _, status)
---   vim.g.neovimterm_last_channel = nil
---   if status == 0 then
---     vim.cmd.bdelete({ args = {bufnr}, bang = true})
---
---     if vim.opt.buftype:get() == "terminal" then
---       vim_utils.feedkeys([[<c-\><c-n>i]])
---     end
---   end
--- end
-
-local function start_terminal(split)
+local function start_terminal(opts)
+  local split = opts.split
+  local cmd = opts.cmd or TERMINAL_CMD
   local path = vim.fn["projectionist#path"]()
 
   if split == "vertical" then
@@ -79,19 +73,22 @@ local function start_terminal(split)
 
   local bufnr = vim.fn.bufnr('')
 
-  -- vim.fn.jobstart(terminal_cmd, { on_exit = vim_utils.partial(close_on_exit, bufnr), term = true, cwd = path})
-  vim.fn.jobstart(terminal_cmd, {term = true, cwd = path})
+  vim.fn.jobstart(cmd, { on_exit = vim_utils.partial(close_on_exit, bufnr), term = true, cwd = path})
   vim_utils.feedkeys([[<c-\><c-n>i]])
 end
 
+vim.api.nvim_create_user_command("Neoterm", function (opts)
+  start_terminal({cmd=opts.args})
+end, {nargs='*'})
+
 vim.keymap.set({'n', 't'}, '<c-space>v', function ()
-  start_terminal("vertical")
+  start_terminal({split="vertical"})
 end, { noremap = true, silent = true })
 vim.keymap.set({'n', 't'}, '<c-space>"', function ()
-  start_terminal("horizontal")
+  start_terminal({split="horizontal"})
 end, { noremap = true, silent = true })
 vim.keymap.set({'n', 't'}, '<c-space>c',  function ()
-  start_terminal("tab")
+  start_terminal({split="tab"})
 end, { noremap = true, silent = true })
 
 vim.keymap.set("t", "<4-ScrollWheelUp>", '<nop>', { noremap = true })
