@@ -11,7 +11,7 @@ function M.ftmini_config(filetype)
 
     local iter_filetypes = M.ft_mappings[filetype] or {filetype}
 
-    local config = vim.iter(iter_filetypes)
+    local config = vim.iter(vim.list_extend({"global"}, iter_filetypes))
     :map(function (ft)
         local ok, ftconfig = pcall(require, "ftmini." .. ft)
         if ok then
