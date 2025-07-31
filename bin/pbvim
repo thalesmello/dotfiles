@@ -7,15 +7,17 @@ set NVIMCMD (default "$NVIMCMD" "nvim")
 
 if test -z "$filetype"; or test "$filetype" = "--guess"
     if test -f "/tmp/pbvim-last-filetype"
-        set -l filetype (cat /tmp/pbvim-last-filetype)
+        set filetype (cat /tmp/pbvim-last-filetype)
     else
-        set -l filetype ""
+        set filetype ""
     end
 
     if test "$filetype" = "python"
         set filetype "py"
     end
 end
+
+echo $filetype
 
 if test -n "$filetype"
     set tmpfile (mktemp --suffix ".$filetype")
