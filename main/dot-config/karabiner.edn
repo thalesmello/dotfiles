@@ -112,8 +112,8 @@
             [:##u :page_up]
             [:##s :spacebar]
             [:caps_lock :!Odelete_or_backspace]
-            [:g :home]
-            [:!Sg :end]
+            [:g :!Cup_arrow]
+            [:!Sg :!Cdown_arrow]
         ]
     }
 

@@ -3648,7 +3648,8 @@
             "key_code" : "g"
           },
           "to" : [ {
-            "key_code" : "home"
+            "key_code" : "up_arrow",
+            "modifiers" : [ "left_command" ]
           } ],
           "conditions" : [ {
             "name" : "space-mode",
@@ -3667,7 +3668,8 @@
               "value" : 1
             }
           }, {
-            "key_code" : "home"
+            "key_code" : "up_arrow",
+            "modifiers" : [ "left_command" ]
           } ],
           "from" : {
             "simultaneous" : [ {
@@ -3696,7 +3698,8 @@
             }
           },
           "to" : [ {
-            "key_code" : "end"
+            "key_code" : "down_arrow",
+            "modifiers" : [ "left_command" ]
           } ],
           "conditions" : [ {
             "name" : "space-mode",
@@ -3715,7 +3718,8 @@
               "value" : 1
             }
           }, {
-            "key_code" : "end"
+            "key_code" : "down_arrow",
+            "modifiers" : [ "left_command" ]
           } ],
           "from" : {
             "simultaneous" : [ {
