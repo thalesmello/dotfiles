@@ -252,6 +252,8 @@ invoke < y : skhd -k "escape"; open 'raycast://extensions/tonka3000/youtube/sear
 service < c ; chrome
 ctrl + alt + cmd + shift - c ; chrome
 ctrl + alt + cmd - 0x27 ; chrome # single quote
+chrome < ctrl + alt + cmd - 0x27 ; goto # single quote
+chrome < 0x27 ; goto # single quote
 chrome < backspace : skhd -k "escape"; chrome-preset close-tabs-with-url '^.*\.zoom\.us/j/.*$'
 chrome < 1 : skhd -k "escape"; chrome-preset focus-pinned-tab 1
 chrome < 2 : skhd -k "escape"; chrome-preset focus-pinned-tab 2
