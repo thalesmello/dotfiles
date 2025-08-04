@@ -22,7 +22,7 @@
         :default    true
         :sim        50      ;; if keydown event for two different keys are pressed within :sim ms, the keypresses are considered simultaneous
         :delay      500     ;; after :delay ms, the key press is considered to be delayed (TODO WHAT IS THIS??)
-        :alone      1000    ;; if keyup event comes within :alone ms from keydown, the key is not just pressed but held
+        :alone      150    ;; if keyup event comes within :alone ms from keydown, the key is not just pressed but held
         :held       250     ;; key is fired twice when :held ms is elapsed (otherwise seen as a hold command) (TODO WHAT IS THIS??)
     }
 } ;; profiles
@@ -77,7 +77,7 @@
             [:!ROspacebar :button2]
             [:!RCspacebar :button3]
             ; opens wheel scroll mode in mouseless
-            [:!Sright_shift :!Sright_shift nil {:alone :f14 :params {:alone 150}}]
+            [:!Sright_shift :!Sright_shift nil {:alone :f14}]
             :mouseless-mode
             [:h {:mkey {:x -1546}}]
             [:j {:mkey {:y 1546}}]
@@ -129,15 +129,16 @@
             [:!E#R6 :!TOC6]
             [:!E#R7 :!TOC7]
             [:!E#R8 :!TOC8]
-            [:right_command :right_option nil {:alone [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]] :params {:alone 150}}]
-            [:right_option :right_option nil {:alone [:!Ctab :!Ctab] :params {:alone 150}}]
-            [:right_control :right_control nil {:alone [:!Ctab :!Ctab] :params {:alone 150}}]
-            [:##left_shift :##left_shift nil {:alone :f18 :params {:alone 150}}]
-            [:##left_option :##left_option :chrome {:alone :!Oq :params {:alone 150}}]
-            [:##left_option :##left_option :vscode {:alone [{:key :left_control :held_down_ms 100} :!Ttab] :params {:alone 150}}]
-            [:##left_option :##left_option nil {:alone :!Cgrave_accent_and_tilde :params {:alone 150}}]
-            [:##left_control :##left_control nil {:alone :!TOCslash :params {:alone 150}}]
-            [:##left_command :##left_command nil {:alone :!TOc :params {:alone 150}}]
+            [:right_command :right_option nil {:alone [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]]}]
+            [:right_option :right_option nil {:alone [:!Ctab :!Ctab]}]
+            [:right_control :right_control nil {:alone [:!Ctab :!Ctab]}]
+            [:##left_shift :##left_shift nil {:alone :f18}]
+            [{:pkey :button5} :button5 nil {:alone :f18}]
+            [:##left_option :##left_option :chrome {:alone :!Oq}]
+            [:##left_option :##left_option :vscode {:alone [{:key :left_control :held_down_ms 100} :!Ttab]}]
+            [:##left_option :##left_option nil {:alone :!Cgrave_accent_and_tilde}]
+            [:##left_control :##left_control nil {:alone :!TOCslash}]
+            [:##left_command :##left_command nil {:alone :!TOc}]
             ; opens mouseless
             [:##right_shift :right_shift nil {:alone :f13 :params {:alone 150}}]
 
@@ -224,7 +225,7 @@
         :des "(TrackPoint) Ignore long middle click"
         :rules [
             :trackpoint_kb
-            [:button3 :vk_none  nil {:alone :button3}]
+            [{:pkey :button3} :vk_none  nil {:alone :button3}]
             ; Testing whether the key above is enough for the rule
             ; [{:pkey :button3} :vk_none  nil {:alone {:pkey :button3 :halt true}}]
         ]

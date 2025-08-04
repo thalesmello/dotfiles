@@ -2564,7 +2564,7 @@
       "parameters" : {
         "basic.simultaneous_threshold_milliseconds" : 50,
         "basic.to_delayed_action_delay_milliseconds" : 500,
-        "basic.to_if_alone_timeout_milliseconds" : 1000,
+        "basic.to_if_alone_timeout_milliseconds" : 150,
         "basic.to_if_held_down_threshold_milliseconds" : 250
       },
       "rules" : [ {
@@ -2636,9 +2636,6 @@
           "to_if_alone" : [ {
             "key_code" : "f14"
           } ],
-          "parameters" : {
-            "basic.to_if_alone_timeout_milliseconds" : 150
-          },
           "from" : {
             "key_code" : "right_shift",
             "modifiers" : {
@@ -3859,9 +3856,6 @@
               "text" : "Hyper-layer Active"
             }
           } ],
-          "parameters" : {
-            "basic.to_if_alone_timeout_milliseconds" : 150
-          },
           "from" : {
             "key_code" : "right_command"
           },
@@ -3877,9 +3871,6 @@
             "key_code" : "tab",
             "modifiers" : [ "left_command" ]
           } ],
-          "parameters" : {
-            "basic.to_if_alone_timeout_milliseconds" : 150
-          },
           "from" : {
             "key_code" : "right_option"
           },
@@ -3895,9 +3886,6 @@
             "key_code" : "tab",
             "modifiers" : [ "left_command" ]
           } ],
-          "parameters" : {
-            "basic.to_if_alone_timeout_milliseconds" : 150
-          },
           "from" : {
             "key_code" : "right_control"
           },
@@ -3909,9 +3897,6 @@
           "to_if_alone" : [ {
             "key_code" : "f18"
           } ],
-          "parameters" : {
-            "basic.to_if_alone_timeout_milliseconds" : 150
-          },
           "from" : {
             "key_code" : "left_shift",
             "modifiers" : {
@@ -3924,12 +3909,20 @@
           "type" : "basic"
         }, {
           "to_if_alone" : [ {
+            "key_code" : "f18"
+          } ],
+          "from" : {
+            "pointing_button" : "button5"
+          },
+          "to" : [ {
+            "pointing_button" : "button5"
+          } ],
+          "type" : "basic"
+        }, {
+          "to_if_alone" : [ {
             "key_code" : "q",
             "modifiers" : [ "left_option" ]
           } ],
-          "parameters" : {
-            "basic.to_if_alone_timeout_milliseconds" : 150
-          },
           "from" : {
             "key_code" : "left_option",
             "modifiers" : {
@@ -3951,9 +3944,6 @@
             "key_code" : "tab",
             "modifiers" : [ "left_control" ]
           } ],
-          "parameters" : {
-            "basic.to_if_alone_timeout_milliseconds" : 150
-          },
           "from" : {
             "key_code" : "left_option",
             "modifiers" : {
@@ -3973,9 +3963,6 @@
             "key_code" : "grave_accent_and_tilde",
             "modifiers" : [ "left_command" ]
           } ],
-          "parameters" : {
-            "basic.to_if_alone_timeout_milliseconds" : 150
-          },
           "from" : {
             "key_code" : "left_option",
             "modifiers" : {
@@ -3991,9 +3978,6 @@
             "key_code" : "slash",
             "modifiers" : [ "left_command", "left_control", "left_option" ]
           } ],
-          "parameters" : {
-            "basic.to_if_alone_timeout_milliseconds" : 150
-          },
           "from" : {
             "key_code" : "left_control",
             "modifiers" : {
@@ -4009,9 +3993,6 @@
             "key_code" : "c",
             "modifiers" : [ "left_control", "left_option" ]
           } ],
-          "parameters" : {
-            "basic.to_if_alone_timeout_milliseconds" : 150
-          },
           "from" : {
             "key_code" : "left_command",
             "modifiers" : {
@@ -5561,7 +5542,7 @@
             "pointing_button" : "button3"
           } ],
           "from" : {
-            "key_code" : "button3"
+            "pointing_button" : "button3"
           },
           "to" : [ {
             "key_code" : "vk_none"
