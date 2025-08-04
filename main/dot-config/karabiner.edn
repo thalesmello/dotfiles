@@ -119,8 +119,13 @@
 
 
     {
-        :des "Workflow Modifier Tap Behavior"
+        :des "Workflow Enhancement Shortcuts"
         :rules [
+            ; App specific shortcuts are applied first
+            [:##left_option :##left_option :chrome {:alone :!Oq}]
+            [:##left_option :##left_option :vscode {:alone [{:key :left_control :held_down_ms 100} :!Ttab]}]
+            ; Navigate back on vscode
+            [{:pkey :button4} :button4 :vscode {:alone :!Thyphen}]
             [:!E#R1 :!TOC1]
             [:!E#R2 :!TOC2]
             [:!E#R3 :!TOC3]
@@ -132,10 +137,9 @@
             [:right_command :right_option nil {:alone [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]]}]
             [:right_option :right_option nil {:alone [:!Ctab :!Ctab]}]
             [:right_control :right_control nil {:alone [:!Ctab :!Ctab]}]
+            ; Switch back to the last used app.  F18 is configured in BTT
             [:##left_shift :##left_shift nil {:alone :f18}]
             [{:pkey :button5} :button5 nil {:alone :f18}]
-            [:##left_option :##left_option :chrome {:alone :!Oq}]
-            [:##left_option :##left_option :vscode {:alone [{:key :left_control :held_down_ms 100} :!Ttab]}]
             [:##left_option :##left_option nil {:alone :!Cgrave_accent_and_tilde}]
             [:##left_control :##left_control nil {:alone :!TOCslash}]
             [:##left_command :##left_command nil {:alone :!TOc}]
