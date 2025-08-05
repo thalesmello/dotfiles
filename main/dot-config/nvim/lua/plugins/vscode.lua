@@ -3,6 +3,7 @@ if not vim.g.vscode then
 end
 
 local vscode = require('vscode')
+local vim_utils = require('vim_utils')
 
 -- This is makes extensions not be enabled by default
 -- To enable, add "vscode = true" to the plugin spec
@@ -303,6 +304,30 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
     vim.keymap.set("n", "]c", function () vscode.action('editor.action.accessibleDiffViewer.next') end)
 
     vim.keymap.set("n", "<leader><tab>", vscodeAlternateFile)
+
+    vim.keymap.del('i', '<c-s>')
+    vim.keymap.del('i', '<c-s><c-s>')
+
+    vim.keymap.set('i', '<c-s>', function ()
+        vim.api.nvim_create_autocmd({ 'InsertEnter' }, {
+            pattern = '*',
+            once = true,
+            callback = function()
+                local col = vim.fn.col('.')
+                -- For some reason, at cursor column there's a "<c2>" caracter
+                -- And therefore to select the character in from of the cursor I have
+                -- To use col + 1, even though end indices are inclusive in lua
+                -- I couldn't find any documentation, but I think <c2> is an internal representation
+                -- for the cursor output from getline('.')
+                local char_under_cursor = vim.fn.getline('.'):sub(1):sub(col, col+1)
+                if char_under_cursor == '§' then
+                    vim_utils.feedkeys("<c-o>x")
+                end
+            end,
+        })
+        vim_utils.feedkeys('§<left><c-o>v:<c-u>lua require("mini.surround").add("visual")<cr>', 'n')
+    end)
+
 
     local ok, harpoon = pcall(require, 'harpoon')
 

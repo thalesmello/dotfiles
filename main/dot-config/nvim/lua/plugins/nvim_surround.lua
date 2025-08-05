@@ -35,10 +35,6 @@ return {
                     end,
                 }),
             },
-            keymaps = {
-                insert = "<c-s>",
-                insert_line = "<C-s><c-s>",
-            },
             -- surrounds =     -- Defines surround keys and behavior
             aliases = {
                 ["a"] = false,
@@ -53,10 +49,10 @@ return {
             -- indent_lines =  -- Defines line indentation behavior,
         })
 
-
+        vim.keymap.set("i", "<c-s>", "<Plug>(nvim-surround-insert)")
+        vim.keymap.set("i", "<c-s><c-s>", "<Plug>(nvim-surround-insert-line)")
 
         local group = vim.api.nvim_create_augroup("NvimSurroungGroup", { clear = true })
-
 
         local function set_buffer_config(filetype)
             local config = ftmini.ftmini_config(filetype)
