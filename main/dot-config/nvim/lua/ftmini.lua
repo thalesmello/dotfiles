@@ -3,7 +3,7 @@ local M = {}
 M.ft_mappings = {
     python = {"sqljinja", "python"},
     jinja = {"sqljinja", "jinja"},
-    sql = {"sqljinja", "sql"},
+    sql = {"python", "sqljinja", "sql"},
 }
 
 function M.ftmini_config(filetype)
@@ -25,5 +25,17 @@ function M.ftmini_config(filetype)
 
     return config
 end
+
+vim.keymap.set({ "n" }, "<leader>efm", function()
+    local config = vim.fn.stdpath("config")
+
+    local filetype = vim.o.filetype
+
+    if filetype == '' then
+        return
+    end
+
+    vim.cmd.edit(config .. "/lua/ftmini/" .. filetype .. '.lua')
+end)
 
 return M

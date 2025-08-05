@@ -51,6 +51,8 @@ return {
                         lookahead = true,
 
                         keymaps = {
+                            ["ic"] = "@call.inner",
+                            ["ac"] = "@call.outer",
                             -- You can use the capture groups defined in textobjects.scm
                             -- ["af"] = "@function.outer",
                             -- ["if"] = "@function.inner",

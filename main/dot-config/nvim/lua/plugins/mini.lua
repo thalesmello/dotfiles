@@ -14,9 +14,8 @@ return {
     },
     {
         'echasnovski/mini.ai',
-        version = false,
-
-
+        version = '*',
+        dependencies = {'nvim-treesitter/nvim-treesitter'},
         extra_contexts = {"vscode", "firenvim"},
         config = function()
             local spec_pair = require('mini.ai').gen_spec.pair
@@ -37,12 +36,6 @@ return {
                     goto_right = '<Plug>(mini-ai-goto-right)',
                 },
                 custom_textobjects = {
-                    ["f"] = { '%f[%w_%.][%w_%.]+%b()', '^.-%(().*()%)$' },
-                    ["F"] = spec_treesitter({ a = "@function.outer", i = "@function.inner" }),
-                    -- [";"] = spec_treesitter({ a = "@pair.value", i = "" }),
-                    -- [":"] = spec_treesitter({ a = "@pair.key", i = "" }),
-                    -- [":"] = spec_treesitter({ a = "@pair.key", i = "" }),
-                    ["C"] = spec_treesitter({ i = "@class.inner", a = "@class.outer" }),
                     ["P"] = function()
                         local _, sline, scol, _ = unpack(vim.fn.getpos("'["))
                         local _, eline, ecol, _ = unpack(vim.fn.getpos("']"))
@@ -54,7 +47,6 @@ return {
                             vis_mode = mode,
                         }
                     end,
-                    ['.'] = { { "[^a-zA-Z0-9_%.]%s*[%a_][a-zA-Z0-9_%.]*,?", "^%s*()[%a_][a-zA-Z0-9_%.]*,?" }, "^[^a-zA-Z0-9_%.]?()%s*()[%a_][a-zA-Z0-9_%.]*(),?()$" },
                 },
                 search_method = "cover",
                 n_lines = 1000,
@@ -153,29 +145,6 @@ return {
             local surround = require('mini.surround')
             local get_input = surround.user_input
             surround.setup({
-                custom_surroundings = {
-                    ['?'] = {
-                        input = function()
-                            local surroundings = get_input('Left Surround ||| Right Surround')
-
-                            local left, right = unpack(vim.split(surroundings, "|||"))
-
-                            if left == nil or left == '' then return end
-                            if right == nil or right == '' then return end
-
-                            return { vim.pesc(left) .. '().-()' .. vim.pesc(right) }
-                        end,
-                        output = function()
-                            local surroundings = get_input('Left Surround ||| Right Surround')
-
-                            local left, right = unpack(vim.split(surroundings, "|||"))
-
-                            if left == nil then return end
-                            if right == nil then return end
-                            return { left = left, right = right }
-                        end,
-                    },
-                },
                 mappings = {
                     -- add = 'ys',
                     -- delete = 'ds',
