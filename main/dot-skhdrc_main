@@ -168,7 +168,6 @@ service < ctrl + alt + cmd - space : skhd -k "escape"; yabai-preset focus-space 
 # service < space : skhd -k "escape"; if test "$_YABAI_MRU" = chrome_tab; skhd -k "alt - q"; else; yabai -m window --focus recent || yabai-preset focus-space recent; end
 service < space : skhd -k "escape"; yabai -m window --focus recent || yabai-preset focus-space recent
 service < shift - space : skhd -k "escape"; yabai-preset move-window-to-space recent
-service < shift - 0x29 : skhd -k "escape"; yabai-preset arrange-windows-side-by-side # semicolon
 service < r ; resize
 service < shift - r : skhd -k "escape"; yabai --stop-service && yabai --start-service && display-message "Yabai Restarted" || begin; yabai --start-service && display-message "Yabai Started"; end
 service < y : skhd -k "escape"; yabai-preset toggle-yabai
@@ -183,7 +182,8 @@ service < s ; stack
 service < shift - s : skhd -k "escape"; yabai-preset stack-windows-in-space
 service < m : skhd -k "escape"; yabai-preset toggle-monocle-mode
 service < 0x2B : skhd -k "escape"; yabai -m space --layout stack; display-message "Laybout stack" # Comma
-service < 0x2F : skhd -k "escape"; yabai -m space --layout bsp; yabai-preset stack-after-nth-window 4 # Period
+service < shift - 0x2B : skhd -k "escape"; yabai -m space --layout bsp; yabai-preset stack-windows-in-space;# Comma
+service < 0x2F : skhd -k "escape"; yabai -m space --layout bsp; yabai-preset stack-after-nth-window 3 # Period
 service < shift - 0x2F : skhd -k "escape"; yabai -m space --layout bsp; display-message "Laybout bsp"
 service < 0 : skhd -k "escape"; yabai -m space --layout float; display-message "Laybout float"
 # Temporaily disable window restore to debug later

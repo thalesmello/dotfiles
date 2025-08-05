@@ -270,11 +270,6 @@ function yabai-preset
             curl -G "$btt_url" -d "json=$json"
             yabai -m window "$win" --toggle float
         end
-    case "arrange-windows-side-by-side"
-        yabai -m query --windows --space | jq -r 'map(select(."is-visible" and (."is-sticky"|not))) | "\(first(.[] | select(."has-focus") | .id)):\(first(.[] | select(."has-focus"|not) | .id))"' | read -d: active_win back_win
-
-        yabai -m window "$active_win" --grid "1:2:0:0:1:1"
-        yabai -m window "$back_win" --grid "1:2:1:0:1:1"
     case "stack-or-warp-window"
         set direction $argv[1]
         set -e argv[1]
@@ -285,15 +280,28 @@ function yabai-preset
             yabai -m window --stack "$direction"
         end
     case "stack-windows-in-space"
-        set windows (yabai -m query --windows --space | jq -er '.
+        set query '.
             | map(select(."is-visible" and (."is-sticky"|not)))
             | (first(.[] | select(."has-focus")) // .[0]) as $focus
             | [$focus.id] + map(select($focus.id != .id) | .id)
-            | .[]')
+            | .[]'
+        set windows (yabai -m query --windows --space | jq -er "$query")
 
         set current $windows[1]
         yabai -m window "$current" (printf "--stack\n%s\n" $windows[2..])
-        display-message "$(count $windows) windows stacked"
+
+        # Hack: When using two monitors, some windows down in the tree get "pushed"
+        # to the other monitor and might not be properly captured by the query command,
+        # so we need to do a second passing
+        set second_passing (yabai -m query --windows --space | jq -er "$query")
+
+        for window in $second_passing
+            if not contains "$window" $windows
+                yabai -m window "$current" --stack "$window"
+            end
+        end
+
+        display-message "$(count $second_passing) windows stacked"
     case "stack-after-nth-window"
         set nth $argv[1]
         set -e argv[1]
