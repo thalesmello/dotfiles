@@ -8,6 +8,7 @@ vim.keymap.set("n", "<leader>ww", "<cmd>w<cr>", { remap = true })
 vim.keymap.set({"n", "x", "o"}, "H", "^", { remap = false })
 vim.keymap.set({"n", "x", "o"}, "L", "$", { remap = false })
 vim.keymap.set({"n", "x", "o"}, "<leader>me", "<cmd>messages<cr>", { remap = false })
+vim.keymap.set({"n", "v"}, "z-", "zMzv", { remap = false })
 -- I frequently mistype w' intending to type "w<cr>". This should prevent accidentally creating a w' file
 vim.keymap.set({"c"}, "w'", "w", { remap = false })
 

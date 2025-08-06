@@ -188,12 +188,23 @@ local normalize_path = function(uri, root)
   return uri
 end
 
+-- Toggle nvim
+-- { "key": "cmd+e", "command": "vscode-neovim.stop", "when": "neovim.init" },
+-- { "key": "cmd+e", "command": "vscode-neovim.restart", "when": "!neovim.init" },
 -- Some keycodes require forwarding to neovim
 -- e.g.
 -- { "key": "ctrl+d", "command": "vscode-neovim.send", "args": "<c-d>", "when": "editorTextFocus && neovim.init" },
 -- { "key": "ctrl+u", "command": "vscode-neovim.send", "args": "<c-u>", "when": "editorTextFocus && neovim.init" },
 -- { "key": "ctrl+p", "command": "vscode-neovim.send", "args": "<c-p>", "when": "editorTextFocus && neovim.init" },
 -- { "key": "ctrl+f", "command": "vscode-neovim.send", "args": "<c-f>", "when": "editorTextFocus && neovim.init" },
+-- { "key": "ctrl+s", "command": "vscode-neovim.send", "args": "<c-s>", "when": "editorTextFocus && neovim.init" },
+-- { "key": "ctrl+g", "command": "vscode-neovim.send", "args": "<c-g>", "when": "editorTextFocus && neovim.init" },
+-- Add harpoon mappings
+-- { "key": "cmd+1", "command": "vscode-neovim.lua", "args": [[ "require('harpoon'):list('vscode'):select(1)"]], },
+-- Hide overlays
+-- { "key": "escape", "command": "vscode-neovim.escape", "when": "editorTextFocus && neovim.init && neovim.mode != 'normal' && editorLangId not in 'neovim.editorLangIdExclusions' && !parameterHintsVisible" },
+-- { "key": "escape", "command": "-vscode-neovim.escape", "when": "editorTextFocus && neovim.init && neovim.mode != 'normal' && editorLangId not in 'neovim.editorLangIdExclusions'" }
+--
 vim.api.nvim_create_autocmd({ 'CursorHold' }, {
   group = vim.api.nvim_create_augroup('VsCodeShortcuts', { clear = true }),
   pattern = {"*"},
@@ -250,6 +261,7 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
     vim.keymap.set("n", "zO", function () vscode.action('editor.unfoldRecursively') end)
     vim.keymap.set("n", "zR", function () vscode.action('editor.unfoldAll') end)
     vim.keymap.set("n", "zM", function () vscode.action('editor.foldAll') end)
+    vim.keymap.set("n", "z-", function () vscode.action('editor.foldAllExcept') end)
 
     -- Simulate my most used vim-unimpaired shortcut
     vim.keymap.set("n", "[<space>", "<cmd>put!=repeat(nr2char(10), v:count1)|silent ']+<cr>")
@@ -316,7 +328,7 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
     vim.keymap.del('i', '<c-s><c-s>')
 
     vim.keymap.set('i', '<c-s>', function ()
-        vim.api.nvim_create_autocmd({ 'InsertEnter' }, {
+        vim.api.nvim_create_autocmd({ 'insertenter' }, {
             pattern = '*',
             once = true,
             callback = function()

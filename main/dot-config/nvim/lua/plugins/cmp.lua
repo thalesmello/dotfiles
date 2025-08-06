@@ -128,6 +128,7 @@ return {
    vim_utils.injector_module({
       {
          "folke/lazydev.nvim",
+         enabled = false,
          ft = "lua", -- only load on lua files
          dependencies = { "Bilal2453/luvit-meta" },
          opts = {

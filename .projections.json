@@ -17,6 +17,7 @@
   },
   "main/dot-config/nvim/lua/plugins/*.lua":{
     "type":"plugin",
+    "dispatch": "nvr --nostart -cc \"lua require'vim_utils'.reload_lazy_file('plugin.{}')\"",
     "template": [
       "  return {",
       "  {",
@@ -29,7 +30,7 @@
   },
   "main/dot-config/nvim/lua/*.lua":{
     "type":"lua",
-    "dispatch": "source {}"
+    "dispatch": "nvr --nostart -cc \"source {file}\""
   },
   "main/dot-config/nvim/local_plugins/**/lua/*.lua":{
     "type":"localplugins"

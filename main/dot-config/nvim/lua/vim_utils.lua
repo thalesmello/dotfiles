@@ -246,4 +246,22 @@ function M.has_words_before()
     return current_line_text:sub(col, col):match("%s") == nil
 end
 
+function M.reload_lazy_file(module_name)
+    local lazy = require('lazy')
+    local ok, module_file = pcall(require, module_name)
+
+    if not ok then
+        return
+    end
+
+    if not vim.islist(module_file) then
+        module_file = { module_file }
+    end
+
+    for _, module in ipairs(module_file) do
+        local plugin_name = vim.fs.basename(module[1])
+        vim.cmd.Lazy('reload ' .. plugin_name)
+    end
+end
+
 return M
