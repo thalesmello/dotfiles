@@ -5,7 +5,8 @@ local get_input = require('mini.surround').user_input
 
 return {
     custom_textobjects = {
-        ["s"] = spec_treesitter({ i = "@sql-select-inner", a = "@sql-select-statement" }),
+        ["s"] = spec_treesitter({ i = "@sql-select-inner", a = "@sql-select-inner" }),
+        ["S"] = spec_treesitter({ i = "@sql-select-statement", a = "@sql-select-statement" }),
         ["x"] = spec_treesitter({ i = "@sql-term-expr", a = "@sql-term-term" }),
         -- CTE text obj
         ["C"] = { {"^[%w_].*", "[^%w_].*"}, "^[^%w_]-[%w_]+%s+[Aa][Ss]%s+%b(),?", "^.()[%w_]-%s+..%s+%(%s*().-()%s*%),?()$"},
