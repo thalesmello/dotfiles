@@ -264,6 +264,9 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
 
     vim.keymap.set("n", "<leader>.", function () vscode.action('editor.action.quickFix') end)
 
+    vim.keymap.set("n", "<leader>fmt", function () vscode.action('editor.action.formatDocument') end)
+    vim.keymap.set("v", "<leader>fmt", function () vscode.action('editor.action.formatSelection') end)
+
     -- vim.keymap.set("n", "<leader>ka", function () vscode.action('vscode-harpoon.addEditor') end)
     -- vim.keymap.set("n", "<leader>ke", function () vscode.action('vscode-harpoon.editEditors') end)
     -- vim.keymap.set("n", "<leader>kE", function () vscode.action('vscode-harpoon.editorQuickPick') end)
@@ -305,6 +308,10 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
 
     vim.keymap.set("n", "<leader><tab>", vscodeAlternateFile)
 
+    -- Unset nvim surround mappings. There's a weird but going on and I need to set and delete the mappings
+    -- TODO: Fix this hacky solution
+    vim.keymap.set('i', '<c-s>', '')
+    vim.keymap.set('i', '<c-s><c-s>', '')
     vim.keymap.del('i', '<c-s>')
     vim.keymap.del('i', '<c-s><c-s>')
 

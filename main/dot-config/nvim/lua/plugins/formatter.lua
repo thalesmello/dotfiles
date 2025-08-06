@@ -34,7 +34,7 @@ return {
             }
         end,
         keys = {
-            {"g%", "<cmd>Format<cr>", mode = "n"},
+            {"<leader>fmt", "<cmd>Format<cr>", mode = "n"},
         },
         extra_contexts = {"firenvim"},
     },
