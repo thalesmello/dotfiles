@@ -256,12 +256,12 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
     vim.keymap.set("n", "<leader>fr", function () vscode.action('references-view.findReferences') end)
     vim.keymap.set("n", "<leader>ss", function () vscode.action('workbench.action.gotoSymbol') end)
     vim.keymap.set("n", "<leader><cr>", function () vscode.action('workbench.action.terminal.toggleTerminal') end)
-    vim.keymap.set("n", "<tab>", function () vscode.action('editor.toggleFold') end)
-    vim.keymap.set("n", "zC", function () vscode.action('editor.foldRecursively') end)
-    vim.keymap.set("n", "zO", function () vscode.action('editor.unfoldRecursively') end)
-    vim.keymap.set("n", "zR", function () vscode.action('editor.unfoldAll') end)
-    vim.keymap.set("n", "zM", function () vscode.action('editor.foldAll') end)
-    vim.keymap.set("n", "z-", function () vscode.action('editor.foldAllExcept') end)
+    vim.keymap.set({"n", "v"}, "<tab>", function () vscode.action('editor.toggleFold') end)
+    vim.keymap.set({"n", "v"}, "zC", function () vscode.action('editor.foldRecursively') end)
+    vim.keymap.set({"n", "v"}, "zO", function () vscode.action('editor.unfoldRecursively') end)
+    vim.keymap.set({"n", "v"}, "zR", function () vscode.action('editor.unfoldAll') end)
+    vim.keymap.set({"n", "v"}, "zM", function () vscode.action('editor.foldAll') end)
+    vim.keymap.set({"n", "v"}, "z-", function () vscode.action('editor.foldAllExcept') end)
 
     -- Simulate my most used vim-unimpaired shortcut
     vim.keymap.set("n", "[<space>", "<cmd>put!=repeat(nr2char(10), v:count1)|silent ']+<cr>")
