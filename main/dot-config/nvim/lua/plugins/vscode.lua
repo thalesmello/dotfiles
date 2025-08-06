@@ -205,6 +205,28 @@ end
 -- { "key": "escape", "command": "vscode-neovim.escape", "when": "editorTextFocus && neovim.init && neovim.mode != 'normal' && editorLangId not in 'neovim.editorLangIdExclusions' && !parameterHintsVisible" },
 -- { "key": "escape", "command": "-vscode-neovim.escape", "when": "editorTextFocus && neovim.init && neovim.mode != 'normal' && editorLangId not in 'neovim.editorLangIdExclusions'" }
 --
+
+local function startResizeCycle()
+    vim.keymap.set("n", "J", function () vscode.action('workbench.action.increaseViewHeight') end, { buffer = true})
+    vim.keymap.set("n", "K", function () vscode.action('workbench.action.decreaseViewHeight') end, { buffer = true})
+    vim.keymap.set("n", "L", function () vscode.action('workbench.action.increaseViewWidth') end, { buffer = true})
+    vim.keymap.set("n", "H", function () vscode.action('workbench.action.decreaseViewWidth') end, { buffer = true})
+
+    local group = vim.api.nvim_create_augroup("VscodeResizeGroup", {})
+    vim.api.nvim_create_autocmd("CursorHold", {
+        group = group,
+        pattern = "*",
+        callback = function ()
+            vim.keymap.del("n", "J", { buffer = true})
+            vim.keymap.del("n", "K", { buffer = true})
+            vim.keymap.del("n", "L", { buffer = true})
+            vim.keymap.del("n", "H", { buffer = true})
+
+            vim.api.nvim_clear_autocmds({ group = group })
+        end
+    })
+end
+
 vim.api.nvim_create_autocmd({ 'CursorHold' }, {
   group = vim.api.nvim_create_augroup('VsCodeShortcuts', { clear = true }),
   pattern = {"*"},
@@ -226,6 +248,11 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
       vscode.call('workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup')
       vscode.action('workbench.action.acceptSelectedQuickOpenItem')
     end)
+
+    vim.keymap.set("n", "<leader>J", function () vscode.action('workbench.action.increaseViewHeight'); startResizeCycle() end)
+    vim.keymap.set("n", "<leader>K", function () vscode.action('workbench.action.decreaseViewHeight'); startResizeCycle() end)
+    vim.keymap.set("n", "<leader>L", function () vscode.action('workbench.action.increaseViewWidth'); startResizeCycle() end)
+    vim.keymap.set("n", "<leader>H", function () vscode.action('workbench.action.decreaseViewWidth'); startResizeCycle() end)
 
     vim.keymap.set("n", "<leader>km", function () vscode.action('workbench.action.toggleMaximizeEditorGroup') end)
     vim.keymap.set("n", "<leader>kj", function () vscode.action('workbench.action.togglePanel') end)
