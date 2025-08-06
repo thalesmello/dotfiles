@@ -1,0 +1,11 @@
+#!/usr/bin/env fish
+
+set current_value (defaults -currentHost read NSGlobalDomain _HIHideMenuBar)
+
+if test "$current_value" = "1"
+    defaults -currentHost write NSGlobalDomain _HIHideMenuBar -int 0
+else
+    defaults -currentHost write NSGlobalDomain _HIHideMenuBar -int 1
+end
+
+osascript -e 'tell application "System Events" to tell dock preferences to set autohide menu bar to false'
