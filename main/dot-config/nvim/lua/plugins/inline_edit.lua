@@ -1,5 +1,6 @@
 return {
-    'AndrewRadev/inline_edit.vim',
+    'thalesmello/inline_edit.vim',
+    branch = 'vscode',
     keys = {
         {'<leader>ie',  'vii:InlineEdit<space><up>', remap = true, mode = "n"},
         -- We navigate up to fetch the last used InlineEdit used command
@@ -11,5 +12,5 @@ return {
         -- end)
     end,
     cmd = "InlineEdit",
-    extra_contexts = {"firenvim"}
+    extra_contexts = {"firenvim", "vscode"}
 }

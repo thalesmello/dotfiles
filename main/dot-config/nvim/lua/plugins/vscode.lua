@@ -19,6 +19,8 @@ local function inferMoveKey(direction)
   end
 end
 
+vim.g.inline_edit_proxy_type = "vscode"
+
 local function vscodeMoveLines(toDirection, moveLines)
   local range = vscode.eval([[
     var e = vscode.window.activeTextEditor;
@@ -249,6 +251,12 @@ vim.api.nvim_create_autocmd({ 'CursorHold' }, {
       vscode.action('workbench.action.acceptSelectedQuickOpenItem')
     end)
 
+    vim.keymap.set("n", "<leader>me", function ()
+      vscode.call('workbench.action.showOutputChannels')
+      -- vim.fn.system([[osascript -e 'tell application "System Events" to keystroke "messages" & return']])
+      -- vscode.call('editor.action.clipboardPasteAction')
+      -- vscode.action('workbench.action.acceptSelectedQuickOpenItem')
+    end)
     vim.keymap.set("n", "<leader>J", function () vscode.action('workbench.action.increaseViewHeight'); startResizeCycle() end)
     vim.keymap.set("n", "<leader>K", function () vscode.action('workbench.action.decreaseViewHeight'); startResizeCycle() end)
     vim.keymap.set("n", "<leader>L", function () vscode.action('workbench.action.increaseViewWidth'); startResizeCycle() end)
