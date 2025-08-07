@@ -163,6 +163,16 @@ vim.keymap.set("c", "<c-->", '\\{-}', { noremap = true })
 -- Map default C-t
 vim.keymap.set("n", "<leader><c-t>", '<c-t>', { noremap = true })
 
+vim.keymap.set({"n", "v"}, "<leader>z", function () 
+  if vim.g.fuzzy_finder_to_resume == 'fzf' then
+    vim.cmd.FzfLua('resume')
+  elseif vim.g.fuzzy_finder_to_resume == "telescope" then
+    vim.cmd.Telescope('resume')
+  else
+    vim.health.error("no fuzzy finder to resume. Use fzf or telescope first")
+  end
+end)
+
 --- Map |gx| to call |vim.ui.open| on the <cfile> at cursor.
 do
   local function do_open(uri)

@@ -6,6 +6,8 @@ return {
         {"<c-t>", mode = {"n", "v"}},
         {"<c-f>", mode = "n"},
         {"<leader>/", mode = {"n", "v"}},
+        {"<leader>:", mode = {"n", "v"}},
+        {"<leader>;", mode = {"n", "v"}},
     },
     opts = {
         "fzf-vim",
@@ -83,6 +85,7 @@ return {
 
         vim.keymap.set("n", "<leader>;", fzf_lua.keymaps, { noremap = true, silent = true })
         vim.keymap.set("n", "<leader>:", fzf_lua.commands, { noremap = true, silent = true })
+        vim.keymap.set("n", "<leader>?", fzf_lua.commands, { noremap = true, silent = true })
 
         function CompleteAg(A)
             if A == '' then
@@ -121,6 +124,14 @@ return {
             bang = true,
             complete = CompleteAg,
             nargs=1,
+        })
+
+        vim.api.nvim_create_autocmd({ 'FileType' }, {
+            group = vim.api.nvim_create_augroup('FzfResume', { clear = true }),
+            pattern = {"fzf"},
+            callback = function()
+                vim.g.fuzzy_finder_to_resume = 'fzf'
+            end,
         })
     end,
     lazy=false,
