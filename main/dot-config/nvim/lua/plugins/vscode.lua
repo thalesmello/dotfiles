@@ -9,7 +9,6 @@ return {
   dev = true,
   cond = vim.g.vscode ~= nil,
   config = function ()
-    vim.print('batman')
     -- Load local configs first so that mappings can be overridden
     require('config/mappings')
     require('config/settings')
