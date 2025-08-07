@@ -1,11 +1,15 @@
 -- This is makes extensions not be enabled by default
 -- To enable, add "vscode = true" to the plugin spec
-require("lazy.core.config").options.defaults.cond = require('conditional_load').should_load
+if vim.g.vscode then
+  require("lazy.core.config").options.defaults.cond = require('conditional_load').should_load
+end
 
 return {
   dir = vim.fn.stdpath("config") .. "/local_plugins/vscode_config/",
   dev = true,
+  cond = vim.g.vscode ~= nil,
   config = function ()
+    vim.print('batman')
     -- Load local configs first so that mappings can be overridden
     require('config/mappings')
     require('config/settings')
