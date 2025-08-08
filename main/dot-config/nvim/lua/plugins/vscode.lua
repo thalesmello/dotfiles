@@ -103,6 +103,7 @@ return {
     vim.keymap.set({"n", "v"}, "zR", function () vscode.action('editor.unfoldAll') end)
     vim.keymap.set({"n", "v"}, "zM", function () vscode.action('editor.foldAll') end)
     vim.keymap.set({"n", "v"}, "z-", function () vscode.action('editor.foldAllExcept') end)
+    vim.keymap.set({"n", "v"}, "<leader>kz", function () vscode.action('workbench.action.toggleZenMode') end)
     vim.keymap.set({"n", "v"}, "<c-e>", function ()
       vscode.action('scrollLineDown')
       vscode.action('scrollLineDown')
