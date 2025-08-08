@@ -38,10 +38,9 @@ return {
       once = true,
       callback = function()
         -- Add shortcuts that must wait for vscode to load
+        vscode_config.vscodeProjectionistCreateEditCommands()
       end,
     })
-
-    vscode_config.vscodeProjectionistCreateEditCommands()
 
     vim.keymap.set({ "n", "x", "o" }, "=", "=", { noremap = true })
     vim.keymap.set({ "n" }, "==", "==", { noremap = true })
@@ -72,13 +71,11 @@ return {
     vim.keymap.set("n", "<leader>kj", function () vscode.action('workbench.action.togglePanel') end)
 
     vim.keymap.set({ "n", "x" }, "<c-u>", function ()
-      -- vscode_config.vscodeMoveLines("up", 20)
-      vscode.call('cursorPageUp')
+      vscode_config.performHalfScroll({up = true})
     end)
 
     vim.keymap.set({ "n", "x" }, "<c-d>", function ()
-      -- vscode_config.vscodeMoveLines("down", 20)
-      vscode.call('cursorPageDown')
+      vscode_config.performHalfScroll({up = false})
     end)
 
     vim.keymap.set("n", "<leader>rv", function () vscode.action('editor.action.rename') end)
@@ -105,12 +102,10 @@ return {
     vim.keymap.set({"n", "v"}, "z-", function () vscode.action('editor.foldAllExcept') end)
     vim.keymap.set({"n", "v"}, "<leader>kz", function () vscode.action('workbench.action.toggleZenMode') end)
     vim.keymap.set({"n", "v"}, "<c-e>", function ()
-      vscode.action('scrollLineDown')
-      vscode.action('scrollLineDown')
+      vscode.action('runCommands', { args = { commands = { "scrollLineDown", "scrollLineDown" }} })
     end)
     vim.keymap.set({"n", "v"}, "<c-y>", function ()
-      vscode.action('scrollLineUp')
-      vscode.action('scrollLineUp')
+      vscode.action('runCommands', { args = { commands = { "scrollLineUp", "scrollLineUp" }} })
     end)
 
     -- Simulate my most used vim-unimpaired shortcut

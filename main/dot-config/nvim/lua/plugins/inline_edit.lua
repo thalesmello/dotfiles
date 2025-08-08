@@ -7,9 +7,7 @@ return {
         {'<leader>ie', ':InlineEdit<space><up>', remap = true, mode = "x"}
     },
     config = function ()
-        -- require('conditional_load').exec_when({ vscode = true }, function ()
-        --     vim.g.inline_edit_proxy_type = "vscode"
-        -- end)
+        vim.g.inline_edit_autowrite = 1
     end,
     cmd = "InlineEdit",
     extra_contexts = {"firenvim", "vscode"}

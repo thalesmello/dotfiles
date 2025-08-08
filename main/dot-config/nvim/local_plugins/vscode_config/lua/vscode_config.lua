@@ -33,79 +33,6 @@ function M.startResizeCycle()
     })
 end
 
--- This function is currently not used
--- This was an attempt to make a better page up and page down,
--- but it still needs work. I keep this here as reference
--- in case I want to revisit at some later point
-function M._prototype_vscodeMoveLines(toDirection, moveLines)
-  local range = vscode.eval([[
-    var e = vscode.window.activeTextEditor;
-
-    if (!e) {
-        return;
-    }
-
-
-    const withTimeout = timeout => promise => {
-      return Promise.race([
-        promise,
-        new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Timeout exceeded')), timeout);
-        })
-      ]);
-    }
-
-
-    var changedVisibleRange = (() => {
-      let disposableHandler
-
-      let rangePromise = new Promise((resolve) => {
-         disposableHandler = vscode.window.onDidChangeTextEditorVisibleRanges(e => {
-          resolve(e.visibleRanges)
-        })
-
-      })
-
-      return {
-        withTimeout(timeout) {
-          return rangePromise.then(withTimeout(1000)).finally(() => disposableHandler.dispose())
-        }
-      }
-    })()
-
-    const revealAt = args.to === "up" ? "bottom" : "top"
-    const delta = args.to === "up" ? -args.moveLines : args.moveLines;
-
-    const totalLines = e.document.lineCount;
-
-    let line = e.selection.active.line;
-    line += delta
-    line = Math.max(line, 0)
-    line = Math.min(line, totalLines - 1)
-
-    changedVisibleRange = changedVisibleRange.withTimeout(1000)
-
-    await Promise.all([
-      vscode.commands.executeCommand("cursorMove", {
-          to: args.to,
-          by: "line",
-          value: args.moveLines,
-        }),
-      vscode.commands.executeCommand("revealLine", {
-        lineNumber: line,
-        at: revealAt,
-      })
-     ])
-
-    let [range, ] = await changedVisibleRange
-
-    return { start_line: range.start.line, end_line: range.end.line }
-  ]], { args = { to = toDirection, moveLines = moveLines }})
-
-  local vscode_internal = require('vscode.internal')
-  vscode_internal.scroll_viewport(range.start_line, range.end_line)
-end
-
 function M.vscodeOpenFile(files)
   vscode.eval([[
     var root = vscode.workspace.workspaceFolders[0].uri
@@ -298,6 +225,75 @@ function M.normalize_path(uri, root)
   end
 
   return uri
+end
+
+function M.performHalfScroll(opts)
+  -- Code from: https://github.com/d-Nk/HalfScroll/blob/master/src/extension.ts
+  vscode.eval([[
+    async function SetNewActive(top)
+    {
+        const editor = vscode.window.activeTextEditor;
+        if(!editor){return false;}
+        const nowSelection = editor.selection;
+        if(nowSelection === null){return false;}
+        const nowLine = nowSelection.active.line;
+
+        const range = editor.visibleRanges;
+        const topNow = range[0].start.line
+        const bottomNow = range[0].end.line
+        const nowRange = range[0].end.line - range[0].start.line;
+        const halfRange = Math.round(nowRange / 2);
+
+        let newLine = top? nowLine - halfRange : nowLine + halfRange;
+        if(newLine <= 0)
+        {
+            newLine = 0;
+        }
+        else if(editor.document.lineCount < newLine)
+        {
+            newLine = editor.document.lineCount;
+        }
+        const newSelectPos = new vscode.Position(newLine, 0);
+
+        const config = vscode.workspace.getConfiguration('editor.stickyScroll');
+        const maxLineCount = config.get('maxLineCount');
+
+        let topLine = -Math.max(nowLine - Math.min(range[0].start.line, nowLine), 0) + newLine + maxLineCount
+        let bottomLine = topLine + nowRange
+        let adjustment = maxLineCount + newLine - bottomLine
+
+        if (adjustment > 0) {
+            topLine += adjustment
+            bottomLine += adjustment
+        }
+
+        if(topLine <= 0)
+        {
+            topLine = 0;
+        }
+
+        if(editor.document.lineCount < bottomLine)
+        {
+            bottomLine = editor.document.lineCount;
+        }
+
+
+        // console.log({topLine, bottomLine, range: range[0], halfRange, nowRange, nowLine, newLine, topDiff: newLine - topLine, bottomDiff: bottomLine - newLine })
+        console.log({newLine, topDiff: newLine - topLine, bottomDiff: bottomLine - newLine })
+        console.log({topNow, bottomNow, diff: bottomNow - topNow})
+        console.log({topLine, bottomLine, diff: bottomLine - topLine})
+        console.log({adjustment})
+
+        let revealPort = new vscode.Range(new vscode.Position(topLine, 0), new vscode.Position(bottomLine, 0))
+        editor.revealRange(revealPort, vscode.TextEditorRevealType.AtTop);
+        editor.selection = new vscode.Selection(newSelectPos, newSelectPos);
+
+
+        return true;
+    }
+
+    await SetNewActive(args.up)
+  ]], {args = {up = opts.up}})
 end
 
 return M
