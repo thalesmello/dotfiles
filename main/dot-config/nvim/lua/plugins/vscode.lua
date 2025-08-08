@@ -67,6 +67,8 @@ return {
     vim.keymap.set("n", "<leader>L", function () vscode.action('workbench.action.increaseViewWidth'); vscode_config.startResizeCycle() end)
     vim.keymap.set("n", "<leader>H", function () vscode.action('workbench.action.decreaseViewWidth'); vscode_config.startResizeCycle() end)
 
+    vim.keymap.set("n", "<leader>kb", function () vscode.action('workbench.action.toggleSidebarVisibility') end)
+    vim.keymap.set("n", "<leader>kB", function () vscode.action('workbench.action.toggleAuxiliaryBar') end)
     vim.keymap.set("n", "<leader>km", function () vscode.action('workbench.action.toggleMaximizeEditorGroup') end)
     vim.keymap.set("n", "<leader>kj", function () vscode.action('workbench.action.togglePanel') end)
 
@@ -124,18 +126,6 @@ return {
     vim.keymap.set("n", "<leader>fmt", function () vscode.action('editor.action.formatDocument') end)
     vim.keymap.set("v", "<leader>fmt", function () vscode.action('editor.action.formatSelection') end)
 
-    -- vim.keymap.set("n", "<leader>ka", function () vscode.action('vscode-harpoon.addEditor') end)
-    -- vim.keymap.set("n", "<leader>ke", function () vscode.action('vscode-harpoon.editEditors') end)
-    -- vim.keymap.set("n", "<leader>kE", function () vscode.action('vscode-harpoon.editorQuickPick') end)
-    -- vim.keymap.set("n", "<leader>1", function () vscode.action('vscode-harpoon.gotoEditor1') end)
-    -- vim.keymap.set("n", "<leader>2", function () vscode.action('vscode-harpoon.gotoEditor2') end)
-    -- vim.keymap.set("n", "<leader>3", function () vscode.action('vscode-harpoon.gotoEditor3') end)
-    -- vim.keymap.set("n", "<leader>4", function () vscode.action('vscode-harpoon.gotoEditor4') end)
-    -- vim.keymap.set("n", "<leader>5", function () vscode.action('vscode-harpoon.gotoEditor5') end)
-    -- vim.keymap.set("n", "<leader>6", function () vscode.action('vscode-harpoon.gotoEditor6') end)
-    -- vim.keymap.set("n", "<leader>7", function () vscode.action('vscode-harpoon.gotoEditor7') end)
-    -- vim.keymap.set("n", "<leader>8", function () vscode.action('vscode-harpoon.gotoEditor8') end)
-    -- vim.keymap.set("n", "<leader>9", function () vscode.action('vscode-harpoon.gotoEditor9') end)
     vim.keymap.set("n", "<leader>ka", function () require('harpoon'):list('vscode'):add() end)
     vim.keymap.set("n", "<leader>ke", function ()
       vim.fn.setreg('"', vim.fn.join(require('harpoon'):list('vscode'):display(), '\n'))
