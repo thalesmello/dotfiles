@@ -8,6 +8,7 @@ return {
   dir = vim.fn.stdpath("config") .. "/local_plugins/vscode_config/",
   dev = true,
   cond = vim.g.vscode ~= nil,
+  dependencies = {'thalesmello/vim-flagship'},
   config = function ()
     -- Load local configs first so that mappings can be overridden
     require('config/mappings')
@@ -196,6 +197,19 @@ return {
     end)
 
     vscode_config.setupVscodeHarpoon()
+
+    vim.o.statusline = '%<%.50f %w%m%r'
+
+    -- flagship configs
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "Flags",
+      group = vim.api.nvim_create_augroup("FlagshipConfig", { clear = true }),
+      callback = function ()
+        vim.fn.Hoist("buffer", -1, {hl="Ignore"}, "WebDevIconsGetFileTypeSymbol")
+        vim.fn.Hoist("buffer", 0, {hl="ignore"}, "v:lua.StatuslineFugitiveBranch")
+        vim.fn.Hoist("buffer", "flagship#filetype")
+      end
+    })
   end,
   extra_contexts = {"vscode"}
 }

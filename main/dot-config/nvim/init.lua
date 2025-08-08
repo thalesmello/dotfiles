@@ -45,7 +45,6 @@ require("lazy").setup({
         enabled = true,
         notify = false,
     },
-    vscode = true,
 })
 
 -- Personal configs that were never exported to a plugin

@@ -1,5 +1,6 @@
 return {
     'thalesmello/vim-flagship',
+    extra_contexts = {'vscode'},
     dependencies = {
         {
             'ryanoasis/vim-devicons',
@@ -26,13 +27,12 @@ return {
             return ''
         end
 
-
         vim.api.nvim_create_autocmd("User", {
             pattern = "Flags",
             group = vim.api.nvim_create_augroup("FlagshipConfig", { clear = true }),
             callback = function ()
                 vim.fn.Hoist("buffer", -1, "WebDevIconsGetFileTypeSymbol")
-                vim.fn.Hoist("buffer", "[%{v:lua.StatuslineFugitiveBranch()}]")
+                vim.fn.Hoist("buffer", "v:lua.StatuslineFugitiveBranch")
             end
         })
 
