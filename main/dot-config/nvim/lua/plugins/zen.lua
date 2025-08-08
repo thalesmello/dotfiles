@@ -10,8 +10,7 @@ function _G.ItermProfile (profile)
   if not stdout then
     return
   end
-  stdout:write(("\x1bPtmux;\x1b\x1b]50;SetProfile=%s\a"):format(profile))
-  stdout:shutdown()
+  stdout:write(('\x1b]50;SetProfile=%s\x07'):format(profile))
 
   vim.cmd.redraw()
 end
@@ -24,12 +23,12 @@ return {
     },
 
     on_open = function()
-      -- ItermProfile('LargeFont')
+      ItermProfile('LargeFont')
     end,
     on_close = function()
-      -- ItermProfile('Default')
+      ItermProfile('Default')
     end
   },
   cmd  = {"ZenMode"},
-  keys = {{"<leader><s-cr>", "<cmd>ZenMode<cr>", mode = {"n", "v"}}},
+  keys = {{"<leader>kz", "<cmd>ZenMode<cr>", mode = {"n", "v"}}},
 }
