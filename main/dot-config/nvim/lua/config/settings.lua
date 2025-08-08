@@ -5,6 +5,8 @@ vim.opt.cmdheight = 1
 
 vim.opt.conceallevel = 1
 
+vim.o.statusline = '%<%f %w%m%r'
+
 vim.opt.showcmd = true
 
 vim.opt.wildignorecase = true
