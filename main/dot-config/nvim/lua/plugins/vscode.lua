@@ -42,12 +42,12 @@ return {
       end,
     })
 
+    vim.keymap.set({"n"}, "gd", "gd", { noremap = true })
     vim.keymap.set({ "n", "x", "o" }, "=", "=", { noremap = true })
     vim.keymap.set({ "n" }, "==", "==", { noremap = true })
 
-    vim.keymap.set("n", "j", vscode_config.inferMoveKey("j"), { remap = true, expr = true })
-
-    vim.keymap.set("n", "k", vscode_config.inferMoveKey("k"), { remap = true, expr = true })
+    vim.keymap.set({"n", "v"}, "j", vscode_config.inferMoveKey("j"), { remap = true, expr = true })
+    vim.keymap.set({"n", "v"}, "k", vscode_config.inferMoveKey("k"), { remap = true, expr = true })
 
     vim.keymap.set("n", "<leader><bs>", function () vscode.action('workbench.action.closeEditorsAndGroup') end)
     vim.keymap.set("n", "<leader>rV", function () vscode.action('vscode-neovim.restart') end)
@@ -97,7 +97,10 @@ return {
     vim.keymap.set("n", "<leader>ss", function () vscode.action('workbench.action.gotoSymbol') end)
     vim.keymap.set("n", "<leader><cr>", function () vscode.action('workbench.action.terminal.toggleTerminal') end)
     vim.keymap.set({"n", "v"}, "<tab>", function () vscode.action('editor.toggleFold') end)
+    vim.keymap.set({"n", "v"}, "zc", function () vscode.action('editor.fold') end)
     vim.keymap.set({"n", "v"}, "zC", function () vscode.action('editor.foldRecursively') end)
+    vim.keymap.set({"n"}, "zo", function () vscode.action('editor.unfold') end)
+    vim.keymap.set({"v"}, "zo", function () vscode.action('editor.unfoldAll') end)
     vim.keymap.set({"n", "v"}, "zO", function () vscode.action('editor.unfoldRecursively') end)
     vim.keymap.set({"n", "v"}, "zR", function () vscode.action('editor.unfoldAll') end)
     vim.keymap.set({"n", "v"}, "zM", function () vscode.action('editor.foldAll') end)
