@@ -111,11 +111,11 @@ return {
                 end)
 
                 vim.keymap.set({ "n", "x" }, "g{", function ()
-                    repeatable_goto_ai({ direction = "left", ai = "a", search_method_pair = {"prev", "next"} })
+                    repeatable_goto_ai({ direction = "left", ai = "a", search_method_pair = {"prev", "cover_or_next"} })
                 end)
 
                 vim.keymap.set({ "n", "x" }, "g}", function ()
-                    repeatable_goto_ai({ direction = "right", ai = "a", search_method_pair = {"prev", "next"} })
+                    repeatable_goto_ai({ direction = "right", ai = "a", search_method_pair = {"cover_or_prev", "next"} })
                 end)
 
                 local function MiniMove(direction, ai)
