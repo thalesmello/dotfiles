@@ -18,10 +18,9 @@ return {
         dependencies = {'nvim-treesitter/nvim-treesitter'},
         extra_contexts = {"vscode", "firenvim"},
         config = function()
-            local spec_pair = require('mini.ai').gen_spec.pair
-            local spec_treesitter = require('mini.ai').gen_spec.treesitter
+            local mini_ai = require('mini.ai')
 
-            require('mini.ai').setup({
+            mini_ai.setup({
 
                 mappings = {
                     around = 'a',
@@ -60,15 +59,39 @@ return {
             local repeatable_ok, ts_repeat_move = pcall(require, "nvim-treesitter.textobjects.repeatable_move")
 
             if repeatable_ok then
-                local function repeatable_goto_ai(direction)
+                local function repeatable_goto_ai(opts)
+                    local ai = opts.ai or 'a'
+                    local direction = opts.direction
+                    -- local cover_or_nextlast = opts.cover_or_nextlast
+                    local left_sm, right_sm = unpack(opts.search_method_pair or {"cover_or_prev", "cover_or_next"})
                     local ok, char = pcall(vim.fn.getcharstr)
                     if not ok or char == '\27' then return nil end
                     local moveLeft, moveRight = ts_repeat_move.make_repeatable_move_pair(
                         function ()
-                            vim_utils.feedkeys("<Plug>(mini-ai-goto-left)" .. char)
+                            -- if cover_or_nextlast then
+                            --     local old_pos = vim.fn.getpos('.')
+                            --     mini_ai.move_cursor('left', ai, char, {search_method="cover_or_prev"})
+                            --     local new_pos = vim.fn.getpos('.')
+                            --
+                            --     if not vim.deep_equal(old_pos, new_pos) then
+                            --         return
+                            --     end
+                            -- end
+
+                            mini_ai.move_cursor('left', ai, char, {search_method=left_sm})
                         end,
                         function ()
-                            vim_utils.feedkeys("<Plug>(mini-ai-goto-right)" .. char)
+                            -- if cover_or_nextlast then
+                            --     local old_pos = vim.fn.getpos('.')
+                            --     mini_ai.move_cursor('right', ai, char, {search_method="cover_or_next"})
+                            --     local new_pos = vim.fn.getpos('.')
+                            --
+                            --     if not vim.deep_equal(old_pos, new_pos) then
+                            --         return
+                            --     end
+                            -- end
+
+                            mini_ai.move_cursor('right', ai, char, {search_method=right_sm})
                         end
                     )
 
@@ -80,16 +103,45 @@ return {
                 end
 
                 vim.keymap.set({ "n", "x" }, "g[", function ()
-                    repeatable_goto_ai("left")
+                    repeatable_goto_ai({ direction = "left", ai = "a", search_method_pair = {"cover_or_prev", "cover_or_next"} })
                 end)
 
                 vim.keymap.set({ "n", "x" }, "g]", function ()
-                    repeatable_goto_ai("right")
+                    repeatable_goto_ai({ direction = "right", ai = "a", search_method_pair = {"cover_or_prev", "cover_or_next"} })
                 end)
 
-                vim.keymap.set({"o"}, "g[", "<Plug>(mini-ai-goto-left)", { remap = true })
+                vim.keymap.set({ "n", "x" }, "g{", function ()
+                    repeatable_goto_ai({ direction = "left", ai = "a", search_method_pair = {"prev", "next"} })
+                end)
 
-                vim.keymap.set({"o"}, "g]", "<Plug>(mini-ai-goto-right)", { remap = true })
+                vim.keymap.set({ "n", "x" }, "g}", function ()
+                    repeatable_goto_ai({ direction = "right", ai = "a", search_method_pair = {"prev", "next"} })
+                end)
+
+                local function MiniMove(direction, ai)
+                    local ok, char = pcall(vim.fn.getcharstr)
+                    if not ok or char == '\27' then return nil end
+
+                    return 'v<Cmd>lua '
+                        .. string.format([[MiniAi.move_cursor('%s', '%s', '%s', { search_method = "cover" })]], direction, ai, char)
+                        .. '<CR>'
+                end
+
+                vim.keymap.set({"o"}, "g[", function ()
+                    return MiniMove("left", "i")
+                end, { remap = true, expr = true })
+
+                vim.keymap.set({"o"}, "g]", function ()
+                    return MiniMove("right", "i")
+                end, { remap = true, expr = true })
+
+                vim.keymap.set({"o"}, "g{", function ()
+                    return MiniMove("left", "a")
+                end, { remap = true, expr = true })
+
+                vim.keymap.set({"o"}, "g}", function ()
+                    return MiniMove("right", "a")
+                end, { remap = true, expr = true })
 
                 -- local function arroundinner(mode)
                 --     local ok, char = pcall(vim.fn.getcharstr)
