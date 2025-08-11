@@ -7,7 +7,7 @@ return {
     custom_textobjects = {
         ['.'] = { { "[^a-zA-Z0-9_%.]%s*[%a_][a-zA-Z0-9_%.]*,?", "^%s*()[%a_][a-zA-Z0-9_%.]*,?" }, "^[^a-zA-Z0-9_%.]?()%s*()[%a_][a-zA-Z0-9_%.]*(),?()$" },
         ["f"] = { '%f[%w_%.][%w_%.]+%b()', '^.-%(().*()%)$' },
-        ["F"] = spec_treesitter({ a = "@function.outer", i = "@function.inner" }),
+        ["d"] = spec_treesitter({ a = "@function.outer", i = "@function.inner" }),
         -- [";"] = spec_treesitter({ a = "@pair.value", i = "" }),
         -- [":"] = spec_treesitter({ a = "@pair.key", i = "" }),
         ["C"] = spec_treesitter({ i = "@class.inner", a = "@class.outer" }),

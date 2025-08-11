@@ -42,6 +42,8 @@ return {
       end,
     })
 
+    vim.keymap.set({"n"}, "<c-o>", "<c-o>", { noremap = true })
+    vim.keymap.set({"n"}, "<c-i>", "<c-i>", { noremap = true })
     vim.keymap.set({"n"}, "gd", "gd", { noremap = true })
     vim.keymap.set({ "n", "x", "o" }, "=", "=", { noremap = true })
     vim.keymap.set({ "n" }, "==", "==", { noremap = true })
@@ -101,7 +103,8 @@ return {
     vim.keymap.set({"n", "v"}, "zC", function () vscode.action('editor.foldRecursively') end)
     vim.keymap.set({"n"}, "zo", function () vscode.action('editor.unfold') end)
     vim.keymap.set({"v"}, "zo", function () vscode.action('editor.unfoldAll') end)
-    vim.keymap.set({"n", "v"}, "zO", function () vscode.action('editor.unfoldRecursively') end)
+    vim.keymap.set({"n"}, "zO", function () vscode.action('editor.unfoldRecursively') end)
+    vim.keymap.set({"v"}, "zO", function () vscode.action('editor.unfoldAll') end)
     vim.keymap.set({"n", "v"}, "zR", function () vscode.action('editor.unfoldAll') end)
     vim.keymap.set({"n", "v"}, "zM", function () vscode.action('editor.foldAll') end)
     vim.keymap.set({"n", "v"}, "z-", function () vscode.action('editor.foldAllExcept') end)
