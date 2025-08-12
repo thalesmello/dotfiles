@@ -103,16 +103,19 @@ function chrome-preset
 
         # If app is Chrome and --newtab is absent, open in current tab
         if test "$app" = "Google Chrome" -a -z "$_flag_newtab"
-            echo "$app"
-            echo "$_flag_newtab"
+            env OUTPUT_FORMAT=json chrome-cli info | jq -r '.id, .windowId' | read --line tab_id window_id
+            set old_window_id "$window_id"
+
             if test -n "$_flag_profile"
-                echo "$_flag_profile"
                 chrome-preset focus-profile "$_flag_profile"
+                env OUTPUT_FORMAT=json chrome-cli info | jq -r '.id, .windowId' | read --line tab_id window_id
             end
 
-            echo "$url"
-
-            chrome-cli open "$url" -t (env OUTPUT_FORMAT=json chrome-cli info | jq -r '.id')
+            if test "$window_id" = "$old_window_id"
+                chrome-cli open "$url" -t "$tab_id"
+            else
+                chrome-cli open "$url"
+            end
         else
             if test -n "$_flag_profile"
                 open -n -a "Google Chrome" --args "$url" --profile-directory="$_flag_profile"
