@@ -74,9 +74,18 @@ function chrome-preset
         end
 
         chrome-preset focus-url "$regex"
-        or chrome-preset open-url --profile="$_flag_profile" "$url"
+        or chrome-preset open-url --newtab --profile="$_flag_profile" "$url"
+
+    case focus-profile
+        set profile $argv[1]
+        set -e argv[1]
+
+        set profile_name (jq --arg profile "$profile" -r '.profile.info_cache[$profile] | "\(.gaia_given_name) (\(.name))"' <"$HOME/Library/Application Support/Google/Chrome/Local State")
+        and btt-preset show-or-hide-app --only-show "Google Chrome"
+        and btt-preset trigger-menu-bar "Profiles;$(string escape --style regex "$profile_name")"
+
     case "open-url"
-        argparse profile= label= -- $argv
+        argparse profile= label= newtab -- $argv
         or return 1
 
         set url $argv[1]
@@ -90,12 +99,28 @@ function chrome-preset
             set url "https://$url"
         end
 
+        set app (btt-preset get-string-variable "focused_window_app_name")
 
-        if test -n "$_flag_profile"
-            open -n -a "Google Chrome" --args "$url" --profile-directory="$_flag_profile"
+        # If app is Chrome and --newtab is absent, open in current tab
+        if test "$app" = "Google Chrome" -a -z "$_flag_newtab"
+            echo "$app"
+            echo "$_flag_newtab"
+            if test -n "$_flag_profile"
+                echo "$_flag_profile"
+                chrome-preset focus-profile "$_flag_profile"
+            end
+
+            echo "$url"
+
+            chrome-cli open "$url" -t (env OUTPUT_FORMAT=json chrome-cli info | jq -r '.id')
         else
-            open -n -a "Google Chrome" --args "$url"
+            if test -n "$_flag_profile"
+                open -n -a "Google Chrome" --args "$url" --profile-directory="$_flag_profile"
+            else
+                open -n -a "Google Chrome" --args "$url"
+            end
         end
+
     case "close-tabs-with-url"
         set regex $argv[1]
         set -e argv[1]
