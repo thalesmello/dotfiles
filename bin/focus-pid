@@ -1,0 +1,53 @@
+#!/usr/bin/env fish
+
+# The PID you want to find the ancestors for.
+set current_pid "$argv[1]"
+
+# Check if a PID was provided.
+if test -z "$current_pid"
+    echo "Usage: $0 <pid>"
+    exit 1
+end
+
+# Initialize an empty array to store all ancestor PIDs.
+set pids_to_focus $current_pid
+set -a pid_cmds (ps -o args= -p "$current_pid")
+
+# Start with the given PID.
+
+# Loop to find all parent PIDs until we reach the root process (PID 1 or 0).
+# The "test" command is used for numerical comparisons.
+while test "$current_pid" -ne 0 -a "$current_pid" -ne 1
+    # Find the parent PID of the current process.
+    # The 'ps -o ppid=' command outputs only the PPID.
+    # We use 'tr -d' to remove any trailing whitespace.
+    set ppid (ps -o ppid= -p "$current_pid" | tr -d '[:space:]')
+
+    # If the ppid is the same as the current_pid, or if it's empty, something is wrong. Break the loop.
+    if test "$ppid" = "$current_pid" -o -z "$ppid" -o "$ppid" -eq 0 -o "$ppid" -eq 1
+        break
+    end
+
+    # Add the current parent PID to our array.
+    set -a pids_to_focus "$ppid"
+    set -a pid_cmds (ps -o args= -p "$ppid")
+
+    # Set the current pid to the parent pid for the next iteration.
+    set current_pid "$ppid"
+end
+
+# If no parent PIDs were found, we have nothing to do.
+if test (count $pids_to_focus) -eq 0
+    echo "No parent processes found for PID $current_pid."
+    # Fallback to the original behavior just in case.
+    osascript -e "tell application \"System Events\" to set frontmost of every process whose unix id is $current_pid to true"
+    exit 0
+end
+
+# Construct and execute the osascript command.
+for i in (seq (count $pids_to_focus))
+    set pid $pids_to_focus[$i]
+    set pid_cmd $pid_cmds[$i]
+    echo "Attempting to focus PID: $pid - $pid_cmd"
+    osascript -e "tell application \"System Events\" to set frontmost of every process whose unix id is $pid to true"
+end
