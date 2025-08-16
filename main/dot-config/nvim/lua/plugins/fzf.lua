@@ -1,6 +1,6 @@
 return {
     "ibhagwan/fzf-lua",
-    dependencies = { 'vim-projectionist' },
+    dependencies = { 'vim-projectionist', "subnut/nvim-ghost.nvim" },
     keys = {
         {"<c-p>", mode = {"n", "v"}},
         {"<c-t>", mode = {"n", "v"}},

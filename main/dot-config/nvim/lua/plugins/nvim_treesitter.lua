@@ -101,6 +101,7 @@ return {
                             -- ["[,"] = "@parameter.outer",
                             ["[m"] = "@function.outer",
                             ["[["] = "@class.outer",
+                            ["[z"] = { query = "@fold", query_group = "folds", desc = "Prev fold" },
                         },
                         goto_previous_end = {
                             ["[M"] = "@function.outer",

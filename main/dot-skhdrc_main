@@ -163,6 +163,17 @@ service < ctrl + alt + cmd - e : skhd -k "escape"; if pgrep -q -F "$TMPDIR/nvim_
         rm "$TMPDIR/nvim_skhd.pid"; \
     end;
 
+service < ctrl + alt + cmd - v : skhd -k "escape"; if pgrep -q -F "$TMPDIR/nvim_ghost.pid"; \
+        display-message "Focus GHOST"; \
+        osascript -e "tell application \"System Events\" to set frontmost of every process whose unix id is $(cat "$TMPDIR/nvim_ghost.pid") to true" ; \
+    else; \
+        display-message "Start GHOST"; \
+        env NVIM_GHOST_ENABLE=1 neovide &; \
+        echo "$last_pid" > "$TMPDIR/nvim_ghost.pid"; \
+        wait; \
+        rm "$TMPDIR/nvim_ghost.pid"; \
+    end;
+
 # Service mode bindings
 service < ctrl + alt + cmd - space : skhd -k "escape"; yabai-preset focus-space recent
 # service < space : skhd -k "escape"; if test "$_YABAI_MRU" = chrome_tab; skhd -k "alt - q"; else; yabai -m window --focus recent || yabai-preset focus-space recent; end

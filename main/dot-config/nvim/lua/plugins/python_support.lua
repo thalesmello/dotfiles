@@ -18,6 +18,7 @@ return {
             'python-dotenv',
             'requests',
             'prompt_toolkit',
+            'simple-websocket-server',
         }
     end
 }
