@@ -21,7 +21,6 @@ return {
 
                vim.api.nvim_create_autocmd({ 'FileType' }, {
                   group = vim.api.nvim_create_augroup('GhostFiletype', { clear = true }),
-                  pattern = {"*"},
                   buffer = vim.api.nvim_get_current_buf(),
                   callback = function(ev)
                      vim.g.GHOST_LAST_FILETYPE = ev.match
