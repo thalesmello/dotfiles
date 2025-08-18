@@ -54,6 +54,16 @@ function chrome-preset
         # end
 
         or return 1
+    case "check-url"
+        set regex $argv[1]
+        set -e argv[1]
+
+        set json (env OUTPUT_FORMAT=json chrome-cli list links | string collect)
+        jq -ern --arg regex "$regex" --argjson json "$json" '
+        $json
+        | first(.tabs.[] | select(.url | test($regex)))
+        | .id'
+        or return 1
 
     case "focus-or-open-url"
         argparse fallback= profile= label= -- $argv
@@ -75,6 +85,28 @@ function chrome-preset
 
         chrome-preset focus-url "$regex"
         or chrome-preset open-url --newtab --profile="$_flag_profile" "$url"
+        or return 1
+    case "check-or-open-url"
+        argparse fallback= profile= label= -- $argv
+        or return 1
+
+        set regex $argv[1]
+        set -e argv[1]
+
+        if test -n "$_flag_fallback"
+            set url "$_flag_fallback"
+        else
+            set url "$regex"
+            set regex (string escape --style=regex "$regex")
+        end
+
+        if test -n "$_flag_label"
+            display-message "Check $_flag_label"
+        end
+
+        chrome-preset check-url "$regex"
+        or chrome-preset open-url --newtab --profile="$_flag_profile" "$url"
+        or return 1
 
     case focus-profile
         set profile $argv[1]

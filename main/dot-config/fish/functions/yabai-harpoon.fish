@@ -77,16 +77,17 @@ function yabai-harpoon
         jq -c --argjson "yabai_wins" "$yabai_wins" --argjson "chrome_tabs" "$chrome_tabs" '
             ($yabai_wins | map({({window: .id} | @base64): {title}}) | add) as $yabai_registry
             | ($chrome_tabs | .tabs | map({({chrome_tab: .id} | @base64): {title, tab_window_id: .windowId, url}}) | add) as $chrome_registry
-            | ($chrome_tabs | .tabs | map({(.url): {title, tab_window_id: .windowId, tab_id: .id, uuid: ({chrome_tab: .id} | @base64)}}) | add) as $chrome_urls
+            | ($chrome_tabs | .tabs | map({(.url): {title, tab_window_id: .windowId, tab_id: .id, uuid: ({chrome_tab: .id} | @base64), url: .url, type: "chrome_tab"}}) | add) as $chrome_urls
             | $yabai_registry + $chrome_registry as $registry
-            | try (. + (
-                    ($registry[.uuid]
-                        // if .type == "chrome_tab" then
-                            $chrome_urls[.url]
-                        else null end
-                        // error("not in registry"))
-                    | del(.[] | nulls)))
-                catch {type: "window_not_found"}
+            | try (. + ($registry[.uuid] // $chrome_urls[.url]? // error(.)))
+                catch try (
+                        if .type == "chrome_tab" then
+                            {"uuid": .url, type: "chrome_search_tab"}
+                        elif .type == "chrome_search_tab" then
+                            $chrome_urls[.uuid] // .
+                        else error(.) end
+                    )
+                    catch {type: "window_not_found"}
             '
     end
 end

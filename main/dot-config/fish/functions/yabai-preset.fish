@@ -396,6 +396,11 @@ function yabai-preset
         if jq -en --argjson type "$type" '$type == "chrome_tab"' >/dev/null
             chrome-cli activate -t "$(jq -nr --argjson json "$json" '$json.tab_id')"
             and chrome-preset focus-window "$(jq -nr --argjson json "$json" '$json.tab_window_id')"
+            chrome-preset check-or-open-url "$(jq -nr --argjson json "$json" '$json.url')"
+            or set has_failed 1
+        else if jq -en --argjson type "$type" '$type == "chrome_search_tab"' >/dev/null
+            chrome-cli activate -t "$(jq -nr --argjson json "$json" '$json.tab_id')"
+            and chrome-preset focus-or-open-url "$(jq -nr --argjson json "$json" '$json.uuid')"
             or set has_failed 1
         else if jq -en --argjson type "$type" '$type == "window"' >/dev/null
             yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
