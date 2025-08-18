@@ -1,4 +1,4 @@
-set FILE "/tmp/yabai-harpoon.json"
+set FILE "$HOME/.yabai-harpoon.json"
 
 function yabai-harpoon
     set mode $argv[1]
