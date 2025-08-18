@@ -71,12 +71,21 @@ function yabai-harpoon
     case "write-pins-to-file"
         jq -s '{ pins: [. | to_entries | unique_by(.value.uuid) | sort_by(.key) | .[] | .value] }' > "$FILE"
     case "normalize-pins"
-        set yabai_wins (yabai -m query --windows | jq -c 'map({({window: .id} | @base64): {title}}) | add')
-        set chrome_tabs (env OUTPUT_FORMAT=json chrome-cli list tabs | jq -c '.tabs | map({({chrome_tab: .id} | @base64): {title, tab_window_id: .windowId}}) | add')
+        set yabai_wins (yabai -m query --windows | string collect)
+        set chrome_tabs (env OUTPUT_FORMAT=json chrome-cli list tabs | string collect)
 
         jq -c --argjson "yabai_wins" "$yabai_wins" --argjson "chrome_tabs" "$chrome_tabs" '
-            $yabai_wins + $chrome_tabs as $registry
-            | try ( . + (($registry[.uuid] // error("not in registry")) | del(.[] | nulls)) )
+            ($yabai_wins | map({({window: .id} | @base64): {title}}) | add) as $yabai_registry
+            | ($chrome_tabs | .tabs | map({({chrome_tab: .id} | @base64): {title, tab_window_id: .windowId, url}}) | add) as $chrome_registry
+            | ($chrome_tabs | .tabs | map({(.url): {title, tab_window_id: .windowId, tab_id: .id, uuid: ({chrome_tab: .id} | @base64)}}) | add) as $chrome_urls
+            | $yabai_registry + $chrome_registry as $registry
+            | try (. + (
+                    ($registry[.uuid]
+                        // if .type == "chrome_tab" then
+                            $chrome_urls[.url]
+                        else null end
+                        // error("not in registry"))
+                    | del(.[] | nulls)))
                 catch {type: "window_not_found"}
             '
     end
