@@ -9,6 +9,7 @@ return {
   dev = true,
   cond = vim.g.vscode ~= nil,
   dependencies = {'thalesmello/vim-flagship'},
+  event = "VeryLazy",
   config = function ()
     -- Load local configs first so that mappings can be overridden
     require('config/mappings')

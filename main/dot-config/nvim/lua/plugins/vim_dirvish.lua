@@ -1,12 +1,13 @@
 return {
     'justinmk/vim-dirvish',
     commit= '2e845b6352ff43b47be2b2725245a4cba3e34da1',
-    config = function()
-        vim.keymap.set("n", "-", function()
+    keys = {
+        {"-", function()
             return vim.fn.empty(vim.fn.expand("%")) == 1 and "<cmd>Dirvish<cr>" or "<cmd>Dirvish %:h<cr>"
-        end, { expr = true, noremap = true })
-
-
+        end, mode = "n", expr = true, noremap = true}
+    },
+    cmd = "Dirvish",
+    config = function()
         local group = vim.api.nvim_create_augroup("DirvishGroup", {
             clear = true
         })
