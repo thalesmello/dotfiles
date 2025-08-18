@@ -62,35 +62,14 @@ return {
                 local function repeatable_goto_ai(opts)
                     local ai = opts.ai or 'a'
                     local direction = opts.direction
-                    -- local cover_or_nextlast = opts.cover_or_nextlast
                     local left_sm, right_sm = unpack(opts.search_method_pair or {"cover_or_prev", "cover_or_next"})
                     local ok, char = pcall(vim.fn.getcharstr)
                     if not ok or char == '\27' then return nil end
                     local moveLeft, moveRight = ts_repeat_move.make_repeatable_move_pair(
                         function ()
-                            -- if cover_or_nextlast then
-                            --     local old_pos = vim.fn.getpos('.')
-                            --     mini_ai.move_cursor('left', ai, char, {search_method="cover_or_prev"})
-                            --     local new_pos = vim.fn.getpos('.')
-                            --
-                            --     if not vim.deep_equal(old_pos, new_pos) then
-                            --         return
-                            --     end
-                            -- end
-
                             mini_ai.move_cursor('left', ai, char, {search_method=left_sm})
                         end,
                         function ()
-                            -- if cover_or_nextlast then
-                            --     local old_pos = vim.fn.getpos('.')
-                            --     mini_ai.move_cursor('right', ai, char, {search_method="cover_or_next"})
-                            --     local new_pos = vim.fn.getpos('.')
-                            --
-                            --     if not vim.deep_equal(old_pos, new_pos) then
-                            --         return
-                            --     end
-                            -- end
-
                             mini_ai.move_cursor('right', ai, char, {search_method=right_sm})
                         end
                     )
@@ -143,31 +122,47 @@ return {
                     return MiniMove("right", "a")
                 end, { remap = true, expr = true })
 
-                -- local function arroundinner(mode)
-                --     local ok, char = pcall(vim.fn.getcharstr)
-                --     if not ok or char == '\27' then return nil end
-                --
-                --     local command
-                --     if mode == "i" then
-                --         command = "<Plug>(mini-ai-inner)"
-                --     else
-                --         command = "<Plug>(mini-ai-around)"
-                --     end
-                --
-                --     local repeatMove = ts_repeat_move.make_repeatable_move(
-                --         function ()
-                --             vim_utils.feedkeys(command .. char)
-                --         end
-                --     )
-                --
-                --     repeatMove({forward = true})
-                -- end
+                local function visual_ai(opts)
+                    local ai = opts.ai or 'a'
+                    local search_method = opts.search_method or "cover"
+                    local ok, char = pcall(vim.fn.getcharstr)
+                    if not ok or char == '\27' then return nil end
+                    local move, _ = ts_repeat_move.make_repeatable_move_pair(
+                        function ()
 
-                -- vim.keymap.set({ "x" }, "a", function () arroundinner("a") end, {remap=true})
-                -- vim.keymap.set({ "x" }, "i", function () arroundinner("i") end, {remap=true})
-                -- vim.keymap.set({ "o" }, "a", "<Plug>(mini-ai-around)", {remap=true})
-                -- vim.keymap.set({ "o" }, "i", "<Plug>(mini-ai-inner)", {remap=true})
+                            -- mini_ai.select_textobject(ai, char, {search_method=search_method})
 
+                            local left_reg, right_reg
+                            if vim.list_contains({'v', 'V', ''}, vim.api.nvim_get_mode().mode) then
+                                vim.cmd.normal({ args = {vim_utils.keycodes([[<c-\><c-n>gv]])}, bang = true })
+                                left_reg, right_reg = "'<", "'>"
+                            else
+                                left_reg, right_reg = ".", "."
+                            end
+
+                            local _, line, col = unpack(vim.fn.getpos(left_reg))
+                            local from = {line = line, col = col}
+                            _, line, col = unpack(vim.fn.getpos(right_reg))
+                            local to = {line = line, col = col}
+
+                            local reference_region = {from = from, to = to}
+
+                            local selection = mini_ai.find_textobject(ai, char, {search_method=search_method, reference_region=reference_region})
+
+                            if not selection then
+                                return
+                            end
+
+                            vim.fn.setpos("'<", {0, selection.from.line, selection.from.col, 0})
+                            vim.fn.setpos("'>", {0, selection.to.line, selection.to.col, 0})
+                            vim.cmd.normal({ args = {vim_utils.keycodes([[gv]])}, bang = true })
+                        end, function () end)
+
+                    move()
+                end
+
+                vim.keymap.set({ "x" }, "a", function () visual_ai({ ai = "a" }) end)
+                vim.keymap.set({ "x" }, "i", function () visual_ai({ ai = "i" }) end)
             end
 
             local function set_buffer_config(filetype)
