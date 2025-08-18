@@ -111,7 +111,7 @@ function chrome-preset
         set tab_id $argv[1]
         set -e argv[1]
 
-        set json (env OUTPUT_FORMAT=json chrome-preset info -t "$tab_id" | string collect)
+        set json (env OUTPUT_FORMAT=json chrome-cli info -t "$tab_id" | string collect)
 
         test -z "$json"; and return 1
 
