@@ -107,6 +107,15 @@ function chrome-preset
         chrome-preset check-url "$regex"
         or chrome-preset open-url --newtab --profile="$_flag_profile" "$url"
         or return 1
+    case "check-tab-id"
+        set tab_id $argv[1]
+        set -e argv[1]
+
+        set json (env OUTPUT_FORMAT=json chrome-preset info -t "$tab_id" | string collect)
+
+        test -z "$json"; and return 1
+
+        echo "$json"
 
     case focus-profile
         set profile $argv[1]
