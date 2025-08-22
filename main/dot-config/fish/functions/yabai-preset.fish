@@ -525,6 +525,10 @@ function yabai-preset
         set winid $argv[1]; set -e argv[1]
         yabai -m query --windows --window | jq -r '.id, ."stack-index", ."has-fullscreen-zoom"' | read --line id stack_index has_zoom
 
+        if test -z "$id" -o -z "$stack_index"
+            return
+        end
+
         if yabai-preset is-window-floating
             echo "float"
         else if test "$stack_index" -gt 0

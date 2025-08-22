@@ -15,7 +15,7 @@ ITEM_DIR="$CONFIG_DIR/items"
 # If you are looking for other colors, see the color picker:
 # https://felixkratz.github.io/SketchyBar/config/tricks#color-picker
 
-sketchybar --bar position=top height=30 blur_radius=30 color=0x40000000
+sketchybar --bar position=top {height,notch_display_height}=32 blur_radius=30 color=0x40000000 y_offset=-38
 
 ##### Changing Defaults #####
 # We now change some default values, which are applied to all further items.
