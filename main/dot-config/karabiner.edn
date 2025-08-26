@@ -122,8 +122,8 @@
         :des "Workflow Enhancement Shortcuts"
         :rules [
             ; App specific shortcuts are applied first
-            [:##left_option :##left_option :chrome {:alone :!Oq}]
-            [:##left_option :##left_option :vscode {:alone [{:key :left_control :held_down_ms 100} :!Ttab]}]
+            [:##left_option :##left_option [["option-pressed-once" 1] :chrome] {:alone :!Oq :afterup ["option-pressed-once" 0]}]
+            [:##left_option :##left_option [["option-pressed-once" 1] :chrome] {:alone [{:key :left_control :held_down_ms 100} :!Ttab] :afterup ["option-pressed-once" 0]}]
             ; Navigate back on vscode
             [{:pkey :button4} :button4 :vscode {:alone :!Thyphen}]
             [:!E#R1 :!TOC1]
@@ -135,25 +135,20 @@
             [:!E#R7 :!TOC7]
             [:!E#R8 :!TOC8]
             [:right_command :right_option nil {:alone [["hyper-layer" 1] [:noti :hyper-hud "Hyper-layer Active"]]}]
-            [:right_option :right_option nil {:alone [:!Ctab :!Ctab]}]
-            [:right_control :right_control nil {:alone [:!Ctab :!Ctab]}]
             ; Switch back to the last used app.  F18 is configured in BTT
-            [:##left_shift :##left_shift nil {:alone :f18}]
+            [:##left_shift :##left_shift ["shift-pressed-once" 1] {:alone :f18 :afterup ["shift-pressed-once" 0]}]
+            [:##left_shift [["shift-pressed-once" 1] :##left_shift] nil {:delayed {:invoked ["shift-pressed-once" 0] :canceled ["shift-pressed-once" 0]}}]
             [{:pkey :button5} :button5 nil {:alone :f18}]
-            [:##left_option :##left_option nil {:alone :!Cgrave_accent_and_tilde}]
-            [:##left_control :##left_control nil {:alone :!TOCslash}]
-            [:##left_command :##left_command nil {:alone :!TOc}]
+            [:##left_option :##left_option ["option-pressed-once" 1] {:alone :!Cgrave_accent_and_tilde :afterup ["option-pressed-once" 0]}]
+            [:##left_option [["option-pressed-once" 1] :##left_option] nil {:delayed {:invoked ["option-pressed-once" 0] :canceled ["option-pressed-once" 0]}}]
+            [:##left_control :##left_control ["control-pressed-once" 1] {:alone :!TOCslash :afterup ["control-pressed-once" 0]}]
+            [:##left_control [["control-pressed-once" 1] :##left_control] nil {:delayed {:invoked ["control-pressed-once" 0] :canceled ["control-pressed-once" 0]}}]
+            [:##left_command :##left_command ["command-pressed-once" 1] {:alone :!TOc :afterup ["command-pressed-once" 0]}]
+            [:##left_command [["command-pressed-once" 1] :##left_command] nil {:delayed {:invoked ["command-pressed-once" 0] :canceled ["command-pressed-once" 0]}}]
+            [:!Cq nil ["command-q-once" 1] {:alone :!Cq :afterup ["command-q-once" 0]}]
+            [:!Cq ["command-q-once" 1] nil {:delayed {:invoked ["command-q-once" 0] :canceled ["command-q-once" 0]}}]
             ; opens mouseless
             [:##right_shift :right_shift nil {:alone :f13 :params {:alone 150}}]
-
-            ; [:right_shift [["shift-pressed-once" 0] :!Cf13] ["shift-pressed-once" 1]]
-            ; [:##right_shift
-               ;  {:key :##right_shift :lazy true :halt true}
-               ;  ["shift-pressed-once" 0]
-               ;  {
-                   ;   :afterup {:invoked [["shift-pressed-once" 0] :f13] :canceled ["shift-pressed-once" 0]}
-                   ;   :held ["shift-pressed-once" 1]
-                   ;   :params {:delay 200 :held 200 :alone 200}}]
             ]
     }
 
