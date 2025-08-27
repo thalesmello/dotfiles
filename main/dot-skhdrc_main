@@ -78,7 +78,7 @@
 
 
 ctrl + alt + cmd - 0x29 : skhd-preset search-and-execute-command
-ctrl + alt + cmd + shift - m : yabai -m window --deminimize "$(yabai -m query --windows | jq 'map(select(."is-minimized")) | first | .id')"
+ctrl + alt + cmd + shift - m : yabai-preset deminimize-last
 ctrl + alt + cmd - m : yabai -m window --minimize
 ctrl + alt + cmd - return : if yabai-preset is-window-floating; \
         yabai-preset toggle-window-zoom-or-fullscreen; \
@@ -192,9 +192,10 @@ service < z :  skhd -k "escape"; yabai -m window --insert stack # comma
 service < s ; stack
 service < shift - s : skhd -k "escape"; yabai-preset stack-windows-in-space
 service < m : skhd -k "escape"; yabai-preset toggle-monocle-mode
+service < shift - m : skhd -k "escape"; yabai-preset deminimize-all
 service < 0x2B : skhd -k "escape"; yabai -m space --layout stack; display-message "Laybout stack" # Comma
 service < shift - 0x2B : skhd -k "escape"; yabai -m space --layout bsp; yabai-preset stack-windows-in-space;# Comma
-service < 0x2F : skhd -k "escape"; yabai -m space --layout bsp; yabai-preset stack-after-nth-window 3 # Period
+service < 0x2F : skhd -k "escape"; yabai -m space --layout bsp; yabai-preset hide-after-nth-window 3 # Period
 service < shift - 0x2F : skhd -k "escape"; yabai -m space --layout bsp; display-message "Laybout bsp"
 service < 0 : skhd -k "escape"; yabai -m space --layout float; display-message "Laybout float"
 # Temporaily disable window restore to debug later

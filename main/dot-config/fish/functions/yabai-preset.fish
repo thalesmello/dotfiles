@@ -306,7 +306,6 @@ function yabai-preset
         set nth $argv[1]
         set -e argv[1]
 
-        echo $nth
         set windows (yabai -m query --windows --space | jq -er --argjson nth "$nth" '.
             | map(select(."is-visible" and (."is-sticky"|not)))
             | .[$nth-1:]
@@ -315,6 +314,44 @@ function yabai-preset
         set nth_window $windows[1]
         yabai -m window "$nth_window" (printf "--stack\n%s\n" $windows[2..])
         display-message "$(count $windows) windows stacked"
+    case "minimize-after-nth-window"
+        set nth $argv[1]
+        set -e argv[1]
+
+        set windows (yabai -m query --windows --space | jq -er --argjson nth "$nth" '.
+            | map(select(."is-visible" and (."is-sticky"|not)))
+            | .[$nth:]
+            | .[].id')
+
+        for window in $windows
+            yabai -m window "$window" --minimize
+        end
+
+        display-message "$(count $windows) windows minimized"
+    case "deminimize-last"
+        yabai -m window --deminimize "$(yabai -m query --windows | jq 'map(select(."is-minimized")) | first | .id')"
+    case "deminimize-all"
+        set minimized (yabai -m query --windows | jq -er 'map(select(."is-minimized")) | .[].id')
+
+        for window in $minimized
+            yabai -m window --deminimize "$window"
+        end
+    case "hide-after-nth-window"
+        set nth $argv[1]
+        set -e argv[1]
+
+        set apps (yabai -m query --windows --space | jq -er --argjson nth "$nth" '.
+            | map(select(."is-visible" and (."is-sticky"|not)))
+            | (.[:$nth-1] | map(.app) | unique) as $seen_apps
+            | .[$nth:]
+            | map(.app) - $seen_apps
+            | .[]')
+
+        for app in $apps
+            osascript -e "tell application \"System Events\" to set visible of process \"$app\" to false"
+        end
+
+        display-message "$(count $apps) apps hidden"
     case "unstack-window"
         set direction $argv[1]
         set -e argv[1]
