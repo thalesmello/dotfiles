@@ -19,18 +19,33 @@ return {
                   vim.o.filetype = vim.g.GHOST_LAST_FILETYPE
                end
 
+               local group = vim.api.nvim_create_augroup('GhostBufAutocmd', { clear = true })
+
                vim.api.nvim_create_autocmd({ 'FileType' }, {
-                  group = vim.api.nvim_create_augroup('GhostFiletype', { clear = true }),
+                  group = group,
                   buffer = vim.api.nvim_get_current_buf(),
-                  callback = function(ev)
-                     vim.g.GHOST_LAST_FILETYPE = ev.match
+                  callback = function(e)
+                     vim.g.GHOST_LAST_FILETYPE = e.match
+                  end,
+               })
+
+               vim.api.nvim_create_autocmd({ 'BufWinLeave' }, {
+                  group = group,
+                  buffer = vim.api.nvim_get_current_buf(),
+                  callback = function()
+                     vim.print("Batman")
+                     vim.system({
+                        "fish",
+                        "-c",
+                        [[yabai-preset minimize-pid "$(cat "$TMPDIR/nvim_ghost.pid")"]]
+                     }, {text=true})
                   end,
                })
 
                vim.system({
                   "fish",
                   "-c",
-                  [[osascript -e "tell application \"System Events\" to set frontmost of every process whose unix id is $(cat "$TMPDIR/nvim_ghost.pid") to true"]]
+                  [[yabai-preset focus-pid "$(cat "$TMPDIR/nvim_ghost.pid")"]]
                }, {text=true})
             end,
          })
