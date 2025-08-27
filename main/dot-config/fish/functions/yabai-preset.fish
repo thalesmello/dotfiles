@@ -600,6 +600,20 @@ function yabai-preset
             yabai -m window --focus "$pending_stack_id"
             yabai -m window --focus "$focus_id"
         end
+    case "focus-pid"
+        set pid $argv[1]
+        set -e argv[1]
+
+        echo pid $pid
+        yabai -m query --windows \
+        | jq -re --argjson pid "$pid" '.
+        | first(.[] | select(.pid == $pid))
+        | .id
+        ' \
+        | read --line window
+        or return 1
+
+        yabai -m window "$window" --focus
     case "*"
         return 1
     end

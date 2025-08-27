@@ -154,7 +154,7 @@ ctrl + alt + cmd - space ; service
 # If PID file exists and has a running process, focus window instead of creating a new one
 service < ctrl + alt + cmd - e : skhd -k "escape"; if pgrep -q -F "$TMPDIR/nvim_skhd.pid"; \
         display-message "Focus SKHD"; \
-        osascript -e "tell application \"System Events\" to set frontmost of every process whose unix id is $(cat "$TMPDIR/nvim_skhd.pid") to true" ; \
+        yabai-preset focus-pid "$(cat "$TMPDIR/nvim_skhd.pid")" ; \
     else; \
         display-message "Edit SKHD"; \
         neovide "$HOME/.skhdrc_main" &; \
@@ -165,7 +165,7 @@ service < ctrl + alt + cmd - e : skhd -k "escape"; if pgrep -q -F "$TMPDIR/nvim_
 
 service < ctrl + alt + cmd - v : skhd -k "escape"; if pgrep -q -F "$TMPDIR/nvim_ghost.pid"; \
         display-message "Focus GHOST"; \
-        osascript -e "tell application \"System Events\" to set frontmost of every process whose unix id is $(cat "$TMPDIR/nvim_ghost.pid") to true" ; \
+        yabai-preset focus-pid "$(cat "$TMPDIR/nvim_ghost.pid")" ; \
     else; \
         display-message "Start GHOST"; \
         env NVIM_GHOST_ENABLE=1 neovide &; \
