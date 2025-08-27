@@ -80,7 +80,7 @@
 ctrl + alt + cmd - 0x29 : skhd-preset search-and-execute-command
 ctrl + alt + cmd + shift - m : yabai-preset deminimize-last
 ctrl + alt + cmd - m : yabai -m window --minimize
-ctrl + alt + cmd - return : iterm-preset new-window
+ctrl + alt + cmd - return : yabai-preset smart-toggle-fullscreen
 
 ctrl + alt + cmd + shift - return : yabai-preset unstacked-swap-largest
 
@@ -236,11 +236,6 @@ service < ctrl + alt + cmd - 0x2C : skhd -k "escape"; skhd-preset search-and-dis
 
 service < ctrl + alt + cmd - v : skhd -k "escape"; btt-preset trigger-menu-bar 'Window;Full Screen Tile; Left of Screen'
 service < ctrl + alt + cmd - return : skhd -k "escape" ; btt-preset send-keys ctrl cmd f
-service < return : skhd -k "escape"; if yabai-preset is-window-floating; \
-        yabai-preset toggle-window-zoom-or-fullscreen; \
-    else; \
-        yabai-preset toggle-monocle-mode; \
-    end;
 
 
 
@@ -260,6 +255,7 @@ invoke < p : skhd -k "escape"; yabai-preset arrange-spaces \
 invoke < b : skhd -k "escape"; osascript -e 'tell application "Alfred" to search "btt "'
 invoke < t : skhd -k "escape"; osascript -e 'tell application "Alfred" to search "top "'
 invoke < y : skhd -k "escape"; open 'raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D'
+invoke < return : skhd -k "escape"; iterm-preset new-window
 
 
 service < c ; chrome

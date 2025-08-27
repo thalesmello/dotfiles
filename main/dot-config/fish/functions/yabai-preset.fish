@@ -527,6 +527,12 @@ function yabai-preset
             echo window "$window"
             yabai -m window "$window" --toggle zoom-fullscreen
         end
+    case "smart-toggle-fullscreen"
+        if yabai-preset is-window-floating
+            yabai-preset toggle-window-zoom-or-fullscreen
+        else
+            yabai-preset toggle-monocle-mode
+        end
     case "toggle-yabai"
         yabai --stop-service
         and display-message "Yabai Stopped"
