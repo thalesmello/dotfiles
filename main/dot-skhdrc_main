@@ -80,11 +80,7 @@
 ctrl + alt + cmd - 0x29 : skhd-preset search-and-execute-command
 ctrl + alt + cmd + shift - m : yabai-preset deminimize-last
 ctrl + alt + cmd - m : yabai -m window --minimize
-ctrl + alt + cmd - return : if yabai-preset is-window-floating; \
-        yabai-preset toggle-window-zoom-or-fullscreen; \
-    else; \
-        yabai-preset toggle-monocle-mode; \
-    end;
+ctrl + alt + cmd - return : iterm-preset new-window
 
 ctrl + alt + cmd + shift - return : yabai-preset unstacked-swap-largest
 
@@ -157,7 +153,7 @@ service < ctrl + alt + cmd - e : skhd -k "escape"; if pgrep -q -F "$TMPDIR/nvim_
         yabai-preset focus-pid "$(cat "$TMPDIR/nvim_skhd.pid")" ; \
     else; \
         display-message "Edit SKHD"; \
-        neovide "$HOME/.skhdrc_main" &; \
+        neovide --frame buttonless "$HOME/.skhdrc_main" &; \
         echo "$last_pid" > "$TMPDIR/nvim_skhd.pid"; \
         wait; \
         rm "$TMPDIR/nvim_skhd.pid"; \
@@ -168,7 +164,7 @@ service < ctrl + alt + cmd - v : skhd -k "escape"; if pgrep -q -F "$TMPDIR/nvim_
         yabai-preset focus-pid "$(cat "$TMPDIR/nvim_ghost.pid")" ; \
     else; \
         display-message "Start GHOST"; \
-        env NVIM_GHOST_ENABLE=1 neovide &; \
+        env NVIM_GHOST_ENABLE=1 neovide --frame buttonless &; \
         echo "$last_pid" > "$TMPDIR/nvim_ghost.pid"; \
         wait; \
         rm "$TMPDIR/nvim_ghost.pid"; \
@@ -240,6 +236,11 @@ service < ctrl + alt + cmd - 0x2C : skhd -k "escape"; skhd-preset search-and-dis
 
 service < ctrl + alt + cmd - v : skhd -k "escape"; btt-preset trigger-menu-bar 'Window;Full Screen Tile; Left of Screen'
 service < ctrl + alt + cmd - return : skhd -k "escape" ; btt-preset send-keys ctrl cmd f
+service < return : skhd -k "return"; if yabai-preset is-window-floating; \
+        yabai-preset toggle-window-zoom-or-fullscreen; \
+    else; \
+        yabai-preset toggle-monocle-mode; \
+    end;
 
 
 
