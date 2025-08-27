@@ -33,7 +33,6 @@ return {
                   group = group,
                   buffer = vim.api.nvim_get_current_buf(),
                   callback = function()
-                     vim.print("Batman")
                      vim.system({
                         "fish",
                         "-c",
