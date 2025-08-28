@@ -127,13 +127,15 @@ return {
                     local search_method = opts.search_method or "cover"
                     local ok, char = pcall(vim.fn.getcharstr)
                     if not ok or char == '\27' then return nil end
+                    local history = {}
                     local move, _ = ts_repeat_move.make_repeatable_move_pair(
                         function ()
 
                             -- mini_ai.select_textobject(ai, char, {search_method=search_method})
 
                             local left_reg, right_reg
-                            if vim.list_contains({'v', 'V', ''}, vim.api.nvim_get_mode().mode) then
+                            local is_visual_mode = vim.list_contains({'v', 'V', ''}, vim.api.nvim_get_mode().mode)
+                            if is_visual_mode then
                                 vim.cmd.normal({ args = {vim_utils.keycodes([[<c-\><c-n>gv]])}, bang = true })
                                 left_reg, right_reg = "'<", "'>"
                             else
@@ -147,7 +149,23 @@ return {
 
                             local reference_region = {from = from, to = to}
 
+                            table.insert(history, reference_region)
+
                             local selection = mini_ai.find_textobject(ai, char, {search_method=search_method, reference_region=reference_region})
+
+                            if not selection then
+                                if is_visual_mode and not vim.tbl_get(vim.b.miniai_config or {}, 'custom_textobjects', char) then
+                                    vim_utils.feedkeys(ai .. char)
+                                end
+                                return
+                            end
+
+                            vim.fn.setpos("'<", {0, selection.from.line, selection.from.col, 0})
+                            vim.fn.setpos("'>", {0, selection.to.line, selection.to.col, 0})
+                            vim.cmd.normal({ args = {vim_utils.keycodes([[gv]])}, bang = true })
+                        end,
+                        function ()
+                            local selection = table.remove(history)
 
                             if not selection then
                                 return
@@ -156,7 +174,7 @@ return {
                             vim.fn.setpos("'<", {0, selection.from.line, selection.from.col, 0})
                             vim.fn.setpos("'>", {0, selection.to.line, selection.to.col, 0})
                             vim.cmd.normal({ args = {vim_utils.keycodes([[gv]])}, bang = true })
-                        end, function () end)
+                        end)
 
                     move()
                 end
