@@ -149,16 +149,17 @@ return {
 
                             local reference_region = {from = from, to = to}
 
-                            table.insert(history, reference_region)
-
                             local selection = mini_ai.find_textobject(ai, char, {search_method=search_method, reference_region=reference_region})
 
                             if not selection then
                                 if is_visual_mode and not vim.tbl_get(vim.b.miniai_config or {}, 'custom_textobjects', char) then
+                                    table.insert(history, reference_region)
                                     vim_utils.feedkeys(ai .. char)
                                 end
                                 return
                             end
+
+                            table.insert(history, reference_region)
 
                             vim.fn.setpos("'<", {0, selection.from.line, selection.from.col, 0})
                             vim.fn.setpos("'>", {0, selection.to.line, selection.to.col, 0})
