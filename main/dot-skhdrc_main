@@ -177,7 +177,7 @@ service < space : skhd -k "escape"; yabai -m window --focus recent || yabai-pres
 service < shift - space : skhd -k "escape"; yabai-preset move-window-to-space recent
 service < r ; resize
 service < shift - r : skhd -k "escape"; yabai --stop-service && yabai --start-service && display-message "Yabai Restarted" || begin; yabai --start-service && display-message "Yabai Started"; end
-service < y : skhd -k "escape"; yabai-preset toggle-yabai
+service < shift - y : skhd -k "escape"; yabai-preset toggle-yabai
 service < v : skhd -k "escape"; yabai -m window --insert east
 service < shift - 0x27 : skhd -k "escape"; yabai -m window --insert south # double quotes
 # Temporaily disable window restore to debug later
@@ -199,9 +199,10 @@ service < 0 : skhd -k "escape"; yabai -m space --layout float; display-message "
 
 service < shift - 0x2A : skhd -k "escape"; yabai -m space --mirror y-axis # Pipe |
 service < 0x1B : skhd -k "escape"; yabai -m space --mirror x-axis # minus
+service < shift - 5 : skhd -k "escape"; yabai -m space --mirror x-axis --mirror y-axis # percent
 service < shift - 0x2B : skhd -k "escape"; yabai -m space --rotate 90 # Comma
 service < shift - 0x2F : skhd -k "escape"; yabai -m space --rotate 270 # Period
-service < q : skhd -k "escape"; yabai -m window --toggle split
+service < y : skhd -k "escape"; yabai -m window --toggle split
 service < 0x18 : skhd -k "escape"; yabai -m space --balance # equals
 # move window to space with number
 service < 1 : skhd -k "escape"; yabai-preset focus-space 1
