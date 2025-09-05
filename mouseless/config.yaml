@@ -291,7 +291,7 @@ keymaps:
     - F13
     - Command+Tab
     hold for back button: null
-    hold for drag: ControlLeft
+    hold for drag: Shift+ControlLeft
     hold for forward button: null
     hold for middle button: CommandLeft
     hold for move: ShiftLeft
@@ -335,7 +335,7 @@ keymaps:
     toggle continuous mode until closed: null
     toggle free mode: F14
     toggle overlay: null
-    toggle overlay lock: Ctrl+F13
+    toggle overlay lock: ControlLeft
     undo last key:
     - Escape
     - ShiftLeft tap
