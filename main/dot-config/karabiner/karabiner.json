@@ -1658,6 +1658,8 @@
             }
           },
           "to" : [ {
+            "shell_command" : "/opt/homebrew/bin/fish -c 'display-message \"Double press Cmd+Q to Quit\"'"
+          }, {
             "set_variable" : {
               "name" : "command-q-once",
               "value" : 1

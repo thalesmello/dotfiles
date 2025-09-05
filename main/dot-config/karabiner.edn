@@ -29,6 +29,7 @@
 
 ;; you can create templates for running shell commands. These follow clojure string template syntax.
 :templates {
+    :msg "/opt/homebrew/bin/fish -c 'display-message \"%s\"'"
     :open "open \"%s\""
     :open-app "open -a \"%s\""
     :btt-named "/opt/homebrew/bin/fish -c 'btt-preset trigger-named-trigger \"%s\"'"
@@ -146,7 +147,7 @@
             [:##left_command :##left_command ["command-pressed-once" 1] {:alone :!TOc :afterup ["command-pressed-once" 0]}]
             [:##left_command [["command-pressed-once" 1] :##left_command] nil {:delayed {:invoked ["command-pressed-once" 0] :canceled ["command-pressed-once" 0]}}]
             [:!Cq nil ["command-q-once" 1] {:alone :!Cq :afterup ["command-q-once" 0]}]
-            [:!Cq ["command-q-once" 1] nil {:delayed {:invoked ["command-q-once" 0] :canceled ["command-q-once" 0]}}]
+            [:!Cq [[:msg "Double press Cmd+Q to Quit"] ["command-q-once" 1]] nil {:delayed {:invoked ["command-q-once" 0] :canceled ["command-q-once" 0]}}]
             ; opens mouseless
             [:##right_shift :right_shift nil {:alone :f13 :params {:alone 150}}]
             ]
