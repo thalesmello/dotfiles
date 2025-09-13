@@ -1182,8 +1182,7 @@
         "description" : "Workflow Enhancement Shortcuts",
         "manipulators" : [ {
           "to_if_alone" : [ {
-            "key_code" : "q",
-            "modifiers" : [ "left_option" ]
+            "shell_command" : "/opt/homebrew/bin/fish -c \"skhd -k 'cmd+shift-a'; skhd -k 'return'\""
           } ],
           "to_after_key_up" : [ {
             "set_variable" : {

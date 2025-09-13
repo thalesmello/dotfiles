@@ -30,10 +30,11 @@
 ;; you can create templates for running shell commands. These follow clojure string template syntax.
 :templates {
     :msg "/opt/homebrew/bin/fish -c 'display-message \"%s\"'"
+    :skhd "/opt/homebrew/bin/fish -c 'skhd -k \"%s\"'"
     :open "open \"%s\""
     :open-app "open -a \"%s\""
     :btt-named "/opt/homebrew/bin/fish -c 'btt-preset trigger-named-trigger \"%s\"'"
-    :fish "/opt/homebrew/bin/fish fish -c \"%s\""
+    :fish "/opt/homebrew/bin/fish -c \"%s\""
     :delayed-set "sleep \"%s\"; karabiner_cli --set-variables '{%s: %s}'"
     ; :alfred "osascript -e 'tell application id \"com.runningwithcrayons.Alfred\" to run trigger \"%s\" in workflow \"%s\" with argument \"%s\"'"
 }
@@ -123,7 +124,8 @@
         :des "Workflow Enhancement Shortcuts"
         :rules [
             ; App specific shortcuts are applied first
-            [:##left_option :##left_option [["option-pressed-once" 1] :chrome] {:alone :!Oq :afterup ["option-pressed-once" 0]}]
+            ; [:##left_option :##left_option [["option-pressed-once" 1] :chrome] {:alone [:!CSa {:key :vk_none :held_down_ms 100} :down_arrow {:key :vk_none :held_down_ms 100} :return_or_enter] :afterup ["option-pressed-once" 0]}]
+            [:##left_option :##left_option [["option-pressed-once" 1] :chrome] {:alone [:fish "skhd -k 'cmd+shift-a'; skhd -k 'return'"] :afterup ["option-pressed-once" 0]}]
             [:##left_option :##left_option [["option-pressed-once" 1] :chrome] {:alone [{:key :left_control :held_down_ms 100} :!Ttab] :afterup ["option-pressed-once" 0]}]
             ; Navigate back on vscode
             [{:pkey :button4} :button4 :vscode {:alone :!Thyphen}]
