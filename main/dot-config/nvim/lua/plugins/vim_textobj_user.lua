@@ -55,13 +55,14 @@ return {
     },
     {
         'coderifous/textobj-word-column.vim',
-        enabled = false,
+        enabled = true,
         init = function()
             vim.g.skip_default_textobj_word_column_mappings = 1
-            vim.keymap.set({ "o", "x" }, 'ak', ':<C-u>call TextObjWordBasedColumn("aw")<cr>', { noremap = true })
-            vim.keymap.set({ "o", "x" }, 'aK', ':<C-u>call TextObjWordBasedColumn("aW")<cr>', { noremap = true })
-            vim.keymap.set({ "o", "x" }, 'ik', ':<C-u>call TextObjWordBasedColumn("iw")<cr>', { noremap = true })
-            vim.keymap.set({ "o", "x" }, 'iK', ':<C-u>call TextObjWordBasedColumn("iW")<cr>', { noremap = true })
+            vim.g.textobj_word_column_no_smart_boundary_cols = 1
+            vim.keymap.set({ "o", "x" }, 'ac', ':<C-u>call TextObjWordBasedColumn("aw")<cr>', { noremap = true })
+            vim.keymap.set({ "o", "x" }, 'aC', ':<C-u>call TextObjWordBasedColumn("aW")<cr>', { noremap = true })
+            vim.keymap.set({ "o", "x" }, 'ic', ':<C-u>call TextObjWordBasedColumn("iw")<cr>', { noremap = true })
+            vim.keymap.set({ "o", "x" }, 'iC', ':<C-u>call TextObjWordBasedColumn("iW")<cr>', { noremap = true })
         end,
         extra_contexts = {"vscode", "firenvim"}
     },
@@ -92,8 +93,8 @@ return {
             -- { "a|", '<cmd>lua require("various-textobjs").column("both")<CR>', mode = { "o", "x" }},
             { "i;", '<cmd>lua require("various-textobjs").value("inner")<CR>', mode = { "o", "x" } },
             { "a;", '<cmd>lua require("various-textobjs").value("outer")<CR>', mode = { "o", "x" } },
-            { "ik", '<cmd>lua require("various-textobjs").key("inner")<CR>', mode = { "o", "x" } },
-            { "ak", '<cmd>lua require("various-textobjs").key("outer")<CR>', mode = { "o", "x" } },
+            -- { "ik", '<cmd>lua require("various-textobjs").key("inner")<CR>', mode = { "o", "x" } },
+            -- { "ak", '<cmd>lua require("various-textobjs").key("outer")<CR>', mode = { "o", "x" } },
             -- { "L", '<cmd>lua require("various-textobjs").url()<CR>', mode = { "o", "x" } },
             -- { "in", '<cmd>lua require("various-textobjs").number("inner")<CR>', mode = { "o", "x" } },
             -- { "an", '<cmd>lua require("various-textobjs").number("outer")<CR>', mode = { "o", "x" } },
