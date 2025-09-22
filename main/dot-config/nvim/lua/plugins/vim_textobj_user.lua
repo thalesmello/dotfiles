@@ -44,10 +44,11 @@ return {
                     vim.keymap.set("x", "],", "<Plug>Argumentative_XNext", { buffer = true, remap = true })
                     vim.keymap.set("n", "<,", "<Plug>Argumentative_MoveLeft", { buffer = true, remap = true })
                     vim.keymap.set("n", ">,", "<Plug>Argumentative_MoveRight", { buffer = true, remap = true })
-                    vim.keymap.set("x", "i,", "<Plug>Argumentative_InnerTextObject", { buffer = true, remap = true })
-                    vim.keymap.set("x", "a,", "<Plug>Argumentative_OuterTextObject", { buffer = true, remap = true })
-                    vim.keymap.set("o", "i,", "<Plug>Argumentative_OpPendingInnerTextObject", { buffer = true, remap = true })
-                    vim.keymap.set("o", "a,", "<Plug>Argumentative_OpPendingOuterTextObject", { buffer = true, remap = true })
+                    -- I'm moving to mini.ai argument definitions
+                    -- vim.keymap.set("x", "i,", "<Plug>Argumentative_InnerTextObject", { buffer = true, remap = true })
+                    -- vim.keymap.set("x", "a,", "<Plug>Argumentative_OuterTextObject", { buffer = true, remap = true })
+                    -- vim.keymap.set("o", "i,", "<Plug>Argumentative_OpPendingInnerTextObject", { buffer = true, remap = true })
+                    -- vim.keymap.set("o", "a,", "<Plug>Argumentative_OpPendingOuterTextObject", { buffer = true, remap = true })
                 end,
             })
         end,

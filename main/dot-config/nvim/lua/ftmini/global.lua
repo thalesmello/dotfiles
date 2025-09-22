@@ -2,6 +2,7 @@ local get_input = require('mini.surround').user_input
 local ts_input = require('mini.surround').gen_spec.input.treesitter
 local spec_pair = require('mini.ai').gen_spec.pair
 local spec_treesitter = require('mini.ai').gen_spec.treesitter
+local argument = require('mini.ai').gen_spec.argument
 
 return {
     custom_textobjects = {
@@ -26,6 +27,7 @@ return {
                 "^()%s*()%f[%a_][%a_%.]*(),?()$",
             },
         },
+        [","] = argument(),
         ["f"] = { '%f[%w_%.][%w_%.]+%b()', '^.-%(().*()%)$' },
         ["d"] = spec_treesitter({ a = "@function.outer", i = "@function.inner" }),
         -- [";"] = spec_treesitter({ a = "@pair.value", i = "" }),
