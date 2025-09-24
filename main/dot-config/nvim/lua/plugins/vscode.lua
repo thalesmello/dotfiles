@@ -100,6 +100,8 @@ return {
     vim.keymap.set("n", "<leader>ss", function () vscode.action('workbench.action.gotoSymbol') end)
     vim.keymap.set("n", "<leader><cr>", function () vscode.action('workbench.action.terminal.toggleTerminal') end)
     vim.keymap.set({"n", "v"}, "<tab>", function () vscode.action('editor.toggleFold') end)
+    vim.keymap.set({"n"}, "<c-o>", function () vscode.action('workbench.action.navigateBack') end)
+    vim.keymap.set({"n"}, "<c-i>", function () vscode.action('workbench.action.navigateForward') end)
     vim.keymap.set({"n", "v"}, "zc", function () vscode.action('editor.fold') end)
     vim.keymap.set({"n", "v"}, "zC", function () vscode.action('editor.foldRecursively') end)
     vim.keymap.set({"n"}, "zo", function () vscode.action('editor.unfold') end)
