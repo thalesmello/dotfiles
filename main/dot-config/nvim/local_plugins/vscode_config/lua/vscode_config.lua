@@ -45,6 +45,9 @@ function M.vscodeOpenFile(files)
             await vscode.workspace.fs.stat(fileUri);
             // File exists, so we open it
             await vscode.commands.executeCommand("vscode.open", fileUri)
+
+            // Exit execution because file was found
+            return
         } catch {
             // File doesn't exist, so we continue to the next one
         }
@@ -52,35 +55,46 @@ function M.vscodeOpenFile(files)
   ]], { args = { files = files }})
 end
 
-function M.vscodeGetProjection(file)
-  local projections = vim.g.vscode_projections or {}
-  for projection, config in pairs(projections) do
-    local capture_group_projection = vim.pesc(projection):gsub("%%%*", "(.-)")
-    local entity = file:match(capture_group_projection)
+function M.vscodeGetProjectionMatches(file)
+    local projections = vim.g.vscode_projections or {}
+    local matches = {}
 
-    if entity ~= nil then
-      return entity, config
+    for projection, config in pairs(projections) do
+        local capture_group_projection = vim.pesc(projection):gsub("%%%*", "(.-)")
+        local match = file:match(capture_group_projection)
+
+        if match ~= nil then
+            table.insert(matches, {match = match, config = config})
+        end
     end
-  end
 
-  return nil, nil
+    return matches
 end
 
 function M.vscodeAlternateFile()
-  local current_file = vim.fn.expand("%")
-  local entity, config = M.vscodeGetProjection(current_file)
+    local current_file = vim.fn.expand("%")
+    local matches = M.vscodeGetProjectionMatches(current_file)
 
-  if entity ~= nil and config ~= nil then
-    local alternate = config.alternate
+    local candidateFiles = {}
 
-    local files = vim.iter(alternate):map(function (item)
-      local str = item:gsub("{}", entity)
-      return str
-    end):totable()
+    for _, matchSet in ipairs(matches) do
+        local match = matchSet.match
+        local config = matchSet.config
+        if match ~= nil and config ~= nil then
+            local alternate = config.alternate
 
-    M.vscodeOpenFile(files)
-    return
-  end
+            local localCandidates = vim.iter(alternate):map(function (item)
+                local str = item:gsub("{}", match)
+                return str
+            end):totable()
+
+            vim.list_extend(candidateFiles, localCandidates)
+        end
+    end
+
+    if #candidateFiles > 0 then
+        M.vscodeOpenFile(candidateFiles)
+    end
 end
 
 function M.vscodeWorkspaceUri()
@@ -247,6 +261,42 @@ function M.performHalfScroll(opts)
 
     await SetNewActive(args.up)
   ]], {args = {up = opts.up}})
+end
+
+function M.makeProjections(relatedFiles)
+    local projections = {}
+
+    for _,files in ipairs(relatedFiles) do
+        local paths = vim.iter(files):map(function (x) return x.path end):totable()
+        for i,file in ipairs(files) do
+            local pattern = file.path:gsub("{}", "*")
+            if projections[pattern] == nil then
+                projections[pattern] = {
+                    type = file.type,
+                    temp_alternate_main = {},
+                    temp_alternate_fallback = {},
+                }
+            end
+
+            local projection = projections[pattern]
+
+
+            local localPaths = {}
+            vim.list_extend(localPaths, paths, i + 1)
+            vim.list_extend(localPaths, paths, 1, i - 1)
+
+            vim.list_extend(projection.temp_alternate_main, vim.list_slice(localPaths, 1, 1))
+            vim.list_extend(projection.temp_alternate_fallback, vim.list_slice(localPaths, 2))
+        end
+    end
+
+    for _, projection in pairs(projections) do
+        projection.alternate = vim.list.unique(vim.list_extend(projection.temp_alternate_main, projection.temp_alternate_fallback))
+        projection.temp_alternate_main = nil
+        projection.temp_alternate_fallback = nil
+    end
+
+    return projections
 end
 
 return M
