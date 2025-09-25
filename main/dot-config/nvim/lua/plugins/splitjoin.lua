@@ -8,12 +8,12 @@ return {
         end,
         keys = {
             {
-                "gS",
+                "<leader>gS",
                 function () vim.cmd.SplitjoinSplit() end,
                 mode = "n"
             },
             {
-                "gJ",
+                "<leader>gJ",
                 function () vim.cmd.SplitjoinJoin() end,
                 mode = "n",
             },
@@ -24,12 +24,12 @@ return {
     {
         'echasnovski/mini.splitjoin',
         version = '*',
-        keys = {"<leader>gS", "<leader>gJ"},
+        keys = {"gS", "gJ"},
         opts = {
             mappings = {
               toggle = '',
-              split = '<leader>gS',
-              join = '<leader>gJ',
+              split = 'gS',
+              join = 'gJ',
             },
         },
         extra_contexts = {"vscode", "firenvim"},
@@ -67,7 +67,7 @@ return {
             dot_repeat = true,
         },
         keys = {
-            {"gS",
+            {"<leader>gS",
                 function ()
                     if require('treesj.langs')['presets'][vim.bo.filetype] then
                         vim.cmd.TSJSplit()
@@ -77,7 +77,7 @@ return {
                 end,
                 mode = "n"},
             {
-                "gJ",
+                "<leader>gJ",
                 function ()
                     if require('treesj.langs')['presets'][vim.bo.filetype] then
                         vim.cmd.TSJJoin()
