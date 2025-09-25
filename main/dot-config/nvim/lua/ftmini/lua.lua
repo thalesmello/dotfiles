@@ -6,11 +6,11 @@ local spec_treesitter = require('mini.ai').gen_spec.treesitter
 
 return {
     custom_textobjects = {
-        ["q"] = { "%[=*%[().-()%]=*%]" },
-        ["Q"] = { "%[=*%[%s*().-()%s*%]=*%]" },
+        ["g"] = { "%[=*%[().-()%]=*%]" },
+        ["G"] = { "%[=*%[%s*().-()%s*%]=*%]" },
     },
     custom_surroundings = {
-        ["F"] = {
+        ["d"] = {
             output = { left = "function () ", right = " end"},
             input = ts_input({ outer = "@function.outer", inner = "@function.inner"}),
         },
@@ -18,11 +18,11 @@ return {
             output = { left = "function ()\n\treturn ", right = "\nend"},
             input = ts_input({ outer = "@function.outer", inner = "@function.inner"}),
         },
-        ["q"] = {
+        ["g"] = {
             output = { left = "[[", right = "]]"},
             input = { "%[=*%[().-()%]=*%]" },
         },
-        ["Q"] = {
+        ["G"] = {
             output = { left = "[=[", right = "]=]"},
             input = { "%[=*%[().-()%]=*%]" },
         },

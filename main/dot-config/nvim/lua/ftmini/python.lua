@@ -5,14 +5,14 @@ local spec_treesitter = require('mini.ai').gen_spec.treesitter
 
 return {
     custom_textobjects = {
-        ['q'] = { { 'f?""".-"""', "f?'''.-'''" }, '^...%s*().-()%s*...$' },
+        ['g'] = { { 'f?""".-"""', "f?'''.-'''" }, '^...%s*().-()%s*...$' },
     },
     custom_surroundings = {
-        ["q"] = {
+        ["g"] = {
             output = { left = '"""', right = '"""'},
             input = { { 'f?""".-"""', "f?'''.-'''" }, '^...%s*().-()%s*...$' },
         },
-        ["Q"] = {
+        ["G"] = {
             output = { left = "'''", right = "'''"},
             input = { { 'f?""".-"""', "f?'''.-'''" }, '^...%s*().-()%s*...$' },
         },

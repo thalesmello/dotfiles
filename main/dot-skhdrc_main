@@ -260,7 +260,6 @@ invoke < return : skhd -k "escape"; iterm-preset new-window
 
 
 service < c ; chrome
-ctrl + alt + cmd + shift - c ; chrome
 ctrl + alt + cmd - 0x27 ; chrome # single quote
 chrome < ctrl + alt + cmd - 0x27 ; goto # single quote
 chrome < 0x27 ; goto # single quote
