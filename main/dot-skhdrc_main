@@ -177,6 +177,7 @@ service < space : skhd -k "escape"; yabai -m window --focus recent || yabai-pres
 service < shift - space : skhd -k "escape"; yabai-preset move-window-to-space recent
 service < r ; resize
 service < shift - r : skhd -k "escape"; yabai --stop-service && yabai --start-service && display-message "Yabai Restarted" || begin; yabai --start-service && display-message "Yabai Started"; end
+service < ctrl + alt + cmd - r : skhd -k "escape";  display-message "Restart BTT" && btt-preset restart-btt
 service < shift - y : skhd -k "escape"; yabai-preset toggle-yabai
 service < v : skhd -k "escape"; yabai -m window --insert east
 service < shift - 0x27 : skhd -k "escape"; yabai -m window --insert south # double quotes
@@ -231,7 +232,7 @@ service < h : skhd -k "escape"; yabai-preset focus-display-with-fallback west
 service < j : skhd -k "escape"; yabai-preset focus-display-with-fallback south
 service < k : skhd -k "escape"; yabai-preset focus-display-with-fallback north
 service < l : skhd -k "escape"; yabai-preset focus-display-with-fallback east
-service < tab : skhd -k "escape"; yabai-preset move-window-to-display-with-fallback
+service < tab : skhd -k "escape"; yabai-preset smart-move-window-to-next-display
 service < shift - 0x2C : skhd -k "escape"; btt-preset trigger-menu-bar 'Help' # slash / question mark
 service < ctrl + alt + cmd - 0x2C : skhd -k "escape"; skhd-preset search-and-display-mapping # slash / question mark
 

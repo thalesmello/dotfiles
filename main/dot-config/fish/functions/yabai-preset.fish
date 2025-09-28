@@ -252,12 +252,11 @@ function yabai-preset
         end
 
         yabai -m display --focus "$display" || yabai -m display --focus "$fallback"
-    case "move-window-to-display-with-fallback"
+    case "smart-move-window-to-next-display"
         # Yabai needs SPI for this, so we use btt
         # btt only supports next monitor, so we focus next with yabai regardless
 
         set win (yabai -m query --windows --window | jq '.id')
-        set fallback next
         set json '{"BTTPredefinedActionType" : 98}'
         set json (string escape --style=url "$json")
 

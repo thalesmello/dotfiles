@@ -39,7 +39,10 @@ function btt-preset
 
         btt-preset trigger-action "$json"
     case "move-window-to-next-display"
-        set json (jq -nc --argjson spc "$space" '{"BTTPredefinedActionType":(206 + $spc)}')
+        set json (jq -nc '{"BTTPredefinedActionType" : 98}')
+        btt-preset trigger-action "$json"
+    case "restart-btt"
+        set json (jq -nc '{"BTTPredefinedActionType" : 55}')
         btt-preset trigger-action "$json"
     case "display-message"
         argparse duration= -- $argv
