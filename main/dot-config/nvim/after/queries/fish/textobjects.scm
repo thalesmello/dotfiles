@@ -1,0 +1,2 @@
+; extends
+(command) @command
