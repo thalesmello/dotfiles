@@ -1,4 +1,4 @@
-app_version: 0.4.0-preview.4
+app_version: 0.4.1
 behavior_configs:
 - base_move_speed: 5.0
   base_wheel_speed: 16.0
@@ -45,7 +45,7 @@ grid_configs:
     num_cells_y: 1
   hold_subgrid_key_for_nudge: true
   name: position_based
-  nudges_per_cell: 4
+  nudges_per_cell: 8
   strategy: subgrid
   subgrid_dims:
   - 8
@@ -268,6 +268,7 @@ keyboard_layout:
     126: "\x1E"
 keymaps:
 - entries:
+    back click: null
     back mouse button: Ctrl+o
     back mouse button (w/o overlay): null
     close UI element: Escape
@@ -284,12 +285,13 @@ keymaps:
     - Space
     - Enter
     execute mouse move: null
-    exit free mode: Escape
+    exit free mode:
+    - Escape
+    - ShiftRight
+    forward click: null
     forward mouse button: Ctrl+i
     forward mouse button (w/o overlay): null
-    hide overlay:
-    - F13
-    - Command+Tab
+    hide overlay: null
     hold for back button: null
     hold for drag: Shift+ControlLeft
     hold for forward button: null
@@ -305,6 +307,7 @@ keymaps:
     jump to top: g
     left mouse button: space
     left mouse button (w/o overlay): null
+    middle click: null
     middle mouse button: Cmd+space
     middle mouse button (w/o overlay): null
     move down: S
@@ -313,9 +316,10 @@ keymaps:
     move up: W
     release hold/drag: null
     repeat last mouse action: null
+    right click: null
     right mouse button: Opt+space
     right mouse button (w/o overlay): null
-    show overlay: F13
+    show overlay: null
     subgrid nudge down:
     - J
     - S
@@ -331,10 +335,11 @@ keymaps:
     - W
     switch monitor left: null
     switch monitor right: Tab
-    toggle continuous mode: Command+F13
+    toggle app enabled: null
+    toggle continuous mode: Command+ShiftRight
     toggle continuous mode until closed: null
     toggle free mode: F14
-    toggle overlay: null
+    toggle overlay: F13
     toggle overlay lock: ControlLeft
     undo last key:
     - Escape
