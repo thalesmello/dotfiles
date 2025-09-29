@@ -4,32 +4,45 @@ return {
         'AndrewRadev/splitjoin.vim',
         init = function()
             vim.g.splitjoin_python_brackets_on_separate_lines = 1
-            vim.g.splitjoin_split_mapping = ''; vim.g.splitjoin_join_mapping = ''
+            vim.g.splitjoin_split_mapping = ''
+            vim.g.splitjoin_join_mapping = ''
         end,
-        keys = {
-            {
-                "<leader>gS",
-                function () vim.cmd.SplitjoinSplit() end,
-                mode = "n"
-            },
-            {
-                "<leader>gJ",
-                function () vim.cmd.SplitjoinJoin() end,
-                mode = "n",
-            },
-        },
+        -- keys = {
+        --     {
+        --         "gS",
+        --         function ()
+        --             local didSplit vim.fn["sj#Split"]()
+        --
+        --             if didSplit == 0 then
+        --                 require('mini.splitjoin').split()
+        --             end
+        --         end,
+        --         mode = "n"
+        --     },
+        --     {
+        --         "gJ",
+        --         function ()
+        --             local didJoin vim.fn["sj#Join"]()
+        --
+        --             if didJoin == 0 then
+        --                 require('mini.splitjoin').split()
+        --             end
+        --         end,
+        --         mode = "n",
+        --     },
+        -- },
         extra_contexts = {"vscode", "firenvim"},
         lazy = false
     },
     {
         'echasnovski/mini.splitjoin',
         version = '*',
-        keys = {"gS", "gJ"},
+        keys = {"<leader>gS", "<leader>gJ"},
         opts = {
             mappings = {
               toggle = '',
-              split = 'gS',
-              join = 'gJ',
+              split = '<leader>gS',
+              join = '<leader>gJ',
             },
         },
         extra_contexts = {"vscode", "firenvim"},
@@ -37,7 +50,7 @@ return {
 
     {
         'Wansmer/treesj',
-        enabled = false,
+        enabled = true,
         dependencies = {
             'nvim-treesitter/nvim-treesitter',
             'AndrewRadev/splitjoin.vim',
@@ -67,23 +80,39 @@ return {
             dot_repeat = true,
         },
         keys = {
-            {"<leader>gS",
+            {"gS",
                 function ()
-                    if require('treesj.langs')['presets'][vim.bo.filetype] then
-                        vim.cmd.TSJSplit()
-                    else
-                        vim.cmd.SplitjoinSplit()
-                    end
+                    local treesjBefore = vim.api.nvim_buf_line_count(0)
+
+                    require('treesj').split()
+
+                    local treesjAfter = vim.api.nvim_buf_line_count(0)
+
+                    if treesjAfter ~= treesjBefore then return end
+
+                    local didSplitJoin vim.fn["sj#Split"]()
+
+                    if didSplitJoin ~= 0 then return end
+
+                    require('mini.splitjoin').split()
                 end,
                 mode = "n"},
             {
-                "<leader>gJ",
+                "gJ",
                 function ()
-                    if require('treesj.langs')['presets'][vim.bo.filetype] then
-                        vim.cmd.TSJJoin()
-                    else
-                        vim.cmd.SplitjoinJoin()
-                    end
+                    local treesjBefore = vim.api.nvim_buf_line_count(0)
+
+                    require('treesj').join()
+
+                    local treesjAfter = vim.api.nvim_buf_line_count(0)
+
+                    if treesjAfter ~= treesjBefore then return end
+
+                    local didSplitJoin vim.fn["sj#Join"]()
+
+                    if didSplitJoin ~= 0 then return end
+
+                    require('mini.splitjoin').join()
                 end,
                 mode = "n",
             },
