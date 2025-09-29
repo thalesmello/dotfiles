@@ -86,15 +86,24 @@ return {
     vim.keymap.set("n", "<leader>rv", function () vscode.action('editor.action.rename') end)
 
     vim.keymap.set({ "n" }, "<c-t>", function () vscode.action('workbench.action.navigateBackInEditLocations') end)
-    vim.keymap.set("n", "<c-f>", function () vscode.action('workbench.action.findInFiles') end)
-    vim.keymap.set("n", "<leader>/", "viw<cmd>lua require'vscode'.action('workbench.action.findInFiles')<cr>")
+    vim.keymap.set("n", "<c-f>", function () vscode.action('workbench.action.quickTextSearch') end)
     vim.keymap.set("n", "<leader><c-p>", function () vscode.action('workbench.action.quickOpen', { args = { vim.fn.expand("%:t:r") } }) end)
     vim.keymap.set("n", "<c-p>", function () vscode.action('workbench.action.quickOpen') end)
     vim.keymap.set("x", "<c-p>", function () vscode.action('workbench.action.quickOpen', { args = { require("vim_utils").get_visual_selection() } }) end)
 
-    vim.keymap.set("v", "<leader>/", function ()
-      vscode.action('workbench.action.findInFiles')
-    end)
+    vim.keymap.set("n", "<leader>/", "viw<cmd>lua require'vscode'.action('workbench.action.quickTextSearch')<cr>")
+    vim.keymap.set("v", "<leader>/", function ()vscode.action('workbench.action.quickTextSearch') end)
+
+    vim.keymap.set("n", "<leader><c-p>", function ()  end)
+    vim.keymap.set("n", "<leader>?", "viw<leader>?", {remap = true})
+    vim.keymap.set("v", "<leader>?",
+      function ()
+        vscode.action('search.action.openNewEditor', {
+          args = { triggerSearch = true, focusResults = true},
+        })
+      end
+    )
+
 
     vim.keymap.set("n", "<leader>fr", function () vscode.action('references-view.findReferences') end)
     vim.keymap.set("n", "<leader>ss", function () vscode.action('workbench.action.gotoSymbol') end)
@@ -200,12 +209,11 @@ return {
       pattern = "Flags",
       group = vim.api.nvim_create_augroup("FlagshipConfig", { clear = true }),
       callback = function ()
-        vim.fn.Hoist("buffer", -1, {hl="Ignore"}, "WebDevIconsGetFileTypeSymbol")
-        vim.fn.Hoist("buffer", 0, {hl="ignore"}, "v:lua.StatuslineFugitiveBranch")
+        vim.fn.Hoist("buffer", -1, { hl="Ignore" }, "WebDevIconsGetFileTypeSymbol")
+        vim.fn.Hoist("buffer", 0, { hl="ignore" }, "v:lua.StatuslineFugitiveBranch")
         vim.fn.Hoist("buffer", "flagship#filetype")
-      end
-    })
-  end,
+      end,
+    }) end,
   extra_contexts = {"vscode"}
 }
 
