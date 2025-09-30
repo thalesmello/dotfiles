@@ -6,7 +6,7 @@ local argument = require('mini.ai').gen_spec.argument
 
 return {
     custom_textobjects = {
-        ["x"] = spec_treesitter({ a = "@command", i = "@command" }),
+        ["x"] = spec_treesitter({ a = "@command-or-pipe", i = "@command" }),
     },
     custom_surroundings = {
     }
