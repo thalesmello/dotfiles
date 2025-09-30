@@ -126,7 +126,7 @@ function chrome-preset
         and btt-preset trigger-menu-bar "Profiles;$(string escape --style regex "$profile_name")"
 
     case "open-url"
-        argparse profile= label= newtab -- $argv
+        argparse profile= label= newtab newtabright -- $argv
         or return 1
 
         set url $argv[1]
@@ -152,17 +152,28 @@ function chrome-preset
                 env OUTPUT_FORMAT=json chrome-cli info | jq -r '.id, .windowId' | read --line tab_id window_id
             end
 
+            set extra_args
+
+            if test -n "$_flag_newtabright"
+                btt-preset trigger-menu-bar "Tab;New Tab to the Right"
+                env OUTPUT_FORMAT=json chrome-cli info | jq -r '.id' | read --line tab_id
+            end
+
+            set extra_args
+
             if test "$window_id" = "$old_window_id"
-                chrome-cli open "$url" -t "$tab_id"
-            else
-                chrome-cli open "$url"
+                set -a extra_args -t "$tab_id"
             end
+
+            chrome-cli open "$url" $extra_args
         else
+            set extra_args
+
             if test -n "$_flag_profile"
-                open -n -a "Google Chrome" --args "$url" --profile-directory="$_flag_profile"
-            else
-                open -n -a "Google Chrome" --args "$url"
+                set -a extra_args "--profile-directory=$_flag_profile"
             end
+
+            open -n -a "Google Chrome" --args "$url" $extra_args
         end
 
     case "close-tabs-with-url"
