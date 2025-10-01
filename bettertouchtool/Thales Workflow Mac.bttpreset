@@ -698,7 +698,7 @@
           "BTTAdditionalConfiguration": "8388608",
           "BTTAutoAdaptToKeyboardLayout": 0,
           "BTTGestureNotes": "F18 is set by karabiner, and it's hehavior is different depending whether it's floating term or Alfred",
-          "BTTLastUpdatedAt": 1759132893.432181,
+          "BTTLastUpdatedAt": 1759274467.3984509,
           "BTTLayoutIndependentChar": "F18",
           "BTTOrder": 6,
           "BTTShortcutAdvancedModifierKeys": "8388608",
@@ -998,15 +998,15 @@
               "BTTUUID": "C19C62D3-EDED-4290-906C-5E5C4A43F7A2"
             }
           ],
-          "BTTAdditionalConfiguration": "1179658",
+          "BTTAdditionalConfiguration": "1572904",
           "BTTAutoAdaptToKeyboardLayout": 0,
-          "BTTLastUpdatedAt": 1757524738.566399,
+          "BTTLastUpdatedAt": 1759197448.55905,
           "BTTLayoutIndependentChar": "v",
           "BTTOrder": 14,
-          "BTTShortcutAdvancedModifierKeys": "1179658",
+          "BTTShortcutAdvancedModifierKeys": "1572904",
           "BTTShortcutKeyCode": 9,
-          "BTTShortcutKeyboardType": 11035,
-          "BTTShortcutModifierKeys": 1179648,
+          "BTTShortcutKeyboardType": 0,
+          "BTTShortcutModifierKeys": 1572864,
           "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
           "BTTTriggerOnDown": 1,
           "BTTTriggerType": 0,
@@ -1306,37 +1306,6 @@
           "BTTActionsToExecute": [
             {
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.7195191,
-              "BTTMenubarPath": "Tab;New Tab to the Right`",
-              "BTTOrder": 1,
-              "BTTPredefinedActionName": "Trigger Menu Bar Menu-Item",
-              "BTTPredefinedActionType": 124,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "FF7D4161-FA0A-45D2-B52D-63C4321B75B8",
-              "BTTUUID": "8B29C35C-C80C-484C-9F9A-79DABDA7106C"
-            },
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.718766,
-              "BTTOrder": 4,
-              "BTTShortcutToSend": "59,56,116",
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "FF7D4161-FA0A-45D2-B52D-63C4321B75B8",
-              "BTTUUID": "7342295D-2B28-4938-BA90-709F2088A244"
-            }
-          ],
-          "BTTLastUpdatedAt": 1759133122.244354,
-          "BTTOrder": 1,
-          "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-          "BTTTriggerName": "Chrome: New Tab to the Left",
-          "BTTTriggerType": 643,
-          "BTTTriggerTypeDescriptionReadOnly": "Named Trigger: Chrome: New Tab to the Left",
-          "BTTUUID": "FF7D4161-FA0A-45D2-B52D-63C4321B75B8"
-        },
-        {
-          "BTTActionsToExecute": [
-            {
-              "BTTIsPureAction": true,
               "BTTLastUpdatedAt": 1747269597.950389,
               "BTTLayoutIndependentActionChar": "SPACE",
               "BTTOrder": 0,
@@ -1522,6 +1491,37 @@
           "BTTActionsToExecute": [
             {
               "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1741645855.7195191,
+              "BTTMenubarPath": "Tab;New Tab to the Right`",
+              "BTTOrder": 1,
+              "BTTPredefinedActionName": "Trigger Menu Bar Menu-Item",
+              "BTTPredefinedActionType": 124,
+              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
+              "BTTTriggerParentUUID": "FF7D4161-FA0A-45D2-B52D-63C4321B75B8",
+              "BTTUUID": "8B29C35C-C80C-484C-9F9A-79DABDA7106C"
+            },
+            {
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1741645855.718766,
+              "BTTOrder": 4,
+              "BTTShortcutToSend": "59,56,116",
+              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
+              "BTTTriggerParentUUID": "FF7D4161-FA0A-45D2-B52D-63C4321B75B8",
+              "BTTUUID": "7342295D-2B28-4938-BA90-709F2088A244"
+            }
+          ],
+          "BTTLastUpdatedAt": 1759133122.244354,
+          "BTTOrder": 1,
+          "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
+          "BTTTriggerName": "Chrome: New Tab to the Left",
+          "BTTTriggerType": 643,
+          "BTTTriggerTypeDescriptionReadOnly": "Named Trigger: Chrome: New Tab to the Left",
+          "BTTUUID": "FF7D4161-FA0A-45D2-B52D-63C4321B75B8"
+        },
+        {
+          "BTTActionsToExecute": [
+            {
+              "BTTIsPureAction": true,
               "BTTLastUpdatedAt": 1758928979.751823,
               "BTTNamedTriggerToTrigger": "UI: Set user_input from selected_text or clipboard",
               "BTTOrder": 0,
@@ -1666,8 +1666,8 @@
               "BTTIfConditionData": "YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMSAAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGvEBYLDBMYICorLTQ4PT5BRUlOT1JaXmJkVSRudWxs0w0ODxAREl8QF05TQ29tcG91bmRQcmVkaWNhdGVUeXBlXxAPTlNTdWJwcmVkaWNhdGVzViRjbGFzcxABgAKAFdIUDxUXWk5TLm9iamVjdHOhFoADgBTUDxkaGxwdHh9fEBFOU1JpZ2h0RXhwcmVzc2lvbl8QEE5TTGVmdEV4cHJlc3Npb25fEBNOU1ByZWRpY2F0ZU9wZXJhdG9ygBOADoAEgBHVISIjJA8lJicoKVlOU09wZXJhbmReTlNTZWxlY3Rvck5hbWVfEBBOU0V4cHJlc3Npb25UeXBlW05TQXJndW1lbnRzgAaABRADgAiADVx2YWx1ZUZvcktleTrSIw8QLIAH0i4vMDFaJGNsYXNzbmFtZVgkY2xhc3Nlc18QEE5TU2VsZkV4cHJlc3Npb26jMDIzXE5TRXhwcmVzc2lvblhOU09iamVjdNIUDzU3oTaACYAM0w8jOTo7PFlOU0tleVBhdGiACxAKgApfEA9hY3RpdmVfYXBwX25hbWXSLi8_QF8QHE5TS2V5UGF0aFNwZWNpZmllckV4cHJlc3Npb26jPzIz0i4vQkNeTlNNdXRhYmxlQXJyYXmjQkQzV05TQXJyYXnSLi9GR18QE05TS2V5UGF0aEV4cHJlc3Npb26kRkgyM18QFE5TRnVuY3Rpb25FeHByZXNzaW9u00ojD0tMTV8QD05TQ29uc3RhbnRWYWx1ZYAPEACAEF1Hb29nbGUgQ2hyb21l0i4vUFFfEBlOU0NvbnN0YW50VmFsdWVFeHByZXNzaW9uo1AyM9UPU1RVVldMWExZWk5TTW9kaWZpZXJYTlNOZWdhdGVZTlNPcHRpb25zXk5TT3BlcmF0b3JUeXBlgBIJEAXSLi9bXF8QG05TRXF1YWxpdHlQcmVkaWNhdGVPcGVyYXRvcqNbXTNfEBNOU1ByZWRpY2F0ZU9wZXJhdG9y0i4vX2BfEBVOU0NvbXBhcmlzb25QcmVkaWNhdGWjX2EzW05TUHJlZGljYXRl0i4vRGOiRDPSLi9lZl8QE05TQ29tcG91bmRQcmVkaWNhdGWjZWEzAAgAEQAaACQAKQAyADcASQBMAFEAUwBsAHIAeQCTAKUArACuALAAsgC3AMIAxADGAMgA0QDlAPgBDgEQARIBFAEWASEBKwE6AU0BWQFbAV0BXwFhAWMBcAF1AXcBfAGHAZABowGnAbQBvQHCAcQBxgHIAc8B2QHbAd0B3wHxAfYCFQIZAh4CLQIxAjkCPgJUAlkCcAJ3AokCiwKNAo8CnQKiAr4CwgLNAtgC4QLrAvoC_AL9Av8DBAMiAyYDPANBA1kDXQNpA24DcQN2A4wAAAAAAAACAQAAAAAAAABnAAAAAAAAAAAAAAAAAAADkA==",
               "BTTIfConditionFormat": "active_app_name != \"Google Chrome\"",
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759133110.3526359,
-              "BTTOrder": 1,
+              "BTTLastUpdatedAt": 1759339560.597589,
+              "BTTOrder": 0,
               "BTTPredefinedActionName": "If Condition",
               "BTTPredefinedActionType": 330,
               "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
@@ -1677,8 +1677,8 @@
             {
               "BTTAppToShowOrHide": "/Applications/Google Chrome.app",
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759133110.353417,
-              "BTTOrder": 2,
+              "BTTLastUpdatedAt": 1759339560.59755,
+              "BTTOrder": 1,
               "BTTPredefinedActionName": "Show  or  Hide Specific Application",
               "BTTPredefinedActionType": 177,
               "BTTShowHideAppConfig": "{\"BTTShowHideSpecificAppMoveToSpace\":\"BTTShowHideSpecificAppNoSpaceChange\",\"BTTShowHideSpecificAppOnlyShow\":true,\"BTTShowHideSpecificAppOnlyHide\":false,\"BTTShowHideSpecificAffectedWindow\":\"BTTShowHideSpecificAppAffectLastUsedWindow\",\"BTTShowHideSpecificMinimizeInstead\":false,\"BTTShowHideSpecificAppRegex\":\"\",\"BTTShowHideSpecificAppOnlyTreatActiveAsVisible\":true,\"BTTShowHideSpecificAppOnlyIfRunning\":false,\"BTTShowHideSpecificAppCMDN\":false,\"BTTShowHideSpecificAppMoveToCurrentSpace\":false,\"BTTShowHideSpecificAppMoveAllToCurrentSpace\":false}",
@@ -1689,8 +1689,8 @@
             {
               "BTTDelayNextActionBy": "0",
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759133110.353749,
-              "BTTOrder": 3,
+              "BTTLastUpdatedAt": 1759339560.597569,
+              "BTTOrder": 2,
               "BTTPredefinedActionName": "Pause Execution  or  Delay Next Action (async  or  not blocking)",
               "BTTPredefinedActionType": 345,
               "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
@@ -1699,9 +1699,9 @@
             },
             {
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759133110.354059,
+              "BTTLastUpdatedAt": 1759339560.5975819,
               "BTTMenubarPath": "Profiles;Thales \\(Work\\)",
-              "BTTOrder": 4,
+              "BTTOrder": 3,
               "BTTPredefinedActionName": "Trigger Menu Bar Menu-Item",
               "BTTPredefinedActionType": 124,
               "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
@@ -1710,8 +1710,8 @@
             },
             {
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759133110.354362,
-              "BTTOrder": 5,
+              "BTTLastUpdatedAt": 1759339560.597575,
+              "BTTOrder": 4,
               "BTTPredefinedActionName": "END If Condition",
               "BTTPredefinedActionType": 334,
               "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
@@ -1720,18 +1720,18 @@
             },
             {
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759133110.354653,
-              "BTTNamedTriggerToTrigger": "Chrome: New Tab",
-              "BTTOrder": 6,
-              "BTTPredefinedActionName": "Trigger Named Trigger (Configured in Other Tab)",
-              "BTTPredefinedActionType": 248,
+              "BTTLastUpdatedAt": 1759341243.474942,
+              "BTTMenubarPath": "File;New Tab",
+              "BTTOrder": 5,
+              "BTTPredefinedActionName": "Trigger Menu Bar Menu-Item",
+              "BTTPredefinedActionType": 124,
               "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
               "BTTTriggerParentUUID": "34C6FA8E-F959-4039-8EA5-70E63BE3F8ED",
-              "BTTUUID": "0C769B5D-5021-4795-BA50-D08D3AD5EB0C"
+              "BTTUUID": "23FA1C19-E29D-4BC1-906E-EB82D206349E"
             }
           ],
           "BTTCustomContextMenuItemConfig": {},
-          "BTTLastUpdatedAt": 1759133161.810779,
+          "BTTLastUpdatedAt": 1759339560.597523,
           "BTTOrder": 3,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Chrome: New Tab and Focus",
@@ -4657,5 +4657,5 @@
   "BTTPresetInfoURL": "",
   "BTTPresetName": "Thales Workflow Mac",
   "BTTPresetSnapAreas": [],
-  "BTTPresetUUID": "4DA74C0C-6A4D-417E-8396-1127AF33AB66"
+  "BTTPresetUUID": "BD10AC66-A4D5-462A-AFFD-082A0030B0B7"
 }
