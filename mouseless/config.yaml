@@ -44,8 +44,8 @@ grid_configs:
     num_cells_x: 2
     num_cells_y: 1
   hold_subgrid_key_for_nudge: true
-  name: position_based
-  nudges_per_cell: 8
+  name: position_based_16_9
+  nudges_per_cell: 4
   strategy: subgrid
   subgrid_dims:
   - 8
@@ -288,6 +288,7 @@ keymaps:
     exit free mode:
     - Escape
     - ShiftRight
+    - CommandLeft
     forward click: null
     forward mouse button: Ctrl+i
     forward mouse button (w/o overlay): null
@@ -308,12 +309,24 @@ keymaps:
     left mouse button: space
     left mouse button (w/o overlay): null
     middle click: null
-    middle mouse button: Cmd+space
+    middle mouse button: Ctrl+space
     middle mouse button (w/o overlay): null
-    move down: S
-    move left: A
-    move right: E
-    move up: W
+    move down:
+    - Shift+S
+    - Option+S
+    - ArrowDown
+    move left:
+    - Shift+A
+    - Option+A
+    - ArrowLeft
+    move right:
+    - Shift+D
+    - Option+D
+    - ArrowRight
+    move up:
+    - Shift+W
+    - Option+W
+    - ArrowUp
     release hold/drag: null
     repeat last mouse action: null
     right click: null
@@ -340,7 +353,7 @@ keymaps:
     toggle continuous mode until closed: null
     toggle free mode: F14
     toggle overlay: F13
-    toggle overlay lock: ControlLeft
+    toggle overlay lock: Control+ShiftRight
     undo last key:
     - Escape
     - ShiftLeft tap
@@ -352,13 +365,13 @@ keymaps:
     wheel left fast: h
     wheel right: null
     wheel right fast: l
-    wheel step down: d
+    wheel step down: null
     wheel step down large: ctrl+d
     wheel step left: null
     wheel step left large: null
     wheel step right: null
     wheel step right large: null
-    wheel step up: u
+    wheel step up: null
     wheel step up large: ctrl+u
     wheel up: null
     wheel up fast: k
@@ -375,7 +388,7 @@ style_configs:
   - 0.47843137254901963
   - 0.28627450980392155
   - 0.28627450980392155
-  - 0.8
+  - 0.25
   char_spacing_cell_width_ratio: 0.5
   char_spacing_font_size_ratio: 0.5
   char_spacing_strategy: cell_width_relative
@@ -406,7 +419,7 @@ style_configs:
   - 0.7
   cursor_size: 7
   font_family: HackNF-Bold
-  font_size_multiplier: 0.5
+  font_size_multiplier: 0.4
   font_weight: 500
   grid_line_style: lines
   grid_rgba:
@@ -419,9 +432,9 @@ style_configs:
   - 0.7215686274509804
   - 0.4627450980392157
   - 0.44313725490196076
-  - 0.5
+  - 0.3
   name: default
-  show_initial_highlight: false
+  show_initial_highlight: true
   subgrid_font_size_multiplier: 0.85
   subgrid_rgba:
   - 1.0
@@ -438,14 +451,14 @@ style_configs:
   - 0.996078431372549
   - 0.996078431372549
   - 1.0
-  text_shadow_blur_radius: 1.0
+  text_shadow_blur_radius: 4
   text_shadow_offset:
-  - 2.0
-  - -1.0
+  - 0
+  - 0
   text_shadow_rgba:
   - 0.0
   - 0.0
   - 0.0
   - 1.0
   text_y_offset: 0.0
-  window_opacity: 0.8
+  window_opacity: 1
