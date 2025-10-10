@@ -324,10 +324,12 @@ ctrl + alt + cmd + shift - w : if pgrep "zoom.us" >/dev/null; \
         chrome-preset focus-or-open-url meet.google.com --label "Google Meet"; \
     end;
 ctrl + alt + cmd + shift - s : if pgrep "zoom.us" >/dev/null; \
+        display-message "Toggle Mute"; \
         btt-preset show-or-hide-app --only-show "/Applications/zoom.us.app"; \
         sleep 0.5; \
         btt-preset send-keys cmd shift a; \
     else; \
+        display-message "Toggle Mute"; \
         chrome-preset focus-or-open-url meet.google.com --label "Google Meet"; \
         sleep 0.5; \
         btt-preset send-keys cmd d; \
