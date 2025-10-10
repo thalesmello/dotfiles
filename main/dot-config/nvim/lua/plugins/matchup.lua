@@ -12,6 +12,5 @@ return {
          }
       },
       extra_contexts = {"firenvim"},
-      cond = true,
    }),
 }
