@@ -312,20 +312,16 @@ keymaps:
     middle mouse button: Ctrl+space
     middle mouse button (w/o overlay): null
     move down:
-    - Shift+S
-    - Option+S
+    - S
     - ArrowDown
     move left:
-    - Shift+A
-    - Option+A
+    - A
     - ArrowLeft
     move right:
-    - Shift+D
-    - Option+D
+    - E
     - ArrowRight
     move up:
-    - Shift+W
-    - Option+W
+    - W
     - ArrowUp
     release hold/drag: null
     repeat last mouse action: null
