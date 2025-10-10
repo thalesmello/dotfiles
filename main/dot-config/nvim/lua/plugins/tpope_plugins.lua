@@ -1,23 +1,32 @@
 return {
-    { 'tpope/vim-eunuch', event = 'VeryLazy'},
+    {
+        'tpope/vim-eunuch',
+        event = 'VeryLazy',
+    },
     {
         'tpope/vim-repeat',
-        extra_contexts = {"vscode", "firenvim"}
+        extra_contexts = {"vscode", "firenvim", "lite_mode"}
     },
-    { 'tpope/vim-abolish', keys = {"cr"}, cmd = {"Abolish", "Subvert", "S"}},
+    {
+        'tpope/vim-abolish',
+        keys = {"cr"},
+        cmd = {"Abolish", "Subvert", "S"},
+        extra_context = {'lite_mode'}
+    },
     {
         'tpope/vim-sleuth',
-        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
+        event = { "BufReadPost", "BufNewFile", "BufFilePost"},
+        extra_context = {'lite_mode'}
     },
     {
         'tpope/vim-rsi',
         event = {"CmdlineEnter", "InsertEnter"},
-        extra_contexts = {"vscode", "firenvim"}
+        extra_contexts = {"vscode", "firenvim", "lite_mode"}
     },
     {
         'tpope/vim-unimpaired',
         event = "VeryLazy",
-        extra_contexts = {"firenvim"}
+        extra_contexts = {"firenvim", "lite_mode"}
     },
     {
         'tpope/vim-apathy',
@@ -38,7 +47,8 @@ return {
             'typescript',
             'typescriptreact',
             'zsh',
-        }
+        },
+        extra_contexts = {"lite_mode"},
     },
     {
         'tpope/vim-scriptease',

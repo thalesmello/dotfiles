@@ -11,6 +11,6 @@ return {
             }
          }
       },
-      extra_contexts = {"firenvim"},
+      extra_contexts = {"firenvim", "lite_mode"},
    }),
 }

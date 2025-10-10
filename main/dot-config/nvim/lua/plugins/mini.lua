@@ -2,7 +2,12 @@ local vim_utils = require('vim_utils')
 local ftmini = require('ftmini')
 
 return {
-    { 'echasnovski/mini.comment', version = false, opts = {} },
+    {
+        'echasnovski/mini.comment',
+        version = false,
+        opts = {},
+        extra_contexts = {"lite_mode"},
+    },
     {
         "echasnovski/mini.diff",
         config = function()
@@ -16,7 +21,7 @@ return {
         'echasnovski/mini.ai',
         version = '*',
         dependencies = {'nvim-treesitter/nvim-treesitter'},
-        extra_contexts = {"vscode", "firenvim"},
+        extra_contexts = {"vscode", "firenvim", "lite_mode"},
         config = function()
             local mini_ai = require('mini.ai')
 
@@ -206,7 +211,7 @@ return {
     {
         "thalesmello/mini.surround",
         version = false,
-        extra_contexts = {"vscode", "firenvim"},
+        extra_contexts = {"vscode", "firenvim", "lite_mode"},
         config = function ()
             local surround = require('mini.surround')
             local get_input = surround.user_input
@@ -344,6 +349,6 @@ return {
 
             vim.keymap.set("n", "<leader>gr", '"+gr', { remap = true })
         end,
-        extra_contexts = {"vscode", "firenvim"},
+        extra_contexts = {"vscode", "firenvim", "lite_mode"},
     }
 }

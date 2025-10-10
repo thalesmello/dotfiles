@@ -10,5 +10,5 @@ return {
         vim.g.inline_edit_autowrite = 1
     end,
     cmd = "InlineEdit",
-    extra_contexts = {"firenvim", "vscode"}
+    extra_contexts = {"firenvim", "vscode", "lite_mode"}
 }

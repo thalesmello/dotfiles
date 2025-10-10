@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -e
+
+exec env NVIM_LITE_MODE=1 nvim "$@"

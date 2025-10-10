@@ -60,7 +60,7 @@ return {
             },
          })
       end,
-      extra_contexts = {"firenvim"},
+      extra_contexts = {"firenvim", "lite_mode"},
    },
    vim_utils.injector_module({
       "thalesmello/cmp-rg",
@@ -83,7 +83,8 @@ return {
                { name = 'path' },
             }
          },
-      }
+      },
+      extra_contexts = {"lite_mode"}
    }),
    vim_utils.injector_module({
       'hrsh7th/cmp-nvim-lsp',
@@ -94,7 +95,7 @@ return {
                { name = 'nvim_lsp' },
             }
          },
-      }
+      },
    }),
    vim_utils.injector_module({
       'hrsh7th/cmp-calc',
@@ -105,7 +106,8 @@ return {
                { name = 'calc' },
             }
          },
-      }
+      },
+      extra_contexts = {"lite_mode"},
    }),
    vim_utils.injector_module({
       'hrsh7th/cmp-buffer',
@@ -123,7 +125,8 @@ return {
                },
             }
          },
-      }
+      },
+      extra_contexts = {"lite_mode"},
    }),
    vim_utils.injector_module({
       {

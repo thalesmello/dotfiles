@@ -52,7 +52,7 @@ return {
                 end,
             })
         end,
-        extra_contexts = {"vscode", "firenvim"}
+        extra_contexts = {"vscode", "firenvim", "lite_mode"}
     },
     {
         'coderifous/textobj-word-column.vim',
@@ -65,7 +65,7 @@ return {
             vim.keymap.set({ "o", "x" }, 'ic', ':<C-u>call TextObjWordBasedColumn("iw")<cr>', { noremap = true })
             vim.keymap.set({ "o", "x" }, 'iC', ':<C-u>call TextObjWordBasedColumn("iW")<cr>', { noremap = true })
         end,
-        extra_contexts = {"vscode", "firenvim"}
+        extra_contexts = {"vscode", "firenvim", "lite_nvim"}
     },
     {
         "chrisgrieser/nvim-various-textobjs",

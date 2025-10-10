@@ -23,8 +23,8 @@ set -g theme_color_scheme zenburn
 set -g fish_prompt_pwd_dir_length 2
 
 # Environment variables
-set -gx EDITOR nvim
-set -gx VISUAL nvim
+set -gx EDITOR lvim
+set -gx VISUAL lvim
 
 set -gx LESS "--ignore-case --LONG-PROMPT --RAW-CONTROL-CHARS --tabs=4 --quit-if-one-screen --mouse"
 

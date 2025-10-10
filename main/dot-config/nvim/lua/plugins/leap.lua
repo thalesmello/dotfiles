@@ -78,7 +78,7 @@ return {
         --         require('leap').leap(vim.tbl_deep_extend("force", {}, opts, { action = createMagnaticJump(opts) }))
         --     end, { remap = false, desc = "Leap forward to" })
         -- end,
-        extra_contexts = {"vscode", "firenvim"}
+        extra_contexts = {"vscode", "firenvim", "lite_mode"}
     },
     {
         'rasulomaroff/telepath.nvim',

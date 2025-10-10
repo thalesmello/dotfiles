@@ -1,3 +1,5 @@
+local conditional_load = require('conditional_load')
+local should_load = conditional_load.should_load
 return {
 
     {
@@ -37,15 +39,14 @@ return {
     {
         'echasnovski/mini.splitjoin',
         version = '*',
-        keys = {"<leader>gS", "<leader>gJ"},
         opts = {
             mappings = {
-              toggle = '',
-              split = '<leader>gS',
-              join = '<leader>gJ',
+                toggle = '',
+                split = should_load('lite_mode') and 'gS' or '<leader>gS',
+                join = should_load('lite_mode') and 'gJ' or '<leader>gJ',
             },
         },
-        extra_contexts = {"vscode", "firenvim"},
+        extra_contexts = {"vscode", "firenvim", "lite_mode"},
     },
 
     {
@@ -90,7 +91,7 @@ return {
 
                     if treesjAfter ~= treesjBefore then return end
 
-                    local didSplitJoin vim.fn["sj#Split"]()
+                    local didSplitJoin = vim.fn["sj#Split"]()
 
                     if didSplitJoin ~= 0 then return end
 
@@ -108,7 +109,7 @@ return {
 
                     if treesjAfter ~= treesjBefore then return end
 
-                    local didSplitJoin vim.fn["sj#Join"]()
+                    local didSplitJoin = vim.fn["sj#Join"]()
 
                     if didSplitJoin ~= 0 then return end
 

@@ -46,6 +46,6 @@ return {
             vim.opt.background = "dark"
             vim.cmd.colorscheme("kanagawa")
         end,
-        extra_contexts = {"firenvim"}
+        extra_contexts = {"firenvim", "lite_mode"}
     }
 }
