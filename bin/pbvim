@@ -3,7 +3,7 @@
 set filetype $argv[1]
 set -e argv[1]
 
-set NVIMCMD (default "$NVIMCMD" "nvim")
+set NVIMCMD (default "$NVIMCMD" "lvim")
 
 if test -z "$filetype"; or test "$filetype" = "--guess"
     if test -f "/tmp/pbvim-last-filetype"

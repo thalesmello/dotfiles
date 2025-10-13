@@ -105,6 +105,7 @@ return {
     )
 
 
+    vim.keymap.set("n", "<leader>ft", function () vscode.action('workbench.action.editor.changeLanguageMode') end)
     vim.keymap.set("n", "<leader>fr", function () vscode.action('references-view.findReferences') end)
     vim.keymap.set("n", "<leader>ss", function () vscode.action('workbench.action.gotoSymbol') end)
     vim.keymap.set("n", "<leader><cr>", function () vscode.action('workbench.action.terminal.toggleTerminal') end)

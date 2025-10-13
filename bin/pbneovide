@@ -1,3 +1,3 @@
 #!/usr/bin/env fish
 
-exec env NVIMCMD="/usr/bin/env neovide --" pbvim $argv
+exec env NVIM_LITE_MODE=1 NVIMCMD="/usr/bin/env neovide --" pbvim $argv

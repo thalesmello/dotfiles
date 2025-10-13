@@ -36,7 +36,7 @@ function yabai-harpoon
 
             set -l modified_before (stat -c %y "$tmpfile")
 
-            neovide "$tmpfile" -- -u NONE -c 'set nowrap' &
+            env NVIM_LITE_MODE=1 neovide "$tmpfile" -- -c 'set nowrap' &
             echo "$last_pid" > "$TMPDIR/nvim_yabai_harpoon_edit.pid"
             wait
             rm "$TMPDIR/nvim_yabai_harpoon_edit.pid"
