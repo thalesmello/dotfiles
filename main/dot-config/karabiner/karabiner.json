@@ -88,6 +88,21 @@
           } ],
           "type" : "basic"
         }, {
+          "to_if_alone" : [ {
+            "shell_command" : "/opt/homebrew/bin/fish -c 'btt-preset trigger-named-trigger \"Hide Cursor\"'"
+          } ],
+          "from" : {
+            "key_code" : "right_shift",
+            "modifiers" : {
+              "mandatory" : [ "left_control" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "right_shift",
+            "modifiers" : [ "left_control" ]
+          } ],
+          "type" : "basic"
+        }, {
           "from" : {
             "key_code" : "h"
           },

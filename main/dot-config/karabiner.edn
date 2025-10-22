@@ -80,6 +80,7 @@
             [:!RCspacebar :button3]
             ; opens wheel scroll mode in mouseless
             [:!Sright_shift :!Sright_shift nil {:alone :f14}]
+            [:!Tright_shift :!Tright_shift nil {:alone [:btt-named "Hide Cursor"]}]
             :mouseless-mode
             [:h {:mkey {:x -1546}}]
             [:j {:mkey {:y 1546}}]
