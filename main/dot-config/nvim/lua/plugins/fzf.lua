@@ -85,7 +85,7 @@ return {
 
         vim.keymap.set("n", "<leader>;", fzf_lua.keymaps, { noremap = true, silent = true })
         vim.keymap.set("n", "<leader>:", fzf_lua.commands, { noremap = true, silent = true })
-        vim.keymap.set("n", "<leader>?", fzf_lua.commands, { noremap = true, silent = true })
+        vim.keymap.set("n", "<leader>?", fzf_lua.helptags, { noremap = true, silent = true })
 
         function CompleteAg(A)
             if A == '' then
