@@ -19,7 +19,18 @@ return {
   "folke/zen-mode.nvim",
   opts = {
     neovide = {
-      enabled = true
+      enabled = true,
+      -- Will multiply the current scale factor by this number
+      scale = 2,
+        -- disable the Neovide animations while in Zen mode
+      disable_animations = {
+        neovide_animation_length = 0,
+        neovide_cursor_animate_command_line = false,
+        neovide_scroll_animation_length = 0,
+        neovide_position_animation_length = 0,
+        neovide_cursor_animation_length = 0,
+        neovide_cursor_vfx_mode = "",
+      }
     },
 
     on_open = function()
@@ -31,4 +42,5 @@ return {
   },
   cmd  = {"ZenMode"},
   keys = {{"<leader>kz", "<cmd>ZenMode<cr>", mode = {"n", "v"}}},
+  extra_contexts = {"lite_mode"}
 }

@@ -633,6 +633,7 @@ function yabai-preset
         or return 1
 
         yabai -m window "$window" --minimize
+        yabai -m window --focus (yabai -m query --windows --space | jq 'first(.[] | select(."is-visible" and (."is-sticky"|not))).id')
     case "*"
         return 1
     end

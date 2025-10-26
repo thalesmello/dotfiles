@@ -161,16 +161,7 @@ service < ctrl + alt + cmd - e : skhd -k "escape"; if pgrep -q -F "$TMPDIR/nvim_
         rm "$TMPDIR/nvim_skhd.pid"; \
     end;
 
-service < ctrl + alt + cmd - v : skhd -k "escape"; if pgrep -q -F "$TMPDIR/nvim_ghost.pid"; \
-        display-message "Focus GHOST"; \
-        yabai-preset focus-pid "$(cat "$TMPDIR/nvim_ghost.pid")" ; \
-    else; \
-        display-message "Start GHOST"; \
-        env NVIM_GHOST_ENABLE=1 NVIM_LITE_MODE=1 neovide --frame buttonless --title-hidden &; \
-        echo "$last_pid" > "$TMPDIR/nvim_ghost.pid"; \
-        wait; \
-        rm "$TMPDIR/nvim_ghost.pid"; \
-    end;
+service < ctrl + alt + cmd - v : skhd -k "escape"; neovim-ghost trigger
 
 # Service mode bindings
 service < ctrl + alt + cmd - space : skhd -k "escape"; yabai-preset focus-space recent

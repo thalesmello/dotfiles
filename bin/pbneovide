@@ -1,3 +1,4 @@
 #!/usr/bin/env fish
 
-exec env NVIM_LITE_MODE=1 NVIMCMD="/usr/bin/env neovide --" pbvim $argv
+# exec env NVIM_LITE_MODE=1 NVIMCMD="/usr/bin/env neovide --" pbvim $argv
+exec env NVIM_LITE_MODE=1 NVIMCMD="neovim-ghost remote-tab-wait-with-focus" pbvim $argv
