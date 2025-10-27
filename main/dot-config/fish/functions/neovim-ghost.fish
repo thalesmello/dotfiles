@@ -3,6 +3,9 @@ function neovim-ghost
     set -e argv[1]
 
     switch "$preset"
+    case "is-alive"
+        pgrep -q -F "$TMPDIR/nvim_ghost.pid"
+        return $status
     case "focus"
         display-message "Focus GHOST"
         yabai-preset focus-pid "$(cat "$TMPDIR/nvim_ghost.pid")"
@@ -13,14 +16,25 @@ function neovim-ghost
         wait
         rm "$TMPDIR/nvim_ghost.pid"
     case "trigger"
-        if pgrep -q -F "$TMPDIR/nvim_ghost.pid"
+        if neovim-ghost is-alive
             neovim-ghost focus
         else
             neovim-ghost start
         end;
     case "remote-tab-wait-with-focus"
-        neovim-ghost trigger
-        nvr --nostart --servername "$TMPDIR/nvim_ghost.socket" --remote-tab-wait +"set bufhidden=delete" $argv
+        if not neovim-ghost is-alive
+            neovim-ghost start
+            set skip_focus 1
+        end
+
+        nvr --nostart --servername "$TMPDIR/nvim_ghost.socket" --remote-tab-wait +"set bufhidden=delete" $argv &
+
+        if test "$skip_focus" != 1
+            neovim-ghost focus
+        end
+
+        wait
+
         yabai-preset minimize-pid "$(cat "$TMPDIR/nvim_ghost.pid")"
 
     case "*"

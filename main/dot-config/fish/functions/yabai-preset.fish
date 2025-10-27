@@ -327,8 +327,15 @@ function yabai-preset
         end
 
         display-message "$(count $windows) windows minimized"
+    case "minimize"
+        yabai -m window --minimize
+        yabai-preset focus-topmost
+    case "focus-topmost"
+        yabai -m window --focus (yabai -m query --windows --space | jq 'first(.[] | select(."is-visible" and (."is-sticky"|not))).id')
     case "deminimize-last"
-        yabai -m window --deminimize "$(yabai -m query --windows | jq 'map(select(."is-minimized")) | first | .id')"
+        set window (yabai -m query --windows | jq 'map(select(."is-minimized")) | first | .id')
+        yabai -m window --deminimize "$window"
+        yabai -m window --focus "$window"
     case "deminimize-all"
         set minimized (yabai -m query --windows | jq -er 'map(select(."is-minimized")) | .[].id')
 
@@ -633,7 +640,7 @@ function yabai-preset
         or return 1
 
         yabai -m window "$window" --minimize
-        yabai -m window --focus (yabai -m query --windows --space | jq 'first(.[] | select(."is-visible" and (."is-sticky"|not))).id')
+        yabai-preset focus-topmost
     case "*"
         return 1
     end
