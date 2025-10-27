@@ -4,8 +4,11 @@ set filetype $argv[1]
 set -e argv[1]
 
 set NVIMCMD (default "$NVIMCMD" "lvim")
+set PBVIM_FILETYPE_ARGS (default "$PBVIM_FILETYPE_ARGS" (string escape -- -c 'autocmd FileType <buffer> silent !test <amatch> \!= cmp_menu && echo <amatch> > /tmp/pbvim-last-filetype'))
 
-if test -z "$filetype"; or test "$filetype" = "--guess"
+if test "$filetype" = "--nomemo"
+    set filetype ""
+else if test -z "$filetype"; or test "$filetype" = "--guess"; or test "$filetype" = "--memo"
     if test -f "/tmp/pbvim-last-filetype"
         set filetype (cat /tmp/pbvim-last-filetype)
     else
@@ -30,7 +33,8 @@ pbpaste > "$tmpfile"
 set -l modified_before (stat -c %y "$tmpfile")
 
 # Create special command to save pbvim filetype to be used at a later try
-eval $NVIMCMD (string escape -- "$tmpfile" -c 'autocmd FileType <buffer> silent !test <amatch> \!= cmp_menu && echo <amatch> > /tmp/pbvim-last-filetype')
+echo $NVIMCMD "$tmpfile" $PBVIM_FILETYPE_ARGS
+eval $NVIMCMD "$tmpfile" $PBVIM_FILETYPE_ARGS
 
 set -l modified_after (stat -c %y "$tmpfile")
 

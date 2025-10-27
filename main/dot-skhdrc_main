@@ -173,7 +173,7 @@ service < ctrl + alt + cmd - y : skhd -k "escape"; yabai --stop-service && yabai
 service < ctrl + alt + cmd - b : skhd -k "escape";  display-message "Restart BTT" && btt-preset restart-btt
 service < ctrl + alt + cmd - a : skhd -k "escape";  display-message "Restart Alfred" && killall Alfred; sleep 2 && open -a "Alfred 5"
 service < ctrl + alt + cmd - m : skhd -k "escape";  display-message "Restart Mouseless" && killall mouseless; sleep 2 && open -a "Mouseless"
-service < ctrl + alt + cmd - k : skhd -k "escape";  display-message "Restart Karabiner" && launchctl kickstart -k gui/$(id -u)/org.pqrs.service.agent.karabiner_console_user_server
+service < ctrl + alt + cmd - c : skhd -k "escape";  display-message "Restart Karabiner" && launchctl kickstart -k gui/$(id -u)/org.pqrs.service.agent.karabiner_console_user_server
 service < shift - y : skhd -k "escape"; yabai-preset toggle-yabai
 service < v : skhd -k "escape"; yabai -m window --insert east
 service < shift - 0x27 : skhd -k "escape"; yabai -m window --insert south # double quotes
