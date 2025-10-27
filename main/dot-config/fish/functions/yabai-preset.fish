@@ -641,6 +641,14 @@ function yabai-preset
 
         yabai -m window "$window" --minimize
         yabai-preset focus-topmost
+    case "on-window-created"
+        set winid $argv[1]; set -e argv[1]
+        set window (yabai -m query --windows --window "$window")
+        set recent (yabai -m query --windows --window recent)
+
+        if jq -ne --argjson recent "$recent" '$recent."stack-index" > 0' > /dev/null
+            yabai -m window "$(jq -n --argjson recent "$recent" '$recent.id')" --stack "$winid"
+        end
     case "*"
         return 1
     end

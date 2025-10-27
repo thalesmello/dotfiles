@@ -62,6 +62,8 @@ yabai -m signal --add event=space_changed action="display-message \"Space \$YABA
 # yabai -m signal --add event=window_resized action="/opt/homebrew/bin/fish -c \"yabai-preset store-window-position \$YABAI_WINDOW_ID\""
 # yabai -m signal --add event=window_moved action="/opt/homebrew/bin/fish -c \"yabai-preset store-window-position \$YABAI_WINDOW_ID\""
 
+yabai -m signal --add event=window_created action="/opt/homebrew/bin/fish -c \"yabai-preset on-window-created \$YABAI_WINDOW_ID\""
+
 borders active_color=0xffe1e3e4 inactive_color=0xff494d64 width=5.0 &
 
 yabai -m signal --add label=sketchybar_window_focused event=window_focused action="sketchybar --trigger yabai_update"
