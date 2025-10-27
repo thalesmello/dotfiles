@@ -24,32 +24,25 @@ function yabai-harpoon
         yabai-harpoon reset-file
         display-message "Delete list"
     case "edit"
-        if pgrep -q -F "$TMPDIR/nvim_yabai_harpoon_edit.pid"
-            display-message "Focus Yabai-harpoon"
-            osascript -e "tell application \"System Events\" to set frontmost of every process whose unix id is $(cat "$TMPDIR/nvim_yabai_harpoon_edit.pid") to true"
+        display-message "Edit Yabai-harpoon"
+
+        set tmpfile (mktemp --suffix ".js")
+
+        and yabai-harpoon get-pins-from-file | yabai-harpoon normalize-pins > "$tmpfile"
+
+        set -l modified_before (stat -c %y "$tmpfile")
+
+        neovim-ghost edit "$tmpfile" -c "setlocal nowrap"
+
+        set -l modified_after (stat -c %y "$tmpfile")
+
+
+        if test "$modified_before" != "$modified_after"
+            yabai-harpoon write-pins-to-file < "$tmpfile"
+            display-message "Updated list"
         else
-            display-message "Edit Yabai-harpoon"
-
-            set tmpfile (mktemp --suffix ".js")
-
-            and yabai-harpoon get-pins-from-file | yabai-harpoon normalize-pins > "$tmpfile"
-
-            set -l modified_before (stat -c %y "$tmpfile")
-
-            env NVIM_LITE_MODE=1 neovide "$tmpfile" -- -c 'set nowrap' &
-            echo "$last_pid" > "$TMPDIR/nvim_yabai_harpoon_edit.pid"
-            wait
-            rm "$TMPDIR/nvim_yabai_harpoon_edit.pid"
-
-            set -l modified_after (stat -c %y "$tmpfile")
-
-            if test "$modified_before" != "$modified_after"
-                yabai-harpoon write-pins-to-file < "$tmpfile"
-                display-message "Updated list"
-            else
-                display-message "Exit Update"
-            end
-        end;
+            display-message "Exit Update"
+        end
 
     case "focus"
         set position $argv[1]

@@ -21,7 +21,8 @@ function neovim-ghost
         else
             neovim-ghost start
         end;
-    case "remote-tab-wait-with-focus"
+    case "edit"
+        set skip_focus 0
         if not neovim-ghost is-alive
             neovim-ghost start
             set skip_focus 1
