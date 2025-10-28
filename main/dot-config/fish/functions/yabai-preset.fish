@@ -156,6 +156,11 @@ function yabai-preset
         set stack $argv[1]
         set -e argv[1]
 
+        if not yabai -m query --windows --window | jq -e '.id' > /dev/null
+            yabai-preset focus-topmost
+            return
+        end
+
         if contains "$stack" "next" "prev" "recent" "first" "last"
             set stack (yabai -m query --windows --window "stack.$stack" | jq -e '."stack-index"')
         end
@@ -174,6 +179,11 @@ function yabai-preset
 
         set window $argv[1]
         set -e argv[1]
+
+        if not yabai -m query --windows --window | jq -e '.id' > /dev/null
+            yabai-preset focus-topmost
+            return
+        end
 
         if not contains "$window" "next" "prev" "first" "last"
             echoerr "Invalid argument: $window"
