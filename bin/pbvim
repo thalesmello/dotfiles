@@ -4,7 +4,7 @@ set filetype $argv[1]
 set -e argv[1]
 
 set NVIMCMD (default "$NVIMCMD" "lvim")
-set PBVIM_FILETYPE_ARGS (default "$PBVIM_FILETYPE_ARGS" (string escape -- -c 'autocmd FileType <buffer> silent !test <amatch> \!= cmp_menu && echo <amatch> > /tmp/pbvim-last-filetype'))
+set PBVIM_FILETYPE_ARGS (default "$PBVIM_FILETYPE_ARGS" "$(string escape -- -c 'autocmd FileType <buffer> silent !test <amatch> \!= cmp_menu && echo <amatch> > /tmp/pbvim-last-filetype')")
 
 if test "$filetype" = "--nomemo"
     set filetype ""
