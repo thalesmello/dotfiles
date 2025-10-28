@@ -103,8 +103,15 @@ return {
       end
     )
 
+    vim.api.nvim_create_autocmd({ 'FileType' }, {
+      group = group,
+      pattern = {"*"},
+      callback = function()
 
-    vim.keymap.set("n", "<leader>ft", function () vscode.action('workbench.action.editor.changeLanguageMode') end)
+        vscode.action('workbench.action.editor.changeLanguageMode', { args = { vim.bo.filetype } })
+      end,
+    })
+
     vim.keymap.set("n", "<leader>fr", function () vscode.action('references-view.findReferences') end)
     vim.keymap.set("n", "<leader>ss", function () vscode.action('workbench.action.gotoSymbol') end)
     vim.keymap.set("n", "<leader><cr>", function () vscode.action('workbench.action.terminal.toggleTerminal') end)
