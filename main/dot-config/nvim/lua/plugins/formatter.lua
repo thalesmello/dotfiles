@@ -36,6 +36,6 @@ return {
         keys = {
             {"<leader>fmt", "<cmd>Format<cr>", mode = "n"},
         },
-        extra_contexts = {"firenvim"},
+        extra_contexts = {"firenvim", "vscode"},
     },
 }
