@@ -148,8 +148,8 @@ return {
 
     vim.keymap.set("n", "<leader>.", function () vscode.action('editor.action.quickFix') end)
 
-    vim.keymap.set("n", "<leader>fmt", function () vscode.action('editor.action.formatDocument') end)
-    vim.keymap.set("v", "<leader>fmt", function () vscode.action('editor.action.formatSelection') end)
+    -- vim.keymap.set("n", "<leader>fmt", function () vscode.action('editor.action.formatDocument') end)
+    -- vim.keymap.set("v", "<leader>fmt", function () vscode.action('editor.action.formatSelection') end)
 
     vim.keymap.set("n", "<leader>ka", function () require('harpoon'):list('vscode'):add() end)
     vim.keymap.set("n", "<leader>ke", function ()
