@@ -60,10 +60,10 @@ return {
         init = function()
             vim.g.skip_default_textobj_word_column_mappings = 1
             vim.g.textobj_word_column_no_smart_boundary_cols = 1
-            vim.keymap.set({ "o", "x" }, 'ac', ':<C-u>call TextObjWordBasedColumn("aw")<cr>', { noremap = true })
-            vim.keymap.set({ "o", "x" }, 'aC', ':<C-u>call TextObjWordBasedColumn("aW")<cr>', { noremap = true })
-            vim.keymap.set({ "o", "x" }, 'ic', ':<C-u>call TextObjWordBasedColumn("iw")<cr>', { noremap = true })
-            vim.keymap.set({ "o", "x" }, 'iC', ':<C-u>call TextObjWordBasedColumn("iW")<cr>', { noremap = true })
+            vim.keymap.set({ "o", "x" }, 'a\\', ':<C-u>call TextObjWordBasedColumn("aw")<cr>', { noremap = true })
+            vim.keymap.set({ "o", "x" }, 'a|', ':<C-u>call TextObjWordBasedColumn("aW")<cr>', { noremap = true })
+            vim.keymap.set({ "o", "x" }, 'i\\', ':<C-u>call TextObjWordBasedColumn("iw")<cr>', { noremap = true })
+            vim.keymap.set({ "o", "x" }, 'i|', ':<C-u>call TextObjWordBasedColumn("iW")<cr>', { noremap = true })
         end,
         extra_contexts = {"vscode", "firenvim", "lite_nvim"}
     },
