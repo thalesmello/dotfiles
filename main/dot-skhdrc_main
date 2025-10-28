@@ -232,7 +232,7 @@ service < tab : skhd -k "escape"; yabai-preset smart-move-window-to-next-display
 service < shift - 0x2C : skhd -k "escape"; btt-preset trigger-menu-bar 'Help' # slash / question mark
 service < ctrl + alt + cmd - 0x2C : skhd -k "escape"; skhd-preset search-and-display-mapping # slash / question mark
 
-service < ctrl + alt + cmd - v : skhd -k "escape"; btt-preset trigger-menu-bar 'Window;Full Screen Tile; Left of Screen'
+service < shift - v : skhd -k "escape"; btt-preset trigger-menu-bar 'Window;Full Screen Tile; Left of Screen'
 service < ctrl + alt + cmd - return : skhd -k "escape" ; btt-preset send-keys ctrl cmd f
 
 
