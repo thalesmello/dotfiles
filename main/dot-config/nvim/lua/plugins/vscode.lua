@@ -108,6 +108,10 @@ return {
       pattern = {"*"},
       callback = function()
 
+        if vim.list_contains({'', 'output-channel'}, vim.bo.filetype or '') then
+          return
+        end
+
         vscode.action('workbench.action.editor.changeLanguageMode', { args = { vim.bo.filetype } })
       end,
     })
