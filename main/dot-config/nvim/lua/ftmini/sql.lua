@@ -33,5 +33,10 @@ return {
             end,
             input = {"[Cc][Aa][Ss][Tt]%b()", "^....%(().-()%s+[Aa][Ss]%s+.-%)$"}
         },
+
+        ["A"] = {
+            output = { left = "ARRAY[", right = "]" },
+            input = {"ARRAY%[().-()%]"}
+        },
     }
 }
