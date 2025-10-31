@@ -220,7 +220,7 @@ H.from_mini = function (surr_spec)
             if not H.is_surrounding_info(res, "output") then return nil end
             if H.is_composed_pattern(res) then res = vim.tbl_map(H.wrap_callable_table, res) end
 
-            return { res.left, res.right }
+            return { vim.split(res.left, '\n'), vim.split(res.right, '\n') }
         end,
         find = function ()
             local res = input
