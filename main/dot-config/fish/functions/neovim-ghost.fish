@@ -11,7 +11,7 @@ function neovim-ghost
         yabai-preset focus-pid "$(cat "$TMPDIR/nvim_ghost.pid")"
     case "start"
         display-message "Start GHOST"
-        env NVIM_GHOST_ENABLE=1 NVIM_LITE_MODE=1 neovide --frame buttonless --title-hidden -- --listen "$TMPDIR/nvim_ghost.socket" &
+        env NVIM_GHOST_ENABLE=1 neovide --frame buttonless --title-hidden -- --listen "$TMPDIR/nvim_ghost.socket" &
         echo "$last_pid" > "$TMPDIR/nvim_ghost.pid"
         wait
         rm "$TMPDIR/nvim_ghost.pid"
