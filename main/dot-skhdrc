@@ -19,6 +19,9 @@ resize < escape ; default
 ::stack @ : display-message "Stack"
 stack < escape ; default
 
+::restart @ : display-message "Restart"
+restart < escape ; default
+
 # skhdrc_local is loaded first so that mappings there can override main
 .load ".skhdrc_local"
 .load ".skhdrc_main"
