@@ -169,8 +169,8 @@ service < ctrl + alt + cmd - space : skhd -k "escape"; yabai-preset focus-space 
 service < space : skhd -k "escape"; yabai -m window --focus recent || yabai-preset focus-space recent
 service < shift - space : skhd -k "escape"; yabai-preset move-window-to-space recent
 service < r ; resize
-service < ctrl + alt + cmd - y : skhd -k "escape"; yabai --stop-service && yabai --start-service && display-message "Yabai Restarted" || begin; yabai --start-service && display-message "Yabai Started"; end
 service < ctrl + alt + cmd - r ; restart
+restart < ctrl + alt + cmd - y : skhd -k "escape"; yabai --stop-service && yabai --start-service && display-message "Yabai Restarted" || begin; yabai --start-service && display-message "Yabai Started"; end
 restart < ctrl + alt + cmd - b : skhd -k "escape";  display-message "Restart BTT" && btt-preset restart-btt
 restart < ctrl + alt + cmd - a : skhd -k "escape";  display-message "Restart Alfred" && killall Alfred; sleep 2 && open -a "Alfred 5"
 restart < ctrl + alt + cmd - m : skhd -k "escape";  display-message "Restart Mouseless" && killall mouseless; sleep 2 && open -a "Mouseless"
