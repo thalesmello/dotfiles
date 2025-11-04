@@ -9,7 +9,9 @@ function skhd-preset
         btt-preset display-message --duration 1 "$(string match -rg '^(.*):' "$(skhd-preset search-and-print-shortcut)")"
     case "display-shortcuts"
         set config (cat ~/.skhdrc_main ~/.skhdrc_local | string collect)
-        string replace -ra '\\\\\n\s+' ' ' "$config" | string match -e ":" | string match -vre '^#'
+        string replace -ra ':\n\s*' ': ' "$(string replace -ra '\\\\\n\s+' ' ' "$config")" \
+        | string match -e ":" \
+        | string match -vre '^#'
     case "search-and-print-shortcut"
         skhd-preset display-shortcuts | choose -w 80 -n 20 -s 20
     end
