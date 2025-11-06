@@ -12,7 +12,7 @@ return {
         ["C"] = { {"^[%w_].*", "[^%w_].*"}, "^[^%w_]-[%w_]+%s+[Aa][Ss]%s+%b(),?", "^.()[%w_]-%s+..%s+%(%s*().-()%s*%),?()$"},
         -- ["C"] = spec_treesitter({ a = "@sql-cte-cte", i = "@sql-cte-inner"}),
         ["c"] = {"[Cc][Aa][Ss][Tt]%b()", "^....%(().-()%s+[Aa][Ss]%s+.-%)$"},
-        ["A"] = spec_pair("ARRAY[", "]")
+        ["A"] = spec_pair("ARRAY[", "]"),
     },
 
     custom_surroundings = {

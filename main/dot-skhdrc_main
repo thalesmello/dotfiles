@@ -281,9 +281,6 @@ chrome < shift - 7 : skhd -k "escape"; chrome-preset pin-tab 7
 chrome < shift - 8 : skhd -k "escape"; chrome-preset pin-tab 8
 chrome < shift - 9 : skhd -k "escape"; chrome-preset pin-tab 9
 
-service < shift - c ; goto
-ctrl + alt + cmd + shift - 0x27 ; goto # single quote
-
 #chrome_start
 chrome < y : skhd -k "escape"; chrome-preset focus-or-open-url --profile="Default" youtube.com
 chrome < g : skhd -k "escape"; chrome-preset focus-or-open-url --profile="Default" gmail.com
