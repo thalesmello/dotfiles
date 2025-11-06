@@ -5,7 +5,22 @@ local spec_treesitter = require('mini.ai').gen_spec.treesitter
 
 return {
     custom_textobjects = {
-        ['g'] = { { 'f?""".-"""', "f?'''.-'''" }, '^...%s*().-()%s*...$' },
+        ['g'] = {
+            { 'f?""".-"""', "f?'''.-'''" },
+            '^...%s*().-()%s*...$',
+        },
+        ['"'] = {
+            '%f[f"]f?%b""',
+            '^f?.().-().$',
+        },
+        ["'"] = {
+            "%f[f']f?%b''",
+            '^f?.().-().$',
+        },
+        ["q"] = {
+            { "%f[f']f?%b''", '%f[f"]f?%b""' },
+            '^f?.().-().$',
+        },
     },
     custom_surroundings = {
         ["g"] = {
