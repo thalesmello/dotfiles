@@ -223,7 +223,6 @@ function btt-preset
         set active (btt-preset get-string-variable "active_app_name")
 
         if test "$active" = "$app_name"
-            echo alttab
             skhd -k "cmd - tab"
         else if test -n "$_flag_cmd"
             eval "$_flag_cmd"
