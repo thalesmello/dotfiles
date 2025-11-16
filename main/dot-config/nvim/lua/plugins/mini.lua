@@ -72,10 +72,20 @@ return {
                     if not ok or char == '\27' then return nil end
                     local moveLeft, moveRight = ts_repeat_move.make_repeatable_move_pair(
                         function ()
-                            mini_ai.move_cursor('left', ai, char, {search_method=left_sm})
+                            local pos = vim.fn.getpos('.')
+                            vim.cmd("silent! lua MiniAi.move_cursor('left', ".. vim.fn.shellescape(ai) ..", " .. vim.fn.shellescape(char) .. ", {search_method=left_sm})")
+
+                            if vim.deep_equal(vim.fn.getpos('.'), pos) then
+                                vim.cmd.normal(vim_utils.keycodes('v' .. ai .. char .. "<esc>`<"))
+                            end
                         end,
                         function ()
-                            mini_ai.move_cursor('right', ai, char, {search_method=right_sm})
+                            local pos = vim.fn.getpos('.')
+                            vim.cmd("silent! lua MiniAi.move_cursor('right', ".. vim.fn.shellescape(ai) ..", " .. vim.fn.shellescape(char) .. ", {search_method=left_sm})")
+
+                            if vim.deep_equal(vim.fn.getpos('.'), pos) then
+                                vim.cmd.normal(vim_utils.keycodes('v' .. ai .. char .. "<esc>`>"))
+                            end
                         end
                     )
 
