@@ -15,7 +15,7 @@ function M.setup ()
         vim.api.nvim_cmd({
             cmd = "!",
             range = range,
-            args = opts.fargs,
+            args = {"fish", "-c", vim.fn.shellescape(opts.args)},
         }, {output = false})
     end,
         {
