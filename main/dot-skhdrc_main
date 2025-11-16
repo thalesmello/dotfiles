@@ -84,7 +84,7 @@ ctrl + alt + cmd - return : yabai-preset smart-toggle-fullscreen
 
 ctrl + alt + cmd + shift - return : yabai-preset unstacked-swap-largest
 
-ctrl + alt + cmd + shift - v : btt-preset send-keys cmd c; and pbneovide --guess
+service < ctrl + alt + cmd - v : skhd -k "escape"; btt-preset send-keys cmd c; and pbneovide --guess
 ctrl + alt + cmd - v : btt-preset alternate-app "Neovide" --cmd "neovim-ghost trigger"
 
 # For some reason, the script if very slow. I need to investigate some other time.
