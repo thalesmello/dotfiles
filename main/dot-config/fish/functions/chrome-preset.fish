@@ -190,6 +190,12 @@ function chrome-preset
             chrome-cli close -t "$tab_id"
         end
         or return 1
+
+    case "click-selector"
+        set selector $argv[1]
+        set -e argv[1]
+        
+        chrome-cli execute "document.querySelector($(string escape "$selector")).click()"
     case '*'
         return 1
     end
