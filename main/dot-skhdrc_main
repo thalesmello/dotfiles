@@ -84,7 +84,9 @@ ctrl + alt + cmd - return : yabai-preset smart-toggle-fullscreen
 
 ctrl + alt + cmd + shift - return : yabai-preset unstacked-swap-largest
 
-ctrl + alt + cmd - v : btt-preset trigger-named-trigger "Edit Selection in Vim"
+ctrl + alt + cmd + shift - v : btt-preset send-keys cmd c; and pbneovide --guess
+ctrl + alt + cmd - v : btt-preset alternate-app "Neovide" --cmd "neovim-ghost trigger"
+
 # For some reason, the script if very slow. I need to investigate some other time.
 # ctrl + alt + cmd - t : btt-preset trigger-named-trigger "Chrome: Open New Tab (with selection is One Line)"
 ctrl + alt + cmd - t : btt-preset trigger-named-trigger "Chrome: New Tab and Focus"
@@ -160,8 +162,6 @@ service < ctrl + alt + cmd - e : skhd -k "escape"; if pgrep -q -F "$TMPDIR/nvim_
         wait; \
         rm "$TMPDIR/nvim_skhd.pid"; \
     end;
-
-service < ctrl + alt + cmd - v : skhd -k "escape"; neovim-ghost trigger
 
 # Service mode bindings
 service < ctrl + alt + cmd - space : skhd -k "escape"; yabai-preset focus-space recent

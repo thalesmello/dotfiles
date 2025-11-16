@@ -92,6 +92,8 @@ function btt-preset
         set -e argv[1]
 
         osascript -e "POSIX path of (path to application \"$app\")"
+    case "show-app"
+        btt-preset show-or-hide-app --only-show $argv
     case "show-or-hide-app"
         argparse only-show only-hide -- $argv
         or return 1
@@ -201,12 +203,32 @@ function btt-preset
                 "y": 16, "z": 6, "space": 49, "return": 36, "left": 123,
                 "right": 124, "up": 126, "down": 125, "fn": 63, "1": 18,
                 "2": 19, "3": 20, "4": 21, "5": 23, "6": 22, "7": 26,
-                "8": 28, "9": 25, "0": 29
+                "8": 28, "9": 25, "0": 29, "tab": 48, "escape": 53
             } as $map
             | rtrimstr("\n")
             | split("\n")
             | map(. as $key | $map[.] | if . == null then error("\($key) is not mapped") else . end)
             | join(",")
         '
+
+    case "alternate-app"
+        set app $argv[1]
+        set -e argv[1]
+
+        argparse cmd= -- $argv
+        or return 1
+
+        set app_name (path basename "$app" | path change-extension '')
+
+        set active (btt-preset get-string-variable "active_app_name")
+
+        if test "$active" = "$app_name"
+            echo alttab
+            skhd -k "cmd - tab"
+        else if test -n "$_flag_cmd"
+            eval "$_flag_cmd"
+        else
+            btt-preset show-app "$app"
+        end
     end
 end

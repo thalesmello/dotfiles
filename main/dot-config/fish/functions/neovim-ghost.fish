@@ -7,7 +7,6 @@ function neovim-ghost
         pgrep -q -F "$TMPDIR/nvim_ghost.pid"
         return $status
     case "focus"
-        display-message "Focus GHOST"
         yabai-preset focus-pid "$(cat "$TMPDIR/nvim_ghost.pid")"
     case "start"
         display-message "Start GHOST"
