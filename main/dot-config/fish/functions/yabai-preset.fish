@@ -319,7 +319,10 @@ function yabai-preset
 
         display-message "$(count $windows) windows minimized"
     case "minimize"
-        yabai -m window --minimize
+        set window $argv[1]
+        set -e argv[1]
+        
+        yabai -m window "$window" --minimize
         yabai-preset focus-topmost
     case "focus-topmost"
         yabai -m window --focus (yabai -m query --windows --space | jq 'first(.[] | select(."is-visible" and (."is-sticky"|not))).id')

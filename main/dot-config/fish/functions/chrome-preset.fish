@@ -250,6 +250,8 @@ function chrome-preset
             chrome-preset create-app --profile="$_flag_profile" "$appname" "$url"
         end
     case "alternate-app"
+        argparse profile= -- $argv
+
         set app $argv[1]
         set -e argv[1]
 
@@ -258,9 +260,9 @@ function chrome-preset
         set active (yabai -m query --windows --window)
 
         if test "$(jq -nr --argjson active "$active" '$active.id')" = "$app_window_id"
-            skhd -k "cmd - tab"
+            yabai -m window recent --focus
         else
-            chrom-preset focus-or-create-app "$app" $argv
+            chrome-preset focus-or-create-app --profile "$_flag_profile" "$app" $argv
         end
     case '*'
         return 1
