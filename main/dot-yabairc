@@ -58,17 +58,17 @@ yabai -m rule --add app="Raycast" manage=off
 yabai -m rule --add app="Cisco Secure Client" manage=off
 yabai -m rule --add role="AXWindow" manage=off
 
-yabai -m signal --add event=space_changed action="display-message \"Space \$YABAI_SPACE_INDEX\""
+yabai -m signal --add event=space_changed label=announce_space_change action="display-message \"Space \$YABAI_SPACE_INDEX\""
 
 # yabai -m signal --add event=window_resized action="/opt/homebrew/bin/fish -c \"yabai-preset store-window-position \$YABAI_WINDOW_ID\""
 # yabai -m signal --add event=window_moved action="/opt/homebrew/bin/fish -c \"yabai-preset store-window-position \$YABAI_WINDOW_ID\""
 
-yabai -m signal --add event=window_created action="/opt/homebrew/bin/fish -c \"yabai-preset on-window-created \$YABAI_WINDOW_ID\""
+yabai -m signal --add event=window_created label=stack_new_windows action="/opt/homebrew/bin/fish -c \"yabai-preset stack-new-window \$YABAI_WINDOW_ID\""
 
 borders active_color=0xffe1e3e4 inactive_color=0xff494d64 width=5.0 &
 
-yabai -m signal --add label=sketchybar_window_focused event=window_focused action="sketchybar --trigger yabai_update"
-yabai -m signal --add label=sketchybar_window_resized event=window_resized action="sketchybar --trigger yabai_update"
+# yabai -m signal --add label=sketchybar_window_focused event=window_focused action="sketchybar --trigger yabai_update"
+# yabai -m signal --add label=sketchybar_window_resized event=window_resized action="sketchybar --trigger yabai_update"
 
 # yabai -m signal --add label=mru_chrome event=window_title_changed app="Google Chrome" action="/opt/homebrew/bin/fish -c 'set -U _YABAI_MRU chrome_tab'"
 # yabai -m signal --add label=mru_window event=window_focused action="/opt/homebrew/bin/fish -c 'set -U _YABAI_MRU window'"

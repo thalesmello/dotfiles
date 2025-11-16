@@ -110,25 +110,6 @@ function yabai-preset
         | first.id'
         )
         yabai -m window "$winid" --focus
-    case "focus-window-classic"
-        set direction $argv[1]
-        set -e argv[1]
-        set winid (yabai -m query --windows --space | jq -e --arg direction "$direction" '.
-        | (.[] | select(."has-focus")) as {$id, $app, frame: $zero}
-        | map(select(."is-visible" and (."is-sticky"|not)) | .zero = $zero)
-        | map(.frame |= . + {distance: (pow(.x - $zero.x; 2) + pow(.y - $zero.y; 2)), angle: atan2(-.y + $zero.y; .x - $zero.x)})
-        | {
-        east: {lt: (3.14/4), gte: (-3.14/4)},
-        north: {lt: (3*3.14/4), gte: (3.14/4)},
-        west: {lt: (5*3.14/4), gte: (3*3.14/4), shiftnegative: true},
-        south: {gte: (-3*3.14/4), lt: (-3.14/4)}}[$direction] as $filter
-        | map(.frame.angle |= if $filter.shiftnegative and . < 0 then (. + 2*3.14) else . end)
-        | map(select(.frame.angle >= $filter.gte and .frame.angle < $filter.lt and .id != $id))
-        | sort_by(.frame.distance)
-        | first
-        | .id')
-
-        yabai -m window "$winid" --focus
     case "focus-space"
         set space $argv[1]
         set -e argv[1]
@@ -651,14 +632,23 @@ function yabai-preset
 
         yabai -m window "$window" --minimize
         yabai-preset focus-topmost
-    case "on-window-created"
+    case "stack-new-window"
         set winid $argv[1]; set -e argv[1]
         set window (yabai -m query --windows --window "$window")
         set recent (yabai -m query --windows --window recent)
 
+        if jq -ne --argjson window "$window" '($window.app = "Google Chrome") and ($window"stack-index" | in(["Picture in Picture", ""]))' > /dev/null
+            return
+        end
+
         if jq -ne --argjson recent "$recent" '$recent."stack-index" > 0' > /dev/null
             yabai -m window "$(jq -n --argjson recent "$recent" '$recent.id')" --stack "$winid"
         end
+    case "get-window-info"
+        set windowid $argv[1]
+        set -e argv[1]
+
+        yabai -m query --windows --window "$windowid"
     case "*"
         return 1
     end

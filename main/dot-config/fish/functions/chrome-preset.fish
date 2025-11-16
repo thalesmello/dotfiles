@@ -194,8 +194,61 @@ function chrome-preset
     case "click-selector"
         set selector $argv[1]
         set -e argv[1]
-        
+
         chrome-cli execute "document.querySelector($(string escape "$selector")).click()"
+    case "create-app"
+        mkdir -p /tmp/chrome_preset_apps
+        argparse profile= -- $argv
+
+        set appname $argv[1]
+        set -e argv[1]
+
+        set url $argv[1]
+        set -e argv[1]
+
+        yabai -m signal --add \
+            event=window_created \
+            app='^Google Chrome$' \
+            label="store_chrome_preset_app_info" \
+            action="echo \$YABAI_WINDOW_ID > /tmp/chrome_preset_apps/$appname.windowid; env OUTPUT_FORMAT=json chrome-cli info > /tmp/chrome_preset_apps/$appname.chromeinfo; yabai -m signal --remove store_chrome_preset_app_info"
+
+        open -na 'Google Chrome' --args --profile-directory="$_flag_profile" --app="$url"
+
+    case "open-in-app"
+        argparse profile= -- $argv
+
+        set appname $argv[1]
+        set -e argv[1]
+
+        set url $argv[1]
+        set -e argv[1]
+
+        set window (cat "/tmp/chrome_preset_apps/$appname.windowid")
+
+        if yabai-preset get-window-info "$window" >/dev/null
+            set app (cat "/tmp/chrome_preset_apps/$appname.chromeinfo")
+
+            chrome-cli open "$url" -t "$(jq -nr --argjson app "$app" '$app.id')"
+            yabai -m window "$window" --focus
+        else
+            chrome-preset create-app --profile="$_flag_profile" "$appname" "$url"
+        end
+    case "focus-or-create-app"
+        argparse profile= -- $argv
+
+        set appname $argv[1]
+        set -e argv[1]
+
+        set url $argv[1]
+        set -e argv[1]
+
+        set window (cat "/tmp/chrome_preset_apps/$appname.windowid")
+
+        if yabai-preset get-window-info "$window" >/dev/null
+            yabai -m window "$window" --focus
+        else
+            chrome-preset create-app --profile="$_flag_profile" "$appname" "$url"
+        end
     case '*'
         return 1
     end
