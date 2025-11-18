@@ -200,3 +200,27 @@ do
     do_open(table.concat(vim.iter(lines):map(vim.trim):totable()))
   end, { desc = gx_desc })
 end
+
+local function merge_tab(direction)
+  -- Get current tabpage and buffer
+  local current_tab = vim.api.nvim_get_current_tabpage()
+  local current_buf = vim.api.nvim_get_current_buf()
+
+  -- Get current tab number
+  local current_tab_nr = vim.api.nvim_tabpage_get_number(current_tab)
+
+  -- Move to previous tabpage
+  vim.cmd('tab'..direction)
+
+  -- Open vertical split in previous tabpage
+  vim.cmd('vertical sbuffer '..current_buf)
+
+  -- Set the buffer in the new split
+  vim.api.nvim_set_current_buf(current_buf)
+
+  -- Go back to original tab to close it
+  vim.cmd(current_tab_nr .. 'tabclose')
+end
+
+vim.keymap.set("n", "<leader>gt", function () merge_tab("next") end)
+vim.keymap.set("n", "<leader>gT", function () merge_tab("prev") end)

@@ -26,7 +26,7 @@ return {
     {
         'tpope/vim-unimpaired',
         event = "VeryLazy",
-        extra_contexts = {"firenvim", "lite_mode"}
+        extra_contexts = {"firenvim", "lite_mode", "vscode"}
     },
     {
         'tpope/vim-apathy',

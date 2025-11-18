@@ -50,7 +50,7 @@ yabai -m rule --add app="System Settings" manage=off
 yabai -m rule --add app="mouseless" manage=off
 yabai -m rule --add app="BetterTouchTool" title="BetterTouchTool Settings" manage=off
 yabai -m rule --add app="BetterTouchTool" title="Variables \& Scripting" manage=off
-yabai -m rule --add app="Google Chrome" title="Picture in Picture" role="AXWindow" subrole="AXStandardWindow" manage=off
+yabai -m rule --add app="Google Chrome" title='^Picture\sin\sPicture$' manage=off
 yabai -m rule --add app="Google Chrome" title="" role="AXWindow" subrole="AXStandardWindow" manage=off
 yabai -m rule --add app="Karabiner-Elements" title="Karabiner-Elements Settings" manage=off
 yabai -m rule --add app="Mac Mouse Fix" manage=off
@@ -75,3 +75,5 @@ borders active_color=0xffe1e3e4 inactive_color=0xff494d64 width=5.0 &
 # yabai -m signal --add label=mru_space event=space_changed action="/opt/homebrew/bin/fish -c 'set -U _YABAI_MRU space'"
 #
 echo "yabai configuration loaded.."
+display-message "yabai configuration loaded.."
+
