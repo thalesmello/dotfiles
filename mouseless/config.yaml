@@ -1,10 +1,10 @@
-app_version: 0.4.1
+app_version: 0.4.3
 behavior_configs:
 - base_move_speed: 5.0
   base_wheel_speed: 16.0
   free_mode_auto_off_s: 10
   grid_action_level: subgrid
-  hide_cursor_on_click: false
+  hide_cursor_on_click: true
   hide_location: bottom_left
   initial_action_location: system_cursor
   initial_overlay_monitor: with_keyboard_focus
@@ -324,7 +324,7 @@ keymaps:
     - W
     - ArrowUp
     release hold/drag: null
-    repeat last mouse action: null
+    repeat last mouse action: ShiftLeft tap
     right click: null
     right mouse button: Opt+space
     right mouse button (w/o overlay): null
@@ -362,13 +362,13 @@ keymaps:
     wheel right: null
     wheel right fast: l
     wheel step down: null
-    wheel step down large: ctrl+d
+    wheel step down large: d
     wheel step left: null
     wheel step left large: null
     wheel step right: null
     wheel step right large: null
     wheel step up: null
-    wheel step up large: ctrl+u
+    wheel step up large: u
     wheel up: null
     wheel up fast: k
   name: mac
@@ -447,14 +447,14 @@ style_configs:
   - 0.996078431372549
   - 0.996078431372549
   - 1.0
-  text_shadow_blur_radius: 4
+  text_shadow_blur_radius: 4.0
   text_shadow_offset:
-  - 0
-  - 0
+  - 0.0
+  - 0.0
   text_shadow_rgba:
   - 0.0
   - 0.0
   - 0.0
   - 1.0
   text_y_offset: 0.0
-  window_opacity: 1
+  window_opacity: 1.0
