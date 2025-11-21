@@ -16,7 +16,7 @@ return {
             return vim.tbl_deep_extend('force', opts or {}, {
                 ensure_installed = { "lua", "vim", "python", "ruby", "query",
                     "sql", "regex", "markdown", "markdown_inline", "html",
-                    "latex", "typst", "yaml" },
+                    "latex", "typst", "yaml", "fish" },
 
                 modules = {},
                 sync_install = false,
