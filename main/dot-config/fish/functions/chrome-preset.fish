@@ -267,7 +267,6 @@ function chrome-preset
             if set -q _flag_minimize
                 yabai-preset "minimize"
             else
-                echo batman
                 yabai -m window recent --focus
             end
         else
