@@ -233,6 +233,12 @@ function chrome-preset
         else
             chrome-preset create-app --profile="$_flag_profile" "$appname" "$url"
         end
+    case "get-app-window-id"
+        set appname $argv[1]
+        set -e argv[1]
+
+        cat "/tmp/chrome_preset_apps/$appname.windowid" 2>/dev/null
+        return $status
     case "focus-or-create-app"
         argparse profile= -- $argv
 
@@ -242,9 +248,7 @@ function chrome-preset
         set url $argv[1]
         set -e argv[1]
 
-        set window (cat "/tmp/chrome_preset_apps/$appname.windowid")
-
-        if yabai-preset get-window-info "$window" >/dev/null
+        if set window (chrome-preset get-app-window-id "$appname"); and yabai-preset get-window-info "$()" >/dev/null
             yabai -m window "$window" --focus
         else
             chrome-preset create-app --profile="$_flag_profile" "$appname" "$url"
@@ -255,7 +259,7 @@ function chrome-preset
         set app $argv[1]
         set -e argv[1]
 
-        set app_window_id (cat "/tmp/chrome_preset_apps/$app.windowid"; or return 1)
+        set app_window_id (cat "/tmp/chrome_preset_apps/$app.windowid")
 
         set active (yabai -m query --windows --window)
 
