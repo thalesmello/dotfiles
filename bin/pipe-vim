@@ -1,0 +1,37 @@
+#!/usr/bin/env fish
+
+set filetype $argv[1]
+set -e argv[1]
+
+
+set NVIMCMD (default "$NVIMCMD" "lvim")
+set PBVIM_FILETYPE_ARGS (default "$PBVIM_FILETYPE_ARGS" "$(string escape -- -c 'autocmd FileType <buffer> silent !test <amatch> \!= cmp_menu && echo <amatch> > /tmp/pbvim-last-filetype')")
+
+if test "$filetype" = "--nomemo"
+    set filetype ""
+else if test -z "$filetype"; or test "$filetype" = "--guess"; or test "$filetype" = "--memo"
+    if test -f "/tmp/pbvim-last-filetype"
+        set filetype (cat /tmp/pbvim-last-filetype)
+    else
+        set filetype ""
+    end
+
+    if test "$filetype" = "python"
+        set filetype "py"
+    end
+end
+
+if test -n "$filetype"
+    set tmpfile (mktemp --suffix ".$filetype")
+else
+    set tmpfile (mktemp)
+end
+
+cat > "$tmpfile"
+
+# Create special command to save pbvim filetype to be used at a later try
+eval $NVIMCMD "$tmpfile" $PBVIM_FILETYPE_ARGS
+
+set contents (string replace -r '\n[^\n]*$' '' < $tmpfile | string collect)
+rm "$tmpfile"
+printf '%s' "$contents"
