@@ -1,5 +1,8 @@
 #!/usr/bin/env fish
 
+
+# pbpaste | pipe-vim $argv | pbcopy
+
 set filetype $argv[1]
 set -e argv[1]
 
