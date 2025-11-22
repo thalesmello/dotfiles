@@ -610,7 +610,6 @@ function yabai-preset
         set pid $argv[1]
         set -e argv[1]
 
-        echo pid $pid
         yabai -m query --windows \
         | jq -re --argjson pid "$pid" '.
         | first(.[] | select(.pid == $pid))
@@ -624,7 +623,6 @@ function yabai-preset
         set pid $argv[1]
         set -e argv[1]
 
-        echo pid $pid
         yabai -m query --windows \
         | jq -re --argjson pid "$pid" '.
         | first(.[] | select(.pid == $pid))

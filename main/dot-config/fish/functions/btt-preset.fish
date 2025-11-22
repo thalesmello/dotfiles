@@ -215,7 +215,7 @@ function btt-preset
         set app $argv[1]
         set -e argv[1]
 
-        argparse cmd= -- $argv
+        argparse cmd= hide=? minimize=? -- $argv
         or return 1
 
         set app_name (path basename "$app" | path change-extension '')
@@ -223,7 +223,13 @@ function btt-preset
         set active (btt-preset get-string-variable "active_app_name")
 
         if test "$active" = "$app_name"
-            skhd -k "cmd - tab"
+            if set -q _flag_hide
+                skhd -k "cmd - h"
+            else if set -q _flag_minimize
+                yabai-preset minimize
+            else
+                skhd -k "cmd - tab"
+            end
         else if test -n "$_flag_cmd"
             eval "$_flag_cmd"
         else

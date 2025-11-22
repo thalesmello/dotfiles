@@ -157,8 +157,15 @@ return {
 
     vim.keymap.set("n", "<leader>ka", function () require('harpoon'):list('vscode'):add() end)
     vim.keymap.set("n", "<leader>ke", function ()
-      vim.fn.setreg('"', vim.fn.join(require('harpoon'):list('vscode'):display(), '\n'))
-      vim.cmd.put()
+      local harpoon = require('harpoon')
+      local stdout = vim.system({"pipe-neovide"}, {
+          text=true,
+          stdin=vim.fn.join(harpoon:list('vscode'):display(), '\n'),
+        }):wait().stdout
+
+      local newlist = vim.fn.split(stdout, "\n")
+      local length = #newlist
+      harpoon:list('vscode'):resolve_displayed(newlist, length)
     end)
     vim.keymap.set("n", "<leader>kE", function ()
       local harpoon = require('harpoon')

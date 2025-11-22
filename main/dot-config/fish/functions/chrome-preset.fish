@@ -254,7 +254,7 @@ function chrome-preset
             chrome-preset create-app --profile="$_flag_profile" "$appname" "$url"
         end
     case "alternate-app"
-        argparse profile= minimize=? -- $argv
+        argparse profile= minimize=? hide=? -- $argv
 
         set app $argv[1]
         set -e argv[1]
@@ -264,7 +264,9 @@ function chrome-preset
         set active (yabai -m query --windows --window)
 
         if test "$(jq -nr --argjson active "$active" '$active.id')" = "$app_window_id"
-            if set -q _flag_minimize
+            if set -q _flag_hide
+                skhd -k 'cmd - h'
+            else if set -q _flag_minimize
                 yabai-preset "minimize"
             else
                 yabai -m window recent --focus
