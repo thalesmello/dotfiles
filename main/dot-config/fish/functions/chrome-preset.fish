@@ -272,7 +272,7 @@ function chrome-preset
                 yabai -m window recent --focus
             end
         else
-            chrome-preset focus-or-create-app --profile "_flag_profile" "$app" $argv
+            chrome-preset focus-or-create-app --profile "$_flag_profile" "$app" $argv
         end
     case '*'
         return 1
