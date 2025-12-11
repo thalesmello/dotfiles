@@ -27,7 +27,7 @@ function neovim-ghost
             set skip_focus 1
         end
 
-        nvr --nostart --servername "$TMPDIR/nvim_ghost.socket" --remote-tab-wait +"set bufhidden=delete" $argv &
+        nvr --nostart --servername "$TMPDIR/nvim_ghost.socket" --remote-tab-wait +"set bufhidden=delete" +"nnoremap <buffer> <D-CR> ZZ" +"inoremap <buffer> <D-CR> <Esc>ZZ" $argv &
 
         if test "$skip_focus" != 1
             neovim-ghost focus
