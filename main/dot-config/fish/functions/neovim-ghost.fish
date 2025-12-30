@@ -37,6 +37,10 @@ function neovim-ghost
 
         yabai-preset minimize-pid "$(cat "$TMPDIR/nvim_ghost.pid")"
 
+    case "kill"
+        kill -9 "$(cat "$TMPDIR/nvim_ghost.pid")"
+        rm "$TMPDIR/nvim_ghost.pid"
+        rm "$TMPDIR/nvim_ghost.socket"
     case "*"
         echo "invalid preset $preset" >&2
     end

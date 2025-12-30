@@ -174,6 +174,7 @@ restart < ctrl + alt + cmd - y : skhd -k "escape"; yabai --stop-service && yabai
 restart < ctrl + alt + cmd - b : skhd -k "escape";  display-message "Restart BTT" && btt-preset restart-btt
 restart < ctrl + alt + cmd - a : skhd -k "escape";  display-message "Restart Alfred" && killall Alfred; sleep 2 && open -a "Alfred 5"
 restart < ctrl + alt + cmd - m : skhd -k "escape";  display-message "Restart Mouseless" && killall mouseless; sleep 2 && open -a "Mouseless"
+restart < ctrl + alt + cmd - v : skhd -k "escape";  display-message "Restart NVIM Ghost" && neovim-ghost kill; sleep 2 && neovim-ghost start
 restart < ctrl + alt + cmd - k : skhd -k "escape";  display-message "Restart Karabiner" && launchctl kickstart -k gui/$(id -u)/org.pqrs.service.agent.karabiner_console_user_server
 service < shift - y : skhd -k "escape"; yabai-preset toggle-yabai
 service < v : skhd -k "escape"; yabai -m window --insert east
