@@ -302,7 +302,7 @@ ctrl + alt + cmd - x : btt-preset show-or-hide-app --only-show "/Applications/iT
 ctrl + alt + cmd - q : chrome-preset focus-or-open-url "gemini.google.com" --label "Gemini"
 ctrl + alt + cmd - w : btt-preset show-or-hide-app --only-show "/Applications/WhatsApp.app"
 ctrl + alt + cmd - z : btt-preset show-or-hide-app --only-show "/Applications/Obsidian.app"
-ctrl + alt + cmd - s : btt-preset show-or-hide-app --only-show "/Applications/YouTube Music.app"
+ctrl + alt + cmd - s : chrome-preset alternate-app --profile "Profile 1" --minimize ytmusic "https://music.youtube.com/"
 ctrl + alt + cmd - e : btt-preset show-or-hide-app --only-show "/Applications/Google Chrome.app"
 ctrl + alt + cmd - r : btt-preset show-or-hide-app --only-show "/Applications/Google Chrome.app"
 ctrl + alt + cmd - a : btt-preset show-or-hide-app --only-show "/Applications/Timery.app"

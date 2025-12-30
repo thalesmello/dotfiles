@@ -649,7 +649,8 @@ function yabai-preset
         set windowid $argv[1]
         set -e argv[1]
 
-        yabai -m query --windows --window "$windowid"
+        yabai -m query --windows | jq -e --argjson windowid "$windowid" 'first(.[] | select(.id == $windowid))'
+        return $status
     case "*"
         return 1
     end

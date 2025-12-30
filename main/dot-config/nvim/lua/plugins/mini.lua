@@ -358,6 +358,8 @@ return {
             require("mini.operators").setup(opts)
 
             vim.keymap.set("n", "<leader>gr", '"+gr', { remap = true })
+            vim.keymap.set("n", "<leader>R", '"+gr', { remap = true })
+            vim.keymap.set("n", "R", 'gr', { remap = true })
         end,
         extra_contexts = {"vscode", "firenvim", "lite_mode"},
     }
