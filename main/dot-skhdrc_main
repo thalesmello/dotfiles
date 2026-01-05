@@ -165,7 +165,6 @@ service < ctrl + alt + cmd - e : skhd -k "escape"; if pgrep -q -F "$TMPDIR/nvim_
 
 # Service mode bindings
 service < ctrl + alt + cmd - space : skhd -k "escape"; yabai-preset focus-space recent
-# service < space : skhd -k "escape"; if test "$_YABAI_MRU" = chrome_tab; skhd -k "alt - q"; else; yabai -m window --focus recent || yabai-preset focus-space recent; end
 service < space : skhd -k "escape"; yabai -m window --focus recent || yabai-preset focus-space recent
 service < shift - space : skhd -k "escape"; yabai-preset move-window-to-space recent
 service < r ; resize
