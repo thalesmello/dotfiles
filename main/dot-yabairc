@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env fish
 
 #
 # for this to work you must configure sudo such that
@@ -10,48 +10,52 @@
 # yabai -m signal --add event=dock_did_restart action="sudo yabai --load-sa"
 # sudo yabai --load-sa
 
+set configs
+
+set -a configs menubar_opacity              1.0
+set -a configs mouse_follows_focus          off
+# # Config should be used in case an external bar is used again
+# set -a configs external_bar all:$(sketchybar --query bar | jq .height):0 \
+set -a configs focus_follows_mouse          off
+set -a configs display_arrangement_order    default
+set -a configs window_origin_display        default
+set -a configs window_placement             second_child
+set -a configs window_insertion_point       last
+set -a configs window_zoom_persist          on
+set -a configs window_shadow                on
+set -a configs window_animation_duration    0.0
+set -a configs window_animation_easing      ease_out_circ
+set -a configs window_opacity_duration      0.0
+set -a configs active_window_opacity        1.0
+set -a configs normal_window_opacity        0.90
+set -a configs window_opacity               off
+set -a configs insert_feedback_color        0xffd75f5f
+set -a configs split_ratio                  0.50
+set -a configs split_type                   auto
+set -a configs auto_balance                 off
+set -a configs top_padding                  10
+set -a configs bottom_padding               10
+set -a configs left_padding                 10
+set -a configs right_padding                10
+set -a configs window_gap                   10
+set -a configs layout                       stack
+set -a configs mouse_modifier               fn
+set -a configs mouse_action1                move
+set -a configs mouse_action2                resize
+set -a configs mouse_drop_action            swap
+
 
 # global settings
-yabai -m config                                 \
-    external_bar all:$(sketchybar --query bar | jq .height):0 \
-    menubar_opacity              1.0            \
-    mouse_follows_focus          off            \
-    focus_follows_mouse          off            \
-    display_arrangement_order    default        \
-    window_origin_display        default        \
-    window_placement             second_child   \
-    window_insertion_point       last           \
-    window_zoom_persist          on             \
-    window_shadow                on             \
-    window_animation_duration    0.0            \
-    window_animation_easing      ease_out_circ  \
-    window_opacity_duration      0.0            \
-    active_window_opacity        1.0            \
-    normal_window_opacity        0.90           \
-    window_opacity               off            \
-    insert_feedback_color        0xffd75f5f     \
-    split_ratio                  0.50           \
-    split_type                   auto           \
-    auto_balance                 off            \
-    top_padding                  10             \
-    bottom_padding               10             \
-    left_padding                 10             \
-    right_padding                10             \
-    window_gap                   10             \
-    layout                       stack          \
-    mouse_modifier               fn             \
-    mouse_action1                move           \
-    mouse_action2                resize         \
-    mouse_drop_action            swap
+yabai -m config $configs
 
-# yabai -m rule --add app="iTerm2" manage=off
+yabai -m rule --add app="iTerm2" manage=off
 yabai -m rule --add app="Activity Monitor" manage=off
 yabai -m rule --add app="System Settings" manage=off
 yabai -m rule --add app="mouseless" manage=off
 yabai -m rule --add app="BetterTouchTool" title="BetterTouchTool Settings" manage=off
 yabai -m rule --add app="BetterTouchTool" title="Variables \& Scripting" manage=off
 yabai -m rule --add app="Google Chrome" title='^Picture\sin\sPicture$' manage=off
-yabai -m rule --add app="Google Chrome" title="" role="AXWindow" subrole="AXStandardWindow" manage=off
+yabai -m rule --add app="Google Chrome" title='^$' role="AXWindow" subrole="AXStandardWindow" manage=off
 yabai -m rule --add app="Karabiner-Elements" title="Karabiner-Elements Settings" manage=off
 yabai -m rule --add app="Mac Mouse Fix" manage=off
 yabai -m rule --add app="Raycast" manage=off
@@ -60,20 +64,11 @@ yabai -m rule --add role="AXWindow" manage=off
 
 yabai -m signal --add event=space_changed label=announce_space_change action="display-message \"Space \$YABAI_SPACE_INDEX\""
 
-# yabai -m signal --add event=window_resized action="/opt/homebrew/bin/fish -c \"yabai-preset store-window-position \$YABAI_WINDOW_ID\""
-# yabai -m signal --add event=window_moved action="/opt/homebrew/bin/fish -c \"yabai-preset store-window-position \$YABAI_WINDOW_ID\""
+yabai -m signal --add event=window_resized action="/opt/homebrew/bin/fish -c \"yabai-preset store-window-position \$YABAI_WINDOW_ID\""
+yabai -m signal --add event=window_moved action="/opt/homebrew/bin/fish -c \"yabai-preset store-window-position \$YABAI_WINDOW_ID\""
 
 yabai -m signal --add event=window_created label=stack_new_windows action="/opt/homebrew/bin/fish -c \"yabai-preset stack-new-window \$YABAI_WINDOW_ID\""
 
-borders active_color=0xffe1e3e4 inactive_color=0xff494d64 width=5.0 &
-
-# yabai -m signal --add label=sketchybar_window_focused event=window_focused action="sketchybar --trigger yabai_update"
-# yabai -m signal --add label=sketchybar_window_resized event=window_resized action="sketchybar --trigger yabai_update"
-
-# yabai -m signal --add label=mru_chrome event=window_title_changed app="Google Chrome" action="/opt/homebrew/bin/fish -c 'set -U _YABAI_MRU chrome_tab'"
-# yabai -m signal --add label=mru_window event=window_focused action="/opt/homebrew/bin/fish -c 'set -U _YABAI_MRU window'"
-# yabai -m signal --add label=mru_space event=space_changed action="/opt/homebrew/bin/fish -c 'set -U _YABAI_MRU space'"
-#
 echo "yabai configuration loaded.."
 display-message "yabai configuration loaded.."
 
