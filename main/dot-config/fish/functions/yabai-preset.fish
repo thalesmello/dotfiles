@@ -483,7 +483,6 @@ function yabai-preset
         yabai -m query --windows --window "$window" | jq -r '.frame.w, .frame.h, .display' | read --line w h display
         yabai -m query --displays --display "$display" | jq -r '.frame | .w, .h' | read --line display_w display_h
 
-        echo "$(math "0.9 * $display_w")" -le "$w" -a "$(math "0.9 * $display_h")" -le "$h"
         test "$(math "0.9 * $display_w")" -le "$w" -a "$(math "0.9 * $display_h")" -le "$h"
         or return 1
     case "toggle-window-zoom-or-fullscreen"
@@ -638,7 +637,7 @@ function yabai-preset
         set window (yabai -m query --windows --window "$window")
         set recent (yabai -m query --windows --window recent)
 
-        if jq -ne --argjson window "$window" '($window.app = "Google Chrome") and ($window"stack-index" | in(["Picture in Picture", ""]))' > /dev/null
+        if jq -ne --argjson window "$window" '($window.app = "Google Chrome") and ($window.title | in(["Picture in Picture", ""]))' > /dev/null
             return
         end
 
