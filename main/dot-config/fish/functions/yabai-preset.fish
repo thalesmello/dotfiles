@@ -634,14 +634,15 @@ function yabai-preset
         yabai-preset focus-topmost
     case "stack-new-window"
         set winid $argv[1]; set -e argv[1]
-        set window (yabai -m query --windows --window "$window")
-        set recent (yabai -m query --windows --window recent)
+        set window (yabai -m query --windows --window "$window" | string collect)
+        set recent (yabai -m query --windows --window recent | string collect)
 
-        if jq -ne --argjson window "$window" '($window.app = "Google Chrome") and ($window.title | in(["Picture in Picture", ""]))' > /dev/null
+        if jq -ne --argjson window "$window" '($window.app == "Google Chrome") and ($window.title | IN("Picture in Picture", ""))' > /dev/null
+            echo return
             return
         end
 
-        if jq -ne --argjson recent "$recent" '$recent."stack-index" > 0' > /dev/null
+        if test -n "$recent"; and jq -ne --argjson recent "$recent" '$recent."stack-index" > 0' > /dev/null
             yabai -m window "$(jq -n --argjson recent "$recent" '$recent.id')" --stack "$winid"
         end
     case "get-window-info"
