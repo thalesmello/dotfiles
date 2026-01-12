@@ -130,11 +130,6 @@ ctrl + alt + cmd - p :   yabai-preset focus-window-in-stack prev || yabai-preset
 ctrl + alt + cmd + shift - n : yabai-preset move-window-in-stack next
 ctrl + alt + cmd + shift - p : yabai-preset move-window-in-stack prev
 
-stack < j : skhd -k "escape"; yabai -m window --stack south
-stack < k : skhd -k "escape"; yabai -m window --stack north
-stack < h : skhd -k "escape"; yabai -m window --stack west
-stack < l : skhd -k "escape"; yabai -m window --stack east
-
 resize < return ; default
 resize < j : yabai -m window --resize bottom_right:0:100
 resize < k : yabai -m window --resize bottom_right:0:-100
@@ -183,7 +178,7 @@ service < shift - 0x27 : skhd -k "escape"; yabai -m window --insert south # doub
 service < t : skhd -k "escape"; yabai -m window --toggle float; yabai-preset is-window-floating && yabai -m window --grid "8:8:1:1:6:6"
 
 service < z :  skhd -k "escape"; yabai -m window --insert stack # comma
-service < s ; stack
+service < s : yabai -m window --insert stack
 service < shift - s : skhd -k "escape"; yabai-preset stack-windows-in-space
 service < m : skhd -k "escape"; yabai-preset toggle-monocle-mode
 service < shift - m : skhd -k "escape"; yabai-preset deminimize-all
@@ -302,7 +297,7 @@ ctrl + alt + cmd - x : btt-preset show-or-hide-app --only-show "/Applications/iT
 ctrl + alt + cmd - q : chrome-preset focus-or-open-url "gemini.google.com" --label "Gemini"
 ctrl + alt + cmd - w : btt-preset show-or-hide-app --only-show "/Applications/WhatsApp.app"
 ctrl + alt + cmd - z : btt-preset show-or-hide-app --only-show "/Applications/Obsidian.app"
-ctrl + alt + cmd - s : chrome-preset alternate-app --profile "Profile 1" --minimize ytmusic "https://music.youtube.com/"
+ctrl + alt + cmd - s : chrome-preset alternate-app --profile "Profile 2" --minimize ytmusic "https://music.youtube.com/"
 ctrl + alt + cmd - e : btt-preset show-or-hide-app --only-show "/Applications/Google Chrome.app"
 ctrl + alt + cmd - r : btt-preset show-or-hide-app --only-show "/Applications/Google Chrome.app"
 ctrl + alt + cmd - a : btt-preset show-or-hide-app --only-show "/Applications/Timery.app"

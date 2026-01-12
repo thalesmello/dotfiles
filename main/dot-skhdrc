@@ -16,9 +16,6 @@ invoke < escape ; default
 ::resize @ : display-message "Resize"
 resize < escape ; default
 
-::stack @ : display-message "Stack"
-stack < escape ; default
-
 ::restart @ : display-message "Restart"
 restart < escape ; default
 
