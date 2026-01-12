@@ -259,19 +259,32 @@ function chrome-preset
         set app $argv[1]
         set -e argv[1]
 
-        set app_window_id (cat "/tmp/chrome_preset_apps/$app.windowid")
+        set fallback
 
-        set active (yabai -m query --windows --window)
+        set path "/tmp/chrome_preset_apps/$app.windowid"
 
-        if test "$(jq -nr --argjson active "$active" '$active.id')" = "$app_window_id"
-            if set -q _flag_hide
-                skhd -k 'cmd - h'
-            else if set -q _flag_minimize
-                yabai-preset "minimize"
+        if test -f "$path"
+            set app_window_id (cat "$path")
+
+            set active (yabai -m query --windows --window)
+
+            if test "$(jq -nr --argjson active "$active" '$active.id')" = "$app_window_id"
+                if set -q _flag_hide
+                    skhd -k 'cmd - h'
+                else if set -q _flag_minimize
+                    yabai-preset "minimize"
+                else
+                    yabai -m window recent --focus
+                end
             else
-                yabai -m window recent --focus
+                set fallback 1
             end
         else
+            set fallback 1
+        end
+
+
+        if test -n "$fallback"
             chrome-preset focus-or-create-app --profile "$_flag_profile" "$app" $argv
         end
     case '*'
