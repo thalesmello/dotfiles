@@ -77,7 +77,7 @@
 # ############################################################### #
 
 
-ctrl + alt + cmd - 0x29 : skhd-preset search-and-execute-command # semicolon
+ctrl + alt + cmd + shift - 0x29 : skhd-preset search-and-execute-command # semicolon
 ctrl + alt + cmd + shift - m : yabai-preset deminimize-last
 ctrl + alt + cmd - m : yabai-preset minimize
 ctrl + alt + cmd - return : yabai-preset smart-toggle-fullscreen
