@@ -25,6 +25,7 @@ vim.keymap.set("n", "<leader><bs>", "<c-w>q", { remap = true })
 
 -- Edit and load vimrc
 vim.keymap.set("n", "<leader>ev", ":edit $MYVIMRC<cr>", { noremap = true })
+vim.keymap.set("n", "<leader>esk", ":edit ~/.skhdrc_main<cr>", { noremap = true })
 vim.keymap.set("n", "<leader>el", ":edit ~/.nvim_local.lua<cr>", { noremap = true })
 vim.keymap.set("n", "<leader>ep", ":edit $MYVIMRC<cr>:Eplugin<space>", { noremap = true })
 vim.keymap.set("n", "<leader>ec", ":edit $MYVIMRC<cr>:Econfig<space>", { noremap = true })
