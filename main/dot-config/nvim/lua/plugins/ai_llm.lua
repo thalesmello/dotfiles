@@ -1,7 +1,7 @@
 return {
    "olimorris/codecompanion.nvim",
    opts = {
-      strategies = {
+      interactions = {
          chat = {
             adapter = "gemini",
          },
