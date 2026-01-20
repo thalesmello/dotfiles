@@ -50,6 +50,7 @@ yabai -m config $configs
 
 yabai -m rule --add app="iTerm2" manage=off
 yabai -m rule --add app="Activity Monitor" manage=off
+yabai -m rule --add app="Shottr" manage=off
 yabai -m rule --add app="System Settings" manage=off
 yabai -m rule --add app="mouseless" manage=off
 yabai -m rule --add app="BetterTouchTool" title="BetterTouchTool Settings" manage=off
