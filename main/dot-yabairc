@@ -48,6 +48,9 @@ set -a configs mouse_drop_action            swap
 # global settings
 yabai -m config $configs
 
+yabai -m signal --add event=space_changed label=announce_space_change action="display-message \"Space \$YABAI_SPACE_INDEX\""
+yabai -m signal --add event=window_created label=stack_new_windows action="/opt/homebrew/bin/fish -c \"yabai-preset stack-new-window \$YABAI_WINDOW_ID\""
+
 yabai -m rule --add app="iTerm2" manage=off
 yabai -m rule --add app="Activity Monitor" manage=off
 yabai -m rule --add app="Shottr" manage=off
@@ -64,12 +67,6 @@ yabai -m rule --add app="Raycast" manage=off
 yabai -m rule --add app="Cisco Secure Client" manage=off
 yabai -m rule --add role="AXWindow" manage=off
 
-yabai -m signal --add event=space_changed label=announce_space_change action="display-message \"Space \$YABAI_SPACE_INDEX\""
-
-yabai -m signal --add event=window_resized action="/opt/homebrew/bin/fish -c \"yabai-preset store-window-position \$YABAI_WINDOW_ID\""
-yabai -m signal --add event=window_moved action="/opt/homebrew/bin/fish -c \"yabai-preset store-window-position \$YABAI_WINDOW_ID\""
-
-yabai -m signal --add event=window_created label=stack_new_windows action="/opt/homebrew/bin/fish -c \"yabai-preset stack-new-window \$YABAI_WINDOW_ID\""
 
 echo "yabai configuration loaded.."
 display-message "yabai configuration loaded.."

@@ -638,7 +638,6 @@ function yabai-preset
         set recent (yabai -m query --windows --window recent | string collect)
 
         if jq -ne --argjson window "$window" '($window.app == "Google Chrome") and ($window.title | IN("Picture in Picture", ""))' > /dev/null
-            echo return
             return
         end
 
