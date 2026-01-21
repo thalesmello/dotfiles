@@ -60,7 +60,7 @@ return {
             },
          })
       end,
-      extra_contexts = {"firenvim", "lite_mode"},
+      extra_contexts = {"firenvim", "lite_mode", "ssh"},
    },
    vim_utils.injector_module({
       "thalesmello/cmp-rg",
@@ -84,7 +84,7 @@ return {
             }
          },
       },
-      extra_contexts = {"lite_mode"}
+      extra_contexts = {"lite_mode", "ssh"}
    }),
    vim_utils.injector_module({
       'hrsh7th/cmp-nvim-lsp',
@@ -107,7 +107,7 @@ return {
             }
          },
       },
-      extra_contexts = {"lite_mode"},
+      extra_contexts = {"lite_mode", "ssh"},
    }),
    vim_utils.injector_module({
       'hrsh7th/cmp-buffer',
@@ -126,7 +126,7 @@ return {
             }
          },
       },
-      extra_contexts = {"lite_mode"},
+      extra_contexts = {"lite_mode", "ssh"},
    }),
    vim_utils.injector_module({
       {

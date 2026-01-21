@@ -42,5 +42,5 @@ return {
   },
   cmd  = {"ZenMode"},
   keys = {{"<leader>kz", "<cmd>ZenMode<cr>", mode = {"n", "v"}}},
-  extra_contexts = {"lite_mode"}
+  extra_contexts = {"lite_mode", "ssh"}
 }

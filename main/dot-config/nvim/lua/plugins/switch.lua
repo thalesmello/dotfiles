@@ -28,7 +28,7 @@ return {
                 },
             }
         end,
-        extra_contexts = {"vscode", "firenvim", "lite_mode"}
+        extra_contexts = {"vscode", "firenvim", "lite_mode", "ssh"}
     },
     {
         'AndrewRadev/switch.vim',
@@ -78,6 +78,6 @@ return {
                 end,
             })
         end,
-        extra_contexts = {"vscode", "firenvim", "lite_mode"}
+        extra_contexts = {"vscode", "firenvim", "lite_mode", "ssh"}
     }
 }

@@ -5,7 +5,7 @@ return {
     },
     {
         'tpope/vim-repeat',
-        extra_contexts = {"vscode", "firenvim", "lite_mode"}
+        extra_contexts = {"vscode", "firenvim", "lite_mode", "ssh"}
     },
     {
         'tpope/vim-abolish',
@@ -21,12 +21,12 @@ return {
     {
         'tpope/vim-rsi',
         event = {"CmdlineEnter", "InsertEnter"},
-        extra_contexts = {"vscode", "firenvim", "lite_mode"}
+        extra_contexts = {"vscode", "firenvim", "lite_mode", "ssh"}
     },
     {
         'tpope/vim-unimpaired',
         event = "VeryLazy",
-        extra_contexts = {"firenvim", "lite_mode", "vscode"}
+        extra_contexts = {"firenvim", "lite_mode", "ssh", "vscode"}
     },
     {
         'tpope/vim-apathy',
@@ -48,7 +48,7 @@ return {
             'typescriptreact',
             'zsh',
         },
-        extra_contexts = {"lite_mode"},
+        extra_contexts = {"lite_mode", "ssh"},
     },
     {
         'tpope/vim-scriptease',

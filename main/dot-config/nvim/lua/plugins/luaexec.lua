@@ -8,6 +8,6 @@ return {
             vim.keymap.set({'n', 'x'}, '<leader>x', '<Plug>LuaExecOperator', {remap = true, silent = true})
             vim.keymap.set({'n'}, '<leader>xx', '<Plug>LuaExecOperator_', {remap = true, silent = true})
         end,
-        extra_contexts = {"firenvim", "lite_mode"}
+        extra_contexts = {"firenvim", "lite_mode", "ssh"}
     },
 }

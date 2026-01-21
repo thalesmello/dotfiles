@@ -46,7 +46,7 @@ return {
                 join = should_load('lite_mode') and 'gJ' or '<leader>gJ',
             },
         },
-        extra_contexts = {"vscode", "firenvim", "lite_mode"},
+        extra_contexts = {"vscode", "firenvim", "lite_mode", "ssh"},
     },
 
     {

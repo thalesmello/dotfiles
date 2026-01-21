@@ -4,7 +4,7 @@ return {
     {
         'thalesmello/tabmessage.vim',
         cmd = "TabMessage",
-        extra_contexts = {"firenvim", "lite_mode"}
+        extra_contexts = {"firenvim", "lite_mode", "ssh"}
     },
     {
         'thalesmello/persistent.vim',
@@ -16,7 +16,7 @@ return {
         init = function()
             vim.g.tabfold_enforce_forward_or_toggle_fold = 1
         end,
-        extra_contexts = {"firenvim", "lite_mode"},
+        extra_contexts = {"firenvim", "lite_mode", "ssh"},
     }
     -- { 'thalesmello/webcomplete.vim', cond = vim.fn.has('macunix' ) },
 }

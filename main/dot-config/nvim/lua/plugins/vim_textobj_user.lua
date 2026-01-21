@@ -52,7 +52,7 @@ return {
                 end,
             })
         end,
-        extra_contexts = {"vscode", "firenvim", "lite_mode"}
+        extra_contexts = {"vscode", "firenvim", "lite_mode", "ssh"}
     },
     {
         'coderifous/textobj-word-column.vim',

@@ -4,6 +4,7 @@ local contexts_conditions = {
     {context_active = vim.g.started_by_firenvim, load_if_context = 'firenvim'},
     {context_active = vim.g.vscode, load_if_context = 'vscode'},
     {context_active = vim.env.NVIM_LITE_MODE == "1", load_if_context = 'lite_mode'},
+    {context_active = vim.env.NVIM_SSH_MODE == "1", load_if_context = 'ssh'},
 }
 
 function M.should_load(spec)

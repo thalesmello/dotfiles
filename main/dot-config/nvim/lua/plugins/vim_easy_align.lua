@@ -5,5 +5,5 @@ return {
     },
     opts = {},
     cmd = {"EasyAlign"},
-    extra_contexts = {"vscode", "firenvim", "lite_mode"}
+    extra_contexts = {"vscode", "firenvim", "lite_mode", "ssh"}
 }
