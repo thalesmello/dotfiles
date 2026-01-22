@@ -177,8 +177,8 @@ service < shift - 0x27 : skhd -k "escape"; yabai -m window --insert south # doub
 # service < t : skhd -k "escape"; yabai -m window --toggle float; yabai-preset is-window-floating && yabai-preset restore-window-position
 service < t : skhd -k "escape"; yabai -m window --toggle float; yabai-preset is-window-floating && yabai -m window --grid "8:8:1:1:6:6"
 
-service < z :  skhd -k "escape"; yabai -m window --insert stack # comma
-service < s : yabai -m window --insert stack
+service < z : skhd -k "escape"; yabai -m window --insert stack # comma
+service < s : skhd -k "escape"; yabai -m window --insert stack
 service < shift - s : skhd -k "escape"; yabai-preset stack-windows-in-space
 service < m : skhd -k "escape"; yabai-preset toggle-monocle-mode
 service < shift - m : skhd -k "escape"; yabai-preset deminimize-all
