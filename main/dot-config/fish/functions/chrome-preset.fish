@@ -210,7 +210,7 @@ function chrome-preset
             event=window_created \
             app='^Google Chrome$' \
             label="store_chrome_preset_app_info" \
-            action="echo \$YABAI_WINDOW_ID > /tmp/chrome_preset_apps/$appname.windowid; env OUTPUT_FORMAT=json chrome-cli info > /tmp/chrome_preset_apps/$appname.chromeinfo; yabai -m signal --remove store_chrome_preset_app_info"
+            action="echo \$YABAI_WINDOW_ID > '/tmp/chrome_preset_apps/$appname.windowid'; env OUTPUT_FORMAT=json chrome-cli info > '/tmp/chrome_preset_apps/$appname.chromeinfo'; yabai -m signal --remove store_chrome_preset_app_info"
 
         open -na 'Google Chrome' --args --profile-directory="$_flag_profile" --app="$url"
 
@@ -254,10 +254,9 @@ function chrome-preset
             chrome-preset create-app --profile="$_flag_profile" "$appname" "$url"
         end
     case "alternate-app"
-        argparse profile= minimize=? hide=? -- $argv
+        argparse profile= minimize=? hide=? app= -- $argv
 
-        set app $argv[1]
-        set -e argv[1]
+        set app "$_flag_app"
 
         set fallback
 

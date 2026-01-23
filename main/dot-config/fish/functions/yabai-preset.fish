@@ -382,37 +382,12 @@ function yabai-preset
         end
 
     case "get-pin-json"
-        set window (yabai -m query --windows --space | jq  'first(.[] | select(."has-focus"))')
-
-        if jq -en --argjson window "$window" '$window.app == "Google Chrome"' >/dev/null
-            set chrome_tab (env OUTPUT_FORMAT=json chrome-cli info | string collect)
-            # env OUTPUT_FORMAT=json chrome-cli info \
-            # | jq -r '"\(.windowId):\(.id)"' \
-            # | read -d: -l chrome_window_id tab_id
-
-            # The following is a prototyped solution using cmd - index to select the tab
-            # Commented out because it doesn't seem very fast
-            #set tab_index (env OUTPUT_FORMAT=json chrome-cli list tabs -w "$chrome_window_id" \
-            #|  jq -r --arg tab_id "$tab_id" '.tabs | map(.id) | index($tab_id) + 1')
-            #
-            #and if test "$tab_index" -le 8
-            #    # Index is <= 8 then it's faster to use cmd + index
-            #    set json (jq -n --argjson tab_index "$tab_index" --argjson window "$window" '{type: "yabai_chrome_tab", tab_index: $tab_index, window_id: $window.id}')
-            #else
-            #    set json (jq -n --arg tab_id "$tab_id" --argjson window "$window" '{type: "chrome_tab", tab_id: $tab_id, window_id: $window.id}')
-            #end
-
-            set json (jq -n --argjson chrome_tab "$chrome_tab" --argjson window "$window" '{app: $window.app, title: $chrome_tab.title, type: "chrome_tab", uuid: ({chrome_tab: $chrome_tab.id} | @base64), tab_id: $chrome_tab.id, tab_window_id: $chrome_tab.windowId, url: $chrome_tab.url}')
-        else
-            set json (jq -n --argjson window "$window" '{app: $window.app,  title: $window.title, type: "window", uuid: ({window: $window.id} | @base64), window_id: $window.id}')
-        end
-
-        echo "$json"
+        yabai-harpoon get-focused-pin-json
     case "pin-object"
         set position $argv[1]
         set -e argv[1]
 
-        set json (yabai-preset get-pin-json)
+        set json (yabai-harpoon get-focused-pin-json)
         set type (jq -n --argjson json "$json" '.type')
 
         mkdir -p "/tmp/yabai-preset/pins/"
@@ -422,37 +397,10 @@ function yabai-preset
         set position $argv[1]
         set -e argv[1]
 
-        yabai-preset focus-pin-json < "/tmp/yabai-preset/pins/$position.json"
+        yabai-harpoon focus-pin-json < "/tmp/yabai-preset/pins/$position.json"
     case "focus-pin-json"
-        read json
-
-        set type (jq -n --argjson json "$json" '$json.type')
-
-        set has_failed 0
-
-        if jq -en --argjson type "$type" '$type == "chrome_tab"' >/dev/null
-            chrome-cli activate -t "$(jq -nr --argjson json "$json" '$json.tab_id')"
-            and chrome-preset focus-window "$(jq -nr --argjson json "$json" '$json.tab_window_id')"
-            chrome-preset check-tab-id "$(jq -nr --argjson json "$json" '$json.tab_id')"
-            or chrome-preset open-url --newtab "$(jq -nr --argjson json "$json" '$json.url')"
-            or set has_failed 1
-        else if jq -en --argjson type "$type" '$type == "chrome_search_tab"' >/dev/null
-            chrome-cli activate -t "$(jq -nr --argjson json "$json" '$json.tab_id')"
-            and chrome-preset focus-or-open-url "$(jq -nr --argjson json "$json" '$json.uuid')"
-            or set has_failed 1
-        else if jq -en --argjson type "$type" '$type == "window"' >/dev/null
-            yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
-            or set has_failed 1
-        else
-            set type unkown_pin
-            set has_failed 1
-        end
-
-        echo $has_failed
-        if test has_failed = 1
-            display-message "Load $type failed"
-            return 1
-        end
+        echo "deprecated - use yabai-harpoon get-pin-json" >&2
+        yabai-harpoon focus-pin-json
     case "is-window-floating"
         set window $argv[1]; set -e argv[1]
 
@@ -651,6 +599,7 @@ function yabai-preset
         yabai -m query --windows | jq -e --argjson windowid "$windowid" 'first(.[] | select(.id == $windowid))'
         return $status
     case "*"
+        echo "command not found - $preset"
         return 1
     end
 end

@@ -85,7 +85,7 @@ ctrl + alt + cmd - return : yabai-preset smart-toggle-fullscreen
 ctrl + alt + cmd + shift - return : yabai-preset unstacked-swap-largest
 
 service < ctrl + alt + cmd - v : skhd -k "escape"; btt-preset send-keys cmd c; and pbneovide --guess
-ctrl + alt + cmd - v : btt-preset alternate-app "Neovide" --hide --cmd "neovim-ghost trigger"
+ctrl + alt + cmd - v : btt-preset alternate-app --app "Neovide" --hide --cmd "neovim-ghost trigger"
 
 # For some reason, the script if very slow. I need to investigate some other time.
 # ctrl + alt + cmd - t : btt-preset trigger-named-trigger "Chrome: Open New Tab (with selection is One Line)"
@@ -109,15 +109,15 @@ ctrl + alt + cmd - 0x1B : yabai -m window --resize bottom_right:-100:0 # minus
 ctrl + alt + cmd - 0x18 : yabai -m window --resize bottom_right:100:0 # equals
 # ctrl + alt + cmd + shift - 0x18 : yabai -m window --resize bottom_right:0:100 # equals
 
-ctrl + alt + cmd - 1 : display-message "Focus 1"; yabai-harpoon focus 1
-ctrl + alt + cmd - 2 : display-message "Focus 2"; yabai-harpoon focus 2
-ctrl + alt + cmd - 3 : display-message "Focus 3"; yabai-harpoon focus 3
-ctrl + alt + cmd - 4 : display-message "Focus 4"; yabai-harpoon focus 4
-ctrl + alt + cmd - 5 : display-message "Focus 5"; yabai-harpoon focus 5
-ctrl + alt + cmd - 6 : display-message "Focus 6"; yabai-harpoon focus 6
-ctrl + alt + cmd - 7 : display-message "Focus 7"; yabai-harpoon focus 7
-ctrl + alt + cmd - 8 : display-message "Focus 8"; yabai-harpoon focus 8
-ctrl + alt + cmd - 9 : display-message "Focus 9"; yabai-harpoon focus 9
+ctrl + alt + cmd - 1 : yabai-harpoon focus 1
+ctrl + alt + cmd - 2 : yabai-harpoon focus 2
+ctrl + alt + cmd - 3 : yabai-harpoon focus 3
+ctrl + alt + cmd - 4 : yabai-harpoon focus 4
+ctrl + alt + cmd - 5 : yabai-harpoon focus 5
+ctrl + alt + cmd - 6 : yabai-harpoon focus 6
+ctrl + alt + cmd - 7 : yabai-harpoon focus 7
+ctrl + alt + cmd - 8 : yabai-harpoon focus 8
+ctrl + alt + cmd - 9 : yabai-harpoon focus 9
 
 
 ctrl + alt + cmd + shift - 0x18 : skhd -k "escape"; yabai-harpoon add # equals
@@ -297,7 +297,7 @@ ctrl + alt + cmd - x : btt-preset show-or-hide-app --only-show "/Applications/iT
 ctrl + alt + cmd - q : chrome-preset focus-or-open-url "gemini.google.com" --label "Gemini"
 ctrl + alt + cmd - w : btt-preset show-or-hide-app --only-show "/Applications/WhatsApp.app"
 ctrl + alt + cmd - z : btt-preset show-or-hide-app --only-show "/Applications/Obsidian.app"
-ctrl + alt + cmd - s : chrome-preset alternate-app --profile "Profile 2" --minimize ytmusic "https://music.youtube.com/"
+ctrl + alt + cmd - s : chrome-preset alternate-app --profile "Profile 2" --minimize --app ytmusic "https://music.youtube.com/"
 ctrl + alt + cmd - e : btt-preset show-or-hide-app --only-show "/Applications/Google Chrome.app"
 ctrl + alt + cmd - r : btt-preset show-or-hide-app --only-show "/Applications/Google Chrome.app"
 ctrl + alt + cmd - a : btt-preset show-or-hide-app --only-show "/Applications/Timery.app"
