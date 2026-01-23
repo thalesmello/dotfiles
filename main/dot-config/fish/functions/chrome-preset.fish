@@ -200,7 +200,7 @@ function chrome-preset
         mkdir -p /tmp/chrome_preset_apps
         argparse profile= -- $argv
 
-        set appname $argv[1]
+        set appname (chrome-preset normalize-app-name $argv[1])
         set -e argv[1]
 
         set url $argv[1]
@@ -210,14 +210,25 @@ function chrome-preset
             event=window_created \
             app='^Google Chrome$' \
             label="store_chrome_preset_app_info" \
-            action="echo \$YABAI_WINDOW_ID > '/tmp/chrome_preset_apps/$appname.windowid'; env OUTPUT_FORMAT=json chrome-cli info > '/tmp/chrome_preset_apps/$appname.chromeinfo'; yabai -m signal --remove store_chrome_preset_app_info"
+            action="fish -c 'chrome-preset store-preset-app --window-id \"\$YABAI_WINDOW_ID\" \"$appname\"'; yabai -m signal --remove store_chrome_preset_app_info"
 
         open -na 'Google Chrome' --args --profile-directory="$_flag_profile" --app="$url"
 
+    case store-preset-app
+        argparse window-id= -- $argv
+
+        set appname (chrome-preset normalize-app-name $argv[1])
+        set -e argv[1]
+
+        set window_id "$_flag_window_id"
+
+        echo "$YABAI_WINDOW_ID" > "/tmp/chrome_preset_apps/$appname.windowid"
+        env OUTPUT_FORMAT=json chrome-cli info > "/tmp/chrome_preset_apps/$appname.chromeinfo";
+        echo "$appname" > "/tmp/chrome_preset_apps/$window_id.appname"
     case "open-in-app"
         argparse profile= -- $argv
 
-        set appname $argv[1]
+        set appname (chrome-preset normalize-app-name $argv[1])
         set -e argv[1]
 
         set url $argv[1]
@@ -234,10 +245,14 @@ function chrome-preset
             chrome-preset create-app --profile="$_flag_profile" "$appname" "$url"
         end
     case "get-app-window-id"
-        set appname $argv[1]
+        set appname (chrome-preset normalize-app-name $argv[1])
         set -e argv[1]
 
-        cat "/tmp/chrome_preset_apps/$appname.windowid" 2>/dev/null
+        set path "/tmp/chrome_preset_apps/$appname.windowid"
+
+        test -f "$path"
+        and cat "$path"
+
         return $status
     case "focus-or-create-app"
         argparse profile= -- $argv
@@ -256,7 +271,7 @@ function chrome-preset
     case "alternate-app"
         argparse profile= minimize=? hide=? app= -- $argv
 
-        set app "$_flag_app"
+        set app (chrome-preset normalize-app-name "$_flag_app")
 
         set fallback
 
@@ -286,6 +301,20 @@ function chrome-preset
         if test -n "$fallback"
             chrome-preset focus-or-create-app --profile "$_flag_profile" "$app" $argv
         end
+    case "get-app-name"
+        argparse window-id= -- $argv
+
+        set path "/tmp/chrome_preset_apps/$_flag_window_id.appname"
+
+        test -f "$path"
+        and cat "$path"
+
+        return $status
+    case "normalize-app-name"
+        set appname $argv[1]
+        set -e argv[1]
+
+        string escape --style=var "$appname" | string sub --length 100
     case '*'
         return 1
     end

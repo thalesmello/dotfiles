@@ -86,8 +86,10 @@ function yabai-harpoon
             chrome-preset check-tab-id "$(jq -nr --argjson json "$json" '$json.tab_id')" >/dev/null
             or set has_failed 1
         else if jq -en --arg type "$type" '$type == "chrome_preset_app"' >/dev/null
-            set url (jq -nr --argjson json "$json" '$json.uuid')
-            set app (string escape --style=var "$url" | string sub --length 100)
+            set uuid (jq -nr --argjson json "$json" '$json.uuid')
+            set url (jq -nr --argjson json "$json" '$json.url')
+            set app (chrome-preset normalize-app-name "$uuid")
+
             # TODO: profile name needs to be fetched from the json
             # it can be done by checking the name of the window using the yabai -m query subcommand
             chrome-preset alternate-app --minimize --profile "Default" --app "$app" "$url"
@@ -107,11 +109,17 @@ function yabai-harpoon
             return 1
         end
     case "get-focused-pin-json"
-        set window (yabai -m query --windows --space | jq  'first(.[] | select(."has-focus"))')
+        set window (yabai -m query --windows --space | jq  'first(.[] | select(."has-focus"))' | string collect)
+        set window_id (jq -nr --argjson window "$window" '$window.id')
 
         if jq -en --argjson window "$window" '$window.app == "Google Chrome"' >/dev/null
             set chrome_tab (env OUTPUT_FORMAT=json chrome-cli info | string collect)
-            set json (jq -n --argjson chrome_tab "$chrome_tab" --argjson window "$window" '{app: $window.app, title: $chrome_tab.title, type: "chrome_tab", uuid: ({chrome_tab: $chrome_tab.id} | @base64), tab_id: $chrome_tab.id, tab_window_id: $chrome_tab.windowId, url: $chrome_tab.url}')
+
+            if set appname (chrome-preset get-app-name --window-id "$window_id")
+                set json (jq -n --arg appname "$appname" --argjson chrome_tab "$chrome_tab" '{uuid: $appname, url: $chrome_tab.url, type: "chrome_preset_app"}')
+            else
+                set json (jq -n --argjson chrome_tab "$chrome_tab" --argjson window "$window" '{app: $window.app, title: $chrome_tab.title, type: "chrome_tab", uuid: ({chrome_tab: $chrome_tab.id} | @base64), tab_id: $chrome_tab.id, tab_window_id: $chrome_tab.windowId, url: $chrome_tab.url}')
+            end
         else
             set json (jq -n --argjson window "$window" '{app: $window.app,  title: $window.title, type: "window", uuid: ({window: $window.id} | @base64), window_id: $window.id}')
         end
@@ -134,11 +142,11 @@ function yabai-harpoon
             | ($chrome_tabs | .tabs | map({({chrome_tab: .id} | @base64): {title, tab_window_id: .windowId, url}}) | add) as $chrome_registry
             | ($chrome_tabs | .tabs | map({(.url): {title, tab_window_id: .windowId, tab_id: .id, uuid: ({chrome_tab: .id} | @base64), url: .url, type: "chrome_tab"}}) | add) as $chrome_urls
             | $yabai_registry + $chrome_registry as $registry
-            | try (. + ($registry[.uuid] // $chrome_urls[.url]? // error(.)))
+            | if .type == "chrome_tab" or .type == "window" then try (. + ($registry[.uuid] // $chrome_urls[.url]? // error(.)))
                 catch try (
                         if .type == "chrome_tab" then
                             # {"uuid": .url, type: "chrome_search_tab"}
-                            {"uuid": .url, type: "chrome_preset_app"}
+                            {"uuid": .url, type: "chrome_preset_app", url}
                         elif .type == "chrome_preset_app" then
                             .
                         elif .type == "chrome_search_tab" then
@@ -146,6 +154,7 @@ function yabai-harpoon
                         else error(.) end
                     )
                     catch {type: "window_not_found"}
+            else . end
             '
     end
 end
