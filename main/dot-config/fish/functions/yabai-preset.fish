@@ -167,7 +167,7 @@ function yabai-preset
         end
 
         if not contains "$window" "next" "prev" "first" "last"
-            echoerr "Invalid argument: $window"
+            echo "Invalid argument: $window" >&2
             return 1
         end
 
@@ -202,7 +202,7 @@ function yabai-preset
         set -e argv[1]
 
         if not contains "$window" "next" "prev" "first" "last"
-            echoerr "Invalid argument: $window"
+            echo "Invalid argument: $window" >&2
             return 1
         end
 

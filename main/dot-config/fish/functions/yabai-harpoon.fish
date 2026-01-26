@@ -86,9 +86,11 @@ function yabai-harpoon
             chrome-preset check-tab-id "$(jq -nr --argjson json "$json" '$json.tab_id')" >/dev/null
             or set has_failed 1
         else if jq -en --arg type "$type" '$type == "chrome_preset_app"' >/dev/null
-            set uuid (jq -nr --argjson json "$json" '$json.uuid')
+            set app (jq -nr --argjson json "$json" '$json.uuid')
             set url (jq -nr --argjson json "$json" '$json.url')
-            set app (chrome-preset normalize-app-name "$uuid")
+
+            echo app $app >&2
+            echo url $url >&2
 
             # TODO: profile name needs to be fetched from the json
             # it can be done by checking the name of the window using the yabai -m query subcommand
@@ -145,8 +147,8 @@ function yabai-harpoon
             | if .type == "chrome_tab" or .type == "window" then try (. + ($registry[.uuid] // $chrome_urls[.url]? // error(.)))
                 catch try (
                         if .type == "chrome_tab" then
-                            # {"uuid": .url, type: "chrome_search_tab"}
-                            {"uuid": .url, type: "chrome_preset_app", url}
+                            # {"uuid": .url, type: "chrome1search_tab"}
+                            {"uuid": (.url|@uri)[:100], type: "chrome_preset_app", url}
                         elif .type == "chrome_preset_app" then
                             .
                         elif .type == "chrome_search_tab" then

@@ -200,7 +200,7 @@ function chrome-preset
         mkdir -p /tmp/chrome_preset_apps
         argparse profile= -- $argv
 
-        set appname (chrome-preset normalize-app-name $argv[1])
+        set appname $argv[1]
         set -e argv[1]
 
         set url $argv[1]
@@ -217,7 +217,7 @@ function chrome-preset
     case store-preset-app
         argparse window-id= -- $argv
 
-        set appname (chrome-preset normalize-app-name $argv[1])
+        set appname $argv[1]
         set -e argv[1]
 
         set window_id "$_flag_window_id"
@@ -228,7 +228,7 @@ function chrome-preset
     case "open-in-app"
         argparse profile= -- $argv
 
-        set appname (chrome-preset normalize-app-name $argv[1])
+        set appname $argv[1]
         set -e argv[1]
 
         set url $argv[1]
@@ -245,7 +245,7 @@ function chrome-preset
             chrome-preset create-app --profile="$_flag_profile" "$appname" "$url"
         end
     case "get-app-window-id"
-        set appname (chrome-preset normalize-app-name $argv[1])
+        set appname $argv[1]
         set -e argv[1]
 
         set path "/tmp/chrome_preset_apps/$appname.windowid"
@@ -271,7 +271,7 @@ function chrome-preset
     case "alternate-app"
         argparse profile= minimize=? hide=? app= -- $argv
 
-        set app (chrome-preset normalize-app-name "$_flag_app")
+        set app "$_flag_app"
 
         set fallback
 
@@ -310,11 +310,6 @@ function chrome-preset
         and cat "$path"
 
         return $status
-    case "normalize-app-name"
-        set appname $argv[1]
-        set -e argv[1]
-
-        string escape --style=var "$appname" | string sub --length 100
     case '*'
         return 1
     end
