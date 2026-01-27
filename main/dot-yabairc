@@ -64,9 +64,8 @@ yabai -m rule --add app="Google Chrome" title='^$' role="AXWindow" subrole="AXSt
 yabai -m rule --add app="Karabiner-Elements" title="Karabiner-Elements Settings" manage=off
 yabai -m rule --add app="Mac Mouse Fix" manage=off
 yabai -m rule --add app="Raycast" manage=off
+yabai -m rule --add app="superwhisper" manage=off
 yabai -m rule --add app="Cisco Secure Client" manage=off
-yabai -m rule --add role="AXWindow" manage=off
-
 
 echo "yabai configuration loaded.."
 display-message "yabai configuration loaded.."
