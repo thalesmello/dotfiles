@@ -230,7 +230,7 @@ service < ctrl + alt + cmd - 0x2C : skhd -k "escape"; skhd-preset search-and-dis
 
 service < shift - v : skhd -k "escape"; btt-preset trigger-menu-bar 'Window;Full Screen Tile; Left of Screen'
 service < ctrl + alt + cmd - return : skhd -k "escape" ; btt-preset send-keys ctrl cmd f
-
+service < shift - i : display-message "Input 100%"; osascript -e "set volume input volume 100"
 
 
 # Below is a list of keybinidng that would be equivalent to "Invoke" move on Aerospace
