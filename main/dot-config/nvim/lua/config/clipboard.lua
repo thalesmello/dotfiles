@@ -1,15 +1,20 @@
 local should_load = require('conditional_load').should_load
-local copyprg = should_load('ssh') and 'ssh-pbcopy' or 'pbcopy'
 
-vim.g.clipboard = {
-	name = 'mac-os like',
-	copy = {
-		['+'] = copyprg,
-		['*'] = copyprg,
-	},
-	paste = {
-		['+'] = 'pbpaste',
-		['*'] = 'pbpaste',
-	},
-	cache_enabled = 1,
-}
+if should_load('ssh') then
+	vim.g.clipboard = 'osc52'
+else
+	vim.g.clipboard = {
+		name = 'mac-os like',
+		copy = {
+			['+'] = 'pbcopy',
+			['*'] = 'pbcopy',
+		},
+		paste = {
+			['+'] = 'pbpaste',
+			['*'] = 'pbpaste',
+		},
+		cache_enabled = 1,
+	}
+
+end
+
