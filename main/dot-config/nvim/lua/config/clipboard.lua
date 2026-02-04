@@ -3,7 +3,7 @@ local should_load = require('conditional_load').should_load
 if should_load('ssh') then
 	local function paste()
 	  return {
-		{}
+		{},
 		"v",
 	  }
 	end
