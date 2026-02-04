@@ -5,4 +5,5 @@ return {
     },
     config = function() require('config/projectionist') end,
     name = 'vim-projectionist',
+    extra_contexts = {"ssh"},
 }
