@@ -1,15 +1,22 @@
 local should_load = require('conditional_load').should_load
 
 if should_load('ssh') then
+	local function paste()
+	  return {
+		vim.fn.split(vim.fn.getreg(""), "\n"),
+		vim.fn.getregtype(""),
+	  }
+	end
+
 	vim.g.clipboard = {
-	  name = 'OSC 52',
+	  name = "OSC 52",
 	  copy = {
-	    ['+'] = require('vim.ui.clipboard.osc52').copy('+'),
-	    ['*'] = require('vim.ui.clipboard.osc52').copy('*'),
+		["+"] = require("vim.ui.clipboard.osc52").copy("+"),
+		["*"] = require("vim.ui.clipboard.osc52").copy("*"),
 	  },
 	  paste = {
-	    ['+'] = function () end,
-	    ['*'] = function () end,
+		["+"] = paste,
+		["*"] = paste,
 	  },
 	}
 else
