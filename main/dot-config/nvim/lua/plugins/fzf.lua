@@ -135,4 +135,5 @@ return {
         })
     end,
     lazy=false,
+    extra_contexts = {"ssh"}
 }
