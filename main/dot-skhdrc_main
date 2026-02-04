@@ -182,9 +182,10 @@ service < s : skhd -k "escape"; yabai -m window --insert stack
 service < shift - s : skhd -k "escape"; yabai-preset stack-windows-in-space
 service < m : skhd -k "escape"; yabai-preset toggle-monocle-mode
 service < shift - m : skhd -k "escape"; yabai-preset deminimize-all
-service < 0x2B : skhd -k "escape"; yabai -m space --layout stack; display-message "Laybout stack" # Comma
+service < 0x2B : skhd -k "escape"; yabai -m space --layout stack; display-message "Layout stack" # Comma
 service < shift - 0x2B : skhd -k "escape"; yabai -m space --layout bsp; yabai-preset stack-windows-in-space;# Comma
 service < 0x2F : skhd -k "escape"; yabai -m space --layout bsp; yabai-preset minimize-after-nth-window 3 # Period
+service < shift - t : skhd -k "escape"; yabai -m space --layout float; display-message "Layout float" # Comma
 service < shift - 0x2F : skhd -k "escape"; yabai -m space --layout bsp; display-message "Laybout bsp"
 service < 0 : skhd -k "escape"; yabai -m space --layout float; display-message "Laybout float"
 # Temporaily disable window restore to debug later

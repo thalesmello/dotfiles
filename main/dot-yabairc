@@ -38,7 +38,7 @@ set -a configs bottom_padding               10
 set -a configs left_padding                 10
 set -a configs right_padding                10
 set -a configs window_gap                   10
-set -a configs layout                       stack
+set -a configs layout                       float
 set -a configs mouse_modifier               fn
 set -a configs mouse_action1                move
 set -a configs mouse_action2                resize
