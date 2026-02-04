@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+# limit copy to 74994 bytes (OSC 52 limit)
+input_data=$(cat)
+encoded_data=$(echo -n "$input_data" | base64 | tr -d '\n')
+
+# OSC 52 sequence: \033]52;c;<base64_data>\a
+printf "\033]52;c;%s\a" "$encoded_data"
