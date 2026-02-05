@@ -222,6 +222,7 @@ function btt-preset
 
         set active (btt-preset get-string-variable "active_app_name")
 
+        echo active "$active"
         if test "$active" = "$app_name"
             if set -q _flag_hide
                 skhd -k "cmd - h"
@@ -233,7 +234,7 @@ function btt-preset
         else if test -n "$_flag_cmd"
             eval "$_flag_cmd"
         else
-            btt-preset show-app "$app"
+            open -a "$app"
         end
     end
 end
