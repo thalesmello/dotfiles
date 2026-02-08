@@ -64,6 +64,30 @@ return {
             local repeatable_ok, ts_repeat_move = pcall(require, "nvim-treesitter.textobjects.repeatable_move")
 
             if repeatable_ok then
+                function _G.FallbackMiniMove(opts)
+                    local ai = opts.ai or 'a'
+                    local direction = opts.direction
+                    local ok, char
+                    char = opts.char
+
+                    if char == nil then
+                        ok, char = pcall(vim.fn.getcharstr)
+                        if not ok or char == '\27' then return nil end
+                    end
+
+                    local pos = vim.fn.getpos('.')
+
+                    vim.cmd(string.format("silent! lua MiniAi.move_cursor(%s, %s, %s)", vim.fn.shellescape(direction), vim.fn.shellescape(ai), vim.fn.shellescape(char)))
+
+                    if vim.deep_equal(vim.fn.getpos('.'), pos) then
+                        if vim.list_contains({"v", "V", "\x16"}, vim.api.nvim_get_mode().mode) then
+                            vim.cmd.normal(vim_utils.keycodes("<esc>"))
+                        end
+
+                        vim.cmd.normal(vim_utils.keycodes('v' .. ai .. char .. "<esc>" .. ("`<" and (direction == "left") or "`>")))
+                    end
+                end
+
                 local function repeatable_goto_ai(opts)
                     local ai = opts.ai or 'a'
                     local direction = opts.direction
@@ -133,9 +157,7 @@ return {
                     local ok, char = pcall(vim.fn.getcharstr)
                     if not ok or char == '\27' then return nil end
 
-                    return 'v<Cmd>lua '
-                        .. string.format([[MiniAi.move_cursor('%s', '%s', '%s', { search_method = "cover" })]], direction, ai, char)
-                        .. '<CR>'
+                    return string.format('v<Cmd>lua FallbackMiniMove({direction=%s, ai=%s, char=%s})<cr>', vim.fn.shellescape(direction), vim.fn.shellescape(ai), vim.fn.shellescape(char))
                 end
 
                 vim.keymap.set({"o"}, "g[", function ()
