@@ -1,5 +1,6 @@
 # vi: ft=ruby
 
+tap "homebrew/services"
 brew "bash"
 brew "black"
 brew "blueutil"
@@ -44,7 +45,7 @@ brew "poppler" # pdf renderer
 brew "podman"
 brew "pre-commit"
 brew "pstree"
-brew "python3"
+brew "python"
 brew "resvg" # SVG renderer
 brew "ripgrep"
 brew "ruby"

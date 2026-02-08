@@ -73,10 +73,19 @@ return {
                     local moveLeft, moveRight = ts_repeat_move.make_repeatable_move_pair(
                         function ()
                             local pos = vim.fn.getpos('.')
-                            vim.cmd("silent! lua MiniAi.move_cursor('left', ".. vim.fn.shellescape(ai) ..", " .. vim.fn.shellescape(char) .. ", {search_method=left_sm})")
+                            vim.cmd("silent! lua MiniAi.move_cursor('left', ".. vim.fn.shellescape(ai) ..", " .. vim.fn.shellescape(char) .. ")")
 
                             if vim.deep_equal(vim.fn.getpos('.'), pos) then
-                                vim.cmd.normal(vim_utils.keycodes('v' .. ai .. char .. "<esc>`<"))
+                                if vim.fn.mode() == "n" then
+                                    vim.cmd.normal(vim_utils.keycodes('v' .. ai .. char .. "<esc>`<"))
+                                else
+                                    vim.cmd.normal(vim_utils.keycodes('<esc>'))
+                                    local visend = vim.fn.getpos("'>")
+                                    vim.cmd.normal(vim_utils.keycodes('v' .. ai .. char .. "<esc>"))
+                                    vim.fn.setpos("'>", {0, visend[2], visend[3], 0})
+                                    vim.cmd.normal({ args = {vim_utils.keycodes([[gv]])}, bang = true })
+                                end
+
                             end
                         end,
                         function ()
@@ -84,7 +93,15 @@ return {
                             vim.cmd("silent! lua MiniAi.move_cursor('right', ".. vim.fn.shellescape(ai) ..", " .. vim.fn.shellescape(char) .. ", {search_method=left_sm})")
 
                             if vim.deep_equal(vim.fn.getpos('.'), pos) then
-                                vim.cmd.normal(vim_utils.keycodes('v' .. ai .. char .. "<esc>`>"))
+                                if vim.fn.mode() == "n" then
+                                    vim.cmd.normal(vim_utils.keycodes('v' .. ai .. char .. "<esc>`>"))
+                                else
+                                    vim.cmd.normal(vim_utils.keycodes('<esc>'))
+                                    local visend = vim.fn.getpos("'<")
+                                    vim.cmd.normal(vim_utils.keycodes('v' .. ai .. char .. "<esc>"))
+                                    vim.fn.setpos("'<", {0, visend[2], visend[3], 0})
+                                    vim.cmd.normal({ args = {vim_utils.keycodes([[gv]])}, bang = true })
+                                end
                             end
                         end
                     )
