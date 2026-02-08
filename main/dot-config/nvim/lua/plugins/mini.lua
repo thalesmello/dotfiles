@@ -80,61 +80,55 @@ return {
                     vim.cmd(string.format("silent! lua MiniAi.move_cursor(%s, %s, %s)", vim.fn.shellescape(direction), vim.fn.shellescape(ai), vim.fn.shellescape(char)))
 
                     if vim.deep_equal(vim.fn.getpos('.'), pos) then
-                        if vim.list_contains({"v", "V", "\x16"}, vim.api.nvim_get_mode().mode) then
+                        if vim_utils.is_visual_mode() then
                             vim.cmd.normal(vim_utils.keycodes("<esc>"))
                         end
 
-                        vim.cmd.normal(vim_utils.keycodes('v' .. ai .. char .. "<esc>" .. ("`<" and (direction == "left") or "`>")))
+                        vim.cmd(string.format([[silent! normal %s]], vim_utils.keycodes('v' .. ai .. char .. "<esc>" .. ((direction == "left") and "`<" or "`>"))))
+
+                        if vim_utils.is_visual_mode() then
+                            vim.cmd.normal(vim_utils.keycodes("<esc>"))
+                        end
+                    end
+                end
+
+                local function visual_mini_move (opts)
+                    local ai = opts.ai or 'a'
+                    local direction = opts.direction or 'a'
+                    local char = opts.char or 'a'
+
+                    local edge, other_edge, other_edge_pos
+                    local is_visual = vim_utils.is_visual_mode()
+
+                    if is_visual then
+                        vim.cmd.normal(vim_utils.keycodes("<esc>"))
+                        edge = (direction == "left") and "'<" or "'>"
+                        other_edge = (direction == "left") and "'>" or "'<"
+                        other_edge_pos = vim.fn.getpos(other_edge)
+                    end
+
+                    FallbackMiniMove({char = char, direction = direction, ai = ai})
+
+                    if is_visual then
+                        local pos = vim.fn.getpos(".")
+                        vim.fn.setpos(edge, {0, pos[2], pos[3], 0})
+                        vim.fn.setpos(other_edge, {0, other_edge_pos[2], other_edge_pos[3], 0})
+                        vim.cmd.normal({ args = {vim_utils.keycodes([[gv]])}, bang = true })
                     end
                 end
 
                 local function repeatable_goto_ai(opts)
                     local ai = opts.ai or 'a'
                     local direction = opts.direction
-                    local left_sm, right_sm = unpack(opts.search_method_pair or {"cover_or_prev", "cover_or_next"})
                     local ok, char = pcall(vim.fn.getcharstr)
                     if not ok or char == '\27' then return nil end
-                    local moveLeft, moveRight = ts_repeat_move.make_repeatable_move_pair(
-                        function ()
-                            local pos = vim.fn.getpos('.')
-                            vim.cmd("silent! lua MiniAi.move_cursor('left', ".. vim.fn.shellescape(ai) ..", " .. vim.fn.shellescape(char) .. ")")
 
-                            if vim.deep_equal(vim.fn.getpos('.'), pos) then
-                                if vim.fn.mode() == "n" then
-                                    vim.cmd.normal(vim_utils.keycodes('v' .. ai .. char .. "<esc>`<"))
-                                else
-                                    vim.cmd.normal(vim_utils.keycodes('<esc>'))
-                                    local visend = vim.fn.getpos("'>")
-                                    vim.cmd.normal(vim_utils.keycodes('v' .. ai .. char .. "<esc>"))
-                                    vim.fn.setpos("'>", {0, visend[2], visend[3], 0})
-                                    vim.cmd.normal({ args = {vim_utils.keycodes([[gv]])}, bang = true })
-                                end
-
-                            end
-                        end,
-                        function ()
-                            local pos = vim.fn.getpos('.')
-                            vim.cmd("silent! lua MiniAi.move_cursor('right', ".. vim.fn.shellescape(ai) ..", " .. vim.fn.shellescape(char) .. ", {search_method=left_sm})")
-
-                            if vim.deep_equal(vim.fn.getpos('.'), pos) then
-                                if vim.fn.mode() == "n" then
-                                    vim.cmd.normal(vim_utils.keycodes('v' .. ai .. char .. "<esc>`>"))
-                                else
-                                    vim.cmd.normal(vim_utils.keycodes('<esc>'))
-                                    local visend = vim.fn.getpos("'<")
-                                    vim.cmd.normal(vim_utils.keycodes('v' .. ai .. char .. "<esc>"))
-                                    vim.fn.setpos("'<", {0, visend[2], visend[3], 0})
-                                    vim.cmd.normal({ args = {vim_utils.keycodes([[gv]])}, bang = true })
-                                end
-                            end
-                        end
-                    )
-
-                    if direction == "left" then
-                        moveLeft()
-                    else
-                        moveRight()
+                    local function mini_move(opts)
+                        visual_mini_move({direction=opts.forward and "right" or "left", char = char, ai = ai})
+                        ts_repeat_move.set_last_move(mini_move, {forward = direction == "right"})
                     end
+
+                    mini_move({ forward = direction == "right" })
                 end
 
                 vim.keymap.set({ "n", "x" }, "g[", function ()
@@ -188,7 +182,7 @@ return {
                             -- mini_ai.select_textobject(ai, char, {search_method=search_method})
 
                             local left_reg, right_reg
-                            local is_visual_mode = vim.list_contains({'v', 'V', ''}, vim.api.nvim_get_mode().mode)
+                            local is_visual_mode = vim_utils.is_visual_mode()
                             if is_visual_mode then
                                 vim.cmd.normal({ args = {vim_utils.keycodes([[<c-\><c-n>gv]])}, bang = true })
                                 left_reg, right_reg = "'<", "'>"

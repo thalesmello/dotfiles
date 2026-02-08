@@ -32,6 +32,10 @@ function M.get_visual_selection(mode)
     return table.concat(lines, "\n")
 end
 
+function M.is_visual_mode()
+    return vim.list_contains({"v", "V", "\x16"}, vim.api.nvim_get_mode().mode)
+end
+
 function M.concat_array(a, b)
   local result = {unpack(a)}
   table.move(b, 1, #b, #result + 1, result)
