@@ -65,7 +65,7 @@ return {
             vim.keymap.set({ "o", "x" }, 'i\\', ':<C-u>call TextObjWordBasedColumn("iw")<cr>', { noremap = true })
             vim.keymap.set({ "o", "x" }, 'i|', ':<C-u>call TextObjWordBasedColumn("iW")<cr>', { noremap = true })
         end,
-        extra_contexts = {"vscode", "firenvim", "lite_nvim"}
+        extra_contexts = {"vscode", "firenvim", "lite_mode", "ssh"}
     },
     {
         "chrisgrieser/nvim-various-textobjs",
@@ -116,6 +116,6 @@ return {
             -- { "aF", '<cmd>lua require("various-textobjs").filepath("outer")<CR>', mode = { "o", "x" } },
         },
         opts = {},
-        extra_contexts = {"vscode", "firenvim"}
+        extra_contexts = {"vscode", "firenvim", "lite_mode", "ssh"}
     },
 }
