@@ -20,6 +20,18 @@ function neovim-ghost
         else
             neovim-ghost start
         end;
+    case "drop"
+        set skip_focus 0
+        if not neovim-ghost is-alive
+            neovim-ghost start
+            set skip_focus 1
+        end
+
+        nvr --nostart --servername "$TMPDIR/nvim_ghost.socket" -c "drop $argv"
+
+        if test "$skip_focus" != 1
+            neovim-ghost focus
+        end
     case "edit"
         set skip_focus 0
         if not neovim-ghost is-alive
