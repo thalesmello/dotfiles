@@ -250,8 +250,8 @@ invoke < b : skhd -k "escape"; osascript -e 'tell application "Alfred" to search
 invoke < t : skhd -k "escape"; osascript -e 'tell application "Alfred" to search "top "'
 invoke < y : skhd -k "escape"; open 'raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D'
 invoke < return : skhd -k "escape"; iterm-preset new-window
-invoke < shift - i : skhd -k "escake"; display-message "Input 100%"; osascript -e "set volume input volume 100"
-invoke < shift - r : skhd -k "escake"; display-message "Reinitialize Displays"; betterdisplaycli perform --reinitialize
+invoke < shift - i : skhd -k "escape"; display-message "Input 100%"; osascript -e "set volume input volume 100"
+invoke < shift - r : skhd -k "escape"; display-message "Reinitialize Displays"; betterdisplaycli perform --reinitialize
 
 
 service < c ; chrome
