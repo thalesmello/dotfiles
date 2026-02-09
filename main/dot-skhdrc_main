@@ -231,7 +231,6 @@ service < ctrl + alt + cmd - 0x2C : skhd -k "escape"; skhd-preset search-and-dis
 
 service < shift - v : skhd -k "escape"; btt-preset trigger-menu-bar 'Window;Full Screen Tile; Left of Screen'
 service < ctrl + alt + cmd - return : skhd -k "escape" ; btt-preset send-keys ctrl cmd f
-service < shift - i : display-message "Input 100%"; osascript -e "set volume input volume 100"
 
 
 # Below is a list of keybinidng that would be equivalent to "Invoke" move on Aerospace
@@ -251,6 +250,8 @@ invoke < b : skhd -k "escape"; osascript -e 'tell application "Alfred" to search
 invoke < t : skhd -k "escape"; osascript -e 'tell application "Alfred" to search "top "'
 invoke < y : skhd -k "escape"; open 'raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D'
 invoke < return : skhd -k "escape"; iterm-preset new-window
+invoke < shift - i : skhd -k "escake"; display-message "Input 100%"; osascript -e "set volume input volume 100"
+invoke < shift - r : skhd -k "escake"; display-message "Reinitialize Displays"; betterdisplaycli perform --reinitialize
 
 
 service < c ; chrome
