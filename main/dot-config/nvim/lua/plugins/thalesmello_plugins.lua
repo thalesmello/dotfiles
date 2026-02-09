@@ -9,6 +9,7 @@ return {
     {
         'thalesmello/persistent.vim',
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
+        extra_contexts = {"firenvim", "lite_mode", "ssh"}
     },
     {
         'thalesmello/tabfold',
