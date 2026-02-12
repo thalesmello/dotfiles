@@ -12,6 +12,195 @@
         {
           "BTTActionsToExecute": [
             {
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1770852344.926571,
+              "BTTOrder": 1,
+              "BTTPredefinedActionName": "Assign or Set Value for Variable",
+              "BTTPredefinedActionType": 292,
+              "BTTTriggerClass": "BTTTriggerTypeKeySequence",
+              "BTTTriggerParentUUID": "CDE48D9F-CBF2-406F-847B-DB8048C8E01B",
+              "BTTUUID": "AD42F1FA-22D2-496D-AA55-E2AFF5C52701",
+              "BTTVariableName": "UserLastUsedCmdTab",
+              "BTTVariableValue": "0"
+            }
+          ],
+          "BTTGestureNotes": "Cmd key up for smart cmd tab",
+          "BTTKeySequence": {
+            "BTTKeyCount": 1,
+            "BTTKeySequenceMixedKeys": [
+              {
+                "BTTKEYCharacter": "⌘",
+                "BTTKEYCode": 55,
+                "BTTKEYRequired": 1
+              }
+            ],
+            "BTTKeySequenceUpKeys": [
+              {
+                "BTTKEYCharacter": "⌘",
+                "BTTKEYCode": 55,
+                "BTTKEYRequired": 1
+              }
+            ],
+            "BTTKeyboardType": 2302,
+            "BTTPauseBetween": 0.3
+          },
+          "BTTLastUpdatedAt": 1770852381.947713,
+          "BTTNotesInsteadOfDescription": 1,
+          "BTTOrder": 0,
+          "BTTTriggerClass": "BTTTriggerTypeKeySequence",
+          "BTTTriggerType": 624,
+          "BTTTriggerTypeDescription": "Cmd key up for smart cmd tab",
+          "BTTTriggerTypeDescriptionReadOnly": "Please Select a Trigger ",
+          "BTTUUID": "CDE48D9F-CBF2-406F-847B-DB8048C8E01B"
+        },
+        {
+          "BTTActionsToExecute": [
+            {
+              "BTTAutoAdaptToKeyboardLayout": 0,
+              "BTTIfConditionData": "YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMSAAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGvEBYLDBMYICorLTQ4PT5BRUlOT1JZX2NlVSRudWxs0w0ODxAREl8QF05TQ29tcG91bmRQcmVkaWNhdGVUeXBlXxAPTlNTdWJwcmVkaWNhdGVzViRjbGFzcxABgAKAFdIUDxUXWk5TLm9iamVjdHOhFoADgBTUDxkaGxwdHh9fEBFOU1JpZ2h0RXhwcmVzc2lvbl8QEE5TTGVmdEV4cHJlc3Npb25fEBNOU1ByZWRpY2F0ZU9wZXJhdG9ygBOADoAEgBHVISIjJA8lJicoKVlOU09wZXJhbmReTlNTZWxlY3Rvck5hbWVfEBBOU0V4cHJlc3Npb25UeXBlW05TQXJndW1lbnRzgAaABRADgAiADVx2YWx1ZUZvcktleTrSIw8QLIAH0i4vMDFaJGNsYXNzbmFtZVgkY2xhc3Nlc18QEE5TU2VsZkV4cHJlc3Npb26jMDIzXE5TRXhwcmVzc2lvblhOU09iamVjdNIUDzU3oTaACYAM0w8jOTo7PFlOU0tleVBhdGiACxAKgApfEBdmb2N1c2VkX2VsZW1lbnRfZGV0YWlsc9IuLz9AXxAcTlNLZXlQYXRoU3BlY2lmaWVyRXhwcmVzc2lvbqM_MjPSLi9CQ15OU011dGFibGVBcnJheaNCRDNXTlNBcnJhedIuL0ZHXxATTlNLZXlQYXRoRXhwcmVzc2lvbqRGSDIzXxAUTlNGdW5jdGlvbkV4cHJlc3Npb27TSiMPS0xNXxAPTlNDb25zdGFudFZhbHVlgA8QAIAQXxA6PEFYQXBwbGljYXRpb246ICJpVGVybTIiPgogPEFYV2luZG93OiAiZmxvYXRpbmctdGVybWluYWwiPtIuL1BRXxAZTlNDb25zdGFudFZhbHVlRXhwcmVzc2lvbqNQMjPVD1NUVVZXTExMWFpOU01vZGlmaWVyV05TRmxhZ3NaTlNQb3NpdGlvbl5OU09wZXJhdG9yVHlwZYASEAjSLi9aW18QHE5TU3Vic3RyaW5nUHJlZGljYXRlT3BlcmF0b3KkXF1eM18QHE5TU3Vic3RyaW5nUHJlZGljYXRlT3BlcmF0b3JfEBlOU1N0cmluZ1ByZWRpY2F0ZU9wZXJhdG9yXxATTlNQcmVkaWNhdGVPcGVyYXRvctIuL2BhXxAVTlNDb21wYXJpc29uUHJlZGljYXRlo2BiM1tOU1ByZWRpY2F0ZdIuL0RkokQz0i4vZmdfEBNOU0NvbXBvdW5kUHJlZGljYXRlo2ZiMwAIABEAGgAkACkAMgA3AEkATABRAFMAbAByAHkAkwClAKwArgCwALIAtwDCAMQAxgDIANEA5QD4AQ4BEAESARQBFgEhASsBOgFNAVkBWwFdAV8BYQFjAXABdQF3AXwBhwGQAaMBpwG0Ab0BwgHEAcYByAHPAdkB2wHdAd8B+QH+Ah0CIQImAjUCOQJBAkYCXAJhAngCfwKRApMClQKXAtQC2QL1AvkDBAMPAxcDIgMxAzMDNQM6A1kDXgN9A5kDrwO0A8wD0APcA+ED5APpA_8AAAAAAAACAQAAAAAAAABoAAAAAAAAAAAAAAAAAAAEAw==",
+              "BTTIfConditionFormat": "focused_element_details BEGINSWITH \"<AXApplication: \\\"iTerm2\\\">\n <AXWindow: \\\"floating-terminal\\\">\"",
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1770857650.1532269,
+              "BTTOrder": 0,
+              "BTTPredefinedActionName": "If Condition",
+              "BTTPredefinedActionType": 330,
+              "BTTShortcutKeyCode": -1,
+              "BTTShortcutKeyboardType": 0,
+              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
+              "BTTTriggerParentUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3",
+              "BTTUUID": "575C487E-6323-46E1-ACE5-4B79694F5330"
+            },
+            {
+              "BTTAutoAdaptToKeyboardLayout": 0,
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1770854437.505669,
+              "BTTLayoutIndependentActionChar": "/",
+              "BTTOrder": 1,
+              "BTTShortcutKeyCode": -1,
+              "BTTShortcutKeyboardType": 0,
+              "BTTShortcutToSend": "59,58,55,44",
+              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
+              "BTTTriggerParentUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3",
+              "BTTUUID": "7F436D7B-A0E0-495F-B2E8-C8527A169EC2"
+            },
+            {
+              "BTTAutoAdaptToKeyboardLayout": 0,
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1770854437.505663,
+              "BTTOrder": 2,
+              "BTTPredefinedActionName": "Else",
+              "BTTPredefinedActionType": 333,
+              "BTTShortcutKeyCode": -1,
+              "BTTShortcutKeyboardType": 0,
+              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
+              "BTTTriggerParentUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3",
+              "BTTUUID": "C3D4CB42-9878-4B0D-9B6E-C4F4332DA649"
+            },
+            {
+              "BTTAutoAdaptToKeyboardLayout": 0,
+              "BTTIfConditionData": "YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMSAAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGvEBYLDBMYICorLTQ4PT5BRUlOT1JaXmJkVSRudWxs0w0ODxAREl8QF05TQ29tcG91bmRQcmVkaWNhdGVUeXBlXxAPTlNTdWJwcmVkaWNhdGVzViRjbGFzcxABgAKAFdIUDxUXWk5TLm9iamVjdHOhFoADgBTUDxkaGxwdHh9fEBFOU1JpZ2h0RXhwcmVzc2lvbl8QEE5TTGVmdEV4cHJlc3Npb25fEBNOU1ByZWRpY2F0ZU9wZXJhdG9ygBOADoAEgBHVISIjJA8lJicoKVlOU09wZXJhbmReTlNTZWxlY3Rvck5hbWVfEBBOU0V4cHJlc3Npb25UeXBlW05TQXJndW1lbnRzgAaABRADgAiADVx2YWx1ZUZvcktleTrSIw8QLIAH0i4vMDFaJGNsYXNzbmFtZVgkY2xhc3Nlc18QEE5TU2VsZkV4cHJlc3Npb26jMDIzXE5TRXhwcmVzc2lvblhOU09iamVjdNIUDzU3oTaACYAM0w8jOTo7PFlOU0tleVBhdGiACxAKgApfEBJVc2VyTGFzdFVzZWRDbWRUYWLSLi8_QF8QHE5TS2V5UGF0aFNwZWNpZmllckV4cHJlc3Npb26jPzIz0i4vQkNeTlNNdXRhYmxlQXJyYXmjQkQzV05TQXJyYXnSLi9GR18QE05TS2V5UGF0aEV4cHJlc3Npb26kRkgyM18QFE5TRnVuY3Rpb25FeHByZXNzaW9u00ojD0tMTV8QD05TQ29uc3RhbnRWYWx1ZYAPEACAEFEx0i4vUFFfEBlOU0NvbnN0YW50VmFsdWVFeHByZXNzaW9uo1AyM9UPU1RVVldMWExZWk5TTW9kaWZpZXJYTlNOZWdhdGVZTlNPcHRpb25zXk5TT3BlcmF0b3JUeXBlgBIIEATSLi9bXF8QG05TRXF1YWxpdHlQcmVkaWNhdGVPcGVyYXRvcqNbXTNfEBNOU1ByZWRpY2F0ZU9wZXJhdG9y0i4vX2BfEBVOU0NvbXBhcmlzb25QcmVkaWNhdGWjX2EzW05TUHJlZGljYXRl0i4vRGOiRDPSLi9lZl8QE05TQ29tcG91bmRQcmVkaWNhdGWjZWEzAAgAEQAaACQAKQAyADcASQBMAFEAUwBsAHIAeQCTAKUArACuALAAsgC3AMIAxADGAMgA0QDlAPgBDgEQARIBFAEWASEBKwE6AU0BWQFbAV0BXwFhAWMBcAF1AXcBfAGHAZABowGnAbQBvQHCAcQBxgHIAc8B2QHbAd0B3wH0AfkCGAIcAiECMAI0AjwCQQJXAlwCcwJ6AowCjgKQApIClAKZArUCuQLEAs8C2ALiAvEC8wL0AvYC+wMZAx0DMwM4A1ADVANgA2UDaANtA4MAAAAAAAACAQAAAAAAAABnAAAAAAAAAAAAAAAAAAADhw==",
+              "BTTIfConditionFormat": "UserLastUsedCmdTab == \"1\"",
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1770854437.505609,
+              "BTTOrder": 3,
+              "BTTPredefinedActionName": "If Condition",
+              "BTTPredefinedActionType": 330,
+              "BTTShortcutKeyCode": -1,
+              "BTTShortcutKeyboardType": 0,
+              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
+              "BTTTriggerParentUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3",
+              "BTTUUID": "D67E941E-B7B2-4C7A-B19A-7D25B53F8A86"
+            },
+            {
+              "BTTAutoAdaptToKeyboardLayout": 0,
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1770854437.505588,
+              "BTTOrder": 4,
+              "BTTPredefinedActionName": "Application Switcher",
+              "BTTPredefinedActionType": 46,
+              "BTTShortcutKeyCode": -1,
+              "BTTShortcutKeyboardType": 0,
+              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
+              "BTTTriggerParentUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3",
+              "BTTUUID": "A9334E91-DAA0-4DA7-9205-AE3B44772951"
+            },
+            {
+              "BTTAutoAdaptToKeyboardLayout": 0,
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1770854437.505615,
+              "BTTOrder": 5,
+              "BTTPredefinedActionName": "Else",
+              "BTTPredefinedActionType": 333,
+              "BTTShortcutKeyCode": -1,
+              "BTTShortcutKeyboardType": 0,
+              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
+              "BTTTriggerParentUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3",
+              "BTTUUID": "DD619D5F-8210-4BDD-92E6-7126C72F184E"
+            },
+            {
+              "BTTAutoAdaptToKeyboardLayout": 0,
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1770854745.206279,
+              "BTTOrder": 6,
+              "BTTPredefinedActionName": "Execute Terminal Command (Async, non-blocking)",
+              "BTTPredefinedActionType": 137,
+              "BTTShortcutKeyCode": -1,
+              "BTTShortcutKeyboardType": 0,
+              "BTTTerminalCommand": "/opt/homebrew/bin/yabai -m window --focus recent",
+              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
+              "BTTTriggerParentUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3",
+              "BTTUUID": "FBEB19E6-09F1-40DB-B6BB-3984F1F714E5"
+            },
+            {
+              "BTTAutoAdaptToKeyboardLayout": 0,
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1770854437.5056028,
+              "BTTOrder": 12,
+              "BTTPredefinedActionName": "END If Condition",
+              "BTTPredefinedActionType": 334,
+              "BTTShortcutKeyCode": -1,
+              "BTTShortcutKeyboardType": 0,
+              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
+              "BTTTriggerParentUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3",
+              "BTTUUID": "DD27067D-9914-45D7-A74B-353C0B56F165"
+            },
+            {
+              "BTTAutoAdaptToKeyboardLayout": 0,
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1770854437.5055962,
+              "BTTOrder": 13,
+              "BTTPredefinedActionName": "Assign or Set Value for Variable",
+              "BTTPredefinedActionType": 292,
+              "BTTShortcutKeyCode": -1,
+              "BTTShortcutKeyboardType": 0,
+              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
+              "BTTTriggerParentUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3",
+              "BTTUUID": "D5D55F83-834C-4A1F-B00C-6DA3A006219A",
+              "BTTVariableName": "UserLastUsedCmdTab",
+              "BTTVariableValue": "1"
+            }
+          ],
+          "BTTAdditionalConfiguration": "1048584",
+          "BTTAutoAdaptToKeyboardLayout": 0,
+          "BTTLastUpdatedAt": 1770854663.860002,
+          "BTTLayoutIndependentChar": "TAB",
+          "BTTOrder": 0,
+          "BTTShortcutAdvancedModifierKeys": "1048584",
+          "BTTShortcutKeyCode": 48,
+          "BTTShortcutKeyboardType": 11035,
+          "BTTShortcutModifierKeys": 1048576,
+          "BTTShortcutScope": 0,
+          "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
+          "BTTTriggerConfig": {
+            "BTTKeyboardPreventRecursiveTriggers": 1
+          },
+          "BTTTriggerOnDown": 1,
+          "BTTTriggerType": 0,
+          "BTTUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3"
+        },
+        {
+          "BTTActionsToExecute": [
+            {
               "BTTAutoAdaptToKeyboardLayout": 0,
               "BTTIsPureAction": true,
               "BTTLastUpdatedAt": 1746611667.102387,
@@ -28,7 +217,7 @@
           ],
           "BTTAdditionalConfiguration": "1966123",
           "BTTAutoAdaptToKeyboardLayout": 0,
-          "BTTLastUpdatedAt": 1757524735.886456,
+          "BTTLastUpdatedAt": 1770852356.5690598,
           "BTTLayoutIndependentChar": "q",
           "BTTOrder": 0,
           "BTTShortcutAdvancedModifierKeys": "1966123",
@@ -287,10 +476,13 @@
               "BTTUUID": "9F189F9B-1B6C-41A1-B133-1CC50218C5D5"
             }
           ],
-          "BTTAdditionalData": "eyJCVFRJY29uQ29uZmlnSWNvbkhlaWdodCI6MjUsIkJUVEljb25Db25maWdJY29uSWNvbldpZHRoIjoyNX0=",
+          "BTTAdditionalDataJSON": {
+            "BTTIconConfigIconHeight": 25,
+            "BTTIconConfigIconIconWidth": 25
+          },
           "BTTAutoAdaptToKeyboardLayout": 0,
           "BTTGroupName": "HJKL Navigation",
-          "BTTLastUpdatedAt": 1757524735.886513,
+          "BTTLastUpdatedAt": 1770852356.569104,
           "BTTOrder": 1,
           "BTTShortcutKeyCode": -1,
           "BTTShortcutKeyboardType": 0,
@@ -438,7 +630,7 @@
           "BTTAutoAdaptToKeyboardLayout": 0,
           "BTTEnabled": 0,
           "BTTGestureNotes": "Interactive AI - Get Prompt, open AI, and Paste on Inputbox",
-          "BTTLastUpdatedAt": 1757524735.8864698,
+          "BTTLastUpdatedAt": 1770852356.569241,
           "BTTLayoutIndependentChar": "\\",
           "BTTOrder": 2,
           "BTTShortcutAdvancedModifierKeys": "1835049",
@@ -468,7 +660,7 @@
           ],
           "BTTAdditionalConfiguration": "393219",
           "BTTAutoAdaptToKeyboardLayout": 0,
-          "BTTLastUpdatedAt": 1757524735.886477,
+          "BTTLastUpdatedAt": 1770852356.569313,
           "BTTLayoutIndependentChar": "w",
           "BTTOrder": 3,
           "BTTShortcutAdvancedModifierKeys": "393219",
@@ -578,7 +770,7 @@
           "BTTAdditionalConfiguration": "1966123",
           "BTTAutoAdaptToKeyboardLayout": 0,
           "BTTEnabled": 0,
-          "BTTLastUpdatedAt": 1757524735.886528,
+          "BTTLastUpdatedAt": 1770852356.569234,
           "BTTLayoutIndependentChar": "v",
           "BTTOrder": 4,
           "BTTShortcutAdvancedModifierKeys": "1966123",
@@ -589,94 +781,6 @@
           "BTTTriggerOnDown": 1,
           "BTTTriggerType": 0,
           "BTTUUID": "1E639684-B46B-40B4-8CE6-5853BB30A60D"
-        },
-        {
-          "BTTActionsToExecute": [
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIfConditionData": "YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMSAAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGvEBYLDBMYICorLTQ4PT5BRUlOT1JZX2NlVSRudWxs0w0ODxAREl8QF05TQ29tcG91bmRQcmVkaWNhdGVUeXBlXxAPTlNTdWJwcmVkaWNhdGVzViRjbGFzcxABgAKAFdIUDxUXWk5TLm9iamVjdHOhFoADgBTUDxkaGxwdHh9fEBFOU1JpZ2h0RXhwcmVzc2lvbl8QEE5TTGVmdEV4cHJlc3Npb25fEBNOU1ByZWRpY2F0ZU9wZXJhdG9ygBOADoAEgBHVISIjJA8lJicoKVlOU09wZXJhbmReTlNTZWxlY3Rvck5hbWVfEBBOU0V4cHJlc3Npb25UeXBlW05TQXJndW1lbnRzgAaABRADgAiADVx2YWx1ZUZvcktleTrSIw8QLIAH0i4vMDFaJGNsYXNzbmFtZVgkY2xhc3Nlc18QEE5TU2VsZkV4cHJlc3Npb26jMDIzXE5TRXhwcmVzc2lvblhOU09iamVjdNIUDzU3oTaACYAM0w8jOTo7PFlOU0tleVBhdGiACxAKgApfEBdmb2N1c2VkX2VsZW1lbnRfZGV0YWlsc9IuLz9AXxAcTlNLZXlQYXRoU3BlY2lmaWVyRXhwcmVzc2lvbqM_MjPSLi9CQ15OU011dGFibGVBcnJheaNCRDNXTlNBcnJhedIuL0ZHXxATTlNLZXlQYXRoRXhwcmVzc2lvbqRGSDIzXxAUTlNGdW5jdGlvbkV4cHJlc3Npb27TSiMPS0xNXxAPTlNDb25zdGFudFZhbHVlgA8QAIAQXxA6PEFYQXBwbGljYXRpb246ICJpVGVybTIiPgogPEFYV2luZG93OiAiZmxvYXRpbmctdGVybWluYWwiPtIuL1BRXxAZTlNDb25zdGFudFZhbHVlRXhwcmVzc2lvbqNQMjPVD1NUVVZXTExMWFpOU01vZGlmaWVyV05TRmxhZ3NaTlNQb3NpdGlvbl5OU09wZXJhdG9yVHlwZYASEAjSLi9aW18QHE5TU3Vic3RyaW5nUHJlZGljYXRlT3BlcmF0b3KkXF1eM18QHE5TU3Vic3RyaW5nUHJlZGljYXRlT3BlcmF0b3JfEBlOU1N0cmluZ1ByZWRpY2F0ZU9wZXJhdG9yXxATTlNQcmVkaWNhdGVPcGVyYXRvctIuL2BhXxAVTlNDb21wYXJpc29uUHJlZGljYXRlo2BiM1tOU1ByZWRpY2F0ZdIuL0RkokQz0i4vZmdfEBNOU0NvbXBvdW5kUHJlZGljYXRlo2ZiMwAIABEAGgAkACkAMgA3AEkATABRAFMAbAByAHkAkwClAKwArgCwALIAtwDCAMQAxgDIANEA5QD4AQ4BEAESARQBFgEhASsBOgFNAVkBWwFdAV8BYQFjAXABdQF3AXwBhwGQAaMBpwG0Ab0BwgHEAcYByAHPAdkB2wHdAd8B+QH+Ah0CIQImAjUCOQJBAkYCXAJhAngCfwKRApMClQKXAtQC2QL1AvkDBAMPAxcDIgMxAzMDNQM6A1kDXgN9A5kDrwO0A8wD0APcA+ED5APpA_8AAAAAAAACAQAAAAAAAABoAAAAAAAAAAAAAAAAAAAEAw==",
-              "BTTIfConditionFormat": "focused_element_details BEGINSWITH \"<AXApplication: \\\"iTerm2\\\">\n <AXWindow: \\\"floating-terminal\\\">\"",
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.719615,
-              "BTTOrder": 0,
-              "BTTPredefinedActionName": "If Condition",
-              "BTTPredefinedActionType": 330,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3",
-              "BTTUUID": "575C487E-6323-46E1-ACE5-4B79694F5330"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.718824,
-              "BTTLayoutIndependentActionChar": "/",
-              "BTTOrder": 1,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTShortcutToSend": "59,58,55,44",
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3",
-              "BTTUUID": "7F436D7B-A0E0-495F-B2E8-C8527A169EC2"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.719964,
-              "BTTOrder": 2,
-              "BTTPredefinedActionName": "Else",
-              "BTTPredefinedActionType": 333,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3",
-              "BTTUUID": "C3D4CB42-9878-4B0D-9B6E-C4F4332DA649"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759129718.7996612,
-              "BTTOrder": 3,
-              "BTTPredefinedActionName": "Application Switcher",
-              "BTTPredefinedActionType": 46,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3",
-              "BTTUUID": "92022923-3192-47D5-B926-31E8A371554F"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759129671.4123812,
-              "BTTOrder": 6,
-              "BTTPredefinedActionName": "END If Condition",
-              "BTTPredefinedActionType": 334,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3",
-              "BTTUUID": "B60BDEA1-9B0E-43ED-98B2-43682E304EC7"
-            }
-          ],
-          "BTTAdditionalConfiguration": "1048584",
-          "BTTAutoAdaptToKeyboardLayout": 0,
-          "BTTLastUpdatedAt": 1759129671.412372,
-          "BTTLayoutIndependentChar": "TAB",
-          "BTTOrder": 5,
-          "BTTShortcutAdvancedModifierKeys": "1048584",
-          "BTTShortcutKeyCode": 48,
-          "BTTShortcutKeyboardType": 11035,
-          "BTTShortcutModifierKeys": 1048576,
-          "BTTShortcutScope": 0,
-          "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-          "BTTTriggerConfig": {
-            "BTTKeyboardPreventRecursiveTriggers": 1
-          },
-          "BTTTriggerOnDown": 1,
-          "BTTTriggerType": 0,
-          "BTTUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3"
         },
         {
           "BTTActionsToExecute": [
@@ -698,9 +802,9 @@
           "BTTAdditionalConfiguration": "8388608",
           "BTTAutoAdaptToKeyboardLayout": 0,
           "BTTGestureNotes": "F18 is set by karabiner, and it's hehavior is different depending whether it's floating term or Alfred",
-          "BTTLastUpdatedAt": 1759274467.3984509,
+          "BTTLastUpdatedAt": 1770853688.750941,
           "BTTLayoutIndependentChar": "F18",
-          "BTTOrder": 6,
+          "BTTOrder": 7,
           "BTTShortcutAdvancedModifierKeys": "8388608",
           "BTTShortcutKeyCode": 79,
           "BTTShortcutKeyboardType": 2302,
@@ -799,9 +903,9 @@
           ],
           "BTTAdditionalConfiguration": "1310729",
           "BTTAutoAdaptToKeyboardLayout": 0,
-          "BTTLastUpdatedAt": 1757524735.88652,
+          "BTTLastUpdatedAt": 1770852356.5691118,
           "BTTLayoutIndependentChar": "q",
-          "BTTOrder": 7,
+          "BTTOrder": 8,
           "BTTShortcutAdvancedModifierKeys": "1310729",
           "BTTShortcutKeyCode": 12,
           "BTTShortcutKeyboardType": 11035,
@@ -829,9 +933,9 @@
           ],
           "BTTAdditionalConfiguration": "1835049",
           "BTTAutoAdaptToKeyboardLayout": 0,
-          "BTTLastUpdatedAt": 1757524735.886483,
+          "BTTLastUpdatedAt": 1770852356.569049,
           "BTTLayoutIndependentChar": "ESCAPE",
-          "BTTOrder": 8,
+          "BTTOrder": 9,
           "BTTShortcutAdvancedModifierKeys": "1835049",
           "BTTShortcutKeyCode": 53,
           "BTTShortcutKeyboardType": 11035,
@@ -858,9 +962,9 @@
           ],
           "BTTAdditionalConfiguration": "1048584",
           "BTTAutoAdaptToKeyboardLayout": 0,
-          "BTTLastUpdatedAt": 1757524735.88645,
+          "BTTLastUpdatedAt": 1770852356.5693002,
           "BTTLayoutIndependentChar": "ESCAPE",
-          "BTTOrder": 9,
+          "BTTOrder": 10,
           "BTTShortcutAdvancedModifierKeys": "1048584",
           "BTTShortcutKeyCode": 53,
           "BTTShortcutKeyboardType": 11035,
@@ -869,71 +973,6 @@
           "BTTTriggerOnDown": 1,
           "BTTTriggerType": 0,
           "BTTUUID": "32998606-4510-49DF-87DB-78CE48109671"
-        },
-        {
-          "BTTActionsToExecute": [
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741675980.141649,
-              "BTTLayoutIndependentActionChar": "SPACE",
-              "BTTOrder": 1,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTShortcutToSend": "59,56,49",
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "39526A22-0095-4C52-A612-CAB12DEFF403",
-              "BTTUUID": "B7E8D35F-643B-48F2-B1D2-EB88483B79D7"
-            },
-            {
-              "BTTAdditionalActionData": {
-                "BTTActionJSRunInSeparateContext": false,
-                "BTTAppleScriptRunInBackground": false,
-                "BTTAppleScriptString": "//if you rename this, make sure to also rename it in the \"function to call\" field below.\nasync function someJavaScriptFunction() {\n\t\treturn ();\n}",
-                "BTTAppleScriptUsePath": false,
-                "BTTJavaScriptUseIsolatedContext": false,
-                "BTTScriptFunctionToCall": "someJavaScriptFunction",
-                "BTTScriptLocation": 0,
-                "BTTScriptType": 3
-              },
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1753299970.547679,
-              "BTTOrder": 2,
-              "BTTPredefinedActionName": "Run Real JavaScript",
-              "BTTPredefinedActionType": 281,
-              "BTTRealJavaScriptString": "//if you rename this, make sure to also rename it in the \"function to call\" field below.\nasync function someJavaScriptFunction() {\n\t\treturn ();\n}",
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "39526A22-0095-4C52-A612-CAB12DEFF403",
-              "BTTUUID": "515F7137-54D0-4C0E-9D74-DE8CE2163320"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1753299953.605037,
-              "BTTOrder": 3,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "39526A22-0095-4C52-A612-CAB12DEFF403",
-              "BTTUUID": "C8E30DF5-8311-45F5-9C38-9A64FA4BB7AF"
-            }
-          ],
-          "BTTAdditionalConfiguration": "1835049",
-          "BTTAutoAdaptToKeyboardLayout": 0,
-          "BTTLastUpdatedAt": 1757524735.886435,
-          "BTTLayoutIndependentChar": "o",
-          "BTTOrder": 10,
-          "BTTShortcutAdvancedModifierKeys": "1835049",
-          "BTTShortcutKeyCode": 31,
-          "BTTShortcutKeyboardType": 2302,
-          "BTTShortcutModifierKeys": 1835008,
-          "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-          "BTTTriggerOnDown": 1,
-          "BTTTriggerType": 0,
-          "BTTUUID": "39526A22-0095-4C52-A612-CAB12DEFF403"
         },
         {
           "BTTActionsToExecute": [
@@ -968,7 +1007,8 @@
           ],
           "BTTAdditionalConfiguration": "0",
           "BTTAutoAdaptToKeyboardLayout": 0,
-          "BTTLastUpdatedAt": 1759071923.179781,
+          "BTTEnabled": 0,
+          "BTTLastUpdatedAt": 1770852356.569097,
           "BTTLayoutIndependentChar": "諍",
           "BTTOrder": 11,
           "BTTShortcutAdvancedModifierKeys": "0",
@@ -1000,7 +1040,7 @@
           ],
           "BTTAdditionalConfiguration": "1572904",
           "BTTAutoAdaptToKeyboardLayout": 0,
-          "BTTLastUpdatedAt": 1759197448.55905,
+          "BTTLastUpdatedAt": 1770852356.569247,
           "BTTLayoutIndependentChar": "v",
           "BTTOrder": 14,
           "BTTShortcutAdvancedModifierKeys": "1572904",
@@ -1011,50 +1051,6 @@
           "BTTTriggerOnDown": 1,
           "BTTTriggerType": 0,
           "BTTUUID": "39BB8AF8-AE7B-4947-B737-1D8218ADB60A"
-        },
-        {
-          "BTTActionsToExecute": [
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741650104.513801,
-              "BTTLayoutIndependentActionChar": "SPACE",
-              "BTTOrder": 54,
-              "BTTShortcutToSend": "59,56,49",
-              "BTTTriggerClass": "BTTTriggerTypeNormalMouse",
-              "BTTTriggerParentUUID": "156861F7-07D7-4129-A138-8757F446DB3A",
-              "BTTUUID": "0A89CC55-DC22-4DD9-95B4-693EF870DA38"
-            }
-          ],
-          "BTTLastUpdatedAt": 1741650086.3923979,
-          "BTTOrder": 0,
-          "BTTRequiredModifierKeys": 1835008,
-          "BTTTriggerClass": "BTTTriggerTypeNormalMouse",
-          "BTTTriggerType": 1001,
-          "BTTTriggerTypeDescriptionReadOnly": "Rightclick",
-          "BTTUUID": "156861F7-07D7-4129-A138-8757F446DB3A"
-        },
-        {
-          "BTTActionsToExecute": [
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.720583,
-              "BTTMenubarPath": "Tab;New Tab to the Right",
-              "BTTOrder": 1,
-              "BTTPredefinedActionName": "Trigger Menu Bar Menu-Item",
-              "BTTPredefinedActionType": 124,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "DBC5AB11-E44A-433D-90F1-3C3B47BC9A4E",
-              "BTTUUID": "3BFD43FD-28D9-4C75-B348-6F750B4E70C6"
-            }
-          ],
-          "BTTCustomContextMenuItemConfig": {},
-          "BTTLastUpdatedAt": 1759133122.244396,
-          "BTTOrder": 0,
-          "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-          "BTTTriggerName": "Chrome: New Tab",
-          "BTTTriggerType": 643,
-          "BTTTriggerTypeDescriptionReadOnly": "Named Trigger: Chrome: New Tab",
-          "BTTUUID": "DBC5AB11-E44A-433D-90F1-3C3B47BC9A4E"
         },
         {
           "BTTActionsToExecute": [
@@ -1294,13 +1290,68 @@
               "BTTUUID": "25D5C672-90CD-4F0E-AE33-F544B0C065C4"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.057436,
+          "BTTLastUpdatedAt": 1760471608.826036,
           "BTTOrder": 0,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Export Workflow Profile",
           "BTTTriggerType": 643,
           "BTTTriggerTypeDescriptionReadOnly": "Named Trigger: Export Workflow Profile",
           "BTTUUID": "281D10F0-9FFB-4757-A6D6-750D881E0D41"
+        },
+        {
+          "BTTActionsToExecute": [
+            {
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1741645855.720583,
+              "BTTMenubarPath": "Tab;New Tab to the Right",
+              "BTTOrder": 1,
+              "BTTPredefinedActionName": "Trigger Menu Bar Menu-Item",
+              "BTTPredefinedActionType": 124,
+              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
+              "BTTTriggerParentUUID": "DBC5AB11-E44A-433D-90F1-3C3B47BC9A4E",
+              "BTTUUID": "3BFD43FD-28D9-4C75-B348-6F750B4E70C6"
+            }
+          ],
+          "BTTCustomContextMenuItemConfig": {},
+          "BTTLastUpdatedAt": 1768515507.609387,
+          "BTTOrder": 1,
+          "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
+          "BTTTriggerName": "Chrome: New Tab",
+          "BTTTriggerType": 643,
+          "BTTTriggerTypeDescriptionReadOnly": "Named Trigger: Chrome: New Tab",
+          "BTTUUID": "DBC5AB11-E44A-433D-90F1-3C3B47BC9A4E"
+        },
+        {
+          "BTTActionsToExecute": [
+            {
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1768510129.219207,
+              "BTTMenubarPath": "Tab;New Tab to the Right",
+              "BTTOrder": 0,
+              "BTTPredefinedActionName": "Trigger Menu Bar Menu-Item",
+              "BTTPredefinedActionType": 124,
+              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
+              "BTTTriggerParentUUID": "FF7D4161-FA0A-45D2-B52D-63C4321B75B8",
+              "BTTUUID": "8B29C35C-C80C-484C-9F9A-79DABDA7106C"
+            },
+            {
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1768510131.256184,
+              "BTTOrder": 2,
+              "BTTShortcutToSend": "59,56,116",
+              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
+              "BTTTriggerParentUUID": "FF7D4161-FA0A-45D2-B52D-63C4321B75B8",
+              "BTTUUID": "7342295D-2B28-4938-BA90-709F2088A244"
+            }
+          ],
+          "BTTCustomContextMenuItemConfig": {},
+          "BTTLastUpdatedAt": 1768510130.350336,
+          "BTTOrder": 2,
+          "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
+          "BTTTriggerName": "Chrome: New Tab to the Left",
+          "BTTTriggerType": 643,
+          "BTTTriggerTypeDescriptionReadOnly": "Named Trigger: Chrome: New Tab to the Left",
+          "BTTUUID": "FF7D4161-FA0A-45D2-B52D-63C4321B75B8"
         },
         {
           "BTTActionsToExecute": [
@@ -1479,265 +1530,13 @@
               "BTTUUID": "1FCF0835-5905-4C71-B487-30CE02253920"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.0577722,
-          "BTTOrder": 1,
+          "BTTLastUpdatedAt": 1760471608.8261042,
+          "BTTOrder": 3,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Complete Text Before Cursor",
           "BTTTriggerType": 643,
           "BTTTriggerTypeDescriptionReadOnly": "Named Trigger: Complete Text Before Cursor",
           "BTTUUID": "6A3C42B0-DB0F-4FC0-A44C-2B651C44D8D7"
-        },
-        {
-          "BTTActionsToExecute": [
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.7195191,
-              "BTTMenubarPath": "Tab;New Tab to the Right`",
-              "BTTOrder": 1,
-              "BTTPredefinedActionName": "Trigger Menu Bar Menu-Item",
-              "BTTPredefinedActionType": 124,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "FF7D4161-FA0A-45D2-B52D-63C4321B75B8",
-              "BTTUUID": "8B29C35C-C80C-484C-9F9A-79DABDA7106C"
-            },
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.718766,
-              "BTTOrder": 4,
-              "BTTShortcutToSend": "59,56,116",
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "FF7D4161-FA0A-45D2-B52D-63C4321B75B8",
-              "BTTUUID": "7342295D-2B28-4938-BA90-709F2088A244"
-            }
-          ],
-          "BTTLastUpdatedAt": 1759133122.244354,
-          "BTTOrder": 1,
-          "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-          "BTTTriggerName": "Chrome: New Tab to the Left",
-          "BTTTriggerType": 643,
-          "BTTTriggerTypeDescriptionReadOnly": "Named Trigger: Chrome: New Tab to the Left",
-          "BTTUUID": "FF7D4161-FA0A-45D2-B52D-63C4321B75B8"
-        },
-        {
-          "BTTActionsToExecute": [
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1758928979.751823,
-              "BTTNamedTriggerToTrigger": "UI: Set user_input from selected_text or clipboard",
-              "BTTOrder": 0,
-              "BTTPredefinedActionName": "Trigger Named Trigger (Configured in Other Tab)",
-              "BTTPredefinedActionType": 248,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "AFAFE3F7-4F8D-4FF0-AE0F-55B05D8B6652",
-              "BTTUUID": "5052118B-1A16-408C-A806-A2F28EB0CDED"
-            },
-            {
-              "BTTIfConditionData": "YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMSAAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGvEBYLDBMYICorLTQ4PT5BRUlOT1JaXmJkVSRudWxs0w0ODxAREl8QF05TQ29tcG91bmRQcmVkaWNhdGVUeXBlXxAPTlNTdWJwcmVkaWNhdGVzViRjbGFzcxABgAKAFdIUDxUXWk5TLm9iamVjdHOhFoADgBTUDxkaGxwdHh9fEBFOU1JpZ2h0RXhwcmVzc2lvbl8QEE5TTGVmdEV4cHJlc3Npb25fEBNOU1ByZWRpY2F0ZU9wZXJhdG9ygBOADoAEgBHVISIjJA8lJicoKVlOU09wZXJhbmReTlNTZWxlY3Rvck5hbWVfEBBOU0V4cHJlc3Npb25UeXBlW05TQXJndW1lbnRzgAaABRADgAiADVx2YWx1ZUZvcktleTrSIw8QLIAH0i4vMDFaJGNsYXNzbmFtZVgkY2xhc3Nlc18QEE5TU2VsZkV4cHJlc3Npb26jMDIzXE5TRXhwcmVzc2lvblhOU09iamVjdNIUDzU3oTaACYAM0w8jOTo7PFlOU0tleVBhdGiACxAKgApfEA9hY3RpdmVfYXBwX25hbWXSLi8_QF8QHE5TS2V5UGF0aFNwZWNpZmllckV4cHJlc3Npb26jPzIz0i4vQkNeTlNNdXRhYmxlQXJyYXmjQkQzV05TQXJyYXnSLi9GR18QE05TS2V5UGF0aEV4cHJlc3Npb26kRkgyM18QFE5TRnVuY3Rpb25FeHByZXNzaW9u00ojD0tMTV8QD05TQ29uc3RhbnRWYWx1ZYAPEACAEF1Hb29nbGUgQ2hyb21l0i4vUFFfEBlOU0NvbnN0YW50VmFsdWVFeHByZXNzaW9uo1AyM9UPU1RVVldMWExZWk5TTW9kaWZpZXJYTlNOZWdhdGVZTlNPcHRpb25zXk5TT3BlcmF0b3JUeXBlgBIJEAXSLi9bXF8QG05TRXF1YWxpdHlQcmVkaWNhdGVPcGVyYXRvcqNbXTNfEBNOU1ByZWRpY2F0ZU9wZXJhdG9y0i4vX2BfEBVOU0NvbXBhcmlzb25QcmVkaWNhdGWjX2EzW05TUHJlZGljYXRl0i4vRGOiRDPSLi9lZl8QE05TQ29tcG91bmRQcmVkaWNhdGWjZWEzAAgAEQAaACQAKQAyADcASQBMAFEAUwBsAHIAeQCTAKUArACuALAAsgC3AMIAxADGAMgA0QDlAPgBDgEQARIBFAEWASEBKwE6AU0BWQFbAV0BXwFhAWMBcAF1AXcBfAGHAZABowGnAbQBvQHCAcQBxgHIAc8B2QHbAd0B3wHxAfYCFQIZAh4CLQIxAjkCPgJUAlkCcAJ3AokCiwKNAo8CnQKiAr4CwgLNAtgC4QLrAvoC_AL9Av8DBAMiAyYDPANBA1kDXQNpA24DcQN2A4wAAAAAAAACAQAAAAAAAABnAAAAAAAAAAAAAAAAAAADkA==",
-              "BTTIfConditionFormat": "active_app_name != \"Google Chrome\"",
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759132858.864682,
-              "BTTOrder": 1,
-              "BTTPredefinedActionName": "If Condition",
-              "BTTPredefinedActionType": 330,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "AFAFE3F7-4F8D-4FF0-AE0F-55B05D8B6652",
-              "BTTUUID": "6380717E-AD3B-4FC1-8B91-9B80E171FC4C"
-            },
-            {
-              "BTTAppToShowOrHide": "/Applications/Google Chrome.app",
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759132858.8659,
-              "BTTOrder": 2,
-              "BTTPredefinedActionName": "Show  or  Hide Specific Application",
-              "BTTPredefinedActionType": 177,
-              "BTTShowHideAppConfig": "{\"BTTShowHideSpecificAppMoveToSpace\":\"BTTShowHideSpecificAppNoSpaceChange\",\"BTTShowHideSpecificAppOnlyShow\":true,\"BTTShowHideSpecificAppOnlyHide\":false,\"BTTShowHideSpecificAffectedWindow\":\"BTTShowHideSpecificAppAffectLastUsedWindow\",\"BTTShowHideSpecificMinimizeInstead\":false,\"BTTShowHideSpecificAppRegex\":\"\",\"BTTShowHideSpecificAppOnlyTreatActiveAsVisible\":true,\"BTTShowHideSpecificAppOnlyIfRunning\":false,\"BTTShowHideSpecificAppCMDN\":false,\"BTTShowHideSpecificAppMoveToCurrentSpace\":false,\"BTTShowHideSpecificAppMoveAllToCurrentSpace\":false}",
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "AFAFE3F7-4F8D-4FF0-AE0F-55B05D8B6652",
-              "BTTUUID": "6948E8B2-F2B5-43FC-8101-463E1078FD05"
-            },
-            {
-              "BTTDelayNextActionBy": "0",
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759132858.866765,
-              "BTTOrder": 3,
-              "BTTPredefinedActionName": "Pause Execution  or  Delay Next Action (async  or  not blocking)",
-              "BTTPredefinedActionType": 345,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "AFAFE3F7-4F8D-4FF0-AE0F-55B05D8B6652",
-              "BTTUUID": "099B4BD8-B169-4006-8618-984B029A0587"
-            },
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759132858.867605,
-              "BTTMenubarPath": "Profiles;Thales \\(Work\\)",
-              "BTTOrder": 4,
-              "BTTPredefinedActionName": "Trigger Menu Bar Menu-Item",
-              "BTTPredefinedActionType": 124,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "AFAFE3F7-4F8D-4FF0-AE0F-55B05D8B6652",
-              "BTTUUID": "B6044895-6CD3-41AD-A29F-47C68264C1FD"
-            },
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759132858.868443,
-              "BTTOrder": 5,
-              "BTTPredefinedActionName": "END If Condition",
-              "BTTPredefinedActionType": 334,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "AFAFE3F7-4F8D-4FF0-AE0F-55B05D8B6652",
-              "BTTUUID": "0B1CE2A0-C4D4-46DE-824E-904B83D611EA"
-            },
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759132925.217932,
-              "BTTNamedTriggerToTrigger": "Chrome: New Tab",
-              "BTTOrder": 6,
-              "BTTPredefinedActionName": "Trigger Named Trigger (Configured in Other Tab)",
-              "BTTPredefinedActionType": 248,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "AFAFE3F7-4F8D-4FF0-AE0F-55B05D8B6652",
-              "BTTUUID": "66C7BFC9-3800-46CC-892F-D8C07ED9D14D"
-            },
-            {
-              "BTTAdditionalActionData": {
-                "BTTActionJSRunInSeparateContext": true,
-                "BTTAppleScriptRunInBackground": false,
-                "BTTAppleScriptString": "async function someJavaScriptFunction() {\n    let user_input = await get_string_variable({ variable_name: 'user_input' });\n\n    return !user_input.includes(\"\\n\")\n}",
-                "BTTAppleScriptUsePath": false,
-                "BTTJavaScriptUseIsolatedContext": true,
-                "BTTScriptFunctionToCall": "someJavaScriptFunction",
-                "BTTScriptLocation": 0,
-                "BTTScriptType": 3
-              },
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759132925.219024,
-              "BTTOrder": 7,
-              "BTTPredefinedActionName": "If Java Script Returns True (Condition)",
-              "BTTPredefinedActionType": 431,
-              "BTTRealJavaScriptString": "async function someJavaScriptFunction() {\n    let user_input = await get_string_variable({ variable_name: 'user_input' });\n\n    return !user_input.includes(\"\\n\")\n}",
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "AFAFE3F7-4F8D-4FF0-AE0F-55B05D8B6652",
-              "BTTUUID": "BBFE8D58-E077-41C6-B70C-2F88751654D3"
-            },
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759132925.219822,
-              "BTTMoveCursorLeftBy": "(null)",
-              "BTTOrder": 8,
-              "BTTPredefinedActionName": "Insert  or  Type  or  Paste Custom Text",
-              "BTTPredefinedActionType": 118,
-              "BTTStringToType": "(BTT)@variable:user_input(BTT)",
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "AFAFE3F7-4F8D-4FF0-AE0F-55B05D8B6652",
-              "BTTUUID": "ACF2C917-9DDB-4F65-A363-78EE697704FA"
-            },
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759132925.220582,
-              "BTTLayoutIndependentActionChar": "a",
-              "BTTOrder": 9,
-              "BTTShortcutToSend": "55,0",
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "AFAFE3F7-4F8D-4FF0-AE0F-55B05D8B6652",
-              "BTTUUID": "2DCD1754-9979-4887-939B-C56B0C856550"
-            },
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759132925.221336,
-              "BTTOrder": 10,
-              "BTTPredefinedActionName": "END If Condition",
-              "BTTPredefinedActionType": 334,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "AFAFE3F7-4F8D-4FF0-AE0F-55B05D8B6652",
-              "BTTUUID": "B5C1258E-6C53-4950-AF14-3BBE425E3CEA"
-            }
-          ],
-          "BTTLastUpdatedAt": 1759133122.244345,
-          "BTTOrder": 2,
-          "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-          "BTTTriggerName": "Chrome: Open New Tab (with selection is One Line)",
-          "BTTTriggerType": 643,
-          "BTTTriggerTypeDescriptionReadOnly": "Named Trigger: Chrome: Open New Tab (with selection is One Line)",
-          "BTTUUID": "AFAFE3F7-4F8D-4FF0-AE0F-55B05D8B6652"
-        },
-        {
-          "BTTActionsToExecute": [
-            {
-              "BTTIfConditionData": "YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMSAAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGvEBYLDBMYICorLTQ4PT5BRUlOT1JaXmJkVSRudWxs0w0ODxAREl8QF05TQ29tcG91bmRQcmVkaWNhdGVUeXBlXxAPTlNTdWJwcmVkaWNhdGVzViRjbGFzcxABgAKAFdIUDxUXWk5TLm9iamVjdHOhFoADgBTUDxkaGxwdHh9fEBFOU1JpZ2h0RXhwcmVzc2lvbl8QEE5TTGVmdEV4cHJlc3Npb25fEBNOU1ByZWRpY2F0ZU9wZXJhdG9ygBOADoAEgBHVISIjJA8lJicoKVlOU09wZXJhbmReTlNTZWxlY3Rvck5hbWVfEBBOU0V4cHJlc3Npb25UeXBlW05TQXJndW1lbnRzgAaABRADgAiADVx2YWx1ZUZvcktleTrSIw8QLIAH0i4vMDFaJGNsYXNzbmFtZVgkY2xhc3Nlc18QEE5TU2VsZkV4cHJlc3Npb26jMDIzXE5TRXhwcmVzc2lvblhOU09iamVjdNIUDzU3oTaACYAM0w8jOTo7PFlOU0tleVBhdGiACxAKgApfEA9hY3RpdmVfYXBwX25hbWXSLi8_QF8QHE5TS2V5UGF0aFNwZWNpZmllckV4cHJlc3Npb26jPzIz0i4vQkNeTlNNdXRhYmxlQXJyYXmjQkQzV05TQXJyYXnSLi9GR18QE05TS2V5UGF0aEV4cHJlc3Npb26kRkgyM18QFE5TRnVuY3Rpb25FeHByZXNzaW9u00ojD0tMTV8QD05TQ29uc3RhbnRWYWx1ZYAPEACAEF1Hb29nbGUgQ2hyb21l0i4vUFFfEBlOU0NvbnN0YW50VmFsdWVFeHByZXNzaW9uo1AyM9UPU1RVVldMWExZWk5TTW9kaWZpZXJYTlNOZWdhdGVZTlNPcHRpb25zXk5TT3BlcmF0b3JUeXBlgBIJEAXSLi9bXF8QG05TRXF1YWxpdHlQcmVkaWNhdGVPcGVyYXRvcqNbXTNfEBNOU1ByZWRpY2F0ZU9wZXJhdG9y0i4vX2BfEBVOU0NvbXBhcmlzb25QcmVkaWNhdGWjX2EzW05TUHJlZGljYXRl0i4vRGOiRDPSLi9lZl8QE05TQ29tcG91bmRQcmVkaWNhdGWjZWEzAAgAEQAaACQAKQAyADcASQBMAFEAUwBsAHIAeQCTAKUArACuALAAsgC3AMIAxADGAMgA0QDlAPgBDgEQARIBFAEWASEBKwE6AU0BWQFbAV0BXwFhAWMBcAF1AXcBfAGHAZABowGnAbQBvQHCAcQBxgHIAc8B2QHbAd0B3wHxAfYCFQIZAh4CLQIxAjkCPgJUAlkCcAJ3AokCiwKNAo8CnQKiAr4CwgLNAtgC4QLrAvoC_AL9Av8DBAMiAyYDPANBA1kDXQNpA24DcQN2A4wAAAAAAAACAQAAAAAAAABnAAAAAAAAAAAAAAAAAAADkA==",
-              "BTTIfConditionFormat": "active_app_name != \"Google Chrome\"",
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759339560.597589,
-              "BTTOrder": 0,
-              "BTTPredefinedActionName": "If Condition",
-              "BTTPredefinedActionType": 330,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "34C6FA8E-F959-4039-8EA5-70E63BE3F8ED",
-              "BTTUUID": "17BE0766-5200-452F-BF2A-3F4A5277F97C"
-            },
-            {
-              "BTTAppToShowOrHide": "/Applications/Google Chrome.app",
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759339560.59755,
-              "BTTOrder": 1,
-              "BTTPredefinedActionName": "Show  or  Hide Specific Application",
-              "BTTPredefinedActionType": 177,
-              "BTTShowHideAppConfig": "{\"BTTShowHideSpecificAppMoveToSpace\":\"BTTShowHideSpecificAppNoSpaceChange\",\"BTTShowHideSpecificAppOnlyShow\":true,\"BTTShowHideSpecificAppOnlyHide\":false,\"BTTShowHideSpecificAffectedWindow\":\"BTTShowHideSpecificAppAffectLastUsedWindow\",\"BTTShowHideSpecificMinimizeInstead\":false,\"BTTShowHideSpecificAppRegex\":\"\",\"BTTShowHideSpecificAppOnlyTreatActiveAsVisible\":true,\"BTTShowHideSpecificAppOnlyIfRunning\":false,\"BTTShowHideSpecificAppCMDN\":false,\"BTTShowHideSpecificAppMoveToCurrentSpace\":false,\"BTTShowHideSpecificAppMoveAllToCurrentSpace\":false}",
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "34C6FA8E-F959-4039-8EA5-70E63BE3F8ED",
-              "BTTUUID": "944B0BF9-0DCC-4704-A91D-ADAAD06E60B9"
-            },
-            {
-              "BTTDelayNextActionBy": "0",
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759339560.597569,
-              "BTTOrder": 2,
-              "BTTPredefinedActionName": "Pause Execution  or  Delay Next Action (async  or  not blocking)",
-              "BTTPredefinedActionType": 345,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "34C6FA8E-F959-4039-8EA5-70E63BE3F8ED",
-              "BTTUUID": "8E9DBF5C-0B30-41E6-AA68-4EF4CD08E2EA"
-            },
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759339560.5975819,
-              "BTTMenubarPath": "Profiles;Thales \\(Work\\)",
-              "BTTOrder": 3,
-              "BTTPredefinedActionName": "Trigger Menu Bar Menu-Item",
-              "BTTPredefinedActionType": 124,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "34C6FA8E-F959-4039-8EA5-70E63BE3F8ED",
-              "BTTUUID": "5B0F2773-A1D8-4A28-B7AE-35BA45177F4D"
-            },
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759339560.597575,
-              "BTTOrder": 4,
-              "BTTPredefinedActionName": "END If Condition",
-              "BTTPredefinedActionType": 334,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "34C6FA8E-F959-4039-8EA5-70E63BE3F8ED",
-              "BTTUUID": "23FBBC9C-A7B0-430F-A3A1-3268C3D90C83"
-            },
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1759341243.474942,
-              "BTTMenubarPath": "File;New Tab",
-              "BTTOrder": 5,
-              "BTTPredefinedActionName": "Trigger Menu Bar Menu-Item",
-              "BTTPredefinedActionType": 124,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "34C6FA8E-F959-4039-8EA5-70E63BE3F8ED",
-              "BTTUUID": "23FA1C19-E29D-4BC1-906E-EB82D206349E"
-            }
-          ],
-          "BTTCustomContextMenuItemConfig": {},
-          "BTTLastUpdatedAt": 1759339560.597523,
-          "BTTOrder": 3,
-          "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-          "BTTTriggerName": "Chrome: New Tab and Focus",
-          "BTTTriggerType": 643,
-          "BTTTriggerTypeDescriptionReadOnly": "Named Trigger: Chrome: New Tab and Focus",
-          "BTTUUID": "34C6FA8E-F959-4039-8EA5-70E63BE3F8ED"
         },
         {
           "BTTActionsToExecute": [
@@ -1806,13 +1605,36 @@
               "BTTUUID": "E1DFBB13-5A1E-41FF-8652-3BE3616AFB42"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.057545,
-          "BTTOrder": 3,
+          "BTTLastUpdatedAt": 1760471608.8258162,
+          "BTTOrder": 6,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Copy OCR text from Screenshot",
           "BTTTriggerType": 643,
           "BTTTriggerTypeDescriptionReadOnly": "Named Trigger: Copy OCR text from Screenshot",
           "BTTUUID": "1D9721AF-9645-4E15-A7F7-3A04DEEE8D2C"
+        },
+        {
+          "BTTActionsToExecute": [
+            {
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1759859074.412373,
+              "BTTOrder": 8,
+              "BTTPredefinedActionName": "Execute Terminal Command (Async, non-blocking)",
+              "BTTPredefinedActionType": 137,
+              "BTTTerminalCommand": "/opt/homebrew/bin/fish -c \"chrome-cli open -t; open -a 'Google Chrome'\"",
+              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
+              "BTTTriggerParentUUID": "34C6FA8E-F959-4039-8EA5-70E63BE3F8ED",
+              "BTTUUID": "78FE446F-BEF0-44EC-B9EC-41EFA911C4DA"
+            }
+          ],
+          "BTTCustomContextMenuItemConfig": {},
+          "BTTLastUpdatedAt": 1759859064.2062302,
+          "BTTOrder": 7,
+          "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
+          "BTTTriggerName": "Chrome: New Tab and Focus",
+          "BTTTriggerType": 643,
+          "BTTTriggerTypeDescriptionReadOnly": "Named Trigger: Chrome: New Tab and Focus",
+          "BTTUUID": "34C6FA8E-F959-4039-8EA5-70E63BE3F8ED"
         },
         {
           "BTTActionsToExecute": [
@@ -1838,8 +1660,8 @@
               "BTTUUID": "64EA94D4-2770-47F2-B720-CF146D56BEF9"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.057406,
-          "BTTOrder": 5,
+          "BTTLastUpdatedAt": 1760471608.826096,
+          "BTTOrder": 9,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "UI: Set user_input from selected_text or clipboard",
           "BTTTriggerType": 643,
@@ -1872,8 +1694,8 @@
               "BTTUUID": "A232F851-3489-4377-8901-7C1F321E556F"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.0575562,
-          "BTTOrder": 6,
+          "BTTLastUpdatedAt": 1760471608.82606,
+          "BTTOrder": 10,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Markup Clipboard Image",
           "BTTTriggerType": 643,
@@ -1926,8 +1748,8 @@
               "BTTUUID": "F244C6AA-5640-4117-AD81-5C70DF76E7FC"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.057512,
-          "BTTOrder": 7,
+          "BTTLastUpdatedAt": 1760471608.8257918,
+          "BTTOrder": 11,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "AI: Click on Input Box",
           "BTTTriggerType": 643,
@@ -2044,8 +1866,8 @@
               "BTTUUID": "E74E2038-C80E-4164-B7B3-435FE78709ED"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.057533,
-          "BTTOrder": 8,
+          "BTTLastUpdatedAt": 1760471608.826082,
+          "BTTOrder": 12,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "AI: Click Title for New Search",
           "BTTTriggerType": 643,
@@ -2078,12 +1900,47 @@
               "BTTUUID": "0ECFFA29-5DBE-4472-B275-63F0A44B3444"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.057788,
-          "BTTOrder": 13,
+          "BTTLastUpdatedAt": 1760471608.825778,
+          "BTTOrder": 15,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerType": 641,
           "BTTTriggerTypeDescriptionReadOnly": "After BetterTouchTool did Launch / Start on Mac with Serial Number",
           "BTTUUID": "D5F34AA4-CDE9-424C-8DBA-1BFA5ED73429"
+        },
+        {
+          "BTTActionsToExecute": [
+            {
+              "BTTAdditionalActionData": {
+                "BTTMouseMoveAnchor": 1002,
+                "BTTMouseMoveContinueDrag": false,
+                "BTTMouseMoveDuration": 0,
+                "BTTMouseMoveUnitX": 0,
+                "BTTMouseMoveUnitY": 0,
+                "BTTMouseMoveWithoutPressedModifierKeys": false,
+                "BTTMouseMoveX": 0,
+                "BTTMouseMoveY": 0
+              },
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1760471845.703498,
+              "BTTOrder": 85,
+              "BTTPredefinedActionName": "Move Mouse To Position",
+              "BTTPredefinedActionType": 153,
+              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
+              "BTTTriggerParentUUID": "222A1EAA-2AFF-4C7A-8B87-C3428C19CE1F",
+              "BTTUUID": "A4BF506C-6E72-4174-AAD4-F60FCEBE731E"
+            }
+          ],
+          "BTTCustomContextMenuItemConfig": {},
+          "BTTLastUpdatedAt": 1760479234.942264,
+          "BTTOrder": 16,
+          "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
+          "BTTTriggerConfig": {
+            "BTTTriggerRestrictions": "0"
+          },
+          "BTTTriggerName": "Hide Cursor",
+          "BTTTriggerType": 643,
+          "BTTTriggerTypeDescriptionReadOnly": "Named Trigger: Hide Cursor",
+          "BTTUUID": "222A1EAA-2AFF-4C7A-8B87-C3428C19CE1F"
         },
         {
           "BTTActionsToExecute": [
@@ -2099,8 +1956,8 @@
               "BTTUUID": "6AF77987-F403-4605-9976-8F38E7422815"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.057818,
-          "BTTOrder": 14,
+          "BTTLastUpdatedAt": 1760471608.826158,
+          "BTTOrder": 17,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerType": 600,
           "BTTTriggerTypeDescriptionReadOnly": "Doubleclick Window Titlebar",
@@ -2129,8 +1986,8 @@
               "BTTUUID": "8D0D07BE-5679-4516-9662-66B7F62B2303"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.057742,
-          "BTTOrder": 15,
+          "BTTLastUpdatedAt": 1760471608.826067,
+          "BTTOrder": 18,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Chrome: New Window",
           "BTTTriggerType": 643,
@@ -2173,8 +2030,8 @@
               "BTTUUID": "660055EE-EDE6-4B6E-9BC2-2EA06CAF9E32"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.0574598,
-          "BTTOrder": 16,
+          "BTTLastUpdatedAt": 1760471608.826112,
+          "BTTOrder": 19,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Smart fullscreen",
           "BTTTriggerType": 643,
@@ -2266,8 +2123,8 @@
               "BTTUUID": "ADF1639F-4B8F-4B93-8315-70B181D81154"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.0577111,
-          "BTTOrder": 17,
+          "BTTLastUpdatedAt": 1760471608.82577,
+          "BTTOrder": 20,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Toggle Smart Full Screen",
           "BTTTriggerType": 643,
@@ -2287,8 +2144,8 @@
               "BTTUUID": "046E6F3A-3226-49B5-BDB1-B6C1EFFC9C21"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.05773,
-          "BTTOrder": 18,
+          "BTTLastUpdatedAt": 1760471608.826089,
+          "BTTOrder": 21,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Enter App Fullscreen",
           "BTTTriggerType": 643,
@@ -2414,8 +2271,8 @@
               "BTTUUID": "173AF954-D3CF-4D82-B791-28D330452E70"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.0578032,
-          "BTTOrder": 19,
+          "BTTLastUpdatedAt": 1760471608.826151,
+          "BTTOrder": 22,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Toggle app fullscreen",
           "BTTTriggerType": 643,
@@ -2539,8 +2396,8 @@
               "BTTUUID": "B8C149A3-B824-48CF-8F08-0C4D8777D0CF"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.057448,
-          "BTTOrder": 20,
+          "BTTLastUpdatedAt": 1760471608.825824,
+          "BTTOrder": 23,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Share screen with iPad",
           "BTTTriggerType": 643,
@@ -2563,8 +2420,8 @@
               "BTTUUID": "A7A38B78-3587-404C-B237-0C8936A54AA1"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.057413,
-          "BTTOrder": 21,
+          "BTTLastUpdatedAt": 1760471608.8257542,
+          "BTTOrder": 24,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Fallback find shared screen icon",
           "BTTTriggerType": 643,
@@ -2580,15 +2437,15 @@
               "BTTIsPureAction": true,
               "BTTLastUpdatedAt": 1741645855.720711,
               "BTTOrder": 0,
-              "BTTPredefinedActionName": "Toggle Pin or Unpin Focused Window To Float On Top",
+              "BTTPredefinedActionName": "Toggle Pin or Unpin Window Float On Top",
               "BTTPredefinedActionType": 337,
               "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
               "BTTTriggerParentUUID": "3866C454-37CD-4A40-BBB0-0980AFC5AA4E",
               "BTTUUID": "CF06FA57-F162-42FB-828B-E1E9956DF97C"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.057825,
-          "BTTOrder": 23,
+          "BTTLastUpdatedAt": 1760471608.826144,
+          "BTTOrder": 26,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Toggle Pin Window on Top",
           "BTTTriggerType": 643,
@@ -2610,8 +2467,8 @@
               "BTTUUID": "C24068B6-2DED-44B7-9AD6-26A27D9F2D6D"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.057421,
-          "BTTOrder": 24,
+          "BTTLastUpdatedAt": 1760471608.8260741,
+          "BTTOrder": 27,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Switch to Main Preset",
           "BTTTriggerType": 643,
@@ -2633,8 +2490,8 @@
               "BTTUUID": "DC35AA45-1567-40A2-A1AC-0A644722C01A"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.057795,
-          "BTTOrder": 25,
+          "BTTLastUpdatedAt": 1760471608.8257608,
+          "BTTOrder": 28,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Switch to Local Preset",
           "BTTTriggerType": 643,
@@ -2667,8 +2524,8 @@
               "BTTUUID": "000F5BE5-0B35-4FA7-B010-CFD11B046F0C"
             }
           ],
-          "BTTLastUpdatedAt": 1754336918.0575008,
-          "BTTOrder": 27,
+          "BTTLastUpdatedAt": 1760471608.825995,
+          "BTTOrder": 30,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "BTT: Click search button",
           "BTTTriggerType": 643,
@@ -2678,151 +2535,11 @@
         {
           "BTTActionsToExecute": [
             {
-              "BTTAdditionalActionData": {
-                "BTTActionJSRunInSeparateContext": true,
-                "BTTAppleScriptRunInBackground": false,
-                "BTTJavaScriptUseIsolatedContext": false,
-                "BTTScriptFunctionToCall": "someJavaScriptFunction",
-                "BTTScriptLocation": 0,
-                "BTTScriptType": 3,
-                "BTTTouchBarAppleScriptString": "async function someJavaScriptFunction() {\n    let user_old_clipboard = await get_clipboard_content({});\n\n    await set_string_variable({variable_name: 'user_old_clipboard', to: user_old_clipboard});\n\n    return JSON.stringify({user_old_clipboard})\n}\n\n",
-                "BTTTouchBarAppleScriptUsePath": false
-              },
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1747293629.4081368,
-              "BTTOrder": 1,
-              "BTTPredefinedActionName": "Run Real JavaScript",
-              "BTTPredefinedActionType": 281,
-              "BTTRealJavaScriptString": "async function someJavaScriptFunction() {\n    let user_old_clipboard = await get_clipboard_content({});\n\n    await set_string_variable({variable_name: 'user_old_clipboard', to: user_old_clipboard});\n\n    return JSON.stringify({user_old_clipboard})\n}\n\n",
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "BDC00FE7-F810-4FD6-B47B-D513C4B0314F",
-              "BTTUUID": "80DFA704-5550-4F2E-81D5-0AB8B5F2043E"
-            },
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1747293629.409035,
-              "BTTLayoutIndependentActionChar": "c",
-              "BTTOrder": 2,
-              "BTTShortcutToSend": "55,8",
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "BDC00FE7-F810-4FD6-B47B-D513C4B0314F",
-              "BTTUUID": "2B8697E2-EF40-406D-9992-1DE6458F9341"
-            },
-            {
-              "BTTIfConditionData": "YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMSAAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGvEBgLDBMYHCAoMjM2PUFGR0pOUlZXWmFna21VJG51bGzTDQ4PEBESXxAXTlNDb21wb3VuZFByZWRpY2F0ZVR5cGVfEA9OU1N1YnByZWRpY2F0ZXNWJGNsYXNzEACAAoAX0hQPFRdaTlMub2JqZWN0c6EWgAOAFtMNDg8ZGhIQAoAEgBfSFA8dF6EegAWAFtQPISIjJCUmJ18QEU5TUmlnaHRFeHByZXNzaW9uXxAQTlNMZWZ0RXhwcmVzc2lvbl8QE05TUHJlZGljYXRlT3BlcmF0b3KAFYAQgAaAE9UpKissDy0uLzAxWU5TT3BlcmFuZF5OU1NlbGVjdG9yTmFtZV8QEE5TRXhwcmVzc2lvblR5cGVbTlNBcmd1bWVudHOACIAHEAOACoAPXHZhbHVlRm9yS2V5OtIrDzQ1EAGACdI3ODk6WiRjbGFzc25hbWVYJGNsYXNzZXNfEBBOU1NlbGZFeHByZXNzaW9uozk7PFxOU0V4cHJlc3Npb25YTlNPYmplY3TSFA8+QKE_gAuADtMPK0JDREVZTlNLZXlQYXRogA0QCoAMXxAXZm9jdXNlZF9lbGVtZW50X2RldGFpbHPSNzhISV8QHE5TS2V5UGF0aFNwZWNpZmllckV4cHJlc3Npb26jSDs80jc4S0xeTlNNdXRhYmxlQXJyYXmjS008V05TQXJyYXnSNzhPUF8QE05TS2V5UGF0aEV4cHJlc3Npb26kT1E7PF8QFE5TRnVuY3Rpb25FeHByZXNzaW9u01MrD1QQVV8QD05TQ29uc3RhbnRWYWx1ZYARgBJfEDo8QVhBcHBsaWNhdGlvbjogImlUZXJtMiI+CiA8QVhXaW5kb3c6ICJmbG9hdGluZy10ZXJtaW5hbCI+0jc4WFlfEBlOU0NvbnN0YW50VmFsdWVFeHByZXNzaW9uo1g7PNUPW1xdXl8QEBBgWk5TTW9kaWZpZXJXTlNGbGFnc1pOU1Bvc2l0aW9uXk5TT3BlcmF0b3JUeXBlgBQQCNI3OGJjXxAcTlNTdWJzdHJpbmdQcmVkaWNhdGVPcGVyYXRvcqRkZWY8XxAcTlNTdWJzdHJpbmdQcmVkaWNhdGVPcGVyYXRvcl8QGU5TU3RyaW5nUHJlZGljYXRlT3BlcmF0b3JfEBNOU1ByZWRpY2F0ZU9wZXJhdG9y0jc4aGlfEBVOU0NvbXBhcmlzb25QcmVkaWNhdGWjaGo8W05TUHJlZGljYXRl0jc4TWyiTTzSNzhub18QE05TQ29tcG91bmRQcmVkaWNhdGWjbmo8AAgAEQAaACQAKQAyADcASQBMAFEAUwBuAHQAewCVAKcArgCwALIAtAC5AMQAxgDIAMoA0QDTANUA1wDcAN4A4ADiAOsA_wESASgBKgEsAS4BMAE7AUUBVAFnAXMBdQF3AXkBewF9AYoBjwGRAZMBmAGjAawBvwHDAdAB2QHeAeAB4gHkAesB9QH3AfkB+wIVAhoCOQI9AkICUQJVAl0CYgJ4An0ClAKbAq0CrwKxAu4C8wMPAxMDHgMpAzEDPANLA00DTwNUA3MDeAOXA7MDyQPOA+YD6gP2A_sD_gQDBBkAAAAAAAACAQAAAAAAAABwAAAAAAAAAAAAAAAAAAAEHQ==",
-              "BTTIfConditionFormat": "NOT (focused_element_details BEGINSWITH \"<AXApplication: \\\"iTerm2\\\">\n <AXWindow: \\\"floating-terminal\\\">\")",
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1747293629.4091759,
-              "BTTOrder": 3,
-              "BTTPredefinedActionName": "If Condition",
-              "BTTPredefinedActionType": 330,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "BDC00FE7-F810-4FD6-B47B-D513C4B0314F",
-              "BTTUUID": "03F0E3C2-5078-471C-9DA5-C99A60902CF3"
-            },
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1747293629.409388,
-              "BTTLayoutIndependentActionChar": "/",
-              "BTTOrder": 4,
-              "BTTShortcutToSend": "59,58,55,44",
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "BDC00FE7-F810-4FD6-B47B-D513C4B0314F",
-              "BTTUUID": "53998527-2194-49A6-AC7B-CF39BB8B46DF"
-            },
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1747293629.4095101,
-              "BTTOrder": 5,
-              "BTTPredefinedActionName": "END If Condition",
-              "BTTPredefinedActionType": 334,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "BDC00FE7-F810-4FD6-B47B-D513C4B0314F",
-              "BTTUUID": "D8539317-A52C-47AF-B15C-E0516C04CBFD"
-            },
-            {
-              "BTTDelayNextActionBy": "0.2",
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1747293629.409626,
-              "BTTOrder": 6,
-              "BTTPredefinedActionName": "Pause Execution  or  Delay Next Action (blocking)",
-              "BTTPredefinedActionType": 129,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "BDC00FE7-F810-4FD6-B47B-D513C4B0314F",
-              "BTTUUID": "3995B9A1-FC45-4ADD-AA83-0BC6D82A918A"
-            },
-            {
-              "BTTAdditionalActionData": {
-                "BTTAppleScriptRunInBackground": false,
-                "BTTAppleScriptString": "tell application \"iTerm\"\r\treveal hotkey window\r\ttell current window to create tab with default profile command \"/opt/homebrew/bin/fish -c \\\"take /tmp/pbvim-temp-buffer/; and pbvim --guess; osascript -e 'tell application \\\\\\\"iTerm\\\\\\\" to hide hotkey window of (current window)'\\\" \"\r\t-- create window with default profile command \"/opt/homebrew/bin/fish -c \\\"take /tmp/pbvim-temp-buffer; and pbvim --guess\\\" \"\rend tell\r",
-                "BTTAppleScriptUsePath": false,
-                "BTTScriptLocation": 0,
-                "BTTScriptType": 0,
-                "BTTTouchBarAppleScriptString": "tell application \"iTerm\" to create window with default profile",
-                "BTTTouchBarAppleScriptUsePath": false,
-                "SelectedAction": 172
-              },
-              "BTTInlineAppleScript": "tell application \"iTerm\"\r\treveal hotkey window\r\ttell current window to create tab with default profile command \"/opt/homebrew/bin/fish -c \\\"take /tmp/pbvim-temp-buffer/; and pbvim --guess; osascript -e 'tell application \\\\\\\"iTerm\\\\\\\" to hide hotkey window of (current window)'\\\" \"\r\t-- create window with default profile command \"/opt/homebrew/bin/fish -c \\\"take /tmp/pbvim-temp-buffer; and pbvim --guess\\\" \"\rend tell\r",
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1747293629.4097419,
-              "BTTOrder": 7,
-              "BTTPredefinedActionName": "Run Apple Script (blocking)",
-              "BTTPredefinedActionType": 172,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "BDC00FE7-F810-4FD6-B47B-D513C4B0314F",
-              "BTTUUID": "4B627AE1-C6B6-4B30-8597-42C84EE237B7"
-            },
-            {
-              "BTTGenericActionConfig2": "{\n  \"BTTActionWaitForConditionsTimeout\" : 60\n}",
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1747293629.409867,
-              "BTTOrder": 8,
-              "BTTPredefinedActionName": "Wait For Conditions to Become True",
-              "BTTPredefinedActionType": 417,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "BDC00FE7-F810-4FD6-B47B-D513C4B0314F",
-              "BTTUUID": "087E4928-7922-4D85-9670-53DFC099B842",
-              "BTTWaitForConditionData": "YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMSAAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGvEBYLDBMYICorLTQ4PT5BRUlOT1JYXGBiVSRudWxs0w0ODxAREl8QF05TQ29tcG91bmRQcmVkaWNhdGVUeXBlXxAPTlNTdWJwcmVkaWNhdGVzViRjbGFzcxABgAKAFdIUDxUXWk5TLm9iamVjdHOhFoADgBTUDxkaGxwdHh9fEBFOU1JpZ2h0RXhwcmVzc2lvbl8QEE5TTGVmdEV4cHJlc3Npb25fEBNOU1ByZWRpY2F0ZU9wZXJhdG9ygBOADoAEgBHVISIjJA8lJicoKVlOU09wZXJhbmReTlNTZWxlY3Rvck5hbWVfEBBOU0V4cHJlc3Npb25UeXBlW05TQXJndW1lbnRzgAaABRADgAiADVx2YWx1ZUZvcktleTrSIw8QLIAH0i4vMDFaJGNsYXNzbmFtZVgkY2xhc3Nlc18QEE5TU2VsZkV4cHJlc3Npb26jMDIzXE5TRXhwcmVzc2lvblhOU09iamVjdNIUDzU3oTaACYAM0w8jOTo7PFlOU0tleVBhdGiACxAKgApfEBdmb2N1c2VkX2VsZW1lbnRfZGV0YWlsc9IuLz9AXxAcTlNLZXlQYXRoU3BlY2lmaWVyRXhwcmVzc2lvbqM_MjPSLi9CQ15OU011dGFibGVBcnJheaNCRDNXTlNBcnJhedIuL0ZHXxATTlNLZXlQYXRoRXhwcmVzc2lvbqRGSDIzXxAUTlNGdW5jdGlvbkV4cHJlc3Npb27TSiMPS0xNXxAPTlNDb25zdGFudFZhbHVlgA8QAIAQXxARcGJ2aW0tdGVtcC1idWZmZXLSLi9QUV8QGU5TQ29uc3RhbnRWYWx1ZUV4cHJlc3Npb26jUDIz1A9TVFVWTExXWk5TTW9kaWZpZXJXTlNGbGFnc15OU09wZXJhdG9yVHlwZYASEGPSLi9ZWl8QFU5TSW5QcmVkaWNhdGVPcGVyYXRvcqNZWzNfEBNOU1ByZWRpY2F0ZU9wZXJhdG9y0i4vXV5fEBVOU0NvbXBhcmlzb25QcmVkaWNhdGWjXV8zW05TUHJlZGljYXRl0i4vRGGiRDPSLi9jZF8QE05TQ29tcG91bmRQcmVkaWNhdGWjY18zAAgAEQAaACQAKQAyADcASQBMAFEAUwBsAHIAeQCTAKUArACuALAAsgC3AMIAxADGAMgA0QDlAPgBDgEQARIBFAEWASEBKwE6AU0BWQFbAV0BXwFhAWMBcAF1AXcBfAGHAZABowGnAbQBvQHCAcQBxgHIAc8B2QHbAd0B3wH5Af4CHQIhAiYCNQI5AkECRgJcAmECeAJ_ApECkwKVApcCqwKwAswC0ALZAuQC7AL7Av0C_wMEAxwDIAM2AzsDUwNXA2MDaANrA3ADhgAAAAAAAAIBAAAAAAAAAGUAAAAAAAAAAAAAAAAAAAOK",
-              "BTTWaitForConditionFormat": "focused_element_details CONTAINS \"pbvim-temp-buffer\""
-            },
-            {
-              "BTTAdditionalActionData": {
-                "BTTActionJSRunInSeparateContext": true,
-                "BTTAppleScriptRunInBackground": false,
-                "BTTJavaScriptUseIsolatedContext": false,
-                "BTTScriptFunctionToCall": "someJavaScriptFunction",
-                "BTTScriptLocation": 0,
-                "BTTScriptType": 3,
-                "BTTTouchBarAppleScriptString": "async function someJavaScriptFunction() {\n    let user_old_clipboard = await get_string_variable({variable_name: \"user_old_clipboard\"});\n\n    await set_clipboard_content({content: user_old_clipboard, format: 'NSPasteboardTypeString'});\n\n    return JSON.stringify({user_old_clipboard})\n}\n\n",
-                "BTTTouchBarAppleScriptUsePath": false
-              },
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1747293629.4100351,
-              "BTTOrder": 9,
-              "BTTPredefinedActionName": "Run Real JavaScript",
-              "BTTPredefinedActionType": 281,
-              "BTTRealJavaScriptString": "async function someJavaScriptFunction() {\n    let user_old_clipboard = await get_string_variable({variable_name: \"user_old_clipboard\"});\n\n    await set_clipboard_content({content: user_old_clipboard, format: 'NSPasteboardTypeString'});\n\n    return JSON.stringify({user_old_clipboard})\n}\n\n",
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "BDC00FE7-F810-4FD6-B47B-D513C4B0314F",
-              "BTTUUID": "19F2E369-F1C5-46FF-9A19-7A4EF113A822"
-            }
-          ],
-          "BTTLastUpdatedAt": 1754336918.057811,
-          "BTTOrder": 29,
-          "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-          "BTTTriggerName": "Edit Selection in Vim",
-          "BTTTriggerType": 643,
-          "BTTTriggerTypeDescriptionReadOnly": "Named Trigger: Edit Selection in Vim",
-          "BTTUUID": "BDC00FE7-F810-4FD6-B47B-D513C4B0314F"
-        },
-        {
-          "BTTActionsToExecute": [
-            {
               "BTTIfConditionData": "YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMSAAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGvEBsLDBMZISssLjU5Pj9CRkpPUFNZXWFmaWpuc3VVJG51bGzTDQ4PEBESXxAXTlNDb21wb3VuZFByZWRpY2F0ZVR5cGVfEA9OU1N1YnByZWRpY2F0ZXNWJGNsYXNzEAGAAoAa0hQPFRhaTlMub2JqZWN0c6IWF4ADgBSAGdQPGhscHR4fIF8QEU5TUmlnaHRFeHByZXNzaW9uXxAQTlNMZWZ0RXhwcmVzc2lvbl8QE05TUHJlZGljYXRlT3BlcmF0b3KAE4AOgASAEdUiIyQlDyYnKCkqWU5TT3BlcmFuZF5OU1NlbGVjdG9yTmFtZV8QEE5TRXhwcmVzc2lvblR5cGVbTlNBcmd1bWVudHOABoAFEAOACIANXHZhbHVlRm9yS2V5OtIkDxAtgAfSLzAxMlokY2xhc3NuYW1lWCRjbGFzc2VzXxAQTlNTZWxmRXhwcmVzc2lvbqMxMzRcTlNFeHByZXNzaW9uWE5TT2JqZWN00hQPNjihN4AJgAzTDyQ6Ozw9WU5TS2V5UGF0aIALEAqACl8QF2ZvY3VzZWRfZWxlbWVudF9kZXRhaWxz0i8wQEFfEBxOU0tleVBhdGhTcGVjaWZpZXJFeHByZXNzaW9uo0AzNNIvMENEXk5TTXV0YWJsZUFycmF5o0NFNFdOU0FycmF50i8wR0hfEBNOU0tleVBhdGhFeHByZXNzaW9upEdJMzRfEBROU0Z1bmN0aW9uRXhwcmVzc2lvbtNLJA9MTU5fEA9OU0NvbnN0YW50VmFsdWWADxAAgBBfEBFmbG9hdGluZy10ZXJtaW5hbNIvMFFSXxAZTlNDb25zdGFudFZhbHVlRXhwcmVzc2lvbqNRMzTUD1RVVldNTVhaTlNNb2RpZmllcldOU0ZsYWdzXk5TT3BlcmF0b3JUeXBlgBIQY9IvMFpbXxAVTlNJblByZWRpY2F0ZU9wZXJhdG9yo1pcNF8QE05TUHJlZGljYXRlT3BlcmF0b3LSLzBeX18QFU5TQ29tcGFyaXNvblByZWRpY2F0ZaNeYDRbTlNQcmVkaWNhdGXUDxobHB1jH2WAE4AVgASAF9NLJA9nTU6AFoAQXxAZPEFYQXBwbGljYXRpb246ICJpVGVybTIiPtUPVFVrVmxNTU1tWk5TUG9zaXRpb26AGBAI0i8wb3BfEBxOU1N1YnN0cmluZ1ByZWRpY2F0ZU9wZXJhdG9ypHFyXDRfEBxOU1N1YnN0cmluZ1ByZWRpY2F0ZU9wZXJhdG9yXxAZTlNTdHJpbmdQcmVkaWNhdGVPcGVyYXRvctIvMEV0okU00i8wdndfEBNOU0NvbXBvdW5kUHJlZGljYXRlo3ZgNAAIABEAGgAkACkAMgA3AEkATABRAFMAcQB3AH4AmACqALEAswC1ALcAvADHAMoAzADOANAA2QDtAQABFgEYARoBHAEeASkBMwFCAVUBYQFjAWUBZwFpAWsBeAF9AX8BhAGPAZgBqwGvAbwBxQHKAcwBzgHQAdcB4QHjAeUB5wIBAgYCJQIpAi4CPQJBAkkCTgJkAmkCgAKHApkCmwKdAp8CswK4AtQC2ALhAuwC9AMDAwUDBwMMAyQDKAM+A0MDWwNfA2sDdAN2A3gDegN8A4MDhQOHA6MDrgO5A7sDvQPCA+ED5gQFBCEEJgQpBC4ERAAAAAAAAAIBAAAAAAAAAHgAAAAAAAAAAAAAAAAAAARI",
               "BTTIfConditionFormat": "focused_element_details CONTAINS \"floating-terminal\" AND focused_element_details BEGINSWITH \"<AXApplication: \\\"iTerm2\\\">\"",
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1754338727.3936229,
-              "BTTOrder": 1,
+              "BTTLastUpdatedAt": 1770852683.222758,
+              "BTTOrder": 0,
               "BTTPredefinedActionName": "If Condition",
               "BTTPredefinedActionType": 330,
               "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
@@ -2831,9 +2548,9 @@
             },
             {
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1754336941.818202,
+              "BTTLastUpdatedAt": 1770852683.222906,
               "BTTLayoutIndependentActionChar": "/",
-              "BTTOrder": 2,
+              "BTTOrder": 1,
               "BTTShortcutToSend": "59,58,55,44",
               "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
               "BTTTriggerParentUUID": "835937FC-49C3-4B0E-88F8-A0AC48125766",
@@ -2841,8 +2558,8 @@
             },
             {
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1754336941.818403,
-              "BTTOrder": 3,
+              "BTTLastUpdatedAt": 1770852683.222919,
+              "BTTOrder": 2,
               "BTTPredefinedActionName": "Else",
               "BTTPredefinedActionType": 333,
               "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
@@ -2850,33 +2567,21 @@
               "BTTUUID": "824BB733-9787-4428-BA49-884123E24250"
             },
             {
-              "BTTEnabled2": 0,
-              "BTTIfConditionData": "YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMSAAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGvEBILDBUfICMqLzQ1ODxARUZJUFZVJG51bGzUDQ4PEBESExRWJGNsYXNzXxARTlNSaWdodEV4cHJlc3Npb25fEBBOU0xlZnRFeHByZXNzaW9uXxATTlNQcmVkaWNhdGVPcGVyYXRvcoARgAyAAoAP1RYXGBkNGhscHR5ZTlNPcGVyYW5kXk5TU2VsZWN0b3JOYW1lXxAQTlNFeHByZXNzaW9uVHlwZVtOU0FyZ3VtZW50c4AEgAMQA4AGgAtcdmFsdWVGb3JLZXk60hgNISIQAYAF0iQlJidaJGNsYXNzbmFtZVgkY2xhc3Nlc18QEE5TU2VsZkV4cHJlc3Npb26jJigpXE5TRXhwcmVzc2lvblhOU09iamVjdNIrDSwuWk5TLm9iamVjdHOhLYAHgArTDRgwMTIzWU5TS2V5UGF0aIAJEAqACF8QF2ZvY3VzZWRfZWxlbWVudF9kZXRhaWxz0iQlNjdfEBxOU0tleVBhdGhTcGVjaWZpZXJFeHByZXNzaW9uozYoKdIkJTk6Xk5TTXV0YWJsZUFycmF5ozk7KVdOU0FycmF50iQlPT5fEBNOU0tleVBhdGhFeHByZXNzaW9upD0_KClfEBROU0Z1bmN0aW9uRXhwcmVzc2lvbtNBGA1CQ0RfEA9OU0NvbnN0YW50VmFsdWWADRAAgA5fEC88QVhBcHBsaWNhdGlvbjogIkFsZnJlZCI+CiA8QVhXaW5kb3c6ICJBbGZyZWQiPtIkJUdIXxAZTlNDb25zdGFudFZhbHVlRXhwcmVzc2lvbqNHKCnVDUpLTE1OQ0NDT1pOU01vZGlmaWVyV05TRmxhZ3NaTlNQb3NpdGlvbl5OU09wZXJhdG9yVHlwZYAQEAjSJCVRUl8QHE5TU3Vic3RyaW5nUHJlZGljYXRlT3BlcmF0b3KkU1RVKV8QHE5TU3Vic3RyaW5nUHJlZGljYXRlT3BlcmF0b3JfEBlOU1N0cmluZ1ByZWRpY2F0ZU9wZXJhdG9yXxATTlNQcmVkaWNhdGVPcGVyYXRvctIkJVdYXxAVTlNDb21wYXJpc29uUHJlZGljYXRlo1dZKVtOU1ByZWRpY2F0ZQAIABEAGgAkACkAMgA3AEkATABRAFMAaABuAHcAfgCSAKUAuwC9AL8AwQDDAM4A2ADnAPoBBgEIAQoBDAEOARABHQEiASQBJgErATYBPwFSAVYBYwFsAXEBfAF+AYABggGJAZMBlQGXAZkBswG4AdcB2wHgAe8B8wH7AgACFgIbAjICOQJLAk0CTwJRAoMCiAKkAqgCswK+AsYC0QLgAuIC5ALpAwgDDQMsA0gDXgNjA3sDfwAAAAAAAAIBAAAAAAAAAFoAAAAAAAAAAAAAAAAAAAOL",
-              "BTTIfConditionFormat": "focused_element_details BEGINSWITH \"<AXApplication: \\\"Alfred\\\">\n <AXWindow: \\\"Alfred\\\">\"",
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1756181966.8696551,
+              "BTTLastUpdatedAt": 1770852667.555897,
+              "BTTOrder": 3,
+              "BTTPredefinedActionName": "Execute Terminal Command (Async, non-blocking)",
+              "BTTPredefinedActionType": 137,
+              "BTTTerminalCommand": "/opt/homebrew/bin/fish -c \"yabai -m window --focus recent\"",
+              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
+              "BTTTriggerParentUUID": "835937FC-49C3-4B0E-88F8-A0AC48125766",
+              "BTTUUID": "CFA23D50-153F-40D9-89AB-B46062F8797D"
+            },
+            {
+              "BTTEnabled2": 0,
+              "BTTIsPureAction": true,
+              "BTTLastUpdatedAt": 1770852683.222913,
               "BTTOrder": 4,
-              "BTTPredefinedActionName": "If Condition",
-              "BTTPredefinedActionType": 330,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "835937FC-49C3-4B0E-88F8-A0AC48125766",
-              "BTTUUID": "ADF3EF1B-BF3F-467A-9825-32447D33A880"
-            },
-            {
-              "BTTEnabled2": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1756181966.8712869,
-              "BTTOrder": 5,
-              "BTTPredefinedActionName": "Else",
-              "BTTPredefinedActionType": 333,
-              "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
-              "BTTTriggerParentUUID": "835937FC-49C3-4B0E-88F8-A0AC48125766",
-              "BTTUUID": "5B7BADA0-E016-489D-A05D-5C7C64C50660"
-            },
-            {
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1754336941.818954,
-              "BTTOrder": 6,
               "BTTPredefinedActionName": "⌘ CMD Key Down",
               "BTTPredefinedActionType": 186,
               "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
@@ -2887,18 +2592,20 @@
               "BTTAdditionalActionData": {
                 "sendCurrentModifiers": true
               },
+              "BTTEnabled2": 0,
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1754336941.819109,
-              "BTTOrder": 7,
+              "BTTLastUpdatedAt": 1770852683.222899,
+              "BTTOrder": 5,
               "BTTShortcutToSend": "48",
               "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
               "BTTTriggerParentUUID": "835937FC-49C3-4B0E-88F8-A0AC48125766",
               "BTTUUID": "C0A31A0C-16BD-46C4-9563-E4A50104BE22"
             },
             {
+              "BTTEnabled2": 0,
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1754336941.81931,
-              "BTTOrder": 8,
+              "BTTLastUpdatedAt": 1770852683.222925,
+              "BTTOrder": 6,
               "BTTPredefinedActionName": "⌘ CMD Key Up",
               "BTTPredefinedActionType": 187,
               "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
@@ -2907,8 +2614,8 @@
             },
             {
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1754336941.8194609,
-              "BTTOrder": 9,
+              "BTTLastUpdatedAt": 1770852683.222931,
+              "BTTOrder": 7,
               "BTTPredefinedActionName": "END If Condition",
               "BTTPredefinedActionType": 334,
               "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
@@ -2917,8 +2624,8 @@
             },
             {
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1754336941.819613,
-              "BTTOrder": 10,
+              "BTTLastUpdatedAt": 1770852683.2227821,
+              "BTTOrder": 8,
               "BTTPredefinedActionName": "END If Condition",
               "BTTPredefinedActionType": 334,
               "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
@@ -2926,8 +2633,8 @@
               "BTTUUID": "1C21DD8C-2276-4D1F-8D11-00FA9A6B469B"
             }
           ],
-          "BTTLastUpdatedAt": 1754336943.325443,
-          "BTTOrder": 31,
+          "BTTLastUpdatedAt": 1770852683.2227678,
+          "BTTOrder": 33,
           "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
           "BTTTriggerName": "Switch to Last Used App",
           "BTTTriggerType": 643,
@@ -2940,18 +2647,19 @@
               "BTTIsPureAction": true,
               "BTTLastUpdatedAt": 1741645855.719657,
               "BTTOrder": 0,
-              "BTTPredefinedActionName": "CMD(⌘)+Click",
-              "BTTPredefinedActionType": 2,
+              "BTTPredefinedActionName": "Left Click (At Current Mouse Position)",
+              "BTTPredefinedActionType": 3,
               "BTTTriggerClass": "BTTTriggerTypeTouchpadAll",
               "BTTTriggerParentUUID": "7AE47014-8D7D-415A-957A-B2B26BB08C1B",
               "BTTUUID": "019C4B91-076B-4331-8F50-5BA5B731D640"
             }
           ],
-          "BTTLastUpdatedAt": 1741645855.718889,
+          "BTTEnabled2": 0,
+          "BTTLastUpdatedAt": 1770157024.1683512,
           "BTTOrder": 1,
           "BTTTriggerClass": "BTTTriggerTypeTouchpadAll",
-          "BTTTriggerType": 203,
-          "BTTTriggerTypeDescriptionReadOnly": "Single Finger FORCE Click",
+          "BTTTriggerType": 207,
+          "BTTTriggerTypeDescriptionReadOnly": "1 Finger Tap",
           "BTTUUID": "7AE47014-8D7D-415A-957A-B2B26BB08C1B"
         },
         {
@@ -3205,158 +2913,6 @@
         {
           "BTTActionsToExecute": [
             {
-              "BTTAppToShowOrHide": "/Applications/Google Chrome.app",
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.720243,
-              "BTTOrder": 0,
-              "BTTPredefinedActionName": "Show  or  Hide Specific Application",
-              "BTTPredefinedActionType": 177,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTShowHideAppConfig": "{\"BTTShowHideSpecificAppMoveToSpace\":\"BTTShowHideSpecificAppNoSpaceChange\",\"BTTShowHideSpecificAppOnlyShow\":true,\"BTTShowHideSpecificAppOnlyHide\":false,\"BTTShowHideSpecificAffectedWindow\":\"BTTShowHideSpecificAppAffectLastUsedWindow\",\"BTTShowHideSpecificMinimizeInstead\":false,\"BTTShowHideSpecificAppRegex\":\"\",\"BTTShowHideSpecificAppOnlyTreatActiveAsVisible\":true,\"BTTShowHideSpecificAppOnlyIfRunning\":false,\"BTTShowHideSpecificAppCMDN\":false,\"BTTShowHideSpecificAppMoveToCurrentSpace\":false,\"BTTShowHideSpecificAppMoveAllToCurrentSpace\":false}",
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "67405DEE-1ACE-4D39-A27A-B76FE1AD7161",
-              "BTTUUID": "4E86FDCD-0BCF-4EDE-B4C6-62E199669BF3"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTDelayNextActionBy": "0",
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.719006,
-              "BTTOrder": 1,
-              "BTTPredefinedActionName": "Pause Execution  or  Delay Next Action (async  or  not blocking)",
-              "BTTPredefinedActionType": 345,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "67405DEE-1ACE-4D39-A27A-B76FE1AD7161",
-              "BTTUUID": "8D5219AF-44D0-4488-A3F8-0EB94BEBF405"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.718935,
-              "BTTMenubarPath": "Profiles;Thales \\(Personal\\)",
-              "BTTOrder": 2,
-              "BTTPredefinedActionName": "Trigger Menu Bar Menu-Item",
-              "BTTPredefinedActionType": 124,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "67405DEE-1ACE-4D39-A27A-B76FE1AD7161",
-              "BTTUUID": "5BE01CD7-4780-40BE-9F9A-07E2797C847C"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.71914,
-              "BTTLayoutIndependentActionChar": "l",
-              "BTTOrder": 3,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTShortcutToSend": "55,37",
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "67405DEE-1ACE-4D39-A27A-B76FE1AD7161",
-              "BTTUUID": "CFDEF681-617D-45E4-8A39-A35498F9B610"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.720162,
-              "BTTLayoutIndependentActionChar": "c",
-              "BTTOrder": 4,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTShortcutToSend": "55,8",
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "67405DEE-1ACE-4D39-A27A-B76FE1AD7161",
-              "BTTUUID": "EDC0CE07-F805-44E3-BD6C-4871490B4FB9"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.718779,
-              "BTTMenubarPath": "Profiles;Thales \\(Work\\)",
-              "BTTOrder": 5,
-              "BTTPredefinedActionName": "Trigger Menu Bar Menu-Item",
-              "BTTPredefinedActionType": 124,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "67405DEE-1ACE-4D39-A27A-B76FE1AD7161",
-              "BTTUUID": "11CFF6C0-5C25-4BF3-BAFC-2C01B831FEB4"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.719304,
-              "BTTLayoutIndependentActionChar": "t",
-              "BTTOrder": 6,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTShortcutToSend": "55,17",
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "67405DEE-1ACE-4D39-A27A-B76FE1AD7161",
-              "BTTUUID": "9B22D7AF-56E7-4DE4-A6CE-ABC0982E4A38"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.719644,
-              "BTTLayoutIndependentActionChar": "v",
-              "BTTOrder": 7,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTShortcutToSend": "55,9",
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "67405DEE-1ACE-4D39-A27A-B76FE1AD7161",
-              "BTTUUID": "7FC8D951-0500-43DE-8E40-3462C149A072"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.719132,
-              "BTTOrder": 8,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTShortcutToSend": "36",
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "67405DEE-1ACE-4D39-A27A-B76FE1AD7161",
-              "BTTUUID": "28FF6A72-5736-4B13-BEF0-BFB7C20D9459"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.718727,
-              "BTTNamedTriggerToTrigger": "Smart fullscreen",
-              "BTTOrder": 9,
-              "BTTPredefinedActionName": "Trigger Named Trigger (Configured in Other Tab)",
-              "BTTPredefinedActionType": 248,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "67405DEE-1ACE-4D39-A27A-B76FE1AD7161",
-              "BTTUUID": "3C5525E2-E7BA-4A1E-9202-AAF18942EDC5"
-            }
-          ],
-          "BTTAdditionalConfiguration": "1966123",
-          "BTTAutoAdaptToKeyboardLayout": 0,
-          "BTTLastUpdatedAt": 1747033856.474803,
-          "BTTLayoutIndependentChar": "e",
-          "BTTOrder": 3,
-          "BTTShortcutAdvancedModifierKeys": "1966123",
-          "BTTShortcutKeyCode": 14,
-          "BTTShortcutKeyboardType": 2302,
-          "BTTShortcutModifierKeys": 1966080,
-          "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-          "BTTTriggerOnDown": 1,
-          "BTTTriggerType": 0,
-          "BTTUUID": "67405DEE-1ACE-4D39-A27A-B76FE1AD7161"
-        },
-        {
-          "BTTActionsToExecute": [
-            {
               "BTTAutoAdaptToKeyboardLayout": 0,
               "BTTIfConditionData": "YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMSAAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGvEBsLDBMZISssLjU5Pj9CRkpPUFNaYGRpbG1wc3VVJG51bGzTDQ4PEBESXxAXTlNDb21wb3VuZFByZWRpY2F0ZVR5cGVfEA9OU1N1YnByZWRpY2F0ZXNWJGNsYXNzEAGAAoAa0hQPFRhaTlMub2JqZWN0c6IWF4ADgBSAGdQPGhscHR4fIF8QEU5TUmlnaHRFeHByZXNzaW9uXxAQTlNMZWZ0RXhwcmVzc2lvbl8QE05TUHJlZGljYXRlT3BlcmF0b3KAE4AOgASAEdUiIyQlDyYnKCkqWU5TT3BlcmFuZF5OU1NlbGVjdG9yTmFtZV8QEE5TRXhwcmVzc2lvblR5cGVbTlNBcmd1bWVudHOABoAFEAOACIANXHZhbHVlRm9yS2V5OtIkDxAtgAfSLzAxMlokY2xhc3NuYW1lWCRjbGFzc2VzXxAQTlNTZWxmRXhwcmVzc2lvbqMxMzRcTlNFeHByZXNzaW9uWE5TT2JqZWN00hQPNjihN4AJgAzTDyQ6Ozw9WU5TS2V5UGF0aIALEAqACl8QF2ZvY3VzZWRfZWxlbWVudF9kZXRhaWxz0i8wQEFfEBxOU0tleVBhdGhTcGVjaWZpZXJFeHByZXNzaW9uo0AzNNIvMENEXk5TTXV0YWJsZUFycmF5o0NFNFdOU0FycmF50i8wR0hfEBNOU0tleVBhdGhFeHByZXNzaW9upEdJMzRfEBROU0Z1bmN0aW9uRXhwcmVzc2lvbtNLJA9MTU5fEA9OU0NvbnN0YW50VmFsdWWADxAAgBBfEBk8QVhBcHBsaWNhdGlvbjogImlUZXJtMiI+0i8wUVJfEBlOU0NvbnN0YW50VmFsdWVFeHByZXNzaW9uo1EzNNUPVFVWV1hNTU1ZWk5TTW9kaWZpZXJXTlNGbGFnc1pOU1Bvc2l0aW9uXk5TT3BlcmF0b3JUeXBlgBIQCNIvMFtcXxAcTlNTdWJzdHJpbmdQcmVkaWNhdGVPcGVyYXRvcqRdXl80XxAcTlNTdWJzdHJpbmdQcmVkaWNhdGVPcGVyYXRvcl8QGU5TU3RyaW5nUHJlZGljYXRlT3BlcmF0b3JfEBNOU1ByZWRpY2F0ZU9wZXJhdG9y0i8wYWJfEBVOU0NvbXBhcmlzb25QcmVkaWNhdGWjYWM0W05TUHJlZGljYXRl1A8aGxwdZh9ogBOAFYAEgBfTSyQPak1OgBaAEF8QEWZsb2F0aW5nLXRlcm1pbmFs1A9UVVduTU1vgBgQY9IvMHFyXxAVTlNJblByZWRpY2F0ZU9wZXJhdG9yo3FfNNIvMEV0okU00i8wdndfEBNOU0NvbXBvdW5kUHJlZGljYXRlo3ZjNAAIABEAGgAkACkAMgA3AEkATABRAFMAcQB3AH4AmACqALEAswC1ALcAvADHAMoAzADOANAA2QDtAQABFgEYARoBHAEeASkBMwFCAVUBYQFjAWUBZwFpAWsBeAF9AX8BhAGPAZgBqwGvAbwBxQHKAcwBzgHQAdcB4QHjAeUB5wIBAgYCJQIpAi4CPQJBAkkCTgJkAmkCgAKHApkCmwKdAp8CuwLAAtwC4ALrAvYC_gMJAxgDGgMcAyEDQANFA2QDgAOWA5sDswO3A8MDzAPOA9AD0gPUA9sD3QPfA_MD_AP+BAAEBQQdBCEEJgQpBC4ERAAAAAAAAAIBAAAAAAAAAHgAAAAAAAAAAAAAAAAAAARI",
               "BTTIfConditionFormat": "focused_element_details BEGINSWITH \"<AXApplication: \\\"iTerm2\\\">\" AND focused_element_details CONTAINS \"floating-terminal\"",
@@ -3400,7 +2956,7 @@
             {
               "BTTAutoAdaptToKeyboardLayout": 0,
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.719836,
+              "BTTLastUpdatedAt": 1768515518.8175359,
               "BTTNamedTriggerToTrigger": "Chrome: New Tab",
               "BTTOrder": 3,
               "BTTPredefinedActionName": "Trigger Named Trigger (Configured in Other Tab)",
@@ -3486,158 +3042,6 @@
           "BTTTriggerOnDown": 1,
           "BTTTriggerType": 0,
           "BTTUUID": "4FB0C01B-52FE-470B-AB90-6B64AAD0AEEB"
-        },
-        {
-          "BTTActionsToExecute": [
-            {
-              "BTTAppToShowOrHide": "/Applications/Google Chrome.app",
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.719454,
-              "BTTOrder": 0,
-              "BTTPredefinedActionName": "Show  or  Hide Specific Application",
-              "BTTPredefinedActionType": 177,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTShowHideAppConfig": "{\"BTTShowHideSpecificAppMoveToSpace\":\"BTTShowHideSpecificAppNoSpaceChange\",\"BTTShowHideSpecificAppOnlyShow\":true,\"BTTShowHideSpecificAppOnlyHide\":false,\"BTTShowHideSpecificAffectedWindow\":\"BTTShowHideSpecificAppAffectLastUsedWindow\",\"BTTShowHideSpecificMinimizeInstead\":false,\"BTTShowHideSpecificAppRegex\":\"\",\"BTTShowHideSpecificAppOnlyTreatActiveAsVisible\":true,\"BTTShowHideSpecificAppOnlyIfRunning\":false,\"BTTShowHideSpecificAppCMDN\":false,\"BTTShowHideSpecificAppMoveToCurrentSpace\":false,\"BTTShowHideSpecificAppMoveAllToCurrentSpace\":false}",
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "3535C06A-6C98-408A-B617-B6F977104D64",
-              "BTTUUID": "AD0F80D9-01BA-4D13-94F3-96CD5E1F359A"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTDelayNextActionBy": "0",
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.7207289,
-              "BTTOrder": 1,
-              "BTTPredefinedActionName": "Pause Execution  or  Delay Next Action (async  or  not blocking)",
-              "BTTPredefinedActionType": 345,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "3535C06A-6C98-408A-B617-B6F977104D64",
-              "BTTUUID": "5C29E3CC-52AA-4339-BDC8-795CE9D43581"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.719908,
-              "BTTMenubarPath": "Profiles;Thales \\(Work\\)",
-              "BTTOrder": 2,
-              "BTTPredefinedActionName": "Trigger Menu Bar Menu-Item",
-              "BTTPredefinedActionType": 124,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "3535C06A-6C98-408A-B617-B6F977104D64",
-              "BTTUUID": "4502F864-E31F-42BC-A7CC-C50E3F940F29"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.718929,
-              "BTTLayoutIndependentActionChar": "l",
-              "BTTOrder": 3,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTShortcutToSend": "55,37",
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "3535C06A-6C98-408A-B617-B6F977104D64",
-              "BTTUUID": "8FF5E704-3B60-47FC-96BD-250039D61BE8"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.7184901,
-              "BTTLayoutIndependentActionChar": "c",
-              "BTTOrder": 4,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTShortcutToSend": "55,8",
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "3535C06A-6C98-408A-B617-B6F977104D64",
-              "BTTUUID": "993AF983-B45D-4DDA-90C2-46C79962F239"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.7194839,
-              "BTTMenubarPath": "Profiles;Thales \\(Personal\\)",
-              "BTTOrder": 5,
-              "BTTPredefinedActionName": "Trigger Menu Bar Menu-Item",
-              "BTTPredefinedActionType": 124,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "3535C06A-6C98-408A-B617-B6F977104D64",
-              "BTTUUID": "5377BA7A-B6FA-4E69-B474-D6DD215A065D"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.719259,
-              "BTTLayoutIndependentActionChar": "t",
-              "BTTOrder": 6,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTShortcutToSend": "55,17",
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "3535C06A-6C98-408A-B617-B6F977104D64",
-              "BTTUUID": "CD71F043-CA93-4409-B5E7-B368DEE26159"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.718997,
-              "BTTLayoutIndependentActionChar": "v",
-              "BTTOrder": 7,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTShortcutToSend": "55,9",
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "3535C06A-6C98-408A-B617-B6F977104D64",
-              "BTTUUID": "E218ED24-B5F3-4DA5-AA41-4325FD6CDA0D"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.719092,
-              "BTTOrder": 8,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTShortcutToSend": "36",
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "3535C06A-6C98-408A-B617-B6F977104D64",
-              "BTTUUID": "0831EE8B-FA43-4BFB-B9D0-575FB3203BB4"
-            },
-            {
-              "BTTAutoAdaptToKeyboardLayout": 0,
-              "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1741645855.718628,
-              "BTTNamedTriggerToTrigger": "Smart fullscreen",
-              "BTTOrder": 9,
-              "BTTPredefinedActionName": "Trigger Named Trigger (Configured in Other Tab)",
-              "BTTPredefinedActionType": 248,
-              "BTTShortcutKeyCode": -1,
-              "BTTShortcutKeyboardType": 0,
-              "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-              "BTTTriggerParentUUID": "3535C06A-6C98-408A-B617-B6F977104D64",
-              "BTTUUID": "327E508F-1D2D-4493-A246-157AE36B9697"
-            }
-          ],
-          "BTTAdditionalConfiguration": "1966123",
-          "BTTAutoAdaptToKeyboardLayout": 0,
-          "BTTLastUpdatedAt": 1747033856.474584,
-          "BTTLayoutIndependentChar": "r",
-          "BTTOrder": 6,
-          "BTTShortcutAdvancedModifierKeys": "1966123",
-          "BTTShortcutKeyCode": 15,
-          "BTTShortcutKeyboardType": 2302,
-          "BTTShortcutModifierKeys": 1966080,
-          "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
-          "BTTTriggerOnDown": 1,
-          "BTTTriggerType": 0,
-          "BTTUUID": "3535C06A-6C98-408A-B617-B6F977104D64"
         },
         {
           "BTTActionsToExecute": [
@@ -4657,5 +4061,5 @@
   "BTTPresetInfoURL": "",
   "BTTPresetName": "Thales Workflow Mac",
   "BTTPresetSnapAreas": [],
-  "BTTPresetUUID": "BD10AC66-A4D5-462A-AFFD-082A0030B0B7"
+  "BTTPresetUUID": "51772B21-D7D8-4C2A-A472-0079C83B6364"
 }
