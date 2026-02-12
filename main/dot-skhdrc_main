@@ -149,7 +149,7 @@ ctrl + alt + cmd - space ; service
 # If PID file exists and has a running process, focus window instead of creating a new one
 service < ctrl + alt + cmd - e : skhd -k "escape"; if pgrep -q -F "$TMPDIR/nvim_skhd.pid"; \
         display-message "Focus SKHD"; \
-        neovim-ghost drop "$HOME/.skhdrc_main"; \
+        neovim-ghost focus-or-new-tab "$HOME/.skhdrc_main"; \
     else; \
         display-message "Edit SKHD"; \
         fish -c "neovim-ghost edit '$HOME/.skhdrc_main'" &; \

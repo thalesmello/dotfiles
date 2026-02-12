@@ -268,4 +268,21 @@ function M.reload_lazy_file(module_name)
     end
 end
 
+function M.focus_or_new_tab(filepath)
+    vim.print('its happening')
+    local abs_path = vim.fn.fnamemodify(filepath, ':p')
+    local bufnr = vim.fn.bufnr(abs_path)
+
+    if bufnr ~= -1 then
+        local win_ids = vim.fn.win_findbuf(bufnr)
+
+        if #win_ids > 0 then
+            vim.api.nvim_set_current_win(win_ids[1])
+            return
+        end
+    end
+
+    vim.cmd.tabedit(abs_path)
+end
+
 return M

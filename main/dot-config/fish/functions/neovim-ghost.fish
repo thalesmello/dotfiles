@@ -27,7 +27,7 @@ function neovim-ghost
         else
             neovim-ghost start --spawn
         end;
-    case "drop"
+    case "focus-or-new-tab"
         set skip_focus 0
         if not neovim-ghost is-alive
             neovim-ghost start --spawn
@@ -35,7 +35,7 @@ function neovim-ghost
             set skip_focus 1
         end
 
-        nvr --nostart --servername "$TMPDIR/nvim_ghost.socket" -c "drop $argv"
+        nvr --nostart --servername "$TMPDIR/nvim_ghost.socket" -c "lua require'vim_utils'.focus_or_new_tab [[$argv]]"
 
         if test "$skip_focus" != 1
             neovim-ghost focus
