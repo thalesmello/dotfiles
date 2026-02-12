@@ -250,8 +250,8 @@ invoke < b : skhd -k "escape"; osascript -e 'tell application "Alfred" to search
 invoke < t : skhd -k "escape"; osascript -e 'tell application "Alfred" to search "top "'
 invoke < y : skhd -k "escape"; open 'raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D'
 invoke < return : skhd -k "escape"; iterm-preset new-window
-invoke < shift - i : skhd -k "escape"; display-message "AI Input Mode"; osascript -e "set volume input volume 100"; set-preferred-input-device
-invoke < shift - r : skhd -k "escape"; display-message "Reinitialize Displays"; betterdisplaycli perform --reinitialize
+invoke < ctrl + alt + cmd - i : skhd -k "escape"; display-message "AI Input Mode"; osascript -e "set volume input volume 100"; set-preferred-input-device
+invoke < ctrl + alt + cmd - r : skhd -k "escape"; display-message "Reinitialize Displays"; betterdisplaycli perform --reinitialize
 
 
 service < c ; chrome
@@ -295,7 +295,7 @@ goto < g : skhd -k "escape"; chrome-preset open-url --profile="Default" gmail.co
 ctrl + alt + cmd - b : btt-preset show-or-hide-app --only-show "/Applications/BetterTouchTool.app"
 ctrl + alt + cmd - c : btt-preset show-or-hide-app --only-show "/Applications/Cursor.app"
 
-ctrl + alt + cmd - x : btt-preset show-or-hide-app --only-show "/Applications/iTerm.app"
+ctrl + alt + cmd - x : btt-preset show-or-hide-app --only-show "/Applications/iTerm.app"; and iterm-preset is-floating-window-active; and skhd -k "cmd - 0x32"; and echo hi # backtick
 ctrl + alt + cmd - q : chrome-preset focus-or-open-url "gemini.google.com" --label "Gemini"
 ctrl + alt + cmd - w : btt-preset show-or-hide-app --only-show "/Applications/WhatsApp.app"
 ctrl + alt + cmd - z : btt-preset show-or-hide-app --only-show "/Applications/Obsidian.app"
