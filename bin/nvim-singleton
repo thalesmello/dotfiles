@@ -1,0 +1,27 @@
+#!/usr/bin/env fish
+
+set sock "/tmp/nvim-singleton.sock"
+set panefile "/tmp/nvim-singleton.tmuxpane"
+
+if test -S "$sock"; and nvim --server "$sock" --remote-expr "1" &>/dev/null
+    if test (count $argv) -gt 0
+
+        echo nvim --server "$sock" --remote-tab $argv
+        nvim --server "$sock" --remote $argv
+    end
+
+    if not test -f "$panefile"
+        return
+    else if test -n "$TMUX"
+        tmux select-pane -t (cat "$panefile")
+    else if tmux list-sessions &>/dev/null
+        tmux select-pane -t (cat "$panefile")
+        tmux attach-session
+    end
+else
+    if test -n "$TMUX"
+        echo "$TMUX_PANE" > "$panefile"
+    end
+
+    exec nvim --listen "$sock" $argv
+end
