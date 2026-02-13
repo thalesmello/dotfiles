@@ -3,15 +3,17 @@
 set sock "/tmp/nvim-singleton.sock"
 set panefile "/tmp/nvim-singleton.tmuxpane"
 
-argparse -i focus -- $argv
 
 if test (count $argv) -gt 0
+    argparse -i focus -- $argv
+
     if not test -S "$sock"; or not nvim --server "$sock" --remote-expr "1" &>/dev/null
         echo "Error: server not started" >&2
         return 1
     end
 
-    nvim --server "$sock" --remote $argv
+    test (count $argv) -gt 0
+    and nvim --server "$sock" $argv
 
     if not test -f "$panefile"; or not set -q _flag_focus
         return
