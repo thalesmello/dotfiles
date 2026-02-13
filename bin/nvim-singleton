@@ -23,6 +23,11 @@ if test (count $argv) -gt 0
         tmux select-pane -t (cat "$panefile")
     end
 else
+    if test -S "$sock"; and nvim --server "$sock" --remote-expr "1" &>/dev/null
+        echo "Error: server already started" >&2
+        return 1
+    end
+
     if test -n "$TMUX"
         echo "$TMUX_PANE" > "$panefile"
     end
