@@ -34,6 +34,8 @@
 	<false/>
 	<key>ClickToSelectCommand</key>
 	<false/>
+	<key>CopySelection</key>
+	<true/>
 	<key>Custom Color Presets</key>
 	<dict>
 		<key>GruvboxDark</key>
