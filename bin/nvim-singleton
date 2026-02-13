@@ -16,7 +16,6 @@ if test -S "$sock"; and nvim --server "$sock" --remote-expr "1" &>/dev/null
         tmux select-pane -t (cat "$panefile")
     else if tmux list-sessions &>/dev/null
         tmux select-pane -t (cat "$panefile")
-        tmux attach-session
     end
 else
     if test -n "$TMUX"
