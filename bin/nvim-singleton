@@ -3,14 +3,17 @@
 set sock "/tmp/nvim-singleton.sock"
 set panefile "/tmp/nvim-singleton.tmuxpane"
 
-if test -S "$sock"; and nvim --server "$sock" --remote-expr "1" &>/dev/null
-    if test (count $argv) -gt 0
+argparse --ignore-unknown focus -- $argv
 
-        echo nvim --server "$sock" --remote-tab $argv
-        nvim --server "$sock" --remote $argv
+if test (count $argv) -gt 0
+    if not test -S "$sock"; or not nvim --server "$sock" --remote-expr "1" &>/dev/null
+        echo "Error: server not started" >&2
+        return 1
     end
 
-    if not test -f "$panefile"
+    nvim --server "$sock" --remote $argv
+
+    if not test -f "$panefile"; or not set -q _flag_focus
         return
     else if test -n "$TMUX"
         tmux select-pane -t (cat "$panefile")
@@ -24,3 +27,4 @@ else
 
     exec nvim --listen "$sock" $argv
 end
+
