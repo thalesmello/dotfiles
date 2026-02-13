@@ -328,7 +328,12 @@ ctrl + alt + cmd + shift - q : btt-preset show-or-hide-app --only-show "/System/
 ctrl + alt + cmd - y : chrome-preset focus-or-open-url calendar.google.com --label "Calendar"
 
 ctrl + alt + cmd - u : workflow-preset perform-default-ui
-ctrl + alt + cmd + shift - o : btt-preset send-keys ctrl shift space
+
+ctrl + alt + cmd - o [
+    "iTerm2" : ua --clipboard
+    * : ua
+]
+ctrl + alt + cmd + shift - o : ua
 
 ctrl + alt + cmd + shift - v : if pgrep "kindaVim" >/dev/null; \
         display-message "Exit kindaVim"; \

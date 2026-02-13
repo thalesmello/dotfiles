@@ -8,12 +8,6 @@ function ua
     not isatty stdin; and set source_count (math $source_count + 1)
     test (count $argv) -gt 0; and set source_count (math $source_count + 1)
 
-    if test $source_count -eq 0
-        echo "Usage: ua [--clipboard] [files...]" >&2
-        echo "  Provide file paths, pipe text, or use --clipboard" >&2
-        return 1
-    end
-
     if test $source_count -gt 1
         echo "Error: multiple input sources provided. Use only one of: arguments, piped input, or --clipboard" >&2
         return 1
@@ -21,14 +15,20 @@ function ua
 
     if set -q _flag_clipboard
         set -l text (pbpaste)
-        /usr/bin/osascript -l JavaScript -e 'function run(argv) { Application("com.runningwithcrayons.Alfred").action(argv) }' "$text"
+        osascript -l JavaScript -e 'function run(argv) { Application("com.runningwithcrayons.Alfred").action(argv, {asType: "text"}) }' "$text"
         return
     end
 
     if not isatty stdin
         read -z -l text
         set text (string trim -- $text)
-        /usr/bin/osascript -l JavaScript -e 'function run(argv) { Application("com.runningwithcrayons.Alfred").action(argv) }' "$text"
+        osascript -l JavaScript -e 'function run(argv) { Application("com.runningwithcrayons.Alfred").action(argv, {asType: "text"}) }' "$text"
+        return
+    end
+
+    if test (count $argv) -eq 0
+        # No arguments: invoke universal actions with default behavior
+        skhd -k "ctrl + cmd - 0x2A" # backslash
         return
     end
 
@@ -41,7 +41,7 @@ function ua
     end
 
     set -l absolute_paths (realpath $argv)
-    /usr/bin/osascript -l JavaScript -e 'function run(argv) { Application("com.runningwithcrayons.Alfred").action(argv) }' $absolute_paths
+    osascript -l JavaScript -e 'function run(argv) { Application("com.runningwithcrayons.Alfred").action(argv) }' $absolute_paths
 end
 
 complete -c ua -f
