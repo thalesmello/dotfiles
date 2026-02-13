@@ -3,7 +3,7 @@
 set sock "/tmp/nvim-singleton.sock"
 set panefile "/tmp/nvim-singleton.tmuxpane"
 
-argparse --ignore-unknown focus -- $argv
+argparse -i focus -- $argv
 
 if test (count $argv) -gt 0
     if not test -S "$sock"; or not nvim --server "$sock" --remote-expr "1" &>/dev/null
