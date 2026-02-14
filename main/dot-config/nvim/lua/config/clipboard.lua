@@ -2,10 +2,11 @@ local should_load = require('conditional_load').should_load
 
 if should_load('ssh') then
 	local function paste()
-	  return {
-		{},
-		"v",
-	  }
+		local clip = vim.fn.input("Paste clipboard: ")
+		return {
+			vim.split(assert(clip), "\r"),
+			"v",
+		}
 	end
 
 	vim.g.clipboard = {
