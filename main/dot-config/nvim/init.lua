@@ -50,12 +50,18 @@ require("lazy").setup({
     },
 })
 
--- Personal configs that were never exported to a plugin
-require('config/mappings')
-require('config/clipboard')
-require('config/neovide')
+-- Apply the settings at the very end when nvim finished loading
+vim.api.nvim_create_autocmd("User", {
+    pattern = "VeryLazy",
+    once = true,
+    callback = function()
+        require('config/mappings')
+        require('config/clipboard')
+        require('config/neovide')
 
-local nvim_local = vim.fn.expand("$HOME/.nvim_local.lua")
-if vim.loop.fs_stat(nvim_local) then
-    vim.cmd.luafile(nvim_local)
-end
+        local nvim_local = vim.fn.expand("$HOME/.nvim_local.lua")
+        if vim.loop.fs_stat(nvim_local) then
+            vim.cmd.luafile(nvim_local)
+        end
+    end,
+})
