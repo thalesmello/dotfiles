@@ -24,6 +24,10 @@ return {
         vim.env.FZF_DEFAULT_COMMAND = 'ag -g ""'
 
         local function get_project_cwd()
+            if vim.o.filetype == 'dirvish' then
+                return vim.fn.expand('%')
+            end
+
             local path = vim.fn["projectionist#path"]()
 
             if path == "/" or path == nil or path == '' then
