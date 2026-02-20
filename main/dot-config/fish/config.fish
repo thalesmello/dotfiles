@@ -7,8 +7,10 @@ if status --is-interactive
 	fundle plugin lgathy/google-cloud-sdk-fish-completion
 	# fundle plugin franciscolourenco/done
 	fundle plugin PatrickF1/colored_man_pages.fish
-	fundle init
 end
+
+fundle plugin thalesmello/fifc
+fundle init
 
 # Configure theme
 set -g theme_display_docker_machine no
@@ -38,11 +40,12 @@ set -gx LESS_TERMCAP_ue \e'[0m'        # reset underline
 
 set -gx LIBGL_ALWAYS_INDIRECT 1
 
- set -U fish_features qmark-noglob
+set -x fish_features qmark-noglob
+set -x fifc_editor nvim
 
 # Setup envs
 #fzf --fish | source
-set -xg FZF_DEFAULT_OPTS '--bind "ctrl-n:down,ctrl-p:up,ctrl-r:previous-history,ctrl-s:next-history,ctrl-q:select-all,ctrl-x:toggle-out" --height 40%'
+set -xg FZF_DEFAULT_OPTS '--bind "ctrl-n:down,ctrl-p:up,ctrl-r:previous-history,ctrl-s:next-history,ctrl-q:select-all,ctrl-x:toggle-out,ctrl-e:preview-down,ctrl-y:preview-up,shift-right:toggle-preview-wrap" --height 40%'
 set -xg FZF_CTRL_T_COMMAND 'ag -l'
 
 if set -q USE_WSL_CONFIG
