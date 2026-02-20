@@ -30,8 +30,16 @@ return {
 
             local path = vim.fn["projectionist#path"]()
 
-            if path == "/" or path == nil or path == '' then
-                path = vim.fn.getcwd()
+
+            if path == nil or vim.list_contains({'/', '', vim.fn.expand('~')}, path) then
+                local cwd = vim.fn.getcwd()
+                local file_path = vim.fn.expand('%:p')
+
+                if vim.startswith(file_path, cwd .. '/') then
+                    path = cwd
+                else
+                    path = vim.fn.expand('%:p:h')
+                end
             end
 
             return path
