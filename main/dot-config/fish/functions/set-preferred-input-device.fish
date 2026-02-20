@@ -1,6 +1,7 @@
 function set-preferred-input-device
     set -l priorities \
         "Yeti Nano" \
+        "Realtek USB2.0 Audio" \
         "MacBook Pro Microphone"
         # Add more device names here — first entry = highest priority
 
