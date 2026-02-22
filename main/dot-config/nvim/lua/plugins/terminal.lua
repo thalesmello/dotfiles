@@ -15,6 +15,7 @@ return {
         end,
         dependencies = {
             "thalesmello/vim-projectionist"
-        }
+        },
+        extra_contexts = {"ssh"}
     },
 }
