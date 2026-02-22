@@ -2,6 +2,10 @@ local vim_utils = require('vim_utils')
 
 local TERMINAL_CMD = 'neovim-fish'
 
+if vim.env.NVIM_SSH_MODE then
+  TERMINAL_CMD = vim.fn.expand('$SHELL')
+end
+
 vim.keymap.set({"n", "t"}, "<c-space>h", '<c-\\><C-n><C-w><C-h>', { noremap = true, silent = true })
 vim.keymap.set({"n", "t"}, "<c-space>j", '<c-\\><C-n><C-w><C-j>', { noremap = true, silent = true })
 vim.keymap.set({"n", "t"}, "<c-space>k", '<c-\\><C-n><C-w><C-k>', { noremap = true, silent = true })
