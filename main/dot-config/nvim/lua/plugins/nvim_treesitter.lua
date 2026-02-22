@@ -276,6 +276,6 @@ return {
         },
         config = function (_, opts) require('nvim-treesitter-textsubjects').configure(opts) end,
         dependencies = {"nvim-treesitter/nvim-treesitter"},
-        extra_contexts = {"vscode", "firenvim"}
+        extra_contexts = {"vscode", "firenvim", "ssh"}
     })
 }
