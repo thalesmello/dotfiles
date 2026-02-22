@@ -16,6 +16,7 @@ function M.should_load(spec)
                 or vim.tbl_contains(spec.extra_contexts or {}, condition.load_if_context)
                 or vim.tbl_get(spec, "_", "dep")
                 or spec.name == 'lazy.nvim'
+                or spec.name == 'plenary.nvim'
             )
         end
     end
