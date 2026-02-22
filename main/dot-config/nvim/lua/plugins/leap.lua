@@ -1,6 +1,7 @@
 return {
     {
-        'ggandor/leap.nvim',
+        'https://codeberg.org/andyg/leap.nvim',
+        name = "leap",
         keys = {
             {"s", "<Plug>(leap-forward)", mode = { "n" }, desc = "Leap forward to"},
             {"S", "<Plug>(leap-backward)", mode = { "n" }, desc = "Leap backward to"},
@@ -82,7 +83,7 @@ return {
     },
     {
         'rasulomaroff/telepath.nvim',
-        dependencies = 'ggandor/leap.nvim',
+        dependencies = 'leap',
         keys = {
             { 'r', function() require('telepath').remote { restore = true } end, mode = 'o' },
             { 'R', function() require('telepath').remote { restore = true, recursive = true } end, mode = 'o' },
