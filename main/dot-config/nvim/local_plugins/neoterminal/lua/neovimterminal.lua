@@ -145,7 +145,8 @@ vim.api.nvim_create_autocmd('TermRequest', {
     local seq = args.data.sequence
     -- Forward only notification (OSC 9) and clipboard copy (OSC 52) sequences
     if seq:match('^\027]9;') or seq:match('^\027]52;') then
-      io.stdout:write(seq .. args.data.terminator)
+      local terminator = args.data.terminator or '\027\\'
+      io.stdout:write(seq .. terminator)
       io.stdout:flush()
     end
   end,
