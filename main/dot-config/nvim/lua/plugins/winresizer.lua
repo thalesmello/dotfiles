@@ -12,5 +12,6 @@ return {
         vim.g.winresizer_keycode_right = 76
         vim.g.winresizer_keycode_down = 74
         vim.g.winresizer_keycode_up = 75
-    end
+    end,
+    extra_contexts = {"ssh"}
 }
