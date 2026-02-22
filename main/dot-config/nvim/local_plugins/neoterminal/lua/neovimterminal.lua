@@ -137,6 +137,33 @@ vim.api.nvim_create_autocmd("TermOpen", {
   end
 })
 
+-- local last_term_request_buf = nil
+
+vim.api.nvim_create_autocmd('TermRequest', {
+  group = au_group,
+  callback = function(args)
+    local seq = args.data.sequence
+    -- Forward only notification (OSC 9) and clipboard copy (OSC 52) sequences
+    if seq:match('^\027]9;') or seq:match('^\027]52;') then
+      io.stdout:write(seq .. args.data.terminator)
+      io.stdout:flush()
+    end
+  end,
+})
+
+-- vim.api.nvim_create_autocmd('TermResponse', {
+--   group = au_group,
+--   callback = function(args)
+--     if last_term_request_buf
+--       and vim.api.nvim_buf_is_valid(last_term_request_buf) then
+--       local channel = vim.bo[last_term_request_buf].channel
+--       if channel and channel > 0 then
+--         vim.api.nvim_chan_send(channel, args.data.sequence)
+--       end
+--     end
+--   end,
+-- })
+
 local function find_fallback_terminal()
   local terminals = {}
   local channel
