@@ -2,6 +2,8 @@ return {
    {
       "nvim-lua/plenary.nvim" ,
       extra_contexts = {"ssh"},
+      opts = {},
+      config = function() end
    },
    {
       "ThePrimeagen/harpoon",
