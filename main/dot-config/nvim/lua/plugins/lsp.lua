@@ -2,6 +2,7 @@ return {
     {
         'neovim/nvim-lspconfig',
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
+        extra_contexts = {"ssh"},
         config = function ()
             -- note: diagnostics are not exclusive to lsp servers
             -- so these can be global keybindings
@@ -53,6 +54,7 @@ return {
     },
     {
         "ray-x/lsp_signature.nvim",
+        extra_contexts = {"ssh"},
         opts = {
             hint_enable = true,
             handler_opts = { border = "single" },
@@ -90,6 +92,7 @@ return {
         end,
         dependencies = {
             { "neovim/nvim-lspconfig" },
-        }
+        },
+        extra_contexts = {"ssh"},
     },
 }
