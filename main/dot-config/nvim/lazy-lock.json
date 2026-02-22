@@ -25,7 +25,7 @@
   "kanagawa.nvim": { "branch": "master", "commit": "aef7f5cec0a40dbe7f3304214850c472e2264b10" },
   "lazy.nvim": { "branch": "main", "commit": "306a05526ada86a7b30af95c5cc81ffba93fef97" },
   "lazydev.nvim": { "branch": "main", "commit": "2367a6c0a01eb9edb0464731cc0fb61ed9ab9d2c" },
-  "leap": { "branch": "main", "commit": "eda0138a408a5600c45e324c69fe73c9df30939c" },
+  "leap.nvim": { "branch": "main", "commit": "f19d43590c4b6d31188ee1ea2954d2b7558a9e11" },
   "linediff.vim": { "branch": "main", "commit": "29fa617fc10307a1e0ae82a8761114e465d17b06" },
   "lkml.vim": { "branch": "master", "commit": "07eb504ed908c63f3802ff41055bed26b14ca13f" },
   "lsp-command": { "branch": "master", "commit": "b2d130d0358f7d64cd967c918182bce25944737b" },
