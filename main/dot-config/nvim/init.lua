@@ -25,11 +25,17 @@ vim.opt.rtp:prepend(lazypath)
 
 
 
----@type string
+local spec = {
+    { import = "plugins" },
+}
+
+local local_plugins_file = vim.fn.expand("$HOME/.nvim_local_plugins.lua")
+if vim.loop.fs_stat(local_plugins_file) then
+    vim.list_extend(spec, dofile(local_plugins_file))
+end
+
 require("lazy").setup({
-    spec = {
-        { import = "plugins" },
-    },
+    spec = spec,
     performance = {
         rtp = {
             disabled_plugins = {
