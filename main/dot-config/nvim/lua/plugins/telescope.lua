@@ -22,6 +22,15 @@ return {
                vim.g.fuzzy_finder_to_resume = 'telescope'
             end,
          })
-      end
-   }
+      end,
+      extra_contexts = {"ssh"}
+   },
+   {
+      "nvim-telescope/telescope-fzf-native.nvim",
+      build = "make",
+      config = function()
+         require("telescope").load_extension("fzf")
+      end,
+      extra_contexts = {"ssh"}
+   },
 }
