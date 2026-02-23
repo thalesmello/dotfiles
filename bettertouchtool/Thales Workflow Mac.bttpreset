@@ -140,13 +140,13 @@
             {
               "BTTAutoAdaptToKeyboardLayout": 0,
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1770854745.206279,
+              "BTTLastUpdatedAt": 1771889272.2593188,
               "BTTOrder": 6,
               "BTTPredefinedActionName": "Execute Terminal Command (Async, non-blocking)",
               "BTTPredefinedActionType": 137,
               "BTTShortcutKeyCode": -1,
               "BTTShortcutKeyboardType": 0,
-              "BTTTerminalCommand": "/opt/homebrew/bin/yabai -m window --focus recent",
+              "BTTTerminalCommand": "/opt/homebrew/bin/fish -c \"yabai-preset focus-recent\"",
               "BTTTriggerClass": "BTTTriggerTypeKeyboardShortcut",
               "BTTTriggerParentUUID": "12177676-4E6E-4E0A-9BFE-FA71DE0547C3",
               "BTTUUID": "FBEB19E6-09F1-40DB-B6BB-3984F1F714E5"
@@ -802,7 +802,7 @@
           "BTTAdditionalConfiguration": "8388608",
           "BTTAutoAdaptToKeyboardLayout": 0,
           "BTTGestureNotes": "F18 is set by karabiner, and it's hehavior is different depending whether it's floating term or Alfred",
-          "BTTLastUpdatedAt": 1770853688.750941,
+          "BTTLastUpdatedAt": 1771009605.957664,
           "BTTLayoutIndependentChar": "F18",
           "BTTOrder": 7,
           "BTTShortcutAdvancedModifierKeys": "8388608",
@@ -2568,11 +2568,11 @@
             },
             {
               "BTTIsPureAction": true,
-              "BTTLastUpdatedAt": 1770852667.555897,
+              "BTTLastUpdatedAt": 1771889248.741008,
               "BTTOrder": 3,
               "BTTPredefinedActionName": "Execute Terminal Command (Async, non-blocking)",
               "BTTPredefinedActionType": 137,
-              "BTTTerminalCommand": "/opt/homebrew/bin/fish -c \"yabai -m window --focus recent\"",
+              "BTTTerminalCommand": "/opt/homebrew/bin/fish -c \"yabai-preset focus-recent\"",
               "BTTTriggerClass": "BTTTriggerTypeOtherTriggers",
               "BTTTriggerParentUUID": "835937FC-49C3-4B0E-88F8-A0AC48125766",
               "BTTUUID": "CFA23D50-153F-40D9-89AB-B46062F8797D"
@@ -4061,5 +4061,5 @@
   "BTTPresetInfoURL": "",
   "BTTPresetName": "Thales Workflow Mac",
   "BTTPresetSnapAreas": [],
-  "BTTPresetUUID": "51772B21-D7D8-4C2A-A472-0079C83B6364"
+  "BTTPresetUUID": "4110C607-ED68-4B38-9215-FE9970CD0B09"
 }
