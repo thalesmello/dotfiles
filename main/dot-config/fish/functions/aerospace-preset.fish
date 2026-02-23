@@ -143,6 +143,67 @@ function aerospace-preset
         set aero_dir (__wm_translate_direction $direction)
         aerospace focus --boundaries-action fail --ignore-floating $aero_dir
         or return 1
+    case "focus-floating-window"
+        set direction $argv[1]
+        set -e argv[1]
+
+        # Get floating window IDs from aerospace
+        set floating_ids (aerospace list-windows --workspace focused --format '%{window-id}:%{window-layout}' | string match -er ':floating$' | string replace -r ':.*' '')
+        if test (count $floating_ids) -eq 0
+            return 1
+        end
+
+        set focused_id (aerospace list-windows --focused --format '%{window-id}')
+        set ids_json (printf '%s\n' $floating_ids | jq -Rn '[inputs | tonumber]')
+
+        set window_id
+
+        switch "$direction"
+            case next prev first last
+                set window_id (yabai -m query --windows | jq -er \
+                    --argjson ids "$ids_json" \
+                    --argjson focused "$focused_id" \
+                    --arg dir "$direction" '
+                    map(select(.id as $id | $ids | index($id)))
+                    | sort_by([.frame.x, .frame.y, .id])
+                    | (map(.id) | index($focused)) as $pos
+                    | if $pos == null then first.id
+                      else ({first: 0, last: (length - 1), prev: (($pos - 1 + length) % length), next: (($pos + 1) % length)}[$dir]) as $target
+                      | .[$target].id
+                      end')
+            case east west north south
+                set window_id (yabai -m query --windows | jq -er \
+                    --argjson ids "$ids_json" \
+                    --argjson focused "$focused_id" \
+                    --arg dir "$direction" '
+                    map(select(.id as $id | $ids | index($id)))
+                    | (first(.[] | select(.id == $focused)) // .[0]) as $cur
+                    | map(select(.id != $focused))
+                    | map(select(
+                        if $dir == "east" then .frame.x >= ($cur.frame.x + $cur.frame.w / 2)
+                        elif $dir == "west" then (.frame.x + .frame.w) <= ($cur.frame.x + $cur.frame.w / 2)
+                        elif $dir == "south" then .frame.y >= ($cur.frame.y + $cur.frame.h / 2)
+                        elif $dir == "north" then (.frame.y + .frame.h) <= ($cur.frame.y + $cur.frame.h / 2)
+                        else false end))
+                    | sort_by(
+                        ((.frame.x + .frame.w/2) - ($cur.frame.x + $cur.frame.w/2)) as $dx
+                        | ((.frame.y + .frame.h/2) - ($cur.frame.y + $cur.frame.h/2)) as $dy
+                        | ($dx*$dx + $dy*$dy))
+                    | first.id')
+            case left right up down
+                set aero_dir (__wm_translate_direction $direction)
+                aerospace-preset focus-floating-window $aero_dir
+                return $status
+            case '*'
+                echo "Invalid argument: $direction" >&2
+                return 1
+        end
+
+        if test -n "$window_id"
+            aerospace focus --window-id $window_id
+        else
+            return 1
+        end
     case "focus-space"
         set space $argv[1]
         set -e argv[1]

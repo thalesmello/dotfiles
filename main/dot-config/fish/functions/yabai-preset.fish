@@ -217,6 +217,20 @@ function yabai-preset
 
         yabai -m window --focus "$window"
         display-message "Windows $window_pos / $total"
+    case "focus-floating-window"
+        set direction $argv[1]
+        set -e argv[1]
+
+        switch "$direction"
+            case next prev first last
+                yabai-preset focus-floating-window-in-space $direction
+            case east west north south
+                yabai -m window --focus $direction
+                or return 1
+            case '*'
+                echo "Invalid argument: $direction" >&2
+                return 1
+        end
     case "move-window-in-stack"
         set stack $argv[1]
         set -e argv[1]
