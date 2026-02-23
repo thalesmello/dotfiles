@@ -110,6 +110,7 @@ function yabai-preset
         | first.id'
         )
         yabai -m window "$winid" --focus
+        or return 1
     case "focus-space"
         set space $argv[1]
         set -e argv[1]
@@ -604,6 +605,7 @@ function yabai-preset
         set direction $argv[1]
         set -e argv[1]
         yabai -m window --swap $direction
+        or return 1
     case "warp-window"
         set direction $argv[1]
         set -e argv[1]

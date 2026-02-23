@@ -141,7 +141,8 @@ function aerospace-preset
         set direction $argv[1]
         set -e argv[1]
         set aero_dir (__wm_translate_direction $direction)
-        aerospace focus --boundaries all-monitors-outer-frame --ignore-floating $aero_dir
+        aerospace focus --boundaries-action fail --ignore-floating $aero_dir
+        or return 1
     case "focus-space"
         set space $argv[1]
         set -e argv[1]
@@ -247,7 +248,8 @@ function aerospace-preset
         set direction $argv[1]
         set -e argv[1]
         set aero_dir (__wm_translate_direction $direction)
-        aerospace move $aero_dir
+        aerospace move --boundaries-action fail $aero_dir
+        or return 1
     case "warp-window"
         set direction $argv[1]
         set -e argv[1]

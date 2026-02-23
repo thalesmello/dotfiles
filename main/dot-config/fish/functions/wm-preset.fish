@@ -1,8 +1,10 @@
 function wm-preset
     if pgrep -xq AeroSpace
         aerospace-preset $argv
+        return $status
     else if pgrep -xq yabai
         yabai-preset $argv
+        return $status
     else
         echo "No window manager running" >&2
         return 1
