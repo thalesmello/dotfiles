@@ -307,7 +307,7 @@ function aerospace-preset
         set direction $argv[1]
         set -e argv[1]
         set aero_dir (__wm_translate_direction $direction)
-        aerospace move --boundaries-action fail $aero_dir
+        aerospace move $aero_dir
         or return 1
     case "warp-window"
         set direction $argv[1]

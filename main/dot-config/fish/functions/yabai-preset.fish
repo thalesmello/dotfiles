@@ -696,6 +696,23 @@ function yabai-preset
         set deg $argv[1]
         set -e argv[1]
         yabai -m space --rotate $deg
+    case "snap-half"
+        set direction $argv[1]
+        set -e argv[1]
+
+        switch "$direction"
+            case west
+                yabai -m window --grid 1:2:0:0:1:1
+            case east
+                yabai -m window --grid 1:2:1:0:1:1
+            case north
+                yabai -m window --grid 2:1:0:0:1:1
+            case south
+                yabai -m window --grid 2:1:0:1:1:1
+            case '*'
+                echo "Invalid argument: $direction" >&2
+                return 1
+        end
     case "*"
         echo "command not found - $preset"
         return 1
