@@ -8,6 +8,14 @@ function yabai-preset
     case "focus-window"
         set direction $argv[1]
         set -e argv[1]
+
+        switch "$direction"
+            case next prev
+                yabai-preset focus-window-in-stack $direction
+                or yabai-preset focus-window-in-space $direction
+                return $status
+        end
+
         set winid (yabai -m query --windows --space | jq --arg dir "$direction" '
         def hidden($under; $above):
         ($under.x >= $above.x

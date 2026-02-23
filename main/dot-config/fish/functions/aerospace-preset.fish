@@ -168,8 +168,9 @@ function aerospace-preset
                     | sort_by([.frame.x, .frame.y, .id])
                     | (map(.id) | index($focused)) as $pos
                     | if $pos == null then first.id
-                      else ({first: 0, last: (length - 1), prev: (($pos - 1 + length) % length), next: (($pos + 1) % length)}[$dir]) as $target
-                      | .[$target].id
+                      else ({first: 0, last: (length - 1), prev: ($pos - 1), next: ($pos + 1)}[$dir]) as $target
+                      | if $target < 0 or $target >= length then null
+                        else .[$target].id end
                       end')
             case east west north south
                 set window_id (yabai -m query --windows | jq -er \
@@ -199,7 +200,7 @@ function aerospace-preset
                 return 1
         end
 
-        if test -n "$window_id"
+        if test "$status" = 0 -a -n "$window_id"
             aerospace focus --window-id $window_id
         else
             return 1
@@ -237,11 +238,13 @@ function aerospace-preset
         set -e argv[1]
 
         switch "$direction"
-            case next
-                aerospace focus --boundaries-action wrap-around-the-workspace dfs-next
-            case prev
-                aerospace focus --boundaries-action wrap-around-the-workspace dfs-prev
+        case next
+            aerospace focus --boundaries-action fail --ignore-floating dfs-next
+        case prev
+            aerospace focus --boundaries-action fail --ignore-floating dfs-prev
         end
+        return "$status"
+
     case "move-window-in-stack"
         set direction $argv[1]
         set -e argv[1]

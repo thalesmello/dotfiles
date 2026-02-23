@@ -94,15 +94,15 @@ ctrl + alt + cmd - t : btt-preset trigger-named-trigger "Chrome: New Tab and Foc
 ctrl + alt + cmd - 0x21 : wm-preset focus-space prev # Open square bracket [
 ctrl + alt + cmd - 0x1E : wm-preset focus-space next # Close square bracket ]
 
-ctrl + alt + cmd - h : wm-preset focus-window west
-ctrl + alt + cmd - j : wm-preset focus-window south
-ctrl + alt + cmd - k : wm-preset focus-window north
-ctrl + alt + cmd - l : wm-preset focus-window east
+ctrl + alt + cmd - h : wm-preset focus-window west || wm-preset focus-floating-window west
+ctrl + alt + cmd - j : wm-preset focus-window south || wm-preset focus-floating-window south
+ctrl + alt + cmd - k : wm-preset focus-window north || wm-preset focus-floating-window north
+ctrl + alt + cmd - l : wm-preset focus-window east || wm-preset focus-floating-window east
 
-ctrl + alt + cmd + shift - h : wm-preset swap-window west
-ctrl + alt + cmd + shift - j : wm-preset swap-window south
-ctrl + alt + cmd + shift - k : wm-preset swap-window north
-ctrl + alt + cmd + shift - l : wm-preset swap-window east
+ctrl + alt + cmd + shift - h : wm-preset swap-window west || wm-preset focus-floating-window west
+ctrl + alt + cmd + shift - j : wm-preset swap-window south || wm-preset focus-floating-window south
+ctrl + alt + cmd + shift - k : wm-preset swap-window north || wm-preset focus-floating-window north
+ctrl + alt + cmd + shift - l : wm-preset swap-window east || wm-preset focus-floating-window east
 
 ctrl + alt + cmd - 0x1B : wm-preset resize smart -100 # minus
 ctrl + alt + cmd - 0x18 : wm-preset resize smart +100 # equals
@@ -123,8 +123,8 @@ service < a : skhd -k "escape"; yabai-harpoon add
 service < backspace : skhd -k "escape"; yabai-harpoon delete
 service < e : skhd -k "escape"; yabai-harpoon edit
 
-ctrl + alt + cmd - n :   wm-preset focus-window-in-stack next || wm-preset focus-window-in-space next
-ctrl + alt + cmd - p :   wm-preset focus-window-in-stack prev || wm-preset focus-window-in-space prev
+ctrl + alt + cmd - n :   wm-preset focus-window next || wm-preset focus-floating-window next
+ctrl + alt + cmd - p :   wm-preset focus-window prev || wm-preset focus-floating-window prev
 ctrl + alt + cmd + shift - n : wm-preset move-window-in-stack next
 ctrl + alt + cmd + shift - p : wm-preset move-window-in-stack prev
 
