@@ -122,6 +122,7 @@ ctrl + alt + cmd + shift - 0x18 : skhd -k "escape"; yabai-harpoon add # equals
 service < a : skhd -k "escape"; yabai-harpoon add
 service < backspace : skhd -k "escape"; yabai-harpoon delete
 service < e : skhd -k "escape"; yabai-harpoon edit
+service < shift - 0x29 : skhd -k "escape"; yabai-preset side-by-side # colon (shift+semicolon)
 
 ctrl + alt + cmd - n :   wm-preset focus-window next || wm-preset focus-floating-window next
 ctrl + alt + cmd - p :   wm-preset focus-window prev || wm-preset focus-floating-window prev

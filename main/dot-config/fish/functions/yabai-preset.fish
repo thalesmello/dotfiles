@@ -696,6 +696,29 @@ function yabai-preset
         set deg $argv[1]
         set -e argv[1]
         yabai -m space --rotate $deg
+    case "get-recent-window-id"
+        yabai -m query --windows --space | jq -er '
+            first(.[] | select(."is-visible" and (."is-sticky"|not) and (."has-focus"|not)))
+            | .id'
+        or return 1
+    case "focus-recent"
+        set recent (yabai-preset get-recent-window-id)
+        or return 1
+        yabai -m window --focus "$recent"
+    case "side-by-side"
+        set focused (yabai -m query --windows --window | jq -r '.id')
+
+        # Make focused window floating if not already, then snap left
+        wm-preset is-window-floating; or wm-preset toggle-float
+        yabai-preset snap west
+
+        # Switch to recent window, make floating if not already, then snap right
+        yabai-preset focus-recent
+        wm-preset is-window-floating; or wm-preset toggle-float
+        yabai-preset snap east
+
+        # Focus back to original window
+        yabai -m window --focus "$focused"
     case "snap"
         set direction $argv[1]
         set -e argv[1]
