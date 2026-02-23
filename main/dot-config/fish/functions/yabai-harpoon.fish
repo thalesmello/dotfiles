@@ -1,5 +1,29 @@
 set FILE "$HOME/.yabai-harpoon.json"
 
+function __harpoon_get_focused_window
+    if pgrep -xq AeroSpace
+        aerospace list-windows --focused --json | jq 'first(.[] | {id: ."window-id", app: ."app-name", title: ."window-title", "has-focus": true})'
+    else
+        yabai -m query --windows --space | jq 'first(.[] | select(."has-focus"))'
+    end | string collect
+end
+
+function __harpoon_focus_window_id
+    if pgrep -xq AeroSpace
+        aerospace focus --window-id $argv[1]
+    else
+        yabai -m window --focus $argv[1]
+    end
+end
+
+function __harpoon_get_all_windows
+    if pgrep -xq AeroSpace
+        aerospace list-windows --all --json | jq '[.[] | {id: ."window-id", app: ."app-name", title: ."window-title"}]'
+    else
+        yabai -m query --windows
+    end | string collect
+end
+
 function yabai-harpoon
     set mode $argv[1]
     set -e argv[1]
@@ -100,7 +124,7 @@ function yabai-harpoon
             and chrome-preset focus-or-open-url "$(jq -nr --argjson json "$json" '$json.uuid')"
             or set has_failed 1
         else if jq -en --arg type "$type" '$type == "window"' >/dev/null
-            yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
+            __harpoon_focus_window_id "$(jq -nr --argjson json "$json" '$json.window_id')"
             or set has_failed 1
         else
             set type unkown_pin
@@ -111,7 +135,7 @@ function yabai-harpoon
             return 1
         end
     case "get-focused-pin-json"
-        set window (yabai -m query --windows --space | jq  'first(.[] | select(."has-focus"))' | string collect)
+        set window (__harpoon_get_focused_window)
         set window_id (jq -nr --argjson window "$window" '$window.id')
 
         if jq -en --argjson window "$window" '$window.app == "Google Chrome"' >/dev/null
@@ -136,14 +160,14 @@ function yabai-harpoon
     case "write-pins-to-file"
         jq -s '{ pins: [. | to_entries | unique_by(.value.uuid) | sort_by(.key) | .[] | .value] }' > "$FILE"
     case "normalize-pins"
-        set yabai_wins (yabai -m query --windows | string collect)
+        set wm_wins (__harpoon_get_all_windows)
         set chrome_tabs (env OUTPUT_FORMAT=json chrome-cli list tabs | string collect)
 
-        jq -c --argjson "yabai_wins" "$yabai_wins" --argjson "chrome_tabs" "$chrome_tabs" '
-            ($yabai_wins | map({({window: .id} | @base64): {title}}) | add) as $yabai_registry
+        jq -c --argjson "wm_wins" "$wm_wins" --argjson "chrome_tabs" "$chrome_tabs" '
+            ($wm_wins | map({({window: .id} | @base64): {title}}) | add) as $wm_registry
             | ($chrome_tabs | .tabs | map({({chrome_tab: .id} | @base64): {title, tab_window_id: .windowId, url}}) | add) as $chrome_registry
             | ($chrome_tabs | .tabs | map({(.url): {title, tab_window_id: .windowId, tab_id: .id, uuid: ({chrome_tab: .id} | @base64), url: .url, type: "chrome_tab"}}) | add) as $chrome_urls
-            | $yabai_registry + $chrome_registry as $registry
+            | $wm_registry + $chrome_registry as $registry
             | if .type == "chrome_tab" or .type == "window" then try (. + ($registry[.uuid] // $chrome_urls[.url]? // error(.)))
                 catch try (
                         if .type == "chrome_tab" then

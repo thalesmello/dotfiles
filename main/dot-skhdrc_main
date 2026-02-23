@@ -78,11 +78,11 @@
 
 
 ctrl + alt + cmd + shift - 0x29 : skhd-preset search-and-execute-command # semicolon
-ctrl + alt + cmd + shift - m : yabai-preset deminimize-last
-ctrl + alt + cmd - m : yabai-preset minimize
-ctrl + alt + cmd - return : yabai-preset smart-toggle-fullscreen
+ctrl + alt + cmd + shift - m : wm-preset deminimize-last
+ctrl + alt + cmd - m : wm-preset minimize
+ctrl + alt + cmd - return : wm-preset smart-toggle-fullscreen
 
-ctrl + alt + cmd + shift - return : yabai-preset unstacked-swap-largest
+ctrl + alt + cmd + shift - return : wm-preset unstacked-swap-largest
 
 service < ctrl + alt + cmd - v : skhd -k "escape"; btt-preset send-keys cmd c; and pbneovide --guess
 ctrl + alt + cmd - v : btt-preset alternate-app "Neovide" --hide --cmd "neovim-ghost trigger"
@@ -91,23 +91,21 @@ ctrl + alt + cmd - v : btt-preset alternate-app "Neovide" --hide --cmd "neovim-g
 # ctrl + alt + cmd - t : btt-preset trigger-named-trigger "Chrome: Open New Tab (with selection is One Line)"
 ctrl + alt + cmd - t : btt-preset trigger-named-trigger "Chrome: New Tab and Focus"
 
-ctrl + alt + cmd - 0x21 : yabai-preset focus-space prev # Open square bracket [
-ctrl + alt + cmd - 0x1E : yabai-preset focus-space next # Clsoe square bracket ]
+ctrl + alt + cmd - 0x21 : wm-preset focus-space prev # Open square bracket [
+ctrl + alt + cmd - 0x1E : wm-preset focus-space next # Close square bracket ]
 
-ctrl + alt + cmd - h : yabai -m window --focus west || yabai-preset focus-window west
-ctrl + alt + cmd - j : yabai -m window --focus south || yabai-preset focus-window south
-ctrl + alt + cmd - k : yabai -m window --focus north || yabai-preset focus-window north
-ctrl + alt + cmd - l : yabai -m window --focus east || yabai-preset focus-window east
+ctrl + alt + cmd - h : wm-preset focus-window west
+ctrl + alt + cmd - j : wm-preset focus-window south
+ctrl + alt + cmd - k : wm-preset focus-window north
+ctrl + alt + cmd - l : wm-preset focus-window east
 
-ctrl + alt + cmd + shift - h : yabai -m window --swap west || skhd -k "ctrl + alt + cmd - left"
-ctrl + alt + cmd + shift - j : yabai -m window --swap south || skhd -k "ctrl + alt + cmd - down"
-ctrl + alt + cmd + shift - k : yabai -m window --swap north || skhd -k "ctrl + alt + cmd - up"
-ctrl + alt + cmd + shift - l : yabai -m window --swap east || skhd -k "ctrl + alt + cmd - right"
+ctrl + alt + cmd + shift - h : wm-preset swap-window west
+ctrl + alt + cmd + shift - j : wm-preset swap-window south
+ctrl + alt + cmd + shift - k : wm-preset swap-window north
+ctrl + alt + cmd + shift - l : wm-preset swap-window east
 
-ctrl + alt + cmd - 0x1B : yabai -m window --resize bottom_right:-100:0 # minus
-# ctrl + alt + cmd + shift - 0x1B : yabai -m window --resize bottom_right:0:-100 # minus
-ctrl + alt + cmd - 0x18 : yabai -m window --resize bottom_right:100:0 # equals
-# ctrl + alt + cmd + shift - 0x18 : yabai -m window --resize bottom_right:0:100 # equals
+ctrl + alt + cmd - 0x1B : wm-preset resize smart -100 # minus
+ctrl + alt + cmd - 0x18 : wm-preset resize smart +100 # equals
 
 ctrl + alt + cmd - 1 : yabai-harpoon focus 1
 ctrl + alt + cmd - 2 : yabai-harpoon focus 2
@@ -125,22 +123,22 @@ service < a : skhd -k "escape"; yabai-harpoon add
 service < backspace : skhd -k "escape"; yabai-harpoon delete
 service < e : skhd -k "escape"; yabai-harpoon edit
 
-ctrl + alt + cmd - n :   yabai-preset focus-window-in-stack next || yabai-preset focus-window-in-space next
-ctrl + alt + cmd - p :   yabai-preset focus-window-in-stack prev || yabai-preset focus-window-in-space prev
-ctrl + alt + cmd + shift - n : yabai-preset move-window-in-stack next
-ctrl + alt + cmd + shift - p : yabai-preset move-window-in-stack prev
+ctrl + alt + cmd - n :   wm-preset focus-window-in-stack next || wm-preset focus-window-in-space next
+ctrl + alt + cmd - p :   wm-preset focus-window-in-stack prev || wm-preset focus-window-in-space prev
+ctrl + alt + cmd + shift - n : wm-preset move-window-in-stack next
+ctrl + alt + cmd + shift - p : wm-preset move-window-in-stack prev
 
 resize < return ; default
-resize < j : yabai -m window --resize bottom_right:0:100
-resize < k : yabai -m window --resize bottom_right:0:-100
-resize < h : yabai -m window --resize bottom_right:-100:0
-resize < l : yabai -m window --resize bottom_right:100:0
-resize < shift - j : yabai -m window --resize top_left:0:100
-resize < shift - k : yabai -m window --resize top_left:0:-100
-resize < shift - h : yabai -m window --resize top_left:-100:0
-resize < shift - l : yabai -m window --resize top_left:100:0
-resize < shift - 0x2B : yabai -m space --rotate 90 # comma
-resize < shift - 0x2F : yabai -m space --rotate 270 # period
+resize < j : wm-preset resize height +100
+resize < k : wm-preset resize height -100
+resize < h : wm-preset resize width -100
+resize < l : wm-preset resize width +100
+resize < shift - j : wm-preset resize height +100
+resize < shift - k : wm-preset resize height -100
+resize < shift - h : wm-preset resize width -100
+resize < shift - l : wm-preset resize width +100
+resize < shift - 0x2B : wm-preset rotate 90 # comma
+resize < shift - 0x2F : wm-preset rotate 270 # period
 
 
 
@@ -159,73 +157,69 @@ service < ctrl + alt + cmd - e : skhd -k "escape"; if pgrep -q -F "$TMPDIR/nvim_
     end;
 
 # Service mode bindings
-service < ctrl + alt + cmd - space : skhd -k "escape"; yabai-preset focus-space recent
-service < space : skhd -k "escape"; yabai -m window --focus recent || yabai-preset focus-space recent
-service < shift - space : skhd -k "escape"; yabai-preset move-window-to-space recent
+service < ctrl + alt + cmd - space : skhd -k "escape"; wm-preset focus-space recent
+service < space : skhd -k "escape"; wm-preset focus-back-and-forth
+service < shift - space : skhd -k "escape"; wm-preset move-window-to-space recent
 service < r ; resize
 service < ctrl + alt + cmd - r ; restart
-restart < ctrl + alt + cmd - y : skhd -k "escape"; yabai --stop-service && yabai --start-service && display-message "Yabai Restarted" || begin; yabai --start-service && display-message "Yabai Started"; end
+restart < ctrl + alt + cmd - y : skhd -k "escape"; wm-preset restart-wm
 restart < ctrl + alt + cmd - b : skhd -k "escape";  display-message "Restart BTT" && btt-preset restart-btt
 restart < ctrl + alt + cmd - a : skhd -k "escape";  display-message "Restart Alfred" && killall Alfred; sleep 2 && open -a "Alfred 5"
 restart < ctrl + alt + cmd - m : skhd -k "escape";  display-message "Restart Mouseless" && killall mouseless; sleep 2 && open -a "Mouseless"
 restart < ctrl + alt + cmd - v : skhd -k "escape";  display-message "Restart NVIM Ghost" && neovim-ghost kill; sleep 2 && neovim-ghost start
 restart < ctrl + alt + cmd - k : skhd -k "escape";  display-message "Restart Karabiner" && launchctl kickstart -k gui/$(id -u)/org.pqrs.service.agent.karabiner_console_user_server
-service < shift - y : skhd -k "escape"; yabai-preset toggle-yabai
-service < v : skhd -k "escape"; yabai -m window --insert east
-service < shift - 0x27 : skhd -k "escape"; yabai -m window --insert south # double quotes
+service < shift - y : skhd -k "escape"; wm-preset toggle-wm
+service < v : skhd -k "escape"; wm-preset insert-direction east
+service < shift - 0x27 : skhd -k "escape"; wm-preset insert-direction south # double quotes
 # Temporaily disable window restore to debug later
-# service < t : skhd -k "escape"; yabai -m window --toggle float; yabai-preset is-window-floating && yabai-preset restore-window-position
-service < t : skhd -k "escape"; yabai -m window --toggle float; yabai-preset is-window-floating && yabai -m window --grid "8:8:1:1:6:6"
+# service < t : skhd -k "escape"; wm-preset toggle-float
+service < t : skhd -k "escape"; wm-preset toggle-float
 
-service < z : skhd -k "escape"; yabai -m window --insert stack # comma
-service < s : skhd -k "escape"; yabai -m window --insert stack
-service < shift - s : skhd -k "escape"; yabai-preset stack-windows-in-space
-service < m : skhd -k "escape"; yabai-preset toggle-monocle-mode
-service < shift - m : skhd -k "escape"; yabai-preset deminimize-all
-service < 0x2B : skhd -k "escape"; yabai -m space --layout stack; display-message "Layout stack" # Comma
-service < shift - 0x2B : skhd -k "escape"; yabai -m space --layout bsp; yabai-preset stack-windows-in-space;# Comma
-service < 0x2F : skhd -k "escape"; yabai -m space --layout bsp; yabai-preset minimize-after-nth-window 3 # Period
-service < shift - t : skhd -k "escape"; yabai -m space --layout float; display-message "Layout float" # Comma
-service < shift - 0x2F : skhd -k "escape"; yabai -m space --layout bsp; display-message "Laybout bsp"
-service < 0 : skhd -k "escape"; yabai -m space --layout float; display-message "Laybout float"
-# Temporaily disable window restore to debug later
-#; yabai -m query --windows --space | jq -r ".[] | .id" | while read --line winid; yabai-preset restore-window-position "$winid"; end
+service < z : skhd -k "escape"; wm-preset insert-direction stack # comma
+service < s : skhd -k "escape"; wm-preset insert-direction stack
+service < shift - s : skhd -k "escape"; wm-preset stack-windows-in-space
+service < m : skhd -k "escape"; wm-preset toggle-monocle-mode
+service < shift - m : skhd -k "escape"; wm-preset deminimize-all
+service < 0x2B : skhd -k "escape"; wm-preset layout-stack # Comma
+service < shift - 0x2B : skhd -k "escape"; wm-preset layout-bsp; wm-preset stack-windows-in-space # Comma
+service < 0x2F : skhd -k "escape"; wm-preset layout-bsp; wm-preset minimize-after-nth-window 3 # Period
+service < shift - t : skhd -k "escape"; wm-preset layout-float
+service < shift - 0x2F : skhd -k "escape"; wm-preset layout-bsp
+service < 0 : skhd -k "escape"; wm-preset layout-float
 
-service < shift - 0x2A : skhd -k "escape"; yabai -m space --mirror y-axis # Pipe |
-service < 0x1B : skhd -k "escape"; yabai -m space --mirror x-axis # minus
-service < shift - 5 : skhd -k "escape"; yabai -m space --mirror x-axis --mirror y-axis # percent
-service < shift - 0x2B : skhd -k "escape"; yabai -m space --rotate 90 # Comma
-service < shift - 0x2F : skhd -k "escape"; yabai -m space --rotate 270 # Period
-service < y : skhd -k "escape"; yabai -m window --toggle split
-service < 0x18 : skhd -k "escape"; yabai -m space --balance # equals
+service < shift - 0x2A : skhd -k "escape"; wm-preset mirror y-axis # Pipe |
+service < 0x1B : skhd -k "escape"; wm-preset mirror x-axis # minus
+service < shift - 5 : skhd -k "escape"; wm-preset mirror x-axis; wm-preset mirror y-axis # percent
+service < y : skhd -k "escape"; wm-preset toggle-split
+service < 0x18 : skhd -k "escape"; wm-preset balance # equals
 # move window to space with number
-service < 1 : skhd -k "escape"; yabai-preset focus-space 1
-service < 2 : skhd -k "escape"; yabai-preset focus-space 2
-service < 3 : skhd -k "escape"; yabai-preset focus-space 3
-service < 4 : skhd -k "escape"; yabai-preset focus-space 4
-service < 5 : skhd -k "escape"; yabai-preset focus-space 5
-service < 6 : skhd -k "escape"; yabai-preset focus-space 6
-service < 7 : skhd -k "escape"; yabai-preset focus-space 7
-service < 8 : skhd -k "escape"; yabai-preset focus-space 8
-service < 9 : skhd -k "escape"; yabai-preset focus-space 9
-service < shift - 1 : skhd -k "escape"; yabai-preset move-window-to-space 1
-service < shift - 2 : skhd -k "escape"; yabai-preset move-window-to-space 2
-service < shift - 3 : skhd -k "escape"; yabai-preset move-window-to-space 3
-service < shift - 4 : skhd -k "escape"; yabai-preset move-window-to-space 4
-service < shift - 5 : skhd -k "escape"; yabai-preset move-window-to-space 5
-service < shift - 6 : skhd -k "escape"; yabai-preset move-window-to-space 6
-service < shift - 7 : skhd -k "escape"; yabai-preset move-window-to-space 7
-service < shift - 8 : skhd -k "escape"; yabai-preset move-window-to-space 8
-service < shift - 9 : skhd -k "escape"; yabai-preset move-window-to-space 9
-service < ctrl + alt + cmd - h : skhd -k "escape"; yabai -m window --warp west || yabai-preset unstack-window west
-service < ctrl + alt + cmd - j : skhd -k "escape"; yabai -m window --warp south || yabai-preset unstack-window south
-service < ctrl + alt + cmd - k : skhd -k "escape"; yabai -m window --warp north || yabai-preset unstack-window north
-service < ctrl + alt + cmd - l : skhd -k "escape"; yabai -m window --warp east || yabai-preset unstack-window east
-service < h : skhd -k "escape"; yabai-preset focus-display-with-fallback west
-service < j : skhd -k "escape"; yabai-preset focus-display-with-fallback south
-service < k : skhd -k "escape"; yabai-preset focus-display-with-fallback north
-service < l : skhd -k "escape"; yabai-preset focus-display-with-fallback east
-service < tab : skhd -k "escape"; yabai-preset smart-move-window-to-next-display
+service < 1 : skhd -k "escape"; wm-preset focus-space 1
+service < 2 : skhd -k "escape"; wm-preset focus-space 2
+service < 3 : skhd -k "escape"; wm-preset focus-space 3
+service < 4 : skhd -k "escape"; wm-preset focus-space 4
+service < 5 : skhd -k "escape"; wm-preset focus-space 5
+service < 6 : skhd -k "escape"; wm-preset focus-space 6
+service < 7 : skhd -k "escape"; wm-preset focus-space 7
+service < 8 : skhd -k "escape"; wm-preset focus-space 8
+service < 9 : skhd -k "escape"; wm-preset focus-space 9
+service < shift - 1 : skhd -k "escape"; wm-preset move-window-to-space 1
+service < shift - 2 : skhd -k "escape"; wm-preset move-window-to-space 2
+service < shift - 3 : skhd -k "escape"; wm-preset move-window-to-space 3
+service < shift - 4 : skhd -k "escape"; wm-preset move-window-to-space 4
+service < shift - 5 : skhd -k "escape"; wm-preset move-window-to-space 5
+service < shift - 6 : skhd -k "escape"; wm-preset move-window-to-space 6
+service < shift - 7 : skhd -k "escape"; wm-preset move-window-to-space 7
+service < shift - 8 : skhd -k "escape"; wm-preset move-window-to-space 8
+service < shift - 9 : skhd -k "escape"; wm-preset move-window-to-space 9
+service < ctrl + alt + cmd - h : skhd -k "escape"; wm-preset warp-window west
+service < ctrl + alt + cmd - j : skhd -k "escape"; wm-preset warp-window south
+service < ctrl + alt + cmd - k : skhd -k "escape"; wm-preset warp-window north
+service < ctrl + alt + cmd - l : skhd -k "escape"; wm-preset warp-window east
+service < h : skhd -k "escape"; wm-preset focus-display-with-fallback west
+service < j : skhd -k "escape"; wm-preset focus-display-with-fallback south
+service < k : skhd -k "escape"; wm-preset focus-display-with-fallback north
+service < l : skhd -k "escape"; wm-preset focus-display-with-fallback east
+service < tab : skhd -k "escape"; wm-preset smart-move-window-to-next-display
 service < shift - 0x2C : skhd -k "escape"; btt-preset trigger-menu-bar 'Help' # slash / question mark
 service < ctrl + alt + cmd - 0x2C : skhd -k "escape"; skhd-preset search-and-display-mapping # slash / question mark
 
@@ -238,13 +232,13 @@ service < ctrl + alt + cmd - return : skhd -k "escape" ; btt-preset send-keys ct
 # I'm keeping this commented in case it's useful in the future
 # Invoke mode bindings
 ctrl + alt + cmd - i ; invoke
-invoke < 1 : skhd -k "escape"; yabai-preset arrange-spaces \
+invoke < 1 : skhd -k "escape"; wm-preset arrange-spaces \
     -w "1:.*Thales \\(Work\\).*" \
     -a "2:iTerm2" \
     -a "3:.*VS Code.*" \
     -a "4:Workchat" \
     -a "5:Obsidian"
-invoke < p : skhd -k "escape"; yabai-preset arrange-spaces \
+invoke < p : skhd -k "escape"; wm-preset arrange-spaces \
     -w "7:.*Thales \\(Personal\\).*"
 invoke < b : skhd -k "escape"; osascript -e 'tell application "Alfred" to search "btt "'
 invoke < t : skhd -k "escape"; osascript -e 'tell application "Alfred" to search "top "'

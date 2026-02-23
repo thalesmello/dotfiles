@@ -600,6 +600,73 @@ function yabai-preset
 
         yabai -m query --windows | jq -e --argjson windowid "$windowid" 'first(.[] | select(.id == $windowid))'
         return $status
+    case "swap-window"
+        set direction $argv[1]
+        set -e argv[1]
+        yabai -m window --swap $direction
+    case "warp-window"
+        set direction $argv[1]
+        set -e argv[1]
+        yabai -m window --warp $direction; or yabai-preset unstack-window $direction
+    case "toggle-float"
+        yabai -m window --toggle float
+        if yabai-preset is-window-floating
+            yabai -m window --grid "8:8:1:1:6:6"
+        end
+    case "toggle-split"
+        yabai -m window --toggle split
+    case "balance"
+        yabai -m space --balance
+    case "resize"
+        # Translate aerospace-style resize args to yabai
+        # e.g. "resize smart +100" or "resize width +100"
+        set resize_type $argv[1]
+        set -e argv[1]
+        set amount $argv[1]
+        set -e argv[1]
+
+        switch "$resize_type"
+            case smart width
+                yabai -m window --resize bottom_right:$amount:0
+            case height
+                yabai -m window --resize bottom_right:0:$amount
+        end
+    case "focus-back-and-forth"
+        yabai -m window --focus recent
+    case "restart-wm"
+        yabai --stop-service && yabai --start-service
+        and display-message "Yabai Restarted"
+        or begin
+            yabai --start-service
+            and display-message "Yabai Started"
+        end
+    case "toggle-wm"
+        yabai-preset toggle-yabai
+    case "print-wm-widget"
+        yabai-preset print-yabai-widget
+    case "layout-stack"
+        yabai -m space --layout stack
+        display-message "Layout stack"
+    case "layout-bsp"
+        yabai -m space --layout bsp
+        display-message "Layout bsp"
+    case "layout-float"
+        yabai -m space --layout float
+        display-message "Layout float"
+    case "flatten"
+        display-message "Not supported in yabai"
+    case "insert-direction"
+        set direction $argv[1]
+        set -e argv[1]
+        yabai -m window --insert $direction
+    case "mirror"
+        set axis $argv[1]
+        set -e argv[1]
+        yabai -m space --mirror $axis
+    case "rotate"
+        set deg $argv[1]
+        set -e argv[1]
+        yabai -m space --rotate $deg
     case "*"
         echo "command not found - $preset"
         return 1
