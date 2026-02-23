@@ -99,10 +99,10 @@ ctrl + alt + cmd - j : wm-preset focus-window south || wm-preset focus-floating-
 ctrl + alt + cmd - k : wm-preset focus-window north || wm-preset focus-floating-window north
 ctrl + alt + cmd - l : wm-preset focus-window east || wm-preset focus-floating-window east
 
-ctrl + alt + cmd + shift - h : if wm-preset is-window-floating; yabai-preset snap-half west; else; wm-preset swap-window west; end
-ctrl + alt + cmd + shift - j : if wm-preset is-window-floating; yabai-preset snap-half south; else; wm-preset swap-window south; end
-ctrl + alt + cmd + shift - k : if wm-preset is-window-floating; yabai-preset snap-half north; else; wm-preset swap-window north; end
-ctrl + alt + cmd + shift - l : if wm-preset is-window-floating; yabai-preset snap-half east; else; wm-preset swap-window east; end
+ctrl + alt + cmd + shift - h : if wm-preset is-window-floating; yabai-preset snap west; else; wm-preset swap-window west; end
+ctrl + alt + cmd + shift - j : if wm-preset is-window-floating; yabai-preset snap south; else; wm-preset swap-window south; end
+ctrl + alt + cmd + shift - k : if wm-preset is-window-floating; yabai-preset snap north; else; wm-preset swap-window north; end
+ctrl + alt + cmd + shift - l : if wm-preset is-window-floating; yabai-preset snap east; else; wm-preset swap-window east; end
 
 ctrl + alt + cmd - 0x1B : wm-preset resize smart -100 # minus
 ctrl + alt + cmd - 0x18 : wm-preset resize smart +100 # equals

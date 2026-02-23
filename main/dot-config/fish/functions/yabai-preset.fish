@@ -696,19 +696,62 @@ function yabai-preset
         set deg $argv[1]
         set -e argv[1]
         yabai -m space --rotate $deg
-    case "snap-half"
+    case "snap"
         set direction $argv[1]
         set -e argv[1]
 
-        switch "$direction"
-            case west
+        set grid (begin
+            yabai -m query --windows --window
+            yabai -m query --displays --display
+        end | jq -rs --arg dir "$direction" '
+            .[0].frame as $win | .[1].frame as $dsp |
+            # Check if window is already on the requested side
+            def on_side:
+                if $dir == "west" then ($win.x - $dsp.x) < ($dsp.w * 0.05)
+                elif $dir == "east" then (($dsp.x + $dsp.w) - ($win.x + $win.w)) < ($dsp.w * 0.05)
+                elif $dir == "north" then ($win.y - $dsp.y) < ($dsp.h * 0.05)
+                elif $dir == "south" then (($dsp.y + $dsp.h) - ($win.y + $win.h)) < ($dsp.h * 0.05)
+                else false end;
+            if on_side | not then "half"
+            elif $dir == "west" or $dir == "east" then
+                ($win.w / $dsp.w) as $ratio |
+                if ($ratio - 0.5 | fabs) < 0.05 then "two_thirds"
+                elif ($ratio - 0.6667 | fabs) < 0.05 then "one_third"
+                else "half"
+                end
+            else
+                ($win.h / $dsp.h) as $ratio |
+                if ($ratio - 0.5 | fabs) < 0.05 then "two_thirds"
+                elif ($ratio - 0.6667 | fabs) < 0.05 then "one_third"
+                else "half"
+                end
+            end')
+
+        switch "$direction:$grid"
+            case "west:half"
                 yabai -m window --grid 1:2:0:0:1:1
-            case east
+            case "west:two_thirds"
+                yabai -m window --grid 1:3:0:0:2:1
+            case "west:one_third"
+                yabai -m window --grid 1:3:0:0:1:1
+            case "east:half"
                 yabai -m window --grid 1:2:1:0:1:1
-            case north
+            case "east:two_thirds"
+                yabai -m window --grid 1:3:1:0:2:1
+            case "east:one_third"
+                yabai -m window --grid 1:3:2:0:1:1
+            case "north:half"
                 yabai -m window --grid 2:1:0:0:1:1
-            case south
+            case "north:two_thirds"
+                yabai -m window --grid 3:1:0:0:1:2
+            case "north:one_third"
+                yabai -m window --grid 3:1:0:0:1:1
+            case "south:half"
                 yabai -m window --grid 2:1:0:1:1:1
+            case "south:two_thirds"
+                yabai -m window --grid 3:1:0:1:1:2
+            case "south:one_third"
+                yabai -m window --grid 3:1:0:2:1:1
             case '*'
                 echo "Invalid argument: $direction" >&2
                 return 1
