@@ -179,7 +179,7 @@ service < t : skhd -k "escape"; wm-preset toggle-float
 service < z : skhd -k "escape"; wm-preset insert-direction stack # comma
 service < s : skhd -k "escape"; wm-preset insert-direction stack
 service < shift - s : skhd -k "escape"; wm-preset stack-windows-in-space
-service < m : skhd -k "escape"; wm-preset toggle-monocle-mode
+service < m : skhd -k "escape"; wm-preset minimize-after-nth-window 3 # Period
 service < shift - m : skhd -k "escape"; wm-preset deminimize-all
 service < 0x2B : skhd -k "escape"; wm-preset layout-stack # Comma
 service < shift - 0x2B : skhd -k "escape"; wm-preset layout-bsp; wm-preset stack-windows-in-space # Comma

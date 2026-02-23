@@ -205,9 +205,9 @@ function aerospace-preset
     case "minimize"
         aerospace macos-native-minimize
     case "deminimize-last"
-        display-message "Not supported in AeroSpace"
+        yabai-preset deminimize-last
     case "deminimize-all"
-        display-message "Not supported in AeroSpace"
+        yabai-preset deminimize-all
     case "unstack-window"
         aerospace flatten-workspace-tree
     case "toggle-window-zoom-or-fullscreen" "smart-toggle-fullscreen" "toggle-monocle-mode"
