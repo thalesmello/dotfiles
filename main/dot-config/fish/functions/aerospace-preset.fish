@@ -137,12 +137,6 @@ function aerospace-preset
         set workspace (aerospace list-workspaces --focused --format '%{workspace}')
         set arrange_args "--app=$workspace:"$_flag_app "--window=$workspace:"$_flag_window
         aerospace-preset arrange-workspaces --keep-windows $arrange_args
-    case "focus-window"
-        set direction $argv[1]
-        set -e argv[1]
-        set aero_dir (__wm_translate_direction $direction)
-        aerospace focus --boundaries-action fail --ignore-floating $aero_dir
-        or return 1
     case "focus-floating-window"
         set direction $argv[1]
         set -e argv[1]
@@ -233,15 +227,16 @@ function aerospace-preset
             case '*'
                 aerospace move-node-to-workspace --focus-follows-window $space
         end
-    case "focus-window-in-stack" "focus-window-in-space"
+    case "focus-window" "focus-window-in-stack" "focus-window-in-space"
         set direction $argv[1]
         set -e argv[1]
+        set aero_dir (__wm_translate_direction $direction)
 
         switch "$direction"
-        case next
-            aerospace focus --boundaries-action fail --ignore-floating dfs-next
-        case prev
-            aerospace focus --boundaries-action fail --ignore-floating dfs-prev
+        case next prev
+            aerospace focus --boundaries-action fail --ignore-floating "dfs-$direction"
+        case "*"
+            aerospace focus --boundaries-action fail --ignore-floating $aero_dir
         end
         return "$status"
 
