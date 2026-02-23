@@ -141,8 +141,7 @@ function aerospace-preset
         set direction $argv[1]
         set -e argv[1]
         set aero_dir (__wm_translate_direction $direction)
-        aerospace focus --boundaries all-monitors-outer-frame $aero_dir
-        aerospace move-mouse window-lazy-center
+        aerospace focus --boundaries all-monitors-outer-frame --ignore-floating $aero_dir
     case "focus-space"
         set space $argv[1]
         set -e argv[1]
@@ -171,26 +170,15 @@ function aerospace-preset
             case '*'
                 aerospace move-node-to-workspace --focus-follows-window $space
         end
-    case "focus-window-in-stack"
+    case "focus-window-in-stack" "focus-window-in-space"
         set direction $argv[1]
         set -e argv[1]
 
         switch "$direction"
             case next
-                aerospace focus --boundaries-action wrap-around-the-workspace --ignore-floating dfs-next
+                aerospace focus --boundaries-action wrap-around-the-workspace dfs-next
             case prev
-                aerospace focus --boundaries-action wrap-around-the-workspace --ignore-floating dfs-prev
-        end
-    case "focus-window-in-space"
-        set direction $argv[1]
-        set -e argv[1]
-
-        # Aerospace doesn't distinguish stack vs space; use same as focus-window-in-stack
-        switch "$direction"
-            case next
-                aerospace focus --boundaries-action wrap-around-the-workspace --ignore-floating dfs-next
-            case prev
-                aerospace focus --boundaries-action wrap-around-the-workspace --ignore-floating dfs-prev
+                aerospace focus --boundaries-action wrap-around-the-workspace dfs-prev
         end
     case "move-window-in-stack"
         set direction $argv[1]
@@ -318,14 +306,16 @@ function aerospace-preset
             display-message (count $excess_windows)" windows minimized"
         end
     case "layout-stack"
-        aerospace layout accordion
+        aerospace layout accordion horizontal vertical
     case "layout-bsp"
-        aerospace layout tiles
+        aerospace layout tiles horizontal vertical
     case "layout-float"
-        for window in (aerospace list-windows --workspace focused --format '%{window-id}')
-            aerospace layout --window-id $window floating
+        aerospace enable toggle
+        if aerospace list-workspaces --focused --format '%{workspace}' &>/dev/null
+            display-message "AeroSpace enabled"
+        else
+            display-message "AeroSpace disabled"
         end
-        display-message "Layout float"
     case "insert-direction"
         display-message "Not supported in AeroSpace"
     case "mirror"
@@ -336,7 +326,6 @@ function aerospace-preset
         echo "command not found - $preset" >&2
         return 1
     end
-end
 end
 
 function __aerospace_complete_workspace_app

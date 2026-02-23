@@ -168,6 +168,7 @@ restart < ctrl + alt + cmd - a : skhd -k "escape";  display-message "Restart Alf
 restart < ctrl + alt + cmd - m : skhd -k "escape";  display-message "Restart Mouseless" && killall mouseless; sleep 2 && open -a "Mouseless"
 restart < ctrl + alt + cmd - v : skhd -k "escape";  display-message "Restart NVIM Ghost" && neovim-ghost kill; sleep 2 && neovim-ghost start
 restart < ctrl + alt + cmd - k : skhd -k "escape";  display-message "Restart Karabiner" && launchctl kickstart -k gui/$(id -u)/org.pqrs.service.agent.karabiner_console_user_server
+restart < ctrl + alt + cmd - s : skhd -k "escape"; if pgrep -xq AeroSpace; display-message "Killing AeroSpace" && killall AeroSpace; else; yabai-preset layout-float-all; display-message "Starting AeroSpace" && open -a AeroSpace; end
 service < shift - y : skhd -k "escape"; wm-preset toggle-wm
 service < v : skhd -k "escape"; wm-preset insert-direction east
 service < shift - 0x27 : skhd -k "escape"; wm-preset insert-direction south # double quotes
@@ -182,10 +183,10 @@ service < m : skhd -k "escape"; wm-preset toggle-monocle-mode
 service < shift - m : skhd -k "escape"; wm-preset deminimize-all
 service < 0x2B : skhd -k "escape"; wm-preset layout-stack # Comma
 service < shift - 0x2B : skhd -k "escape"; wm-preset layout-bsp; wm-preset stack-windows-in-space # Comma
-service < 0x2F : skhd -k "escape"; wm-preset layout-bsp; wm-preset minimize-after-nth-window 3 # Period
+service < shift - 0x2F : skhd -k "escape"; wm-preset layout-bsp; wm-preset minimize-after-nth-window 3 # Period
 service < shift - t : skhd -k "escape"; wm-preset layout-float
-service < shift - 0x2F : skhd -k "escape"; wm-preset layout-bsp
-service < 0 : skhd -k "escape"; wm-preset layout-float
+service < 0x2F : skhd -k "escape"; wm-preset layout-bsp
+service < 0 : skhd -k "escape"; wm-preset flatten
 
 service < shift - 0x2A : skhd -k "escape"; wm-preset mirror y-axis # Pipe |
 service < 0x1B : skhd -k "escape"; wm-preset mirror x-axis # minus

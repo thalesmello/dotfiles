@@ -653,6 +653,11 @@ function yabai-preset
     case "layout-float"
         yabai -m space --layout float
         display-message "Layout float"
+    case "layout-float-all"
+        for space in (yabai -m query --spaces | jq -r '.[].index')
+            yabai -m space "$space" --layout float
+        end
+        display-message "Layout float (all spaces)"
     case "flatten"
         display-message "Not supported in yabai"
     case "insert-direction"
