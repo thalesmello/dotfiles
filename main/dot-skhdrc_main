@@ -291,7 +291,7 @@ goto < g : skhd -k "escape"; chrome-preset open-url --profile="Default" gmail.co
 ctrl + alt + cmd - b : btt-preset show-or-hide-app --only-show "/Applications/BetterTouchTool.app"
 ctrl + alt + cmd - c : btt-preset show-or-hide-app --only-show "/Applications/Cursor.app"
 
-ctrl + alt + cmd - x : btt-preset show-or-hide-app --only-show "/Applications/iTerm.app"; and iterm-preset is-floating-window-active; and skhd -k "cmd - 0x32"; and echo hi # backtick
+ctrl + alt + cmd - x : btt-preset show-or-hide-app --only-show "/Applications/iTerm.app"; and iterm-preset is-floating-window-active; and skhd -k "cmd - 0x32" # backtick
 ctrl + alt + cmd - q : chrome-preset focus-or-open-url "gemini.google.com" --label "Gemini"
 ctrl + alt + cmd - w : btt-preset show-or-hide-app --only-show "/Applications/WhatsApp.app"
 ctrl + alt + cmd - z : btt-preset show-or-hide-app --only-show "/Applications/Obsidian.app"
