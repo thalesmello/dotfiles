@@ -28,6 +28,23 @@ function aerospace-preset
         for window in $other_windows
             aerospace move-node-to-workspace --window-id $window $back_workspace
         end
+    case "move-all-windows-in-workspace"
+        argparse -i \
+            'from=!test -n "$_flag_value"' \
+            'to=!test -n "$_flag_value"' \
+            -- $argv
+
+        if test -z "$_flag_from" -a -z "$_flag_to"
+            echo "move-all-windows-in-workspace: at least one of --from or --to must be set" >&2
+            return 1
+        end
+
+        set from_workspace (test -n "$_flag_from"; and echo "$_flag_from"; or echo "$current_workspace")
+        set to_workspace (test -n "$_flag_to"; and echo "$_flag_to"; or echo "$current_workspace")
+
+        for window in (aerospace list-windows --workspace $from_workspace --format "%{window-id}")
+            aerospace move-node-to-workspace --window-id $window $to_workspace
+        end
     case "move-window"
         aerospace move-node-to-workspace $back_workspace
     case "minimize-other-windows"
@@ -411,7 +428,7 @@ end
 
 complete -c aerospace-preset -f
 complete -c aerospace-preset -n "__fish_is_nth_token 1" -f -d "Name of the preset to use" -a "
-    move-other-windows minimize-windows minimize-other-windows arrange-workspaces
+    move-other-windows move-all-windows-in-workspace minimize-windows minimize-other-windows arrange-workspaces
     move-to-previous-workspace move-all-but-two move-window summon
     focus-window focus-space move-window-to-space focus-window-in-stack
     focus-window-in-space move-window-in-stack focus-display-with-fallback
@@ -433,3 +450,5 @@ complete -c aerospace-preset -n "__fish_seen_subcommand_from summon" -x -s "w" -
 complete -c aerospace-preset -n "__fish_seen_subcommand_from summon" -f -l "move-others" -d "Move other windows to back workspace"
 complete -c aerospace-preset -n "__fish_seen_subcommand_from summon" -f -l "minimize-others" -d "Minimize other windows"
 complete -c aerospace-preset -n "__fish_seen_subcommand_from move-to-previous-workspace" -f -l "move-others" -d "Move other windows to back workspace"
+complete -c aerospace-preset -n "__fish_seen_subcommand_from move-all-windows-in-workspace" -x -l "from" -d "Source workspace" -a "(aerospace list-workspaces --all --format '%{workspace}%{tab}%{monitor-name}')"
+complete -c aerospace-preset -n "__fish_seen_subcommand_from move-all-windows-in-workspace" -x -l "to" -d "Destination workspace" -a "(aerospace list-workspaces --all --format '%{workspace}%{tab}%{monitor-name}')"
