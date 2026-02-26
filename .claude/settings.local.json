@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(aerospace list-windows:*)"
+      "Bash(aerospace list-windows:*)",
+      "Bash(col:*)"
     ]
   }
 }

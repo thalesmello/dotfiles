@@ -102,3 +102,5 @@ run = ['layout floating']
 if.app-name-regex-substring = 'superwhisper'
 run = ['layout floating']
 
+[workspace-to-monitor-force-assignment]
+9 = ['secondary']
