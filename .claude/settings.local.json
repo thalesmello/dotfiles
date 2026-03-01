@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(aerospace list-windows:*)",
-      "Bash(col:*)"
+      "Bash(col:*)",
+      "Bash(fish -c \"man autosuggestions\")"
     ]
   }
 }

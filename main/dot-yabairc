@@ -50,6 +50,7 @@ yabai -m config $configs
 
 yabai -m signal --add event=space_changed label=announce_space_change action="display-message \"Space \$YABAI_SPACE_INDEX\""
 yabai -m signal --add event=window_created label=stack_new_windows action="/opt/homebrew/bin/fish -c \"yabai-preset stack-new-window \$YABAI_WINDOW_ID\""
+yabai -m signal --add event=display_removed label=move_windows_from_secondary action="/opt/homebrew/bin/fish -c \"aerospace-preset move-all-windows-in-workspace --from 9\""
 
 yabai -m rule --add app="iTerm2" title='^floating-terminal$' manage=off
 yabai -m rule --add app="Activity Monitor" manage=off

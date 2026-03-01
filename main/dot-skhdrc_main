@@ -175,7 +175,7 @@ service < v : skhd -k "escape"; wm-preset insert-direction east
 service < shift - 0x27 : skhd -k "escape"; wm-preset insert-direction south # double quotes
 # Temporaily disable window restore to debug later
 # service < t : skhd -k "escape"; wm-preset toggle-float
-service < t : skhd -k "escape"; wm-preset toggle-float
+service < t : skhd -k "escape"; display-message (wm-preset toggle-float)
 
 service < z : skhd -k "escape"; wm-preset insert-direction stack # comma
 service < s : skhd -k "escape"; wm-preset insert-direction stack

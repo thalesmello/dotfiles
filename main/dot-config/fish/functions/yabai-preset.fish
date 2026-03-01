@@ -636,6 +636,9 @@ function yabai-preset
         yabai -m window --toggle float
         if yabai-preset is-window-floating
             yabai -m window --grid "8:8:1:1:6:6"
+            echo floating
+        else
+            echo tiling
         end
     case "toggle-split"
         yabai -m window --toggle split

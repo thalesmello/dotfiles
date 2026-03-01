@@ -333,6 +333,7 @@ function aerospace-preset
         aerospace join-with $aero_dir
     case "toggle-float"
         aerospace layout floating tiling
+        aerospace list-windows --focused --format '%{window-layout}'
     case "toggle-split"
         aerospace layout horizontal vertical
     case "balance"
