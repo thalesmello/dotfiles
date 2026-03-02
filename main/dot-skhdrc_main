@@ -163,7 +163,7 @@ service < space : skhd -k "escape"; wm-preset focus-back-and-forth
 service < shift - space : skhd -k "escape"; wm-preset move-window-to-space recent
 service < r ; resize
 service < ctrl + alt + cmd - r ; restart
-restart < ctrl + alt + cmd - y : skhd -k "escape"; wm-preset restart-wm
+restart < ctrl + alt + cmd - y : skhd -k "escape"; yabai-preset restart-wm
 restart < ctrl + alt + cmd - b : skhd -k "escape";  display-message "Restart BTT" && btt-preset restart-btt
 restart < ctrl + alt + cmd - a : skhd -k "escape";  display-message "Restart Alfred" && killall Alfred; sleep 2 && open -a "Alfred 5"
 restart < ctrl + alt + cmd - m : skhd -k "escape";  display-message "Restart Mouseless" && killall mouseless; sleep 2 && open -a "Mouseless"
