@@ -5,7 +5,8 @@ local function template(str)
    return vim.split(str, "\n")
 end
 
-vim.g.projectionist_heuristics = {
+
+vim.g.projectionist_heuristics = vim.tbl_deep_extend("force", vim.g.projectionist_heuristics or {}, {
    [data .. '/lazy/'] = {
       [data .. '/lazy/**/README*'] = {
          type = "lazyplugin",
@@ -19,7 +20,7 @@ vim.g.projectionist_heuristics = {
    [".git/"] = {
       ["README.md"] = { type = "readme" },
    },
-}
+})
 
 local function make_dbt_projection(module)
    local compiled_folder = "target/run/" .. module
