@@ -27,8 +27,10 @@ function M.makeProjections(relatedFiles)
         end
     end
 
+    local unique = vim.list.unique or vim.fn.uniq
+
     for _, projection in pairs(projections) do
-        projection.alternate = vim.list.unique(vim.list_extend(projection.temp_alternate_main, projection.temp_alternate_fallback))
+        projection.alternate = unique(vim.list_extend(projection.temp_alternate_main, projection.temp_alternate_fallback))
         projection.temp_alternate_main = nil
         projection.temp_alternate_fallback = nil
     end
