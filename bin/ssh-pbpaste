@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+TIMEOUT=2    # seconds to wait for terminal’s reply when pasting
+
+osc52_paste() {
+    local request=$'\e]52;c;?\a'  # ask for clipboard
+    local reply b64 oldstty
+
+    # turn off local echo so the control sequence itself is not shown
+    oldstty=$(stty -g)
+    stty -echo -icanon time 0 min 0
+
+    printf '%s' "$request" > /dev/tty
+
+    # read until ST (\e\) or BEL (0x07), whichever the terminal sends
+    if ! IFS= read -r -d $'\\' -t "$TIMEOUT" reply < /dev/tty; then
+        stty "$oldstty"
+        echo "cb: timed out – terminal didn't answer OSC 52 query" >&2
+        return 1
+    fi
+    stty "$oldstty"
+
+    # strip the leading “ESC ] 52 ; … ;”
+    reply=${reply#*$'\e]52;'}   # drop up to second field
+    reply=${reply#*;}           # drop up to third semicolon
+
+    # strip trailing ESC (from ST terminator) and newlines
+    reply=${reply%$'\e'}
+    b64=${reply//$'\n'/}
+
+    base64 -d <<<"$b64"
+}
+
+osc52_paste
