@@ -27,4 +27,5 @@ return {
 
     end,
     cond = true,
+    extra_context = {"ssh"},
 }
