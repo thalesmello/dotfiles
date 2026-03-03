@@ -2,6 +2,7 @@ return {
     {
         'tpope/vim-eunuch',
         event = 'VeryLazy',
+        extra_contexts = {"ssh"},
     },
     {
         'tpope/vim-repeat',
