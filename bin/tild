@@ -23,6 +23,7 @@ import termios
 import tty
 import struct
 import fcntl
+import time
 
 
 def get_terminal_size():
@@ -54,6 +55,8 @@ def main():
     # States: 0=normal, 1=got newline/CR, 2=got ~ after newline
     # Start in state 1 (beginning of line, like SSH does)
     state = 1
+    state_time = time.monotonic()
+    ESCAPE_TIMEOUT = 2.0  # seconds to complete the escape sequence
 
     # Save original terminal settings
     old_attrs = termios.tcgetattr(sys.stdin.fileno())
@@ -83,12 +86,27 @@ def main():
         signal.signal(signal.SIGWINCH, handle_sigwinch)
 
         while True:
+            # Compute select timeout based on state
+            if state in (1, 2):
+                elapsed = time.monotonic() - state_time
+                timeout = max(0, ESCAPE_TIMEOUT - elapsed)
+            else:
+                timeout = None
+
             try:
                 rlist, _, _ = select.select(
-                    [sys.stdin.fileno(), master_fd], [], []
+                    [sys.stdin.fileno(), master_fd], [], [], timeout
                 )
             except (select.error, InterruptedError, OSError):
                 # Interrupted by signal (e.g. SIGWINCH), retry
+                continue
+
+            # Handle timeout — flush buffered state and reset
+            if not rlist and state in (1, 2):
+                if state == 2:
+                    # Flush the buffered ~
+                    os.write(master_fd, b"~")
+                state = 0
                 continue
 
             if sys.stdin.fileno() in rlist:
@@ -103,14 +121,17 @@ def main():
                     if state == 0:
                         if byte in (0x0A, 0x0D):  # \n or \r
                             state = 1
+                            state_time = time.monotonic()
                         to_forward.append(byte)
 
                     elif state == 1:
                         if byte == ord("~"):
                             state = 2
+                            state_time = time.monotonic()
                             # Buffer the ~ until we see what follows
                         elif byte in (0x0A, 0x0D):
                             state = 1
+                            state_time = time.monotonic()
                             to_forward.append(byte)
                         else:
                             state = 0
@@ -128,13 +149,14 @@ def main():
                         elif byte == ord("~"):
                             # ~~ sends a literal ~
                             to_forward.append(ord("~"))
-                            # Stay in state 2 for chains of ~
+                            state = 0
                         else:
                             # Not recognized, forward buffered ~ and this byte
                             to_forward.append(ord("~"))
                             to_forward.append(byte)
                             if byte in (0x0A, 0x0D):
                                 state = 1
+                                state_time = time.monotonic()
                             else:
                                 state = 0
 
