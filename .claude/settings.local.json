@@ -3,7 +3,8 @@
     "allow": [
       "Bash(aerospace list-windows:*)",
       "Bash(col:*)",
-      "Bash(fish -c \"man autosuggestions\")"
+      "Bash(fish -c \"man autosuggestions\")",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
