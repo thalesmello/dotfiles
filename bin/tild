@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+"""
+tild - PTY proxy that intercepts SSH-style ~. escape sequence.
+
+Usage: tild <command> [args...]
+
+Wraps a command in a PTY and monitors stdin for the escape sequence
+<Enter>~. (newline/CR followed by ~ followed by .). When detected,
+kills the child process and exits. All other input is forwarded
+transparently to the child.
+
+Supports:
+  ~.   Kill the child process
+  ~~   Send a literal ~
+"""
+
+import sys
+import os
+import pty
+import signal
+import select
+import termios
+import tty
+import struct
+import fcntl
+
+
+def get_terminal_size():
+    try:
+        result = fcntl.ioctl(
+            sys.stdout.fileno(), termios.TIOCGWINSZ, b"\x00" * 8
+        )
+        rows, cols = struct.unpack("HHHH", result)[:2]
+        return rows, cols
+    except Exception:
+        return 24, 80
+
+
+def set_pty_size(fd, rows, cols):
+    size = struct.pack("HHHH", rows, cols, 0, 0)
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, size)
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <command> [args...]", file=sys.stderr)
+        sys.exit(1)
+
+    if not os.isatty(sys.stdin.fileno()):
+        print("tild: stdin is not a terminal", file=sys.stderr)
+        sys.exit(1)
+
+    # State machine for escape sequence detection
+    # States: 0=normal, 1=got newline/CR, 2=got ~ after newline
+    # Start in state 1 (beginning of line, like SSH does)
+    state = 1
+
+    # Save original terminal settings
+    old_attrs = termios.tcgetattr(sys.stdin.fileno())
+
+    # Fork with PTY
+    pid, master_fd = pty.fork()
+
+    if pid == 0:
+        # Child process
+        os.execvp(sys.argv[1], sys.argv[1:])
+        sys.exit(127)
+
+    # Parent process
+    try:
+        # Set terminal to raw mode
+        tty.setraw(sys.stdin.fileno())
+
+        # Set child PTY size to match our terminal
+        rows, cols = get_terminal_size()
+        set_pty_size(master_fd, rows, cols)
+
+        # Propagate terminal resize to the child PTY
+        def handle_sigwinch(signum, frame):
+            rows, cols = get_terminal_size()
+            set_pty_size(master_fd, rows, cols)
+
+        signal.signal(signal.SIGWINCH, handle_sigwinch)
+
+        while True:
+            try:
+                rlist, _, _ = select.select(
+                    [sys.stdin.fileno(), master_fd], [], []
+                )
+            except (select.error, InterruptedError, OSError):
+                # Interrupted by signal (e.g. SIGWINCH), retry
+                continue
+
+            if sys.stdin.fileno() in rlist:
+                data = os.read(sys.stdin.fileno(), 4096)
+                if not data:
+                    os.close(master_fd)
+                    break
+
+                # Process each byte through the state machine
+                to_forward = bytearray()
+                for byte in data:
+                    if state == 0:
+                        if byte in (0x0A, 0x0D):  # \n or \r
+                            state = 1
+                        to_forward.append(byte)
+
+                    elif state == 1:
+                        if byte == ord("~"):
+                            state = 2
+                            # Buffer the ~ until we see what follows
+                        elif byte in (0x0A, 0x0D):
+                            state = 1
+                            to_forward.append(byte)
+                        else:
+                            state = 0
+                            to_forward.append(byte)
+
+                    elif state == 2:
+                        if byte == ord("."):
+                            # Escape sequence detected — kill child
+                            os.kill(pid, signal.SIGTERM)
+                            os.write(
+                                sys.stdout.fileno(),
+                                b"\r\ntild: connection closed.\r\n",
+                            )
+                            return
+                        elif byte == ord("~"):
+                            # ~~ sends a literal ~
+                            to_forward.append(ord("~"))
+                            # Stay in state 2 for chains of ~
+                        else:
+                            # Not recognized, forward buffered ~ and this byte
+                            to_forward.append(ord("~"))
+                            to_forward.append(byte)
+                            if byte in (0x0A, 0x0D):
+                                state = 1
+                            else:
+                                state = 0
+
+                if to_forward:
+                    os.write(master_fd, bytes(to_forward))
+
+            if master_fd in rlist:
+                try:
+                    data = os.read(master_fd, 4096)
+                except OSError:
+                    break
+                if not data:
+                    break
+                os.write(sys.stdout.fileno(), data)
+
+    except OSError:
+        pass
+    finally:
+        # Restore terminal settings
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH, old_attrs)
+
+        # Wait for child and propagate exit code
+        try:
+            _, status = os.waitpid(pid, 0)
+        except ChildProcessError:
+            sys.exit(1)
+
+        if os.WIFEXITED(status):
+            sys.exit(os.WEXITSTATUS(status))
+        elif os.WIFSIGNALED(status):
+            sys.exit(128 + os.WTERMSIG(status))
+
+
+if __name__ == "__main__":
+    main()
