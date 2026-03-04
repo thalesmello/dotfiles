@@ -43,7 +43,35 @@ return {
    },
    {
       "coder/claudecode.nvim",
-      config = true,
+      dependencies = { "folke/snacks.nvim" },
+      opts = function()
+         local opts = {
+            diff_opts = {
+               open_in_current_tab = false,
+            },
+         }
+
+         if vim.env.TMUX then
+            opts.terminal = {
+               provider = "external",
+               provider_opts = {
+                  external_terminal_cmd = function(cmd, env)
+                     local command = { "tmux", "split-window", "-h", "-l", "30%" }
+                     if env then
+                        for k, v in pairs(env) do
+                           table.insert(command, "-e")
+                           table.insert(command, k .. "=" .. v)
+                        end
+                     end
+                     table.insert(command, cmd)
+                     return command
+                  end,
+               },
+            }
+         end
+
+         return opts
+      end,
       keys = {
          { "<leader>a", nil, desc = "AI/Claude Code" },
          { "<leader>ac", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude" },
