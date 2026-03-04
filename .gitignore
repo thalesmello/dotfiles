@@ -14,3 +14,4 @@ main/dot-config/karabiner/automatic_backups/
 main/dot-config/nvim/tmp/
 .watchman-cookie*
 main/dot-hammerspoon/Spoons/EmmyLua.spoon/annotations/
+.claude/internet-*
