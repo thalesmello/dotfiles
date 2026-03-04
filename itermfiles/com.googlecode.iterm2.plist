@@ -1104,7 +1104,7 @@
 	<key>Default Bookmark Guid</key>
 	<string>FE34BC10-D56F-4821-81BE-4489A74F48D9</string>
 	<key>Default Browser Profile Guid</key>
-	<string>C09D837A-0466-46F6-9E61-AA2735803F51</string>
+	<string>5262749B-9FF9-45AA-B855-062C91581DAA</string>
 	<key>DisableWindowSizeSnap</key>
 	<false/>
 	<key>EnableAPIServer</key>
@@ -4205,6 +4205,8 @@
 	<false/>
 	<key>VisualIndicatorForEsc</key>
 	<false/>
+	<key>com.apple.WebPrivacy.ResourceMonitorURLsVersion</key>
+	<string>qrsAAAGXnXBrwGxMO6s=</string>
 	<key>findMode_iTerm</key>
 	<integer>0</integer>
 	<key>kCPKSelectionViewPreferredModeKey</key>
