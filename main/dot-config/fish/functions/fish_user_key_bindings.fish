@@ -12,7 +12,6 @@ function fish_user_key_bindings
   bind -M insert \cv edit_cmd
   bind -M insert \cq 'commandline -- (commandline | format-shell)'
   bind -M insert \cg 'set -l file (fzf | string escape --style script); and history append "nvim $file"; and nvim $file' repaint
-  bind -M insert \ch fzf-cd-widget
   bind -M visual -m insert i end-selection repaint-mode
   bind -M insert ctrl-n down-or-search
 end
