@@ -104,6 +104,40 @@ ctrl + alt + cmd + shift - j : if wm-preset is-window-floating; yabai-preset sna
 ctrl + alt + cmd + shift - k : if wm-preset is-window-floating; yabai-preset snap north; else; wm-preset swap-window north; end
 ctrl + alt + cmd + shift - l : if wm-preset is-window-floating; yabai-preset snap east; else; wm-preset swap-window east; end
 
+# Vim-style HJKL to arrow key remappings (alt + cmd, with Chrome tab navigation)
+ctrl + cmd - h [
+    "Google Chrome" : if iterm-preset is-floating-window-active; skhd -k "alt + cmd - left"; else; skhd -k "ctrl + shift - tab"; end
+    * : skhd -k "alt + cmd - left"
+]
+ctrl + cmd - j [
+    "Google Chrome" : if iterm-preset is-floating-window-active; skhd -k "alt + cmd - down"; else; skhd -k "cmd - 9"; end
+    * : skhd -k "alt + cmd - down"
+]
+ctrl + cmd - k [
+    "Google Chrome" : if iterm-preset is-floating-window-active; skhd -k "alt + cmd - up"; else; skhd -k "cmd - 1"; end
+    * : skhd -k "alt + cmd - up"
+]
+ctrl + cmd - l [
+    "Google Chrome" : if iterm-preset is-floating-window-active; skhd -k "alt + cmd - right"; else; skhd -k "ctrl - tab"; end
+    * : skhd -k "alt + cmd - right"
+]
+shift + ctrl + cmd - h [
+    "Google Chrome" : skhd -k "ctrl + shift - h"
+    * : skhd -k "shift + alt + cmd - left"
+]
+shift + ctrl + cmd - j [
+    "Google Chrome" : skhd -k "ctrl + shift - j"
+    * : skhd -k "shift + alt + cmd - down"
+]
+shift + ctrl + cmd - k [
+    "Google Chrome" : skhd -k "ctrl + shift - k"
+    * : skhd -k "shift + alt + cmd - up"
+]
+shift + ctrl + cmd - l [
+    "Google Chrome" : skhd -k "ctrl + shift - l"
+    * : skhd -k "shift + alt + cmd - right"
+]
+
 ctrl + alt + cmd - 0x1B : wm-preset resize smart -100 # minus
 ctrl + alt + cmd - 0x18 : wm-preset resize smart +100 # equals
 
