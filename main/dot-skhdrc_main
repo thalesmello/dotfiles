@@ -122,20 +122,24 @@ ctrl + cmd - l [
     * : skhd -k "alt + cmd - right"
 ]
 shift + ctrl + cmd - h [
-    "Google Chrome" : skhd -k "ctrl + shift - h"
-    * : skhd -k "shift + alt + cmd - left"
+    "Google Chrome" : if iterm-preset is-floating-window-active; skhd -k "ctrl + cmd - left"; else; skhd -k "ctrl + shift - h"; end
+    "iTerm2" : skhd -k "ctrl + cmd - left"
+    * : if iterm-preset is-floating-window-active; skhd -k "ctrl + cmd - left"; else; skhd -k "shift + alt + cmd - left"; end
 ]
 shift + ctrl + cmd - j [
-    "Google Chrome" : skhd -k "ctrl + shift - j"
-    * : skhd -k "shift + alt + cmd - down"
+    "Google Chrome" : if iterm-preset is-floating-window-active; skhd -k "ctrl + cmd - down"; else; skhd -k "ctrl + shift - j"; end
+    "iTerm2" : skhd -k "ctrl + cmd - down"
+    * : if iterm-preset is-floating-window-active; skhd -k "ctrl + cmd - down"; else; skhd -k "shift + alt + cmd - down"; end
 ]
 shift + ctrl + cmd - k [
-    "Google Chrome" : skhd -k "ctrl + shift - k"
-    * : skhd -k "shift + alt + cmd - up"
+    "Google Chrome" : if iterm-preset is-floating-window-active; skhd -k "ctrl + cmd - up"; else; skhd -k "ctrl + shift - k"; end
+    "iTerm2" : skhd -k "ctrl + cmd - up"
+    * : if iterm-preset is-floating-window-active; skhd -k "ctrl + cmd - up"; else; skhd -k "shift + alt + cmd - up"; end
 ]
 shift + ctrl + cmd - l [
-    "Google Chrome" : skhd -k "ctrl + shift - l"
-    * : skhd -k "shift + alt + cmd - right"
+    "Google Chrome" : if iterm-preset is-floating-window-active; skhd -k "ctrl + cmd - right"; else; skhd -k "ctrl + shift - l"; end
+    "iTerm2" : skhd -k "ctrl + cmd - right"
+    * : if iterm-preset is-floating-window-active; skhd -k "ctrl + cmd - right"; else; skhd -k "shift + alt + cmd - right"; end
 ]
 
 ctrl + alt + cmd - 0x1B : wm-preset resize smart -100 # minus
