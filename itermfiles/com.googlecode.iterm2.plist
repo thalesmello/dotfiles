@@ -34,6 +34,8 @@
 	<false/>
 	<key>ClickToSelectCommand</key>
 	<false/>
+	<key>ConservativeURLGuessing</key>
+	<false/>
 	<key>CopySelection</key>
 	<true/>
 	<key>Custom Color Presets</key>
@@ -1949,6 +1951,15 @@
 				<key>Red Component</key>
 				<real>0.17647059261798859</real>
 			</dict>
+			<key>Semantic History</key>
+			<dict>
+				<key>action</key>
+				<string>command</string>
+				<key>editor</key>
+				<string>com.github.atom</string>
+				<key>text</key>
+				<string>/opt/homebrew/bin/fish -c "display-message \1"</string>
+			</dict>
 			<key>Send Code When Idle</key>
 			<false/>
 			<key>Send Session Ended Alert</key>
@@ -1996,6 +2007,8 @@
 			<string>xterm-256color</string>
 			<key>Transparency</key>
 			<real>0.0</real>
+			<key>Triggers</key>
+			<array/>
 			<key>Unlimited Scrollback</key>
 			<false/>
 			<key>Use Bold Font</key>
@@ -2692,12 +2705,23 @@
 				<key>Red Component</key>
 				<real>0.17647059261798859</real>
 			</dict>
+			<key>Semantic History</key>
+			<dict>
+				<key>action</key>
+				<string>command</string>
+				<key>editor</key>
+				<string>com.github.atom</string>
+				<key>text</key>
+				<string>/opt/homebrew/bin/fish -c "display-message \1"</string>
+			</dict>
 			<key>Send Code When Idle</key>
 			<false/>
 			<key>Shortcut</key>
 			<string></string>
 			<key>Silence Bell</key>
 			<false/>
+			<key>Snippets Filter</key>
+			<array/>
 			<key>Space</key>
 			<integer>-1</integer>
 			<key>Sync Title</key>
@@ -4046,6 +4070,15 @@
 				<key>Red Component</key>
 				<real>0.17647059261798859</real>
 			</dict>
+			<key>Semantic History</key>
+			<dict>
+				<key>action</key>
+				<string>command</string>
+				<key>editor</key>
+				<string>com.github.atom</string>
+				<key>text</key>
+				<string>/opt/homebrew/bin/fish -c "display-message \1"</string>
+			</dict>
 			<key>Send Code When Idle</key>
 			<false/>
 			<key>Send Session Ended Alert</key>
@@ -4112,24 +4145,6 @@
 					<false/>
 					<key>regex</key>
 					<string></string>
-				</dict>
-				<dict>
-					<key>action</key>
-					<string>iTermUserNotificationTrigger</string>
-					<key>contentregex</key>
-					<string></string>
-					<key>disabled</key>
-					<integer>0</integer>
-					<key>matchType</key>
-					<integer>0</integer>
-					<key>name</key>
-					<string>iTermNotify</string>
-					<key>parameter</key>
-					<string>\1</string>
-					<key>partial</key>
-					<false/>
-					<key>regex</key>
-					<string>iTermNotify "(.*)"</string>
 				</dict>
 			</array>
 			<key>Triggers Use Interpolated Strings</key>
@@ -4203,6 +4218,8 @@
 	<false/>
 	<key>SoundForEsc</key>
 	<false/>
+	<key>TmuxUsesDedicatedProfile</key>
+	<true/>
 	<key>VisualIndicatorForEsc</key>
 	<false/>
 	<key>com.apple.WebPrivacy.ResourceMonitorURLsVersion</key>
