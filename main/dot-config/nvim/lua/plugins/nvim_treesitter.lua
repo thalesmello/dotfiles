@@ -3,6 +3,8 @@ local vim_utils = require("vim_utils")
 return {
     {
         'nvim-treesitter/nvim-treesitter',
+        -- TODO: Migrate to the new format
+        branch = "master",
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
         build = function ()
             vim.cmd('TSUpdate')
