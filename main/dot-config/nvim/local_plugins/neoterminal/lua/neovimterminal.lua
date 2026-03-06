@@ -134,6 +134,8 @@ vim.api.nvim_create_autocmd("TermOpen", {
     vim.opt_local.relativenumber = false
     vim.opt_local.scrollback = 10000
     vim.cmd.startinsert()
+
+    vim.keymap.set({"n", "v"}, "<cr>", vim.cmd.startinsert, {buffer = true})
   end
 })
 
