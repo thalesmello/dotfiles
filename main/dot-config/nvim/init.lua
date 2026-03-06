@@ -54,6 +54,11 @@ require("lazy").setup({
         enabled = true,
         notify = false,
     },
+    throttle = {
+      enabled = true,
+      rate = 10,
+      duration = 5 * 1000, -- in ms
+    },
 })
 
 -- Apply the settings at the very end when nvim finished loading
