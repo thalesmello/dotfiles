@@ -7,6 +7,9 @@ return {
         end, mode = "n", expr = true, noremap = true}
     },
     cmd = "Dirvish",
+    init = function ()
+        vim.g.dirvish_relative_paths = 0
+    end,
     config = function()
         local group = vim.api.nvim_create_augroup("DirvishGroup", {
             clear = true
