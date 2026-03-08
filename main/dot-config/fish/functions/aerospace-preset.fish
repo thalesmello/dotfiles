@@ -414,14 +414,24 @@ function aerospace-preset
             set app_name (path basename "$app_name" | path change-extension '')
         end
 
-        # Prefer a window on the focused workspace
-        set window_id (aerospace list-windows --workspace focused --json \
-            | jq -r --arg app "$app_name" '[.[] | select(."app-name" == $app)] | first | ."window-id" // empty')
+        set window_id ""
 
-        # Fall back to any workspace
+        # Prefer yabai's smarter lookup (sorts by non-minimized, prefers current space)
+        if pgrep -xq yabai
+            set window_id (yabai-preset get-app-window-id "$app_name")
+        end
+
+        # Fall back to aerospace's own lookup
         if test -z "$window_id"
-            set window_id (aerospace list-windows --all --json \
+            # Prefer a window on the focused workspace
+            set window_id (aerospace list-windows --workspace focused --json \
                 | jq -r --arg app "$app_name" '[.[] | select(."app-name" == $app)] | first | ."window-id" // empty')
+
+            # Fall back to any workspace
+            if test -z "$window_id"
+                set window_id (aerospace list-windows --all --json \
+                    | jq -r --arg app "$app_name" '[.[] | select(."app-name" == $app)] | first | ."window-id" // empty')
+            end
         end
 
         if test -n "$window_id"
