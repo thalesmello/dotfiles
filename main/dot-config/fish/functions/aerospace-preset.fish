@@ -401,6 +401,30 @@ function aerospace-preset
         display-message "Not supported in AeroSpace"
     case "rotate"
         display-message "Not supported in AeroSpace"
+    case "focus-app"
+        set app_name $argv[1]
+        set -e argv[1]
+
+        # Accept path or name (e.g. "/Applications/Google Chrome.app" → "Google Chrome")
+        if string match -q "*.app" "$app_name"
+            set app_name (path basename "$app_name" | path change-extension '')
+        end
+
+        # Prefer a window on the focused workspace
+        set window_id (aerospace list-windows --workspace focused --json \
+            | jq -r --arg app "$app_name" '[.[] | select(."app-name" == $app)] | first | ."window-id" // empty')
+
+        # Fall back to any workspace
+        if test -z "$window_id"
+            set window_id (aerospace list-windows --all --json \
+                | jq -r --arg app "$app_name" '[.[] | select(."app-name" == $app)] | first | ."window-id" // empty')
+        end
+
+        if test -n "$window_id"
+            aerospace focus --window-id $window_id
+        else
+            open -a "$app_name"
+        end
     case "*"
         echo "command not found - $preset" >&2
         return 1
@@ -439,7 +463,7 @@ complete -c aerospace-preset -n "__fish_is_nth_token 1" -f -d "Name of the prese
     toggle-yabai toggle-wm restart-wm is-window-floating print-window-mode
     print-yabai-widget print-wm-widget focus-topmost swap-window warp-window
     toggle-float toggle-split balance flatten resize focus-back-and-forth
-    arrange-spaces focus-pid minimize-pid unstacked-swap-largest
+    arrange-spaces focus-app focus-pid minimize-pid unstacked-swap-largest
     minimize-after-nth-window layout-stack layout-bsp layout-float
     insert-direction mirror rotate
 "

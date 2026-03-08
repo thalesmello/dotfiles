@@ -782,6 +782,44 @@ function yabai-preset
                 echo "Invalid argument: $direction" >&2
                 return 1
         end
+    case "focus-app"
+        set app_name $argv[1]
+        set -e argv[1]
+
+        # Accept path or name
+        if string match -q "*.app" "$app_name"
+            set app_name (path basename "$app_name" | path change-extension '')
+        end
+
+        set current_space (yabai -m query --spaces --space | jq '.index')
+
+        # Find best window: prefer non-minimized, prefer current space
+        yabai -m query --windows \
+        | jq -re --arg app "$app_name" --argjson cs "$current_space" '
+            [.[] | select(.app == $app)]
+            | if length == 0 then error("no windows") else . end
+            | sort_by([
+                (if ."is-minimized" then 1 else 0 end),
+                (if .space == $cs then 0 else 1 end)
+            ])
+            | first
+            | "\(.id):\(.space):\(."is-minimized")"
+        ' \
+        | read -d: window target_space is_minimized
+        or begin
+            open -a "$app_name"
+            return
+        end
+
+        if test "$is_minimized" = "true"
+            yabai -m window "$window" --deminimize
+        end
+
+        if test "$target_space" != "$current_space"
+            yabai-preset focus-space "$target_space"
+        end
+
+        yabai -m window "$window" --focus
     case "*"
         echo "command not found - $preset"
         return 1
