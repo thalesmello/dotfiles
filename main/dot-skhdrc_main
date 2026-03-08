@@ -326,27 +326,27 @@ goto < g : skhd -k "escape"; chrome-preset open-url --profile="Default" gmail.co
 #goto_end
 
 # App Shortcuts
-ctrl + alt + cmd - b : btt-preset show-or-hide-app --only-show "/Applications/BetterTouchTool.app"
-ctrl + alt + cmd - c : btt-preset show-or-hide-app --only-show "/Applications/Cursor.app"
+ctrl + alt + cmd - b : wm-preset focus-app "BetterTouchTool"
+ctrl + alt + cmd - c : wm-preset focus-app "Cursor"
 
-ctrl + alt + cmd - x : btt-preset show-or-hide-app --only-show "/Applications/iTerm.app"; and iterm-preset is-floating-window-active; and skhd -k "cmd - 0x32" # backtick
+ctrl + alt + cmd - x : wm-preset focus-app "iTerm"; and iterm-preset is-floating-window-active; and skhd -k "cmd - 0x32" # backtick
 ctrl + alt + cmd - q : chrome-preset focus-or-open-url "gemini.google.com" --label "Gemini"
-ctrl + alt + cmd - w : btt-preset show-or-hide-app --only-show "/Applications/WhatsApp.app"
-ctrl + alt + cmd - z : btt-preset show-or-hide-app --only-show "/Applications/Obsidian.app"
+ctrl + alt + cmd - w : wm-preset focus-app "WhatsApp"
+ctrl + alt + cmd - z : wm-preset focus-app "Obsidian"
 ctrl + alt + cmd - s : btt-preset alternate-app "YouTube Music" --hide
-ctrl + alt + cmd - e : btt-preset show-or-hide-app --only-show "/Applications/Google Chrome.app"
-ctrl + alt + cmd - r : btt-preset show-or-hide-app --only-show "/Applications/Google Chrome.app"
-ctrl + alt + cmd - a : btt-preset show-or-hide-app --only-show "/Applications/Timery.app"
-ctrl + alt + cmd + shift - a : btt-preset show-or-hide-app --only-show "~/Applications/Chrome Apps.localized/Pomofocus.app"
-ctrl + alt + cmd + shift - z : btt-preset show-or-hide-app --only-show "~/Applications/Chrome Apps.localized/Google Keep.app"
+ctrl + alt + cmd - e : wm-preset focus-app "Google Chrome"
+ctrl + alt + cmd - r : wm-preset focus-app "Google Chrome"
+ctrl + alt + cmd - a : wm-preset focus-app "Timery"
+ctrl + alt + cmd + shift - a : wm-preset focus-app "Pomofocus"
+ctrl + alt + cmd + shift - z : wm-preset focus-app "Google Keep"
 ctrl + alt + cmd + shift - w : if pgrep "zoom.us" >/dev/null; \
-        btt-preset show-or-hide-app --only-show "/Applications/zoom.us.app"; \
+        wm-preset focus-app "zoom.us"; \
     else; \
         chrome-preset focus-or-open-url meet.google.com --label "Google Meet"; \
     end;
 ctrl + alt + cmd + shift - s : if pgrep "zoom.us" >/dev/null; \
         display-message "Toggle Mute"; \
-        btt-preset show-or-hide-app --only-show "/Applications/zoom.us.app"; \
+        wm-preset focus-app "zoom.us"; \
         sleep 0.5; \
         btt-preset send-keys cmd shift a; \
     else; \
@@ -355,9 +355,9 @@ ctrl + alt + cmd + shift - s : if pgrep "zoom.us" >/dev/null; \
         sleep 0.5; \
         btt-preset send-keys cmd d; \
     end;
-ctrl + alt + cmd + shift - f : btt-preset show-or-hide-app --only-show "/Applications/WhatsApp.app"
-ctrl + alt + cmd + shift - g : btt-preset show-or-hide-app --only-show "/System/Applications/Messages.app"
-ctrl + alt + cmd + shift - q : btt-preset show-or-hide-app --only-show "/System/Applications/Utilities/Activity Monitor.app"
+ctrl + alt + cmd + shift - f : wm-preset focus-app "WhatsApp"
+ctrl + alt + cmd + shift - g : wm-preset focus-app "Messages"
+ctrl + alt + cmd + shift - q : wm-preset focus-app "Activity Monitor"
 
 ctrl + alt + cmd - y : chrome-preset focus-or-open-url calendar.google.com --label "Calendar"
 

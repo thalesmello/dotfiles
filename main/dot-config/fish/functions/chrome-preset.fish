@@ -19,7 +19,7 @@ function chrome-preset
         read json < "/tmp/chrome-preset/pinned-tabs/$position.json"
 
         chrome-cli activate -t "$(jq -nr --argjson json "$json" '$json.tab_id')"
-        yabai -m window --focus "$(jq -nr --argjson json "$json" '$json.window_id')"
+        wm-preset focus-window-id "$(jq -nr --argjson json "$json" '$json.window_id')"
 
         display-message "Focus tab $position"
     case "focus-window"
@@ -240,7 +240,7 @@ function chrome-preset
             set app (cat "/tmp/chrome_preset_apps/$appname.chromeinfo")
 
             chrome-cli open "$url" -t "$(jq -nr --argjson app "$app" '$app.id')"
-            yabai -m window "$window" --focus
+            wm-preset focus-window-id "$window"
         else
             chrome-preset create-app --profile="$_flag_profile" "$appname" "$url"
         end
@@ -264,7 +264,7 @@ function chrome-preset
         set -e argv[1]
 
         if set window (chrome-preset get-app-window-id "$appname"); and yabai-preset get-window-info "$window" >/dev/null
-            yabai -m window "$window" --focus
+            wm-preset focus-window-id "$window"
         else
             chrome-preset create-app --profile="$_flag_profile" "$appname" "$url"
         end
@@ -288,7 +288,7 @@ function chrome-preset
                 else if set -q _flag_minimize
                     yabai-preset "minimize"
                 else
-                    yabai -m window recent --focus
+                    wm-preset focus-window-id recent
                 end
             else
                 set fallback 1

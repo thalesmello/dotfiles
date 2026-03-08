@@ -244,6 +244,10 @@ function aerospace-preset
             case '*'
                 aerospace move-node-to-workspace --focus-follows-window $space
         end
+    case "focus-window-id"
+        set window_id $argv[1]
+        set -e argv[1]
+        aerospace focus --window-id "$window_id"
     case "focus-window" "focus-window-in-stack" "focus-window-in-space"
         set direction $argv[1]
         set -e argv[1]
@@ -455,7 +459,7 @@ complete -c aerospace-preset -f
 complete -c aerospace-preset -n "__fish_is_nth_token 1" -f -d "Name of the preset to use" -a "
     move-other-windows move-all-windows-in-workspace minimize-windows minimize-other-windows arrange-workspaces
     move-to-previous-workspace move-all-but-two move-window summon
-    focus-window focus-space move-window-to-space focus-window-in-stack
+    focus-window focus-window-id focus-space move-window-to-space focus-window-in-stack
     focus-window-in-space move-window-in-stack focus-display-with-fallback
     smart-move-window-to-next-display stack-or-warp-window minimize
     deminimize-last deminimize-all unstack-window toggle-window-zoom-or-fullscreen

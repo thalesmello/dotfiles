@@ -14,6 +14,7 @@ end
 complete -c wm-preset -f
 complete -c wm-preset -n "__fish_is_nth_token 1" -f -d "Sub-command" -a "
     focus-window
+    focus-window-id
     focus-space
     move-window-to-space
     focus-window-in-stack

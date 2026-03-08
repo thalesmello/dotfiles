@@ -5,6 +5,10 @@ function yabai-preset
     set -e argv[1]
 
     switch "$preset"
+    case "focus-window-id"
+        set window_id $argv[1]
+        set -e argv[1]
+        yabai -m window --focus "$window_id"
     case "focus-window"
         set direction $argv[1]
         set -e argv[1]
