@@ -250,7 +250,7 @@ registerBinding("Service: Neovide Paste", function() shell('btt-preset send-keys
 
 -- Harpoon
 serviceAction("a", {}, "Harpoon Add", function() shell("yabai-harpoon add") end)
-serviceAction("backspace", {}, "Harpoon Delete", function() shell("yabai-harpoon delete") end)
+serviceAction("delete", {}, "Harpoon Delete", function() shell("yabai-harpoon delete") end)
 serviceAction("e", {}, "Harpoon Edit", function() shell("yabai-harpoon edit") end)
 
 -- Side-by-side
@@ -393,7 +393,7 @@ registerBinding("Chrome: Enter Go To Mode", function() goto_mode:enter() end)
 chrome:bind({}, "'", function() chrome:exit(); goto_mode:enter() end)
 
 -- Close zoom tabs
-chromeAction("backspace", {}, "Close Zoom Tabs", function() shell([[chrome-preset close-tabs-with-url '^.*\.zoom\.us/j/.*$']]) end)
+chromeAction("delete", {}, "Close Zoom Tabs", function() shell([[chrome-preset close-tabs-with-url '^.*\.zoom\.us/j/.*$']]) end)
 
 -- Focus pinned tab 1-9
 for i = 1, 9 do
