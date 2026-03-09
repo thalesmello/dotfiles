@@ -1107,6 +1107,12 @@
 	<string>FE34BC10-D56F-4821-81BE-4489A74F48D9</string>
 	<key>Default Browser Profile Guid</key>
 	<string>5262749B-9FF9-45AA-B855-062C91581DAA</string>
+	<key>DimBackgroundWindows</key>
+	<false/>
+	<key>DimInactiveSplitPanes</key>
+	<true/>
+	<key>DimOnlyText</key>
+	<true/>
 	<key>DisableWindowSizeSnap</key>
 	<false/>
 	<key>EnableAPIServer</key>
@@ -4218,6 +4224,8 @@
 	<false/>
 	<key>SoundForEsc</key>
 	<false/>
+	<key>SplitPaneDimmingAmount</key>
+	<real>0.24522356644417481</real>
 	<key>TmuxUsesDedicatedProfile</key>
 	<true/>
 	<key>VisualIndicatorForEsc</key>
