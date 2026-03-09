@@ -329,7 +329,7 @@ goto < g : skhd -k "escape"; chrome-preset open-url --profile="Default" gmail.co
 ctrl + alt + cmd - b : wm-preset focus-app "BetterTouchTool"
 ctrl + alt + cmd - c : wm-preset focus-app "Cursor"
 
-ctrl + alt + cmd - x : wm-preset focus-app "iTerm"; and iterm-preset is-floating-window-active; and skhd -k "cmd - 0x32" # backtick
+ctrl + alt + cmd - x : wm-preset focus-app "iTerm2"; and iterm-preset is-floating-window-active; and skhd -k "cmd - 0x32" # backtick
 ctrl + alt + cmd - q : chrome-preset focus-or-open-url "gemini.google.com" --label "Gemini"
 ctrl + alt + cmd - w : wm-preset focus-app "WhatsApp"
 ctrl + alt + cmd - z : wm-preset focus-app "Obsidian"
