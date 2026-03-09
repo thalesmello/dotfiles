@@ -91,6 +91,20 @@ local function bindModal(modal, prefix, mods, key, name, fn)
   registerBinding(prefix .. name, fn)
 end
 
+local function conditionalBind(mods, key, rules)
+  hs.hotkey.bind(mods, key, function()
+    local app = frontAppName()
+    for _, rule in ipairs(rules) do
+      local appMatch = not rule.app or rule.app == app
+      local condMatch = not rule.cond or rule.cond()
+      if appMatch and condMatch then
+        rule[1]()
+        return
+      end
+    end
+  end)
+end
+
 ---------------------------------------------------------------
 -- DEFAULT MODE bindings
 ---------------------------------------------------------------
@@ -125,54 +139,58 @@ bindDefault(hyperShift, "k", "Swap/Snap North", function() shell("if wm-preset i
 bindDefault(hyperShift, "l", "Swap/Snap East", function() shell("if wm-preset is-window-floating; yabai-preset snap east; else; wm-preset swap-window east; end") end)
 
 -- Ctrl+Cmd HJKL (per-app, Chrome tab nav)
-local function ctrlCmdHJKL(key, chromeKey, chromeMods, arrowDir)
-  hs.hotkey.bind({"ctrl", "cmd"}, key, function()
-    local app = frontAppName()
-    if app == "Google Chrome" then
-      local floating = shellSync("iterm-preset is-floating-window-active")
-      if floating then
-        hs.eventtap.keyStroke({"alt", "cmd"}, arrowDir)
-      else
-        hs.eventtap.keyStroke(chromeMods, chromeKey)
-      end
-    else
-      hs.eventtap.keyStroke({"alt", "cmd"}, arrowDir)
-    end
-  end)
-end
+local isFloating = function() return shellSync("iterm-preset is-floating-window-active") end
 
-ctrlCmdHJKL("h", "tab", {"ctrl", "shift"}, "left")
-ctrlCmdHJKL("j", "9",   {"cmd"},           "down")
-ctrlCmdHJKL("k", "1",   {"cmd"},           "up")
-ctrlCmdHJKL("l", "tab", {"ctrl"},          "right")
+conditionalBind({"ctrl", "cmd"}, "h", {
+  {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"alt", "cmd"}, "left") end},
+  {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "tab") end},
+  {function() hs.eventtap.keyStroke({"alt", "cmd"}, "left") end},
+})
+conditionalBind({"ctrl", "cmd"}, "j", {
+  {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"alt", "cmd"}, "down") end},
+  {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "9") end},
+  {function() hs.eventtap.keyStroke({"alt", "cmd"}, "down") end},
+})
+conditionalBind({"ctrl", "cmd"}, "k", {
+  {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"alt", "cmd"}, "up") end},
+  {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "1") end},
+  {function() hs.eventtap.keyStroke({"alt", "cmd"}, "up") end},
+})
+conditionalBind({"ctrl", "cmd"}, "l", {
+  {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"alt", "cmd"}, "right") end},
+  {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl"}, "tab") end},
+  {function() hs.eventtap.keyStroke({"alt", "cmd"}, "right") end},
+})
 
 -- Shift+Ctrl+Cmd HJKL (per-app)
-local function shiftCtrlCmdHJKL(key, chromeKey, chromeMods, arrowDir)
-  hs.hotkey.bind({"shift", "ctrl", "cmd"}, key, function()
-    local app = frontAppName()
-    local floating = shellSync("iterm-preset is-floating-window-active")
-    if app == "Google Chrome" then
-      if floating then
-        hs.eventtap.keyStroke({"ctrl", "cmd"}, arrowDir)
-      else
-        hs.eventtap.keyStroke(chromeMods, chromeKey)
-      end
-    elseif app == "iTerm2" then
-      hs.eventtap.keyStroke({"ctrl", "cmd"}, arrowDir)
-    else
-      if floating then
-        hs.eventtap.keyStroke({"ctrl", "cmd"}, arrowDir)
-      else
-        hs.eventtap.keyStroke({"shift", "alt", "cmd"}, arrowDir)
-      end
-    end
-  end)
-end
-
-shiftCtrlCmdHJKL("h", "h", {"ctrl", "shift"}, "left")
-shiftCtrlCmdHJKL("j", "j", {"ctrl", "shift"}, "down")
-shiftCtrlCmdHJKL("k", "k", {"ctrl", "shift"}, "up")
-shiftCtrlCmdHJKL("l", "l", {"ctrl", "shift"}, "right")
+conditionalBind({"shift", "ctrl", "cmd"}, "h", {
+  {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "left") end},
+  {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "h") end},
+  {app = "iTerm2", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "left") end},
+  {cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "left") end},
+  {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "left") end},
+})
+conditionalBind({"shift", "ctrl", "cmd"}, "j", {
+  {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "down") end},
+  {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "j") end},
+  {app = "iTerm2", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "down") end},
+  {cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "down") end},
+  {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "down") end},
+})
+conditionalBind({"shift", "ctrl", "cmd"}, "k", {
+  {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "up") end},
+  {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "k") end},
+  {app = "iTerm2", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "up") end},
+  {cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "up") end},
+  {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "up") end},
+})
+conditionalBind({"shift", "ctrl", "cmd"}, "l", {
+  {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "right") end},
+  {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "l") end},
+  {app = "iTerm2", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "right") end},
+  {cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "right") end},
+  {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "right") end},
+})
 
 -- Resize
 bindDefault(hyper, "-", "Resize Smart -100", function() shell("wm-preset resize smart -100") end)
@@ -419,6 +437,7 @@ local ctx = {
   registerBinding = registerBinding,
   bindDefault = bindDefault,
   bindModal = bindModal,
+  conditionalBind = conditionalBind,
 }
 
 if ok and localConfig and localConfig.setup then
