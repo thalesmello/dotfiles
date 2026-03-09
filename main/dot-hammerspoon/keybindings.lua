@@ -78,19 +78,27 @@ local restart   = createModal("Restart")
 local ok, localConfig = pcall(dofile, os.getenv("HOME") .. "/.hammerspoon_local.lua")
 
 ---------------------------------------------------------------
--- DEFAULT MODE bindings
+-- Binding helpers
 ---------------------------------------------------------------
 
--- Command palette
-hs.hotkey.bind(hyperShift, ";", function() showCommandPalette() end)
-registerBinding("Command Palette", showCommandPalette)
-
--- Utility
 local function bindDefault(mods, key, name, fn)
   hs.hotkey.bind(mods, key, fn)
   registerBinding(name, fn)
 end
 
+local function bindModal(modal, prefix, mods, key, name, fn)
+  modal:bind(mods, key, function() modal:exit(); fn() end)
+  registerBinding(prefix .. name, fn)
+end
+
+---------------------------------------------------------------
+-- DEFAULT MODE bindings
+---------------------------------------------------------------
+
+-- Command palette
+bindDefault(hyperShift, ";", "Command Palette", showCommandPalette)
+
+-- Utility
 bindDefault(hyperShift, "m", "Deminimize Last", function() shell("wm-preset deminimize-last") end)
 bindDefault(hyper, "m", "Minimize", function() shell("wm-preset minimize") end)
 bindDefault(hyper, "return", "Smart Toggle Fullscreen", function() shell("wm-preset smart-toggle-fullscreen") end)
@@ -183,14 +191,9 @@ bindDefault(hyperShift, "n", "Move Window In Stack Next", function() shell("wm-p
 bindDefault(hyperShift, "p", "Move Window In Stack Prev", function() shell("wm-preset move-window-in-stack prev") end)
 
 -- Mode entries
-hs.hotkey.bind(hyper, "space", function() service:enter() end)
-registerBinding("Enter Service Mode", function() service:enter() end)
-
-hs.hotkey.bind(hyper, "i", function() invoke:enter() end)
-registerBinding("Enter Invoke Mode", function() invoke:enter() end)
-
-hs.hotkey.bind(hyper, "'", function() chrome:enter() end)
-registerBinding("Enter Chrome Mode", function() chrome:enter() end)
+bindDefault(hyper, "space", "Enter Service Mode", function() service:enter() end)
+bindDefault(hyper, "i", "Enter Invoke Mode", function() invoke:enter() end)
+bindDefault(hyper, "'", "Enter Chrome Mode", function() chrome:enter() end)
 
 -- App shortcuts
 bindDefault(hyper, "b", "Focus BetterTouchTool", function() shell('wm-preset focus-app "BetterTouchTool"') end)
@@ -219,7 +222,7 @@ bindDefault(hyper, "y", "Focus Calendar", function() shell('chrome-preset focus-
 bindDefault(hyper, "u", "Perform Default UI", function() shell("workflow-preset perform-default-ui") end)
 
 -- Universal Actions (per-app)
-hs.hotkey.bind(hyper, "o", function()
+bindDefault(hyper, "o", "Universal Actions", function()
   local app = frontAppName()
   if app == "iTerm2" then
     shell("ua --clipboard")
@@ -227,7 +230,6 @@ hs.hotkey.bind(hyper, "o", function()
     shell("ua")
   end
 end)
-registerBinding("Universal Actions", function() shell("ua") end)
 bindDefault(hyperShift, "o", "Universal Actions (force)", function() shell("ua") end)
 
 -- kindaVim toggle
@@ -239,109 +241,85 @@ end)
 -- SERVICE MODE bindings
 ---------------------------------------------------------------
 
-local function serviceAction(key, mods, name, fn)
-  service:bind(mods, key, function() service:exit(); fn() end)
-  registerBinding("Service: " .. name, fn)
-end
-
 -- Neovide paste in service
-service:bind(hyper, "v", function() service:exit(); shell('btt-preset send-keys cmd c; and pbneovide --guess') end)
-registerBinding("Service: Neovide Paste", function() shell('btt-preset send-keys cmd c; and pbneovide --guess') end)
+bindModal(service, "Service: ", hyper, "v", "Neovide Paste", function() shell('btt-preset send-keys cmd c; and pbneovide --guess') end)
 
 -- Harpoon
-serviceAction("a", {}, "Harpoon Add", function() shell("yabai-harpoon add") end)
-serviceAction("delete", {}, "Harpoon Delete", function() shell("yabai-harpoon delete") end)
-serviceAction("e", {}, "Harpoon Edit", function() shell("yabai-harpoon edit") end)
+bindModal(service, "Service: ", {}, "a", "Harpoon Add", function() shell("yabai-harpoon add") end)
+bindModal(service, "Service: ", {}, "delete", "Harpoon Delete", function() shell("yabai-harpoon delete") end)
+bindModal(service, "Service: ", {}, "e", "Harpoon Edit", function() shell("yabai-harpoon edit") end)
 
 -- Side-by-side
-serviceAction(";", {"shift"}, "Side By Side", function() shell("yabai-preset side-by-side") end)
+bindModal(service, "Service: ", {"shift"}, ";", "Side By Side", function() shell("yabai-preset side-by-side") end)
 
 -- Edit skhd config (now hammerspoon keybindings)
-service:bind(hyper, "e", function()
-  service:exit()
-  shell('if pgrep -q -F "$TMPDIR/nvim_skhd.pid"; display-message "Focus SKHD"; neovim-ghost focus-or-new-tab "$HOME/.hammerspoon/keybindings.lua"; else; display-message "Edit SKHD"; fish -c \'neovim-ghost edit "$HOME/.hammerspoon/keybindings.lua"\' &; echo "$last_pid" > "$TMPDIR/nvim_skhd.pid"; wait; rm "$TMPDIR/nvim_skhd.pid"; end')
-end)
-registerBinding("Service: Edit Keybindings", function()
+bindModal(service, "Service: ", hyper, "e", "Edit Keybindings", function()
   shell('if pgrep -q -F "$TMPDIR/nvim_skhd.pid"; display-message "Focus SKHD"; neovim-ghost focus-or-new-tab "$HOME/.hammerspoon/keybindings.lua"; else; display-message "Edit SKHD"; fish -c \'neovim-ghost edit "$HOME/.hammerspoon/keybindings.lua"\' &; echo "$last_pid" > "$TMPDIR/nvim_skhd.pid"; wait; rm "$TMPDIR/nvim_skhd.pid"; end')
 end)
 
 -- Space focus
-service:bind(hyper, "space", function() service:exit(); shell("wm-preset focus-space recent") end)
-registerBinding("Service: Focus Space Recent", function() shell("wm-preset focus-space recent") end)
-
-serviceAction("space", {}, "Focus Back And Forth", function() shell("wm-preset focus-back-and-forth") end)
-serviceAction("space", {"shift"}, "Move Window To Space Recent", function() shell("wm-preset move-window-to-space recent") end)
+bindModal(service, "Service: ", hyper, "space", "Focus Space Recent", function() shell("wm-preset focus-space recent") end)
+bindModal(service, "Service: ", {}, "space", "Focus Back And Forth", function() shell("wm-preset focus-back-and-forth") end)
+bindModal(service, "Service: ", {"shift"}, "space", "Move Window To Space Recent", function() shell("wm-preset move-window-to-space recent") end)
 
 -- Mode transitions
-service:bind({}, "r", function() service:exit(); resize:enter() end)
-registerBinding("Service: Enter Resize Mode", function() resize:enter() end)
-
-service:bind(hyper, "r", function() service:exit(); restart:enter() end)
-registerBinding("Service: Enter Restart Mode", function() restart:enter() end)
+bindModal(service, "Service: ", {}, "r", "Enter Resize Mode", function() resize:enter() end)
+bindModal(service, "Service: ", hyper, "r", "Enter Restart Mode", function() restart:enter() end)
 
 -- Window management
-serviceAction("y", {"shift"}, "Toggle WM", function() shell("wm-preset toggle-wm") end)
-serviceAction("v", {}, "Insert Direction East", function() shell("wm-preset insert-direction east") end)
-serviceAction("'", {"shift"}, "Insert Direction South", function() shell("wm-preset insert-direction south") end)
-serviceAction("t", {}, "Toggle Float", function() shell('display-message (wm-preset toggle-float)') end)
-serviceAction("z", {}, "Insert Direction Stack", function() shell("wm-preset insert-direction stack") end)
-serviceAction("s", {}, "Insert Direction Stack (s)", function() shell("wm-preset insert-direction stack") end)
-serviceAction("s", {"shift"}, "Stack Windows In Space", function() shell("wm-preset stack-windows-in-space") end)
-serviceAction("m", {}, "Minimize After 3rd", function() shell("wm-preset minimize-after-nth-window 3") end)
-serviceAction("m", {"shift"}, "Deminimize All", function() shell("wm-preset deminimize-all") end)
-serviceAction(",", {}, "Layout Stack", function() shell("wm-preset layout-stack") end)
-serviceAction(",", {"shift"}, "Layout BSP + Stack", function() shell("wm-preset layout-bsp; wm-preset stack-windows-in-space") end)
-serviceAction(".", {"shift"}, "Layout BSP + Minimize", function() shell("wm-preset layout-bsp; wm-preset minimize-after-nth-window 3") end)
-serviceAction("t", {"shift"}, "Layout Float", function() shell("wm-preset layout-float") end)
-serviceAction(".", {}, "Layout BSP", function() shell("wm-preset layout-bsp") end)
-serviceAction("0", {}, "Flatten", function() shell("wm-preset flatten") end)
+bindModal(service, "Service: ", {"shift"}, "y", "Toggle WM", function() shell("wm-preset toggle-wm") end)
+bindModal(service, "Service: ", {}, "v", "Insert Direction East", function() shell("wm-preset insert-direction east") end)
+bindModal(service, "Service: ", {"shift"}, "'", "Insert Direction South", function() shell("wm-preset insert-direction south") end)
+bindModal(service, "Service: ", {}, "t", "Toggle Float", function() shell('display-message (wm-preset toggle-float)') end)
+bindModal(service, "Service: ", {}, "z", "Insert Direction Stack", function() shell("wm-preset insert-direction stack") end)
+bindModal(service, "Service: ", {}, "s", "Insert Direction Stack (s)", function() shell("wm-preset insert-direction stack") end)
+bindModal(service, "Service: ", {"shift"}, "s", "Stack Windows In Space", function() shell("wm-preset stack-windows-in-space") end)
+bindModal(service, "Service: ", {}, "m", "Minimize After 3rd", function() shell("wm-preset minimize-after-nth-window 3") end)
+bindModal(service, "Service: ", {"shift"}, "m", "Deminimize All", function() shell("wm-preset deminimize-all") end)
+bindModal(service, "Service: ", {}, ",", "Layout Stack", function() shell("wm-preset layout-stack") end)
+bindModal(service, "Service: ", {"shift"}, ",", "Layout BSP + Stack", function() shell("wm-preset layout-bsp; wm-preset stack-windows-in-space") end)
+bindModal(service, "Service: ", {"shift"}, ".", "Layout BSP + Minimize", function() shell("wm-preset layout-bsp; wm-preset minimize-after-nth-window 3") end)
+bindModal(service, "Service: ", {"shift"}, "t", "Layout Float", function() shell("wm-preset layout-float") end)
+bindModal(service, "Service: ", {}, ".", "Layout BSP", function() shell("wm-preset layout-bsp") end)
+bindModal(service, "Service: ", {}, "0", "Flatten", function() shell("wm-preset flatten") end)
 
 -- Mirror / split / balance
-serviceAction("\\", {"shift"}, "Mirror Y-Axis", function() shell("wm-preset mirror y-axis") end)
-serviceAction("-", {}, "Mirror X-Axis", function() shell("wm-preset mirror x-axis") end)
-serviceAction("y", {}, "Toggle Split", function() shell("wm-preset toggle-split") end)
-serviceAction("=", {}, "Balance", function() shell("wm-preset balance") end)
+bindModal(service, "Service: ", {"shift"}, "\\", "Mirror Y-Axis", function() shell("wm-preset mirror y-axis") end)
+bindModal(service, "Service: ", {}, "-", "Mirror X-Axis", function() shell("wm-preset mirror x-axis") end)
+bindModal(service, "Service: ", {}, "y", "Toggle Split", function() shell("wm-preset toggle-split") end)
+bindModal(service, "Service: ", {}, "=", "Balance", function() shell("wm-preset balance") end)
 
 -- Focus space 1-9
 for i = 1, 9 do
-  serviceAction(tostring(i), {}, "Focus Space " .. i, function() shell("wm-preset focus-space " .. i) end)
+  bindModal(service, "Service: ", {}, tostring(i), "Focus Space " .. i, function() shell("wm-preset focus-space " .. i) end)
 end
 
 -- Move window to space 1-9
 for i = 1, 9 do
-  serviceAction(tostring(i), {"shift"}, "Move Window To Space " .. i, function() shell("wm-preset move-window-to-space " .. i) end)
+  bindModal(service, "Service: ", {"shift"}, tostring(i), "Move Window To Space " .. i, function() shell("wm-preset move-window-to-space " .. i) end)
 end
 
 -- Warp window HJKL
-service:bind(hyper, "h", function() service:exit(); shell("wm-preset warp-window west") end)
-registerBinding("Service: Warp Window West", function() shell("wm-preset warp-window west") end)
-service:bind(hyper, "j", function() service:exit(); shell("wm-preset warp-window south") end)
-registerBinding("Service: Warp Window South", function() shell("wm-preset warp-window south") end)
-service:bind(hyper, "k", function() service:exit(); shell("wm-preset warp-window north") end)
-registerBinding("Service: Warp Window North", function() shell("wm-preset warp-window north") end)
-service:bind(hyper, "l", function() service:exit(); shell("wm-preset warp-window east") end)
-registerBinding("Service: Warp Window East", function() shell("wm-preset warp-window east") end)
+bindModal(service, "Service: ", hyper, "h", "Warp Window West", function() shell("wm-preset warp-window west") end)
+bindModal(service, "Service: ", hyper, "j", "Warp Window South", function() shell("wm-preset warp-window south") end)
+bindModal(service, "Service: ", hyper, "k", "Warp Window North", function() shell("wm-preset warp-window north") end)
+bindModal(service, "Service: ", hyper, "l", "Warp Window East", function() shell("wm-preset warp-window east") end)
 
 -- Focus display HJKL
-serviceAction("h", {}, "Focus Display West", function() shell("wm-preset focus-display-with-fallback west") end)
-serviceAction("j", {}, "Focus Display South", function() shell("wm-preset focus-display-with-fallback south") end)
-serviceAction("k", {}, "Focus Display North", function() shell("wm-preset focus-display-with-fallback north") end)
-serviceAction("l", {}, "Focus Display East", function() shell("wm-preset focus-display-with-fallback east") end)
+bindModal(service, "Service: ", {}, "h", "Focus Display West", function() shell("wm-preset focus-display-with-fallback west") end)
+bindModal(service, "Service: ", {}, "j", "Focus Display South", function() shell("wm-preset focus-display-with-fallback south") end)
+bindModal(service, "Service: ", {}, "k", "Focus Display North", function() shell("wm-preset focus-display-with-fallback north") end)
+bindModal(service, "Service: ", {}, "l", "Focus Display East", function() shell("wm-preset focus-display-with-fallback east") end)
 
 -- Misc service
-serviceAction("tab", {}, "Move Window To Next Display", function() shell("wm-preset smart-move-window-to-next-display") end)
-serviceAction("/", {"shift"}, "Trigger Help Menu", function() shell("btt-preset trigger-menu-bar 'Help'") end)
-
-service:bind(hyper, "/", function() service:exit(); showCommandPalette() end)
-registerBinding("Service: Search Mappings", showCommandPalette)
-
-serviceAction("v", {"shift"}, "Tile Left", function() shell("btt-preset trigger-menu-bar 'Window;Full Screen Tile; Left of Screen'") end)
-service:bind(hyper, "return", function() service:exit(); shell("btt-preset send-keys ctrl cmd f") end)
-registerBinding("Service: True Fullscreen", function() shell("btt-preset send-keys ctrl cmd f") end)
+bindModal(service, "Service: ", {}, "tab", "Move Window To Next Display", function() shell("wm-preset smart-move-window-to-next-display") end)
+bindModal(service, "Service: ", {"shift"}, "/", "Trigger Help Menu", function() shell("btt-preset trigger-menu-bar 'Help'") end)
+bindModal(service, "Service: ", hyper, "/", "Search Mappings", showCommandPalette)
+bindModal(service, "Service: ", {"shift"}, "v", "Tile Left", function() shell("btt-preset trigger-menu-bar 'Window;Full Screen Tile; Left of Screen'") end)
+bindModal(service, "Service: ", hyper, "return", "True Fullscreen", function() shell("btt-preset send-keys ctrl cmd f") end)
 
 -- Enter chrome from service
-service:bind({}, "c", function() service:exit(); chrome:enter() end)
-registerBinding("Service: Enter Chrome Mode", function() chrome:enter() end)
+bindModal(service, "Service: ", {}, "c", "Enter Chrome Mode", function() chrome:enter() end)
 
 ---------------------------------------------------------------
 -- RESIZE MODE bindings (stays in mode, no exit on key press)
@@ -363,18 +341,13 @@ resize:bind({"shift"}, ".", function() shell("wm-preset rotate 270") end)
 -- RESTART MODE bindings
 ---------------------------------------------------------------
 
-local function restartAction(key, mods, name, fn)
-  restart:bind(mods, key, function() restart:exit(); fn() end)
-  registerBinding("Restart: " .. name, fn)
-end
-
-restartAction("y", hyper, "Restart WM", function() shell("yabai-preset restart-wm") end)
-restartAction("b", hyper, "Restart BTT", function() hs.alert.show("Restart BTT"); shell("btt-preset restart-btt") end)
-restartAction("a", hyper, "Restart Alfred", function() hs.alert.show("Restart Alfred"); shell('killall Alfred; sleep 2; and open -a "Alfred 5"') end)
-restartAction("m", hyper, "Restart Mouseless", function() hs.alert.show("Restart Mouseless"); shell('killall mouseless; sleep 2; and open -a "Mouseless"') end)
-restartAction("v", hyper, "Restart NVIM Ghost", function() hs.alert.show("Restart NVIM Ghost"); shell("neovim-ghost kill; sleep 2; and neovim-ghost start") end)
-restartAction("k", hyper, "Restart Karabiner", function() hs.alert.show("Restart Karabiner"); shell('launchctl kickstart -k gui/(id -u)/org.pqrs.service.agent.karabiner_console_user_server') end)
-restartAction("s", hyper, "Toggle AeroSpace", function()
+bindModal(restart, "Restart: ", hyper, "y", "Restart WM", function() shell("yabai-preset restart-wm") end)
+bindModal(restart, "Restart: ", hyper, "b", "Restart BTT", function() hs.alert.show("Restart BTT"); shell("btt-preset restart-btt") end)
+bindModal(restart, "Restart: ", hyper, "a", "Restart Alfred", function() hs.alert.show("Restart Alfred"); shell('killall Alfred; sleep 2; and open -a "Alfred 5"') end)
+bindModal(restart, "Restart: ", hyper, "m", "Restart Mouseless", function() hs.alert.show("Restart Mouseless"); shell('killall mouseless; sleep 2; and open -a "Mouseless"') end)
+bindModal(restart, "Restart: ", hyper, "v", "Restart NVIM Ghost", function() hs.alert.show("Restart NVIM Ghost"); shell("neovim-ghost kill; sleep 2; and neovim-ghost start") end)
+bindModal(restart, "Restart: ", hyper, "k", "Restart Karabiner", function() hs.alert.show("Restart Karabiner"); shell('launchctl kickstart -k gui/(id -u)/org.pqrs.service.agent.karabiner_console_user_server') end)
+bindModal(restart, "Restart: ", hyper, "s", "Toggle AeroSpace", function()
   shell('if pgrep -xq AeroSpace; display-message "Killing AeroSpace"; and killall AeroSpace; else; yabai-preset layout-float-all; display-message "Starting AeroSpace"; and open -a AeroSpace; end')
 end)
 
@@ -382,68 +355,50 @@ end)
 -- CHROME MODE bindings
 ---------------------------------------------------------------
 
-local function chromeAction(key, mods, name, fn)
-  chrome:bind(mods, key, function() chrome:exit(); fn() end)
-  registerBinding("Chrome: " .. name, fn)
-end
-
 -- Mode transitions
-chrome:bind(hyper, "'", function() chrome:exit(); goto_mode:enter() end)
-registerBinding("Chrome: Enter Go To Mode", function() goto_mode:enter() end)
+bindModal(chrome, "Chrome: ", hyper, "'", "Enter Go To Mode", function() goto_mode:enter() end)
 chrome:bind({}, "'", function() chrome:exit(); goto_mode:enter() end)
 
 -- Close zoom tabs
-chromeAction("delete", {}, "Close Zoom Tabs", function() shell([[chrome-preset close-tabs-with-url '^.*\.zoom\.us/j/.*$']]) end)
+bindModal(chrome, "Chrome: ", {}, "delete", "Close Zoom Tabs", function() shell([[chrome-preset close-tabs-with-url '^.*\.zoom\.us/j/.*$']]) end)
 
 -- Focus pinned tab 1-9
 for i = 1, 9 do
-  chromeAction(tostring(i), {}, "Focus Pinned Tab " .. i, function() shell("chrome-preset focus-pinned-tab " .. i) end)
+  bindModal(chrome, "Chrome: ", {}, tostring(i), "Focus Pinned Tab " .. i, function() shell("chrome-preset focus-pinned-tab " .. i) end)
 end
 
 -- Pin tab 1-9
 for i = 1, 9 do
-  chromeAction(tostring(i), {"shift"}, "Pin Tab " .. i, function() shell("chrome-preset pin-tab " .. i) end)
+  bindModal(chrome, "Chrome: ", {"shift"}, tostring(i), "Pin Tab " .. i, function() shell("chrome-preset pin-tab " .. i) end)
 end
 
 -- Chrome URL shortcuts
-chromeAction("y", {}, "YouTube", function() shell('chrome-preset focus-or-open-url --profile="Default" youtube.com') end)
-chromeAction("g", {}, "Gmail", function() shell('chrome-preset focus-or-open-url --profile="Default" gmail.com') end)
+bindModal(chrome, "Chrome: ", {}, "y", "YouTube", function() shell('chrome-preset focus-or-open-url --profile="Default" youtube.com') end)
+bindModal(chrome, "Chrome: ", {}, "g", "Gmail", function() shell('chrome-preset focus-or-open-url --profile="Default" gmail.com') end)
 
 ---------------------------------------------------------------
 -- GOTO MODE bindings
 ---------------------------------------------------------------
 
-local function gotoAction(key, mods, name, fn)
-  goto_mode:bind(mods, key, function() goto_mode:exit(); fn() end)
-  registerBinding("Go To: " .. name, fn)
-end
-
-gotoAction("y", {}, "YouTube (new tab)", function() shell('chrome-preset open-url --profile="Default" youtube.com') end)
-gotoAction("g", {}, "Gmail (new tab)", function() shell('chrome-preset open-url --profile="Default" gmail.com') end)
+bindModal(goto_mode, "Go To: ", {}, "y", "YouTube (new tab)", function() shell('chrome-preset open-url --profile="Default" youtube.com') end)
+bindModal(goto_mode, "Go To: ", {}, "g", "Gmail (new tab)", function() shell('chrome-preset open-url --profile="Default" gmail.com') end)
 
 ---------------------------------------------------------------
 -- INVOKE MODE bindings
 ---------------------------------------------------------------
 
-local function invokeAction(key, mods, name, fn)
-  invoke:bind(mods, key, function() invoke:exit(); fn() end)
-  registerBinding("Invoke: " .. name, fn)
-end
-
-invokeAction("1", {}, "Arrange Work Spaces", function()
+bindModal(invoke, "Invoke: ", {}, "1", "Arrange Work Spaces", function()
   shell([[wm-preset arrange-spaces -w '1:.*Thales \(Work\).*' -a '2:iTerm2' -a '3:.*VS Code.*' -a '4:Workchat' -a '5:Obsidian']])
 end)
-invokeAction("p", {}, "Arrange Personal Spaces", function()
+bindModal(invoke, "Invoke: ", {}, "p", "Arrange Personal Spaces", function()
   shell([[wm-preset arrange-spaces -w '7:.*Thales \(Personal\).*']])
 end)
-invokeAction("b", {}, "Alfred BTT Search", function() shell([[osascript -e 'tell application "Alfred" to search "btt "']]) end)
-invokeAction("t", {}, "Alfred Top Search", function() shell([[osascript -e 'tell application "Alfred" to search "top "']]) end)
-invokeAction("y", {}, "YouTube Search", function() shell("open 'raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D'") end)
-invokeAction("return", {}, "New iTerm Window", function() shell("iterm-preset new-window") end)
-invoke:bind(hyper, "i", function() invoke:exit(); hs.alert.show("AI Input Mode"); shell('osascript -e "set volume input volume 100"; set-preferred-input-device') end)
-registerBinding("Invoke: AI Input Mode", function() hs.alert.show("AI Input Mode"); shell('osascript -e "set volume input volume 100"; set-preferred-input-device') end)
-invoke:bind(hyper, "r", function() invoke:exit(); hs.alert.show("Reinitialize Displays"); shell("betterdisplaycli perform --reinitialize") end)
-registerBinding("Invoke: Reinitialize Displays", function() hs.alert.show("Reinitialize Displays"); shell("betterdisplaycli perform --reinitialize") end)
+bindModal(invoke, "Invoke: ", {}, "b", "Alfred BTT Search", function() shell([[osascript -e 'tell application "Alfred" to search "btt "']]) end)
+bindModal(invoke, "Invoke: ", {}, "t", "Alfred Top Search", function() shell([[osascript -e 'tell application "Alfred" to search "top "']]) end)
+bindModal(invoke, "Invoke: ", {}, "y", "YouTube Search", function() shell("open 'raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D'") end)
+bindModal(invoke, "Invoke: ", {}, "return", "New iTerm Window", function() shell("iterm-preset new-window") end)
+bindModal(invoke, "Invoke: ", hyper, "i", "AI Input Mode", function() hs.alert.show("AI Input Mode"); shell('osascript -e "set volume input volume 100"; set-preferred-input-device') end)
+bindModal(invoke, "Invoke: ", hyper, "r", "Reinitialize Displays", function() hs.alert.show("Reinitialize Displays"); shell("betterdisplaycli perform --reinitialize") end)
 
 ---------------------------------------------------------------
 -- Apply local overrides
@@ -462,6 +417,8 @@ local ctx = {
   hyper = hyper,
   hyperShift = hyperShift,
   registerBinding = registerBinding,
+  bindDefault = bindDefault,
+  bindModal = bindModal,
 }
 
 if ok and localConfig and localConfig.setup then
