@@ -229,7 +229,6 @@ service < 0 : skhd -k "escape"; wm-preset flatten
 
 service < shift - 0x2A : skhd -k "escape"; wm-preset mirror y-axis # Pipe |
 service < 0x1B : skhd -k "escape"; wm-preset mirror x-axis # minus
-service < shift - 5 : skhd -k "escape"; wm-preset mirror x-axis; wm-preset mirror y-axis # percent
 service < y : skhd -k "escape"; wm-preset toggle-split
 service < 0x18 : skhd -k "escape"; wm-preset balance # equals
 # move window to space with number
