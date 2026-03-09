@@ -11,5 +11,7 @@ if not hs.ipc.cliStatus(nil, true) then
   hs.ipc.cliInstall()
 end
 
+require("keybindings")
+
 util.notify("Hammerspoon!")
 
