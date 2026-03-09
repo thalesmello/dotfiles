@@ -70,9 +70,12 @@ vim.api.nvim_create_autocmd("User", {
         require('config/clipboard')
         require('config/neovide')
 
-        local nvim_local = vim.fn.expand("$HOME/.nvim_local.lua")
-        if vim.loop.fs_stat(nvim_local) then
-            vim.cmd.luafile(nvim_local)
+        local local_dotfiles = vim.fn.expand("$HOME/.local_dotfiles")
+        if vim.loop.fs_stat(local_dotfiles) then
+            package.path = local_dotfiles .. "/local_nvim/?.lua;"
+                .. local_dotfiles .. "/local_nvim/?/init.lua;"
+                .. package.path
+            dofile(local_dotfiles .. "/local_nvim/init.lua")
         end
     end,
 })

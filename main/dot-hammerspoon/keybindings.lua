@@ -118,7 +118,12 @@ local restart   = createModal("Restart", "Restart: ")
 -- Local config
 ---------------------------------------------------------------
 
-local ok, localConfig = pcall(dofile, os.getenv("HOME") .. "/.hammerspoon_local.lua")
+local home = os.getenv("HOME")
+local local_dotfiles = home .. "/.local_dotfiles"
+package.path = local_dotfiles .. "/local_hammerspoon/?.lua;"
+    .. local_dotfiles .. "/local_hammerspoon/?/init.lua;"
+    .. package.path
+local ok, localConfig = pcall(dofile, local_dotfiles .. "/local_hammerspoon/init.lua")
 
 ---------------------------------------------------------------
 -- DEFAULT MODE bindings
