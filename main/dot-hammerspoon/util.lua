@@ -90,8 +90,76 @@ function M.to_string( tbl )
     end
 end
 
+local function _smartInspect(obj, indent, seen)
+  if obj == nil then return "nil" end
+
+  if type(obj) == "userdata" then
+    local ok, desc
+
+    -- hs.window
+    ok, desc = pcall(function()
+      local id = obj:id()
+      local title = obj:title()
+      local frame = obj:frame()
+      local app = obj:application()
+      return string.format("hs.window { id=%s, title=%q, app=%q, frame=%s }",
+        tostring(id), title or "", app and app:name() or "?", tostring(frame))
+    end)
+    if ok and desc then return desc end
+
+    -- hs.application
+    ok, desc = pcall(function()
+      local name = obj:name()
+      local bid = obj:bundleID()
+      local pid = obj:pid()
+      return string.format("hs.application { name=%q, bundleID=%q, pid=%s }",
+        name or "?", bid or "?", tostring(pid))
+    end)
+    if ok and desc then return desc end
+
+    -- hs.screen
+    ok, desc = pcall(function()
+      local name = obj:name()
+      local id = obj:id()
+      local frame = obj:fullFrame()
+      obj:currentMode()
+      return string.format("hs.screen { name=%q, id=%s, frame=%s }",
+        name or "?", tostring(id), tostring(frame))
+    end)
+    if ok and desc then return desc end
+
+    return tostring(obj)
+  end
+
+  if type(obj) == "table" then
+    if seen[obj] then return "<circular>" end
+    seen[obj] = true
+    local parts = {}
+    local prefix = string.rep("  ", indent + 1)
+
+    for k, v in pairs(obj) do
+      local key = type(k) == "string" and k or "[" .. tostring(k) .. "]"
+      parts[#parts + 1] = prefix .. key .. " = " .. _smartInspect(v, indent + 1, seen)
+    end
+
+    if #parts == 0 then return "{}" end
+    if #parts == 1 and not parts[1]:find("\n") then
+      return "{ " .. parts[1]:match("^%s*(.+)") .. " }"
+    end
+    return "{\n" .. table.concat(parts, ",\n") .. "\n" .. string.rep("  ", indent) .. "}"
+  end
+
+  if type(obj) == "string" then return string.format("%q", obj) end
+
+  return tostring(obj)
+end
+
+function M.smartInspect(obj)
+  return _smartInspect(obj, 0, {})
+end
+
 function M.log(obj)
-  hs.logger.new('log', 'debug'):d('\n' .. M.to_string(obj))
+  hs.logger.new('log', 'debug'):d('\n' .. M.smartInspect(obj))
 end
 
 function M.notify(str)
