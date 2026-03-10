@@ -1,5 +1,5 @@
 local M = {}
-M.DEBUG = false
+M.DEBUG = true
 local logger = hs.logger.new('log', 'debug')
 function M.as_list(list)
   if type(list) ~= 'table' then
