@@ -14,6 +14,7 @@ if not hs.ipc.cliStatus(nil, true) then
 end
 
 require("keybindings")
+require("audiodevice")
 
 util.notify("Hammerspoon!")
 
