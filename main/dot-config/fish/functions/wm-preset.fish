@@ -57,4 +57,5 @@ complete -c wm-preset -n "__fish_is_nth_token 1" -f -d "Sub-command" -a "
     insert-direction
     mirror
     rotate
+    swap-workspaces-between-monitors
 "

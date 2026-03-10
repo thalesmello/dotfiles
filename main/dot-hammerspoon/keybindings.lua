@@ -445,6 +445,7 @@ service:bindOnce({}, "l", "Focus Display East", function() shell("wm-preset focu
 
 -- Misc service
 service:bindOnce({}, "tab", "Move Window To Next Display", function() shell("wm-preset smart-move-window-to-next-display") end)
+service:bindOnce(hyperShift, "tab", "Swap Workspaces Between Monitors", function() shell("wm-preset swap-workspaces-between-monitors") end)
 service:bindOnce({"shift"}, "/", "Trigger Help Menu", function() shell("btt-preset trigger-menu-bar 'Help'") end)
 service:bindOnce(hyper, "/", "Search Mappings", showCommandPalette)
 service:bindOnce({"shift"}, "v", "Tile Left", function() shell("btt-preset trigger-menu-bar 'Window;Full Screen Tile; Left of Screen'") end)

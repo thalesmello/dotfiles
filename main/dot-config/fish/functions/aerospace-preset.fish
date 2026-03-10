@@ -453,6 +453,17 @@ function aerospace-preset
         else
             open -a "$app_name"
         end
+    case "swap-workspaces-between-monitors"
+        set main_ws (aerospace list-workspaces --monitor main --visible --format '%{workspace}')
+        set secondary_ws (aerospace list-workspaces --monitor secondary --visible --format '%{workspace}')
+
+        if test -z "$main_ws" -o -z "$secondary_ws"
+            echo "Need two monitors" >&2
+            return 1
+        end
+
+        aerospace move-workspace-to-monitor --workspace $main_ws secondary
+        aerospace move-workspace-to-monitor --workspace $secondary_ws main
     case "*"
         echo "command not found - $preset" >&2
         return 1
