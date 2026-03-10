@@ -280,14 +280,10 @@ default:bindOnce(hyper, "'", "Enter Chrome Mode", function() chrome:enter() end)
 -- App shortcuts
 default:bindOnce(hyper, "b", "Focus BetterTouchTool", function() shell('wm-preset focus-app "BetterTouchTool"') end)
 default:bindOnce(hyper, "c", "Focus Cursor", function() shell('wm-preset focus-app "Cursor"') end)
-default:bindOnce(hyper, "x", "Focus iTerm2", function()
-  shell('wm-preset focus-app "iTerm2"')
-  hs.timer.doAfter(0.3, function()
-    if isFloatingTerminal() then
-      shell("btt-preset send-keys cmd grave")
-    end
-  end)
-end)
+default:conditionalBindOnce(hyper, "x", "Focus iTerm2", {
+  {cond = isFloatingTerminal, function () shell('wm-preset focus-app "iTerm2"; btt-preset send-keys cmd backtick') end },
+  { function () shell('wm-preset focus-app "iTerm2"') end }
+})
 default:bindOnce(hyper, "q", "Focus Gemini", function() shell('chrome-preset focus-or-open-url "gemini.google.com" --label "Gemini"') end)
 default:bindOnce(hyper, "w", "Focus WhatsApp", function() shell('wm-preset focus-app "WhatsApp"') end)
 default:bindOnce(hyper, "z", "Focus Obsidian", function() shell('wm-preset focus-app "Obsidian"') end)
