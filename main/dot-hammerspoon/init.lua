@@ -15,6 +15,7 @@ end
 
 require("keybindings")
 require("audiodevice")
+require("screenwatcher")
 
 -- Auto-reload config when files change
 local watchPaths = {
