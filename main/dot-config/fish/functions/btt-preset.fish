@@ -203,7 +203,8 @@ function btt-preset
                 "y": 16, "z": 6, "space": 49, "return": 36, "left": 123,
                 "right": 124, "up": 126, "down": 125, "fn": 63, "1": 18,
                 "2": 19, "3": 20, "4": 21, "5": 23, "6": 22, "7": 26,
-                "8": 28, "9": 25, "0": 29, "tab": 48, "escape": 53
+                "8": 28, "9": 25, "0": 29, "tab": 48, "escape": 53,
+                "backtick": 50
             } as $map
             | rtrimstr("\n")
             | split("\n")
