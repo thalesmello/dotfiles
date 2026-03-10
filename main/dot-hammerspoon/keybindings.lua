@@ -22,10 +22,10 @@ local function shell(cmd)
 end
 
 -- Async shell command that can be awaited — returns (success, output)
-local shellAwait = a.wrap(function(cmd, callback)
-  util.log("shellAwait:", cmd)
+local shellAsync = a.wrap(function(cmd, callback)
+  util.log("shellAsync:", cmd)
   hs.task.new(FISH, function(exitCode, stdOut, stdErr)
-    util.log("shellAwait result: exitCode=", exitCode, "stdout=", stdOut)
+    util.log("shellAsync result: exitCode=", exitCode, "stdout=", stdOut)
     callback(exitCode == 0, (stdOut or ""):gsub("%s+$", ""))
   end, {"-c", cmd}):start()
 end)
@@ -36,9 +36,9 @@ local function frontAppName()
   return app and app:name() or ""
 end
 
--- Check if a GUI process is running (pure Lua, no subprocess)
+-- Check if a process is running using pgrep (returns a shellAsync thunk)
 local function isProcessRunning(name)
-  return hs.application.find(name) ~= nil
+  return shellAsync("pgrep -x " .. name .. " > /dev/null 2>&1")
 end
 
 -- Check if the focused window is a floating terminal (pure Lua, no subprocess)
@@ -51,7 +51,7 @@ end
 
 -- Check if the current window is floating in the WM (needs shell — no HS API for tiling state)
 local function isWindowFloating()
-  return shellAwait("wm-preset is-window-floating")
+  return shellAsync("wm-preset is-window-floating")
 end
 
 ---------------------------------------------------------------
@@ -342,6 +342,7 @@ default:conditionalBindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", {
     shell('chrome-preset focus-or-open-url meet.google.com --label "Google Meet"; sleep 0.5; btt-preset send-keys cmd d')
   end},
 })
+
 default:bindOnce(hyperShift, "f", "Focus WhatsApp (shift)", function() shell('wm-preset focus-app "WhatsApp"') end)
 default:bindOnce(hyperShift, "g", "Focus Messages", function() shell('wm-preset focus-app "Messages"') end)
 default:bindOnce(hyperShift, "q", "Focus Activity Monitor", function() shell('wm-preset focus-app "Activity Monitor"') end)
@@ -548,7 +549,7 @@ invoke:bindOnce(hyper, "r", "Reinitialize Displays", function() hs.alert.show("R
 
 local ctx = {
   shell = shell,
-  shellAwait = shellAwait,
+  shellAsync = shellAsync,
   frontAppName = frontAppName,
   default = default,
   service = service,
