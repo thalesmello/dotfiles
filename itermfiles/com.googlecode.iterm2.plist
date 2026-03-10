@@ -4226,6 +4226,8 @@
 	<true/>
 	<key>Selection Respects Soft Boundaries</key>
 	<false/>
+	<key>ShowPaneTitles</key>
+	<false/>
 	<key>SoundForEsc</key>
 	<false/>
 	<key>SplitPaneDimmingAmount</key>
