@@ -28,6 +28,24 @@ local function frontAppName()
   return app and app:name() or ""
 end
 
+-- Check if a GUI process is running (pure Lua, no subprocess)
+local function isProcessRunning(name)
+  return hs.application.find(name) ~= nil
+end
+
+-- Check if the focused window is a floating terminal (pure Lua, no subprocess)
+local function isFloatingTerminal()
+  local win = hs.window.focusedWindow()
+  if not win then return false end
+  local app = win:application()
+  return app ~= nil and app:name() == "iTerm2" and win:title() == "floating-terminal"
+end
+
+-- Check if the current window is floating in the WM (needs shell — no HS API for tiling state)
+local function isWindowFloating()
+  return shellSync("wm-preset is-window-floating")
+end
+
 ---------------------------------------------------------------
 -- Command palette
 ---------------------------------------------------------------
@@ -72,6 +90,20 @@ end
 
 function Mode:conditionalBind(mods, key, rules)
   self:bind(mods, key, function()
+    local app = frontAppName()
+    for _, rule in ipairs(rules) do
+      local appMatch = not rule.app or rule.app == app
+      local condMatch = not rule.cond or rule.cond()
+      if appMatch and condMatch then
+        rule[1]()
+        return
+      end
+    end
+  end)
+end
+
+function Mode:conditionalBindOnce(mods, key, name, rules)
+  self:bindOnce(mods, key, name, function()
     local app = frontAppName()
     for _, rule in ipairs(rules) do
       local appMatch = not rule.app or rule.app == app
@@ -153,13 +185,25 @@ default:bindOnce(hyper, "k", "Focus Window North", function() shell("wm-preset f
 default:bindOnce(hyper, "l", "Focus Window East", function() shell("wm-preset focus-window east; or wm-preset focus-floating-window east") end)
 
 -- Window swap/snap HJKL
-default:bindOnce(hyperShift, "h", "Swap/Snap West", function() shell("if wm-preset is-window-floating; yabai-preset snap west; else; wm-preset swap-window west; end") end)
-default:bindOnce(hyperShift, "j", "Swap/Snap South", function() shell("if wm-preset is-window-floating; yabai-preset snap south; else; wm-preset swap-window south; end") end)
-default:bindOnce(hyperShift, "k", "Swap/Snap North", function() shell("if wm-preset is-window-floating; yabai-preset snap north; else; wm-preset swap-window north; end") end)
-default:bindOnce(hyperShift, "l", "Swap/Snap East", function() shell("if wm-preset is-window-floating; yabai-preset snap east; else; wm-preset swap-window east; end") end)
+default:conditionalBindOnce(hyperShift, "h", "Swap/Snap West", {
+  {cond = isWindowFloating, function() shell("yabai-preset snap west") end},
+  {function() shell("wm-preset swap-window west") end},
+})
+default:conditionalBindOnce(hyperShift, "j", "Swap/Snap South", {
+  {cond = isWindowFloating, function() shell("yabai-preset snap south") end},
+  {function() shell("wm-preset swap-window south") end},
+})
+default:conditionalBindOnce(hyperShift, "k", "Swap/Snap North", {
+  {cond = isWindowFloating, function() shell("yabai-preset snap north") end},
+  {function() shell("wm-preset swap-window north") end},
+})
+default:conditionalBindOnce(hyperShift, "l", "Swap/Snap East", {
+  {cond = isWindowFloating, function() shell("yabai-preset snap east") end},
+  {function() shell("wm-preset swap-window east") end},
+})
 
 -- Ctrl+Cmd HJKL (per-app, Chrome tab nav)
-local isFloating = function() return shellSync("iterm-preset is-floating-window-active") end
+local isFloating = isFloatingTerminal
 
 default:conditionalBind({"ctrl", "cmd"}, "h", {
   {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"alt", "cmd"}, "left") end},
@@ -236,7 +280,14 @@ default:bindOnce(hyper, "'", "Enter Chrome Mode", function() chrome:enter() end)
 -- App shortcuts
 default:bindOnce(hyper, "b", "Focus BetterTouchTool", function() shell('wm-preset focus-app "BetterTouchTool"') end)
 default:bindOnce(hyper, "c", "Focus Cursor", function() shell('wm-preset focus-app "Cursor"') end)
-default:bindOnce(hyper, "x", "Focus iTerm2", function() shell('wm-preset focus-app "iTerm2"; and iterm-preset is-floating-window-active; and btt-preset send-keys cmd grave') end)
+default:bindOnce(hyper, "x", "Focus iTerm2", function()
+  shell('wm-preset focus-app "iTerm2"')
+  hs.timer.doAfter(0.3, function()
+    if isFloatingTerminal() then
+      shell("btt-preset send-keys cmd grave")
+    end
+  end)
+end)
 default:bindOnce(hyper, "q", "Focus Gemini", function() shell('chrome-preset focus-or-open-url "gemini.google.com" --label "Gemini"') end)
 default:bindOnce(hyper, "w", "Focus WhatsApp", function() shell('wm-preset focus-app "WhatsApp"') end)
 default:bindOnce(hyper, "z", "Focus Obsidian", function() shell('wm-preset focus-app "Obsidian"') end)
@@ -247,10 +298,19 @@ default:bindOnce(hyper, "a", "Focus Timery", function() shell('wm-preset focus-a
 default:bindOnce(hyperShift, "a", "Focus Pomofocus", function() shell('wm-preset focus-app "Pomofocus"') end)
 default:bindOnce(hyperShift, "z", "Focus Google Keep", function() shell('wm-preset focus-app "Google Keep"') end)
 default:bindOnce(hyperShift, "w", "Focus Zoom/Meet", function()
-  shell('if pgrep "zoom.us" >/dev/null; wm-preset focus-app "zoom.us"; else; chrome-preset focus-or-open-url meet.google.com --label "Google Meet"; end')
+  if isProcessRunning("zoom.us") then
+    shell('wm-preset focus-app "zoom.us"')
+  else
+    shell('chrome-preset focus-or-open-url meet.google.com --label "Google Meet"')
+  end
 end)
 default:bindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", function()
-  shell('if pgrep "zoom.us" >/dev/null; display-message "Toggle Mute"; wm-preset focus-app "zoom.us"; sleep 0.5; btt-preset send-keys cmd shift a; else; display-message "Toggle Mute"; chrome-preset focus-or-open-url meet.google.com --label "Google Meet"; sleep 0.5; btt-preset send-keys cmd d; end')
+  hs.alert.show("Toggle Mute")
+  if isProcessRunning("zoom.us") then
+    shell('wm-preset focus-app "zoom.us"; sleep 0.5; btt-preset send-keys cmd shift a')
+  else
+    shell('chrome-preset focus-or-open-url meet.google.com --label "Google Meet"; sleep 0.5; btt-preset send-keys cmd d')
+  end
 end)
 default:bindOnce(hyperShift, "f", "Focus WhatsApp (shift)", function() shell('wm-preset focus-app "WhatsApp"') end)
 default:bindOnce(hyperShift, "g", "Focus Messages", function() shell('wm-preset focus-app "Messages"') end)
@@ -272,7 +332,13 @@ default:bindOnce(hyperShift, "o", "Universal Actions (force)", function() shell(
 
 -- kindaVim toggle
 default:bindOnce(hyperShift, "v", "Toggle kindaVim", function()
-  shell('if pgrep "kindaVim" >/dev/null; display-message "Exit kindaVim"; killall "kindaVim"; else; display-message "Enter kindaVim"; open -a "kindaVim"; end')
+  if isProcessRunning("kindaVim") then
+    hs.alert.show("Exit kindaVim")
+    shell('killall "kindaVim"')
+  else
+    hs.alert.show("Enter kindaVim")
+    shell('open -a "kindaVim"')
+  end
 end)
 
 ---------------------------------------------------------------
@@ -290,9 +356,10 @@ service:bindOnce({}, "e", "Harpoon Edit", function() shell("yabai-harpoon edit")
 -- Side-by-side
 service:bindOnce({"shift"}, ";", "Side By Side", function() shell("yabai-preset side-by-side") end)
 
--- Edit skhd config (now hammerspoon keybindings)
+-- Edit hammerspoon keybindings
 service:bindOnce(hyper, "e", "Edit Keybindings", function()
-  shell('if pgrep -q -F "$TMPDIR/nvim_skhd.pid"; display-message "Focus SKHD"; neovim-ghost focus-or-new-tab "$HOME/.hammerspoon/keybindings.lua"; else; display-message "Edit SKHD"; fish -c \'neovim-ghost edit "$HOME/.hammerspoon/keybindings.lua"\' &; echo "$last_pid" > "$TMPDIR/nvim_skhd.pid"; wait; rm "$TMPDIR/nvim_skhd.pid"; end')
+  hs.alert.show("Edit Keybindings")
+  shell('neovim-ghost focus-or-new-tab "$HOME/.hammerspoon/keybindings.lua"')
 end)
 
 -- Space focus
@@ -386,7 +453,14 @@ restart:bindOnce(hyper, "m", "Restart Mouseless", function() hs.alert.show("Rest
 restart:bindOnce(hyper, "v", "Restart NVIM Ghost", function() hs.alert.show("Restart NVIM Ghost"); shell("neovim-ghost kill; sleep 2; and neovim-ghost start") end)
 restart:bindOnce(hyper, "k", "Restart Karabiner", function() hs.alert.show("Restart Karabiner"); shell('launchctl kickstart -k gui/(id -u)/org.pqrs.service.agent.karabiner_console_user_server') end)
 restart:bindOnce(hyper, "s", "Toggle AeroSpace", function()
-  shell('if pgrep -xq AeroSpace; display-message "Killing AeroSpace"; and killall AeroSpace; else; yabai-preset layout-float-all; display-message "Starting AeroSpace"; and open -a AeroSpace; end')
+  if isProcessRunning("AeroSpace") then
+    hs.alert.show("Killing AeroSpace")
+    shell("killall AeroSpace")
+  else
+    shell("yabai-preset layout-float-all")
+    hs.alert.show("Starting AeroSpace")
+    shell("open -a AeroSpace")
+  end
 end)
 
 ---------------------------------------------------------------
