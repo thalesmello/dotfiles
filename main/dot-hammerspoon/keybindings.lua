@@ -300,21 +300,20 @@ default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() shell('wm-preset f
 default:bindOnce(hyper, "a", "Focus Timery", function() shell('wm-preset focus-app "Timery"') end)
 default:bindOnce(hyperShift, "a", "Focus Pomofocus", function() shell('wm-preset focus-app "Pomofocus"') end)
 default:bindOnce(hyperShift, "z", "Focus Google Keep", function() shell('wm-preset focus-app "Google Keep"') end)
-default:bindOnce(hyperShift, "w", "Focus Zoom/Meet", function()
-  if isProcessRunning("zoom.us") then
-    shell('wm-preset focus-app "zoom.us"')
-  else
-    shell('chrome-preset focus-or-open-url meet.google.com --label "Google Meet"')
-  end
-end)
-default:bindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", function()
-  hs.alert.show("Toggle Mute")
-  if isProcessRunning("zoom.us") then
+default:conditionalBindOnce(hyperShift, "w", "Focus Zoom/Meet", {
+  {cond = function() return isProcessRunning("zoom.us") end, function() shell('wm-preset focus-app "zoom.us"') end},
+  {function() shell('chrome-preset focus-or-open-url meet.google.com --label "Google Meet"') end},
+})
+default:conditionalBindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", {
+  {cond = function() return isProcessRunning("zoom.us") end, function()
+    hs.alert.show("Toggle Mute")
     shell('wm-preset focus-app "zoom.us"; sleep 0.5; btt-preset send-keys cmd shift a')
-  else
+  end},
+  {function()
+    hs.alert.show("Toggle Mute")
     shell('chrome-preset focus-or-open-url meet.google.com --label "Google Meet"; sleep 0.5; btt-preset send-keys cmd d')
-  end
-end)
+  end},
+})
 default:bindOnce(hyperShift, "f", "Focus WhatsApp (shift)", function() shell('wm-preset focus-app "WhatsApp"') end)
 default:bindOnce(hyperShift, "g", "Focus Messages", function() shell('wm-preset focus-app "Messages"') end)
 default:bindOnce(hyperShift, "q", "Focus Activity Monitor", function() shell('wm-preset focus-app "Activity Monitor"') end)
@@ -323,26 +322,23 @@ default:bindOnce(hyper, "y", "Focus Calendar", function() shell('chrome-preset f
 default:bindOnce(hyper, "u", "Perform Default UI", function() shell("workflow-preset perform-default-ui") end)
 
 -- Universal Actions (per-app)
-default:bindOnce(hyper, "o", "Universal Actions", function()
-  local app = frontAppName()
-  if app == "iTerm2" then
-    shell("ua --clipboard")
-  else
-    shell("ua")
-  end
-end)
+default:conditionalBindOnce(hyper, "o", "Universal Actions", {
+  {app = "iTerm2", function() shell("ua --clipboard") end},
+  {function() shell("ua") end},
+})
 default:bindOnce(hyperShift, "o", "Universal Actions (force)", function() shell("ua") end)
 
 -- kindaVim toggle
-default:bindOnce(hyperShift, "v", "Toggle kindaVim", function()
-  if isProcessRunning("kindaVim") then
+default:conditionalBindOnce(hyperShift, "v", "Toggle kindaVim", {
+  {cond = function() return isProcessRunning("kindaVim") end, function()
     hs.alert.show("Exit kindaVim")
     shell('killall "kindaVim"')
-  else
+  end},
+  {function()
     hs.alert.show("Enter kindaVim")
     shell('open -a "kindaVim"')
-  end
-end)
+  end},
+})
 
 ---------------------------------------------------------------
 -- SERVICE MODE bindings
@@ -456,16 +452,17 @@ restart:bindOnce(hyper, "m", "Restart Mouseless", function() hs.alert.show("Rest
 restart:bindOnce(hyper, "v", "Restart NVIM Ghost", function() hs.alert.show("Restart NVIM Ghost"); shell("neovim-ghost kill; sleep 2; and neovim-ghost start") end)
 restart:bindOnce(hyper, "k", "Restart Karabiner", function() hs.alert.show("Restart Karabiner"); shell('launchctl kickstart -k gui/(id -u)/org.pqrs.service.agent.karabiner_console_user_server') end)
 restart:bindOnce(hyper, "h", "Restart Hammerspoon", function() hs.alert.show("Restarting Hammerspoon"); hs.reload() end)
-restart:bindOnce(hyper, "s", "Toggle AeroSpace", function()
-  if isProcessRunning("AeroSpace") then
+restart:conditionalBindOnce(hyper, "s", "Toggle AeroSpace", {
+  {cond = function() return isProcessRunning("AeroSpace") end, function()
     hs.alert.show("Killing AeroSpace")
     shell("killall AeroSpace")
-  else
+  end},
+  {function()
     shell("yabai-preset layout-float-all")
     hs.alert.show("Starting AeroSpace")
     shell("open -a AeroSpace")
-  end
-end)
+  end},
+})
 
 ---------------------------------------------------------------
 -- CHROME MODE bindings
