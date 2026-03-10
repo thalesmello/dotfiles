@@ -158,8 +158,13 @@ function M.smartInspect(obj)
   return _smartInspect(obj, 0, {})
 end
 
-function M.log(obj)
-  hs.logger.new('log', 'debug'):d('\n' .. M.smartInspect(obj))
+function M.log(...)
+  local args = table.pack(...)
+  local parts = {}
+  for i = 1, args.n do
+    parts[i] = M.smartInspect(args[i])
+  end
+  hs.logger.new('log', 'debug'):d('\n' .. table.concat(parts, " "))
 end
 
 function M.notify(str)

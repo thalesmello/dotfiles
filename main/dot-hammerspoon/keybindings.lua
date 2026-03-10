@@ -1,6 +1,7 @@
 -- keybindings.lua - Hammerspoon keybindings (replaces skhd)
 
 local FISH = "/opt/homebrew/bin/fish"
+local util = require("util")
 
 -- Modifier shorthands (matching skhd's ctrl + alt + cmd)
 local hyper = {"ctrl", "alt", "cmd"}
@@ -12,13 +13,19 @@ local hyperShift = {"ctrl", "alt", "cmd", "shift"}
 
 -- Async (fire-and-forget) shell command via fish
 local function shell(cmd)
-  hs.task.new(FISH, nil, {"-c", cmd}):start()
+  util.log("shell:", cmd)
+  hs.task.new(FISH, function(exitCode, stdOut, stdErr)
+    if stdOut and #stdOut > 0 then util.log("shell stdout:", stdOut) end
+    if stdErr and #stdErr > 0 then util.log("shell stderr:", stdErr) end
+  end, {"-c", cmd}):start()
 end
 
 -- Sync shell command, returns (success, output_string)
 local function shellSync(cmd)
+  util.log("shellSync:", cmd)
   local quoted = "'" .. cmd:gsub("'", "'\\''") .. "'"
   local output, status = hs.execute(FISH .. " -c " .. quoted)
+  util.log("shellSync result: status=", status, "output=", output)
   return status, output or ""
 end
 
