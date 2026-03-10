@@ -1,4 +1,6 @@
 local M = {}
+M.DEBUG = false
+local logger = hs.logger.new('log', 'debug')
 function M.as_list(list)
   if type(list) ~= 'table' then
     list = { list }
@@ -91,6 +93,7 @@ function M.to_string( tbl )
 end
 
 local function _smartInspect(obj, indent, seen)
+  if type(obj) == "string" then return string.format("%q", obj) end
   if obj == nil then return "nil" end
 
   if type(obj) == "userdata" then
@@ -149,8 +152,6 @@ local function _smartInspect(obj, indent, seen)
     return "{\n" .. table.concat(parts, ",\n") .. "\n" .. string.rep("  ", indent) .. "}"
   end
 
-  if type(obj) == "string" then return string.format("%q", obj) end
-
   return tostring(obj)
 end
 
@@ -159,12 +160,13 @@ function M.smartInspect(obj)
 end
 
 function M.log(...)
+  if not M.DEBUG then return end
   local args = table.pack(...)
   local parts = {}
   for i = 1, args.n do
     parts[i] = M.smartInspect(args[i])
   end
-  hs.logger.new('log', 'debug'):d('\n' .. table.concat(parts, " "))
+  logger:d('\n' .. table.concat(parts, " "))
 end
 
 function M.notify(str)
