@@ -3,6 +3,7 @@ function aerospace-preset
     set -e argv[1]
     argparse -i \
         'back-workspace=!test -n "$_flag_value"' \
+        'match-title=' \
         -- $argv
 
     set current_workspace (aerospace list-workspaces --focused --format "%{workspace}")
@@ -414,23 +415,36 @@ function aerospace-preset
             set app_name (path basename "$app_name" | path change-extension '')
         end
 
+        set -l title_filter 'true'
+        set -l jq_title_args
+        if set -q _flag_match_title
+            set title_filter '(."window-title" | test($title_re))'
+            set jq_title_args --arg title_re "$_flag_match_title"
+        end
+
         set window_id ""
 
         # Prefer yabai's smarter lookup (sorts by non-minimized, prefers current space)
         if pgrep -xq yabai
-            set window_id (yabai-preset get-app-window-id "$app_name")
+            set -l match_title_args
+            if set -q _flag_match_title
+                set match_title_args --match-title "$_flag_match_title"
+            end
+            set window_id (yabai-preset get-app-window-id $match_title_args "$app_name")
         end
 
         # Fall back to aerospace's own lookup
         if test -z "$window_id"
             # Prefer a window on the focused workspace
             set window_id (aerospace list-windows --workspace focused --json \
-                | jq -r --arg app "$app_name" '[.[] | select(."app-name" == $app)] | first | ."window-id" // empty')
+                | jq -r $jq_title_args --arg app "$app_name" \
+                  '[.[] | select(."app-name" == $app) | select('"$title_filter"')] | first | ."window-id" // empty')
 
             # Fall back to any workspace
             if test -z "$window_id"
                 set window_id (aerospace list-windows --all --json \
-                    | jq -r --arg app "$app_name" '[.[] | select(."app-name" == $app)] | first | ."window-id" // empty')
+                    | jq -r $jq_title_args --arg app "$app_name" \
+                      '[.[] | select(."app-name" == $app) | select('"$title_filter"')] | first | ."window-id" // empty')
             end
         end
 

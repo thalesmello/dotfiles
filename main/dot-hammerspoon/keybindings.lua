@@ -190,7 +190,7 @@ local local_dotfiles = home .. "/.local_dotfiles"
 package.path = local_dotfiles .. "/local_hammerspoon/?.lua;"
     .. local_dotfiles .. "/local_hammerspoon/?/init.lua;"
     .. package.path
-local ok, localConfig = pcall(dofile, local_dotfiles .. "/local_hammerspoon/init.lua")
+local ok, localConfig = pcall(dofile, local_dotfiles .. "/local_hammerspoon/keybindings.lua")
 
 ---------------------------------------------------------------
 -- DEFAULT MODE bindings

@@ -787,6 +787,9 @@ function yabai-preset
                 return 1
         end
     case "get-app-window-id"
+        argparse 'match-title=' -- $argv
+        or return 1
+
         set app_name $argv[1]
         set -e argv[1]
 
@@ -795,12 +798,19 @@ function yabai-preset
             set app_name (path basename "$app_name" | path change-extension '')
         end
 
+        set -l title_filter 'true'
+        set -l jq_title_args
+        if set -q _flag_match_title
+            set title_filter '(.title | test($title_re))'
+            set jq_title_args --arg title_re "$_flag_match_title"
+        end
+
         set current_space (yabai -m query --spaces --space | jq '.index')
 
         # Find best window: prefer non-minimized, prefer current space
         yabai -m query --windows \
-        | jq -re --arg app "$app_name" --argjson cs "$current_space" '
-            [.[] | select(.app == $app)]
+        | jq -re $jq_title_args --arg app "$app_name" --argjson cs "$current_space" '
+            [.[] | select(.app == $app) | select('"$title_filter"')]
             | if length == 0 then error("no windows") else . end
             | sort_by([
                 (if ."is-minimized" then 1 else 0 end),
@@ -810,10 +820,18 @@ function yabai-preset
             | .id
         '
     case "focus-app"
+        argparse 'match-title=' -- $argv
+        or return 1
+
         set app_name $argv[1]
         set -e argv[1]
 
-        set window (yabai-preset get-app-window-id "$app_name")
+        set -l match_title_args
+        if set -q _flag_match_title
+            set match_title_args --match-title "$_flag_match_title"
+        end
+
+        set window (yabai-preset get-app-window-id $match_title_args "$app_name")
         or begin
             open -a "$app_name"
             return
