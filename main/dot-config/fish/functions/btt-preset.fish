@@ -226,10 +226,11 @@ function btt-preset
         echo active "$active"
         if test "$active" = "$app_name"
             if set -q _flag_hide
-                skhd -k "cmd - h"
+                btt-preset send-keys cmd h
             else if set -q _flag_minimize
                 yabai-preset minimize
             else
+                # We use skhd -k here because btt-preset will conflict with other mapppings
                 skhd -k "cmd - tab"
             end
         else if test -n "$_flag_cmd"

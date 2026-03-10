@@ -284,9 +284,9 @@ function chrome-preset
 
             if test "$(jq -nr --argjson active "$active" '$active.id')" = "$app_window_id"
                 if set -q _flag_hide
-                    skhd -k 'cmd - h'
+                    btt-preset send-keys cmd h
                 else if set -q _flag_minimize
-                    yabai-preset "minimize"
+                    yabai-preset minimize
                 else
                     wm-preset focus-window-id recent
                 end
