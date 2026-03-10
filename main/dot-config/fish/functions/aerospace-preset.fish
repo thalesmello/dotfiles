@@ -417,19 +417,17 @@ function aerospace-preset
 
         set -l title_filter 'true'
         set -l jq_title_args
+        set -l match_title_args
         if set -q _flag_match_title
             set title_filter '(."window-title" | test($title_re))'
             set jq_title_args --arg title_re "$_flag_match_title"
+            set match_title_args --match-title "$_flag_match_title"
         end
 
         set window_id ""
 
         # Prefer yabai's smarter lookup (sorts by non-minimized, prefers current space)
         if pgrep -xq yabai
-            set -l match_title_args
-            if set -q _flag_match_title
-                set match_title_args --match-title "$_flag_match_title"
-            end
             set window_id (yabai-preset get-app-window-id $match_title_args "$app_name")
         end
 
@@ -450,6 +448,7 @@ function aerospace-preset
 
         if test -n "$window_id"
             aerospace focus --window-id $window_id
+            or yabai-preset focus-app $match_title_args "$app_name"
         else
             open -a "$app_name"
         end
