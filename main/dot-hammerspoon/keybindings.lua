@@ -2,6 +2,7 @@
 
 local FISH = "/opt/homebrew/bin/fish"
 local util = require("util")
+local a = require("async")
 
 -- Modifier shorthands (matching skhd's ctrl + alt + cmd)
 local hyper = {"ctrl", "alt", "cmd"}
@@ -20,14 +21,14 @@ local function shell(cmd)
   end, {"-c", cmd}):start()
 end
 
--- Sync shell command, returns (success, output_string)
-local function shellSync(cmd)
-  util.log("shellSync:", cmd)
-  local quoted = "'" .. cmd:gsub("'", "'\\''") .. "'"
-  local output, status = hs.execute(FISH .. " -c " .. quoted)
-  util.log("shellSync result: status=", status, "output=", output)
-  return status, output or ""
-end
+-- Async shell command that can be awaited — returns (success, output)
+local shellAwait = a.wrap(function(cmd, callback)
+  util.log("shellAwait:", cmd)
+  hs.task.new(FISH, function(exitCode, stdOut, stdErr)
+    util.log("shellAwait result: exitCode=", exitCode, "stdout=", stdOut)
+    callback(exitCode == 0, (stdOut or ""):gsub("%s+$", ""))
+  end, {"-c", cmd}):start()
+end)
 
 -- Get frontmost application name
 local function frontAppName()
@@ -50,7 +51,7 @@ end
 
 -- Check if the current window is floating in the WM (needs shell — no HS API for tiling state)
 local function isWindowFloating()
-  return shellSync("wm-preset is-window-floating")
+  return shellAwait("wm-preset is-window-floating")
 end
 
 ---------------------------------------------------------------
@@ -97,29 +98,49 @@ end
 
 function Mode:conditionalBind(mods, key, rules)
   self:bind(mods, key, function()
-    local app = frontAppName()
-    for _, rule in ipairs(rules) do
-      local appMatch = not rule.app or rule.app == app
-      local condMatch = not rule.cond or rule.cond()
-      if appMatch and condMatch then
-        rule[1]()
-        return
+    a.sync(function()
+      local app = frontAppName()
+      for _, rule in ipairs(rules) do
+        local appMatch = not rule.app or rule.app == app
+        local condMatch = true
+        if rule.cond then
+          local result = rule.cond()
+          if type(result) == "function" then
+            condMatch = a.wait(result)
+          else
+            condMatch = result
+          end
+        end
+        if appMatch and condMatch then
+          rule[1]()
+          return
+        end
       end
-    end
+    end)()
   end)
 end
 
 function Mode:conditionalBindOnce(mods, key, name, rules)
   self:bindOnce(mods, key, name, function()
-    local app = frontAppName()
-    for _, rule in ipairs(rules) do
-      local appMatch = not rule.app or rule.app == app
-      local condMatch = not rule.cond or rule.cond()
-      if appMatch and condMatch then
-        rule[1]()
-        return
+    a.sync(function()
+      local app = frontAppName()
+      for _, rule in ipairs(rules) do
+        local appMatch = not rule.app or rule.app == app
+        local condMatch = true
+        if rule.cond then
+          local result = rule.cond()
+          if type(result) == "function" then
+            condMatch = a.wait(result)
+          else
+            condMatch = result
+          end
+        end
+        if appMatch and condMatch then
+          rule[1]()
+          return
+        end
       end
-    end
+    end)()
   end)
 end
 
@@ -519,7 +540,7 @@ invoke:bindOnce(hyper, "r", "Reinitialize Displays", function() hs.alert.show("R
 
 local ctx = {
   shell = shell,
-  shellSync = shellSync,
+  shellAwait = shellAwait,
   frontAppName = frontAppName,
   default = default,
   service = service,
