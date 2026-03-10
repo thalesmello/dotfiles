@@ -61,14 +61,21 @@ end
 local allBindings = {}
 
 local function registerBinding(name, fn)
-  table.insert(allBindings, {text = name, fn = fn})
+  table.insert(allBindings, {name = name, fn = fn})
 end
 
 local function showCommandPalette()
+  local choices = {}
+  for i, binding in ipairs(allBindings) do
+    choices[i] = {text = binding.name, index = i}
+  end
   local chooser = hs.chooser.new(function(choice)
-    if choice and choice.fn then choice.fn() end
+    if choice then
+      local binding = allBindings[choice.index]
+      if binding and binding.fn then binding.fn() end
+    end
   end)
-  chooser:choices(allBindings)
+  chooser:choices(choices)
   chooser:show()
 end
 
