@@ -249,6 +249,7 @@ function aerospace-preset
         set window_id $argv[1]
         set -e argv[1]
         aerospace focus --window-id "$window_id"
+        yabai-preset focus-window-id "$window_id"
     case "focus-window" "focus-window-in-stack" "focus-window-in-space"
         set direction $argv[1]
         set -e argv[1]
