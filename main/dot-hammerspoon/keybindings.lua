@@ -250,9 +250,9 @@ default:bindOnce(hyper, "m", "Minimize", function() shell("wm-preset minimize") 
 default:bindOnce(hyper, "return", "Smart Toggle Fullscreen", function() shell("wm-preset smart-toggle-fullscreen") end)
 default:bindOnce(hyperShift, "return", "Unstacked Swap Largest", function() shell("wm-preset unstacked-swap-largest") end)
 
--- Neovide / BTT
-default:bindOnce(hyper, "v", "Neovide Toggle", function() shell('btt-preset alternate-app "Neovide" --hide --cmd "neovim-ghost trigger"') end)
-default:bindOnce(hyper, "t", "Chrome: New Tab and Focus", function() shell('btt-preset trigger-named-trigger "Chrome: New Tab and Focus"') end)
+-- Neovide
+default:bindOnce(hyper, "v", "Neovide Toggle", function() Preset.alternateApp("Neovide", {hide = true, cmd = "neovim-ghost trigger"}) end)
+default:bindOnce(hyper, "t", "Chrome: New Tab and Focus", function() shell('chrome-cli open -t; open -a "Google Chrome"') end)
 
 -- Space navigation
 default:bindOnce(hyper, "[", "Focus Space Prev", function() shell("wm-preset focus-space prev") end)
@@ -358,16 +358,21 @@ default:bindOnce(hyper, "i", "Enter Invoke Mode", function() invoke:enter() end)
 default:bindOnce(hyper, "'", "Enter Chrome Mode", function() chrome:enter() end)
 
 -- App shortcuts
-default:bindOnce(hyper, "b", "Focus BetterTouchTool", function() shell('wm-preset focus-app "BetterTouchTool"') end)
+default:bindOnce(hyper, "b", "Focus Hammerspoon Console", function() hs.toggleConsole() end)
 default:bindOnce(hyper, "c", "Focus Cursor", function() shell('wm-preset focus-app "Cursor"') end)
 default:conditionalBindOnce(hyper, "x", "Focus iTerm2", {
-  {cond = isFloatingTerminal, function () shell('wm-preset focus-app "iTerm2"; btt-preset send-keys cmd backtick') end },
+  {
+    cond = isFloatingTerminal, a.sync(function ()
+      a.wait(shellAsync('wm-preset focus-app "iTerm2"'))
+      hs.eventtap.keyStroke({"cmd"}, "`")
+    end)
+  },
   { function () shell('wm-preset focus-app "iTerm2"') end }
 })
 default:bindOnce(hyper, "q", "Focus Gemini", function() shell('chrome-preset focus-or-open-url "gemini.google.com" --label "Gemini"') end)
 default:bindOnce(hyper, "w", "Focus WhatsApp", function() shell('wm-preset focus-app "WhatsApp"') end)
 default:bindOnce(hyper, "z", "Focus Obsidian", function() shell('wm-preset focus-app "Obsidian"') end)
-default:bindOnce(hyper, "s", "Toggle YouTube Music", function() shell('btt-preset alternate-app "YouTube Music" --hide') end)
+default:bindOnce(hyper, "s", "Toggle YouTube Music", function() Preset.alternateApp("YouTube Music", {hide = true}) end)
 default:bindOnce(hyper, "e", "Focus Chrome", function() shell('wm-preset focus-app "Google Chrome"') end)
 default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() shell('wm-preset focus-app "Google Chrome"') end)
 default:bindOnce(hyper, "a", "Focus Timery", function() shell('wm-preset focus-app "Timery"') end)
@@ -380,11 +385,13 @@ default:conditionalBindOnce(hyperShift, "w", "Focus Zoom/Meet", {
 default:conditionalBindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", {
   {cond = function() return isProcessRunning("zoom.us") end, function()
     hs.alert.show("Toggle Mute")
-    shell('wm-preset focus-app "zoom.us"; sleep 0.5; btt-preset send-keys cmd shift a')
+    shell('wm-preset focus-app "zoom.us"')
+    hs.timer.doAfter(0.5, function() hs.eventtap.keyStroke({"cmd", "shift"}, "a") end)
   end},
   {function()
     hs.alert.show("Toggle Mute")
-    shell('chrome-preset focus-or-open-url meet.google.com --label "Google Meet"; sleep 0.5; btt-preset send-keys cmd d')
+    shell('chrome-preset focus-or-open-url meet.google.com --label "Google Meet"')
+    hs.timer.doAfter(0.5, function() hs.eventtap.keyStroke({"cmd"}, "d") end)
   end},
 })
 
@@ -419,7 +426,10 @@ default:conditionalBindOnce(hyperShift, "v", "Toggle kindaVim", {
 ---------------------------------------------------------------
 
 -- Neovide paste in service
-service:bindOnce(hyper, "v", "Neovide Paste", function() shell('btt-preset send-keys cmd c; and pbneovide --guess') end)
+service:bindOnce(hyper, "v", "Neovide Paste", function()
+  hs.eventtap.keyStroke({"cmd"}, "c")
+  hs.timer.doAfter(0.1, function() shell("pbneovide --guess") end)
+end)
 
 -- Harpoon
 service:bindOnce({}, "a", "Harpoon Add", function() shell("yabai-harpoon add") end)
@@ -492,10 +502,10 @@ service:bindOnce({}, "l", "Focus Display East", function() shell("wm-preset focu
 -- Misc service
 service:bindOnce({}, "tab", "Move Window To Next Display", function() shell("wm-preset smart-move-window-to-next-display") end)
 service:bindOnce(hyperShift, "tab", "Swap Workspaces Between Monitors", function() shell("wm-preset swap-workspaces-between-monitors") end)
-service:bindOnce({"shift"}, "/", "Trigger Help Menu", function() shell("btt-preset trigger-menu-bar 'Help'") end)
+service:bindOnce({"shift"}, "/", "Trigger Help Menu", function() Preset.triggerMenuBar("Help") end)
 service:bindOnce(hyper, "/", "Search Mappings", showCommandPalette)
-service:bindOnce({"shift"}, "v", "Tile Left", function() shell("btt-preset trigger-menu-bar 'Window;Full Screen Tile; Left of Screen'") end)
-service:bindOnce(hyper, "return", "True Fullscreen", function() shell("btt-preset send-keys ctrl cmd f") end)
+service:bindOnce({"shift"}, "v", "Tile Left", function() Preset.triggerMenuBar("Window;Full Screen Tile; Left of Screen") end)
+service:bindOnce(hyper, "return", "True Fullscreen", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "f") end)
 
 -- Enter chrome from service
 service:bindOnce({}, "c", "Enter Chrome Mode", function() chrome:enter() end)
@@ -521,7 +531,7 @@ resize:bind({"shift"}, ".", function() shell("wm-preset rotate 270") end)
 ---------------------------------------------------------------
 
 restart:bindOnce(hyper, "y", "Restart WM", function() shell("yabai-preset restart-wm") end)
-restart:bindOnce(hyper, "b", "Restart BTT", function() hs.alert.show("Restart BTT"); shell("btt-preset restart-btt") end)
+restart:bindOnce(hyper, "b", "Restart Hammerspoon", function() hs.alert.show("Restarting Hammerspoon"); hs.reload() end)
 restart:bindOnce(hyper, "a", "Restart Alfred", function() hs.alert.show("Restart Alfred"); shell('killall Alfred; sleep 2; and open -a "Alfred 5"') end)
 restart:bindOnce(hyper, "m", "Restart Mouseless", function() hs.alert.show("Restart Mouseless"); shell('killall mouseless; sleep 2; and open -a "Mouseless"') end)
 restart:bindOnce(hyper, "v", "Restart NVIM Ghost", function() hs.alert.show("Restart NVIM Ghost"); shell("neovim-ghost kill; sleep 2; and neovim-ghost start") end)

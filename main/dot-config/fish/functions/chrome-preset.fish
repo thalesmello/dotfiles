@@ -122,8 +122,8 @@ function chrome-preset
         set -e argv[1]
 
         set profile_name (jq --arg profile "$profile" -r '.profile.info_cache[$profile] | "\(.gaia_given_name) (\(.name))"' <"$HOME/Library/Application Support/Google/Chrome/Local State")
-        and btt-preset show-or-hide-app --only-show "Google Chrome"
-        and btt-preset trigger-menu-bar "Profiles;$(string escape --style regex "$profile_name")"
+        and hs-preset show-or-hide-app --only-show "Google Chrome"
+        and hs-preset trigger-menu-bar "Profiles;$(string escape --style regex "$profile_name")"
 
     case "open-url"
         argparse profile= label= newtab newtabright -- $argv
@@ -140,7 +140,7 @@ function chrome-preset
             set url "https://$url"
         end
 
-        set app (btt-preset get-string-variable "focused_window_app_name")
+        set app (hs-preset get-active-app)
 
         # If app is Chrome and --newtab is absent, open in current tab
         if test "$app" = "Google Chrome" -a -z "$_flag_newtab"
@@ -155,7 +155,7 @@ function chrome-preset
             set extra_args
 
             if test -n "$_flag_newtabright"
-                btt-preset trigger-menu-bar "Tab;New Tab to the Right"
+                hs-preset trigger-menu-bar "Tab;New Tab to the Right"
                 env OUTPUT_FORMAT=json chrome-cli info | jq -r '.id' | read --line tab_id
             end
 
@@ -284,7 +284,7 @@ function chrome-preset
 
             if test "$(jq -nr --argjson active "$active" '$active.id')" = "$app_window_id"
                 if set -q _flag_hide
-                    btt-preset send-keys cmd h
+                    hs-preset send-keys cmd h
                 else if set -q _flag_minimize
                     yabai-preset minimize
                 else

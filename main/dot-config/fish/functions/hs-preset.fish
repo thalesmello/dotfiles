@@ -1,0 +1,105 @@
+function hs-preset
+    set preset $argv[1]
+    set -e argv[1]
+
+    switch "$preset"
+    case "send-keys"
+        # Build a Lua table from the arguments
+        set -l lua_args
+        for arg in $argv
+            set -a lua_args "\"$arg\""
+        end
+        set -l lua_table (string join ", " $lua_args)
+        hs -c "Preset.sendKeys({$lua_table})"
+
+    case "display-message"
+        argparse duration= -- $argv
+        or return 1
+
+        set -l message (string escape -- $argv[1])
+        set -l duration (default "$_flag_duration" 0.5)
+
+        hs -c "Preset.displayMessage(\"$message\", $duration)"
+
+    case "trigger-menu-bar"
+        set -l path (string escape -- $argv[1])
+        hs -c "Preset.triggerMenuBar(\"$path\")"
+
+    case "get-active-app"
+        hs -c "Preset.getActiveApp()"
+
+    case "show-or-hide-app"
+        argparse only-show only-hide -- $argv
+        or return 1
+
+        set -l app (string escape -- $argv[1])
+        set -l only_show "false"
+        set -l only_hide "false"
+
+        if set -q _flag_only_show
+            set only_show "true"
+        end
+
+        if set -q _flag_only_hide
+            set only_hide "true"
+        end
+
+        hs -c "Preset.showOrHideApp(\"$app\", $only_show, $only_hide)"
+
+    case "show-app"
+        hs-preset show-or-hide-app --only-show $argv
+
+    case "alternate-app"
+        set -l app $argv[1]
+        set -e argv[1]
+
+        argparse cmd= hide=? minimize=? -- $argv
+        or return 1
+
+        set -l app_escaped (string escape -- $app)
+        set -l opts "{"
+
+        if set -q _flag_hide
+            set opts "$opts hide=true,"
+        end
+
+        if set -q _flag_minimize
+            set opts "$opts minimize=true,"
+        end
+
+        if test -n "$_flag_cmd"
+            set -l cmd_escaped (string escape -- $_flag_cmd)
+            set opts "$opts cmd=\"$cmd_escaped\","
+        end
+
+        set opts "$opts}"
+
+        hs -c "Preset.alternateApp(\"$app_escaped\", $opts)"
+
+    case "restart-btt"
+        # No-op: BTT is no longer used
+
+    case "get-key-codes"
+        printf "%s\n" $argv | jq -Rsr '
+            {
+                "ctrl": 59, "shift": 56, "alt": 58, "cmd": 55,
+                "a": 0, "b": 11, "c": 8, "d": 2, "e": 14, "f": 3,
+                "g": 5, "h": 4, "i": 34, "j": 38, "k": 40, "l": 37,
+                "m": 46, "n": 45, "o": 31, "p": 35, "q": 12, "r": 15,
+                "s": 1, "t": 17, "u": 32, "v": 9, "w": 13, "x": 7,
+                "y": 16, "z": 6, "space": 49, "return": 36, "left": 123,
+                "right": 124, "up": 126, "down": 125, "fn": 63, "1": 18,
+                "2": 19, "3": 20, "4": 21, "5": 23, "6": 22, "7": 26,
+                "8": 28, "9": 25, "0": 29, "tab": 48, "escape": 53,
+                "backtick": 50, "backslash": 42
+            } as $map
+            | rtrimstr("\n")
+            | split("\n")
+            | map(. as $key | $map[.] | if . == null then error("\($key) is not mapped") else . end)
+            | join(",")
+        '
+
+    case '*'
+        return 1
+    end
+end

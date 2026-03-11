@@ -6,7 +6,7 @@ function skhd-preset
     case "search-and-execute-command"
         fish -c "$(string match -rg ':\s*(.*)$' "$(skhd-preset search-and-print-shortcut)")"
     case "search-and-display-mapping"
-        btt-preset display-message --duration 1 "$(string match -rg '^(.*):' "$(skhd-preset search-and-print-shortcut)")"
+        hs-preset display-message --duration 1 "$(string match -rg '^(.*):' "$(skhd-preset search-and-print-shortcut)")"
     case "display-shortcuts"
         set config (cat ~/.skhdrc_main ~/.skhdrc_local | string collect)
         string replace -ra ':\n\s*' ': ' "$(string replace -ra '\\\\\n\s+' ' ' "$config")" \

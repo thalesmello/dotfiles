@@ -6,7 +6,12 @@ function iterm-preset
     case "new-window"
         osascript -e 'tell application "iTerm2" to create window with default profile'
     case "is-floating-window-active"
-        string match -qr -- '<AXApplication: "iTerm2">\s*<AXWindow: "floating-terminal">' "$(btt-preset get-string-variable "focused_element_details")"
+        test (hs -c '
+            local w = hs.window.focusedWindow()
+            if w and w:application():name() == "iTerm2" and w:title() == "floating-terminal" then
+                print("yes")
+            end
+        ') = "yes"
     case "hide-floating-terminal"
         iterm-preset is-floating-window-active
         and osascript -e '

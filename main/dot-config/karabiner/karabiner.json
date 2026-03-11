@@ -89,7 +89,7 @@
           "type" : "basic"
         }, {
           "to_if_alone" : [ {
-            "shell_command" : "/opt/homebrew/bin/fish -c 'btt-preset trigger-named-trigger \"Hide Cursor\"'"
+            "shell_command" : "/opt/homebrew/bin/hs -c 'Preset.hideCursor()'"
           } ],
           "from" : {
             "key_code" : "right_shift",
@@ -1197,7 +1197,7 @@
         "description" : "Workflow Enhancement Shortcuts",
         "manipulators" : [ {
           "to_if_alone" : [ {
-            "shell_command" : "/opt/homebrew/bin/fish -c \"btt-preset send-keys cmd shift a; sleep 0.05; btt-preset send-keys return\""
+            "shell_command" : "/opt/homebrew/bin/fish -c \"hs-preset send-keys cmd shift a; sleep 0.05; hs-preset send-keys return\""
           } ],
           "to_after_key_up" : [ {
             "set_variable" : {

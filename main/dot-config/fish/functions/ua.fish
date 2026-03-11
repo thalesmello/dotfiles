@@ -21,7 +21,7 @@ function ua
     end
 
     if set -q _flag_clipboard
-        btt-preset send-keys cmd c
+        hs-preset send-keys cmd c
         set -l text (pbpaste)
         osascript -l JavaScript -e 'function run(argv) { Application("com.runningwithcrayons.Alfred").action(argv, {asType: "text"}) }' "$text"
         return
@@ -34,7 +34,7 @@ function ua
 
     if test (count $argv) -eq 0
         # No arguments: invoke universal actions with default behavior
-        btt-preset send-keys ctrl cmd backslash
+        hs-preset send-keys ctrl cmd backslash
         return
     end
 
