@@ -347,6 +347,11 @@ function aerospace-preset
         aerospace flatten-workspace-tree
     case "resize"
         aerospace resize $argv
+    case "focus-recent"
+        set recent (yabai-preset get-recent-window-id)
+        or return 1
+        aerospace focus --window-id $recent
+        or yabai-preset focus-recent
     case "focus-back-and-forth"
         aerospace focus-back-and-forth; or aerospace workspace-back-and-forth
     case "arrange-spaces"
@@ -500,7 +505,7 @@ complete -c aerospace-preset -n "__fish_is_nth_token 1" -f -d "Name of the prese
     smart-toggle-fullscreen toggle-monocle-mode stack-windows-in-space
     toggle-yabai toggle-wm restart-wm is-window-floating print-window-mode
     print-yabai-widget print-wm-widget focus-topmost swap-window warp-window
-    toggle-float toggle-split balance flatten resize focus-back-and-forth
+    toggle-float toggle-split balance flatten resize focus-recent focus-back-and-forth
     arrange-spaces focus-app focus-pid minimize-pid unstacked-swap-largest
     minimize-after-nth-window layout-stack layout-bsp layout-float
     insert-direction mirror rotate

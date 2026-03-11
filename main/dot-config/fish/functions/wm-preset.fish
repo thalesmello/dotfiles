@@ -45,6 +45,7 @@ complete -c wm-preset -n "__fish_is_nth_token 1" -f -d "Sub-command" -a "
     flatten
     resize
     focus-back-and-forth
+    focus-recent
     arrange-spaces
     focus-app
     focus-pid

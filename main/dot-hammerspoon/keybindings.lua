@@ -193,6 +193,51 @@ package.path = local_dotfiles .. "/local_hammerspoon/?.lua;"
 local ok, localConfig = pcall(dofile, local_dotfiles .. "/local_hammerspoon/keybindings.lua")
 
 ---------------------------------------------------------------
+-- Smart Cmd+Tab
+---------------------------------------------------------------
+
+local cmdTabCount = 0
+
+local cmdTabTap = hs.eventtap.new(
+  {hs.eventtap.event.types.keyDown, hs.eventtap.event.types.flagsChanged},
+  function(event)
+    local type = event:getType()
+    local flags = event:getFlags()
+
+    -- On Cmd release: reset counter
+    if type == hs.eventtap.event.types.flagsChanged then
+      if not flags.cmd then
+        cmdTabCount = 0
+      end
+      return false  -- never consume modifier events
+    end
+
+    -- Only intercept Tab while Cmd is held (no other modifiers)
+    local keyCode = event:getKeyCode()
+    if keyCode ~= hs.keycodes.map["tab"] then return false end
+    if not flags.cmd then return false end
+    if flags.alt or flags.ctrl or flags.shift then return false end
+
+    cmdTabCount = cmdTabCount + 1
+
+    if cmdTabCount == 1 then
+      -- First press: custom behavior
+      if isFloatingTerminal() then
+        -- Only hide hotkey window when floating terminal is actually focused
+        hs.osascript.applescript('tell application "iTerm2" to hide hotkey window current window')
+      else
+        shell("wm-preset focus-recent")
+      end
+      return true  -- consume the event
+    else
+      -- Second+ press: let native App Switcher handle it
+      return false
+    end
+  end
+)
+cmdTabTap:start()
+
+---------------------------------------------------------------
 -- DEFAULT MODE bindings
 ---------------------------------------------------------------
 
