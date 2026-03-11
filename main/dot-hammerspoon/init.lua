@@ -13,6 +13,7 @@ if not hs.ipc.cliStatus(nil, true) then
   hs.ipc.cliInstall()
 end
 
+Preset = require("preset")
 require("keybindings")
 require("audiodevice")
 require("screenwatcher")
@@ -26,6 +27,19 @@ local watchPaths = {
 local reloadWatchers = {}
 for _, path in ipairs(watchPaths) do
   local watcher = hs.pathwatcher.new(path, function(files)
+    local luaFiles = hs.fnutils.filter(files, function(f) return f:match("%.lua$") end)
+    if not luaFiles or #luaFiles == 0 then return end
+
+    for _, file in ipairs(luaFiles) do
+      local fn, err = loadfile(file)
+      if not fn then
+        util.log("Syntax error in " .. file .. ": " .. err)
+        hs.alert.show("Syntax error in " .. file:match("[^/]+$"))
+        return
+      end
+    end
+
+    util.log("Reloading config")
     hs.reload()
   end)
   if watcher then
