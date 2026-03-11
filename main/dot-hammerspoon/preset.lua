@@ -39,7 +39,7 @@ function M.triggerMenuBar(path)
   local app = hs.application.frontmostApplication()
   local items = {}
   for item in path:gmatch("[^;]+") do
-    items[#items + 1] = hs.fnutils.trim(item)
+    items[#items + 1] = item:match("^%s*(.-)%s*$")
   end
   app:selectMenuItem(items)
 end

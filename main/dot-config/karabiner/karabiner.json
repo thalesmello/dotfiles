@@ -1255,19 +1255,14 @@
           } ],
           "type" : "basic"
         }, {
-          "to_if_alone" : [ {
-            "key_code" : "hyphen",
-            "modifiers" : [ "left_control" ]
-          } ],
           "from" : {
-            "pointing_button" : "button4"
+            "key_code" : "b",
+            "modifiers" : {
+              "mandatory" : [ "left_command", "left_control", "left_option", "left_shift" ]
+            }
           },
           "to" : [ {
-            "pointing_button" : "button4"
-          } ],
-          "conditions" : [ {
-            "type" : "frontmost_application_if",
-            "bundle_identifiers" : [ "com.microsoft.VSCode", "com.facebook.fbvscode", "com.todesktop.230313mzl4w4u92" ]
+            "shell_command" : "/opt/homebrew/bin/fish -c \"killall Hammerspoon; sleep 0.5; open -a Hammerspoon\""
           } ],
           "type" : "basic"
         }, {

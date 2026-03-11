@@ -421,6 +421,66 @@ default:conditionalBindOnce(hyperShift, "v", "Toggle kindaVim", {
   end},
 })
 
+-- Paste as plain text
+default:bindOnce({"cmd", "alt"}, "v", "Paste as Plain Text", function()
+  local text = hs.pasteboard.getContents()
+  if text then hs.eventtap.keyStrokes(text) end
+end)
+
+-- Smart lock (screensaver on AC, lock on battery)
+default:bindOnce({"ctrl", "cmd"}, "q", "Smart Lock", function()
+  if hs.battery.powerSource() == "AC Power" then
+    hs.caffeinate.startScreensaver()
+  else
+    hs.caffeinate.lockScreen()
+  end
+end)
+
+---------------------------------------------------------------
+-- App-specific modal helper
+---------------------------------------------------------------
+
+local function createAppModal(appName)
+  local modal = hs.hotkey.modal.new()
+  local watcher = hs.application.watcher.new(function(name, event)
+    if event == hs.application.watcher.activated then
+      if name == appName then modal:enter() else modal:exit() end
+    end
+  end)
+  watcher:start()
+  modal._appWatcher = watcher  -- prevent garbage collection
+  if frontAppName() == appName then modal:enter() end
+  return modal
+end
+
+---------------------------------------------------------------
+-- Chrome app-specific hotkeys (only active when Chrome is focused)
+---------------------------------------------------------------
+
+local chromeAppModal = createAppModal("Google Chrome")
+
+chromeAppModal:bind({"ctrl", "shift"}, "d", function() Preset.triggerMenuBar("Tab;Move Tab to New Window") end)
+chromeAppModal:bind({"ctrl", "alt"}, "d", function() Preset.triggerMenuBar("Tab;Duplicate Tab") end)
+chromeAppModal:bind({"ctrl", "alt", "shift"}, "d", function()
+  Preset.triggerMenuBar("Tab;Duplicate Tab")
+  hs.timer.doAfter(0.5, function() Preset.triggerMenuBar("Tab;Move Tab to New Window") end)
+end)
+chromeAppModal:bind({"ctrl", "shift"}, "g", function() Preset.triggerMenuBar("Tab;Group Tab") end)
+chromeAppModal:bind({"ctrl", "cmd"}, "1", function()
+  hs.eventtap.keyStroke({"alt", "shift"}, "1")
+  hs.eventtap.keyStroke({"ctrl", "shift"}, "1")
+end)
+
+local cmdTHk = chromeAppModal:bind({"cmd"}, "t", function()
+  if isFloatingTerminal() then
+    cmdTHk:disable()
+    hs.eventtap.keyStroke({"cmd"}, "t")
+    cmdTHk:enable()
+  else
+    Preset.triggerMenuBar("Tab;New Tab to the Right")
+  end
+end)
+
 ---------------------------------------------------------------
 -- SERVICE MODE bindings
 ---------------------------------------------------------------
@@ -531,7 +591,7 @@ resize:bind({"shift"}, ".", function() shell("wm-preset rotate 270") end)
 ---------------------------------------------------------------
 
 restart:bindOnce(hyper, "y", "Restart WM", function() shell("yabai-preset restart-wm") end)
-restart:bindOnce(hyper, "b", "Restart Hammerspoon", function() hs.alert.show("Restarting Hammerspoon"); hs.reload() end)
+restart:bindOnce(hyperShift, "b", "Restart Hammerspoon", function() hs.alert.show("Restarting Hammerspoon"); hs.relaunch() end)
 restart:bindOnce(hyper, "a", "Restart Alfred", function() hs.alert.show("Restart Alfred"); shell('killall Alfred; sleep 2; and open -a "Alfred 5"') end)
 restart:bindOnce(hyper, "m", "Restart Mouseless", function() hs.alert.show("Restart Mouseless"); shell('killall mouseless; sleep 2; and open -a "Mouseless"') end)
 restart:bindOnce(hyper, "v", "Restart NVIM Ghost", function() hs.alert.show("Restart NVIM Ghost"); shell("neovim-ghost kill; sleep 2; and neovim-ghost start") end)
