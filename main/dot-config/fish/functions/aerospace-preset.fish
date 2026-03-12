@@ -455,6 +455,7 @@ function aerospace-preset
         if test -n "$window_id"
             aerospace focus --window-id $window_id
             or yabai-preset focus-app $match_title_args "$app_name"
+            or open -a "$app_name"
         else
             open -a "$app_name"
         end
