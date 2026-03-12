@@ -1,0 +1,678 @@
+#!/opt/homebrew/bin/bash
+
+SCRIPT_DIR="$(dirname "$0")"
+export PATH="/opt/homebrew/bin:$SCRIPT_DIR:$PATH"
+
+_contains() {
+    local needle="$1"; shift
+    for item in "$@"; do
+        [[ "$item" == "$needle" ]] && return 0
+    done
+    return 1
+}
+
+__wm_translate_direction() {
+    case "$1" in
+        west)  echo left ;;
+        east)  echo right ;;
+        north) echo up ;;
+        south) echo down ;;
+        *)     echo "$1" ;;
+    esac
+}
+
+# Parse top-level flags (--back-workspace, --match-title) before dispatch
+_flag_back_workspace=""
+_match_title=""
+_remaining_args=()
+
+_parse_top_level_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --back-workspace) _flag_back_workspace="$2"; shift 2 ;;
+            --back-workspace=*) _flag_back_workspace="${1#--back-workspace=}"; shift ;;
+            --match-title) _match_title="$2"; shift 2 ;;
+            --match-title=*) _match_title="${1#--match-title=}"; shift ;;
+            --) shift; _remaining_args+=("$@"); break ;;
+            *) _remaining_args+=("$1"); shift ;;
+        esac
+    done
+}
+
+_parse_top_level_args "$@"
+set -- "${_remaining_args[@]}"
+
+preset="$1"; shift
+
+# Lazy-evaluated state — computed on first access, then cached
+_current_workspace=""
+_current_workspace_loaded=""
+_ensure_current_workspace() {
+    if [[ -z "$_current_workspace_loaded" ]]; then
+        _current_workspace=$(aerospace list-workspaces --focused --format "%{workspace}")
+        _current_workspace_loaded=1
+    fi
+}
+
+_current_window=""
+_current_window_loaded=""
+_ensure_current_window() {
+    if [[ -z "$_current_window_loaded" ]]; then
+        _current_window=$(aerospace list-windows --focused --format '%{window-id}')
+        _current_window_loaded=1
+    fi
+}
+
+_back_workspace=""
+_back_workspace_loaded=""
+_ensure_back_workspace() {
+    if [[ -z "$_back_workspace_loaded" ]]; then
+        _ensure_current_workspace
+        _back_workspace="$_flag_back_workspace"
+        if [[ -z "$_back_workspace" ]]; then
+            _back_workspace=$(( _current_workspace + 1 )) 2>/dev/null || _back_workspace=2
+            if [[ "$_back_workspace" -gt 9 ]]; then
+                _back_workspace=1
+            fi
+        fi
+        if [[ "$_back_workspace" == "$_current_workspace" ]]; then
+            _back_workspace=1
+        fi
+        _back_workspace_loaded=1
+    fi
+}
+
+_windows=()
+_windows_loaded=""
+_ensure_windows() {
+    if [[ -z "$_windows_loaded" ]]; then
+        _ensure_current_workspace
+        while IFS= read -r w; do
+            [[ -n "$w" ]] && _windows+=("$w")
+        done < <(aerospace list-windows --workspace "$_current_workspace" --format "%{window-id}")
+        _windows_loaded=1
+    fi
+}
+
+_other_windows=()
+_other_windows_loaded=""
+_ensure_other_windows() {
+    if [[ -z "$_other_windows_loaded" ]]; then
+        _ensure_windows
+        _ensure_current_window
+        for w in "${_windows[@]}"; do
+            [[ "$w" != "$_current_window" ]] && _other_windows+=("$w")
+        done
+        _other_windows_loaded=1
+    fi
+}
+
+_move_other_windows() {
+    _ensure_other_windows
+    _ensure_back_workspace
+    for window in "${_other_windows[@]}"; do
+        aerospace move-node-to-workspace --window-id "$window" "$_back_workspace"
+    done
+}
+
+_move_all_windows_in_workspace() {
+    local from="" to=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --from) from="$2"; shift 2 ;;
+            --from=*) from="${1#--from=}"; shift ;;
+            --to) to="$2"; shift 2 ;;
+            --to=*) to="${1#--to=}"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+
+    if [[ -z "$from" && -z "$to" ]]; then
+        echo "move-all-windows-in-workspace: at least one of --from or --to must be set" >&2
+        return 1
+    fi
+
+    _ensure_current_workspace
+    local from_workspace="${from:-$_current_workspace}"
+    local to_workspace="${to:-$_current_workspace}"
+
+    while IFS= read -r window; do
+        [[ -n "$window" ]] && aerospace move-node-to-workspace --window-id "$window" "$to_workspace"
+    done < <(aerospace list-windows --workspace "$from_workspace" --format "%{window-id}")
+}
+
+_move_window() {
+    _ensure_back_workspace
+    aerospace move-node-to-workspace "$_back_workspace"
+}
+
+_minimize_other_windows() {
+    _ensure_other_windows
+    for window in "${_other_windows[@]}"; do
+        aerospace focus --window-id "$window"
+        aerospace macos-native-minimize
+    done
+}
+
+_minimize_windows() {
+    _ensure_windows
+    for window in "${_windows[@]}"; do
+        aerospace focus --window-id "$window"
+        aerospace macos-native-minimize
+    done
+}
+
+_move_to_previous_workspace() {
+    _ensure_back_workspace
+    local move_others=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --move-others) move_others="true"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+
+    local summon_window
+    summon_window=$(aerospace list-windows --focused --format '%{window-id}')
+    aerospace workspace-back-and-forth
+    local workspace
+    workspace=$(aerospace list-workspaces --focused --format '%{workspace}')
+    local other_window
+    other_window=$(aerospace list-windows --focused --format '%{window-id}')
+
+    if [[ -n "$move_others" ]]; then
+        while IFS= read -r window; do
+            [[ -n "$window" ]] || continue
+            _contains "$window" "$summon_window" "$other_window" && continue
+            aerospace move-node-to-workspace --window-id "$window" "$_back_workspace"
+        done < <(aerospace list-windows --workspace focused --format '%{window-id}')
+    fi
+
+    aerospace move-node-to-workspace --window-id "$summon_window" "$workspace"
+    aerospace focus --window-id "$summon_window"
+}
+
+_move_all_but_two() {
+    _ensure_back_workspace
+    local main_window
+    main_window=$(aerospace list-windows --focused --format '%{window-id}')
+    aerospace focus-back-and-forth || aerospace workspace-back-and-forth
+    local workspace
+    workspace=$(aerospace list-workspaces --focused --format '%{workspace}')
+    local other_window
+    other_window=$(aerospace list-windows --focused --format '%{window-id}')
+
+    while IFS= read -r window; do
+        [[ -n "$window" ]] || continue
+        _contains "$window" "$main_window" "$other_window" && continue
+        aerospace move-node-to-workspace --window-id "$window" "$_back_workspace"
+    done < <(aerospace list-windows --workspace focused --format '%{window-id}')
+
+    aerospace move-node-to-workspace --window-id "$main_window" "$workspace"
+    aerospace focus --window-id "$main_window"
+}
+
+_arrange_workspaces() {
+    local flag_apps=() flag_windows=() keep_windows=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -a|--app) flag_apps+=("$2"); shift 2 ;;
+            --app=*) flag_apps+=("${1#--app=}"); shift ;;
+            -w|--window) flag_windows+=("$2"); shift 2 ;;
+            --window=*) flag_windows+=("${1#--window=}"); shift ;;
+            --keep-windows) keep_windows="true"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+
+    local specs=() all_windows=() all_workspaces=()
+
+    local lines=()
+    for app_spec in "${flag_apps[@]}"; do
+        lines+=("%{app-name}:$app_spec")
+    done
+    for win_spec in "${flag_windows[@]}"; do
+        lines+=("%{window-title}:$win_spec")
+    done
+
+    for line in "${lines[@]}"; do
+        IFS=: read -r format workspace filter <<< "$line"
+
+        while IFS=: read -r window _rest; do
+            specs+=("$workspace:$window")
+            all_workspaces+=("$workspace")
+            all_windows+=("$window")
+        done < <(aerospace list-windows --all --format "%{window-id}:$format:" | grep -E ":$filter:")
+    done
+
+    if [[ -z "$keep_windows" ]]; then
+        # Sort and unique workspaces
+        local unique_workspaces=()
+        while IFS= read -r ws; do
+            unique_workspaces+=("$ws")
+        done < <(printf '%s\n' "${all_workspaces[@]}" | sort -un)
+
+        echo workspaces "${unique_workspaces[@]}"
+        echo windows "${all_windows[@]}"
+
+        _ensure_back_workspace
+        _ensure_current_workspace
+        local local_back="$_back_workspace"
+        if _contains "$_current_workspace" "${unique_workspaces[@]}"; then
+            local_back=$(( ${unique_workspaces[-1]} + 1 ))
+        fi
+
+        # Move windows to back workspace
+        for workspace in "${unique_workspaces[@]}"; do
+            while IFS= read -r window; do
+                [[ -n "$window" ]] || continue
+                _contains "$window" "${all_windows[@]}" && continue
+                aerospace move-node-to-workspace --window-id "$window" "$local_back"
+            done < <(aerospace list-windows --workspace "$workspace" --format '%{window-id}')
+        done
+    fi
+
+    for line in "${specs[@]}"; do
+        IFS=: read -r workspace window <<< "$line"
+        aerospace move-node-to-workspace --window-id "$window" "$workspace"
+    done
+}
+
+_summon() {
+    local flag_apps=() flag_windows=() move_others="" minimize_others=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -a|--app) flag_apps+=("$2"); shift 2 ;;
+            --app=*) flag_apps+=("${1#--app=}"); shift ;;
+            -w|--window) flag_windows+=("$2"); shift 2 ;;
+            --window=*) flag_windows+=("${1#--window=}"); shift ;;
+            --move-others) move_others="true"; shift ;;
+            --minimize-others) minimize_others="true"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+
+    if [[ -n "$minimize_others" ]]; then
+        _minimize_other_windows
+    fi
+
+    if [[ -n "$move_others" ]]; then
+        _move_other_windows
+    fi
+
+    local workspace
+    workspace=$(aerospace list-workspaces --focused --format '%{workspace}')
+    local arrange_args=()
+    for app in "${flag_apps[@]}"; do
+        arrange_args+=(--app "$workspace:$app")
+    done
+    for win in "${flag_windows[@]}"; do
+        arrange_args+=(--window "$workspace:$win")
+    done
+    _arrange_workspaces --keep-windows "${arrange_args[@]}"
+}
+
+_focus_floating_window() {
+    local direction="$1"; shift
+
+    # Get floating window IDs from aerospace
+    local floating_ids=()
+    while IFS= read -r fid; do
+        fid="${fid%%:*}"
+        [[ -n "$fid" ]] && floating_ids+=("$fid")
+    done < <(aerospace list-windows --workspace focused --format '%{window-id}:%{window-layout}' | grep ':floating$')
+
+    if [[ ${#floating_ids[@]} -eq 0 ]]; then
+        return 1
+    fi
+
+    local focused_id
+    focused_id=$(aerospace list-windows --focused --format '%{window-id}')
+    local ids_json
+    ids_json=$(printf '%s\n' "${floating_ids[@]}" | jq -Rn '[inputs | tonumber]')
+
+    local window_id=""
+
+    case "$direction" in
+        next|prev|first|last)
+            window_id=$(yabai -m query --windows | jq -er \
+                --argjson ids "$ids_json" \
+                --argjson focused "$focused_id" \
+                --arg dir "$direction" '
+                map(select(.id as $id | $ids | index($id)))
+                | sort_by([.frame.x, .frame.y, .id])
+                | (map(.id) | index($focused)) as $pos
+                | if $pos == null then first.id
+                  else ({first: 0, last: (length - 1), prev: ($pos - 1), next: ($pos + 1)}[$dir]) as $target
+                  | if $target < 0 or $target >= length then null
+                    else .[$target].id end
+                  end')
+            ;;
+        east|west|north|south)
+            window_id=$(yabai -m query --windows | jq -er \
+                --argjson ids "$ids_json" \
+                --argjson focused "$focused_id" \
+                --arg dir "$direction" '
+                map(select(.id as $id | $ids | index($id)))
+                | (first(.[] | select(.id == $focused)) // .[0]) as $cur
+                | map(select(.id != $focused))
+                | map(select(
+                    if $dir == "east" then .frame.x >= ($cur.frame.x + $cur.frame.w / 2)
+                    elif $dir == "west" then (.frame.x + .frame.w) <= ($cur.frame.x + $cur.frame.w / 2)
+                    elif $dir == "south" then .frame.y >= ($cur.frame.y + $cur.frame.h / 2)
+                    elif $dir == "north" then (.frame.y + .frame.h) <= ($cur.frame.y + $cur.frame.h / 2)
+                    else false end))
+                | sort_by(
+                    ((.frame.x + .frame.w/2) - ($cur.frame.x + $cur.frame.w/2)) as $dx
+                    | ((.frame.y + .frame.h/2) - ($cur.frame.y + $cur.frame.h/2)) as $dy
+                    | ($dx*$dx + $dy*$dy))
+                | first.id')
+            ;;
+        left|right|up|down)
+            local aero_dir
+            aero_dir=$(__wm_translate_direction "$direction")
+            _focus_floating_window "$aero_dir"
+            return $?
+            ;;
+        *)
+            echo "Invalid argument: $direction" >&2
+            return 1
+            ;;
+    esac
+
+    if [[ $? -eq 0 && -n "$window_id" ]]; then
+        aerospace focus --window-id "$window_id"
+    else
+        return 1
+    fi
+}
+
+_focus_space() {
+    local space="$1"; shift
+
+    case "$space" in
+        next) aerospace workspace --wrap-around next ;;
+        prev) aerospace workspace --wrap-around prev ;;
+        recent) aerospace workspace-back-and-forth ;;
+        *) aerospace workspace "$space" ;;
+    esac
+}
+
+_move_window_to_space() {
+    local space="$1"; shift
+
+    case "$space" in
+        next) aerospace move-node-to-workspace --wrap-around --focus-follows-window next ;;
+        prev) aerospace move-node-to-workspace --wrap-around --focus-follows-window prev ;;
+        recent) _move_to_previous_workspace ;;
+        *) aerospace move-node-to-workspace --focus-follows-window "$space" ;;
+    esac
+}
+
+_focus_window_id() {
+    local window_id="$1"; shift
+    aerospace focus --window-id "$window_id"
+    yabai-set focus-window-id "$window_id"
+}
+
+_focus_window() {
+    local direction="$1"; shift
+    local aero_dir
+    aero_dir=$(__wm_translate_direction "$direction")
+
+    case "$direction" in
+        next|prev)
+            aerospace focus --boundaries-action fail --ignore-floating "dfs-$direction"
+            ;;
+        *)
+            aerospace focus --boundaries-action fail --ignore-floating "$aero_dir"
+            ;;
+    esac
+    return $?
+}
+
+_move_window_in_stack() {
+    local direction="$1"; shift
+
+    case "$direction" in
+        next) aerospace swap --wrap-around dfs-next ;;
+        prev) aerospace swap --wrap-around dfs-prev ;;
+    esac
+}
+
+_focus_display_with_fallback() {
+    local direction="$1"; shift
+    local aero_dir
+    aero_dir=$(__wm_translate_direction "$direction")
+    aerospace focus-monitor --wrap-around "$aero_dir"
+}
+
+_stack_or_warp_window() {
+    local direction="$1"; shift
+    local aero_dir
+    aero_dir=$(__wm_translate_direction "$direction")
+    aerospace join-with "$aero_dir"
+}
+
+_focus_app() {
+    local app_name="$1"; shift
+
+    # Accept path or name (e.g. "/Applications/Google Chrome.app" -> "Google Chrome")
+    if [[ "$app_name" == *.app ]]; then
+        app_name=$(basename "$app_name" .app)
+    fi
+
+    local title_filter='true'
+    local jq_title_args=()
+    local match_title_args=()
+    if [[ -n "$_match_title" ]]; then
+        title_filter='(."window-title" | test($title_re))'
+        jq_title_args=(--arg title_re "$_match_title")
+        match_title_args=(--match-title "$_match_title")
+    fi
+
+    local window_id=""
+
+    # Prefer yabai's smarter lookup (sorts by non-minimized, prefers current space)
+    if pgrep -xq yabai; then
+        window_id=$(yabai-set get-app-window-id "${match_title_args[@]}" "$app_name") || true
+    fi
+
+    # Fall back to aerospace's own lookup
+    if [[ -z "$window_id" ]]; then
+        # Prefer a window on the focused workspace
+        window_id=$(aerospace list-windows --workspace focused --json \
+            | jq -r "${jq_title_args[@]}" --arg app "$app_name" \
+              '[.[] | select(."app-name" == $app) | select('"$title_filter"')] | first | ."window-id" // empty')
+
+        # Fall back to any workspace
+        if [[ -z "$window_id" ]]; then
+            window_id=$(aerospace list-windows --all --json \
+                | jq -r "${jq_title_args[@]}" --arg app "$app_name" \
+                  '[.[] | select(."app-name" == $app) | select('"$title_filter"')] | first | ."window-id" // empty')
+        fi
+    fi
+
+    if [[ -n "$window_id" ]]; then
+        aerospace focus --window-id "$window_id" \
+        || yabai-set focus-app "${match_title_args[@]}" "$app_name" \
+        || open -a "$app_name"
+    else
+        open -a "$app_name"
+    fi
+}
+
+_focus_pid() {
+    local pid="$1"; shift
+
+    local window_id
+    window_id=$(aerospace list-windows --all --json | jq -r --argjson pid "$pid" 'first(.[] | select(."app-pid" == $pid)) | ."window-id"')
+    if [[ -n "$window_id" ]]; then
+        aerospace focus --window-id "$window_id"
+    else
+        return 1
+    fi
+}
+
+_minimize_pid() {
+    local pid="$1"; shift
+
+    local window_id
+    window_id=$(aerospace list-windows --all --json | jq -r --argjson pid "$pid" 'first(.[] | select(."app-pid" == $pid)) | ."window-id"')
+    if [[ -n "$window_id" ]]; then
+        aerospace focus --window-id "$window_id"
+        aerospace macos-native-minimize
+    else
+        return 1
+    fi
+}
+
+_minimize_after_nth_window() {
+    local nth="$1"; shift
+
+    local all_windows=()
+    while IFS= read -r w; do
+        [[ -n "$w" ]] && all_windows+=("$w")
+    done < <(aerospace list-windows --workspace focused --format '%{window-id}')
+
+    local excess_windows=("${all_windows[@]:$nth}")
+
+    for window in "${excess_windows[@]}"; do
+        aerospace focus --window-id "$window"
+        aerospace macos-native-minimize
+    done
+
+    if [[ ${#excess_windows[@]} -gt 0 ]]; then
+        display-message "${#excess_windows[@]} windows minimized"
+    fi
+}
+
+_print_wm_widget() {
+    local workspace workspace_count layout
+    workspace=$(aerospace list-workspaces --focused --format '%{workspace}')
+    workspace_count=$(aerospace list-workspaces --monitor all --format '%{workspace}' | wc -l | tr -d ' ')
+    layout=$(aerospace list-windows --focused --format '%{window-layout}')
+
+    echo "$layout:$workspace/$workspace_count"
+}
+
+_print_window_mode() {
+    local layout
+    layout=$(aerospace list-windows --focused --format '%{window-layout}')
+    case "$layout" in
+        floating) echo "float" ;;
+        accordion) echo "accordion" ;;
+        tiles) echo "tile" ;;
+        *) echo "$layout" ;;
+    esac
+}
+
+_swap_window() {
+    local direction="$1"; shift
+    local aero_dir
+    aero_dir=$(__wm_translate_direction "$direction")
+    aerospace move "$aero_dir" || return 1
+}
+
+_warp_window() {
+    local direction="$1"; shift
+    local aero_dir
+    aero_dir=$(__wm_translate_direction "$direction")
+    aerospace join-with "$aero_dir"
+}
+
+_focus_recent() {
+    local recent
+    recent=$(yabai-set get-recent-window-id) || return 1
+    aerospace focus --window-id "$recent" \
+    || yabai-set focus-recent
+}
+
+_swap_workspaces_between_monitors() {
+    local main_ws secondary_ws
+    main_ws=$(aerospace list-workspaces --monitor main --visible --format '%{workspace}')
+    secondary_ws=$(aerospace list-workspaces --monitor secondary --visible --format '%{workspace}')
+
+    if [[ -z "$main_ws" || -z "$secondary_ws" ]]; then
+        echo "Need two monitors" >&2
+        return 1
+    fi
+
+    aerospace move-workspace-to-monitor --workspace "$main_ws" secondary
+    aerospace move-workspace-to-monitor --workspace "$secondary_ws" main
+}
+
+_layout_float() {
+    aerospace enable toggle
+    if aerospace list-workspaces --focused --format '%{workspace}' &>/dev/null; then
+        display-message "AeroSpace enabled"
+    else
+        display-message "AeroSpace disabled"
+    fi
+}
+
+case "$preset" in
+    move-other-windows) _move_other_windows ;;
+    move-all-windows-in-workspace) _move_all_windows_in_workspace "$@" ;;
+    move-window) _move_window ;;
+    minimize-other-windows) _minimize_other_windows ;;
+    minimize-windows) _minimize_windows ;;
+    move-to-previous-workspace) _move_to_previous_workspace "$@" ;;
+    move-all-but-two) _move_all_but_two ;;
+    arrange-workspaces) _arrange_workspaces "$@" ;;
+    summon) _summon "$@" ;;
+    focus-floating-window) _focus_floating_window "$@" ;;
+    focus-space) _focus_space "$@" ;;
+    move-window-to-space) _move_window_to_space "$@" ;;
+    focus-window-id) _focus_window_id "$@" ;;
+    focus-window|focus-window-in-stack|focus-window-in-space) _focus_window "$@" ;;
+    move-window-in-stack) _move_window_in_stack "$@" ;;
+    focus-display-with-fallback) _focus_display_with_fallback "$@" ;;
+    smart-move-window-to-next-display) aerospace move-node-to-monitor --wrap-around --focus-follows-window next ;;
+    stack-or-warp-window) _stack_or_warp_window "$@" ;;
+    minimize) aerospace macos-native-minimize ;;
+    deminimize-last) yabai-set deminimize-last ;;
+    deminimize-all) yabai-set deminimize-all ;;
+    unstack-window) aerospace flatten-workspace-tree ;;
+    toggle-window-zoom-or-fullscreen|smart-toggle-fullscreen|toggle-monocle-mode) aerospace fullscreen ;;
+    stack-windows-in-space) aerospace layout accordion ;;
+    toggle-yabai|toggle-wm) aerospace enable toggle ;;
+    restart-wm) aerospace reload-config; display-message "AeroSpace config reloaded" ;;
+    is-window-floating)
+        layout=$(aerospace list-windows --focused --format '%{window-layout}')
+        [[ "$layout" == "floating" ]]
+        ;;
+    print-window-mode) _print_window_mode ;;
+    print-yabai-widget|print-wm-widget) _print_wm_widget ;;
+    focus-topmost) aerospace focus --dfs-index 0 ;;
+    swap-window) _swap_window "$@" ;;
+    warp-window) _warp_window "$@" ;;
+    toggle-float)
+        aerospace layout floating tiling
+        aerospace list-windows --focused --format '%{window-layout}'
+        ;;
+    toggle-split) aerospace layout horizontal vertical ;;
+    balance) aerospace balance-sizes ;;
+    flatten) aerospace flatten-workspace-tree ;;
+    resize) aerospace resize "$@" ;;
+    focus-recent) _focus_recent ;;
+    focus-back-and-forth) aerospace focus-back-and-forth || aerospace workspace-back-and-forth ;;
+    arrange-spaces) _arrange_workspaces "$@" ;;
+    focus-app) _focus_app "$@" ;;
+    focus-pid) _focus_pid "$@" ;;
+    minimize-pid) _minimize_pid "$@" ;;
+    unstacked-swap-largest) display-message "Not supported in AeroSpace" ;;
+    minimize-after-nth-window) _minimize_after_nth_window "$@" ;;
+    layout-stack) aerospace layout accordion horizontal vertical ;;
+    layout-bsp) aerospace layout tiles horizontal vertical ;;
+    layout-float) _layout_float ;;
+    insert-direction) display-message "Not supported in AeroSpace" ;;
+    mirror) display-message "Not supported in AeroSpace" ;;
+    rotate) display-message "Not supported in AeroSpace" ;;
+    swap-workspaces-between-monitors) _swap_workspaces_between_monitors ;;
+    *) echo "command not found - $preset" >&2; exit 1 ;;
+esac

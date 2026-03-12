@@ -1,0 +1,438 @@
+#!/opt/homebrew/bin/bash
+
+SCRIPT_DIR="$(dirname "$0")"
+export PATH="/opt/homebrew/bin:$SCRIPT_DIR:$PATH"
+
+_regex_escape() {
+    sed 's/[.[\(*+?{|^$\\]/\\&/g' <<< "$1"
+}
+
+_pin_tab() {
+    local position="$1"; shift
+
+    local json
+    json=$(jq -n --argjson tab "$(env OUTPUT_FORMAT=json chrome-cli info)" --argjson windows "$(yabai -m query --windows --space)" '{tab_id: $tab.id, window_id: ($windows | first(.[] | select(."has-focus"))).id}')
+
+    mkdir -p "/tmp/chrome-preset/pinned-tabs/"
+    echo "$json" > "/tmp/chrome-preset/pinned-tabs/$position.json"
+    display-message "Pin tab $position"
+}
+
+_focus_pinned_tab() {
+    local position="$1"; shift
+
+    local json
+    read -r json < "/tmp/chrome-preset/pinned-tabs/$position.json"
+
+    chrome-cli activate -t "$(jq -nr --argjson json "$json" '$json.tab_id')"
+    wm-set focus-window-id "$(jq -nr --argjson json "$json" '$json.window_id')"
+
+    display-message "Focus tab $position"
+}
+
+_focus_window() {
+    local window_id="$1"; shift
+
+    osascript -e "tell application \"Google Chrome\"
+        set index of (first window whose id is $window_id) to 1
+        activate
+    end tell" \
+    || return 1
+}
+
+_focus_url() {
+    local regex="$1"; shift
+
+    local chrome_window_id tab_id
+    IFS=: read -r chrome_window_id tab_id < <(env OUTPUT_FORMAT=json chrome-cli list links \
+        | jq -er --arg regex "$regex" '
+        first(.tabs.[] | select(.url | test($regex)))
+        | "\(.windowId):\(.id)"')
+
+    _focus_window "$chrome_window_id" \
+    && chrome-cli activate -t "$tab_id" \
+    || return 1
+}
+
+_check_url() {
+    local regex="$1"; shift
+
+    local json
+    json=$(env OUTPUT_FORMAT=json chrome-cli list links)
+    jq -ern --arg regex "$regex" --argjson json "$json" '
+    $json
+    | first(.tabs.[] | select(.url | test($regex)))
+    | .id' \
+    || return 1
+}
+
+_focus_or_open_url() {
+    local fallback="" profile="" label=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --fallback) fallback="$2"; shift 2 ;;
+            --fallback=*) fallback="${1#--fallback=}"; shift ;;
+            --profile) profile="$2"; shift 2 ;;
+            --profile=*) profile="${1#--profile=}"; shift ;;
+            --label) label="$2"; shift 2 ;;
+            --label=*) label="${1#--label=}"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+
+    local regex="$1"; shift
+    local url
+
+    if [[ -n "$fallback" ]]; then
+        url="$fallback"
+    else
+        url="$regex"
+        regex=$(_regex_escape "$regex")
+    fi
+
+    if [[ -n "$label" ]]; then
+        display-message "Open $label"
+    fi
+
+    _focus_url "$regex" \
+    || _open_url --newtab --profile="$profile" "$url" \
+    || return 1
+}
+
+_check_or_open_url() {
+    local fallback="" profile="" label=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --fallback) fallback="$2"; shift 2 ;;
+            --fallback=*) fallback="${1#--fallback=}"; shift ;;
+            --profile) profile="$2"; shift 2 ;;
+            --profile=*) profile="${1#--profile=}"; shift ;;
+            --label) label="$2"; shift 2 ;;
+            --label=*) label="${1#--label=}"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+
+    local regex="$1"; shift
+    local url
+
+    if [[ -n "$fallback" ]]; then
+        url="$fallback"
+    else
+        url="$regex"
+        regex=$(_regex_escape "$regex")
+    fi
+
+    if [[ -n "$label" ]]; then
+        display-message "Check $label"
+    fi
+
+    _check_url "$regex" \
+    || _open_url --newtab --profile="$profile" "$url" \
+    || return 1
+}
+
+_check_tab_id() {
+    local tab_id="$1"; shift
+
+    local json
+    json=$(env OUTPUT_FORMAT=json chrome-cli info -t "$tab_id")
+
+    [[ -z "$json" ]] && return 1
+
+    echo "$json"
+}
+
+_focus_profile() {
+    local profile="$1"; shift
+
+    local profile_name
+    profile_name=$(jq --arg profile "$profile" -r '.profile.info_cache[$profile] | "\(.gaia_given_name) (\(.name))"' <"$HOME/Library/Application Support/Google/Chrome/Local State") \
+    && hs-set show-or-hide-app --only-show "Google Chrome" \
+    && hs-set trigger-menu-bar "Profiles;$(_regex_escape "$profile_name")"
+}
+
+_open_url() {
+    local profile="" label="" newtab="" newtabright=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --profile) profile="$2"; shift 2 ;;
+            --profile=*) profile="${1#--profile=}"; shift ;;
+            --label) label="$2"; shift 2 ;;
+            --label=*) label="${1#--label=}"; shift ;;
+            --newtab) newtab="true"; shift ;;
+            --newtabright) newtabright="true"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+
+    local url="$1"; shift
+
+    if [[ -n "$label" ]]; then
+        display-message "Open $label"
+    fi
+
+    if [[ ! "$url" =~ ^https?:// ]]; then
+        url="https://$url"
+    fi
+
+    local app
+    app=$(hs-set get-active-app)
+
+    # If app is Chrome and --newtab is absent, open in current tab
+    if [[ "$app" == "Google Chrome" && -z "$newtab" ]]; then
+        local tab_id window_id old_window_id
+        { read -r tab_id; read -r window_id; } < <(env OUTPUT_FORMAT=json chrome-cli info | jq -r '.id, .windowId')
+        old_window_id="$window_id"
+
+        if [[ -n "$profile" ]]; then
+            _focus_profile "$profile"
+            { read -r tab_id; read -r window_id; } < <(env OUTPUT_FORMAT=json chrome-cli info | jq -r '.id, .windowId')
+        fi
+
+        if [[ -n "$newtabright" ]]; then
+            hs-set trigger-menu-bar "Tab;New Tab to the Right"
+            tab_id=$(env OUTPUT_FORMAT=json chrome-cli info | jq -r '.id')
+        fi
+
+        local extra_args=()
+
+        if [[ "$window_id" == "$old_window_id" ]]; then
+            extra_args+=(-t "$tab_id")
+        fi
+
+        chrome-cli open "$url" "${extra_args[@]}"
+    else
+        local extra_args=()
+
+        if [[ -n "$profile" ]]; then
+            extra_args+=("--profile-directory=$profile")
+        fi
+
+        open -n -a "Google Chrome" --args "$url" "${extra_args[@]}"
+    fi
+}
+
+_close_tabs_with_url() {
+    local regex="$1"; shift
+
+    local tabs=()
+    while IFS= read -r t; do
+        tabs+=("$t")
+    done < <(env OUTPUT_FORMAT=json chrome-cli list links \
+        | jq -er --arg regex "$regex" '
+        .tabs.[]
+        | select(.url | test($regex))
+        | debug(.)
+        | .id')
+
+    if [[ ${#tabs[@]} -eq 0 ]]; then
+        return 1
+    fi
+
+    for tab_id in "${tabs[@]}"; do
+        chrome-cli close -t "$tab_id"
+    done
+}
+
+_click_selector() {
+    local selector="$1"; shift
+    local escaped
+    escaped=$(jq -n --arg s "$selector" '$s')
+    chrome-cli execute "document.querySelector($escaped).click()"
+}
+
+_create_app() {
+    mkdir -p /tmp/chrome_preset_apps
+    local profile=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --profile) profile="$2"; shift 2 ;;
+            --profile=*) profile="${1#--profile=}"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+
+    local appname="$1"; shift
+    local url="$1"; shift
+
+    yabai -m signal --add \
+        event=window_created \
+        app='^Google Chrome$' \
+        label="store_chrome_preset_app_info" \
+        action="fish -c 'chrome-preset store-preset-app --window-id \"\$YABAI_WINDOW_ID\" \"$appname\"'; yabai -m signal --remove store_chrome_preset_app_info"
+
+    open -na 'Google Chrome' --args --profile-directory="$profile" --app="$url"
+}
+
+_store_preset_app() {
+    local window_id=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --window-id) window_id="$2"; shift 2 ;;
+            --window-id=*) window_id="${1#--window-id=}"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+
+    local appname="$1"; shift
+
+    echo "$YABAI_WINDOW_ID" > "/tmp/chrome_preset_apps/$appname.windowid"
+    env OUTPUT_FORMAT=json chrome-cli info > "/tmp/chrome_preset_apps/$appname.chromeinfo"
+    echo "$appname" > "/tmp/chrome_preset_apps/$window_id.appname"
+}
+
+_open_in_app() {
+    local profile=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --profile) profile="$2"; shift 2 ;;
+            --profile=*) profile="${1#--profile=}"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+
+    local appname="$1"; shift
+    local url="$1"; shift
+
+    local window
+    window=$(cat "/tmp/chrome_preset_apps/$appname.windowid" 2>/dev/null)
+
+    if [[ -n "$window" ]] && yabai-set get-window-info "$window" >/dev/null 2>&1; then
+        local app
+        app=$(cat "/tmp/chrome_preset_apps/$appname.chromeinfo")
+
+        chrome-cli open "$url" -t "$(jq -nr --argjson app "$app" '$app.id')"
+        wm-set focus-window-id "$window"
+    else
+        _create_app --profile="$profile" "$appname" "$url"
+    fi
+}
+
+_get_app_window_id() {
+    local appname="$1"; shift
+    local path="/tmp/chrome_preset_apps/$appname.windowid"
+
+    if [[ -f "$path" ]]; then
+        cat "$path"
+    else
+        return 1
+    fi
+}
+
+_focus_or_create_app() {
+    local profile=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --profile) profile="$2"; shift 2 ;;
+            --profile=*) profile="${1#--profile=}"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+
+    local appname="$1"; shift
+    local url="$1"; shift
+
+    local window
+    if window=$(_get_app_window_id "$appname") && yabai-set get-window-info "$window" >/dev/null 2>&1; then
+        wm-set focus-window-id "$window"
+    else
+        _create_app --profile="$profile" "$appname" "$url"
+    fi
+}
+
+_alternate_app() {
+    local profile="" minimize="" hide="" app=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --profile) profile="$2"; shift 2 ;;
+            --profile=*) profile="${1#--profile=}"; shift ;;
+            --minimize) minimize="true"; shift ;;
+            --hide) hide="true"; shift ;;
+            --app) app="$2"; shift 2 ;;
+            --app=*) app="${1#--app=}"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+
+    local fallback=""
+    local path="/tmp/chrome_preset_apps/$app.windowid"
+
+    if [[ -f "$path" ]]; then
+        local app_window_id
+        app_window_id=$(cat "$path")
+
+        local active
+        active=$(yabai -m query --windows --window)
+
+        if [[ "$(jq -nr --argjson active "$active" '$active.id')" == "$app_window_id" ]]; then
+            if [[ -n "$hide" ]]; then
+                hs-set send-keys cmd h
+            elif [[ -n "$minimize" ]]; then
+                yabai-set minimize
+            else
+                wm-set focus-window-id recent
+            fi
+        else
+            fallback=1
+        fi
+    else
+        fallback=1
+    fi
+
+    if [[ -n "$fallback" ]]; then
+        _focus_or_create_app --profile "$profile" "$app" "$@"
+    fi
+}
+
+_get_app_name() {
+    local window_id=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --window-id) window_id="$2"; shift 2 ;;
+            --window-id=*) window_id="${1#--window-id=}"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+
+    local path="/tmp/chrome_preset_apps/$window_id.appname"
+
+    if [[ -f "$path" ]]; then
+        cat "$path"
+    else
+        return 1
+    fi
+}
+
+preset="$1"; shift
+case "$preset" in
+    pin-tab) _pin_tab "$@" ;;
+    focus-pinned-tab) _focus_pinned_tab "$@" ;;
+    focus-window) _focus_window "$@" ;;
+    focus-url) _focus_url "$@" ;;
+    check-url) _check_url "$@" ;;
+    focus-or-open-url) _focus_or_open_url "$@" ;;
+    check-or-open-url) _check_or_open_url "$@" ;;
+    check-tab-id) _check_tab_id "$@" ;;
+    focus-profile) _focus_profile "$@" ;;
+    open-url) _open_url "$@" ;;
+    close-tabs-with-url) _close_tabs_with_url "$@" ;;
+    click-selector) _click_selector "$@" ;;
+    create-app) _create_app "$@" ;;
+    store-preset-app) _store_preset_app "$@" ;;
+    open-in-app) _open_in_app "$@" ;;
+    get-app-window-id) _get_app_window_id "$@" ;;
+    focus-or-create-app) _focus_or_create_app "$@" ;;
+    alternate-app) _alternate_app "$@" ;;
+    get-app-name) _get_app_name "$@" ;;
+    *) exit 1 ;;
+esac

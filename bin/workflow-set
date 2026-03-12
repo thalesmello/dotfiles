@@ -1,0 +1,19 @@
+#!/opt/homebrew/bin/bash
+
+SCRIPT_DIR="$(dirname "$0")"
+export PATH="/opt/homebrew/bin:$SCRIPT_DIR:$PATH"
+
+_perform_default_ui() {
+    local app
+    app=$(hs-set get-active-app)
+
+    if [[ "$app" == "Google Chrome" ]]; then
+        hs-set send-keys cmd shift a
+    fi
+}
+
+preset="$1"; shift
+case "$preset" in
+    perform-default-ui) _perform_default_ui ;;
+    *) echo "command not found - $preset" >&2; exit 1 ;;
+esac
