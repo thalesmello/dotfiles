@@ -6,26 +6,10 @@ function aerospace-preset
         'match-title=' \
         -- $argv
 
-    set current_workspace (aerospace list-workspaces --focused --format "%{workspace}")
-    set back_workspace "$_flag_back_workspace"
-    set current_window (aerospace list-windows --focused --format '%{window-id}')
-    set windows (aerospace list-windows --workspace $current_workspace --format "%{window-id}")
-    set other_windows (string match -v -e "$current_window" $windows)
-
-    if test -z "$back_workspace"
-        set back_workspace (math 1 + "$current_workspace" 2>/dev/null; or echo 2)
-
-        if test "$back_workspace" -gt 9
-            set back_workspace 1
-        end
-    end
-
-    if test "$back_workspace" = "$current_workspace"
-        set back_workspace 1
-    end
-
     switch "$preset"
     case "move-other-windows"
+        __aero_load_other_windows
+        __aero_load_back_workspace
         for window in $other_windows
             aerospace move-node-to-workspace --window-id $window $back_workspace
         end
@@ -40,6 +24,7 @@ function aerospace-preset
             return 1
         end
 
+        __aero_load_current_workspace
         set from_workspace (test -n "$_flag_from"; and echo "$_flag_from"; or echo "$current_workspace")
         set to_workspace (test -n "$_flag_to"; and echo "$_flag_to"; or echo "$current_workspace")
 
@@ -47,18 +32,22 @@ function aerospace-preset
             aerospace move-node-to-workspace --window-id $window $to_workspace
         end
     case "move-window"
+        __aero_load_back_workspace
         aerospace move-node-to-workspace $back_workspace
     case "minimize-other-windows"
+        __aero_load_other_windows
         for window in $other_windows
             aerospace focus --window-id $window
             aerospace macos-native-minimize
         end
     case "minimize-windows"
+        __aero_load_windows
         for window in $windows
             aerospace focus --window-id $window
             aerospace macos-native-minimize
         end
     case "move-to-previous-workspace"
+        __aero_load_back_workspace
         argparse -i 'move-others=?' -- $argv
 
         set summon_window (aerospace list-windows --focused --format '%{window-id}')
@@ -76,6 +65,7 @@ function aerospace-preset
         aerospace move-node-to-workspace --window-id $summon_window $workspace
         aerospace focus --window-id $summon_window
     case "move-all-but-two"
+        __aero_load_back_workspace
         set main_window (aerospace list-windows --focused --format '%{window-id}')
         aerospace focus-back-and-forth; or aerospace workspace-back-and-forth
         set workspace (aerospace list-workspaces --focused --format '%{workspace}')
@@ -111,6 +101,8 @@ function aerospace-preset
         end
 
         if not set -q _flag_keep_windows
+            __aero_load_current_workspace
+            __aero_load_back_workspace
             set workspaces (printf '%s\n' $workspaces | sort -un)
 
             echo workspaces $workspaces
@@ -474,6 +466,48 @@ function aerospace-preset
         echo "command not found - $preset" >&2
         return 1
     end
+end
+
+# Lazy loaders — use -S (no-scope-shadowing) so they set variables in the caller's scope
+function __aero_load_current_workspace -S
+    set -q current_workspace; and return
+    set current_workspace (aerospace list-workspaces --focused --format "%{workspace}")
+end
+
+function __aero_load_current_window -S
+    set -q current_window; and return
+    set current_window (aerospace list-windows --focused --format '%{window-id}')
+end
+
+function __aero_load_back_workspace -S
+    set -q __back_workspace_loaded; and return
+    __aero_load_current_workspace
+    set back_workspace "$_flag_back_workspace"
+    if test -z "$back_workspace"
+        set back_workspace (math 1 + "$current_workspace" 2>/dev/null; or echo 2)
+        if test "$back_workspace" -gt 9
+            set back_workspace 1
+        end
+    end
+    if test "$back_workspace" = "$current_workspace"
+        set back_workspace 1
+    end
+    set __back_workspace_loaded 1
+end
+
+function __aero_load_windows -S
+    set -q __windows_loaded; and return
+    __aero_load_current_workspace
+    set windows (aerospace list-windows --workspace $current_workspace --format "%{window-id}")
+    set __windows_loaded 1
+end
+
+function __aero_load_other_windows -S
+    set -q __other_windows_loaded; and return
+    __aero_load_windows
+    __aero_load_current_window
+    set other_windows (string match -v -e "$current_window" $windows)
+    set __other_windows_loaded 1
 end
 
 function __aerospace_complete_workspace_app
