@@ -12,22 +12,33 @@ local hyperShift = {"ctrl", "alt", "cmd", "shift"}
 -- Helper functions
 ---------------------------------------------------------------
 
+-- Prevent hs.task objects from being garbage-collected before their callback fires
+local _runningTasks = {}
+
 -- Async (fire-and-forget) shell command via fish
 local function shell(cmd)
   util.log("shell:", cmd)
-  hs.task.new(FISH, function(exitCode, stdOut, stdErr)
+  local task
+  task = hs.task.new(FISH, function(exitCode, stdOut, stdErr)
+    _runningTasks[task] = nil
     if stdOut and #stdOut > 0 then util.log("shell stdout:", stdOut) end
     if stdErr and #stdErr > 0 then util.log("shell stderr:", stdErr) end
-  end, {"-c", cmd}):start()
+  end, {"-c", cmd})
+  _runningTasks[task] = true
+  task:start()
 end
 
 -- Async shell command that can be awaited — returns (success, output)
 local shellAsync = a.wrap(function(cmd, callback)
   util.log("shellAsync:", cmd)
-  hs.task.new(FISH, function(exitCode, stdOut, stdErr)
+  local task
+  task = hs.task.new(FISH, function(exitCode, stdOut, stdErr)
+    _runningTasks[task] = nil
     util.log("shellAsync result: exitCode=", exitCode, "stdout=", stdOut)
     callback(exitCode == 0, (stdOut or ""):gsub("%s+$", ""))
-  end, {"-c", cmd}):start()
+  end, {"-c", cmd})
+  _runningTasks[task] = true
+  task:start()
 end)
 
 -- Get frontmost application name
