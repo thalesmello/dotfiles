@@ -19,9 +19,14 @@ require("audiodevice")
 require("screenwatcher")
 
 -- Auto-reload config when files change
+-- Resolve symlinks so FSEvents watches the real directory
+local function resolvePath(path)
+  return hs.fs.pathToAbsolute(path) or path
+end
+
 local watchPaths = {
-  os.getenv("HOME") .. "/.hammerspoon",
-  os.getenv("HOME") .. "/.local_dotfiles/local_hammerspoon",
+  resolvePath(os.getenv("HOME") .. "/.hammerspoon"),
+  resolvePath(os.getenv("HOME") .. "/.local_dotfiles/local_hammerspoon"),
 }
 
 local reloadWatchers = {}
@@ -47,6 +52,16 @@ for _, path in ipairs(watchPaths) do
     table.insert(reloadWatchers, watcher)
   end
 end
+
+-- Restart watchers on wake to prevent stale FSEvents streams
+hs.caffeinate.watcher.new(function(event)
+  if event == hs.caffeinate.watcher.systemDidWake then
+    for _, w in ipairs(reloadWatchers) do
+      w:stop()
+      w:start()
+    end
+  end
+end):start()
 
 util.notify("Hammerspoon!")
 

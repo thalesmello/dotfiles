@@ -22,8 +22,8 @@ function hs-preset
         hs -c "Preset.displayMessage(\"$message\", $duration)"
 
     case "trigger-menu-bar"
-        set -l path (string escape -- $argv[1])
-        hs -c "Preset.triggerMenuBar(\"$path\")"
+        set -l path "$argv[1]"
+        hs -c "Preset.triggerMenuBar([=[$path]=])"
 
     case "get-active-app"
         hs -c "Preset.getActiveApp()"
