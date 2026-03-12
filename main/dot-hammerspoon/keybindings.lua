@@ -459,13 +459,18 @@ end
 
 local chromeAppModal = createAppModal("Google Chrome")
 
-chromeAppModal:bind({"ctrl", "shift"}, "d", function() Preset.triggerMenuBar("Tab;Move Tab to New Window") end)
-chromeAppModal:bind({"ctrl", "alt"}, "d", function() Preset.triggerMenuBar("Tab;Duplicate Tab") end)
-chromeAppModal:bind({"ctrl", "alt", "shift"}, "d", function()
-  Preset.triggerMenuBar("Tab;Duplicate Tab")
-  hs.timer.doAfter(0.5, function() Preset.triggerMenuBar("Tab;Move Tab to New Window") end)
+local sleepAsync = a.wrap(function(seconds, callback)
+  hs.timer.doAfter(seconds, function() callback() end)
 end)
-chromeAppModal:bind({"ctrl", "shift"}, "g", function() Preset.triggerMenuBar("Tab;Group Tab") end)
+
+chromeAppModal:bind({"ctrl", "shift"}, "d", a.sync(function() a.wait(Preset.triggerMenuBarAsync("Tab;Move Tab to New Window")) end))
+chromeAppModal:bind({"ctrl", "alt"}, "d", a.sync(function() a.wait(Preset.triggerMenuBarAsync("Tab;Duplicate Tab")) end))
+chromeAppModal:bind({"ctrl", "alt", "shift"}, "d", a.sync(function()
+  a.wait(Preset.triggerMenuBarAsync("Tab;Duplicate Tab"))
+  a.wait(sleepAsync(0.5))
+  a.wait(Preset.triggerMenuBarAsync("Tab;Move Tab to New Window"))
+end))
+chromeAppModal:bind({"ctrl", "shift"}, "g", a.sync(function() a.wait(Preset.triggerMenuBarAsync("Tab;Group Tab")) end))
 chromeAppModal:bind({"ctrl", "cmd"}, "1", function()
   hs.eventtap.keyStroke({"alt", "shift"}, "1")
   hs.eventtap.keyStroke({"ctrl", "shift"}, "1")
@@ -477,7 +482,7 @@ local cmdTHk = chromeAppModal:bind({"cmd"}, "t", function()
     hs.eventtap.keyStroke({"cmd"}, "t")
     cmdTHk:enable()
   else
-    Preset.triggerMenuBar("Tab;New Tab to the Right")
+    a.sync(function() a.wait(Preset.triggerMenuBarAsync("Tab;New Tab to the Right")) end)()
   end
 end)
 
@@ -562,9 +567,9 @@ service:bindOnce({}, "l", "Focus Display East", function() shell("wm-preset focu
 -- Misc service
 service:bindOnce({}, "tab", "Move Window To Next Display", function() shell("wm-preset smart-move-window-to-next-display") end)
 service:bindOnce(hyperShift, "tab", "Swap Workspaces Between Monitors", function() shell("wm-preset swap-workspaces-between-monitors") end)
-service:bindOnce({"shift"}, "/", "Trigger Help Menu", function() Preset.triggerMenuBar("Help") end)
+service:bindOnce({"shift"}, "/", "Trigger Help Menu", a.sync(function() a.wait(Preset.triggerMenuBarAsync("Help")) end))
 service:bindOnce(hyper, "/", "Search Mappings", showCommandPalette)
-service:bindOnce({"shift"}, "v", "Tile Left", function() Preset.triggerMenuBar("Window;Full Screen Tile; Left of Screen") end)
+service:bindOnce({"shift"}, "v", "Tile Left", a.sync(function() a.wait(Preset.triggerMenuBarAsync("Window;Full Screen Tile; Left of Screen")) end))
 service:bindOnce(hyper, "return", "True Fullscreen", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "f") end)
 
 -- Enter chrome from service

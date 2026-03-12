@@ -1,3 +1,5 @@
+local a = require("async")
+
 local M = {}
 
 local keyMap = {
@@ -35,13 +37,48 @@ function M.displayMessage(message, duration)
   hs.alert.show(message, duration or 0.5)
 end
 
-function M.triggerMenuBar(path)
+-- Helper: build AppleScript to click a menu path
+local function buildMenuBarScript(processName, items)
+  local function esc(s) return s:gsub('"', '\\"') end
+
+  if #items == 1 then
+    return string.format(
+      'tell application "System Events" to tell process "%s" to click menu bar item "%s" of menu bar 1',
+      esc(processName), esc(items[1]))
+  end
+
+  -- Build: menu item "last" of menu 1 of menu item "..." of menu 1 of menu bar item "first" of menu bar 1
+  local chain = string.format('menu item "%s"', esc(items[#items]))
+  for i = #items - 1, 2, -1 do
+    chain = chain .. string.format(' of menu 1 of menu item "%s"', esc(items[i]))
+  end
+  chain = chain .. string.format(' of menu 1 of menu bar item "%s" of menu bar 1', esc(items[1]))
+
+  return string.format(
+    'tell application "System Events" to tell process "%s" to click %s',
+    esc(processName), chain)
+end
+
+M.triggerMenuBarAsync = a.wrap(function(path, callback)
   local app = hs.application.frontmostApplication()
+  if not app then callback(false); return end
+
   local items = {}
   for item in path:gmatch("[^;]+") do
     items[#items + 1] = item:match("^%s*(.-)%s*$")
   end
-  app:selectMenuItem(items)
+  if #items == 0 then callback(false); return end
+
+  local script = buildMenuBarScript(app:name(), items)
+  hs.task.new("/usr/bin/osascript", function(exitCode)
+    callback(exitCode == 0)
+  end, {"-e", script}):start()
+end)
+
+function M.triggerMenuBar(path)
+  a.sync(function()
+    a.wait(M.triggerMenuBarAsync(path))
+  end)()
 end
 
 function M.getActiveApp()
