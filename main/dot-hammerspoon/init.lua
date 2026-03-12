@@ -54,14 +54,15 @@ for _, path in ipairs(watchPaths) do
 end
 
 -- Restart watchers on wake to prevent stale FSEvents streams
-hs.caffeinate.watcher.new(function(event)
+local wakeWatcher = hs.caffeinate.watcher.new(function(event)
   if event == hs.caffeinate.watcher.systemDidWake then
     for _, w in ipairs(reloadWatchers) do
       w:stop()
       w:start()
     end
   end
-end):start()
+end)
+wakeWatcher:start()
 
 util.notify("Hammerspoon!")
 
