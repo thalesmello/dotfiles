@@ -28,6 +28,8 @@
 	<true/>
 	<key>AllowIdempotentTriggers</key>
 	<true/>
+	<key>AlternateMouseScroll</key>
+	<false/>
 	<key>AutoCommandHistory</key>
 	<false/>
 	<key>AutoComposer</key>
@@ -1558,6 +1560,8 @@
 				<key>Red Component</key>
 				<real>0.90980392694473267</real>
 			</dict>
+			<key>Automatically Enable Alternate Mouse Scroll</key>
+			<false/>
 			<key>BM Growl</key>
 			<true/>
 			<key>Background Color</key>
@@ -1922,6 +1926,8 @@
 			<key>Option Key Sends</key>
 			<integer>1</integer>
 			<key>Prompt Before Closing 2</key>
+			<false/>
+			<key>Restrict Alternate Mouse Scroll to Vertical</key>
 			<false/>
 			<key>Right Option Key Sends</key>
 			<integer>0</integer>
@@ -3675,6 +3681,8 @@
 				<key>Red Component</key>
 				<real>0.90980392694473267</real>
 			</dict>
+			<key>Automatically Enable Alternate Mouse Scroll</key>
+			<false/>
 			<key>BM Growl</key>
 			<true/>
 			<key>Background Color</key>
@@ -4043,6 +4051,10 @@
 			<key>Option Key Sends</key>
 			<integer>2</integer>
 			<key>Prompt Before Closing 2</key>
+			<false/>
+			<key>Restrict Alternate Mouse Scroll to Vertical</key>
+			<false/>
+			<key>Restrict Mouse Reporting to Alternate Screen Mode</key>
 			<false/>
 			<key>Right Option Key Sends</key>
 			<integer>0</integer>
