@@ -176,17 +176,16 @@ function Mode:bind(mods, key, fn)
   end
 end
 
-function Mode:conditionalBind(mods, key, rules)
-  self:bind(mods, key, function()
-    a.sync(function()
-      local app = frontAppName()
+local function _makeRulesEvalFunc(rules)
+  return function()
+    local app = frontAppName()
       for _, rule in ipairs(rules) do
         local appMatch = not rule.app or rule.app == app
         local condMatch = true
         if rule.cond then
           local result = rule.cond()
           if type(result) == "function" then
-            condMatch = a.wait(result)
+            condMatch = a.sync(function () a.wait(result) end)()
           else
             condMatch = result
           end
@@ -196,32 +195,15 @@ function Mode:conditionalBind(mods, key, rules)
           return
         end
       end
-    end)()
-  end)
+  end
+end
+
+function Mode:conditionalBind(mods, key, rules)
+  self:bind(mods, key, _makeRulesEvalFunc(rules))
 end
 
 function Mode:conditionalBindOnce(mods, key, name, rules)
-  self:bindOnce(mods, key, name, function()
-    a.sync(function()
-      local app = frontAppName()
-      for _, rule in ipairs(rules) do
-        local appMatch = not rule.app or rule.app == app
-        local condMatch = true
-        if rule.cond then
-          local result = rule.cond()
-          if type(result) == "function" then
-            condMatch = a.wait(result)
-          else
-            condMatch = result
-          end
-        end
-        if appMatch and condMatch then
-          rule[1]()
-          return
-        end
-      end
-    end)()
-  end)
+  self:bindOnce(mods, key, name, _makeRulesEvalFunc(rules))
 end
 
 function Mode:enter()
