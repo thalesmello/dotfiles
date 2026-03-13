@@ -1,0 +1,238 @@
+#!/opt/homebrew/bin/bash
+
+SCRIPT_DIR="$(dirname "$0")"
+export PATH="/opt/homebrew/bin:$SCRIPT_DIR:$PATH"
+
+_default() {
+    for val in "$@"; do
+        if [[ -n "$val" ]]; then
+            echo "$val"
+            return 0
+        fi
+    done
+    return 1
+}
+
+_escape_applescript() {
+    local val="$1"
+    val="${val//\\/\\\\}"
+    val="${val//\"/\\\"}"
+    echo "$val"
+}
+
+_get_key_codes() {
+    printf "%s\n" "$@" | jq -Rsr '
+        {
+            "ctrl": 59, "shift": 56, "alt": 58, "cmd": 55,
+            "a": 0, "b": 11, "c": 8, "d": 2, "e": 14, "f": 3,
+            "g": 5, "h": 4, "i": 34, "j": 38, "k": 40, "l": 37,
+            "m": 46, "n": 45, "o": 31, "p": 35, "q": 12, "r": 15,
+            "s": 1, "t": 17, "u": 32, "v": 9, "w": 13, "x": 7,
+            "y": 16, "z": 6, "space": 49, "return": 36, "left": 123,
+            "right": 124, "up": 126, "down": 125, "fn": 63, "1": 18,
+            "2": 19, "3": 20, "4": 21, "5": 23, "6": 22, "7": 26,
+            "8": 28, "9": 25, "0": 29, "tab": 48, "escape": 53,
+            "backtick": 50, "backslash": 42
+        } as $map
+        | rtrimstr("\n")
+        | split("\n")
+        | map(. as $key | $map[.] | if . == null then error("\($key) is not mapped") else . end)
+        | join(",")
+    '
+}
+
+_send_keys() {
+    local modifiers=()
+    local key=""
+
+    for arg in "$@"; do
+        case "$arg" in
+            ctrl|shift|alt|cmd|fn) modifiers+=("$arg") ;;
+            *) key="$arg" ;;
+        esac
+    done
+
+    if [[ -z "$key" ]]; then
+        return 1
+    fi
+
+    local key_code
+    key_code=$(_get_key_codes "$key") || return 1
+
+    local mod_list=()
+    for m in "${modifiers[@]}"; do
+        case "$m" in
+            cmd) mod_list+=("command down") ;;
+            alt) mod_list+=("option down") ;;
+            ctrl) mod_list+=("control down") ;;
+            shift) mod_list+=("shift down") ;;
+            fn) mod_list+=("fn down") ;;
+        esac
+    done
+
+    if [[ ${#mod_list[@]} -gt 0 ]]; then
+        local using_clause
+        using_clause=$(IFS=", "; echo "${mod_list[*]}")
+        /usr/bin/osascript -e "tell application \"System Events\" to key code $key_code using {$using_clause}"
+    else
+        /usr/bin/osascript -e "tell application \"System Events\" to key code $key_code"
+    fi
+}
+
+_display_message() {
+    local duration=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --duration) duration="$2"; shift 2 ;;
+            --duration=*) duration="${1#--duration=}"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+    local message
+    message=$(_escape_applescript "$1")
+
+    /usr/bin/osascript -e "display notification \"$message\" with title \"Preset\""
+}
+
+_trigger_menu_bar() {
+    local path="$1"
+    local app
+    app=$(_get_active_app) || return 1
+    local app_escaped
+    app_escaped=$(_escape_applescript "$app")
+
+    # Split semicolon-separated path into items
+    IFS=';' read -ra items <<< "$path"
+    # Trim whitespace
+    local trimmed=()
+    for item in "${items[@]}"; do
+        # Trim leading/trailing whitespace
+        item="${item#"${item%%[![:space:]]*}"}"
+        item="${item%"${item##*[![:space:]]}"}"
+        trimmed+=("$item")
+    done
+
+    local count=${#trimmed[@]}
+    if [[ $count -eq 0 ]]; then
+        return 1
+    fi
+
+    if [[ $count -eq 1 ]]; then
+        local item_escaped
+        item_escaped=$(_escape_applescript "${trimmed[0]}")
+        /usr/bin/osascript -e "tell application \"System Events\" to tell process \"$app_escaped\" to click menu bar item \"$item_escaped\" of menu bar 1"
+    else
+        local last_idx=$((count - 1))
+        local last_escaped
+        last_escaped=$(_escape_applescript "${trimmed[$last_idx]}")
+        local chain="menu item \"$last_escaped\""
+
+        local i=$((last_idx - 1))
+        while [[ $i -ge 1 ]]; do
+            local mid_escaped
+            mid_escaped=$(_escape_applescript "${trimmed[$i]}")
+            chain="$chain of menu 1 of menu item \"$mid_escaped\""
+            i=$((i - 1))
+        done
+
+        local first_escaped
+        first_escaped=$(_escape_applescript "${trimmed[0]}")
+        chain="$chain of menu 1 of menu bar item \"$first_escaped\" of menu bar 1"
+
+        /usr/bin/osascript -e "tell application \"System Events\" to tell process \"$app_escaped\" to click $chain"
+    fi
+}
+
+_get_active_app() {
+    /usr/bin/osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'
+}
+
+_get_selected_text() {
+    # Stub for backward compat — osascript has no reliable cross-app selected text API
+    echo ""
+}
+
+_show_or_hide_app() {
+    local only_show="false"
+    local only_hide="false"
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --only-show) only_show="true"; shift ;;
+            --only-hide) only_hide="true"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+    local app="$1"
+    local app_escaped
+    app_escaped=$(_escape_applescript "$app")
+
+    if [[ "$only_show" == "true" ]]; then
+        /usr/bin/osascript -e "tell application \"$app_escaped\" to activate"
+    elif [[ "$only_hide" == "true" ]]; then
+        /usr/bin/osascript -e "tell application \"System Events\" to set visible of process \"$app_escaped\" to false"
+    else
+        local frontmost
+        frontmost=$(_get_active_app)
+        if [[ "$frontmost" == "$app" ]]; then
+            /usr/bin/osascript -e "tell application \"System Events\" to set visible of process \"$app_escaped\" to false"
+        else
+            /usr/bin/osascript -e "tell application \"$app_escaped\" to activate"
+        fi
+    fi
+}
+
+_show_app() {
+    _show_or_hide_app --only-show "$@"
+}
+
+_alternate_app() {
+    local app="$1"; shift
+    local cmd="" hide="" minimize=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --cmd) cmd="$2"; shift 2 ;;
+            --cmd=*) cmd="${1#--cmd=}"; shift ;;
+            --hide) hide="true"; shift ;;
+            --minimize) minimize="true"; shift ;;
+            --) shift; break ;;
+            *) break ;;
+        esac
+    done
+    local app_escaped
+    app_escaped=$(_escape_applescript "$app")
+
+    # Check if app is frontmost
+    local frontmost
+    frontmost=$(_get_active_app)
+
+    if [[ "$frontmost" == "$app" ]]; then
+        if [[ -n "$hide" ]]; then
+            /usr/bin/osascript -e "tell application \"System Events\" to set visible of process \"$app_escaped\" to false"
+        elif [[ -n "$minimize" ]]; then
+            /usr/bin/osascript -e "tell application \"System Events\" to tell process \"$app_escaped\" to set value of attribute \"AXMinimized\" of front window to true"
+        fi
+    else
+        if [[ -n "$cmd" ]]; then
+            bash -c "$cmd"
+        else
+            /usr/bin/osascript -e "tell application \"$app_escaped\" to activate"
+        fi
+    fi
+}
+
+preset="$1"; shift
+case "$preset" in
+    send-keys) _send_keys "$@" ;;
+    display-message) _display_message "$@" ;;
+    trigger-menu-bar) _trigger_menu_bar "$@" ;;
+    get-active-app) _get_active_app ;;
+    get-selected-text) _get_selected_text ;;
+    show-or-hide-app) _show_or_hide_app "$@" ;;
+    show-app) _show_app "$@" ;;
+    alternate-app) _alternate_app "$@" ;;
+    restart-btt) ;; # No-op
+    get-key-codes) _get_key_codes "$@" ;;
+    *) echo "command not found - $preset" >&2; exit 1 ;;
+esac

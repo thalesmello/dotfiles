@@ -1,0 +1,177 @@
+function osascript-preset
+    set preset $argv[1]
+    set -e argv[1]
+
+    switch "$preset"
+    case "send-keys"
+        set -l modifiers
+        set -l key
+
+        for arg in $argv
+            switch "$arg"
+                case ctrl shift alt cmd fn
+                    set -a modifiers $arg
+                case '*'
+                    set key $arg
+            end
+        end
+
+        if test -z "$key"
+            return 1
+        end
+
+        set -l key_code (osascript-preset get-key-codes "$key")
+        or return 1
+
+        set -l mod_list
+        for m in $modifiers
+            switch "$m"
+                case cmd
+                    set -a mod_list "command down"
+                case alt
+                    set -a mod_list "option down"
+                case ctrl
+                    set -a mod_list "control down"
+                case shift
+                    set -a mod_list "shift down"
+                case fn
+                    set -a mod_list "fn down"
+            end
+        end
+
+        if test (count $mod_list) -gt 0
+            set -l using_clause (string join ", " $mod_list)
+            /usr/bin/osascript -e "tell application \"System Events\" to key code $key_code using {$using_clause}"
+        else
+            /usr/bin/osascript -e "tell application \"System Events\" to key code $key_code"
+        end
+
+    case "display-message"
+        argparse duration= -- $argv
+        or return 1
+
+        set -l message (string replace -a '"' '\\"' -- "$argv[1]")
+
+        /usr/bin/osascript -e "display notification \"$message\" with title \"Preset\""
+
+    case "trigger-menu-bar"
+        set -l path "$argv[1]"
+        set -l app (osascript-preset get-active-app)
+        or return 1
+
+        set -l app_escaped (string replace -a '"' '\\"' -- "$app")
+
+        # Split semicolon-separated path into items
+        set -l items (string split ";" -- "$path")
+        # Trim whitespace
+        set -l trimmed
+        for item in $items
+            set -a trimmed (string trim -- "$item")
+        end
+
+        if test (count $trimmed) -eq 0
+            return 1
+        end
+
+        if test (count $trimmed) -eq 1
+            set -l item_escaped (string replace -a '"' '\\"' -- "$trimmed[1]")
+            /usr/bin/osascript -e "tell application \"System Events\" to tell process \"$app_escaped\" to click menu bar item \"$item_escaped\" of menu bar 1"
+        else
+            # Build chain: click menu item "last" of menu 1 of menu item "mid" ... of menu 1 of menu bar item "first" of menu bar 1
+            set -l last_idx (count $trimmed)
+            set -l last_escaped (string replace -a '"' '\\"' -- "$trimmed[$last_idx]")
+            set -l chain "menu item \"$last_escaped\""
+
+            set -l i (math $last_idx - 1)
+            while test $i -ge 2
+                set -l mid_escaped (string replace -a '"' '\\"' -- "$trimmed[$i]")
+                set chain "$chain of menu 1 of menu item \"$mid_escaped\""
+                set i (math $i - 1)
+            end
+
+            set -l first_escaped (string replace -a '"' '\\"' -- "$trimmed[1]")
+            set chain "$chain of menu 1 of menu bar item \"$first_escaped\" of menu bar 1"
+
+            /usr/bin/osascript -e "tell application \"System Events\" to tell process \"$app_escaped\" to click $chain"
+        end
+
+    case "get-active-app"
+        /usr/bin/osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'
+
+    case "show-or-hide-app"
+        argparse only-show only-hide -- $argv
+        or return 1
+
+        set -l app "$argv[1]"
+        set -l app_escaped (string replace -a '"' '\\"' -- "$app")
+
+        if set -q _flag_only_show
+            /usr/bin/osascript -e "tell application \"$app_escaped\" to activate"
+        else if set -q _flag_only_hide
+            /usr/bin/osascript -e "tell application \"System Events\" to set visible of process \"$app_escaped\" to false"
+        else
+            # Toggle: check if frontmost, then hide or activate
+            set -l frontmost (osascript-preset get-active-app)
+            if test "$frontmost" = "$app"
+                /usr/bin/osascript -e "tell application \"System Events\" to set visible of process \"$app_escaped\" to false"
+            else
+                /usr/bin/osascript -e "tell application \"$app_escaped\" to activate"
+            end
+        end
+
+    case "show-app"
+        osascript-preset show-or-hide-app --only-show $argv
+
+    case "alternate-app"
+        set -l app $argv[1]
+        set -e argv[1]
+
+        argparse cmd= hide=? minimize=? -- $argv
+        or return 1
+
+        set -l app_escaped (string replace -a '"' '\\"' -- "$app")
+
+        # Check if app is frontmost
+        set -l frontmost (osascript-preset get-active-app)
+
+        if test "$frontmost" = "$app"
+            if set -q _flag_hide
+                /usr/bin/osascript -e "tell application \"System Events\" to set visible of process \"$app_escaped\" to false"
+            else if set -q _flag_minimize
+                /usr/bin/osascript -e "tell application \"System Events\" to tell process \"$app_escaped\" to set value of attribute \"AXMinimized\" of front window to true"
+            end
+        else
+            if test -n "$_flag_cmd"
+                fish -c "$_flag_cmd"
+            else
+                /usr/bin/osascript -e "tell application \"$app_escaped\" to activate"
+            end
+        end
+
+    case "restart-btt"
+        # No-op: BTT is no longer used
+
+    case "get-key-codes"
+        printf "%s\n" $argv | jq -Rsr '
+            {
+                "ctrl": 59, "shift": 56, "alt": 58, "cmd": 55,
+                "a": 0, "b": 11, "c": 8, "d": 2, "e": 14, "f": 3,
+                "g": 5, "h": 4, "i": 34, "j": 38, "k": 40, "l": 37,
+                "m": 46, "n": 45, "o": 31, "p": 35, "q": 12, "r": 15,
+                "s": 1, "t": 17, "u": 32, "v": 9, "w": 13, "x": 7,
+                "y": 16, "z": 6, "space": 49, "return": 36, "left": 123,
+                "right": 124, "up": 126, "down": 125, "fn": 63, "1": 18,
+                "2": 19, "3": 20, "4": 21, "5": 23, "6": 22, "7": 26,
+                "8": 28, "9": 25, "0": 29, "tab": 48, "escape": 53,
+                "backtick": 50, "backslash": 42
+            } as $map
+            | rtrimstr("\n")
+            | split("\n")
+            | map(. as $key | $map[.] | if . == null then error("\($key) is not mapped") else . end)
+            | join(",")
+        '
+
+    case '*'
+        return 1
+    end
+end
