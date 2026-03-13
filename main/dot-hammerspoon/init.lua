@@ -64,5 +64,21 @@ local wakeWatcher = hs.caffeinate.watcher.new(function(event)
 end)
 wakeWatcher:start()
 
+local DEBUG = false
+if DEBUG then
+  local logPath = "/tmp/hammerspoon.log"
+  local logFile = io.open(logPath, "a")
+
+  if logFile then
+    logFile:setvbuf("line")
+    local oldPrint = print
+    print = function(...)
+      logFile:write(table.concat({...}, "\t") .. "\n")
+      logFile:flush() -- Ensure it writes immediately
+      oldPrint(...) -- Also print to the Console
+    end
+  end
+end
+
 util.notify("Hammerspoon!")
 

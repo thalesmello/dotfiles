@@ -758,6 +758,7 @@ local ctx = {
   registerBinding = registerBinding,
   Mode = Mode,
   isFloatingTerminal = isFloatingTerminal,
+  chromeAppModal = chromeAppModal,
 }
 
 if ok and localConfig and localConfig.setup then
