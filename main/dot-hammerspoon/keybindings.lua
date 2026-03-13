@@ -4,6 +4,36 @@ local FISH = "/opt/homebrew/bin/fish"
 local util = require("util")
 local a = require("async")
 
+-- Fetch PATH from fish once at startup
+local _pathDirs = {}
+do
+  local output = hs.execute(FISH .. " -lc 'printf \"%s\\n\" $PATH'")
+  if output then
+    for dir in output:gmatch("[^\n]+") do
+      _pathDirs[#_pathDirs + 1] = dir
+    end
+  end
+end
+
+-- Memoized binary resolution
+local _resolvedPaths = {}
+local function resolvePath(binaryName)
+  if _resolvedPaths[binaryName] then return _resolvedPaths[binaryName] end
+  if binaryName:sub(1, 1) == "/" then
+    _resolvedPaths[binaryName] = binaryName
+    return binaryName
+  end
+  for _, dir in ipairs(_pathDirs) do
+    local fullPath = dir .. "/" .. binaryName
+    if hs.fs.attributes(fullPath, "mode") then
+      _resolvedPaths[binaryName] = fullPath
+      return fullPath
+    end
+  end
+  util.log("resolvePath: not found:", binaryName)
+  return nil
+end
+
 -- Modifier shorthands (matching skhd's ctrl + alt + cmd)
 local hyper = {"ctrl", "alt", "cmd"}
 local hyperShift = {"ctrl", "alt", "cmd", "shift"}
@@ -16,29 +46,61 @@ local hyperShift = {"ctrl", "alt", "cmd", "shift"}
 local _runningTasks = {}
 
 -- Async (fire-and-forget) shell command via fish
-local function shell(cmd)
-  util.log("shell:", cmd)
+local function fish(cmd)
+  util.log("fish:", cmd)
   local task
   task = hs.task.new(FISH, function(exitCode, stdOut, stdErr)
     _runningTasks[task] = nil
-    if stdOut and #stdOut > 0 then util.log("shell stdout:", stdOut) end
-    if stdErr and #stdErr > 0 then util.log("shell stderr:", stdErr) end
+    if stdOut and #stdOut > 0 then util.log("fish stdout:", stdOut) end
+    if stdErr and #stdErr > 0 then util.log("fish stderr:", stdErr) end
   end, {"-c", cmd})
   _runningTasks[task] = true
   task:start()
 end
 
 -- Async shell command that can be awaited — returns (success, output)
-local shellAsync = a.wrap(function(cmd, callback)
-  util.log("shellAsync:", cmd)
+local fishAsync = a.wrap(function(cmd, callback)
+  util.log("fishAsync:", cmd)
   local task
   task = hs.task.new(FISH, function(exitCode, stdOut, stdErr)
     _runningTasks[task] = nil
-    util.log("shellAsync result: exitCode=", exitCode, "stdout=", stdOut)
+    util.log("fishAsync result: exitCode=", exitCode, "stdout=", stdOut)
     callback(exitCode == 0, (stdOut or ""):gsub("%s+$", ""))
   end, {"-c", cmd})
   _runningTasks[task] = true
   task:start()
+end)
+
+-- Fire-and-forget direct binary execution
+local function task(args)
+  local resolvedPath = resolvePath(args[1])
+  if not resolvedPath then return end
+  local taskArgs = {table.unpack(args, 2)}
+  util.log("task:", resolvedPath, table.unpack(taskArgs))
+  local t
+  t = hs.task.new(resolvedPath, function(exitCode, stdOut, stdErr)
+    _runningTasks[t] = nil
+    if stdOut and #stdOut > 0 then util.log("task stdout:", stdOut) end
+    if stdErr and #stdErr > 0 then util.log("task stderr:", stdErr) end
+  end, taskArgs)
+  _runningTasks[t] = true
+  t:start()
+end
+
+-- Awaitable direct binary execution — returns (success, output)
+local taskAsync = a.wrap(function(args, callback)
+  local resolvedPath = resolvePath(args[1])
+  if not resolvedPath then callback(false, ""); return end
+  local taskArgs = {table.unpack(args, 2)}
+  util.log("taskAsync:", resolvedPath, table.unpack(taskArgs))
+  local t
+  t = hs.task.new(resolvedPath, function(exitCode, stdOut, stdErr)
+    _runningTasks[t] = nil
+    util.log("taskAsync result: exitCode=", exitCode, "stdout=", stdOut)
+    callback(exitCode == 0, (stdOut or ""):gsub("%s+$", ""))
+  end, taskArgs)
+  _runningTasks[t] = true
+  t:start()
 end)
 
 -- Get frontmost application name
@@ -47,9 +109,9 @@ local function frontAppName()
   return app and app:name() or ""
 end
 
--- Check if a process is running using pgrep (returns a shellAsync thunk)
+-- Check if a process is running using pgrep (returns a taskAsync thunk)
 local function isProcessRunning(name)
-  return shellAsync("pgrep -x " .. name .. " > /dev/null 2>&1")
+  return taskAsync({"pgrep", "-x", name})
 end
 
 -- Check if the focused window is a floating terminal (pure Lua, no subprocess)
@@ -62,7 +124,7 @@ end
 
 -- Check if the current window is floating in the WM (needs shell — no HS API for tiling state)
 local function isWindowFloating()
-  return shellAsync("wm-preset is-window-floating")
+  return taskAsync({"wm-set", "is-window-floating"})
 end
 
 ---------------------------------------------------------------
@@ -237,7 +299,7 @@ local cmdTabTap = hs.eventtap.new(
         -- Only hide hotkey window when floating terminal is actually focused
         hs.osascript.applescript('tell application "iTerm2" to hide hotkey window current window')
       else
-        shell("wm-preset focus-recent")
+        task({"wm-set", "focus-recent"})
       end
       return true  -- consume the event
     else
@@ -256,41 +318,41 @@ cmdTabTap:start()
 default:bindOnce(hyperShift, ";", "Command Palette", showCommandPalette)
 
 -- Utility
-default:bindOnce(hyperShift, "m", "Deminimize Last", function() shell("wm-preset deminimize-last") end)
-default:bindOnce(hyper, "m", "Minimize", function() shell("wm-preset minimize") end)
-default:bindOnce(hyper, "return", "Smart Toggle Fullscreen", function() shell("wm-preset smart-toggle-fullscreen") end)
-default:bindOnce(hyperShift, "return", "Unstacked Swap Largest", function() shell("wm-preset unstacked-swap-largest") end)
+default:bindOnce(hyperShift, "m", "Deminimize Last", function() task({"wm-set", "deminimize-last"}) end)
+default:bindOnce(hyper, "m", "Minimize", function() task({"wm-set", "minimize"}) end)
+default:bindOnce(hyper, "return", "Smart Toggle Fullscreen", function() task({"wm-set", "smart-toggle-fullscreen"}) end)
+default:bindOnce(hyperShift, "return", "Unstacked Swap Largest", function() task({"wm-set", "unstacked-swap-largest"}) end)
 
 -- Neovide
 default:bindOnce(hyper, "v", "Neovide Toggle", function() Preset.alternateApp("Neovide", {hide = true, cmd = "neovim-ghost trigger"}) end)
-default:bindOnce(hyper, "t", "Chrome: New Tab and Focus", function() shell('chrome-cli open -t; open -a "Google Chrome"') end)
+default:bindOnce(hyper, "t", "Chrome: New Tab and Focus", function() fish('chrome-cli open -t; open -a "Google Chrome"') end)
 
 -- Space navigation
-default:bindOnce(hyper, "[", "Focus Space Prev", function() shell("wm-preset focus-space prev") end)
-default:bindOnce(hyper, "]", "Focus Space Next", function() shell("wm-preset focus-space next") end)
+default:bindOnce(hyper, "[", "Focus Space Prev", function() task({"wm-set", "focus-space", "prev"}) end)
+default:bindOnce(hyper, "]", "Focus Space Next", function() task({"wm-set", "focus-space", "next"}) end)
 
 -- Window focus HJKL
-default:bindOnce(hyper, "h", "Focus Window West", function() shell("wm-preset focus-window west; or wm-preset focus-floating-window west") end)
-default:bindOnce(hyper, "j", "Focus Window South", function() shell("wm-preset focus-window south; or wm-preset focus-floating-window south") end)
-default:bindOnce(hyper, "k", "Focus Window North", function() shell("wm-preset focus-window north; or wm-preset focus-floating-window north") end)
-default:bindOnce(hyper, "l", "Focus Window East", function() shell("wm-preset focus-window east; or wm-preset focus-floating-window east") end)
+default:bindOnce(hyper, "h", "Focus Window West", function() fish("wm-preset focus-window west; or wm-preset focus-floating-window west") end)
+default:bindOnce(hyper, "j", "Focus Window South", function() fish("wm-preset focus-window south; or wm-preset focus-floating-window south") end)
+default:bindOnce(hyper, "k", "Focus Window North", function() fish("wm-preset focus-window north; or wm-preset focus-floating-window north") end)
+default:bindOnce(hyper, "l", "Focus Window East", function() fish("wm-preset focus-window east; or wm-preset focus-floating-window east") end)
 
 -- Window swap/snap HJKL
 default:conditionalBindOnce(hyperShift, "h", "Swap/Snap West", {
-  {cond = isWindowFloating, function() shell("yabai-preset snap west") end},
-  {function() shell("wm-preset swap-window west") end},
+  {cond = isWindowFloating, function() task({"yabai-set", "snap", "west"}) end},
+  {function() task({"wm-set", "swap-window", "west"}) end},
 })
 default:conditionalBindOnce(hyperShift, "j", "Swap/Snap South", {
-  {cond = isWindowFloating, function() shell("yabai-preset snap south") end},
-  {function() shell("wm-preset swap-window south") end},
+  {cond = isWindowFloating, function() task({"yabai-set", "snap", "south"}) end},
+  {function() task({"wm-set", "swap-window", "south"}) end},
 })
 default:conditionalBindOnce(hyperShift, "k", "Swap/Snap North", {
-  {cond = isWindowFloating, function() shell("yabai-preset snap north") end},
-  {function() shell("wm-preset swap-window north") end},
+  {cond = isWindowFloating, function() task({"yabai-set", "snap", "north"}) end},
+  {function() task({"wm-set", "swap-window", "north"}) end},
 })
 default:conditionalBindOnce(hyperShift, "l", "Swap/Snap East", {
-  {cond = isWindowFloating, function() shell("yabai-preset snap east") end},
-  {function() shell("wm-preset swap-window east") end},
+  {cond = isWindowFloating, function() task({"yabai-set", "snap", "east"}) end},
+  {function() task({"wm-set", "swap-window", "east"}) end},
 })
 
 -- Ctrl+Cmd HJKL (per-app, Chrome tab nav)
@@ -348,20 +410,20 @@ default:conditionalBind({"shift", "ctrl", "cmd"}, "l", {
 })
 
 -- Resize
-default:bindOnce(hyper, "-", "Resize Smart -100", function() shell("wm-preset resize smart -100") end)
-default:bindOnce(hyper, "=", "Resize Smart +100", function() shell("wm-preset resize smart +100") end)
+default:bindOnce(hyper, "-", "Resize Smart -100", function() task({"wm-set", "resize", "smart", "-100"}) end)
+default:bindOnce(hyper, "=", "Resize Smart +100", function() task({"wm-set", "resize", "smart", "+100"}) end)
 
 -- Harpoon 1-9
 for i = 1, 9 do
-  default:bindOnce(hyper, tostring(i), "Harpoon Focus " .. i, function() shell("yabai-harpoon focus " .. i) end)
+  default:bindOnce(hyper, tostring(i), "Harpoon Focus " .. i, function() fish("yabai-harpoon focus " .. i) end)
 end
-default:bindOnce(hyperShift, "=", "Harpoon Add", function() shell("yabai-harpoon add") end)
+default:bindOnce(hyperShift, "=", "Harpoon Add", function() fish("yabai-harpoon add") end)
 
 -- Window cycling
-default:bindOnce(hyper, "n", "Focus Next Window", function() shell("wm-preset focus-window next; or wm-preset focus-floating-window next") end)
-default:bindOnce(hyper, "p", "Focus Prev Window", function() shell("wm-preset focus-window prev; or wm-preset focus-floating-window prev") end)
-default:bindOnce(hyperShift, "n", "Move Window In Stack Next", function() shell("wm-preset move-window-in-stack next") end)
-default:bindOnce(hyperShift, "p", "Move Window In Stack Prev", function() shell("wm-preset move-window-in-stack prev") end)
+default:bindOnce(hyper, "n", "Focus Next Window", function() fish("wm-preset focus-window next; or wm-preset focus-floating-window next") end)
+default:bindOnce(hyper, "p", "Focus Prev Window", function() fish("wm-preset focus-window prev; or wm-preset focus-floating-window prev") end)
+default:bindOnce(hyperShift, "n", "Move Window In Stack Next", function() task({"wm-set", "move-window-in-stack", "next"}) end)
+default:bindOnce(hyperShift, "p", "Move Window In Stack Prev", function() task({"wm-set", "move-window-in-stack", "prev"}) end)
 
 -- Mode entries
 default:bindOnce(hyper, "space", "Enter Service Mode", function() service:enter() end)
@@ -370,65 +432,65 @@ default:bindOnce(hyper, "'", "Enter Chrome Mode", function() chrome:enter() end)
 
 -- App shortcuts
 default:bindOnce(hyper, "b", "Focus Hammerspoon Console", function() hs.toggleConsole() end)
-default:bindOnce(hyper, "c", "Focus Cursor", function() shell('wm-preset focus-app "Cursor"') end)
+default:bindOnce(hyper, "c", "Focus Cursor", function() task({"wm-set", "focus-app", "Cursor"}) end)
 default:conditionalBindOnce(hyper, "x", "Focus iTerm2", {
   {
     cond = isFloatingTerminal, a.sync(function ()
-      a.wait(shellAsync('wm-preset focus-app "iTerm2"'))
+      a.wait(taskAsync({"wm-set", "focus-app", "iTerm2"}))
       hs.eventtap.keyStroke({"cmd"}, "`")
     end)
   },
-  { function () shell('wm-preset focus-app "iTerm2"') end }
+  { function () task({"wm-set", "focus-app", "iTerm2"}) end }
 })
-default:bindOnce(hyper, "q", "Focus Gemini", function() shell('chrome-preset focus-or-open-url "gemini.google.com" --label "Gemini"') end)
-default:bindOnce(hyper, "w", "Focus WhatsApp", function() shell('wm-preset focus-app "WhatsApp"') end)
-default:bindOnce(hyper, "z", "Focus Obsidian", function() shell('wm-preset focus-app "Obsidian"') end)
+default:bindOnce(hyper, "q", "Focus Gemini", function() task({"chrome-set", "focus-or-open-url", "gemini.google.com", "--label", "Gemini"}) end)
+default:bindOnce(hyper, "w", "Focus WhatsApp", function() task({"wm-set", "focus-app", "WhatsApp"}) end)
+default:bindOnce(hyper, "z", "Focus Obsidian", function() task({"wm-set", "focus-app", "Obsidian"}) end)
 default:bindOnce(hyper, "s", "Toggle YouTube Music", function() Preset.alternateApp("YouTube Music", {hide = true}) end)
-default:bindOnce(hyper, "e", "Focus Chrome", function() shell('wm-preset focus-app "Google Chrome"') end)
-default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() shell('wm-preset focus-app "Google Chrome"') end)
-default:bindOnce(hyper, "a", "Focus Timery", function() shell('wm-preset focus-app "Timery"') end)
-default:bindOnce(hyperShift, "a", "Focus Pomofocus", function() shell('wm-preset focus-app "Pomofocus"') end)
-default:bindOnce(hyperShift, "z", "Focus Google Keep", function() shell('wm-preset focus-app "Google Keep"') end)
+default:bindOnce(hyper, "e", "Focus Chrome", function() task({"wm-set", "focus-app", "Google Chrome"}) end)
+default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() task({"wm-set", "focus-app", "Google Chrome"}) end)
+default:bindOnce(hyper, "a", "Focus Timery", function() task({"wm-set", "focus-app", "Timery"}) end)
+default:bindOnce(hyperShift, "a", "Focus Pomofocus", function() task({"wm-set", "focus-app", "Pomofocus"}) end)
+default:bindOnce(hyperShift, "z", "Focus Google Keep", function() task({"wm-set", "focus-app", "Google Keep"}) end)
 default:conditionalBindOnce(hyperShift, "w", "Focus Zoom/Meet", {
-  {cond = function() return isProcessRunning("zoom.us") end, function() shell('wm-preset focus-app "zoom.us"') end},
-  {function() shell('chrome-preset focus-or-open-url meet.google.com --label "Google Meet"') end},
+  {cond = function() return isProcessRunning("zoom.us") end, function() task({"wm-set", "focus-app", "zoom.us"}) end},
+  {function() task({"chrome-set", "focus-or-open-url", "meet.google.com", "--label", "Google Meet"}) end},
 })
 default:conditionalBindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", {
   {cond = function() return isProcessRunning("zoom.us") end, function()
     hs.alert.show("Toggle Mute")
-    shell('wm-preset focus-app "zoom.us"')
+    task({"wm-set", "focus-app", "zoom.us"})
     hs.timer.doAfter(0.5, function() hs.eventtap.keyStroke({"cmd", "shift"}, "a") end)
   end},
   {function()
     hs.alert.show("Toggle Mute")
-    shell('chrome-preset focus-or-open-url meet.google.com --label "Google Meet"')
+    task({"chrome-set", "focus-or-open-url", "meet.google.com", "--label", "Google Meet"})
     hs.timer.doAfter(0.5, function() hs.eventtap.keyStroke({"cmd"}, "d") end)
   end},
 })
 
-default:bindOnce(hyperShift, "f", "Focus WhatsApp (shift)", function() shell('wm-preset focus-app "WhatsApp"') end)
-default:bindOnce(hyperShift, "g", "Focus Messages", function() shell('wm-preset focus-app "Messages"') end)
-default:bindOnce(hyperShift, "q", "Focus Activity Monitor", function() shell('wm-preset focus-app "Activity Monitor"') end)
+default:bindOnce(hyperShift, "f", "Focus WhatsApp (shift)", function() task({"wm-set", "focus-app", "WhatsApp"}) end)
+default:bindOnce(hyperShift, "g", "Focus Messages", function() task({"wm-set", "focus-app", "Messages"}) end)
+default:bindOnce(hyperShift, "q", "Focus Activity Monitor", function() task({"wm-set", "focus-app", "Activity Monitor"}) end)
 
-default:bindOnce(hyper, "y", "Focus Calendar", function() shell('chrome-preset focus-or-open-url calendar.google.com --label "Calendar"') end)
-default:bindOnce(hyper, "u", "Perform Default UI", function() shell("workflow-preset perform-default-ui") end)
+default:bindOnce(hyper, "y", "Focus Calendar", function() task({"chrome-set", "focus-or-open-url", "calendar.google.com", "--label", "Calendar"}) end)
+default:bindOnce(hyper, "u", "Perform Default UI", function() task({"workflow-set", "perform-default-ui"}) end)
 
 -- Universal Actions (per-app)
 default:conditionalBindOnce(hyper, "o", "Universal Actions", {
-  {app = "iTerm2", function() shell("ua --clipboard") end},
-  {function() shell("ua") end},
+  {app = "iTerm2", function() fish("ua --clipboard") end},
+  {function() fish("ua") end},
 })
-default:bindOnce(hyperShift, "o", "Universal Actions (force)", function() shell("ua") end)
+default:bindOnce(hyperShift, "o", "Universal Actions (force)", function() fish("ua") end)
 
 -- kindaVim toggle
 default:conditionalBindOnce(hyperShift, "v", "Toggle kindaVim", {
   {cond = function() return isProcessRunning("kindaVim") end, function()
     hs.alert.show("Exit kindaVim")
-    shell('killall "kindaVim"')
+    task({"killall", "kindaVim"})
   end},
   {function()
     hs.alert.show("Enter kindaVim")
-    shell('open -a "kindaVim"')
+    task({"open", "-a", "kindaVim"})
   end},
 })
 
@@ -504,80 +566,80 @@ end)
 -- Neovide paste in service
 service:bindOnce(hyper, "v", "Neovide Paste", function()
   hs.eventtap.keyStroke({"cmd"}, "c")
-  hs.timer.doAfter(0.1, function() shell("pbneovide --guess") end)
+  hs.timer.doAfter(0.1, function() fish("pbneovide --guess") end)
 end)
 
 -- Harpoon
-service:bindOnce({}, "a", "Harpoon Add", function() shell("yabai-harpoon add") end)
-service:bindOnce({}, "delete", "Harpoon Delete", function() shell("yabai-harpoon delete") end)
-service:bindOnce({}, "e", "Harpoon Edit", function() shell("yabai-harpoon edit") end)
+service:bindOnce({}, "a", "Harpoon Add", function() fish("yabai-harpoon add") end)
+service:bindOnce({}, "delete", "Harpoon Delete", function() fish("yabai-harpoon delete") end)
+service:bindOnce({}, "e", "Harpoon Edit", function() fish("yabai-harpoon edit") end)
 
 -- Side-by-side
-service:bindOnce({"shift"}, ";", "Side By Side", function() shell("yabai-preset side-by-side") end)
+service:bindOnce({"shift"}, ";", "Side By Side", function() task({"yabai-set", "side-by-side"}) end)
 
 -- Edit hammerspoon keybindings
 service:bindOnce(hyper, "e", "Edit Keybindings", function()
   hs.alert.show("Edit Keybindings")
-  shell('neovim-ghost focus-or-new-tab "$HOME/.hammerspoon/keybindings.lua"')
+  fish('neovim-ghost focus-or-new-tab "$HOME/.hammerspoon/keybindings.lua"')
 end)
 
 -- Space focus
-service:bindOnce(hyper, "space", "Focus Space Recent", function() shell("wm-preset focus-space recent") end)
-service:bindOnce({}, "space", "Focus Back And Forth", function() shell("wm-preset focus-back-and-forth") end)
-service:bindOnce({"shift"}, "space", "Move Window To Space Recent", function() shell("wm-preset move-window-to-space recent") end)
+service:bindOnce(hyper, "space", "Focus Space Recent", function() task({"wm-set", "focus-space", "recent"}) end)
+service:bindOnce({}, "space", "Focus Back And Forth", function() task({"wm-set", "focus-back-and-forth"}) end)
+service:bindOnce({"shift"}, "space", "Move Window To Space Recent", function() task({"wm-set", "move-window-to-space", "recent"}) end)
 
 -- Mode transitions
 service:bindOnce({}, "r", "Enter Resize Mode", function() resize:enter() end)
 service:bindOnce(hyper, "r", "Enter Restart Mode", function() restart:enter() end)
 
 -- Window management
-service:bindOnce({"shift"}, "y", "Toggle WM", function() shell("wm-preset toggle-wm") end)
-service:bindOnce({}, "v", "Insert Direction East", function() shell("wm-preset insert-direction east") end)
-service:bindOnce({"shift"}, "'", "Insert Direction South", function() shell("wm-preset insert-direction south") end)
-service:bindOnce({}, "t", "Toggle Float", function() shell('display-message (wm-preset toggle-float)') end)
-service:bindOnce({}, "z", "Insert Direction Stack", function() shell("wm-preset insert-direction stack") end)
-service:bindOnce({}, "s", "Insert Direction Stack (s)", function() shell("wm-preset insert-direction stack") end)
-service:bindOnce({"shift"}, "s", "Stack Windows In Space", function() shell("wm-preset stack-windows-in-space") end)
-service:bindOnce({}, "m", "Minimize After 3rd", function() shell("wm-preset minimize-after-nth-window 3") end)
-service:bindOnce({"shift"}, "m", "Deminimize All", function() shell("wm-preset deminimize-all") end)
-service:bindOnce({}, ",", "Layout Stack", function() shell("wm-preset layout-stack") end)
-service:bindOnce({"shift"}, ",", "Layout BSP + Stack", function() shell("wm-preset layout-bsp; wm-preset stack-windows-in-space") end)
-service:bindOnce({"shift"}, ".", "Layout BSP + Minimize", function() shell("wm-preset layout-bsp; wm-preset minimize-after-nth-window 3") end)
-service:bindOnce({"shift"}, "t", "Layout Float", function() shell("wm-preset layout-float") end)
-service:bindOnce({}, ".", "Layout BSP", function() shell("wm-preset layout-bsp") end)
-service:bindOnce({}, "0", "Flatten", function() shell("wm-preset flatten") end)
+service:bindOnce({"shift"}, "y", "Toggle WM", function() task({"wm-set", "toggle-wm"}) end)
+service:bindOnce({}, "v", "Insert Direction East", function() task({"wm-set", "insert-direction", "east"}) end)
+service:bindOnce({"shift"}, "'", "Insert Direction South", function() task({"wm-set", "insert-direction", "south"}) end)
+service:bindOnce({}, "t", "Toggle Float", function() fish('display-message (wm-preset toggle-float)') end)
+service:bindOnce({}, "z", "Insert Direction Stack", function() task({"wm-set", "insert-direction", "stack"}) end)
+service:bindOnce({}, "s", "Insert Direction Stack (s)", function() task({"wm-set", "insert-direction", "stack"}) end)
+service:bindOnce({"shift"}, "s", "Stack Windows In Space", function() task({"wm-set", "stack-windows-in-space"}) end)
+service:bindOnce({}, "m", "Minimize After 3rd", function() task({"wm-set", "minimize-after-nth-window", "3"}) end)
+service:bindOnce({"shift"}, "m", "Deminimize All", function() task({"wm-set", "deminimize-all"}) end)
+service:bindOnce({}, ",", "Layout Stack", function() task({"wm-set", "layout-stack"}) end)
+service:bindOnce({"shift"}, ",", "Layout BSP + Stack", function() fish("wm-preset layout-bsp; wm-preset stack-windows-in-space") end)
+service:bindOnce({"shift"}, ".", "Layout BSP + Minimize", function() fish("wm-preset layout-bsp; wm-preset minimize-after-nth-window 3") end)
+service:bindOnce({"shift"}, "t", "Layout Float", function() task({"wm-set", "layout-float"}) end)
+service:bindOnce({}, ".", "Layout BSP", function() task({"wm-set", "layout-bsp"}) end)
+service:bindOnce({}, "0", "Flatten", function() task({"wm-set", "flatten"}) end)
 
 -- Mirror / split / balance
-service:bindOnce({"shift"}, "\\", "Mirror Y-Axis", function() shell("wm-preset mirror y-axis") end)
-service:bindOnce({}, "-", "Mirror X-Axis", function() shell("wm-preset mirror x-axis") end)
-service:bindOnce({}, "y", "Toggle Split", function() shell("wm-preset toggle-split") end)
-service:bindOnce({}, "=", "Balance", function() shell("wm-preset balance") end)
+service:bindOnce({"shift"}, "\\", "Mirror Y-Axis", function() task({"wm-set", "mirror", "y-axis"}) end)
+service:bindOnce({}, "-", "Mirror X-Axis", function() task({"wm-set", "mirror", "x-axis"}) end)
+service:bindOnce({}, "y", "Toggle Split", function() task({"wm-set", "toggle-split"}) end)
+service:bindOnce({}, "=", "Balance", function() task({"wm-set", "balance"}) end)
 
 -- Focus space 1-9
 for i = 1, 9 do
-  service:bindOnce({}, tostring(i), "Focus Space " .. i, function() shell("wm-preset focus-space " .. i) end)
+  service:bindOnce({}, tostring(i), "Focus Space " .. i, function() task({"wm-set", "focus-space", tostring(i)}) end)
 end
 
 -- Move window to space 1-9
 for i = 1, 9 do
-  service:bindOnce({"shift"}, tostring(i), "Move Window To Space " .. i, function() shell("wm-preset move-window-to-space " .. i) end)
+  service:bindOnce({"shift"}, tostring(i), "Move Window To Space " .. i, function() task({"wm-set", "move-window-to-space", tostring(i)}) end)
 end
 
 -- Warp window HJKL
-service:bindOnce(hyper, "h", "Warp Window West", function() shell("wm-preset warp-window west") end)
-service:bindOnce(hyper, "j", "Warp Window South", function() shell("wm-preset warp-window south") end)
-service:bindOnce(hyper, "k", "Warp Window North", function() shell("wm-preset warp-window north") end)
-service:bindOnce(hyper, "l", "Warp Window East", function() shell("wm-preset warp-window east") end)
+service:bindOnce(hyper, "h", "Warp Window West", function() task({"wm-set", "warp-window", "west"}) end)
+service:bindOnce(hyper, "j", "Warp Window South", function() task({"wm-set", "warp-window", "south"}) end)
+service:bindOnce(hyper, "k", "Warp Window North", function() task({"wm-set", "warp-window", "north"}) end)
+service:bindOnce(hyper, "l", "Warp Window East", function() task({"wm-set", "warp-window", "east"}) end)
 
 -- Focus display HJKL
-service:bindOnce({}, "h", "Focus Display West", function() shell("wm-preset focus-display-with-fallback west") end)
-service:bindOnce({}, "j", "Focus Display South", function() shell("wm-preset focus-display-with-fallback south") end)
-service:bindOnce({}, "k", "Focus Display North", function() shell("wm-preset focus-display-with-fallback north") end)
-service:bindOnce({}, "l", "Focus Display East", function() shell("wm-preset focus-display-with-fallback east") end)
+service:bindOnce({}, "h", "Focus Display West", function() task({"wm-set", "focus-display-with-fallback", "west"}) end)
+service:bindOnce({}, "j", "Focus Display South", function() task({"wm-set", "focus-display-with-fallback", "south"}) end)
+service:bindOnce({}, "k", "Focus Display North", function() task({"wm-set", "focus-display-with-fallback", "north"}) end)
+service:bindOnce({}, "l", "Focus Display East", function() task({"wm-set", "focus-display-with-fallback", "east"}) end)
 
 -- Misc service
-service:bindOnce({}, "tab", "Move Window To Next Display", function() shell("wm-preset smart-move-window-to-next-display") end)
-service:bindOnce(hyperShift, "tab", "Swap Workspaces Between Monitors", function() shell("wm-preset swap-workspaces-between-monitors") end)
+service:bindOnce({}, "tab", "Move Window To Next Display", function() task({"wm-set", "smart-move-window-to-next-display"}) end)
+service:bindOnce(hyperShift, "tab", "Swap Workspaces Between Monitors", function() task({"wm-set", "swap-workspaces-between-monitors"}) end)
 service:bindOnce({"shift"}, "/", "Trigger Help Menu", a.sync(function() a.wait(Preset.triggerMenuBarAsync("Help")) end))
 service:bindOnce(hyper, "/", "Search Mappings", showCommandPalette)
 service:bindOnce({"shift"}, "v", "Tile Left", a.sync(function() a.wait(Preset.triggerMenuBarAsync("Window;Full Screen Tile; Left of Screen")) end))
@@ -591,37 +653,37 @@ service:bindOnce({}, "c", "Enter Chrome Mode", function() chrome:enter() end)
 ---------------------------------------------------------------
 
 resize:bind({}, "return", function() resize:exit() end)
-resize:bind({}, "j", function() shell("wm-preset resize height +100") end)
-resize:bind({}, "k", function() shell("wm-preset resize height -100") end)
-resize:bind({}, "h", function() shell("wm-preset resize width -100") end)
-resize:bind({}, "l", function() shell("wm-preset resize width +100") end)
-resize:bind({"shift"}, "j", function() shell("wm-preset resize height +100") end)
-resize:bind({"shift"}, "k", function() shell("wm-preset resize height -100") end)
-resize:bind({"shift"}, "h", function() shell("wm-preset resize width -100") end)
-resize:bind({"shift"}, "l", function() shell("wm-preset resize width +100") end)
-resize:bind({"shift"}, ",", function() shell("wm-preset rotate 90") end)
-resize:bind({"shift"}, ".", function() shell("wm-preset rotate 270") end)
+resize:bind({}, "j", function() task({"wm-set", "resize", "height", "+100"}) end)
+resize:bind({}, "k", function() task({"wm-set", "resize", "height", "-100"}) end)
+resize:bind({}, "h", function() task({"wm-set", "resize", "width", "-100"}) end)
+resize:bind({}, "l", function() task({"wm-set", "resize", "width", "+100"}) end)
+resize:bind({"shift"}, "j", function() task({"wm-set", "resize", "height", "+100"}) end)
+resize:bind({"shift"}, "k", function() task({"wm-set", "resize", "height", "-100"}) end)
+resize:bind({"shift"}, "h", function() task({"wm-set", "resize", "width", "-100"}) end)
+resize:bind({"shift"}, "l", function() task({"wm-set", "resize", "width", "+100"}) end)
+resize:bind({"shift"}, ",", function() task({"wm-set", "rotate", "90"}) end)
+resize:bind({"shift"}, ".", function() task({"wm-set", "rotate", "270"}) end)
 
 ---------------------------------------------------------------
 -- RESTART MODE bindings
 ---------------------------------------------------------------
 
-restart:bindOnce(hyper, "y", "Restart WM", function() shell("yabai-preset restart-wm") end)
+restart:bindOnce(hyper, "y", "Restart WM", function() task({"yabai-set", "restart-wm"}) end)
 restart:bindOnce(hyperShift, "b", "Restart Hammerspoon", function() hs.alert.show("Restarting Hammerspoon"); hs.relaunch() end)
-restart:bindOnce(hyper, "a", "Restart Alfred", function() hs.alert.show("Restart Alfred"); shell('killall Alfred; sleep 2; and open -a "Alfred 5"') end)
-restart:bindOnce(hyper, "m", "Restart Mouseless", function() hs.alert.show("Restart Mouseless"); shell('killall mouseless; sleep 2; and open -a "Mouseless"') end)
-restart:bindOnce(hyper, "v", "Restart NVIM Ghost", function() hs.alert.show("Restart NVIM Ghost"); shell("neovim-ghost kill; sleep 2; and neovim-ghost start") end)
-restart:bindOnce(hyper, "k", "Restart Karabiner", function() hs.alert.show("Restart Karabiner"); shell('launchctl kickstart -k gui/(id -u)/org.pqrs.service.agent.karabiner_console_user_server') end)
+restart:bindOnce(hyper, "a", "Restart Alfred", function() hs.alert.show("Restart Alfred"); fish('killall Alfred; sleep 2; and open -a "Alfred 5"') end)
+restart:bindOnce(hyper, "m", "Restart Mouseless", function() hs.alert.show("Restart Mouseless"); fish('killall mouseless; sleep 2; and open -a "Mouseless"') end)
+restart:bindOnce(hyper, "v", "Restart NVIM Ghost", function() hs.alert.show("Restart NVIM Ghost"); fish("neovim-ghost kill; sleep 2; and neovim-ghost start") end)
+restart:bindOnce(hyper, "k", "Restart Karabiner", function() hs.alert.show("Restart Karabiner"); fish('launchctl kickstart -k gui/(id -u)/org.pqrs.service.agent.karabiner_console_user_server') end)
 restart:bindOnce(hyper, "h", "Restart Hammerspoon", function() hs.alert.show("Restarting Hammerspoon"); hs.reload() end)
 restart:conditionalBindOnce(hyper, "s", "Toggle AeroSpace", {
   {cond = function() return isProcessRunning("AeroSpace") end, function()
     hs.alert.show("Killing AeroSpace")
-    shell("killall AeroSpace")
+    task({"killall", "AeroSpace"})
   end},
   {function()
-    shell("yabai-preset layout-float-all")
+    task({"yabai-set", "layout-float-all"})
     hs.alert.show("Starting AeroSpace")
-    shell("open -a AeroSpace")
+    task({"open", "-a", "AeroSpace"})
   end},
 })
 
@@ -634,53 +696,55 @@ chrome:bindOnce(hyper, "'", "Enter Go To Mode", function() goto_mode:enter() end
 chrome:bind({}, "'", function() chrome:exit(); goto_mode:enter() end)
 
 -- Close zoom tabs
-chrome:bindOnce({}, "delete", "Close Zoom Tabs", function() shell([[chrome-preset close-tabs-with-url '^.*\.zoom\.us/j/.*$']]) end)
+chrome:bindOnce({}, "delete", "Close Zoom Tabs", function() task({"chrome-set", "close-tabs-with-url", [[^.*\.zoom\.us/j/.*$]]}) end)
 
 -- Focus pinned tab 1-9
 for i = 1, 9 do
-  chrome:bindOnce({}, tostring(i), "Focus Pinned Tab " .. i, function() shell("chrome-preset focus-pinned-tab " .. i) end)
+  chrome:bindOnce({}, tostring(i), "Focus Pinned Tab " .. i, function() task({"chrome-set", "focus-pinned-tab", tostring(i)}) end)
 end
 
 -- Pin tab 1-9
 for i = 1, 9 do
-  chrome:bindOnce({"shift"}, tostring(i), "Pin Tab " .. i, function() shell("chrome-preset pin-tab " .. i) end)
+  chrome:bindOnce({"shift"}, tostring(i), "Pin Tab " .. i, function() task({"chrome-set", "pin-tab", tostring(i)}) end)
 end
 
 -- Chrome URL shortcuts
-chrome:bindOnce({}, "y", "YouTube", function() shell('chrome-preset focus-or-open-url --profile="Default" youtube.com') end)
-chrome:bindOnce({}, "g", "Gmail", function() shell('chrome-preset focus-or-open-url --profile="Default" gmail.com') end)
+chrome:bindOnce({}, "y", "YouTube", function() task({"chrome-set", "focus-or-open-url", "--profile=Default", "youtube.com"}) end)
+chrome:bindOnce({}, "g", "Gmail", function() task({"chrome-set", "focus-or-open-url", "--profile=Default", "gmail.com"}) end)
 
 ---------------------------------------------------------------
 -- GOTO MODE bindings
 ---------------------------------------------------------------
 
-goto_mode:bindOnce({}, "y", "YouTube (new tab)", function() shell('chrome-preset open-url --profile="Default" youtube.com') end)
-goto_mode:bindOnce({}, "g", "Gmail (new tab)", function() shell('chrome-preset open-url --profile="Default" gmail.com') end)
+goto_mode:bindOnce({}, "y", "YouTube (new tab)", function() task({"chrome-set", "open-url", "--profile=Default", "youtube.com"}) end)
+goto_mode:bindOnce({}, "g", "Gmail (new tab)", function() task({"chrome-set", "open-url", "--profile=Default", "gmail.com"}) end)
 
 ---------------------------------------------------------------
 -- INVOKE MODE bindings
 ---------------------------------------------------------------
 
 invoke:bindOnce({}, "1", "Arrange Work Spaces", function()
-  shell([[wm-preset arrange-spaces -w '1:.*Thales \(Work\).*' -a '2:iTerm2' -a '3:.*VS Code.*' -a '4:Workchat' -a '5:Obsidian']])
+  task({"wm-set", "arrange-spaces", "-w", [[1:.*Thales \(Work\).*]], "-a", "2:iTerm2", "-a", [[3:.*VS Code.*]], "-a", "4:Workchat", "-a", "5:Obsidian"})
 end)
 invoke:bindOnce({}, "p", "Arrange Personal Spaces", function()
-  shell([[wm-preset arrange-spaces -w '7:.*Thales \(Personal\).*']])
+  task({"wm-set", "arrange-spaces", "-w", [[7:.*Thales \(Personal\).*]]})
 end)
-invoke:bindOnce({}, "b", "Alfred BTT Search", function() shell([[osascript -e 'tell application "Alfred" to search "btt "']]) end)
-invoke:bindOnce({}, "t", "Alfred Top Search", function() shell([[osascript -e 'tell application "Alfred" to search "top "']]) end)
-invoke:bindOnce({}, "y", "YouTube Search", function() shell("open 'raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D'") end)
-invoke:bindOnce({}, "return", "New iTerm Window", function() shell("iterm-preset new-window") end)
-invoke:bindOnce(hyper, "i", "AI Input Mode", function() hs.alert.show("AI Input Mode"); shell('osascript -e "set volume input volume 100"; set-preferred-input-device') end)
-invoke:bindOnce(hyper, "r", "Reinitialize Displays", function() hs.alert.show("Reinitialize Displays"); shell("betterdisplaycli perform --reinitialize") end)
+invoke:bindOnce({}, "b", "Alfred BTT Search", function() task({"osascript", "-e", [[tell application "Alfred" to search "btt "]]}) end)
+invoke:bindOnce({}, "t", "Alfred Top Search", function() task({"osascript", "-e", [[tell application "Alfred" to search "top "]]}) end)
+invoke:bindOnce({}, "y", "YouTube Search", function() task({"open", "raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D"}) end)
+invoke:bindOnce({}, "return", "New iTerm Window", function() task({"iterm-set", "new-window"}) end)
+invoke:bindOnce(hyper, "i", "AI Input Mode", function() hs.alert.show("AI Input Mode"); fish('osascript -e "set volume input volume 100"; set-preferred-input-device') end)
+invoke:bindOnce(hyper, "r", "Reinitialize Displays", function() hs.alert.show("Reinitialize Displays"); fish("betterdisplaycli perform --reinitialize") end)
 
 ---------------------------------------------------------------
 -- Apply local overrides
 ---------------------------------------------------------------
 
 local ctx = {
-  shell = shell,
-  shellAsync = shellAsync,
+  fish = fish,
+  fishAsync = fishAsync,
+  task = task,
+  taskAsync = taskAsync,
   frontAppName = frontAppName,
   default = default,
   service = service,
@@ -713,7 +777,8 @@ return {
   restart = restart,
   hyper = hyper,
   hyperShift = hyperShift,
-  shell = shell,
+  fish = fish,
+  task = task,
   showCommandPalette = showCommandPalette,
   Mode = Mode,
 }
