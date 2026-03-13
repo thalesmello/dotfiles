@@ -62,6 +62,21 @@ local function buildMenuBarScript(processName, items)
     esc(processName), chain)
 end
 
+function M.triggerMenuBar(path)
+  local app = hs.application.frontmostApplication()
+  if not app then return false end
+
+  local items = {}
+  for item in path:gmatch("[^;]+") do
+    items[#items + 1] = item:match("^%s*(.-)%s*$")
+  end
+  if #items == 0 then return false end
+
+  local script = buildMenuBarScript(app:name(), items)
+  local ok = hs.applescript(script)
+  return ok
+end
+
 M.triggerMenuBarAsync = a.wrap(function(path, callback)
   local app = hs.application.frontmostApplication()
   if not app then callback(false); return end
@@ -81,12 +96,6 @@ M.triggerMenuBarAsync = a.wrap(function(path, callback)
   _runningTasks[task] = true
   task:start()
 end)
-
-function M.triggerMenuBar(path)
-  a.sync(function()
-    a.wait(M.triggerMenuBarAsync(path))
-  end)()
-end
 
 function M.getActiveApp()
   local app = hs.application.frontmostApplication()

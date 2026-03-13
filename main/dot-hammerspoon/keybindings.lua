@@ -536,14 +536,14 @@ local sleepAsync = a.wrap(function(seconds, callback)
   hs.timer.doAfter(seconds, function() callback() end)
 end)
 
-chromeAppModal:bind({"ctrl", "shift"}, "d", a.sync(function() a.wait(Preset.triggerMenuBarAsync("Tab;Move Tab to New Window")) end))
-chromeAppModal:bind({"ctrl", "alt"}, "d", a.sync(function() a.wait(Preset.triggerMenuBarAsync("Tab;Duplicate Tab")) end))
-chromeAppModal:bind({"ctrl", "alt", "shift"}, "d", a.sync(function()
-  a.wait(Preset.triggerMenuBarAsync("Tab;Duplicate Tab"))
-  a.wait(sleepAsync(0.5))
-  a.wait(Preset.triggerMenuBarAsync("Tab;Move Tab to New Window"))
-end))
-chromeAppModal:bind({"ctrl", "shift"}, "g", a.sync(function() a.wait(Preset.triggerMenuBarAsync("Tab;Group Tab")) end))
+chromeAppModal:bind({"ctrl", "shift"}, "d", function() Preset.triggerMenuBar("Tab;Move Tab to New Window") end)
+chromeAppModal:bind({"ctrl", "alt"}, "d", function() Preset.triggerMenuBar("Tab;Duplicate Tab") end)
+chromeAppModal:bind({"ctrl", "alt", "shift"}, "d", function()
+  Preset.triggerMenuBar("Tab;Duplicate Tab")
+  hs.timer.usleep(500000)
+  Preset.triggerMenuBar("Tab;Move Tab to New Window")
+end)
+chromeAppModal:bind({"ctrl", "shift"}, "g", function() Preset.triggerMenuBar("Tab;Group Tab") end)
 chromeAppModal:bind({"ctrl", "cmd"}, "1", function()
   hs.eventtap.keyStroke({"alt", "shift"}, "1")
   hs.eventtap.keyStroke({"ctrl", "shift"}, "1")
@@ -555,7 +555,7 @@ local cmdTHk = chromeAppModal:bind({"cmd"}, "t", function()
     hs.eventtap.keyStroke({"cmd"}, "t")
     cmdTHk:enable()
   else
-    a.sync(function() a.wait(Preset.triggerMenuBarAsync("Tab;New Tab to the Right")) end)()
+    Preset.triggerMenuBar("Tab;New Tab to the Right")
   end
 end)
 
@@ -640,9 +640,9 @@ service:bindOnce({}, "l", "Focus Display East", function() task({"wm-set", "focu
 -- Misc service
 service:bindOnce({}, "tab", "Move Window To Next Display", function() task({"wm-set", "smart-move-window-to-next-display"}) end)
 service:bindOnce(hyperShift, "tab", "Swap Workspaces Between Monitors", function() task({"wm-set", "swap-workspaces-between-monitors"}) end)
-service:bindOnce({"shift"}, "/", "Trigger Help Menu", a.sync(function() a.wait(Preset.triggerMenuBarAsync("Help")) end))
+service:bindOnce({"shift"}, "/", "Trigger Help Menu", function() Preset.triggerMenuBar("Help") end)
 service:bindOnce(hyper, "/", "Search Mappings", showCommandPalette)
-service:bindOnce({"shift"}, "v", "Tile Left", a.sync(function() a.wait(Preset.triggerMenuBarAsync("Window;Full Screen Tile; Left of Screen")) end))
+service:bindOnce({"shift"}, "v", "Tile Left", function() Preset.triggerMenuBar("Window;Full Screen Tile; Left of Screen") end)
 service:bindOnce(hyper, "return", "True Fullscreen", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "f") end)
 
 -- Enter chrome from service
@@ -729,8 +729,8 @@ end)
 invoke:bindOnce({}, "p", "Arrange Personal Spaces", function()
   task({"wm-set", "arrange-spaces", "-w", [[7:.*Thales \(Personal\).*]]})
 end)
-invoke:bindOnce({}, "b", "Alfred BTT Search", function() task({"osascript", "-e", [[tell application "Alfred" to search "btt "]]}) end)
-invoke:bindOnce({}, "t", "Alfred Top Search", function() task({"osascript", "-e", [[tell application "Alfred" to search "top "]]}) end)
+invoke:bindOnce({}, "b", "Alfred BTT Search", function() hs.applescript([[tell application "Alfred" to search "btt "]]) end)
+invoke:bindOnce({}, "t", "Alfred Top Search", function() hs.applescript([[tell application "Alfred" to search "top "]]) end)
 invoke:bindOnce({}, "y", "YouTube Search", function() task({"open", "raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D"}) end)
 invoke:bindOnce({}, "return", "New iTerm Window", function() task({"iterm-set", "new-window"}) end)
 invoke:bindOnce(hyper, "i", "AI Input Mode", function() hs.alert.show("AI Input Mode"); fish('osascript -e "set volume input volume 100"; set-preferred-input-device') end)
@@ -757,6 +757,7 @@ local ctx = {
   hyperShift = hyperShift,
   registerBinding = registerBinding,
   Mode = Mode,
+  isFloatingTerminal = isFloatingTerminal,
 }
 
 if ok and localConfig and localConfig.setup then
