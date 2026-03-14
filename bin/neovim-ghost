@@ -1,3 +1,6 @@
+#!/usr/bin/env -S fish --no-config
+set -x PATH /opt/homebrew/bin (status dirname) $PATH
+
 function neovim-ghost
     set preset $argv[1]
     set -e argv[1]
@@ -12,15 +15,14 @@ function neovim-ghost
         argparse spawn=? -- $argv
 
         if set -q _flag_spawn
-            fish -c "neovim-ghost start" &
-            disown; and return
+            nohup (status filename) start &
+        else
+            display-message "Start GHOST"
+            env NVIM_GHOST_ENABLE=1 neovide --frame buttonless --title-hidden -- --listen "$TMPDIR/nvim_ghost.socket" &
+            echo "$last_pid" > "$TMPDIR/nvim_ghost.pid"
+            wait
+            rm "$TMPDIR/nvim_ghost.pid"
         end
-
-        display-message "Start GHOST"
-        env NVIM_GHOST_ENABLE=1 neovide --frame buttonless --title-hidden -- --listen "$TMPDIR/nvim_ghost.socket" &
-        echo "$last_pid" > "$TMPDIR/nvim_ghost.pid"
-        wait
-        rm "$TMPDIR/nvim_ghost.pid"
     case "trigger"
         if neovim-ghost is-alive
             neovim-ghost focus
@@ -67,3 +69,5 @@ function neovim-ghost
         echo "invalid preset $preset" >&2
     end
 end
+
+neovim-ghost $argv
