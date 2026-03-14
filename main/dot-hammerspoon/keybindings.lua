@@ -167,22 +167,27 @@ end
 local function _makeRulesEvalFunc(rules)
   return function()
     local app = frontAppName()
-      for _, rule in ipairs(rules) do
-        local appMatch = not rule.app or rule.app == app
-        local condMatch = true
-        if rule.cond then
-          local result = rule.cond()
-          if type(result) == "function" then
-            condMatch = a.sync(function () a.wait(result) end)()
-          else
-            condMatch = result
-          end
-        end
-        if appMatch and condMatch then
-          rule[1]()
-          return
+    for _, rule in ipairs(rules) do
+      local appMatch = not rule.app or rule.app == app
+      local condMatch = true
+      if rule.cond then
+        local result = rule.cond()
+        if type(result) == "function" then
+          result(function(condMatch)
+            if appMatch and condMatch then
+              rule[1]()
+              return
+            end
+          end)
+        else
+          condMatch = result
         end
       end
+      if appMatch and condMatch then
+        rule[1]()
+        return
+      end
+    end
   end
 end
 
@@ -768,6 +773,8 @@ return {
   hyperShift = hyperShift,
   fish = fish,
   task = task,
+  taskAsync = taskAsync,
   showCommandPalette = showCommandPalette,
   Mode = Mode,
+  fishAsync = fishAsync,
 }
