@@ -252,6 +252,8 @@ local ok, localConfig = pcall(dofile, local_dotfiles .. "/local_hammerspoon/keyb
 ---------------------------------------------------------------
 
 local cmdTabCount = 0
+local floatingTerminalJustHidden = false
+local windowAfterHide = nil
 
 local cmdTabTap = hs.eventtap.new(
   {hs.eventtap.event.types.keyDown, hs.eventtap.event.types.flagsChanged},
@@ -277,10 +279,25 @@ local cmdTabTap = hs.eventtap.new(
 
     if cmdTabCount == 1 then
       -- First press: custom behavior
-      if isFloatingTerminal() then
+      local focusedWin = hs.window.focusedWindow()
+      local focusedWinId = focusedWin and focusedWin:id()
+      if floatingTerminalJustHidden and windowAfterHide and focusedWinId == windowAfterHide then
+        -- Terminal was just hidden and user hasn't switched windows → reopen
+        floatingTerminalJustHidden = false
+        windowAfterHide = nil
+        hs.eventtap.keyStroke(hyper, "/", 0)
+      elseif isFloatingTerminal() then
         -- Only hide hotkey window when floating terminal is actually focused
+        floatingTerminalJustHidden = true
+        windowAfterHide = nil
         hs.osascript.applescript('tell application "iTerm2" to hide hotkey window current window')
+        hs.timer.doAfter(0.3, function()
+          local win = hs.window.focusedWindow()
+          windowAfterHide = win and win:id()
+        end)
       else
+        floatingTerminalJustHidden = false
+        windowAfterHide = nil
         task({"wm-set", "focus-recent"})
       end
       return true  -- consume the event
