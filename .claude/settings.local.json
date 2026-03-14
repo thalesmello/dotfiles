@@ -4,7 +4,9 @@
       "Bash(aerospace list-windows:*)",
       "Bash(col:*)",
       "Bash(fish -c \"man autosuggestions\")",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(ls -1 main/dot-config/fish/functions/*-preset.fish | xargs -I {} basename {} -preset.fish | sed 's/$/-set/' | while read script; do if [ -f \"bin/$script\" ]; then echo \"$script\"; fi; done)",
+      "Bash(ls -1 main/dot-config/fish/functions/*-preset.fish | xargs -I {} basename {} -preset.fish)"
     ]
   }
 }

@@ -1,3 +1,6 @@
+#!/usr/bin/env -S fish --no-config
+set -x PATH /opt/homebrew/bin (status dirname) $PATH
+
 function btt-preset
     set preset $argv[1]
     set -e argv[1]
@@ -51,7 +54,7 @@ function btt-preset
         set message $argv[1]
         set -e argv[1]
 
-        set duration (default "$_flag_duration" 0.15)
+        set duration (test -n "$_flag_duration"; and echo "$_flag_duration"; or echo 0.15)
 
         set json "$(jq -n --arg message "$message" '{
           "BTTPredefinedActionType": 254,
@@ -240,3 +243,5 @@ function btt-preset
         end
     end
 end
+
+btt-preset $argv

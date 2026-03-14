@@ -1,3 +1,6 @@
+#!/usr/bin/env -S fish --no-config
+set -x PATH /opt/homebrew/bin (status dirname) $PATH
+
 function yabai-preset
     # We use btt_url to execute some action in order to fill in the gap of workspaces not working by default
     set btt_url 'http://localhost:12000/trigger_action/'
@@ -531,7 +534,7 @@ function yabai-preset
     case "restore-window-position"
         set winid $argv[1]; set -e argv[1]
 
-        set winid (default "$winid" "$(yabai -m query --windows --window | jq '.id')")
+        set winid (test -n "$winid"; and echo "$winid"; or echo "$(yabai -m query --windows --window | jq '.id')")
 
         jq -erc '.x, .y, .w, .h | floor' < "/tmp/yabai-preset/window-positions/$winid.json" \
         | read --line x y w h
@@ -857,3 +860,5 @@ function yabai-preset
         return 1
     end
 end
+
+yabai-preset $argv

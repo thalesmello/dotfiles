@@ -1,3 +1,6 @@
+#!/usr/bin/env -S fish --no-config
+set -x PATH /opt/homebrew/bin (status dirname) $PATH
+
 function svim-preset
     set mode $argv[1]
     set -e argv[1]
@@ -12,5 +15,4 @@ function svim-preset
     end
 end
 
-complete -c svim-preset -f
-complete -c svim-preset -n "__fish_is_nth_token 1" -a "enter exit"
+svim-preset $argv

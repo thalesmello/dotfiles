@@ -1,3 +1,6 @@
+#!/usr/bin/env -S fish --no-config
+set -x PATH /opt/homebrew/bin (status dirname) $PATH
+
 function hs-preset
     set preset $argv[1]
     set -e argv[1]
@@ -17,7 +20,7 @@ function hs-preset
         or return 1
 
         set -l message (string escape -- $argv[1])
-        set -l duration (default "$_flag_duration" 0.5)
+        set -l duration (test -n "$_flag_duration"; and echo "$_flag_duration"; or echo 0.5)
 
         hs -c "Preset.displayMessage(\"$message\", $duration)"
 
@@ -103,3 +106,5 @@ function hs-preset
         return 1
     end
 end
+
+hs-preset $argv

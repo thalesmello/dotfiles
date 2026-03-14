@@ -1,16 +1,3 @@
-function wm-preset
-    if pgrep -xq AeroSpace
-        aerospace-preset $argv
-        return $status
-    else if pgrep -xq yabai
-        yabai-preset $argv
-        return $status
-    else
-        echo "No window manager running" >&2
-        return 1
-    end
-end
-
 complete -c wm-preset -f
 complete -c wm-preset -n "__fish_is_nth_token 1" -f -d "Sub-command" -a "
     focus-window

@@ -1,3 +1,6 @@
+#!/usr/bin/env -S fish --no-config
+set -x PATH /opt/homebrew/bin (status dirname) $PATH
+
 function skhd-preset
     set preset $argv[1]
     set -e argv[1]
@@ -17,3 +20,5 @@ function skhd-preset
     end
 
 end
+
+skhd-preset $argv

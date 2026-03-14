@@ -1,3 +1,6 @@
+#!/usr/bin/env -S fish --no-config
+set -x PATH /opt/homebrew/bin (status dirname) $PATH
+
 function workflow-preset
 
     set preset $argv[1]; set -e argv[1]
@@ -13,3 +16,5 @@ function workflow-preset
         return 1
     end
 end
+
+workflow-preset $argv
