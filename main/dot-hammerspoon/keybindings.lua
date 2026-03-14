@@ -72,9 +72,9 @@ local fishAsync = a.wrap(function(cmd, callback)
 end)
 
 -- Fire-and-forget direct binary execution
-local function task(args)
+local function task (args, callback)
   local resolvedPath = resolvePath(args[1])
-  if not resolvedPath then return end
+  if not resolvedPath then if callback then callback(false, "") end; return end
   local taskArgs = {table.unpack(args, 2)}
   util.log("task:", resolvedPath, table.unpack(taskArgs))
   local t
@@ -82,26 +82,14 @@ local function task(args)
     _runningTasks[t] = nil
     if stdOut and #stdOut > 0 then util.log("task stdout:", stdOut) end
     if stdErr and #stdErr > 0 then util.log("task stderr:", stdErr) end
+    if callback then callback(exitCode == 0, (stdOut or ""):gsub("%s+$", "")) end
   end, taskArgs)
   _runningTasks[t] = true
   t:start()
 end
 
 -- Awaitable direct binary execution — returns (success, output)
-local taskAsync = a.wrap(function(args, callback)
-  local resolvedPath = resolvePath(args[1])
-  if not resolvedPath then callback(false, ""); return end
-  local taskArgs = {table.unpack(args, 2)}
-  util.log("taskAsync:", resolvedPath, table.unpack(taskArgs))
-  local t
-  t = hs.task.new(resolvedPath, function(exitCode, stdOut, stdErr)
-    _runningTasks[t] = nil
-    util.log("taskAsync result: exitCode=", exitCode, "stdout=", stdOut)
-    callback(exitCode == 0, (stdOut or ""):gsub("%s+$", ""))
-  end, taskArgs)
-  _runningTasks[t] = true
-  t:start()
-end)
+local taskAsync = a.wrap(task)
 
 -- Get frontmost application name
 local function frontAppName()
@@ -431,33 +419,33 @@ default:bindOnce(hyper, "'", "Enter Chrome Mode", function() chrome:enter() end)
 
 -- App shortcuts
 default:bindOnce(hyper, "b", "Focus Hammerspoon Console", function() hs.toggleConsole() end)
-default:bindOnce(hyper, "c", "Focus Cursor", function() task({"wm-preset", "focus-app", "Cursor"}) end)
+default:bindOnce(hyper, "c", "Focus Cursor", function() hs.application.launchOrFocus("Cursor") end)
 default:conditionalBindOnce(hyper, "x", "Focus iTerm2", {
   {
-    cond = isFloatingTerminal, a.sync(function ()
-      a.wait(taskAsync({"wm-preset", "focus-app", "iTerm2"}))
+    cond = isFloatingTerminal, function ()
+      hs.application.launchOrFocus("iTerm")
       hs.eventtap.keyStroke({"cmd"}, "`")
-    end)
+    end
   },
-  { function () task({"wm-preset", "focus-app", "iTerm2"}) end }
+  { function () hs.application.launchOrFocus("iTerm") end }
 })
 default:bindOnce(hyper, "q", "Focus Gemini", function() task({"chrome-preset", "focus-or-open-url", "gemini.google.com", "--label", "Gemini"}) end)
-default:bindOnce(hyper, "w", "Focus WhatsApp", function() task({"wm-preset", "focus-app", "WhatsApp"}) end)
-default:bindOnce(hyper, "z", "Focus Obsidian", function() task({"wm-preset", "focus-app", "Obsidian"}) end)
+default:bindOnce(hyper, "w", "Focus WhatsApp", function() hs.application.launchOrFocus("WhatsApp") end)
+default:bindOnce(hyper, "z", "Focus Obsidian", function() hs.application.launchOrFocus("Obsidian") end)
 default:bindOnce(hyper, "s", "Toggle YouTube Music", function() Preset.alternateApp("YouTube Music", {hide = true}) end)
-default:bindOnce(hyper, "e", "Focus Chrome", function() task({"wm-preset", "focus-app", "Google Chrome"}) end)
-default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() task({"wm-preset", "focus-app", "Google Chrome"}) end)
-default:bindOnce(hyper, "a", "Focus Timery", function() task({"wm-preset", "focus-app", "Timery"}) end)
-default:bindOnce(hyperShift, "a", "Focus Pomofocus", function() task({"wm-preset", "focus-app", "Pomofocus"}) end)
-default:bindOnce(hyperShift, "z", "Focus Google Keep", function() task({"wm-preset", "focus-app", "Google Keep"}) end)
+default:bindOnce(hyper, "e", "Focus Chrome", function() hs.application.launchOrFocus("Google Chrome") end)
+default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() hs.application.launchOrFocus("Google Chrome") end)
+default:bindOnce(hyper, "a", "Focus Timery", function() hs.application.launchOrFocus("Timery") end)
+default:bindOnce(hyperShift, "a", "Focus Pomofocus", function() hs.application.launchOrFocus("Pomofocus") end)
+default:bindOnce(hyperShift, "z", "Focus Google Keep", function() hs.application.launchOrFocus("Google Keep") end)
 default:conditionalBindOnce(hyperShift, "w", "Focus Zoom/Meet", {
-  {cond = function() return isProcessRunning("zoom.us") end, function() task({"wm-preset", "focus-app", "zoom.us"}) end},
+  {cond = function() return isProcessRunning("zoom.us") end, function() hs.application.launchOrFocus("zoom.us") end},
   {function() task({"chrome-preset", "focus-or-open-url", "meet.google.com", "--label", "Google Meet"}) end},
 })
 default:conditionalBindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", {
   {cond = function() return isProcessRunning("zoom.us") end, function()
     hs.alert.show("Toggle Mute")
-    task({"wm-preset", "focus-app", "zoom.us"})
+    hs.application.launchOrFocus("zoom.us")
     hs.timer.doAfter(0.5, function() hs.eventtap.keyStroke({"cmd", "shift"}, "a") end)
   end},
   {function()
@@ -467,9 +455,9 @@ default:conditionalBindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", {
   end},
 })
 
-default:bindOnce(hyperShift, "f", "Focus WhatsApp (shift)", function() task({"wm-preset", "focus-app", "WhatsApp"}) end)
-default:bindOnce(hyperShift, "g", "Focus Messages", function() task({"wm-preset", "focus-app", "Messages"}) end)
-default:bindOnce(hyperShift, "q", "Focus Activity Monitor", function() task({"wm-preset", "focus-app", "Activity Monitor"}) end)
+default:bindOnce(hyperShift, "f", "Focus WhatsApp (shift)", function() hs.application.launchOrFocus("WhatsApp") end)
+default:bindOnce(hyperShift, "g", "Focus Messages", function() hs.application.launchOrFocus("Messages") end)
+default:bindOnce(hyperShift, "q", "Focus Activity Monitor", function() hs.application.launchOrFocus("Activity Monitor") end)
 
 default:bindOnce(hyper, "y", "Focus Calendar", function() task({"chrome-preset", "focus-or-open-url", "calendar.google.com", "--label", "Calendar"}) end)
 default:bindOnce(hyper, "u", "Perform Default UI", function() task({"workflow-preset", "perform-default-ui"}) end)
