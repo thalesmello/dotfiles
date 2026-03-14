@@ -15,7 +15,7 @@ function neovim-ghost
         argparse spawn=? -- $argv
 
         if set -q _flag_spawn
-            nohup (status filename) start &
+            nohup (status filename) start &>/dev/null &
         else
             display-message "Start GHOST"
             env NVIM_GHOST_ENABLE=1 neovide --frame buttonless --title-hidden -- --listen "$TMPDIR/nvim_ghost.socket" &
