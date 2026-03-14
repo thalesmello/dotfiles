@@ -165,30 +165,42 @@ function Mode:bind(mods, key, fn)
 end
 
 local function _makeRulesEvalFunc(rules)
-  return function()
+  local function eval(i)
+    if i == nil then
+      i = 1
+    elseif i > #rules then
+      return
+    end
+
     local app = frontAppName()
-    for _, rule in ipairs(rules) do
-      local appMatch = not rule.app or rule.app == app
-      local condMatch = true
-      if rule.cond then
-        local result = rule.cond()
-        if type(result) == "function" then
-          result(function(condMatch)
-            if appMatch and condMatch then
-              rule[1]()
-              return
-            end
-          end)
-        else
-          condMatch = result
-        end
-      end
-      if appMatch and condMatch then
-        rule[1]()
-        return
+    local rule = rules[i]
+    local appMatch = not rule.app or rule.app == app
+    local condMatch = true
+    local operate = function(callback)
+      callback(condMatch)
+    end
+
+    if rule.cond then
+      local result = rule.cond()
+
+      if type(result) == "function" then
+        operate = result
+      else
+        condMatch = result
       end
     end
+
+    operate(function (condMatch)
+      if appMatch and condMatch then
+        rule[1]()
+      else
+        eval(i + 1)
+      end
+    end
+    )
   end
+
+  return eval
 end
 
 function Mode:conditionalBind(mods, key, rules)
@@ -664,7 +676,7 @@ restart:bindOnce(hyper, "y", "Restart WM", function() task({"yabai-preset", "res
 restart:bindOnce(hyperShift, "b", "Restart Hammerspoon", function() hs.alert.show("Restarting Hammerspoon"); hs.relaunch() end)
 restart:bindOnce(hyper, "a", "Restart Alfred", function() hs.alert.show("Restart Alfred"); fish('killall Alfred; sleep 2; and open -a "Alfred 5"') end)
 restart:bindOnce(hyper, "m", "Restart Mouseless", function() hs.alert.show("Restart Mouseless"); fish('killall mouseless; sleep 2; and open -a "Mouseless"') end)
-restart:bindOnce(hyper, "v", "Restart NVIM Ghost", function() hs.alert.show("Restart NVIM Ghost"); fish("neovim-ghost kill; sleep 2; and neovim-ghost start") end)
+restart:bindOnce(hyper, "v", "Restart NVIM Ghost", function() hs.alert.show("Restart NVIM Ghost"); fish("neovim-ghost kill; sleep 2; and neovim-ghost start --spawn") end)
 restart:bindOnce(hyper, "k", "Restart Karabiner", function() hs.alert.show("Restart Karabiner"); fish('launchctl kickstart -k gui/(id -u)/org.pqrs.service.agent.karabiner_console_user_server') end)
 restart:bindOnce(hyper, "h", "Restart Hammerspoon", function() hs.alert.show("Restarting Hammerspoon"); hs.reload() end)
 restart:conditionalBindOnce(hyper, "s", "Toggle AeroSpace", {
