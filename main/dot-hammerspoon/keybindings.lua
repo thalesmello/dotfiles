@@ -773,20 +773,4 @@ end
 -- Module return
 ---------------------------------------------------------------
 
-return {
-  default = default,
-  service = service,
-  chrome = chrome,
-  goto_mode = goto_mode,
-  invoke = invoke,
-  resize = resize,
-  restart = restart,
-  hyper = hyper,
-  hyperShift = hyperShift,
-  fish = fish,
-  task = task,
-  taskAsync = taskAsync,
-  showCommandPalette = showCommandPalette,
-  Mode = Mode,
-  fishAsync = fishAsync,
-}
+return ctx

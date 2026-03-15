@@ -4198,7 +4198,7 @@
 	<key>OpenNoWindowsAtStartup</key>
 	<false/>
 	<key>OpenTmuxWindowsIn</key>
-	<integer>1</integer>
+	<integer>2</integer>
 	<key>PMPrintingPanelSize</key>
 	<string>{777, 828}</string>
 	<key>PasteTabToStringTabStopSize</key>
