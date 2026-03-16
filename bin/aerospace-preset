@@ -237,7 +237,7 @@ function aerospace-preset
                     --argjson ids "$ids_json" \
                     --argjson focused "$focused_id" \
                     --arg dir "$direction" '
-                    map(select(.id as $id | $ids | index($id)))
+                    map(select((.id as $id | $ids | index($id)) and (.["is-sticky"] | not)))
                     | sort_by([.frame.x, .frame.y, .id])
                     | (map(.id) | index($focused)) as $pos
                     | if $pos == null then first.id
@@ -250,7 +250,7 @@ function aerospace-preset
                     --argjson ids "$ids_json" \
                     --argjson focused "$focused_id" \
                     --arg dir "$direction" '
-                    map(select(.id as $id | $ids | index($id)))
+                    map(select((.id as $id | $ids | index($id)) and (.["is-sticky"] | not)))
                     | (first(.[] | select(.id == $focused)) // .[0]) as $cur
                     | map(select(.id != $focused))
                     | map(select(
