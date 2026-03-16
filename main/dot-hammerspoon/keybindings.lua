@@ -443,6 +443,11 @@ default:bindOnce(hyper, "b", "Focus Hammerspoon Console", function() hs.toggleCo
 default:bindOnce(hyper, "c", "Focus Cursor", function() hs.application.launchOrFocus("Cursor") end)
 default:conditionalBindOnce(hyper, "x", "Focus iTerm2", {
   {
+    app = "iTerm2", function ()
+      hs.eventtap.keyStroke({"cmd"}, "`")
+    end
+  },
+  {
     cond = isFloatingTerminal, function ()
       hs.application.launchOrFocus("iTerm")
       hs.eventtap.keyStroke({"cmd"}, "`")
