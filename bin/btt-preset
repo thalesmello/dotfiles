@@ -231,7 +231,7 @@ function btt-preset
             if set -q _flag_hide
                 btt-preset send-keys cmd h
             else if set -q _flag_minimize
-                yabai-preset minimize
+                hs-preset minimize-window
             else
                 # We use skhd -k here because btt-preset will conflict with other mapppings
                 skhd -k "cmd - tab"

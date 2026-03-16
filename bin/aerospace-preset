@@ -232,38 +232,8 @@ function aerospace-preset
         set window_id
 
         switch "$direction"
-            case next prev first last
-                set window_id (yabai -m query --windows | jq -er \
-                    --argjson ids "$ids_json" \
-                    --argjson focused "$focused_id" \
-                    --arg dir "$direction" '
-                    map(select(.id as $id | $ids | index($id)))
-                    | sort_by([.frame.x, .frame.y, .id])
-                    | (map(.id) | index($focused)) as $pos
-                    | if $pos == null then first.id
-                      else ({first: 0, last: (length - 1), prev: ($pos - 1), next: ($pos + 1)}[$dir]) as $target
-                      | if $target < 0 or $target >= length then null
-                        else .[$target].id end
-                      end')
-            case east west north south
-                set window_id (yabai -m query --windows | jq -er \
-                    --argjson ids "$ids_json" \
-                    --argjson focused "$focused_id" \
-                    --arg dir "$direction" '
-                    map(select(.id as $id | $ids | index($id)))
-                    | (first(.[] | select(.id == $focused)) // .[0]) as $cur
-                    | map(select(.id != $focused))
-                    | map(select(
-                        if $dir == "east" then .frame.x >= ($cur.frame.x + $cur.frame.w / 2)
-                        elif $dir == "west" then (.frame.x + .frame.w) <= ($cur.frame.x + $cur.frame.w / 2)
-                        elif $dir == "south" then .frame.y >= ($cur.frame.y + $cur.frame.h / 2)
-                        elif $dir == "north" then (.frame.y + .frame.h) <= ($cur.frame.y + $cur.frame.h / 2)
-                        else false end))
-                    | sort_by(
-                        ((.frame.x + .frame.w/2) - ($cur.frame.x + $cur.frame.w/2)) as $dx
-                        | ((.frame.y + .frame.h/2) - ($cur.frame.y + $cur.frame.h/2)) as $dy
-                        | ($dx*$dx + $dy*$dy))
-                    | first.id')
+            case next prev first last east west north south
+                set window_id (hs-preset focus-floating-window "$ids_json" "$focused_id" "$direction")
             case left right up down
                 set aero_dir (__wm_translate_direction $direction)
                 aerospace-preset focus-floating-window $aero_dir
@@ -310,7 +280,7 @@ function aerospace-preset
         set window_id $argv[1]
         set -e argv[1]
         aerospace focus --window-id "$window_id"
-        yabai-preset focus-window-id "$window_id"
+        or hs-preset focus-window-id "$window_id"
     case "focus-window" "focus-window-in-stack" "focus-window-in-space"
         set direction $argv[1]
         set -e argv[1]
@@ -349,9 +319,9 @@ function aerospace-preset
     case "minimize"
         aerospace macos-native-minimize
     case "deminimize-last"
-        yabai-preset deminimize-last
+        hs-preset deminimize-last
     case "deminimize-all"
-        yabai-preset deminimize-all
+        hs-preset deminimize-all
     case "unstack-window"
         aerospace flatten-workspace-tree
     case "toggle-window-zoom-or-fullscreen" "smart-toggle-fullscreen" "toggle-monocle-mode"
@@ -410,10 +380,10 @@ function aerospace-preset
     case "resize"
         aerospace resize $argv
     case "focus-recent"
-        set recent (yabai-preset get-recent-window-id)
+        set recent (hs-preset get-recent-window-id)
         or return 1
         aerospace focus --window-id $recent
-        or yabai-preset focus-recent
+        or hs-preset focus-window-id "$recent"
     case "focus-back-and-forth"
         aerospace focus-back-and-forth; or aerospace workspace-back-and-forth
     case "arrange-spaces"
@@ -493,10 +463,8 @@ function aerospace-preset
 
         set window_id ""
 
-        # Prefer yabai's smarter lookup (sorts by non-minimized, prefers current space)
-        if pgrep -xq yabai
-            set window_id (yabai-preset get-app-window-id $match_title_args "$app_name")
-        end
+        # Prefer Hammerspoon's smarter lookup (sorts by non-minimized, prefers current space)
+        set window_id (hs-preset get-app-window-id $match_title_args "$app_name")
 
         # Fall back to aerospace's own lookup
         if test -z "$window_id"
@@ -515,7 +483,7 @@ function aerospace-preset
 
         if test -n "$window_id"
             aerospace focus --window-id $window_id
-            or yabai-preset focus-app $match_title_args "$app_name"
+            or hs-preset focus-window-id "$window_id"
             or open -a "$app_name"
         else
             open -a "$app_name"

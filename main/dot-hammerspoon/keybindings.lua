@@ -303,7 +303,23 @@ local cmdTabTap = hs.eventtap.new(
       else
         floatingTerminalJustHidden = false
         windowAfterHide = nil
-        task({"wm-preset", "focus-recent"})
+        print("cmd+tab: starting focus-recent")
+        print("cmd+tab: focused id=" .. tostring(focusedWinId))
+        -- Record current window before switching so same-app switches are tracked
+        Preset._trackFocus(focusedWin)
+        local ok, err = pcall(function()
+          local ordered = hs.window.orderedWindows()
+          for i, win in ipairs(ordered) do
+            local app = win:application()
+            print(string.format("cmd+tab: orderedWindows[%d] id=%s app=%s title=%s standard=%s minimized=%s",
+              i, tostring(win:id()), app and app:name() or "?", win:title() or "?",
+              tostring(win:isStandard()), tostring(win:isMinimized())))
+            if i >= 10 then break end
+          end
+        end)
+        if not ok then print("cmd+tab: error listing windows: " .. tostring(err)) end
+        local result = Preset.focusRecentWindow()
+        print("cmd+tab: focusRecentWindow = " .. tostring(result))
       end
       return true  -- consume the event
     else
@@ -324,7 +340,10 @@ default:bindOnce(hyperShift, ";", "Command Palette", showCommandPalette)
 -- Utility
 default:bindOnce(hyperShift, "m", "Deminimize Last", function() task({"wm-preset", "deminimize-last"}) end)
 default:bindOnce(hyper, "m", "Minimize", function() task({"wm-preset", "minimize"}) end)
-default:bindOnce(hyper, "return", "Smart Toggle Fullscreen", function() task({"wm-preset", "smart-toggle-fullscreen"}) end)
+default:conditionalBindOnce(hyper, "return", "Smart Toggle Fullscreen", {
+  {cond = isWindowFloating, function() Preset.toggleFloatingFullscreen() end},
+  {function() task({"wm-preset", "smart-toggle-fullscreen"}) end},
+})
 default:bindOnce(hyperShift, "return", "Unstacked Swap Largest", function() task({"wm-preset", "unstacked-swap-largest"}) end)
 
 -- Neovide
@@ -343,19 +362,19 @@ default:bindOnce(hyper, "l", "Focus Window East", function() fish("wm-preset foc
 
 -- Window swap/snap HJKL
 default:conditionalBindOnce(hyperShift, "h", "Swap/Snap West", {
-  {cond = isWindowFloating, function() task({"yabai-preset", "snap", "west"}) end},
+  {cond = isWindowFloating, function() Preset.snapWindow("west") end},
   {function() task({"wm-preset", "swap-window", "west"}) end},
 })
 default:conditionalBindOnce(hyperShift, "j", "Swap/Snap South", {
-  {cond = isWindowFloating, function() task({"yabai-preset", "snap", "south"}) end},
+  {cond = isWindowFloating, function() Preset.snapWindow("south") end},
   {function() task({"wm-preset", "swap-window", "south"}) end},
 })
 default:conditionalBindOnce(hyperShift, "k", "Swap/Snap North", {
-  {cond = isWindowFloating, function() task({"yabai-preset", "snap", "north"}) end},
+  {cond = isWindowFloating, function() Preset.snapWindow("north") end},
   {function() task({"wm-preset", "swap-window", "north"}) end},
 })
 default:conditionalBindOnce(hyperShift, "l", "Swap/Snap East", {
-  {cond = isWindowFloating, function() task({"yabai-preset", "snap", "east"}) end},
+  {cond = isWindowFloating, function() Preset.snapWindow("east") end},
   {function() task({"wm-preset", "swap-window", "east"}) end},
 })
 
@@ -579,7 +598,7 @@ service:bindOnce({}, "delete", "Harpoon Delete", function() fish("yabai-harpoon 
 service:bindOnce({}, "e", "Harpoon Edit", function() fish("yabai-harpoon edit") end)
 
 -- Side-by-side
-service:bindOnce({"shift"}, ";", "Side By Side", function() task({"yabai-preset", "side-by-side"}) end)
+service:bindOnce({"shift"}, ";", "Side By Side", function() Preset.sideBySide() end)
 
 -- Edit hammerspoon keybindings
 service:bindOnce(hyper, "e", "Edit Keybindings", function()

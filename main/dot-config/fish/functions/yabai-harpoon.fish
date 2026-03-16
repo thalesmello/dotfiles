@@ -4,7 +4,7 @@ function __harpoon_get_focused_window
     if pgrep -xq AeroSpace
         aerospace list-windows --focused --json | jq 'first(.[] | {id: ."window-id", app: ."app-name", title: ."window-title", "has-focus": true})'
     else
-        yabai -m query --windows --space | jq 'first(.[] | select(."has-focus"))'
+        hs-preset get-focused-window-json
     end | string collect
 end
 
@@ -12,7 +12,7 @@ function __harpoon_focus_window_id
     if pgrep -xq AeroSpace
         aerospace focus --window-id $argv[1]
     else
-        yabai -m window --focus $argv[1]
+        hs-preset focus-window-id $argv[1]
     end
 end
 
@@ -20,7 +20,7 @@ function __harpoon_get_all_windows
     if pgrep -xq AeroSpace
         aerospace list-windows --all --json | jq '[.[] | {id: ."window-id", app: ."app-name", title: ."window-title"}]'
     else
-        yabai -m query --windows
+        hs-preset get-all-windows-json
     end | string collect
 end
 

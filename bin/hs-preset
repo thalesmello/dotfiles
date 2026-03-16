@@ -102,6 +102,86 @@ function hs-preset
             | join(",")
         '
 
+    case "focus-window-id"
+        set -l window_id $argv[1]
+        hs -c "Preset.focusWindowById($window_id)"
+
+    case "window-exists"
+        set -l window_id $argv[1]
+        set -l result (hs -c "Preset.windowExists($window_id)")
+        test "$result" = "true"
+        return $status
+
+    case "minimize-window"
+        if test (count $argv) -gt 0
+            hs -c "Preset.minimizeWindow($argv[1])"
+        else
+            hs -c "Preset.minimizeWindow()"
+        end
+
+    case "deminimize-last"
+        hs -c "Preset.deminimizeLast()"
+
+    case "deminimize-all"
+        hs -c "Preset.deminimizeAll()"
+
+    case "get-recent-window-id"
+        hs -c "Preset.getRecentWindowId()"
+
+    case "get-app-window-id"
+        argparse 'match-title=' -- $argv
+        or return 1
+
+        set -l app_name (string escape -- $argv[1])
+        if set -q _flag_match_title
+            set -l title_pat (string escape -- $_flag_match_title)
+            hs -c "Preset.getAppWindowId(\"$app_name\", \"$title_pat\")"
+        else
+            hs -c "Preset.getAppWindowId(\"$app_name\")"
+        end
+
+    case "focus-pid"
+        hs -c "Preset.focusPid($argv[1])"
+
+    case "minimize-pid"
+        hs -c "Preset.minimizePid($argv[1])"
+
+    case "focus-floating-window"
+        set -l ids_json $argv[1]
+        set -l focused_id $argv[2]
+        set -l direction $argv[3]
+        hs -c "Preset.focusFloatingWindow([=[$ids_json]=], $focused_id, \"$direction\")"
+
+    case "snap-window"
+        set -l direction $argv[1]
+        hs -c "Preset.snapWindow(\"$direction\")"
+
+    case "side-by-side"
+        hs -c "Preset.sideBySide()"
+
+    case "get-focused-window-id"
+        hs -c "Preset.getFocusedWindowId()"
+
+    case "get-focused-window-json"
+        hs -c "Preset.getFocusedWindowJson()"
+
+    case "get-all-windows-json"
+        hs -c "Preset.getAllWindowsJson()"
+
+    case "get-app-window-ids"
+        set -l app_name (string escape -- $argv[1])
+        hs -c "Preset.getAppWindowIds(\"$app_name\")"
+
+    case "find-new-window"
+        set -l app_name (string escape -- $argv[1])
+        set -l old_ids (string escape -- $argv[2])
+        hs -c "Preset.findNewWindow(\"$app_name\", \"$old_ids\")"
+
+    case "watch-new-window"
+        set -l app_name (string escape -- $argv[1])
+        set -l callback_cmd (string escape -- $argv[2])
+        hs -c "Preset.watchNewWindow(\"$app_name\", \"$callback_cmd\")"
+
     case '*'
         return 1
     end

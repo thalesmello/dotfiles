@@ -10,7 +10,7 @@ function neovim-ghost
         pgrep -q -F "$TMPDIR/nvim_ghost.pid"
         return $status
     case "focus"
-        yabai-preset focus-pid "$(cat "$TMPDIR/nvim_ghost.pid")"
+        hs-preset focus-pid "$(cat "$TMPDIR/nvim_ghost.pid")"
     case "start"
         argparse spawn=? -- $argv
 
@@ -59,7 +59,7 @@ function neovim-ghost
 
         wait
 
-        set -q _flag_minimize; and yabai-preset minimize-pid "$(cat "$TMPDIR/nvim_ghost.pid")"
+        set -q _flag_minimize; and hs-preset minimize-pid "$(cat "$TMPDIR/nvim_ghost.pid")"
 
     case "kill"
         kill -9 "$(cat "$TMPDIR/nvim_ghost.pid")"
