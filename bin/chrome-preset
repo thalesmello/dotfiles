@@ -25,6 +25,40 @@ function chrome-preset
         wm-preset focus-window-id "$(jq -nr --argjson json "$json" '$json.window_id')"
 
         display-message "Focus tab $position"
+    case "focus-tab"
+        # Activate a Chrome tab and bring its window to front in a single
+        # osascript call. Returns non-zero if the tab/window wasn't found
+        # (e.g. tab was closed), which callers use to trigger pin refresh.
+        set tab_id $argv[1]
+        set -e argv[1]
+        set chrome_window_id $argv[1]
+        set -e argv[1]
+
+        set result (osascript -l JavaScript -e "
+            const chrome = Application('Google Chrome');
+            const wins = chrome.windows();
+            let found = false;
+            for (const w of wins) {
+                if (w.id() == $chrome_window_id) {
+                    const tabs = w.tabs();
+                    for (let i = 0; i < tabs.length; i++) {
+                        if (tabs[i].id() == $tab_id) {
+                            w.activeTabIndex = i + 1;
+                            w.index = 1;
+                            chrome.activate();
+                            found = true;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+            found ? 'ok' : 'not_found';
+        ")
+
+        test "$result" = "ok"
+        or return 1
+
     case "focus-window"
         set window_id $argv[1]
         set -e argv[1]

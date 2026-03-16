@@ -105,9 +105,8 @@ function yabai-harpoon
         set has_failed 0
 
         if jq -en --arg type "$type" '$type == "chrome_tab"' >/dev/null
-            chrome-cli activate -t "$(jq -nr --argjson json "$json" '$json.tab_id')"
-            and chrome-preset focus-window "$(jq -nr --argjson json "$json" '$json.tab_window_id')"
-            chrome-preset check-tab-id "$(jq -nr --argjson json "$json" '$json.tab_id')" >/dev/null
+            jq -nr --argjson json "$json" '$json.tab_id, $json.tab_window_id' | read --line _tab_id _tab_window_id
+            chrome-preset focus-tab "$_tab_id" "$_tab_window_id"
             or set has_failed 1
         else if jq -en --arg type "$type" '$type == "chrome_preset_app"' >/dev/null
             set app (jq -nr --argjson json "$json" '$json.uuid')
