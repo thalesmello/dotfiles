@@ -139,6 +139,31 @@ function M.alternateApp(appName, opts)
   end
 end
 
+local _savedFrames = {}
+
+function M.hasSavedFloatingFrame()
+  local win = hs.window.focusedWindow()
+  if not win then return false end
+  return _savedFrames[win:id()] ~= nil
+end
+
+function M.toggleFloatingFullscreen()
+  local win = hs.window.focusedWindow()
+  if not win then return end
+
+  local id = win:id()
+  local f = win:frame()
+  local max = win:screen():frame()
+
+  if _savedFrames[id] then
+    win:setFrame(_savedFrames[id], 0)
+    _savedFrames[id] = nil
+  else
+    _savedFrames[id] = {x = f.x, y = f.y, w = f.w, h = f.h}
+    win:setFrame(max, 0)
+  end
+end
+
 function M.hideCursor()
   local screen = hs.screen.mainScreen():fullFrame()
   hs.mouse.absolutePosition({x = screen.w + 100, y = screen.h + 100})

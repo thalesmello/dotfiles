@@ -324,7 +324,11 @@ default:bindOnce(hyperShift, ";", "Command Palette", showCommandPalette)
 -- Utility
 default:bindOnce(hyperShift, "m", "Deminimize Last", function() task({"wm-preset", "deminimize-last"}) end)
 default:bindOnce(hyper, "m", "Minimize", function() task({"wm-preset", "minimize"}) end)
-default:bindOnce(hyper, "return", "Smart Toggle Fullscreen", function() task({"wm-preset", "smart-toggle-fullscreen"}) end)
+default:conditionalBindOnce(hyper, "return", "Smart Toggle Fullscreen", {
+  {cond = function() return Preset.hasSavedFloatingFrame() end, function() Preset.toggleFloatingFullscreen() end},
+  {cond = isWindowFloating, function() Preset.toggleFloatingFullscreen() end},
+  {function() task({"wm-preset", "smart-toggle-fullscreen"}) end},
+})
 default:bindOnce(hyperShift, "return", "Unstacked Swap Largest", function() task({"wm-preset", "unstacked-swap-largest"}) end)
 
 -- Neovide
