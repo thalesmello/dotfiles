@@ -428,8 +428,8 @@ end
 default:bindOnce(hyperShift, "=", "Harpoon Add", function() fish("yabai-harpoon add") end)
 
 -- Window cycling
-default:bindOnce(hyper, "n", "Focus Next Window", function() fish("wm-preset focus-window next; or wm-preset focus-floating-window next") end)
-default:bindOnce(hyper, "p", "Focus Prev Window", function() fish("wm-preset focus-window prev; or wm-preset focus-floating-window prev") end)
+default:bindOnce(hyper, "n", "Focus Next Window", function() fish("wm-preset focus-window-in-space next") end)
+default:bindOnce(hyper, "p", "Focus Prev Window", function() fish("wm-preset focus-window-in-space prev") end)
 default:bindOnce(hyperShift, "n", "Move Window In Stack Next", function() task({"wm-preset", "move-window-in-stack", "next"}) end)
 default:bindOnce(hyperShift, "p", "Move Window In Stack Prev", function() task({"wm-preset", "move-window-in-stack", "prev"}) end)
 

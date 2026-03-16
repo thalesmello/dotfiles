@@ -316,10 +316,9 @@ _summon() {
     _arrange_workspaces --keep-windows "${arrange_args[@]}"
 }
 
-_focus_floating_window() {
+_get_floating_window_id() {
     local direction="$1"; shift
 
-    # Get floating window IDs from aerospace
     local floating_ids=()
     while IFS= read -r fid; do
         fid="${fid%%:*}"
@@ -330,65 +329,199 @@ _focus_floating_window() {
         return 1
     fi
 
-    local focused_id
-    focused_id=$(aerospace list-windows --focused --format '%{window-id}')
     local ids_json
     ids_json=$(printf '%s\n' "${floating_ids[@]}" | jq -Rn '[inputs | tonumber]')
 
-    local window_id=""
+    yabai -m query --windows --space | jq -er --arg dir "$direction" --argjson floating_ids "$ids_json" '
+    def hidden($under; $above):
+    ($under.x >= $above.x
+    and ($under.x + $under.w) <=($above.x + $above.w)
+    and $under.y >= $above.y
+    and ($under.y + $under.h) <= ($above.y + $above.h));
+
+    def intersect($u; $a):
+    if
+            ($u.x >= ($a.x + $a.w)
+            or ($u.x + $u.w) <= $a.x
+            or ($u.y + $u.h) <= $a.y
+            or $u.y >= ($a.y + $a.h)) then empty
+    else
+            ([$u.x, $a.x] | max) as $x
+            | ([$u.y, $a.y] | max) as $y
+            | (([$u.x + $u.w, $a.x + $a.w] | min) - $x) as $w
+            | (([$u.y + $u.h, $a.y + $a.h] | min) - $y) as $h
+            | {$x, $y, $w, $h}
+    end;
+
+    def visible_area($under_list; $many):
+    $under_list
+    | [.[0], .[1:]] as [$under, $tail]
+    | if $under == null then 0
+    elif ($many | any(hidden($under; .))) then visible_area($tail; $many)
+    else (
+            [first($many[] | intersect($under; .))] as [$i]
+            | $under as $u
+            | if $i == null then (($u.w * $u.h) + visible_area($tail; $many))
+            else visible_area(([
+                    {x: $u.x, y: $u.y, w: ($i.x - $u.x), h: ($i.y - $u.y)},
+                    {x: $i.x, y: $u.y, w: $i.w, h: ($i.y - $u.y)},
+                    {x: ($i.x + $i.w), y: $u.y, w: ($u.x + $u.w - $i.x - $i.w), h: ($i.y - $u.y)},
+                    {x: $u.x, y: $i.y, w: ($i.x - $u.x), h: $i.h},
+                    {x: $i.x, y: $i.y, w: $i.w, h: $i.h},
+                    {x: ($i.x + $i.w), y: $i.y, w: ($u.x + $u.w - $i.x - $i.w), h: $i.h},
+                    {x: $u.x, y: ($i.y + $i.h), w: ($i.x - $u.x), h: ($u.y + $u.h - $i.y - $i.h)},
+                    {x: $i.x, y: ($i.y + $i.h), w: $i.w, h: ($u.y + $u.h - $i.y - $i.h)},
+                    {x: ($i.x + $i.w), y: ($i.y + $i.h), w: ($u.x + $u.w - $i.x - $i.w), h: ($u.y + $u.h - $i.y - $i.h)}
+            ]|map(select((.h>0) and (.w>0)))) + $tail; $many) end
+    )
+    end;
+    .
+    | map(select(."is-visible" and (."is-sticky"|not)))
+    | reverse
+    | with_entries(.value += {z_index: .key} | .key |= "key_\(.)")
+    | to_entries
+    | map(.value)
+    | { under: .[0], many: .[1:] }
+    | [recurse({ under: .many[0], many: .many[1:] }; .under != null)]
+    | map(.under.visible_area = visible_area([.under.frame + {title: .under.title}]; .many|map(.frame)))
+    | map(.under)
+    | map(.percentage_visible = (.visible_area / (.frame|.w*.h)))
+    | map(select(.percentage_visible > 0.01))
+    | (first(.[] | select(."has-focus")) // .[-1]) as {$id, $title, frame: $zero}
+    | map(select(.id == $id or (.id as $wid | $floating_ids | index($wid))))
+    | ($zero |
+        if $dir == "east" then {x: (.x + .w), y: (.y/2 + .h/2)}
+        elif $dir == "west" then {x: .x, y: (.y/2 + .h/2)}
+        elif $dir == "south" then {x: (.x/2 + .w/2), y: (.y + .h)}
+        elif $dir == "north" then {x: (.x/2 + .w/2), y: .y}
+        end | . + {w: $zero.w, h: $zero.h}) as $zero
+    | sort_by(
+        if $dir == "east" then [.frame.x + .frame.w, .id]
+        elif $dir == "west" then [-.frame.x, -.id]
+        elif $dir == "south" then [.frame.y + .frame.h, .id]
+        elif $dir == "north" then [-.frame.y, -.id]
+        end
+    )
+    | .[(map(.id) | index($id))+1:]
+    | (if ($dir == "east" or $dir == "west") then [2, 1]
+    elif ($dir == "north" or $dir == "south") then [1, 2]
+    end) as [$x_exp, $y_exp]
+    | map(.ref = {
+
+    })
+    | map(
+    .distance =
+        if $dir == "east" then ([.frame.x + .frame.w, .frame.x]|map(.-$zero.x|select(.>0))|min) + ([.frame.y/2 + .frame.h/2 - $zero.y -$zero.h/2, 0]|max)
+        elif $dir == "west" then ([.frame.x + .frame.w, .frame.x]|map($zero.x-.|select(.>0))|min) + ([.frame.y/2 + .frame.h/2 - $zero.y - $zero.h/2, 0]|max)
+        elif $dir == "south" then ([.frame.x/2 + .frame.w/2 - $zero.x - $zero.w/2, 0]|max) + ([.frame.y + .frame.h, .frame.y]|map(.-$zero.y|select(.>0))|min)
+        elif $dir == "north" then ([.frame.x/2 + .frame.w/2 - $zero.x - $zero.w/2, 0]|max) + ([.frame.y + .frame.h, .frame.y]|map($zero.y-.|select(.>0))|min)
+        end
+    | .x_distance =
+        if $dir == "east" then pow([.frame.x + .frame.w, .frame.x]|map(.-$zero.x|select(.>0))|min; 1)
+        elif $dir == "west" then pow([.frame.x + .frame.w, .frame.x]|map($zero.x-.|select(.>0))|min; 1)
+        elif $dir == "south" then pow(.frame.x/2 + .frame.h/2 - $zero.x; 2)
+        elif $dir == "north" then pow(.frame.y/2 + .frame.w/2 - $zero.y; 2)
+        end
+    |.y_distance =
+        if $dir == "east" then pow(.frame.y/2 + .frame.h/2 - $zero.y; 2)
+        elif $dir == "west" then pow(.frame.y/2 + .frame.h/2 - $zero.y; 2)
+        elif $dir == "south" then pow([.frame.y + .frame.h, .frame.y]|map(.-$zero.y|select(.>0))|min; 1)
+        elif $dir == "north" then pow([.frame.y + .frame.h, .frame.y]|map($zero.y-.|select(.>0))|min; 1)
+        end
+    )
+    | sort_by([.distance, -.z_index])
+    | map(.zero = $zero)
+    | map(debug(. | {title, zero, distance, frame, x_distance, y_distance, z_index}))
+    | first.id' \
+    || return 1
+}
+
+_focus_visible_window() {
+    local direction="$1"; shift
 
     case "$direction" in
-        next|prev|first|last)
-            window_id=$(yabai -m query --windows | jq -er \
-                --argjson ids "$ids_json" \
-                --argjson focused "$focused_id" \
-                --arg dir "$direction" '
-                map(select(.id as $id | $ids | index($id)))
-                | sort_by([.frame.x, .frame.y, .id])
-                | (map(.id) | index($focused)) as $pos
-                | if $pos == null then first.id
-                  else ({first: 0, last: (length - 1), prev: ($pos - 1), next: ($pos + 1)}[$dir]) as $target
-                  | if $target < 0 or $target >= length then null
-                    else .[$target].id end
-                  end')
-            ;;
         east|west|north|south)
-            window_id=$(yabai -m query --windows | jq -er \
-                --argjson ids "$ids_json" \
-                --argjson focused "$focused_id" \
-                --arg dir "$direction" '
-                map(select(.id as $id | $ids | index($id)))
-                | (first(.[] | select(.id == $focused)) // .[0]) as $cur
-                | map(select(.id != $focused))
-                | map(select(
-                    if $dir == "east" then .frame.x >= ($cur.frame.x + $cur.frame.w / 2)
-                    elif $dir == "west" then (.frame.x + .frame.w) <= ($cur.frame.x + $cur.frame.w / 2)
-                    elif $dir == "south" then .frame.y >= ($cur.frame.y + $cur.frame.h / 2)
-                    elif $dir == "north" then (.frame.y + .frame.h) <= ($cur.frame.y + $cur.frame.h / 2)
-                    else false end))
-                | sort_by(
-                    ((.frame.x + .frame.w/2) - ($cur.frame.x + $cur.frame.w/2)) as $dx
-                    | ((.frame.y + .frame.h/2) - ($cur.frame.y + $cur.frame.h/2)) as $dy
-                    | ($dx*$dx + $dy*$dy))
-                | first.id')
+            local winid
+            winid=$(yabai-set get-visible-window-id "$direction") || return 1
+            aerospace focus --window-id "$winid" \
+            || yabai-set focus-window-id "$winid"
             ;;
-        left|right|up|down)
-            local aero_dir
-            aero_dir=$(__wm_translate_direction "$direction")
-            _focus_floating_window "$aero_dir"
-            return $?
-            ;;
+        left)  _focus_visible_window west; return $? ;;
+        right) _focus_visible_window east; return $? ;;
+        up)    _focus_visible_window north; return $? ;;
+        down)  _focus_visible_window south; return $? ;;
         *)
             echo "Invalid argument: $direction" >&2
             return 1
             ;;
     esac
+}
 
-    if [[ $? -eq 0 && -n "$window_id" ]]; then
-        aerospace focus --window-id "$window_id"
-    else
-        return 1
-    fi
+_focus_floating_window() {
+    local direction="$1"; shift
+
+    case "$direction" in
+        east|west|north|south)
+            local winid
+            winid=$(_get_floating_window_id "$direction") || return 1
+            aerospace focus --window-id "$winid"
+            ;;
+        left)  _focus_floating_window west; return $? ;;
+        right) _focus_floating_window east; return $? ;;
+        up)    _focus_floating_window north; return $? ;;
+        down)  _focus_floating_window south; return $? ;;
+        *)
+            echo "Invalid argument: $direction" >&2
+            return 1
+            ;;
+    esac
+}
+
+_focus_window_in_space() {
+    local direction="$1"; shift
+
+    case "$direction" in
+        next|prev)
+            if ! aerospace focus --boundaries-action fail --ignore-floating "dfs-$direction"; then
+                # Tiling DFS hit boundary — cycle floating windows
+                local floating_ids=()
+                while IFS= read -r fid; do
+                    fid="${fid%%:*}"
+                    [[ -n "$fid" ]] && floating_ids+=("$fid")
+                done < <(aerospace list-windows --workspace focused --format '%{window-id}:%{window-layout}' | grep ':floating$')
+
+                if [[ ${#floating_ids[@]} -eq 0 ]]; then
+                    return 1
+                fi
+
+                local focused_id
+                focused_id=$(aerospace list-windows --focused --format '%{window-id}')
+                local ids_json
+                ids_json=$(printf '%s\n' "${floating_ids[@]}" | jq -Rn '[inputs | tonumber]')
+
+                local target_id
+                target_id=$(yabai -m query --windows | jq -er \
+                    --argjson ids "$ids_json" \
+                    --argjson focused "$focused_id" \
+                    --arg dir "$direction" '
+                    map(select((.id as $id | $ids | index($id)) and (.["is-sticky"] | not)))
+                    | sort_by([.frame.x, .frame.y, .id])
+                    | (map(.id) | index($focused)) as $pos
+                    | if $pos == null then first.id
+                      else ({prev: ($pos - 1), next: ($pos + 1)}[$dir]) as $target
+                      | if $target < 0 or $target >= length then null
+                        else .[$target].id end
+                      end') \
+                || return 1
+
+                aerospace focus --window-id "$target_id"
+            fi
+            ;;
+        *)
+            echo "focus-window-in-space only supports next/prev" >&2
+            return 1
+            ;;
+    esac
 }
 
 _focus_space() {
@@ -625,18 +758,21 @@ case "$preset" in
     move-all-but-two) _move_all_but_two ;;
     arrange-workspaces) _arrange_workspaces "$@" ;;
     summon) _summon "$@" ;;
+    get-floating-window-id) _get_floating_window_id "$@" ;;
+    focus-visible-window) _focus_visible_window "$@" ;;
     focus-floating-window) _focus_floating_window "$@" ;;
     focus-space) _focus_space "$@" ;;
     move-window-to-space) _move_window_to_space "$@" ;;
     focus-window-id) _focus_window_id "$@" ;;
-    focus-window|focus-window-in-stack|focus-window-in-space) _focus_window "$@" ;;
+    focus-window|focus-window-in-stack) _focus_window "$@" ;;
+    focus-window-in-space) _focus_window_in_space "$@" ;;
     move-window-in-stack) _move_window_in_stack "$@" ;;
     focus-display-with-fallback) _focus_display_with_fallback "$@" ;;
     smart-move-window-to-next-display) aerospace move-node-to-monitor --wrap-around --focus-follows-window next ;;
     stack-or-warp-window) _stack_or_warp_window "$@" ;;
     minimize) aerospace macos-native-minimize ;;
-    deminimize-last) yabai-set deminimize-last ;;
-    deminimize-all) yabai-set deminimize-all ;;
+    deminimize-last) yabai-set deminimize-last || display-message "Not supported without yabai" ;;
+    deminimize-all) yabai-set deminimize-all || display-message "Not supported without yabai" ;;
     unstack-window) aerospace flatten-workspace-tree ;;
     toggle-window-zoom-or-fullscreen|smart-toggle-fullscreen|toggle-monocle-mode) aerospace fullscreen ;;
     stack-windows-in-space) aerospace layout accordion ;;

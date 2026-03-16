@@ -6,7 +6,12 @@
       "Bash(fish -c \"man autosuggestions\")",
       "WebFetch(domain:github.com)",
       "Bash(ls -1 main/dot-config/fish/functions/*-preset.fish | xargs -I {} basename {} -preset.fish | sed 's/$/-set/' | while read script; do if [ -f \"bin/$script\" ]; then echo \"$script\"; fi; done)",
-      "Bash(ls -1 main/dot-config/fish/functions/*-preset.fish | xargs -I {} basename {} -preset.fish)"
+      "Bash(ls -1 main/dot-config/fish/functions/*-preset.fish | xargs -I {} basename {} -preset.fish)",
+      "Bash(bash -n /Users/thalesmello/src/dotfiles/bin/yabai-set && echo \"yabai-set OK\" || echo \"yabai-set FAIL\")",
+      "Bash(bash -n /Users/thalesmello/src/dotfiles/bin/aerospace-set && echo \"aerospace-set OK\" || echo \"aerospace-set FAIL\")",
+      "Bash(fish -n /Users/thalesmello/src/dotfiles/bin/yabai-preset && echo \"yabai-preset OK\" || echo \"yabai-preset FAIL\")",
+      "Bash(fish -n /Users/thalesmello/src/dotfiles/bin/aerospace-preset && echo \"aerospace-preset OK\" || echo \"aerospace-preset FAIL\")",
+      "Skill(google-docs)"
     ]
   }
 }

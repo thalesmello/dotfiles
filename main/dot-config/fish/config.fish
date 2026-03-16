@@ -8,7 +8,7 @@ if status --is-interactive
 	# fundle plugin franciscolourenco/done
 	fundle plugin PatrickF1/colored_man_pages.fish
 
-	if not test -e "$__fish_user_data_dir/vendor_conf.d/fzf.fish" then
+	if not test -e "$__fish_user_data_dir/vendor_conf.d/fzf.fish"
 		fish_install_autoload
 	end
 end

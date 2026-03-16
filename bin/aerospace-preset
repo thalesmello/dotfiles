@@ -216,67 +216,70 @@ function aerospace-preset
         set workspace (aerospace list-workspaces --focused --format '%{workspace}')
         set arrange_args "--app=$workspace:"$_flag_app "--window=$workspace:"$_flag_window
         aerospace-preset arrange-workspaces --keep-windows $arrange_args
-    case "focus-floating-window"
+    case "get-floating-window-id"
         set direction $argv[1]
         set -e argv[1]
 
-        # Get floating window IDs from aerospace
         set floating_ids (aerospace list-windows --workspace focused --format '%{window-id}:%{window-layout}' | string match -er ':floating$' | string replace -r ':.*' '')
         if test (count $floating_ids) -eq 0
             return 1
         end
 
-        set focused_id (aerospace list-windows --focused --format '%{window-id}')
         set ids_json (printf '%s\n' $floating_ids | jq -Rn '[inputs | tonumber]')
+        set focused_id (aerospace list-windows --focused --format '%{window-id}')
 
-        set window_id
+        yabai-preset get-floating-window-target --ids "$ids_json" --focused "$focused_id" $direction
+        or return 1
+    case "focus-visible-window"
+        set direction $argv[1]
+        set -e argv[1]
 
         switch "$direction"
-            case next prev first last
-                set window_id (yabai -m query --windows | jq -er \
-                    --argjson ids "$ids_json" \
-                    --argjson focused "$focused_id" \
-                    --arg dir "$direction" '
-                    map(select((.id as $id | $ids | index($id)) and (.["is-sticky"] | not)))
-                    | sort_by([.frame.x, .frame.y, .id])
-                    | (map(.id) | index($focused)) as $pos
-                    | if $pos == null then first.id
-                      else ({first: 0, last: (length - 1), prev: ($pos - 1), next: ($pos + 1)}[$dir]) as $target
-                      | if $target < 0 or $target >= length then null
-                        else .[$target].id end
-                      end')
             case east west north south
-                set window_id (yabai -m query --windows | jq -er \
-                    --argjson ids "$ids_json" \
-                    --argjson focused "$focused_id" \
-                    --arg dir "$direction" '
-                    map(select((.id as $id | $ids | index($id)) and (.["is-sticky"] | not)))
-                    | (first(.[] | select(.id == $focused)) // .[0]) as $cur
-                    | map(select(.id != $focused))
-                    | map(select(
-                        if $dir == "east" then .frame.x >= ($cur.frame.x + $cur.frame.w / 2)
-                        elif $dir == "west" then (.frame.x + .frame.w) <= ($cur.frame.x + $cur.frame.w / 2)
-                        elif $dir == "south" then .frame.y >= ($cur.frame.y + $cur.frame.h / 2)
-                        elif $dir == "north" then (.frame.y + .frame.h) <= ($cur.frame.y + $cur.frame.h / 2)
-                        else false end))
-                    | sort_by(
-                        ((.frame.x + .frame.w/2) - ($cur.frame.x + $cur.frame.w/2)) as $dx
-                        | ((.frame.y + .frame.h/2) - ($cur.frame.y + $cur.frame.h/2)) as $dy
-                        | ($dx*$dx + $dy*$dy))
-                    | first.id')
-            case left right up down
-                set aero_dir (__wm_translate_direction $direction)
-                aerospace-preset focus-floating-window $aero_dir
+                set winid (yabai-preset get-visible-window-id $direction)
+                or return 1
+                aerospace focus --window-id $winid
+                or yabai-preset focus-window-id $winid
+            case left
+                aerospace-preset focus-visible-window west
+                return $status
+            case right
+                aerospace-preset focus-visible-window east
+                return $status
+            case up
+                aerospace-preset focus-visible-window north
+                return $status
+            case down
+                aerospace-preset focus-visible-window south
                 return $status
             case '*'
                 echo "Invalid argument: $direction" >&2
                 return 1
         end
+    case "focus-floating-window"
+        set direction $argv[1]
+        set -e argv[1]
 
-        if test "$status" = 0 -a -n "$window_id"
-            aerospace focus --window-id $window_id
-        else
-            return 1
+        switch "$direction"
+            case east west north south
+                set winid (aerospace-preset get-floating-window-id $direction)
+                or return 1
+                aerospace focus --window-id $winid
+            case left
+                aerospace-preset focus-floating-window west
+                return $status
+            case right
+                aerospace-preset focus-floating-window east
+                return $status
+            case up
+                aerospace-preset focus-floating-window north
+                return $status
+            case down
+                aerospace-preset focus-floating-window south
+                return $status
+            case '*'
+                echo "Invalid argument: $direction" >&2
+                return 1
         end
     case "focus-space"
         set space $argv[1]
@@ -311,7 +314,7 @@ function aerospace-preset
         set -e argv[1]
         aerospace focus --window-id "$window_id"
         yabai-preset focus-window-id "$window_id"
-    case "focus-window" "focus-window-in-stack" "focus-window-in-space"
+    case "focus-window" "focus-window-in-stack"
         set direction $argv[1]
         set -e argv[1]
         set aero_dir (__wm_translate_direction $direction)
@@ -323,6 +326,54 @@ function aerospace-preset
             aerospace focus --boundaries-action fail --ignore-floating $aero_dir
         end
         return "$status"
+    case "focus-window-in-space"
+        set direction $argv[1]
+        set -e argv[1]
+
+        switch "$direction"
+        case next prev
+            if not aerospace focus --boundaries-action fail --ignore-floating "dfs-$direction"
+                # Tiling DFS hit boundary — cycle floating windows
+                set floating_ids (aerospace list-windows --workspace focused --format '%{window-id}:%{window-layout}' | string match -er ':floating$' | string replace -r ':.*' '')
+                if test (count $floating_ids) -eq 0
+                    return 1
+                end
+
+                set focused_id (aerospace list-windows --focused --format '%{window-id}')
+                set ids_json (printf '%s\n' $floating_ids | jq -Rn '[inputs | tonumber]')
+
+                set target_id (yabai-preset query-windows | jq -er \
+                    --argjson ids "$ids_json" \
+                    --argjson focused "$focused_id" \
+                    --arg dir "$direction" '
+                    map(select((.id as $id | $ids | index($id)) and (.["is-sticky"] | not)))
+                    | sort_by([.frame.x, .frame.y, .id])
+                    | (map(.id) | index($focused)) as $pos
+                    | if $pos == null then (if $dir == "prev" then last.id else first.id end)
+                      else ({prev: ($pos - 1), next: ($pos + 1)}[$dir]) as $target
+                      | if $target < 0 or $target >= length then null
+                        else .[$target].id end
+                      end')
+                if test -n "$target_id" -a "$target_id" != null
+                    aerospace focus --window-id $target_id
+                else if test "$direction" = prev
+                    # First floating → last tiled
+                    set -l idx (math (aerospace list-windows --workspace focused --format '%{window-id}' | count) - 1)
+                    test $idx -ge 0; or return 1
+                    aerospace focus --dfs-index $idx
+                    while test (aerospace list-windows --focused --format '%{window-layout}') = floating
+                        set idx (math $idx - 1)
+                        test $idx -ge 0; or return 1
+                        aerospace focus --dfs-index $idx
+                    end
+                else
+                    return 1
+                end
+            end
+        case '*'
+            echo "focus-window-in-space only supports next/prev" >&2
+            return 1
+        end
 
     case "move-window-in-stack"
         set direction $argv[1]
@@ -349,9 +400,9 @@ function aerospace-preset
     case "minimize"
         aerospace macos-native-minimize
     case "deminimize-last"
-        yabai-preset deminimize-last
+        yabai-preset deminimize-last; or display-message "Not supported without yabai"
     case "deminimize-all"
-        yabai-preset deminimize-all
+        yabai-preset deminimize-all; or display-message "Not supported without yabai"
     case "unstack-window"
         aerospace flatten-workspace-tree
     case "toggle-window-zoom-or-fullscreen" "smart-toggle-fullscreen" "toggle-monocle-mode"

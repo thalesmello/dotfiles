@@ -8,6 +8,8 @@ function yabai-preset
     set -e argv[1]
 
     switch "$preset"
+    case "query-windows"
+        yabai -m query --windows $argv
     case "focus-window-id"
         set window_id $argv[1]
         set -e argv[1]
@@ -18,12 +20,17 @@ function yabai-preset
 
         switch "$direction"
             case next prev
-                yabai-preset focus-window-in-stack $direction
-                or yabai-preset focus-window-in-space $direction
+                yabai-preset focus-window-in-space $direction
                 return $status
+            case '*'
+                yabai -m window --focus $direction
+                or return 1
         end
+    case "get-visible-window-id"
+        set direction $argv[1]
+        set -e argv[1]
 
-        set winid (yabai -m query --windows --space | jq --arg dir "$direction" '
+        yabai -m query --windows --space | jq -er --arg dir "$direction" '
         def hidden($under; $above):
         ($under.x >= $above.x
         and ($under.x + $under.w) <=($above.x + $above.w)
@@ -123,8 +130,122 @@ function yabai-preset
         | map(.zero = $zero)
         | map(debug(. | {title, zero, distance, frame, x_distance, y_distance, z_index}))
         | first.id'
-        )
+        or return 1
+    case "focus-visible-window"
+        set direction $argv[1]
+        set -e argv[1]
+
+        set winid (yabai-preset get-visible-window-id $direction)
+        or return 1
         yabai -m window "$winid" --focus
+        or return 1
+    case "get-floating-window-id"
+        set direction $argv[1]
+        set -e argv[1]
+
+        set is_layout_float (yabai-preset is-space-float-layout && echo true || echo false)
+
+        yabai -m query --windows --space | jq -er --arg dir "$direction" --argjson is_layout_float "$is_layout_float" '
+        def hidden($under; $above):
+        ($under.x >= $above.x
+        and ($under.x + $under.w) <=($above.x + $above.w)
+        and $under.y >= $above.y
+        and ($under.y + $under.h) <= ($above.y + $above.h));
+
+        def intersect($u; $a):
+        if
+                ($u.x >= ($a.x + $a.w)
+                or ($u.x + $u.w) <= $a.x
+                or ($u.y + $u.h) <= $a.y
+                or $u.y >= ($a.y + $a.h)) then empty
+        else
+                ([$u.x, $a.x] | max) as $x
+                | ([$u.y, $a.y] | max) as $y
+                | (([$u.x + $u.w, $a.x + $a.w] | min) - $x) as $w
+                | (([$u.y + $u.h, $a.y + $a.h] | min) - $y) as $h
+                | {$x, $y, $w, $h}
+        end;
+
+        def visible_area($under_list; $many):
+        $under_list
+        | [.[0], .[1:]] as [$under, $tail]
+        | if $under == null then 0
+        elif ($many | any(hidden($under; .))) then visible_area($tail; $many)
+        else (
+                [first($many[] | intersect($under; .))] as [$i]
+                | $under as $u
+                | if $i == null then (($u.w * $u.h) + visible_area($tail; $many))
+                else visible_area(([
+                        {x: $u.x, y: $u.y, w: ($i.x - $u.x), h: ($i.y - $u.y)},
+                        {x: $i.x, y: $u.y, w: $i.w, h: ($i.y - $u.y)},
+                        {x: ($i.x + $i.w), y: $u.y, w: ($u.x + $u.w - $i.x - $i.w), h: ($i.y - $u.y)},
+                        {x: $u.x, y: $i.y, w: ($i.x - $u.x), h: $i.h},
+                        {x: $i.x, y: $i.y, w: $i.w, h: $i.h},
+                        {x: ($i.x + $i.w), y: $i.y, w: ($u.x + $u.w - $i.x - $i.w), h: $i.h},
+                        {x: $u.x, y: ($i.y + $i.h), w: ($i.x - $u.x), h: ($u.y + $u.h - $i.y - $i.h)},
+                        {x: $i.x, y: ($i.y + $i.h), w: $i.w, h: ($u.y + $u.h - $i.y - $i.h)},
+                        {x: ($i.x + $i.w), y: ($i.y + $i.h), w: ($u.x + $u.w - $i.x - $i.w), h: ($u.y + $u.h - $i.y - $i.h)}
+                ]|map(select((.h>0) and (.w>0)))) + $tail; $many) end
+        )
+        end;
+        .
+        | map(select(."is-visible" and (."is-sticky"|not)))
+        | reverse
+        | with_entries(.value += {z_index: .key} | .key |= "key_\(.)")
+        | to_entries
+        | map(.value)
+        | { under: .[0], many: .[1:] }
+        | [recurse({ under: .many[0], many: .many[1:] }; .under != null)]
+        | map(.under.visible_area = visible_area([.under.frame + {title: .under.title}]; .many|map(.frame)))
+        | map(.under)
+        | map(.percentage_visible = (.visible_area / (.frame|.w*.h)))
+        | map(select(.percentage_visible > 0.01))
+        | (first(.[] | select(."has-focus")) // .[-1]) as {$id, $title, frame: $zero}
+        | if $is_layout_float then . else map(select(.id == $id or (."split-type" == "none" and ."is-floating"))) end
+        | ($zero |
+            if $dir == "east" then {x: (.x + .w), y: (.y/2 + .h/2)}
+            elif $dir == "west" then {x: .x, y: (.y/2 + .h/2)}
+            elif $dir == "south" then {x: (.x/2 + .w/2), y: (.y + .h)}
+            elif $dir == "north" then {x: (.x/2 + .w/2), y: .y}
+            end | . + {w: $zero.w, h: $zero.h}) as $zero
+        | sort_by(
+            if $dir == "east" then [.frame.x + .frame.w, .id]
+            elif $dir == "west" then [-.frame.x, -.id]
+            elif $dir == "south" then [.frame.y + .frame.h, .id]
+            elif $dir == "north" then [-.frame.y, -.id]
+            end
+        )
+        | .[(map(.id) | index($id))+1:]
+        | (if ($dir == "east" or $dir == "west") then [2, 1]
+        elif ($dir == "north" or $dir == "south") then [1, 2]
+        end) as [$x_exp, $y_exp]
+        | map(.ref = {
+
+        })
+        | map(
+        .distance =
+            if $dir == "east" then ([.frame.x + .frame.w, .frame.x]|map(.-$zero.x|select(.>0))|min) + ([.frame.y/2 + .frame.h/2 - $zero.y -$zero.h/2, 0]|max)
+            elif $dir == "west" then ([.frame.x + .frame.w, .frame.x]|map($zero.x-.|select(.>0))|min) + ([.frame.y/2 + .frame.h/2 - $zero.y - $zero.h/2, 0]|max)
+            elif $dir == "south" then ([.frame.x/2 + .frame.w/2 - $zero.x - $zero.w/2, 0]|max) + ([.frame.y + .frame.h, .frame.y]|map(.-$zero.y|select(.>0))|min)
+            elif $dir == "north" then ([.frame.x/2 + .frame.w/2 - $zero.x - $zero.w/2, 0]|max) + ([.frame.y + .frame.h, .frame.y]|map($zero.y-.|select(.>0))|min)
+            end
+        | .x_distance =
+            if $dir == "east" then pow([.frame.x + .frame.w, .frame.x]|map(.-$zero.x|select(.>0))|min; 1)
+            elif $dir == "west" then pow([.frame.x + .frame.w, .frame.x]|map($zero.x-.|select(.>0))|min; 1)
+            elif $dir == "south" then pow(.frame.x/2 + .frame.h/2 - $zero.x; 2)
+            elif $dir == "north" then pow(.frame.y/2 + .frame.w/2 - $zero.y; 2)
+            end
+        |.y_distance =
+            if $dir == "east" then pow(.frame.y/2 + .frame.h/2 - $zero.y; 2)
+            elif $dir == "west" then pow(.frame.y/2 + .frame.h/2 - $zero.y; 2)
+            elif $dir == "south" then pow([.frame.y + .frame.h, .frame.y]|map(.-$zero.y|select(.>0))|min; 1)
+            elif $dir == "north" then pow([.frame.y + .frame.h, .frame.y]|map($zero.y-.|select(.>0))|min; 1)
+            end
+        )
+        | sort_by([.distance, -.z_index])
+        | map(.zero = $zero)
+        | map(debug(. | {title, zero, distance, frame, x_distance, y_distance, z_index}))
+        | first.id'
         or return 1
     case "focus-space"
         set space $argv[1]
@@ -214,38 +335,15 @@ function yabai-preset
             display-message "Windows $window_pos / $total"
         end
     case "focus-floating-window-in-space"
-        set window $argv[1]
-        set -e argv[1]
-
-        if not contains "$window" "next" "prev" "first" "last"
-            echo "Invalid argument: $window" >&2
-            return 1
-        end
-
-        yabai -m query --windows --space | jq -er --arg window "$window" '.
-            | map(select(."is-visible" and (."is-sticky"|not) and ."split-type" == "none" and ."is-floating"))
-            | (first(.[] | select(."has-focus")) // .[0]).id as $focus
-            | sort_by([.frame.x, .frame.y, .id])
-            | (map(.id) | index($focus)) as $pos
-            | ({first: 0, last: (length - 1), prev: ([0, $pos - 1]|max), next: ([length - 1, $pos + 1]|min)}[$window]) as $window_pos
-            | "\(.[$window_pos].id):\($window_pos+1):\(length)" ' | read -d: window window_pos total
-
-        yabai -m window --focus "$window"
-        display-message "Windows $window_pos / $total"
+        yabai-preset focus-floating-window $argv
     case "focus-floating-window"
         set direction $argv[1]
         set -e argv[1]
 
-        switch "$direction"
-            case next prev first last
-                yabai-preset focus-floating-window-in-space $direction
-            case east west north south
-                yabai -m window --focus $direction
-                or return 1
-            case '*'
-                echo "Invalid argument: $direction" >&2
-                return 1
-        end
+        set winid (yabai-preset get-floating-window-id $direction)
+        or return 1
+        yabai -m window "$winid" --focus
+        or return 1
     case "move-window-in-stack"
         set stack $argv[1]
         set -e argv[1]
@@ -706,6 +804,55 @@ function yabai-preset
         set deg $argv[1]
         set -e argv[1]
         yabai -m space --rotate $deg
+    case "get-floating-window-target"
+        argparse \
+            'ids=' \
+            'focused=' \
+            -- $argv
+        or return 1
+
+        set direction $argv[1]
+        set -e argv[1]
+
+        switch "$direction"
+            case next prev first last
+                yabai -m query --windows | jq -er \
+                    --argjson ids "$_flag_ids" \
+                    --argjson focused "$_flag_focused" \
+                    --arg dir "$direction" '
+                    map(select((.id as $id | $ids | index($id)) and (.["is-sticky"] | not)))
+                    | sort_by([.frame.x, .frame.y, .id])
+                    | (map(.id) | index($focused)) as $pos
+                    | if $pos == null then first.id
+                      else ({first: 0, last: (length - 1), prev: ($pos - 1), next: ($pos + 1)}[$dir]) as $target
+                      | if $target < 0 or $target >= length then null
+                        else .[$target].id end
+                      end'
+                or return 1
+            case east west north south
+                yabai -m query --windows | jq -er \
+                    --argjson ids "$_flag_ids" \
+                    --argjson focused "$_flag_focused" \
+                    --arg dir "$direction" '
+                    map(select((.id as $id | $ids | index($id)) and (.["is-sticky"] | not)))
+                    | (first(.[] | select(.id == $focused)) // .[0]) as $cur
+                    | map(select(.id != $focused))
+                    | map(select(
+                        if $dir == "east" then .frame.x >= ($cur.frame.x + $cur.frame.w / 2)
+                        elif $dir == "west" then (.frame.x + .frame.w) <= ($cur.frame.x + $cur.frame.w / 2)
+                        elif $dir == "south" then .frame.y >= ($cur.frame.y + $cur.frame.h / 2)
+                        elif $dir == "north" then (.frame.y + .frame.h) <= ($cur.frame.y + $cur.frame.h / 2)
+                        else false end))
+                    | sort_by(
+                        ((.frame.x + .frame.w/2) - ($cur.frame.x + $cur.frame.w/2)) as $dx
+                        | ((.frame.y + .frame.h/2) - ($cur.frame.y + $cur.frame.h/2)) as $dy
+                        | ($dx*$dx + $dy*$dy))
+                    | first.id'
+                or return 1
+            case '*'
+                echo "Invalid direction: $direction" >&2
+                return 1
+        end
     case "get-recent-window-id"
         yabai -m query --windows --space | jq -er '
             first(.[] | select(."is-visible" and (."is-sticky"|not) and (."has-focus"|not)))
