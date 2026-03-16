@@ -7,6 +7,10 @@ if status --is-interactive
 	fundle plugin lgathy/google-cloud-sdk-fish-completion
 	# fundle plugin franciscolourenco/done
 	fundle plugin PatrickF1/colored_man_pages.fish
+
+	if not test -e "$__fish_user_data_dir/vendor_conf.d/fzf.fish" then
+		fish_install_autoload
+	end
 end
 
 fundle plugin thalesmello/fifc
