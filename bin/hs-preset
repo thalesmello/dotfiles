@@ -31,6 +31,9 @@ function hs-preset
     case "get-active-app"
         hs -c "Preset.getActiveApp()"
 
+    case "get-selected-text"
+        hs -c "Preset.getSelectedText()"
+
     case "show-or-hide-app"
         argparse only-show only-hide -- $argv
         or return 1

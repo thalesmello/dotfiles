@@ -102,6 +102,15 @@ function M.getActiveApp()
   return app and app:name() or ""
 end
 
+function M.getSelectedText()
+  local elem = hs.axuielement.systemWideElement()
+  local focused = elem:attributeValue("AXFocusedUIElement")
+  if focused then
+    return focused:attributeValue("AXSelectedText") or ""
+  end
+  return ""
+end
+
 function M.showOrHideApp(appName, onlyShow, onlyHide)
   local app = hs.application.get(appName)
   if onlyShow then
