@@ -4,7 +4,7 @@ behavior_configs:
   base_wheel_speed: 16.0
   free_mode_auto_off_s: 10
   grid_action_level: subgrid
-  hide_cursor_on_click: true
+  hide_cursor_on_click: false
   hide_location: bottom_left
   initial_action_location: system_cursor
   initial_overlay_monitor: with_keyboard_focus
@@ -30,27 +30,52 @@ grid_configs:
   grid_defn:
   - border_width: 0.0
     callback: build_cell_strings
-    keys: QWERT ASDFG ZXCVB YUIOP HJKL; NM,./
-    num_cells_x: 5
-    num_cells_y: 6
+    keys: ABCDEFGHIJKLMNOPQRSTUVWXYZ
+    num_cells_x: 1
+    num_cells_y: 26
   - border_width: 1.0
     callback: build_cell_strings
     keys: ''
-    num_cells_x: 5
-    num_cells_y: 6
+    num_cells_x: 26
+    num_cells_y: 1
   - border_width: 0.0
     callback: apply_strings_and_subgrid_to_cells
     keys: ''
     num_cells_x: 2
     num_cells_y: 1
   hold_subgrid_key_for_nudge: true
-  name: position_based_16_9
+  name: row_column
   nudges_per_cell: 4
   strategy: subgrid
   subgrid_dims:
   - 8
   - 3
   subgrid_mouse_action_keys: QWER UIOP ASDF JKL; ZXCV M,./
+- always_show_subgrid: false
+  grid_defn:
+  - border_width: 0.0
+    callback: build_cell_strings
+    keys: ABCDEFGHIJKLMNOPQRSTUVWXYZ
+    num_cells_x: 1
+    num_cells_y: 26
+  - border_width: 1.0
+    callback: build_cell_strings
+    keys: ''
+    num_cells_x: 26
+    num_cells_y: 1
+  - border_width: 0.0
+    callback: apply_strings_and_subgrid_to_cells
+    keys: ''
+    num_cells_x: 2
+    num_cells_y: 1
+  hold_subgrid_key_for_nudge: false
+  name: vertical_row_column
+  nudges_per_cell: 4
+  strategy: subgrid
+  subgrid_dims:
+  - 4
+  - 6
+  subgrid_mouse_action_keys: QWER ASDF ZXCVUIOP JKL; M,./
 keyboard_layout:
   id: com.apple.keylayout.US
   name: U.S.
@@ -292,7 +317,7 @@ keymaps:
     forward click: null
     forward mouse button: Ctrl+i
     forward mouse button (w/o overlay): null
-    hide overlay: null
+    hide overlay: ctrl+cmd+option+d
     hold for back button: null
     hold for drag: Shift+ControlLeft
     hold for forward button: null
