@@ -73,4 +73,7 @@ end
 
 if status --is-interactive
 	source $__fish_config_dir/iterm_integration.fish
+	if test -n "ITERM"
+		set -gx ITERM_ENABLE_SHELL_INTEGRATION_WITH_TMUX yes
+	end
 end
