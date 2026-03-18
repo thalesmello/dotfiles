@@ -20,3 +20,11 @@ end
 
 hs.audiodevice.watcher.setCallback(audioDeviceCallback)
 hs.audiodevice.watcher.start()
+
+local usbWatcher = hs.usb.watcher.new(function(event)
+  util.log("audiodevice: usb event=", event.eventType, "productName=", event.productName)
+  if event.eventType == "added" then
+    setPreferredInputDevice()
+  end
+end)
+usbWatcher:start()
