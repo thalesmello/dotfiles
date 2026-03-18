@@ -16,7 +16,7 @@ end
 fundle plugin thalesmello/fifc
 fundle init
 
-set -gx FIFC_KEYBINDING \e'[Z' #shift tab
+set -gx FIFC_KEYBINDING shift-tab
 set -gx FIFC_EDITOR lvim
 
 # Configure theme
