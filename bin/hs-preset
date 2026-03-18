@@ -105,31 +105,6 @@ function hs-preset
             | join(",")
         '
 
-    case "alternate-window-info"
-        set -l window_id $argv[1]
-        hs -c "Preset.getWindowStatus($window_id)"
-
-    case "is-window-existent"
-        set -l window_id $argv[1]
-        set -l result (hs -c "Preset.isWindowExistent($window_id)")
-        echo $result
-        test "$result" = "true"
-
-    case "minimize-window"
-        if test (count $argv) -ge 1
-            hs -c "Preset.minimizeWindow($argv[1])"
-        else
-            hs -c "Preset.minimizeWindow()"
-        end
-
-    case "get-focused-window-id"
-        hs -c "Preset.getFocusedWindowId()"
-
-    case "on-window-created"
-        set -l app_name $argv[1]
-        set -l command $argv[2]
-        hs -c "Preset.onWindowCreated([=[$app_name]=], [=[$command]=])"
-
     case '*'
         return 1
     end
