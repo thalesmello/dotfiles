@@ -16,3 +16,5 @@ vim.keymap.set({"n", "v", "t"}, "<M-D-Right>", "<c-\\><c-n><C-l>", { remap = tru
 vim.keymap.set({"n", "v", "t"}, "<M-D-Left>", "<c-\\><c-n><C-h>", { remap = true })
 vim.keymap.set({"n", "v", "t"}, "<M-D-Down>", "<c-\\><c-n><C-j>", { remap = true })
 vim.keymap.set({"n", "v", "t"}, "<M-D-Up>", "<c-\\><c-n><C-k>", { remap =  true  })
+vim.keymap.set({"n", "v", "t"}, "<D-{>", "<c-\\><c-n>gT", { remap = false })
+vim.keymap.set({"n", "v", "t"}, "<D-}>", "<c-\\><c-n>gt", { remap = false })
