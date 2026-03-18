@@ -32,7 +32,7 @@ return {
       end,
       keys = {
          { "<leader>a", nil, desc = "AI/Claude Code" },
-         { "<leader>ac", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude" },
+         { "<leader>ac", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude", mode = {"n", "v"} },
          { "<leader>af", "<cmd>ClaudeCodeFocus<cr>", desc = "Focus Claude" },
          { "<leader>ar", "<cmd>ClaudeCode --resume<cr>", desc = "Resume Claude" },
          { "<leader>aC", "<cmd>ClaudeCode --continue<cr>", desc = "Continue Claude" },
@@ -61,6 +61,22 @@ return {
          { "<leader>aa", "<cmd>ClaudeCodeDiffAccept<cr>", desc = "Accept diff" },
          { "<leader>ad", "<cmd>ClaudeCodeDiffDeny<cr>", desc = "Deny diff" },
       },
-      extra_contexts = {"ssh"}
+      extra_contexts = {"ssh"},
+      config = function(_, opts)
+         require("claudecode").setup(opts)
+
+         local timer = vim.uv.new_timer()
+         vim.api.nvim_create_autocmd("TextChangedT", {
+            group = vim.api.nvim_create_augroup("ClaudeTermCheckTime", {}),
+            pattern = "*claude",
+            callback = function()
+               if not timer then return end
+               timer:stop()
+               timer:start(1000, 0, vim.schedule_wrap(function()
+                  vim.cmd("checktime")
+               end))
+            end,
+         })
+      end,
    },
 }

@@ -105,3 +105,13 @@ if vim.fn.has('vim_starting') ~= 0 then
 end
 
 vim.opt.signcolumn = "yes"
+
+vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold", "CursorHoldI" }, {
+  group = vim.api.nvim_create_augroup("AutoreadCheckTime", {}),
+  callback = function()
+    if vim.fn.mode() ~= "c" then
+      vim.cmd("checktime")
+    end
+  end,
+  pattern = "*",
+})
