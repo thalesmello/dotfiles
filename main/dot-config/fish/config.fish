@@ -16,6 +16,9 @@ end
 fundle plugin thalesmello/fifc
 fundle init
 
+set -gx FIFC_KEYBINDING shift-tab
+set -gx FIFC_EDITOR lvim
+
 # Configure theme
 set -g theme_display_docker_machine no
 set -g theme_display_vi yes
