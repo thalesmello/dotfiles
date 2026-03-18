@@ -1455,11 +1455,19 @@
               "text" : "Mouse Second Layer"
             }
           } ],
+          "to_if_held_down" : [ {
+            "pointing_button" : "button5"
+          } ],
+          "parameters" : {
+            "basic.to_if_held_down_threshold_milliseconds" : 250
+          },
           "from" : {
             "pointing_button" : "button5"
           },
-          "to" : [ {
-            "key_code" : "f18"
+          "conditions" : [ {
+            "name" : "mouse-second-layer",
+            "value" : 0,
+            "type" : "variable_if"
           } ],
           "type" : "basic"
         }, {
@@ -1655,8 +1663,6 @@
             "pointing_button" : "button5"
           },
           "to" : [ {
-            "pointing_button" : "button5"
-          }, {
             "set_variable" : {
               "name" : "mouse-second-layer",
               "value" : 0
@@ -1701,6 +1707,48 @@
           "to" : [ {
             "key_code" : "return_or_enter"
           }, {
+            "set_variable" : {
+              "name" : "mouse-second-layer",
+              "value" : 0
+            }
+          }, {
+            "set_notification_message" : {
+              "id" : "mouse-second-hud",
+              "text" : ""
+            }
+          } ],
+          "conditions" : [ {
+            "name" : "mouse-second-layer",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "escape"
+          },
+          "to" : [ {
+            "set_variable" : {
+              "name" : "mouse-second-layer",
+              "value" : 0
+            }
+          }, {
+            "set_notification_message" : {
+              "id" : "mouse-second-hud",
+              "text" : ""
+            }
+          } ],
+          "conditions" : [ {
+            "name" : "mouse-second-layer",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "caps_lock"
+          },
+          "to" : [ {
             "set_variable" : {
               "name" : "mouse-second-layer",
               "value" : 0
