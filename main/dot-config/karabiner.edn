@@ -163,10 +163,14 @@
             :mouse-second-layer
             ; Button5 again = exit layer + send button5
             [{:pkey :button5} [["mouse-second-layer" 0] [:noti :mouse-second-hud]]]
-            ; Button4 = exit layer
-            [{:pkey :button4} [["mouse-second-layer" 0] [:noti :mouse-second-hud]]]
-            ; Right click = exit layer + send enter
-            [{:pkey :button2} [:return_or_enter ["mouse-second-layer" 0] [:noti :mouse-second-hud]]]
+            ; Button4 = send cmd+z
+            [{:pkey :button4} :!Cz]
+            ; Left click = down
+            [{:pkey :button1} :down_arrow]
+            ; Middle click = enter + exit layer
+            [{:pkey :button3} [:return_or_enter ["mouse-second-layer" 0] [:noti :mouse-second-hud]]]
+            ; Right click = up arrow
+            [{:pkey :button2} :up_arrow]
             ; Escape = exit layer
             [:escape [["mouse-second-layer" 0] [:noti :mouse-second-hud]]]
             ; Caps lock = exit layer

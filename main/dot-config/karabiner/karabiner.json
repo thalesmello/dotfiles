@@ -1459,7 +1459,7 @@
             "pointing_button" : "button5"
           } ],
           "parameters" : {
-            "basic.to_if_held_down_threshold_milliseconds" : 250
+            "basic.to_if_held_down_threshold_milliseconds" : 150
           },
           "from" : {
             "pointing_button" : "button5"
@@ -1684,6 +1684,35 @@
             "pointing_button" : "button4"
           },
           "to" : [ {
+            "key_code" : "z",
+            "modifiers" : [ "left_command" ]
+          } ],
+          "conditions" : [ {
+            "name" : "mouse-second-layer",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "pointing_button" : "button1"
+          },
+          "to" : [ {
+            "key_code" : "down_arrow"
+          } ],
+          "conditions" : [ {
+            "name" : "mouse-second-layer",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "pointing_button" : "button3"
+          },
+          "to" : [ {
+            "key_code" : "return_or_enter"
+          }, {
             "set_variable" : {
               "name" : "mouse-second-layer",
               "value" : 0
@@ -1705,17 +1734,7 @@
             "pointing_button" : "button2"
           },
           "to" : [ {
-            "key_code" : "return_or_enter"
-          }, {
-            "set_variable" : {
-              "name" : "mouse-second-layer",
-              "value" : 0
-            }
-          }, {
-            "set_notification_message" : {
-              "id" : "mouse-second-hud",
-              "text" : ""
-            }
+            "key_code" : "up_arrow"
           } ],
           "conditions" : [ {
             "name" : "mouse-second-layer",
