@@ -234,11 +234,7 @@ function chrome-preset
         set url $argv[1]
         set -e argv[1]
 
-        yabai -m signal --add \
-            event=window_created \
-            app='^Google Chrome$' \
-            label="store_chrome_preset_app_info" \
-            action="fish -c 'chrome-preset store-preset-app --window-id \"\$YABAI_WINDOW_ID\" \"$appname\"'; yabai -m signal --remove store_chrome_preset_app_info"
+        hs-preset on-window-created 'Google Chrome' "chrome-preset store-preset-app --window-id \"\$WINDOW_ID\" \"$appname\""
 
         open -na 'Google Chrome' --args --profile-directory="$_flag_profile" --app="$url"
 
@@ -250,7 +246,7 @@ function chrome-preset
 
         set window_id "$_flag_window_id"
 
-        echo "$YABAI_WINDOW_ID" > "/tmp/chrome_preset_apps/$appname.windowid"
+        echo "$window_id" > "/tmp/chrome_preset_apps/$appname.windowid"
         env OUTPUT_FORMAT=json chrome-cli info > "/tmp/chrome_preset_apps/$appname.chromeinfo";
         echo "$appname" > "/tmp/chrome_preset_apps/$window_id.appname"
     case "open-in-app"
@@ -264,7 +260,7 @@ function chrome-preset
 
         set window (cat "/tmp/chrome_preset_apps/$appname.windowid")
 
-        if yabai-preset get-window-info "$window" >/dev/null
+        if hs-preset is-window-existent "$window"
             set app (cat "/tmp/chrome_preset_apps/$appname.chromeinfo")
 
             chrome-cli open "$url" -t "$(jq -nr --argjson app "$app" '$app.id')"
@@ -291,7 +287,7 @@ function chrome-preset
         set url $argv[1]
         set -e argv[1]
 
-        if set window (chrome-preset get-app-window-id "$appname"); and yabai-preset get-window-info "$window" >/dev/null
+        if set window (chrome-preset get-app-window-id "$appname"); and hs-preset is-window-existent "$window"
             wm-preset focus-window-id "$window"
         else
             chrome-preset create-app --profile="$_flag_profile" "$appname" "$url"
@@ -301,33 +297,29 @@ function chrome-preset
 
         set app "$_flag_app"
 
-        set fallback
-
         set path "/tmp/chrome_preset_apps/$app.windowid"
 
-        if test -f "$path"
-            set app_window_id (cat "$path")
-
-            set active (yabai -m query --windows --window)
-
-            if test "$(jq -nr --argjson active "$active" '$active.id')" = "$app_window_id"
-                if set -q _flag_hide
-                    hs-preset send-keys cmd h
-                else if set -q _flag_minimize
-                    yabai-preset minimize
-                else
-                    wm-preset focus-window-id recent
-                end
-            else
-                set fallback 1
-            end
-        else
-            set fallback 1
+        if not test -f "$path"
+            chrome-preset focus-or-create-app --profile "$_flag_profile" "$app" $argv
+            return
         end
 
+        set app_window_id (cat "$path")
+        set state (hs-preset alternate-window-info "$app_window_id")
 
-        if test -n "$fallback"
-            chrome-preset focus-or-create-app --profile "$_flag_profile" "$app" $argv
+        switch "$state"
+        case focused
+            if set -q _flag_hide
+                hs-preset send-keys cmd h
+            else if set -q _flag_minimize
+                hs-preset minimize-window
+            else
+                wm-preset focus-window-id recent
+            end
+        case exists
+            wm-preset focus-window-id "$app_window_id"
+        case missing
+            chrome-preset create-app --profile="$_flag_profile" "$app" $argv
         end
     case "get-app-name"
         argparse window-id= -- $argv

@@ -188,4 +188,49 @@ function M.shareScreenWithIPad()
   ]])
 end
 
+function M.getWindowStatus(windowId)
+  local focusedWin = hs.window.focusedWindow()
+  if focusedWin and tostring(focusedWin:id()) == tostring(windowId) then
+    return "focused"
+  end
+  local targetWin = hs.window.get(windowId)
+  return targetWin and "exists" or "missing"
+end
+
+function M.isWindowExistent(windowId)
+  local win = hs.window.get(windowId)
+  return win and "true" or "false"
+end
+
+function M.minimizeWindow(windowId)
+  local win
+  if windowId then
+    win = hs.window.get(windowId)
+  else
+    win = hs.window.focusedWindow()
+  end
+  if win then win:minimize() end
+end
+
+function M.getFocusedWindowId()
+  local win = hs.window.focusedWindow()
+  return win and tostring(win:id()) or ""
+end
+
+function M.onWindowCreated(appName, command)
+  local filter = hs.window.filter.new(false):setAppFilter(appName, {})
+  filter:subscribe(hs.window.filter.windowCreated, function(win)
+    filter:unsubscribeAll()
+    filter:delete()
+    local windowId = tostring(win:id())
+    local cmd = command:gsub("%$WINDOW_ID", windowId)
+    local task
+    task = hs.task.new("/opt/homebrew/bin/fish", function()
+      _runningTasks[task] = nil
+    end, {"-c", cmd})
+    _runningTasks[task] = true
+    task:start()
+  end)
+end
+
 return M
