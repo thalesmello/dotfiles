@@ -1445,13 +1445,21 @@
           "type" : "basic"
         }, {
           "to_if_alone" : [ {
-            "key_code" : "f18"
+            "set_variable" : {
+              "name" : "mouse-second-layer",
+              "value" : 1
+            }
+          }, {
+            "set_notification_message" : {
+              "id" : "mouse-second-hud",
+              "text" : "Mouse Second Layer"
+            }
           } ],
           "from" : {
             "pointing_button" : "button5"
           },
           "to" : [ {
-            "pointing_button" : "button5"
+            "key_code" : "f18"
           } ],
           "type" : "basic"
         }, {
@@ -1637,6 +1645,76 @@
           },
           "to" : [ {
             "key_code" : "right_shift"
+          } ],
+          "type" : "basic"
+        } ]
+      }, {
+        "description" : "Mouse Second Layer",
+        "manipulators" : [ {
+          "from" : {
+            "pointing_button" : "button5"
+          },
+          "to" : [ {
+            "pointing_button" : "button5"
+          }, {
+            "set_variable" : {
+              "name" : "mouse-second-layer",
+              "value" : 0
+            }
+          }, {
+            "set_notification_message" : {
+              "id" : "mouse-second-hud",
+              "text" : ""
+            }
+          } ],
+          "conditions" : [ {
+            "name" : "mouse-second-layer",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "pointing_button" : "button4"
+          },
+          "to" : [ {
+            "set_variable" : {
+              "name" : "mouse-second-layer",
+              "value" : 0
+            }
+          }, {
+            "set_notification_message" : {
+              "id" : "mouse-second-hud",
+              "text" : ""
+            }
+          } ],
+          "conditions" : [ {
+            "name" : "mouse-second-layer",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "pointing_button" : "button2"
+          },
+          "to" : [ {
+            "key_code" : "return_or_enter"
+          }, {
+            "set_variable" : {
+              "name" : "mouse-second-layer",
+              "value" : 0
+            }
+          }, {
+            "set_notification_message" : {
+              "id" : "mouse-second-hud",
+              "text" : ""
+            }
+          } ],
+          "conditions" : [ {
+            "name" : "mouse-second-layer",
+            "value" : 1,
+            "type" : "variable_if"
           } ],
           "type" : "basic"
         } ]

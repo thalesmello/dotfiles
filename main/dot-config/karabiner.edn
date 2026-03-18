@@ -142,7 +142,8 @@
             ; Switch back to the last used app.  F18 is configured in BTT
             [:##left_shift :##left_shift ["shift-pressed-once" 1] {:alone :f18 :afterup ["shift-pressed-once" 0]}]
             [:##left_shift [["shift-pressed-once" 1] :##left_shift] nil {:delayed {:invoked ["shift-pressed-once" 0] :canceled ["shift-pressed-once" 0]}}]
-            [{:pkey :button5} :button5 nil {:alone :f18}]
+            ; Button5: hold = f18 (text to speech), tap = activate mouse second layer
+            [{:pkey :button5} :f18 nil {:alone [["mouse-second-layer" 1] [:noti :mouse-second-hud "Mouse Second Layer"]]}]
             [:##left_option :##left_option ["option-pressed-once" 1] {:alone :!Cgrave_accent_and_tilde :afterup ["option-pressed-once" 0]}]
             [:##left_option [["option-pressed-once" 1] :##left_option] nil {:delayed {:invoked ["option-pressed-once" 0] :canceled ["option-pressed-once" 0]}}]
             [:##left_control :##left_control ["control-pressed-once" 1] {:alone :!TOCslash :afterup ["control-pressed-once" 0]}]
@@ -154,6 +155,19 @@
             ; opens mouseless
             [:##right_shift :right_shift nil {:alone :f13 :params {:alone 150}}]
             ]
+    }
+
+    {
+        :des "Mouse Second Layer"
+        :rules [
+            :mouse-second-layer
+            ; Button5 again = exit layer + send button5
+            [{:pkey :button5} [:button5 ["mouse-second-layer" 0] [:noti :mouse-second-hud]]]
+            ; Button4 = exit layer
+            [{:pkey :button4} [["mouse-second-layer" 0] [:noti :mouse-second-hud]]]
+            ; Right click = exit layer + send enter
+            [{:pkey :button2} [:return_or_enter ["mouse-second-layer" 0] [:noti :mouse-second-hud]]]
+        ]
     }
 
     {
