@@ -1336,6 +1336,8 @@
 	<integer>4</integer>
 	<key>Leader</key>
 	<string>0x62-0x100000-0xb</string>
+	<key>LeftTabBarWidth</key>
+	<real>182</real>
 	<key>NeverWarnAboutMeta</key>
 	<true/>
 	<key>NeverWarnAboutMeta_selection</key>
@@ -4259,6 +4261,12 @@
 	<false/>
 	<key>SplitPaneDimmingAmount</key>
 	<real>0.34846271996359218</real>
+	<key>StatusBarPosition</key>
+	<integer>0</integer>
+	<key>TabStyleWithAutomaticOption</key>
+	<integer>5</integer>
+	<key>TabViewType</key>
+	<integer>0</integer>
 	<key>TmuxUsesDedicatedProfile</key>
 	<true/>
 	<key>VisualIndicatorForEsc</key>
