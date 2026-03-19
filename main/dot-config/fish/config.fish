@@ -20,7 +20,7 @@ if status --is-interactive; or set -q IS_FIFC_COMPLETION
 	fundle plugin thalesmello/fifc
 end
 
-fundle init
+set -q __fundle_plugin_names && fundle init
 
 # Configure theme
 set -g theme_display_docker_machine no
