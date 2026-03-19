@@ -1,4 +1,5 @@
 {
+  "99": { "branch": "master", "commit": "ec9872f7df7f4eb8b319719c1c253eb3ea8877ed" },
   "QFEnter": { "branch": "master", "commit": "1e4bf00b264e0f1541401c28c4b63ace5bb3d2be" },
   "claudecode.nvim": { "branch": "main", "commit": "b3949a477e73a7b05d4874281c65ab13031894cf" },
   "cmdline-hl.nvim": { "branch": "main", "commit": "df869995620a02cd16b998419b2ecc17a1fe7529" },

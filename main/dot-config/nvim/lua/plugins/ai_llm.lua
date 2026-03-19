@@ -79,4 +79,33 @@ return {
          })
       end,
    },
+   {
+      "ThePrimeagen/99",
+      dependencies = { "coder/claudecode.nvim" },
+      config = function()
+         local _99 = require("99")
+         local project_name = vim.fn.fnamemodify(vim.fn.getcwd(), ":t")
+
+         _99.setup({
+            provider = _99.Providers.ClaudeCodeProvider,
+            completion_source = "cmp",
+            tmp_dir = "/tmp/99claude/",
+            md_files = { "CLAUDE.md" },
+            logger = {
+               enabled = true,
+               file = "/tmp/" .. project_name .. ".99.debug",
+            },
+         })
+
+         vim.keymap.set("n", "<leader>9s", _99.search, { desc = "99: Search" })
+         vim.keymap.set("v", "<leader>9v", _99.visual, { desc = "99: Visual replace" })
+         vim.keymap.set("n", "<leader>9x", _99.stop_all_requests, { desc = "99: Stop all" })
+         vim.keymap.set("n", "<leader>9o", _99.open, { desc = "99: Open results" })
+         vim.keymap.set("n", "<leader>9l", _99.view_logs, { desc = "99: View logs" })
+         vim.keymap.set("n", "<leader>9c", _99.clear_previous_requests, { desc = "99: Clear requests" })
+         vim.keymap.set("n", "<leader>9V", _99.vibe, { desc = "99: Vibe mode" })
+         vim.keymap.set("n", "<leader>9w", _99.Extensions.Worker.set_work, { desc = "99: Set work" })
+         vim.keymap.set("n", "<leader>9W", _99.Extensions.Worker.search, { desc = "99: Search work" })
+      end,
+   },
 }
