@@ -13,11 +13,14 @@ if status --is-interactive
 	end
 end
 
-fundle plugin thalesmello/fifc
-fundle init
+if status --is-interactive; or set -q IS_FIFC_COMPLETION
+	set -gx FIFC_KEYBINDING shift-tab
+	set -gx FIFC_EDITOR lvim
 
-set -gx FIFC_KEYBINDING shift-tab
-set -gx FIFC_EDITOR lvim
+	fundle plugin thalesmello/fifc
+end
+
+fundle init
 
 # Configure theme
 set -g theme_display_docker_machine no
