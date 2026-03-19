@@ -80,3 +80,18 @@ if status --is-interactive
 		set -gx ITERM_ENABLE_SHELL_INTEGRATION_WITH_TMUX yes
 	end
 end
+
+# Load local dotfiles fish configuration
+set -l local_fish_dir ~/.local_dotfiles/fish
+
+if test -d $local_fish_dir/functions
+    set -p fish_function_path $local_fish_dir/functions
+end
+
+if test -d $local_fish_dir/completions
+    set -p fish_complete_path $local_fish_dir/completions
+end
+
+for f in $local_fish_dir/conf.d/*.fish
+    source $f
+end
