@@ -26,6 +26,10 @@ setopt rcquotes
 # no prompt!
 PROMPT=
 
+# disable job control to prevent SIGCHLD-triggered ZLE redraws
+# when completion functions use pipes (e.g. _mercurial)
+unsetopt monitor
+
 # load completion system
 autoload compinit
 compinit -d ~/.zcompdump_capture
@@ -136,7 +140,7 @@ while zpty -r z; do :; done | while IFS= read -r line; do
         (( tog++ )) && return 0 || continue
     fi
     # display between toggles
-    (( tog )) && echo -E - $line
+    (( tog )) && echo -E - ${line%$'\r'}
 done
 
 return 2
