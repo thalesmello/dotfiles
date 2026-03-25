@@ -5,12 +5,12 @@ local util = require("util")
 local a = require("async")
 
 -- Fetch PATH from fish once at startup
-local _pathDirs = {}
+_G._PathDirs = {"/usr/bin/env", "/opt/homebrew/bin/"}
 do
   local output = hs.execute(FISH .. " -lc 'printf \"%s\\n\" $PATH'")
   if output then
     for dir in output:gmatch("[^\n]+") do
-      _pathDirs[#_pathDirs + 1] = dir
+      _PathDirs[#_PathDirs + 1] = dir
     end
   end
 end
@@ -23,7 +23,7 @@ local function resolvePath(binaryName)
     _resolvedPaths[binaryName] = binaryName
     return binaryName
   end
-  for _, dir in ipairs(_pathDirs) do
+  for _, dir in ipairs(_PathDirs) do
     local fullPath = dir .. "/" .. binaryName
     if hs.fs.attributes(fullPath, "mode") then
       _resolvedPaths[binaryName] = fullPath
@@ -437,6 +437,9 @@ default:bindOnce(hyperShift, "p", "Move Window In Stack Prev", function() task({
 default:bindOnce(hyper, "space", "Enter Service Mode", function() service:enter() end)
 default:bindOnce(hyper, "i", "Enter Invoke Mode", function() invoke:enter() end)
 default:bindOnce(hyper, "'", "Enter Chrome Mode", function() chrome:enter() end)
+
+-- Karabiner Mouse Layer
+default:bindOnce({}, "F18", "Enter Second Mouse Layer", function() task({"karabiner-preset", "enable-layer", "mouse-second-layer"}) end)
 
 -- App shortcuts
 default:bindOnce(hyper, "b", "Focus Hammerspoon Console", function() hs.toggleConsole() end)

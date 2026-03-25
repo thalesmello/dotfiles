@@ -1,0 +1,27 @@
+#!/usr/bin/env -S fish --no-config
+set -x PATH /opt/homebrew/bin (status dirname) $PATH
+
+function karabiner-preset
+    set preset $argv[1]
+    set -e argv[1]
+
+    switch "$preset"
+    case "enable-layer"
+        set layer_name $argv[1]
+        /Library/Application\ Support/org.pqrs/Karabiner-Elements/bin/karabiner_cli --set-variables "{\"$layer_name\": 1}"
+        display-message "Enable $layer_name"
+
+    case "disable-layer"
+        set layer_name $argv[1]
+        /Library/Application\ Support/org.pqrs/Karabiner-Elements/bin/karabiner_cli --set-variables "{\"$layer_name\": 0}"
+        display-message "Disable $layer_name"
+
+    case "restart"
+        launchctl kickstart -k gui/(id -u)/org.pqrs.service.agent.karabiner_console_user_server
+
+    case '*'
+        return 1
+    end
+end
+
+karabiner-preset $argv
