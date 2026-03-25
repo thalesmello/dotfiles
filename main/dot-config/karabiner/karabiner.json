@@ -1707,10 +1707,7 @@
           } ],
           "type" : "basic"
         }, {
-          "from" : {
-            "pointing_button" : "button3"
-          },
-          "to" : [ {
+          "to_if_alone" : [ {
             "key_code" : "return_or_enter"
           }, {
             "set_variable" : {
@@ -1723,6 +1720,12 @@
               "text" : ""
             }
           } ],
+          "to_if_held_down" : [ {
+            "pointing_button" : "button5"
+          } ],
+          "from" : {
+            "pointing_button" : "button3"
+          },
           "conditions" : [ {
             "name" : "mouse-second-layer",
             "value" : 1,

@@ -168,7 +168,7 @@
             ; Left click = down
             [{:pkey :button1} :down_arrow]
             ; Middle click = enter + exit layer
-            [{:pkey :button3} [:return_or_enter ["mouse-second-layer" 0] [:noti :mouse-second-hud]]]
+            [{:pkey :button3} nil nil {:alone [:return_or_enter ["mouse-second-layer" 0] [:noti :mouse-second-hud]] :held :button5}]
             ; Right click = up arrow
             [{:pkey :button2} :up_arrow]
             ; Escape = exit layer
