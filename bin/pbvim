@@ -41,9 +41,14 @@ eval $NVIMCMD "$tmpfile" $PBVIM_FILETYPE_ARGS
 
 set -l modified_after (stat -c %y "$tmpfile")
 
+set st 1
+
 if test "$modified_before" != "$modified_after"
+    set st 0
     set contents (string replace -r '\n[^\n]*$' '' < $tmpfile | string collect)
     printf '%s' "$contents" | pbcopy
 end
 
 rm "$tmpfile"
+
+exit $st
