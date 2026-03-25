@@ -457,7 +457,7 @@ default:conditionalBindOnce(hyper, "x", "Focus iTerm2", {
 })
 default:bindOnce(hyper, "q", "Focus Gemini", function() task({"chrome-preset", "focus-or-open-url", "gemini.google.com", "--label", "Gemini"}) end)
 default:bindOnce(hyper, "w", "Focus WhatsApp", function() hs.application.launchOrFocus("WhatsApp") end)
-default:bindOnce(hyper, "z", "Focus Obsidian", function() hs.application.launchOrFocus("Obsidian") end)
+default:bindOnce(hyperShift, "z", "Focus Obsidian", function() hs.application.launchOrFocus("Obsidian") end)
 default:bindOnce(hyper, "s", "Toggle YouTube Music", function() Preset.alternateApp("YouTube Music", {hide = true}) end)
 default:bindOnce(hyper, "e", "Focus Chrome", function() hs.application.launchOrFocus("Google Chrome") end)
 default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() hs.application.launchOrFocus("Google Chrome") end)
@@ -562,11 +562,16 @@ chromeAppModal:bind({"ctrl", "cmd"}, "1", function()
   hs.eventtap.keyStroke({"ctrl", "shift"}, "1")
 end)
 
-local cmdTHk = chromeAppModal:bind({"cmd"}, "t", function()
+chromeAppModal:bind({"cmd"}, "t", function()
   if isFloatingTerminal() then
-    cmdTHk:disable()
-    hs.eventtap.keyStroke({"cmd"}, "t")
-    cmdTHk:enable()
+    task({"osascript", "-e", [[
+      tell application "iTerm"
+        tell current window
+          set pName to profile name of current session of current tab
+          create tab with profile pName
+        end tell
+      end tell
+    ]]})
   else
     Preset.triggerMenuBar("Tab;New Tab to the Right")
   end
