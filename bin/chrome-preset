@@ -283,7 +283,7 @@ function chrome-preset
 
         return $status
     case "focus-or-create-app"
-        argparse profile= -- $argv
+        argparse profile= enforce-url -- $argv
 
         set appname $argv[1]
         set -e argv[1]
@@ -292,6 +292,15 @@ function chrome-preset
         set -e argv[1]
 
         if set window (chrome-preset get-app-window-id "$appname"); and yabai-preset get-window-info "$window" >/dev/null
+            if set -q _flag_enforce_url
+                set app (cat "/tmp/chrome_preset_apps/$appname.chromeinfo")
+                set tab_id (jq -nr --argjson app "$app" '$app.id')
+                set current_url (env OUTPUT_FORMAT=json chrome-cli info -t "$tab_id" | jq -r '.url')
+                if test "$current_url" != "$url"
+                    chrome-cli open "$url" -t "$tab_id"
+                end
+            end
+
             wm-preset focus-window-id "$window"
         else
             chrome-preset create-app --profile="$_flag_profile" "$appname" "$url"
