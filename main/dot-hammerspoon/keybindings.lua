@@ -256,9 +256,9 @@ local ok, localConfig = pcall(dofile, local_dotfiles .. "/local_hammerspoon/keyb
 -- Smart Cmd+Tab
 ---------------------------------------------------------------
 
-local cmdTabCount = 0
-local floatingTerminalJustHidden = false
-local windowAfterHide = nil
+_G.cmdTabCount = 0
+_G.floatingTerminalJustHidden = false
+_G.windowAfterHide = nil
 
 local cmdTabTap = hs.eventtap.new(
   {hs.eventtap.event.types.keyDown, hs.eventtap.event.types.flagsChanged},
