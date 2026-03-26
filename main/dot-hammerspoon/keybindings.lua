@@ -540,7 +540,7 @@ chromeAppModal:bind({"ctrl", "shift"}, "d", function() Preset.triggerMenuBar("Ta
 chromeAppModal:bind({"ctrl", "alt"}, "d", function() Preset.triggerMenuBar("Tab;Duplicate Tab") end)
 chromeAppModal:bind({"ctrl", "alt", "shift"}, "d", function()
   Preset.triggerMenuBar("Tab;Duplicate Tab")
-  hs.timer.usleep(500000)
+  hs.timer.usleep(200000)
   Preset.triggerMenuBar("Tab;Move Tab to New Window")
 end)
 chromeAppModal:bind({"ctrl", "shift"}, "g", function() Preset.triggerMenuBar("Tab;Group Tab") end)
