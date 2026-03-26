@@ -1,4 +1,4 @@
-#!/usr/bin/env -S fish --no-config
+#!/opt/homebrew/bin/fish --no-config
 set -x PATH /opt/homebrew/bin (status dirname) $PATH
 
 # Inlined from __wm_translate_direction.fish
@@ -313,7 +313,7 @@ function aerospace-preset
         set window_id $argv[1]
         set -e argv[1]
         aerospace focus --window-id "$window_id"
-        yabai-preset focus-window-id "$window_id"
+        or yabai-preset focus-window-id "$window_id"
     case "focus-window" "focus-window-in-stack"
         set direction $argv[1]
         set -e argv[1]

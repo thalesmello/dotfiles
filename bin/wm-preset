@@ -1,4 +1,4 @@
-#!/usr/bin/env -S fish --no-config
+#!/opt/homebrew/bin/fish --no-config
 set -x PATH /opt/homebrew/bin (status dirname) $PATH
 
 function wm-preset
