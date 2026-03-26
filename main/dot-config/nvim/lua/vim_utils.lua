@@ -269,7 +269,6 @@ function M.reload_lazy_file(module_name)
 end
 
 function M.focus_or_new_tab(filepath)
-    vim.print('its happening')
     local abs_path = vim.fn.fnamemodify(filepath, ':p')
     local bufnr = vim.fn.bufnr(abs_path)
 
