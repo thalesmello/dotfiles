@@ -270,25 +270,37 @@ local cmdTabTap = hs.eventtap.new(
       -- First press: custom behavior
       local focusedWin = hs.window.focusedWindow()
       local focusedWinId = focusedWin and focusedWin:id()
+      util.log("before", {
+        floatingTerminalJustHidden = floatingTerminalJustHidden,
+        windowAfterHide = windowAfterHide,
+        focusedWin = focusedWin
+      })
       if floatingTerminalJustHidden and windowAfterHide and focusedWinId == windowAfterHide then
+        util.log("recover terminal window")
         -- Terminal was just hidden and user hasn't switched windows → reopen
         floatingTerminalJustHidden = false
         windowAfterHide = nil
         hs.eventtap.keyStroke(hyper, "/", 0)
       elseif isFloatingTerminal() then
+        util.log("Hiding terminal window")
         -- Only hide hotkey window when floating terminal is actually focused
         floatingTerminalJustHidden = true
         windowAfterHide = nil
         hs.osascript.applescript('tell application "iTerm2" to hide hotkey window current window')
-        hs.timer.doAfter(0.3, function()
-          local win = hs.window.focusedWindow()
-          windowAfterHide = win and win:id()
-        end)
+        hs.timer.usleep(200000)
+        local win = hs.window.focusedWindow()
+        windowAfterHide = win and win:id()
       else
+        util.log("focus recent")
         floatingTerminalJustHidden = false
         windowAfterHide = nil
         task({"wm-preset", "focus-recent"})
       end
+      util.log("after", {
+        floatingTerminalJustHidden = floatingTerminalJustHidden,
+        windowAfterHide = windowAfterHide,
+        focusedWin = hs.window.focusedWindow()
+      })
       return true  -- consume the event
     else
       -- Second+ press: let native App Switcher handle it
