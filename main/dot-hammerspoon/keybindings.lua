@@ -5,7 +5,7 @@ local util = require("util")
 local a = require("async")
 
 -- Fetch PATH from fish once at startup
-_G._PathDirs = {"/usr/bin/env", "/opt/homebrew/bin/"}
+_G._PathDirs = {"/usr/bin/", "/opt/homebrew/bin/"}
 do
   local output = hs.execute(FISH .. " -lc 'printf \"%s\\n\" $PATH'")
   if output then
@@ -43,33 +43,7 @@ local hyperShift = {"ctrl", "alt", "cmd", "shift"}
 ---------------------------------------------------------------
 
 -- Prevent hs.task objects from being garbage-collected before their callback fires
-local _runningTasks = {}
-
--- Async (fire-and-forget) shell command via fish
-local function fish(cmd)
-  util.log("fish:", cmd)
-  local task
-  task = hs.task.new(FISH, function(exitCode, stdOut, stdErr)
-    _runningTasks[task] = nil
-    if stdOut and #stdOut > 0 then util.log("fish stdout:", stdOut) end
-    if stdErr and #stdErr > 0 then util.log("fish stderr:", stdErr) end
-  end, {"-c", cmd})
-  _runningTasks[task] = true
-  task:start()
-end
-
--- Async shell command that can be awaited — returns (success, output)
-local fishAsync = a.wrap(function(cmd, callback)
-  util.log("fishAsync:", cmd)
-  local task
-  task = hs.task.new(FISH, function(exitCode, stdOut, stdErr)
-    _runningTasks[task] = nil
-    util.log("fishAsync result: exitCode=", exitCode, "stdout=", stdOut)
-    callback(exitCode == 0, (stdOut or ""):gsub("%s+$", ""))
-  end, {"-c", cmd})
-  _runningTasks[task] = true
-  task:start()
-end)
+_G._RunningTasks = {}
 
 -- Fire-and-forget direct binary execution
 local function task (args, callback)
@@ -79,17 +53,27 @@ local function task (args, callback)
   util.log("task:", resolvedPath, table.unpack(taskArgs))
   local t
   t = hs.task.new(resolvedPath, function(exitCode, stdOut, stdErr)
-    _runningTasks[t] = nil
+    _RunningTasks[t] = nil
     if stdOut and #stdOut > 0 then util.log("task stdout:", stdOut) end
     if stdErr and #stdErr > 0 then util.log("task stderr:", stdErr) end
     if callback then callback(exitCode == 0, (stdOut or ""):gsub("%s+$", "")) end
   end, taskArgs)
-  _runningTasks[t] = true
+
+  _RunningTasks[t] = true
   t:start()
 end
 
 -- Awaitable direct binary execution — returns (success, output)
 local taskAsync = a.wrap(task)
+
+-- Async (fire-and-forget) shell command via fish
+local function fish(cmd, callback)
+  task({FISH, "-c", cmd}, callback)
+end
+
+-- Async shell command that can be awaited — returns (success, output)
+local fishAsync = a.wrap(fish)
+
 
 -- Get frontmost application name
 local function frontAppName()
