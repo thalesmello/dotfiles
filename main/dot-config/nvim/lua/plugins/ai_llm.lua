@@ -34,13 +34,13 @@ return {
       end,
       keys = {
          { "<leader>a", nil, desc = "AI/Claude Code" },
-         { "<leader>ac", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude", mode = {"n", "v"} },
-         { "<leader>af", "<cmd>ClaudeCodeFocus<cr>", desc = "Focus Claude" },
-         { "<leader>ar", "<cmd>ClaudeCode --resume<cr>", desc = "Resume Claude" },
-         { "<leader>aC", "<cmd>ClaudeCode --continue<cr>", desc = "Continue Claude" },
+         { "<leader>ac", "<cmd>update | ClaudeCode<cr>", desc = "Toggle Claude", mode = {"n", "v"} },
+         { "<leader>af", "<cmd>update | ClaudeCodeFocus<cr>", desc = "Focus Claude" },
+         { "<leader>ar", "<cmd>update | ClaudeCode --resume<cr>", desc = "Resume Claude" },
+         { "<leader>aC", "<cmd>update | ClaudeCode --continue<cr>", desc = "Continue Claude" },
          { "<leader>am", "<cmd>ClaudeCodeSelectModel<cr>", desc = "Select Claude model" },
-         { "<leader>ab", "<cmd>ClaudeCodeAdd %<cr>", desc = "Add current buffer" },
-         { "<leader>as", "<cmd>ClaudeCodeSend<cr>", mode = "v", desc = "Send to Claude" },
+         { "<leader>ab", "<cmd>update | ClaudeCodeAdd %<cr>", desc = "Add current buffer" },
+         { "<leader>as", "<cmd>update | ClaudeCodeSend<cr>", mode = "v", desc = "Send to Claude" },
          {
             "<leader>as",
             "<cmd>ClaudeCodeTreeAdd<cr>",
@@ -52,6 +52,12 @@ return {
             "<cmd>argdo ClaudeCodeAdd %<cr>",
             desc = "Add file",
             ft = {"dirvish"},
+         },
+         {
+            "<leader>.",
+            "<cmd>update | ClaudeCodeSend<cr><cmd>lua vim.schedule(vim.cmd.ClaudeCodeFocus)<cr>",
+            mode = {"v"},
+            desc = "Add file",
          },
          {
             "<leader>.",
