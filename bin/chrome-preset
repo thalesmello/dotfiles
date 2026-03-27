@@ -317,9 +317,10 @@ function chrome-preset
         if test -f "$path"
             set app_window_id (cat "$path")
 
-            set active (yabai -m query --windows --window)
+            if set active (yabai -m query --windows --window 2>/dev/null)
+                and set active_id (jq -nr --argjson active "$active" '$active.id' 2>/dev/null)
+                and test "$active_id" = "$app_window_id"
 
-            if test "$(jq -nr --argjson active "$active" '$active.id')" = "$app_window_id"
                 if set -q _flag_hide
                     hs-preset send-keys cmd h
                 else if set -q _flag_minimize
