@@ -75,6 +75,12 @@ end
 local fishAsync = a.wrap(fish)
 
 
+-- Wrapper for hs.application.launchOrFocus with logging
+local function launchOrFocus(appName)
+  util.log("launchOrFocus:", appName)
+  hs.application.launchOrFocus(appName)
+end
+
 -- Get frontmost application name
 local function frontAppName()
   local app = hs.application.frontmostApplication()
@@ -439,7 +445,7 @@ default:bindOnce({}, "F18", "Enter Second Mouse Layer", function() task({"karabi
 
 -- App shortcuts
 default:bindOnce(hyper, "b", "Focus Hammerspoon Console", function() hs.toggleConsole() end)
-default:bindOnce(hyper, "c", "Focus Cursor", function() hs.application.launchOrFocus("Cursor") end)
+default:bindOnce(hyper, "c", "Focus Cursor", function() launchOrFocus("Cursor") end)
 default:conditionalBindOnce(hyper, "x", "Focus iTerm2", {
   {
     app = "iTerm2", function ()
@@ -448,29 +454,29 @@ default:conditionalBindOnce(hyper, "x", "Focus iTerm2", {
   },
   {
     cond = isFloatingTerminal, function ()
-      hs.application.launchOrFocus("iTerm")
+      launchOrFocus("iTerm")
       hs.eventtap.keyStroke({"cmd"}, "`")
     end
   },
-  { function () hs.application.launchOrFocus("iTerm") end }
+  { function () launchOrFocus("iTerm") end }
 })
 default:bindOnce(hyper, "q", "Focus Gemini", function() task({"chrome-preset", "focus-or-open-url", "gemini.google.com", "--label", "Gemini"}) end)
-default:bindOnce(hyper, "w", "Focus WhatsApp", function() hs.application.launchOrFocus("WhatsApp") end)
-default:bindOnce(hyperShift, "z", "Focus Obsidian", function() hs.application.launchOrFocus("Obsidian") end)
+default:bindOnce(hyper, "w", "Focus WhatsApp", function() launchOrFocus("WhatsApp") end)
+default:bindOnce(hyperShift, "z", "Focus Obsidian", function() launchOrFocus("Obsidian") end)
 default:bindOnce(hyper, "s", "Toggle YouTube Music", function() Preset.alternateApp("YouTube Music", {hide = true}) end)
-default:bindOnce(hyper, "e", "Focus Chrome", function() hs.application.launchOrFocus("Google Chrome") end)
-default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() hs.application.launchOrFocus("Google Chrome") end)
-default:bindOnce(hyper, "a", "Focus Timery", function() hs.application.launchOrFocus("Timery") end)
-default:bindOnce(hyperShift, "a", "Focus Pomofocus", function() hs.application.launchOrFocus("Pomofocus") end)
-default:bindOnce(hyperShift, "z", "Focus Google Keep", function() hs.application.launchOrFocus("Google Keep") end)
+default:bindOnce(hyper, "e", "Focus Chrome", function() launchOrFocus("Google Chrome") end)
+default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() launchOrFocus("Google Chrome") end)
+default:bindOnce(hyper, "a", "Focus Timery", function() launchOrFocus("Timery") end)
+default:bindOnce(hyperShift, "a", "Focus Pomofocus", function() launchOrFocus("Pomofocus") end)
+default:bindOnce(hyperShift, "z", "Focus Google Keep", function() launchOrFocus("Google Keep") end)
 default:conditionalBindOnce(hyperShift, "w", "Focus Zoom/Meet", {
-  {cond = function() return isProcessRunning("zoom.us") end, function() hs.application.launchOrFocus("zoom.us") end},
+  {cond = function() return isProcessRunning("zoom.us") end, function() launchOrFocus("zoom.us") end},
   {function() task({"chrome-preset", "focus-or-open-url", "meet.google.com", "--label", "Google Meet"}) end},
 })
 default:conditionalBindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", {
   {cond = function() return isProcessRunning("zoom.us") end, function()
     hs.alert.show("Toggle Mute")
-    hs.application.launchOrFocus("zoom.us")
+    launchOrFocus("zoom.us")
     hs.timer.doAfter(0.5, function() hs.eventtap.keyStroke({"cmd", "shift"}, "a") end)
   end},
   {function()
@@ -480,9 +486,9 @@ default:conditionalBindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", {
   end},
 })
 
-default:bindOnce(hyperShift, "f", "Focus WhatsApp (shift)", function() hs.application.launchOrFocus("WhatsApp") end)
-default:bindOnce(hyperShift, "g", "Focus Messages", function() hs.application.launchOrFocus("Messages") end)
-default:bindOnce(hyperShift, "q", "Focus Activity Monitor", function() hs.application.launchOrFocus("Activity Monitor") end)
+default:bindOnce(hyperShift, "f", "Focus WhatsApp (shift)", function() launchOrFocus("WhatsApp") end)
+default:bindOnce(hyperShift, "g", "Focus Messages", function() launchOrFocus("Messages") end)
+default:bindOnce(hyperShift, "q", "Focus Activity Monitor", function() launchOrFocus("Activity Monitor") end)
 
 default:bindOnce(hyper, "y", "Focus Calendar", function() task({"chrome-preset", "focus-or-open-url", "calendar.google.com", "--label", "Calendar"}) end)
 default:bindOnce(hyper, "u", "Perform Default UI", function() task({"workflow-preset", "perform-default-ui"}) end)
@@ -776,6 +782,7 @@ local ctx = {
   Mode = Mode,
   isFloatingTerminal = isFloatingTerminal,
   chromeAppModal = chromeAppModal,
+  launchOrFocus = launchOrFocus,
 }
 
 if ok and localConfig and localConfig.setup then
