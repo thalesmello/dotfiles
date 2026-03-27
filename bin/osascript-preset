@@ -26,28 +26,31 @@ function osascript-preset
         set -l key_code (osascript-preset get-key-codes "$key")
         or return 1
 
-        set -l mod_list
+        set -l flags 0
         for m in $modifiers
             switch "$m"
                 case cmd
-                    set -a mod_list "command down"
+                    set flags (math "$flags + 1048576")   # kCGEventFlagMaskCommand
                 case alt
-                    set -a mod_list "option down"
+                    set flags (math "$flags + 524288")     # kCGEventFlagMaskAlternate
                 case ctrl
-                    set -a mod_list "control down"
+                    set flags (math "$flags + 262144")     # kCGEventFlagMaskControl
                 case shift
-                    set -a mod_list "shift down"
+                    set flags (math "$flags + 131072")     # kCGEventFlagMaskShift
                 case fn
-                    set -a mod_list "fn down"
+                    set flags (math "$flags + 8388608")    # kCGEventFlagMaskSecondaryFn
             end
         end
 
-        if test (count $mod_list) -gt 0
-            set -l using_clause (string join ", " $mod_list)
-            /usr/bin/osascript -e "tell application \"System Events\" to key code $key_code using {$using_clause}"
-        else
-            /usr/bin/osascript -e "tell application \"System Events\" to key code $key_code"
-        end
+        /usr/bin/osascript -l JavaScript -e '
+            ObjC.import("CoreGraphics");
+            var down = $.CGEventCreateKeyboardEvent(null, '"$key_code"', true);
+            $.CGEventSetFlags(down, '"$flags"');
+            $.CGEventPost(1, down);
+            var up = $.CGEventCreateKeyboardEvent(null, '"$key_code"', false);
+            $.CGEventSetFlags(up, '"$flags"');
+            $.CGEventPost(1, up);
+        '
 
     case "display-message"
         argparse duration= -- $argv
