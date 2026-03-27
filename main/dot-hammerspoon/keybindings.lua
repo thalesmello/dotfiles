@@ -246,9 +246,9 @@ local ok, localConfig = pcall(dofile, local_dotfiles .. "/local_hammerspoon/keyb
 -- Smart Cmd+Tab
 ---------------------------------------------------------------
 
-_G.cmdTabCount = 0
-_G.floatingTerminalJustHidden = false
-_G.windowAfterHide = nil
+_G.CmdTabCount = 0
+_G.FloatingTerminalJustHidden = false
+_G.WindowAfterHide = nil
 
 local cmdTabTap = hs.eventtap.new(
   {hs.eventtap.event.types.keyDown, hs.eventtap.event.types.flagsChanged},
@@ -259,7 +259,7 @@ local cmdTabTap = hs.eventtap.new(
     -- On Cmd release: reset counter
     if type == hs.eventtap.event.types.flagsChanged then
       if not flags.cmd then
-        cmdTabCount = 0
+        CmdTabCount = 0
       end
       return false  -- never consume modifier events
     end
@@ -270,41 +270,41 @@ local cmdTabTap = hs.eventtap.new(
     if not flags.cmd then return false end
     if flags.alt or flags.ctrl or flags.shift then return false end
 
-    cmdTabCount = cmdTabCount + 1
+    CmdTabCount = CmdTabCount + 1
 
-    if cmdTabCount == 1 then
+    if CmdTabCount == 1 then
       -- First press: custom behavior
       local focusedWin = hs.window.focusedWindow()
       local focusedWinId = focusedWin and focusedWin:id()
       util.log("before", {
-        floatingTerminalJustHidden = floatingTerminalJustHidden,
-        windowAfterHide = windowAfterHide,
+        FloatingTerminalJustHidden = FloatingTerminalJustHidden,
+        WindowAfterHide = WindowAfterHide,
         focusedWin = focusedWin
       })
-      if floatingTerminalJustHidden and windowAfterHide and focusedWinId == windowAfterHide then
+      if FloatingTerminalJustHidden and WindowAfterHide and focusedWinId == WindowAfterHide then
         util.log("recover terminal window")
         -- Terminal was just hidden and user hasn't switched windows → reopen
-        floatingTerminalJustHidden = false
-        windowAfterHide = nil
+        FloatingTerminalJustHidden = false
+        WindowAfterHide = nil
         hs.eventtap.keyStroke(hyper, "/", 0)
       elseif isFloatingTerminal() then
         util.log("Hiding terminal window")
         -- Only hide hotkey window when floating terminal is actually focused
-        floatingTerminalJustHidden = true
-        windowAfterHide = nil
+        FloatingTerminalJustHidden = true
+        WindowAfterHide = nil
         hs.osascript.applescript('tell application "iTerm2" to hide hotkey window current window')
         hs.timer.usleep(200000)
         local win = hs.window.focusedWindow()
-        windowAfterHide = win and win:id()
+        WindowAfterHide = win and win:id()
       else
         util.log("focus recent")
-        floatingTerminalJustHidden = false
-        windowAfterHide = nil
+        FloatingTerminalJustHidden = false
+        WindowAfterHide = nil
         task({"wm-preset", "focus-recent"})
       end
       util.log("after", {
-        floatingTerminalJustHidden = floatingTerminalJustHidden,
-        windowAfterHide = windowAfterHide,
+        FloatingTerminalJustHidden = FloatingTerminalJustHidden,
+        WindowAfterHide = WindowAfterHide,
         focusedWin = hs.window.focusedWindow()
       })
       return true  -- consume the event
@@ -392,28 +392,28 @@ default:conditionalBind({"ctrl", "cmd"}, "l", {
 -- Shift+Ctrl+Cmd HJKL (per-app)
 default:conditionalBind({"shift", "ctrl", "cmd"}, "h", {
   {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "left") end},
-  {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "h") end},
+  {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "pageup") end},
   {app = "iTerm2", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "left") end},
   {cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "left") end},
   {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "left") end},
 })
 default:conditionalBind({"shift", "ctrl", "cmd"}, "j", {
   {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "down") end},
-  {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "j") end},
+  {app = "Google Chrome", function() task({"osascript-preset", "send-keys", "ctrl", "shift", "j"}) end},
   {app = "iTerm2", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "down") end},
   {cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "down") end},
   {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "down") end},
 })
 default:conditionalBind({"shift", "ctrl", "cmd"}, "k", {
   {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "up") end},
-  {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "k") end},
+  {app = "Google Chrome", function() task({"osascript-preset", "send-keys", "ctrl", "shift", "k"}) end},
   {app = "iTerm2", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "up") end},
   {cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "up") end},
   {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "up") end},
 })
 default:conditionalBind({"shift", "ctrl", "cmd"}, "l", {
   {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "right") end},
-  {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "l") end},
+  {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "pagedown") end},
   {app = "iTerm2", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "right") end},
   {cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "right") end},
   {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "right") end},
