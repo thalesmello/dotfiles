@@ -61,45 +61,32 @@ function osascript-preset
         /usr/bin/osascript -e "display notification \"$message\" with title \"Preset\""
 
     case "trigger-menu-bar"
+        argparse app= -- $argv
+
         set -l path "$argv[1]"
-        set -l app (osascript-preset get-active-app)
+        set app "$_flag_app"
+        if test -z "$app"
+            set app (osascript-preset get-active-app)
+        end
         or return 1
 
         set -l app_escaped (string replace -a '"' '\\"' -- "$app")
 
         # Split semicolon-separated path into items
         set -l items (string split ";" -- "$path")
-        # Trim whitespace
-        set -l trimmed
-        for item in $items
-            set -a trimmed (string trim -- "$item")
-        end
+        set trimmed (string trim -- $items)
 
         if test (count $trimmed) -eq 0
             return 1
         end
 
-        if test (count $trimmed) -eq 1
-            set -l item_escaped (string replace -a '"' '\\"' -- "$trimmed[1]")
-            /usr/bin/osascript -e "tell application \"System Events\" to tell process \"$app_escaped\" to click menu bar item \"$item_escaped\" of menu bar 1"
-        else
-            # Build chain: click menu item "last" of menu 1 of menu item "mid" ... of menu 1 of menu bar item "first" of menu bar 1
-            set -l last_idx (count $trimmed)
-            set -l last_escaped (string replace -a '"' '\\"' -- "$trimmed[$last_idx]")
-            set -l chain "menu item \"$last_escaped\""
+        set escaped (string replace -a '"' '\\"' -- $trimmed)
+        set items 'menu item "'$escaped[-1..2]'" of menu 1' "menu bar item \"$escaped[1]\" of menu bar 1"
+        set chain (string join ' of ' $items)
+        set cmd "tell application \"System Events\" to tell process \"$app_escaped\" to click $chain"
 
-            set -l i (math $last_idx - 1)
-            while test $i -ge 2
-                set -l mid_escaped (string replace -a '"' '\\"' -- "$trimmed[$i]")
-                set chain "$chain of menu 1 of menu item \"$mid_escaped\""
-                set i (math $i - 1)
-            end
-
-            set -l first_escaped (string replace -a '"' '\\"' -- "$trimmed[1]")
-            set chain "$chain of menu 1 of menu bar item \"$first_escaped\" of menu bar 1"
-
-            /usr/bin/osascript -e "tell application \"System Events\" to tell process \"$app_escaped\" to click $chain"
-        end
+        echo osascript -e (string escape $cmd)
+        /usr/bin/osascript -e "$cmd" > /dev/null
 
     case "get-active-app"
         /usr/bin/osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'
