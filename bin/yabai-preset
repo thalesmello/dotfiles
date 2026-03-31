@@ -2,8 +2,6 @@
 set -x PATH /opt/homebrew/bin (status dirname) $PATH
 
 function yabai-preset
-    # We use btt_url to execute some action in order to fill in the gap of workspaces not working by default
-    set btt_url 'http://localhost:12000/trigger_action/'
     set preset $argv[1]
     set -e argv[1]
 
@@ -163,9 +161,7 @@ function yabai-preset
             set space (yabai -m query --spaces --space "$space" | jq .index)
         end
 
-        set json (jq -nc --argjson spc "$space" '{"BTTPredefinedActionType":(206 + $spc)}')
-        set json (string escape --style=url "$json")
-        curl -G "$btt_url" -d "json=$json"
+        osascript-preset send-keys ctrl $space
     case "move-window-to-space"
         set space $argv[1]
         set -e argv[1]
@@ -174,10 +170,7 @@ function yabai-preset
             set space (yabai -m query --spaces --space "$space" | jq .index)
         end
 
-        set json (jq -nc --argjson spc "$space" '{"BTTPredefinedActionType":(215 + $spc + if $spc >= 6 then 1 else 0 end)}')
-        set json (string escape --style=url "$json")
-
-        curl -G "$btt_url" -d "json=$json"
+        hs-preset move-window-to-space $space
     case "focus-window-in-stack"
         set stack $argv[1]
         set -e argv[1]
@@ -280,20 +273,15 @@ function yabai-preset
 
         yabai -m display --focus "$display" || yabai -m display --focus "$fallback"
     case "smart-move-window-to-next-display"
-        # Yabai needs SPI for this, so we use btt
-        # btt only supports next monitor, so we focus next with yabai regardless
-
         set win (yabai -m query --windows --window | jq '.id')
-        set json '{"BTTPredefinedActionType" : 98}'
-        set json (string escape --style=url "$json")
 
         if yabai-preset is-window-floating
-            curl -G "$btt_url" -d "json=$json"
+            hs-preset move-window-to-next-screen
             yabai -m window --focus "$win"
         else
             yabai -m window "$win" --toggle float
             yabai -m window --focus "$win"
-            curl -G "$btt_url" -d "json=$json"
+            hs-preset move-window-to-next-screen
             yabai -m window "$win" --toggle float
         end
     case "stack-or-warp-window"

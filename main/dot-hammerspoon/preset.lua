@@ -188,4 +188,69 @@ function M.shareScreenWithIPad()
   ]])
 end
 
+function M.gotoSpace(spaceIndex)
+  local allSpaces = {}
+  for _, screen in ipairs(hs.screen.allScreens()) do
+    local spaces = hs.spaces.spacesForScreen(screen)
+    if spaces then
+      for _, sid in ipairs(spaces) do
+        if hs.spaces.spaceType(sid) == "user" then
+          allSpaces[#allSpaces + 1] = sid
+        end
+      end
+    end
+  end
+  if spaceIndex < 1 or spaceIndex > #allSpaces then return false end
+  hs.spaces.gotoSpace(allSpaces[spaceIndex])
+  return true
+end
+
+function M.moveWindowToSpace(spaceIndex)
+  local win = hs.window.focusedWindow()
+  if not win then return false end
+
+  local frame = win:frame()
+  local titleBarPoint = {x = frame.x + frame.w / 2, y = frame.y + 3}
+  local originalPos = hs.mouse.absolutePosition()
+
+  hs.mouse.absolutePosition(titleBarPoint)
+
+  local steps = {
+    { delay = 0.05, fn = function()
+      hs.eventtap.event.newMouseEvent(
+        hs.eventtap.event.types.leftMouseDown, titleBarPoint):post()
+    end },
+    { delay = 0.15, fn = function()
+      hs.eventtap.keyStroke({"ctrl"}, tostring(spaceIndex))
+    end },
+    { delay = 0.4, fn = function()
+      hs.eventtap.event.newMouseEvent(
+        hs.eventtap.event.types.leftMouseUp, hs.mouse.absolutePosition()):post()
+    end },
+    { delay = 0.01, fn = function()
+      hs.mouse.absolutePosition(originalPos)
+    end },
+  }
+
+  local function runStep(i)
+    if i > #steps then return end
+    hs.timer.doAfter(steps[i].delay, function()
+      steps[i].fn()
+      runStep(i + 1)
+    end)
+  end
+  runStep(1)
+  return true
+end
+
+function M.moveWindowToNextScreen()
+  local win = hs.window.focusedWindow()
+  if not win then return false end
+  local currentScreen = win:screen()
+  local nextScreen = currentScreen:next()
+  if not nextScreen or nextScreen == currentScreen then return false end
+  win:moveToScreen(nextScreen, false, true, 0)
+  return true
+end
+
 return M

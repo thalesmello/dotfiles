@@ -82,6 +82,17 @@ function hs-preset
 
         hs -c "Preset.alternateApp(\"$app_escaped\", $opts)"
 
+    case "goto-space"
+        set -l space_index $argv[1]
+        hs -c "Preset.gotoSpace($space_index)"
+
+    case "move-window-to-space"
+        set -l space_index $argv[1]
+        hs -c "Preset.moveWindowToSpace($space_index)"
+
+    case "move-window-to-next-screen"
+        hs -c "Preset.moveWindowToNextScreen()"
+
     case "restart-btt"
         # No-op: BTT is no longer used
 
