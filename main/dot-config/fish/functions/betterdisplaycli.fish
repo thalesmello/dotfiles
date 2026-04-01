@@ -14,10 +14,11 @@ function betterdisplaycli --wraps betterdisplaycli
             if not string match -q -- '*=*' "$last_arg"
                 set -e acc[-1]
                 set arg "$last_arg=$arg"
+                set seen_option 0
             end
         end
 
-        set acc $acc "$arg"
+        set -a acc "$arg"
     end
 
     echo >&2 "Executing betterdisplaycli $(string join -- ' ' (string escape -- $acc))"

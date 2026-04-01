@@ -6,10 +6,10 @@ function move-display -a location
     end
 
     set location "$argv[1]"
-    set mainDisplay (osascript -e 'tell application "System Events" to display name of desktop 1')
-    set secondaryDisplay (osascript -e 'tell application "System Events" to display name of desktop 2')
+    set mainDisplay (betterdisplaycli get --displayWithMainStatus --identifier displayId 2>/dev/null)
+    set secondaryDisplay (betterdisplaycli get --displayWithNonMainStatus --identifier displayId 2>/dev/null)
 
-    betterdisplaycli perform --originalName $secondaryDisplay --targetOriginalName $mainDisplay --moveTo "$location"
+    betterdisplaycli perform --displayId $secondaryDisplay --targetDisplayId $mainDisplay --moveTo "$location"
 end
 
 function __move_display_nth_token
