@@ -211,7 +211,7 @@ return {
 
                     local ok, parser = pcall(vim.treesitter.get_parser)
 
-                    if not ok then
+                    if not ok or not parser then
                         return
                     end
 
