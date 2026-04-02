@@ -170,7 +170,7 @@ function yabai-harpoon
             | if .type == "chrome_tab" or .type == "window" then try (. + ($registry[.uuid] // $chrome_urls[.url]? // error(.)))
                 catch try (
                         if .type == "chrome_tab" then
-                            # {"uuid": .url, type: "chrome1search_tab"}
+                            # {"uuid": .url, type: "chrome_search_tab"}
                             {"uuid": (.url|@uri)[:100], type: "chrome_preset_app", url}
                         elif .type == "chrome_preset_app" then
                             .
