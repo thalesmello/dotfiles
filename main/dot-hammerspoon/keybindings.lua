@@ -250,7 +250,7 @@ _G.CmdTabCount = 0
 _G.FloatingTerminalJustHidden = false
 _G.WindowAfterHide = nil
 
-local cmdTabTap = hs.eventtap.new(
+_G.CmdTabTap = hs.eventtap.new(
   {hs.eventtap.event.types.keyDown, hs.eventtap.event.types.flagsChanged},
   function(event)
     local type = event:getType()
@@ -314,7 +314,7 @@ local cmdTabTap = hs.eventtap.new(
     end
   end
 )
-cmdTabTap:start()
+CmdTabTap:start()
 
 ---------------------------------------------------------------
 -- DEFAULT MODE bindings

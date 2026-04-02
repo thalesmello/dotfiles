@@ -29,7 +29,7 @@ local watchPaths = {
   resolvePath(os.getenv("HOME") .. "/.local_dotfiles/local_hammerspoon"),
 }
 
-local reloadWatchers = {}
+_G.ReloadFileListeners = {}
 for _, path in ipairs(watchPaths) do
   local watcher = hs.pathwatcher.new(path, function(files)
     local luaFiles = hs.fnutils.filter(files, function(f) return f:match("%.lua$") end)
@@ -49,20 +49,20 @@ for _, path in ipairs(watchPaths) do
   end)
   if watcher then
     watcher:start()
-    table.insert(reloadWatchers, watcher)
+    table.insert(ReloadFileListeners, watcher)
   end
 end
 
--- Restart watchers on wake to prevent stale FSEvents streams
-local wakeWatcher = hs.caffeinate.watcher.new(function(event)
-  if event == hs.caffeinate.watcher.systemDidWake then
-    for _, w in ipairs(reloadWatchers) do
-      w:stop()
-      w:start()
-    end
-  end
-end)
-wakeWatcher:start()
+-- -- Restart watchers on wake to prevent stale FSEvents streams
+-- local wakeWatcher = hs.caffeinate.watcher.new(function(event)
+--   if event == hs.caffeinate.watcher.systemDidWake then
+--     for _, w in ipairs(reloadWatchers) do
+--       w:stop()
+--       w:start()
+--     end
+--   end
+-- end)
+-- wakeWatcher:start()
 
 local DEBUG = false
 if DEBUG then
