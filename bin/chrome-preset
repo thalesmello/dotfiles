@@ -405,6 +405,35 @@ function chrome-preset
         and cat "$path"
 
         return $status
+    case "cycle-profile-windows"
+        argparse 'next' 'prev' -- $argv
+        or return 1
+
+        set regex $argv[1]
+        set -e argv[1]
+
+        set direction next
+        if set -q _flag_prev
+            set direction prev
+        end
+
+        set current_id (yabai-preset query-windows --window | jq -r '.id')
+        or return 1
+
+        set windows (yabai-preset list-windows --regex "$regex" | jq -r '.id' | sort -n)
+        or return 1
+
+        set count (count $windows)
+        set pos (contains --index "$current_id" $windows)
+        or return 1
+
+        if test "$direction" = "next"
+            set target_pos (math "$pos % $count + 1")
+        else
+            set target_pos (math "($pos - 2 + $count) % $count + 1")
+        end
+
+        yabai-preset focus-window-id "$windows[$target_pos]"
     case '*'
         return 1
     end

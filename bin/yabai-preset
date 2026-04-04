@@ -898,6 +898,12 @@ function yabai-preset
         end
 
         yabai -m window "$window" --focus
+    case "list-windows"
+        argparse 'regex=' -- $argv
+        or return 1
+
+        yabai -m query --windows | jq -cer --arg regex "$_flag_regex" '
+            .[] | select(."is-visible" and (."is-sticky" | not) and (.title | test($regex)))'
     case "*"
         echo "command not found - $preset"
         return 1
