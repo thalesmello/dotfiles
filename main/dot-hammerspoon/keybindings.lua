@@ -726,11 +726,6 @@ for i = 1, 9 do
   chrome:bindOnce({}, tostring(i), "Focus Pinned Tab " .. i, function() task({"chrome-preset", "focus-pinned-tab", tostring(i)}) end)
 end
 
--- Pin tab 1-9
-for i = 1, 9 do
-  chrome:bindOnce({"shift"}, tostring(i), "Pin Tab " .. i, function() task({"chrome-preset", "pin-tab", tostring(i)}) end)
-end
-
 -- Chrome URL shortcuts
 chrome:bindOnce({}, "y", "YouTube", function() task({"chrome-preset", "focus-or-open-url", "--profile=Default", "youtube.com"}) end)
 chrome:bindOnce({}, "g", "Gmail", function() task({"chrome-preset", "focus-or-open-url", "--profile=Default", "gmail.com"}) end)

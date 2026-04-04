@@ -292,24 +292,6 @@ ctrl + alt + cmd - 0x27 ; chrome # single quote
 chrome < ctrl + alt + cmd - 0x27 ; goto # single quote
 chrome < 0x27 ; goto # single quote
 chrome < backspace : skhd -k "escape"; chrome-preset close-tabs-with-url '^.*\.zoom\.us/j/.*$'
-chrome < 1 : skhd -k "escape"; chrome-preset focus-pinned-tab 1
-chrome < 2 : skhd -k "escape"; chrome-preset focus-pinned-tab 2
-chrome < 3 : skhd -k "escape"; chrome-preset focus-pinned-tab 3
-chrome < 4 : skhd -k "escape"; chrome-preset focus-pinned-tab 4
-chrome < 5 : skhd -k "escape"; chrome-preset focus-pinned-tab 5
-chrome < 6 : skhd -k "escape"; chrome-preset focus-pinned-tab 6
-chrome < 7 : skhd -k "escape"; chrome-preset focus-pinned-tab 7
-chrome < 8 : skhd -k "escape"; chrome-preset focus-pinned-tab 8
-chrome < 9 : skhd -k "escape"; chrome-preset focus-pinned-tab 9
-chrome < shift - 1 : skhd -k "escape"; chrome-preset pin-tab 1
-chrome < shift - 2 : skhd -k "escape"; chrome-preset pin-tab 2
-chrome < shift - 3 : skhd -k "escape"; chrome-preset pin-tab 3
-chrome < shift - 4 : skhd -k "escape"; chrome-preset pin-tab 4
-chrome < shift - 5 : skhd -k "escape"; chrome-preset pin-tab 5
-chrome < shift - 6 : skhd -k "escape"; chrome-preset pin-tab 6
-chrome < shift - 7 : skhd -k "escape"; chrome-preset pin-tab 7
-chrome < shift - 8 : skhd -k "escape"; chrome-preset pin-tab 8
-chrome < shift - 9 : skhd -k "escape"; chrome-preset pin-tab 9
 
 #chrome_start
 chrome < y : skhd -k "escape"; chrome-preset focus-or-open-url --profile="Default" youtube.com
