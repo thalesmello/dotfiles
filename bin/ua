@@ -1,3 +1,6 @@
+#!/opt/homebrew/bin/fish --no-config
+set -x PATH /opt/homebrew/bin (status dirname) $PATH
+
 function ua
     argparse 'clipboard' -- $argv
     or return
@@ -50,5 +53,4 @@ function ua
     osascript -l JavaScript -e 'function run(argv) { Application("com.runningwithcrayons.Alfred").action(argv) }' $absolute_paths
 end
 
-complete -c ua -f
-complete -c ua -l clipboard -d "Use clipboard contents as text input"
+ua $argv
