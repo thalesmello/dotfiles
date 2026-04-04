@@ -1,5 +1,6 @@
 #!/opt/homebrew/bin/fish --no-config
 set -x PATH /opt/homebrew/bin (status dirname) $PATH
+set DB_PATH "$HOME/.local/share/yabai-preset/window.db"
 
 function yabai-preset
     set preset $argv[1]
@@ -405,26 +406,6 @@ function yabai-preset
             yabai-preset move-window-to-space "$space"
         end
 
-    case "get-pin-json"
-        yabai-harpoon get-focused-pin-json
-    case "pin-object"
-        set position $argv[1]
-        set -e argv[1]
-
-        set json (yabai-harpoon get-focused-pin-json)
-        set type (jq -n --argjson json "$json" '.type')
-
-        mkdir -p "/tmp/yabai-preset/pins/"
-        echo $json > "/tmp/yabai-preset/pins/$position.json"
-        display-message "Pin $type $position"
-    case "focus-pinned-object"
-        set position $argv[1]
-        set -e argv[1]
-
-        yabai-harpoon focus-pin-json < "/tmp/yabai-preset/pins/$position.json"
-    case "focus-pin-json"
-        echo "deprecated - use yabai-harpoon get-pin-json" >&2
-        yabai-harpoon focus-pin-json
     case "is-window-floating"
         set window $argv[1]; set -e argv[1]
 
@@ -512,6 +493,15 @@ function yabai-preset
             and display-message "Yabai Started"
         end
 
+    case "init-window-db"
+        mkdir -p (path dirname "$DB_PATH")
+        sqlite3 "$DB_PATH" "CREATE TABLE IF NOT EXISTS window_positions (
+            window_id INTEGER PRIMARY KEY,
+            x REAL NOT NULL,
+            y REAL NOT NULL,
+            w REAL NOT NULL,
+            h REAL NOT NULL
+        );"
     case "store-window-position"
         set winid $argv[1]; set -e argv[1]
 
@@ -520,18 +510,22 @@ function yabai-preset
         yabai-preset is-window-floating "$winid" || return 1
         yabai-preset is-window-fullscreen "$winid" && return 1
 
-        set frame (jq -enc --argjson window "$window" '$window | .frame')
         set winid (jq -nr --argjson window "$window" '$window.id')
+        jq -nr --argjson window "$window" '$window.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' \
+        | read --line x y w h
 
-        mkdir -p "/tmp/yabai-preset/window-positions/"
-        echo "$frame" > "/tmp/yabai-preset/window-positions/$winid.json"
+        yabai-preset init-window-db
+        sqlite3 "$DB_PATH" "INSERT OR REPLACE INTO window_positions (window_id, x, y, w, h)
+            VALUES ($winid, $x, $y, $w, $h);"
     case "restore-window-position"
         set winid $argv[1]; set -e argv[1]
 
         set winid (test -n "$winid"; and echo "$winid"; or echo "$(yabai -m query --windows --window | jq '.id')")
 
-        jq -erc '.x, .y, .w, .h | floor' < "/tmp/yabai-preset/window-positions/$winid.json" \
-        | read --line x y w h
+        yabai-preset init-window-db
+        sqlite3 "$DB_PATH" "SELECT x, y, w, h FROM window_positions WHERE window_id = $winid;" \
+        | string replace -a '|' \n | read --line x y w h
+        or return 1
 
         and yabai -m window "$winid" --move "abs:$x:$y"
         and yabai -m window "$winid" --resize "abs:$w:$h"
