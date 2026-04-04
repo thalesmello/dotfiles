@@ -11,7 +11,8 @@
       "Bash(bash -n /Users/thalesmello/src/dotfiles/bin/aerospace-set && echo \"aerospace-set OK\" || echo \"aerospace-set FAIL\")",
       "Bash(fish -n /Users/thalesmello/src/dotfiles/bin/yabai-preset && echo \"yabai-preset OK\" || echo \"yabai-preset FAIL\")",
       "Bash(fish -n /Users/thalesmello/src/dotfiles/bin/aerospace-preset && echo \"aerospace-preset OK\" || echo \"aerospace-preset FAIL\")",
-      "Skill(google-docs)"
+      "Skill(google-docs)",
+      "Bash(sqlite3 --version)"
     ]
   }
 }

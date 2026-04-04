@@ -1,30 +1,27 @@
 #!/opt/homebrew/bin/fish --no-config
 set -x PATH /opt/homebrew/bin (status dirname) $PATH
+set -g CHROME_PRESET_DB "$HOME/.local/share/chrome-preset/apps.db"
+
+function app-db-init
+    mkdir -p (path dirname "$CHROME_PRESET_DB")
+    sqlite3 "$CHROME_PRESET_DB" "
+        CREATE TABLE IF NOT EXISTS apps (
+            app_name TEXT PRIMARY KEY,
+            window_id TEXT NOT NULL,
+            chrome_info TEXT NOT NULL
+        );
+    "
+end
+
+function sq-escape
+    string replace -a "'" "''" $argv
+end
 
 function chrome-preset
     set preset $argv[1]
     set -e argv[1]
 
     switch "$preset"
-    case "pin-tab"
-        set position $argv[1]
-        set -e argv[1]
-
-        set json (jq -n --argjson tab "$(env OUTPUT_FORMAT=json chrome-cli info)" --argjson windows "$(yabai -m query --windows --space)" '{tab_id: $tab.id, window_id: ($windows | first(.[] | select(."has-focus"))).id}')
-
-        mkdir -p "/tmp/chrome-preset/pinned-tabs/"
-        echo $json > "/tmp/chrome-preset/pinned-tabs/$position.json"
-        display-message "Pin tab $position"
-    case "focus-pinned-tab"
-        set position $argv[1]
-        set -e argv[1]
-
-        read json < "/tmp/chrome-preset/pinned-tabs/$position.json"
-
-        chrome-cli activate -t "$(jq -nr --argjson json "$json" '$json.tab_id')"
-        wm-preset focus-window-id "$(jq -nr --argjson json "$json" '$json.window_id')"
-
-        display-message "Focus tab $position"
     case "focus-tab"
         # Activate a Chrome tab and bring its window to front in a single
         # osascript call. Returns non-zero if the tab/window wasn't found
@@ -282,7 +279,7 @@ function chrome-preset
 
         chrome-cli execute "document.querySelector($(string escape "$selector")).click()"
     case "create-app"
-        mkdir -p /tmp/chrome_preset_apps
+        app-db-init
         argparse profile= -- $argv
 
         set appname $argv[1]
@@ -307,9 +304,9 @@ function chrome-preset
 
         set window_id "$_flag_window_id"
 
-        echo "$YABAI_WINDOW_ID" > "/tmp/chrome_preset_apps/$appname.windowid"
-        env OUTPUT_FORMAT=json chrome-cli info > "/tmp/chrome_preset_apps/$appname.chromeinfo";
-        echo "$appname" > "/tmp/chrome_preset_apps/$window_id.appname"
+        app-db-init
+        set chrome_info (env OUTPUT_FORMAT=json chrome-cli info | string collect)
+        sqlite3 "$CHROME_PRESET_DB" "INSERT OR REPLACE INTO apps (app_name, window_id, chrome_info) VALUES ('$(sq-escape $appname)', '$window_id', '$(sq-escape $chrome_info)');"
     case "open-in-app"
         argparse profile= -- $argv
 
@@ -319,12 +316,12 @@ function chrome-preset
         set url $argv[1]
         set -e argv[1]
 
-        set window (cat "/tmp/chrome_preset_apps/$appname.windowid")
+        set window (sqlite3 "$CHROME_PRESET_DB" "SELECT window_id FROM apps WHERE app_name = '$(sq-escape $appname)';")
 
-        if yabai-preset get-window-info "$window" >/dev/null
-            set app (cat "/tmp/chrome_preset_apps/$appname.chromeinfo")
+        if test -n "$window"; and yabai-preset get-window-info "$window" >/dev/null
+            set chrome_info (sqlite3 "$CHROME_PRESET_DB" "SELECT chrome_info FROM apps WHERE app_name = '$(sq-escape $appname)';")
 
-            chrome-cli open "$url" -t "$(jq -nr --argjson app "$app" '$app.id')"
+            chrome-cli open "$url" -t "$(jq -nr --argjson app "$chrome_info" '$app.id')"
             wm-preset focus-window-id "$window"
         else
             chrome-preset create-app --profile="$_flag_profile" "$appname" "$url"
@@ -333,12 +330,9 @@ function chrome-preset
         set appname $argv[1]
         set -e argv[1]
 
-        set path "/tmp/chrome_preset_apps/$appname.windowid"
-
-        test -f "$path"
-        and cat "$path"
-
-        return $status
+        set window_id (sqlite3 "$CHROME_PRESET_DB" "SELECT window_id FROM apps WHERE app_name = '$(sq-escape $appname)';")
+        test -n "$window_id"; or return 1
+        echo "$window_id"
     case "focus-or-create-app"
         argparse profile= enforce-url -- $argv
 
@@ -350,8 +344,8 @@ function chrome-preset
 
         if set window (chrome-preset get-app-window-id "$appname"); and yabai-preset get-window-info "$window" >/dev/null
             if set -q _flag_enforce_url
-                set app (cat "/tmp/chrome_preset_apps/$appname.chromeinfo")
-                set tab_id (jq -nr --argjson app "$app" '$app.id')
+                set chrome_info (sqlite3 "$CHROME_PRESET_DB" "SELECT chrome_info FROM apps WHERE app_name = '$(sq-escape $appname)';")
+                set tab_id (jq -nr --argjson app "$chrome_info" '$app.id')
                 set current_url (env OUTPUT_FORMAT=json chrome-cli info -t "$tab_id" | jq -r '.url')
                 if test "$current_url" != "$url"
                     chrome-cli open "$url" -t "$tab_id"
@@ -369,10 +363,9 @@ function chrome-preset
 
         set fallback
 
-        set path "/tmp/chrome_preset_apps/$app.windowid"
+        set app_window_id (sqlite3 "$CHROME_PRESET_DB" "SELECT window_id FROM apps WHERE app_name = '$(sq-escape $app)';")
 
-        if test -f "$path"
-            set app_window_id (cat "$path")
+        if test -n "$app_window_id"
 
             if set active (yabai -m query --windows --window 2>/dev/null)
                 and set active_id (jq -nr --argjson active "$active" '$active.id' 2>/dev/null)
@@ -399,18 +392,16 @@ function chrome-preset
     case "get-app-name"
         argparse window-id= -- $argv
 
-        set path "/tmp/chrome_preset_apps/$_flag_window_id.appname"
-
-        test -f "$path"
-        and cat "$path"
-
-        return $status
+        set appname (sqlite3 "$CHROME_PRESET_DB" "SELECT app_name FROM apps WHERE window_id = '$_flag_window_id';")
+        test -n "$appname"; or return 1
+        echo "$appname"
     case "cycle-profile-windows"
         argparse 'next' 'prev' -- $argv
         or return 1
 
-        set regex $argv[1]
+        set profile_name $argv[1]
         set -e argv[1]
+        set regex (string escape --style=regex "$profile_name")
 
         set direction next
         if set -q _flag_prev
@@ -420,7 +411,15 @@ function chrome-preset
         set current_id (yabai-preset query-windows --window | jq -r '.id')
         or return 1
 
-        set windows (yabai-preset list-windows --regex "$regex" | jq -r '.id' | sort -n)
+        set app_window_ids (sqlite3 "$CHROME_PRESET_DB" "SELECT window_id FROM apps;")
+
+        if contains -- "$current_id" $app_window_ids
+            osascript-preset trigger-menu-bar --app "Google Chrome" "Profiles;$profile_name"
+            return
+        end
+
+        set exclude_json (printf '%s\n' $app_window_ids | jq -Rn '[inputs | tonumber]')
+        set windows (yabai-preset list-windows --regex "$regex" | jq -r --argjson exclude "$exclude_json" 'select(.id | IN($exclude[]) | not) | .id' | sort -n)
         or return 1
 
         set count (count $windows)
