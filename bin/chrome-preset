@@ -403,7 +403,7 @@ function chrome-preset
         set app_window_ids (sqlite3 "$CHROME_PRESET_DB" "SELECT window_id FROM apps;")
 
         set exclude_json (printf '%s\n' $app_window_ids | jq -Rn '[inputs | tonumber]')
-        set windows (yabai-preset list-windows --regex "$regex" | jq -r --argjson exclude "$exclude_json" 'select(.id | IN($exclude[]) | not) | .id' | sort -n)
+        set windows (yabai-preset list-windows --regex "$regex" | jq -r --argjson exclude "$exclude_json" 'select(.id | IN($exclude[]) | not) | .id')
         or return 1
 
         test (count $windows) -gt 0; or return 1
