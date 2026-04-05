@@ -1,23 +1,23 @@
 if status --is-interactive
-	fundle plugin brgmnn/fish-docker-compose
-	fundle plugin fischerling/plugin-wd
-	fundle plugin thalesmello/theme-cmorrell.com
-	fundle plugin thalesmello/plugin-hubflow
-	fundle plugin ankitsumitg/docker-fish-completions
-	fundle plugin lgathy/google-cloud-sdk-fish-completion
-	# fundle plugin franciscolourenco/done
-	fundle plugin PatrickF1/colored_man_pages.fish
+    fundle plugin brgmnn/fish-docker-compose
+    fundle plugin fischerling/plugin-wd
+    fundle plugin thalesmello/theme-cmorrell.com
+    fundle plugin thalesmello/plugin-hubflow
+    fundle plugin ankitsumitg/docker-fish-completions
+    fundle plugin lgathy/google-cloud-sdk-fish-completion
+    # fundle plugin franciscolourenco/done
+    fundle plugin PatrickF1/colored_man_pages.fish
 
-	if not test -e "$__fish_user_data_dir/vendor_conf.d/fzf.fish"
-		fish_install_autoload
-	end
+    if not test -e "$__fish_user_data_dir/vendor_conf.d/fzf.fish"
+	fish_install_autoload
+    end
 end
 
 if status --is-interactive; or set -q IS_FIFC_COMPLETION
-	set -gx FIFC_KEYBINDING shift-tab
-	set -gx FIFC_EDITOR lvim
+    set -gx FIFC_KEYBINDING shift-tab
+    set -gx FIFC_EDITOR lvim
 
-	fundle plugin thalesmello/fifc
+    fundle plugin thalesmello/fifc
 end
 
 set -q __fundle_plugin_names && fundle init
@@ -59,38 +59,38 @@ set -xg FZF_DEFAULT_OPTS '--bind "ctrl-n:down,ctrl-p:up,ctrl-r:previous-history,
 set -xg FZF_CTRL_T_COMMAND 'ag -l'
 
 if set -q USE_WSL_CONFIG
-	eval (keychain --eval --quiet $HOME/.ssh/id_rsa)
-	set -x WSL_HOST (tail -1 /etc/resolv.conf | cut -d' ' -f2)
-	set -x DISPLAY $WSL_HOST:0
-	set -x HOST (hostname)
-	set -x HOSTNAME (hostname)
+    eval (keychain --eval --quiet $HOME/.ssh/id_rsa)
+    set -x WSL_HOST (tail -1 /etc/resolv.conf | cut -d' ' -f2)
+    set -x DISPLAY $WSL_HOST:0
+    set -x HOST (hostname)
+    set -x HOSTNAME (hostname)
 
-	if test -z "$(pgrep ssh-agent)"
-		find /tmp/ -name "ssh-*" -type d -exec rm '{}' + 2>/dev/null
-		eval $(ssh-agent -c) > /dev/null
-	else
-		set -x SSH_AGENT_PID "$(pgrep ssh-agent)"
-		set -x SSH_AUTH_SOCK "$(find '/tmp/ssh-*' -name 'agent.*')"
-	end
+    if test -z "$(pgrep ssh-agent)"
+	find /tmp/ -name "ssh-*" -type d -exec rm '{}' + 2>/dev/null
+	eval $(ssh-agent -c) > /dev/null
+    else
+	set -x SSH_AGENT_PID "$(pgrep ssh-agent)"
+	set -x SSH_AUTH_SOCK "$(find '/tmp/ssh-*' -name 'agent.*')"
+    end
 end
 
 if status --is-interactive
-	source $__fish_config_dir/iterm_integration.fish
-	if test -n "ITERM"
-		set -gx ITERM_ENABLE_SHELL_INTEGRATION_WITH_TMUX yes
-	end
+    source $__fish_config_dir/iterm_integration.fish
+    if test -n "ITERM"
+	set -gx ITERM_ENABLE_SHELL_INTEGRATION_WITH_TMUX yes
+    end
 end
 
 # Load local dotfiles fish configuration
 set -l local_fish_dir ~/.local_dotfiles/fish
 
-if test -d $local_fish_dir/functions
-    set -p fish_function_path $local_fish_dir/functions
-end
+test -d $local_fish_dir/functions
+and not contains $local_fish_dir/functions $fish_function_path
+and set -p fish_function_path $local_fish_dir/functions
 
-if test -d $local_fish_dir/completions
-    set -p fish_complete_path $local_fish_dir/completions
-end
+test -d $local_fish_dir/completions
+and not contains $local_fish_dir/completions $fish_complete_path
+and set -p fish_complete_path $local_fish_dir/completions
 
 for f in $local_fish_dir/conf.d/*.fish
     source $f
