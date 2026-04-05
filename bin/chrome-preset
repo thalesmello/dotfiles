@@ -181,13 +181,11 @@ function chrome-preset
         set app (hs-preset get-active-app)
 
         if test "$app" != "Google Chrome"; or set -q _flag_newtab
-            set extra_args
-
-            if test -n "$_flag_profile"
-                set -a extra_args "--profile-directory=$_flag_profile"
+            test -n "$_flag_profile"; and begin
+                set profile_name (chrome-preset get-profile-name "$_flag_profile")
+                chrome-preset focus-profile-window "$profile_name"
             end
-
-            open -n -a "Google Chrome" --args "$url" $extra_args
+            chrome-preset new-tab "$url"
         else if set -q _flag_newtabright
             test -n "$_flag_profile"; and chrome-preset focus-profile "$_flag_profile"
 
