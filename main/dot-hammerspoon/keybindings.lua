@@ -466,8 +466,6 @@ default:bindOnce(hyperShift, "z", "Focus Obsidian", function() launchOrFocus("Ob
 default:bindOnce(hyper, "s", "Toggle YouTube Music", function() Preset.alternateApp("YouTube Music", {hide = true}) end)
 default:bindOnce(hyper, "e", "Focus Chrome", function() launchOrFocus("Google Chrome") end)
 default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() launchOrFocus("Google Chrome") end)
-default:bindOnce(hyper, "a", "Focus Timery", function() launchOrFocus("Timery") end)
-default:bindOnce(hyperShift, "a", "Focus Pomofocus", function() launchOrFocus("Pomofocus") end)
 default:bindOnce(hyperShift, "z", "Focus Google Keep", function() launchOrFocus("Google Keep") end)
 default:conditionalBindOnce(hyperShift, "w", "Focus Zoom/Meet", {
   {cond = function() return isProcessRunning("zoom.us") end, function() launchOrFocus("zoom.us") end},
@@ -486,7 +484,8 @@ default:conditionalBindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", {
   end},
 })
 
-default:bindOnce(hyperShift, "f", "Focus WhatsApp (shift)", function() launchOrFocus("WhatsApp") end)
+default:bindOnce(hyperShift, "f", "Focus Finder", function() launchOrFocus("Finder") end)
+default:bindOnce(hyperShift, "d", "Focus WhatsApp (shift)", function() launchOrFocus("WhatsApp") end)
 default:bindOnce(hyperShift, "g", "Focus Messages", function() launchOrFocus("Messages") end)
 default:bindOnce(hyperShift, "q", "Focus Activity Monitor", function() launchOrFocus("Activity Monitor") end)
 
