@@ -3,7 +3,7 @@ local a = require("async")
 local M = {}
 
 -- Prevent hs.task objects from being garbage-collected before their callback fires
-local _runningTasks = {}
+_G._runningTasks = {}
 
 local keyMap = {
   ctrl = "ctrl", shift = "shift", alt = "alt", cmd = "cmd",
@@ -62,7 +62,7 @@ local function buildMenuBarScript(processName, items)
     esc(processName), chain)
 end
 
-function M.triggerMenuBar(path)
+function M.triggerMenuBarSync(path)
   local app = hs.application.frontmostApplication()
   if not app then return false end
 
@@ -77,7 +77,7 @@ function M.triggerMenuBar(path)
   return ok
 end
 
-M.triggerMenuBarAsync = a.wrap(function(path, callback)
+M.triggerMenuBar = function(path, callback)
   local app = hs.application.frontmostApplication()
   if not app then callback(false); return end
 
@@ -95,7 +95,9 @@ M.triggerMenuBarAsync = a.wrap(function(path, callback)
   end, {"-e", script})
   _runningTasks[task] = true
   task:start()
-end)
+end
+
+M.triggerMenuBarAsync = a.wrap(M.triggerMenuBar)
 
 function M.getActiveApp()
   local app = hs.application.frontmostApplication()
