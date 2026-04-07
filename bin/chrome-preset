@@ -398,10 +398,16 @@ function chrome-preset
         set -e argv[1]
         set regex (string escape --style=regex "$profile_name")
 
+        set current_display (yabai-preset get-focused-display)
+        test -n "$current_display"; or set current_display 0
+
         set app_window_ids (sqlite3 "$CHROME_PRESET_DB" "SELECT window_id FROM apps;")
 
         set exclude_json (printf '%s\n' $app_window_ids | jq -Rn '[inputs | tonumber]')
-        set windows (yabai-preset list-windows --regex "$regex" | jq -r --argjson exclude "$exclude_json" 'select(.id | IN($exclude[]) | not) | .id')
+        set windows (yabai-preset list-windows --regex "$regex" | jq -s -r --argjson exclude "$exclude_json" --argjson current_display "$current_display" '
+            [.[] | select(.id | IN($exclude[]) | not)]
+            | sort_by(if .display == $current_display then 0 else 1 end)
+            | .[].id')
         or return 1
 
         test (count $windows) -gt 0; or return 1

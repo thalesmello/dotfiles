@@ -892,6 +892,8 @@ function yabai-preset
         end
 
         yabai -m window "$window" --focus
+    case "get-focused-display"
+        yabai -m query --windows --window 2>/dev/null | jq -r '.display // empty'
     case "list-windows"
         argparse 'regex=' -- $argv
         or return 1

@@ -12,7 +12,8 @@
       "Bash(fish -n /Users/thalesmello/src/dotfiles/bin/yabai-preset && echo \"yabai-preset OK\" || echo \"yabai-preset FAIL\")",
       "Bash(fish -n /Users/thalesmello/src/dotfiles/bin/aerospace-preset && echo \"aerospace-preset OK\" || echo \"aerospace-preset FAIL\")",
       "Skill(google-docs)",
-      "Bash(sqlite3 --version)"
+      "Bash(sqlite3 --version)",
+      "Bash(yabai *)"
     ]
   }
 }
