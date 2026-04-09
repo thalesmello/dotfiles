@@ -151,6 +151,16 @@ return {
             })
         end,
         config = function (_, opts)
+            -- Monkeypatch: guard against nil/invalid nodes in injection parsing (markdown code blocks).
+            -- TODO: Remove after migrating nvim-treesitter to main branch or upgrading Neovim.
+            local orig_get_range = vim.treesitter.get_range
+            vim.treesitter.get_range = function(node, source, metadata)
+                if not node or not node.range then
+                    return { 0, 0, 0, 0, 0, 0 }
+                end
+                return orig_get_range(node, source, metadata)
+            end
+
             require('nvim-treesitter.configs').setup(opts)
 
             local group = vim.api.nvim_create_augroup("TreesitterAutogroup", {
@@ -168,7 +178,10 @@ return {
                 })
             end
 
-            local ts_repeat_move = require("nvim-treesitter.textobjects.repeatable_move")
+            local ok, ts_repeat_move = pcall(require, "nvim-treesitter.textobjects.repeatable_move")
+            if not ok then
+                ts_repeat_move = require("nvim-treesitter-textobjects.repeatable_move")
+            end
 
             vim.keymap.set({ "n", "x" }, ";", ts_repeat_move.repeat_last_move)
             vim.keymap.set({ "n", "x" }, ",", ts_repeat_move.repeat_last_move_opposite)
@@ -216,11 +229,18 @@ return {
                     end
 
                     if not vim.b.treesitter_full_buffer_parse then
-                        parser:parse(true)
+                        local parse_ok = pcall(parser.parse, parser, true)
+                        if not parse_ok then
+                            return
+                        end
                         vim.b.treesitter_full_buffer_parse = true
                     end
 
-                    local filetype = parser:language_for_range({line, 0, line, 0}):lang()
+                    local lang_ok, lang_tree = pcall(parser.language_for_range, parser, {line, 0, line, 0})
+                    if not lang_ok or not lang_tree then
+                        return
+                    end
+                    local filetype = lang_tree:lang()
 
                     if filetype ~= prev_filetype then
                         vim.b.treesitter_prev_filetype = filetype
