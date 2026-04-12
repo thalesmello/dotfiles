@@ -4315,6 +4315,8 @@
 	<integer>5</integer>
 	<key>TabViewType</key>
 	<integer>0</integer>
+	<key>TmuxDashboardLimit</key>
+	<integer>100</integer>
 	<key>TmuxSyncClipboard</key>
 	<false/>
 	<key>TmuxUnpauseAutomatically</key>
