@@ -237,7 +237,6 @@ function chrome-preset
             set pos " at after tab (active tab index)"
         end
 
-        echo (count $argv) $argv
         set props ""
         if test (count $argv) -ge 1
             set url $argv[1]
