@@ -55,7 +55,7 @@ return {
          },
          {
             "<leader>.",
-            "<cmd>update | ClaudeCodeSend<cr><cmd>lua vim.schedule(vim.cmd.ClaudeCodeFocus)<cr>",
+            "<cmd>update | ClaudeCodeSend<cr><cmd>lua vim.schedule(function () if require('claudecode').is_claude_connected() then vim.cmd.ClaudeCodeFocus() end end)<cr>",
             mode = {"v"},
             desc = "Add file",
          },
