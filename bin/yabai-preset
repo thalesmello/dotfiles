@@ -266,13 +266,27 @@ function yabai-preset
         set display $argv[1]
         set -e argv[1]
 
-        if test "$display" = north -o "$display" = west
-            set fallback prev
-        else
-            set fallback next
+        set target_display_index (yabai -m query --displays --display "$display" 2>/dev/null | jq -r '.index')
+
+        if test -z "$target_display_index"
+            if test "$display" = north -o "$display" = west
+                set target_display_index (yabai -m query --displays --display prev 2>/dev/null | jq -r '.index')
+            else
+                set target_display_index (yabai -m query --displays --display next 2>/dev/null | jq -r '.index')
+            end
         end
 
-        yabai -m display --focus "$display" || yabai -m display --focus "$fallback"
+        if test -z "$target_display_index"
+            return 1
+        end
+
+        set win_id (yabai -m query --windows | jq -r "[.[] | select(.display == $target_display_index and .\"is-visible\" == true and .\"is-sticky\" == false)] | first | .id // empty")
+
+        if test -n "$win_id"
+            yabai -m window --focus "$win_id"
+        else
+            yabai -m display --focus "$display"
+        end
     case "smart-move-window-to-next-display"
         set win (yabai -m query --windows --window | jq '.id')
 
