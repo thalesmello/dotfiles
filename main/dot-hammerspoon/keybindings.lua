@@ -581,6 +581,10 @@ chromeAppModal:bind({"cmd"}, "t", function()
   end
 end)
 
+chromeAppModal:bind({"cmd"}, "b", function()
+  task({"chrome-preset", "toggle-tabbar"})
+end)
+
 ---------------------------------------------------------------
 -- SERVICE MODE bindings
 ---------------------------------------------------------------
