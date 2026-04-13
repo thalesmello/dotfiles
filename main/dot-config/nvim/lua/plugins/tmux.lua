@@ -18,7 +18,7 @@ return {
             window_icon = window_icon .. "#{?window_bell_flag,,}"
             empty_icon = "#{==:" .. window_icon .. ",}"
             window_icon = "#{?" .. empty_icon .. ",," .. window_icon .. " }"
-            tab_name_generator = window_icon .. "#{b:pane_current_path}/"
+            tab_name_generator = window_icon .. "#{?#{||:#{==:#W,fish},#{==:#W,claude}},#{b:pane_current_path}/,#W}"
 
             vim.g.tmuxline_preset = {
                 a = {' #(whoami)', '#S'},
