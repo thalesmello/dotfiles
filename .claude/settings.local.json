@@ -14,8 +14,7 @@
       "Skill(google-docs)",
       "Bash(sqlite3 --version)",
       "Bash(yabai *)",
-      "Bash(ps -eo pid,rss,command)",
-      "Bash(perl -ne ':*)"
+      "Bash(ps *)"
     ]
   }
 }
