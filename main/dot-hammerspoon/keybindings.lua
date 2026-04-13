@@ -577,7 +577,7 @@ chromeAppModal:bind({"cmd"}, "t", function()
       end tell
     ]]})
   else
-    Preset.triggerMenuBar("Tab;New Tab to the Right")
+    task({"chrome-preset", "new-tab", "--right"})
   end
 end)
 
