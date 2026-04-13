@@ -14,7 +14,8 @@
       "Skill(google-docs)",
       "Bash(sqlite3 --version)",
       "Bash(yabai *)",
-      "Bash(ps *)"
+      "Bash(ps *)",
+      "Bash(gh api:*)"
     ]
   }
 }
