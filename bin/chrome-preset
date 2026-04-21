@@ -409,10 +409,12 @@ function chrome-preset
             | .[].id')
         or return 1
 
-        test (count $windows) -gt 0; or return 1
-
-        yabai-preset focus-window-id "$windows[1]"
-        and osascript-preset trigger-menu-bar --app "Google Chrome" "Profiles;$profile_name"
+        if test (count $windows) -gt 0
+            yabai-preset focus-window-id "$windows[1]"
+        else
+            osascript-preset show-or-hide-app --only-show "Google Chrome"
+            and osascript-preset trigger-menu-bar --app "Google Chrome" "Profiles;$profile_name"
+        end
     case "cycle-profile-windows"
         argparse 'next' 'prev' -- $argv
         or return 1
