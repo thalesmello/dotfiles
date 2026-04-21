@@ -35,7 +35,7 @@
 	<key>AutoComposer</key>
 	<false/>
 	<key>AutoHideTmuxClientSession</key>
-	<true/>
+	<false/>
 	<key>ClickToSelectCommand</key>
 	<false/>
 	<key>ConservativeURLGuessing</key>
