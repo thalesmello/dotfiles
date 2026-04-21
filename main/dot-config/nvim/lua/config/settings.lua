@@ -58,7 +58,9 @@ vim.opt.backup = false
 -- And again.
 vim.opt.writebackup = false
 -- Keep swap files in one location
-vim.opt.directory={ vim.env.HOME .. "/.config/nvim/tmp//", "." }
+-- vim.opt.directory={ vim.env.HOME .. "/.config/nvim/tmp//", "." }
+-- Disable swap files -- I might not need them on modern systems anymore
+vim.opt.swapfile = false
 
 -- Always diff using vertical mode
 vim.opt.diffopt:append { "vertical" }

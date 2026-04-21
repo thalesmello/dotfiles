@@ -79,19 +79,19 @@ end
 
 M.triggerMenuBar = function(path, callback)
   local app = hs.application.frontmostApplication()
-  if not app then callback(false); return end
+  if not app then if callback then callback(false) end; return end
 
   local items = {}
   for item in path:gmatch("[^;]+") do
     items[#items + 1] = item:match("^%s*(.-)%s*$")
   end
-  if #items == 0 then callback(false); return end
+  if #items == 0 then if callback then callback(false) end; return end
 
   local script = buildMenuBarScript(app:name(), items)
   local task
   task = hs.task.new("/usr/bin/osascript", function(exitCode)
     _runningTasks[task] = nil
-    callback(exitCode == 0)
+    if callback then callback(exitCode == 0) end
   end, {"-e", script})
   _runningTasks[task] = true
   task:start()
