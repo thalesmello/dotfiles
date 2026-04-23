@@ -22,6 +22,42 @@ function iterm-preset
                 hide hotkey window current window
             end tell
         '
+    case "new-split"
+        argparse 'v/vertical' 'h/horizontal' 'c/cmd=' -- $argv
+        or return 1
+
+        if set -q _flag_vertical
+            set direction "vertically"
+        else
+            set direction "horizontally"
+        end
+
+        if set -q _flag_cmd
+            set escaped_cmd (string replace -a '\\' '\\\\' -- $_flag_cmd | string replace -a '"' '\\"')
+            osascript -e '
+                tell application "iTerm"
+                    set oldIds to unique ID of every session of current tab of current window
+                    try
+                        tell current session of current window to tell (split '"$direction"' with default profile) to write text "exec fish -c \"'"$escaped_cmd"'\""
+                    on error
+                        set newIds to unique ID of every session of current tab of current window
+                        repeat with newId in newIds
+                            if newId is not in oldIds then
+                                repeat with s in every session of current tab of current window
+                                    if unique ID of s is (newId as text) then
+                                        tell s to write text "exec fish -c \"'"$escaped_cmd"'\""
+                                        exit repeat
+                                    end if
+                                end repeat
+                                exit repeat
+                            end if
+                        end repeat
+                    end try
+                end tell
+            '
+        else
+            osascript -e "tell application \"iTerm\" to tell current session of current window to split $direction with default profile"
+        end
     case "*"
         return
     end
