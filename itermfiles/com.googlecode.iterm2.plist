@@ -38,6 +38,10 @@
 	<false/>
 	<key>ClickToSelectCommand</key>
 	<false/>
+	<key>ClosingTmuxTabKillsTmuxWindows</key>
+	<true/>
+	<key>ClosingTmuxTabKillsTmuxWindows_selection</key>
+	<integer>1</integer>
 	<key>ConservativeURLGuessing</key>
 	<false/>
 	<key>CopySelection</key>
@@ -1623,6 +1627,8 @@
 				<key>Red Component</key>
 				<real>1</real>
 			</dict>
+			<key>Badge Text</key>
+			<string></string>
 			<key>Blinking Cursor</key>
 			<false/>
 			<key>Blur</key>
@@ -1976,6 +1982,8 @@
 			<key>Option Key Sends</key>
 			<integer>1</integer>
 			<key>Prompt Before Closing 2</key>
+			<false/>
+			<key>Prompt Path Click Opens Navigator</key>
 			<false/>
 			<key>Restrict Alternate Mouse Scroll to Vertical</key>
 			<false/>
@@ -3095,6 +3103,8 @@
 				<key>Red Component</key>
 				<real>1</real>
 			</dict>
+			<key>Badge Text</key>
+			<string></string>
 			<key>Blinking Cursor</key>
 			<false/>
 			<key>Blur</key>
