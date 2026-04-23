@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/fish --no-config
+#!/usr/bin/env -S fish --no-config
 set -x PATH /opt/homebrew/bin (status dirname) $PATH
 
 function iterm-preset
@@ -61,13 +61,22 @@ function iterm-preset
     case "nvim-open-in-tab"
         set -l file $argv[1]
         set -l servers (nvim --headless -c 'lua for _, s in ipairs(vim.fn.serverlist({peer=true})) do print(s) end' -c 'qa!' 2>&1)
-        set -l tab_ttys (osascript -e 'tell application "iTerm2" to get tty of every session of current tab of current window' | string split ", " | string trim)
+
+        if test -n "$TMUX"
+            set tab_ttys (tmux list-panes -F '#{pane_tty}')
+        else
+            set tab_ttys (osascript -e 'tell application "iTerm2" to get tty of every session of current tab of current window' | string split ", " | string trim)
+        end
 
         set -l found_server
         for server in $servers
             set -l nvim_pid (string match -r 'nvim\.(\d+)\.' "$server")[2]
             if test -n "$nvim_pid"
-                set -l nvim_tty (lsof -p "$nvim_pid" 2>/dev/null | string match -r '/dev/ttys\d+' | head -1)
+                if test -d /proc/$nvim_pid/fd
+                    set nvim_tty (readlink /proc/$nvim_pid/fd/0 2>/dev/null)
+                else
+                    set nvim_tty (lsof -p "$nvim_pid" 2>/dev/null | string match -r '/dev/ttys\d+' | head -1)
+                end
                 if contains -- "$nvim_tty" $tab_ttys
                     set found_server "$server"
                     break

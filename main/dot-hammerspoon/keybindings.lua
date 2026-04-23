@@ -15,6 +15,20 @@ do
   end
 end
 
+-- Capture inherited environment and augment PATH so #!/usr/bin/env finds fish etc.
+_G._TaskEnv = {}
+do
+  local _taskEnv = _G._TaskEnv
+  local envOutput = hs.execute("/usr/bin/env")
+  if envOutput then
+    for line in envOutput:gmatch("[^\n]+") do
+      local k, v = line:match("^([^=]+)=(.*)")
+      if k then _taskEnv[k] = v end
+    end
+  end
+  _taskEnv.PATH = table.concat(_PathDirs, ":")
+end
+
 -- Memoized binary resolution
 local _resolvedPaths = {}
 local function resolvePath(binaryName)
@@ -57,7 +71,7 @@ local function task (args, callback)
     if stdOut and #stdOut > 0 then util.log("task stdout:", stdOut) end
     if stdErr and #stdErr > 0 then util.log("task stderr:", stdErr) end
     if callback then callback(exitCode == 0, (stdOut or ""):gsub("%s+$", "")) end
-  end, taskArgs)
+  end, _TaskEnv, taskArgs)
 
   _RunningTasks[t] = true
   t:start()
