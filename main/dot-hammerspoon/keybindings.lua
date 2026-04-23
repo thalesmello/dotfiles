@@ -71,7 +71,8 @@ local function task (args, callback)
     if stdOut and #stdOut > 0 then util.log("task stdout:", stdOut) end
     if stdErr and #stdErr > 0 then util.log("task stderr:", stdErr) end
     if callback then callback(exitCode == 0, (stdOut or ""):gsub("%s+$", "")) end
-  end, _TaskEnv, taskArgs)
+  end, taskArgs)
+  t:setEnvironment(_TaskEnv)
 
   _RunningTasks[t] = true
   t:start()

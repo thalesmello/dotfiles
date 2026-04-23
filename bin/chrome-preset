@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/fish --no-config
+#!/usr/bin/env -S fish --no-config
 set -x PATH /opt/homebrew/bin (status dirname) $PATH
 set -g CHROME_PRESET_DB "$HOME/.local/share/chrome-preset/apps.db"
 
