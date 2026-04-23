@@ -58,6 +58,29 @@ function iterm-preset
         else
             osascript -e "tell application \"iTerm\" to tell current session of current window to split $direction with default profile"
         end
+    case "nvim-open-in-tab"
+        set -l file $argv[1]
+        set -l servers (nvim --headless -c 'lua for _, s in ipairs(vim.fn.serverlist({peer=true})) do print(s) end' -c 'qa!' 2>&1)
+        set -l tab_ttys (osascript -e 'tell application "iTerm2" to get tty of every session of current tab of current window' | string split ", " | string trim)
+
+        set -l found_server
+        for server in $servers
+            set -l nvim_pid (string match -r 'nvim\.(\d+)\.' "$server")[2]
+            if test -n "$nvim_pid"
+                set -l nvim_tty (lsof -p "$nvim_pid" 2>/dev/null | string match -r '/dev/ttys\d+' | head -1)
+                if contains -- "$nvim_tty" $tab_ttys
+                    set found_server "$server"
+                    break
+                end
+            end
+        end
+
+        if test -n "$found_server"
+            nvim --server "$found_server" --remote "$file"
+        else
+            nvim "$file"
+        end
+
     case "*"
         return
     end
