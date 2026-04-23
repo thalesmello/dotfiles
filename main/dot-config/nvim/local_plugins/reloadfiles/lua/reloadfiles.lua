@@ -2,20 +2,38 @@ local M = {}
 
 local timer = nil
 
-local function check_visible_files()
+local function visible_filenames()
     local seen = {}
+    local names = {}
 
-    for _, win in ipairs(vim.api.nvim_list_wins()) do
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
         local buf = vim.api.nvim_win_get_buf(win)
 
-        if not seen[buf] then
-            seen[buf] = true
-            local name = vim.api.nvim_buf_get_name(buf)
-
-            if name ~= "" then
-                vim.cmd("checktime " .. vim.fn.fnameescape(name))
-            end
+        if seen[buf] then
+            goto continue
         end
+
+        seen[buf] = true
+
+        if vim.bo[buf].buftype ~= "" then
+            goto continue
+        end
+
+        local name = vim.api.nvim_buf_get_name(buf)
+
+        if name ~= "" then
+            table.insert(names, name)
+        end
+
+        ::continue::
+    end
+
+    return names
+end
+
+local function check_visible_files()
+    for _, name in ipairs(visible_filenames()) do
+        vim.cmd("checktime " .. vim.fn.fnameescape(name))
     end
 end
 
