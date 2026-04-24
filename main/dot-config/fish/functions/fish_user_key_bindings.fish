@@ -14,4 +14,7 @@ function fish_user_key_bindings
   bind -M insert \cg 'set -l file (fzf | string escape --style script); and history append "nvim $file"; and nvim $file' repaint
   bind -M visual -m insert i end-selection repaint-mode
   bind -M insert ctrl-n down-or-search
+
+  test -f $__LOCAL_FISH_DIR/key_bindings.fish
+  and source $__LOCAL_FISH_DIR/key_bindings.fish
 end

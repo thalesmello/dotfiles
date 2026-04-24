@@ -82,16 +82,16 @@ if status --is-interactive
 end
 
 # Load local dotfiles fish configuration
-set -l local_fish_dir ~/.local_dotfiles/fish
+set -gx __LOCAL_FISH_DIR ~/.local_dotfiles/fish
 
-test -d $local_fish_dir/functions
-and not contains $local_fish_dir/functions $fish_function_path
-and set -p fish_function_path $local_fish_dir/functions
+test -d $__LOCAL_FISH_DIR/functions
+and not contains $__LOCAL_FISH_DIR/functions $fish_function_path
+and set -p fish_function_path $__LOCAL_FISH_DIR/functions
 
-test -d $local_fish_dir/completions
-and not contains $local_fish_dir/completions $fish_complete_path
-and set -p fish_complete_path $local_fish_dir/completions
+test -d $__LOCAL_FISH_DIR/completions
+and not contains $__LOCAL_FISH_DIR/completions $fish_complete_path
+and set -p fish_complete_path $__LOCAL_FISH_DIR/completions
 
-for f in $local_fish_dir/conf.d/*.fish
+for f in $__LOCAL_FISH_DIR/conf.d/*.fish
     source $f
 end
