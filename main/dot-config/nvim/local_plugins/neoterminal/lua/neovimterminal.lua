@@ -135,7 +135,8 @@ vim.api.nvim_create_autocmd("TermOpen", {
     vim.opt_local.scrollback = 10000
     vim.cmd.startinsert()
 
-    vim.keymap.set({"n", "v"}, "<cr>", vim.cmd.startinsert, {buffer = true})
+    vim.keymap.set("n", "<cr>", vim.cmd.startinsert, {buffer = true})
+    vim.keymap.set({"v", "s"}, "<cr>", "<esc>i", {buffer = true, remap = false})
   end
 })
 
