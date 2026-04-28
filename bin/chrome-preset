@@ -17,6 +17,23 @@ function sq-escape
     string replace -a "'" "''" $argv
 end
 
+# Browser windows (BrowserNativeWidgetWindow) have "- Google Chrome -" in the title.
+# Native app windows (NativeWidgetMacNSWindow) don't.
+function get-profile-regex
+    argparse 'browser-only' 'app-only' -- $argv
+    or return 1
+
+    set escaped "$(string escape --style=regex "$argv[1]")\$"
+
+    if set -q _flag_browser_only
+        echo "- Google Chrome - $escaped"
+    else if set -q _flag_app_only
+        echo "^(?!.*- Google Chrome -).*$escaped"
+    else
+        echo "$escaped"
+    end
+end
+
 function chrome-preset
     set preset $argv[1]
     set -e argv[1]
@@ -395,17 +412,13 @@ function chrome-preset
     case "focus-profile-window"
         set profile_name $argv[1]
         set -e argv[1]
-        set regex (string escape --style=regex "$profile_name")
+        set regex (get-profile-regex --browser-only "$profile_name")
 
         set current_display (yabai-preset get-focused-display)
         test -n "$current_display"; or set current_display 0
 
-        set app_window_ids (sqlite3 "$CHROME_PRESET_DB" "SELECT window_id FROM apps;")
-
-        set exclude_json (printf '%s\n' $app_window_ids | jq -Rn '[inputs | tonumber]')
-        set windows (yabai-preset list-windows --regex "$regex" | jq -s -r --argjson exclude "$exclude_json" --argjson current_display "$current_display" '
-            [.[] | select(.id | IN($exclude[]) | not)]
-            | sort_by(if .display == $current_display then 0 else 1 end)
+        set windows (yabai-preset list-windows --regex "$regex" | jq -s -r --argjson current_display "$current_display" '
+            sort_by(if .display == $current_display then 0 else 1 end)
             | .[].id')
         or return 1
 
@@ -421,7 +434,7 @@ function chrome-preset
 
         set profile_name $argv[1]
         set -e argv[1]
-        set regex (string escape --style=regex "$profile_name")
+        set regex (get-profile-regex --browser-only "$profile_name")
 
         set direction next
         if set -q _flag_prev
@@ -438,8 +451,7 @@ function chrome-preset
             return
         end
 
-        set exclude_json (printf '%s\n' $app_window_ids | jq -Rn '[inputs | tonumber]')
-        set windows (yabai-preset list-windows --regex "$regex" | jq -r --argjson exclude "$exclude_json" 'select(.id | IN($exclude[]) | not) | .id' | sort -n)
+        set windows (yabai-preset list-windows --regex "$regex" | jq -r '.id' | sort -n)
         or return 1
 
         set count (count $windows)
