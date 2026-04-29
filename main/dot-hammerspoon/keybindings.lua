@@ -386,21 +386,25 @@ local isFloating = isFloatingTerminal
 default:conditionalBind({"ctrl", "cmd"}, "h", {
   {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"alt", "cmd"}, "left") end},
   {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "tab") end},
+  {app = "iTerm2", function() task({"iterm-preset", "focus-pane-with-fallback", "left"}) end},
   {function() hs.eventtap.keyStroke({"alt", "cmd"}, "left") end},
 })
 default:conditionalBind({"ctrl", "cmd"}, "j", {
   {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"alt", "cmd"}, "down") end},
   {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "9") end},
+  {app = "iTerm2", function() task({"iterm-preset", "focus-pane-with-fallback", "down"}) end},
   {function() hs.eventtap.keyStroke({"alt", "cmd"}, "down") end},
 })
 default:conditionalBind({"ctrl", "cmd"}, "k", {
   {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"alt", "cmd"}, "up") end},
   {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "1") end},
+  {app = "iTerm2", function() task({"iterm-preset", "focus-pane-with-fallback", "up"}) end},
   {function() hs.eventtap.keyStroke({"alt", "cmd"}, "up") end},
 })
 default:conditionalBind({"ctrl", "cmd"}, "l", {
   {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"alt", "cmd"}, "right") end},
   {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl"}, "tab") end},
+  {app = "iTerm2", function() task({"iterm-preset", "focus-pane-with-fallback", "right"}) end},
   {function() hs.eventtap.keyStroke({"alt", "cmd"}, "right") end},
 })
 

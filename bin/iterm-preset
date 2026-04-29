@@ -90,6 +90,40 @@ function iterm-preset
             nvim "$file"
         end
 
+    case "focus-pane-with-fallback"
+        set direction $argv[1]
+
+        switch "$direction"
+        case "left"
+            set key_code 123
+            set fallback_key "h"
+        case "right"
+            set key_code 124
+            set fallback_key "l"
+        case "down"
+            set key_code 125
+            set fallback_key "j"
+        case "up"
+            set key_code 126
+            set fallback_key "k"
+        case "*"
+            return 1
+        end
+
+        echo (osascript -e 'tell application "iTerm2" to get ((count of sessions of current tab of current window) as text) & " " & (id of current session of current window)') | read session_count old_session
+
+        if test "$session_count" -le 1
+            osascript-preset send-keys ctrl meta $fallback_key
+        else
+
+            osascript-preset send-keys cmd alt $direction
+
+            set new_session (osascript -e 'tell application "iTerm2" to get id of current session of current window')
+
+            if test "$old_session" = "$new_session"
+                osascript-preset send-keys ctrl meta $fallback_key
+            end
+        end
     case "*"
         return
     end

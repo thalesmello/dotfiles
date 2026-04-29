@@ -12,7 +12,7 @@ function osascript-preset
 
         for arg in $argv
             switch "$arg"
-                case ctrl shift alt cmd fn
+                case ctrl shift alt meta cmd fn
                     set -a modifiers $arg
                 case '*'
                     set key $arg
@@ -30,16 +30,25 @@ function osascript-preset
         for m in $modifiers
             switch "$m"
                 case cmd
-                    set flags (math "$flags + 1048576")   # kCGEventFlagMaskCommand
-                case alt
-                    set flags (math "$flags + 524288")     # kCGEventFlagMaskAlternate
+                    set flags (math "$flags + 1048584")   # kCGEventFlagMaskCommand + NX_DEVICELCMDKEYMASK
+                case alt meta
+                    set flags (math "$flags + 524320")     # kCGEventFlagMaskAlternate + NX_DEVICELALTKEYMASK
                 case ctrl
-                    set flags (math "$flags + 262144")     # kCGEventFlagMaskControl
+                    set flags (math "$flags + 262145")     # kCGEventFlagMaskControl + NX_DEVICELCTRLKEYMASK
                 case shift
-                    set flags (math "$flags + 131072")     # kCGEventFlagMaskShift
+                    set flags (math "$flags + 131074")     # kCGEventFlagMaskShift + NX_DEVICELSHIFTKEYMASK
                 case fn
                     set flags (math "$flags + 8388608")    # kCGEventFlagMaskSecondaryFn
             end
+        end
+
+        # Arrow keys require fn + numericpad flags to be recognized
+        switch "$key"
+            case left right up down
+                if not contains fn $modifiers
+                    set flags (math "$flags + 8388608")    # kCGEventFlagMaskSecondaryFn
+                end
+                set flags (math "$flags + 2097152")        # kCGEventFlagMaskNumericPad
         end
 
         /usr/bin/osascript -l JavaScript -e '
