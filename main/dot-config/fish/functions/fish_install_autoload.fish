@@ -15,5 +15,7 @@ function fish_install_autoload
     end
 
     fzf --fish > "$__fish_user_data_dir/vendor_conf.d/fzf.fish"
-    try init > "$__fish_user_data_dir/vendor_functions.d/try.fish"
+    if command -q ruby; and ruby -e 'exit(Gem::Version.new(RUBY_VERSION) > Gem::Version.new("3.1") ? 0 : 1)' 2>/dev/null
+        try init > "$__fish_user_data_dir/vendor_functions.d/try.fish"
+    end
 end
