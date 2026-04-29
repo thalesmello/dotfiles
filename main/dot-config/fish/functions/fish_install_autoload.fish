@@ -1,5 +1,6 @@
 function fish_install_autoload
     mkdir -p "$__fish_user_data_dir/vendor_conf.d/"
+    mkdir -p "$__fish_user_data_dir/vendor_functions.d/"
 
     # We list possible brew locations, in order of precedence
     set brews '/opt/homebrew/bin/original-brew' '/opt/homebrew/bin/brew' '/home/linuxbrew/.linuxbrew/bin/brew'
@@ -14,4 +15,5 @@ function fish_install_autoload
     end
 
     fzf --fish > "$__fish_user_data_dir/vendor_conf.d/fzf.fish"
+    try init > "$__fish_user_data_dir/vendor_functions.d/try.fish"
 end
