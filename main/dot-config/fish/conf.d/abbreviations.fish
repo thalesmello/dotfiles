@@ -35,4 +35,4 @@ abbr bdm betterdisplaycli perform --originalName "(osascript -e 'tell applicatio
 abbr o ooo --model phi4
 abbr sb sketchybar
 abbr cc claude
-abbr !dg --position anywhere -- --dangerously-skip-permissions
+abbr cx claude --dangerously-skip-permissions
