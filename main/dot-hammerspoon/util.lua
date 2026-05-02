@@ -164,7 +164,7 @@ function M.log(...)
   local args = table.pack(...)
   local parts = {}
   for i = 1, args.n do
-    parts[i] = M.smartInspect(args[i])
+    parts[i] = type(args[i]) == "string" and args[i] or M.smartInspect(args[i])
   end
   logger:d('\n' .. table.concat(parts, " "))
 end

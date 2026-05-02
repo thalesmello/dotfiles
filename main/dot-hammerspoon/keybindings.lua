@@ -64,7 +64,12 @@ local function task (args, callback)
   local resolvedPath = resolvePath(args[1])
   if not resolvedPath then if callback then callback(false, "") end; return end
   local taskArgs = {table.unpack(args, 2)}
-  util.log("task:", resolvedPath, table.unpack(taskArgs))
+  local quotedPath = resolvedPath:find("%s") and string.format("%q", resolvedPath) or resolvedPath
+  local quotedArgs = {}
+  for i, a in ipairs(taskArgs) do
+    quotedArgs[i] = a:find("%s") and string.format("%q", a) or a
+  end
+  util.log("task:", quotedPath, table.unpack(quotedArgs))
   local t
   t = hs.task.new(resolvedPath, function(exitCode, stdOut, stdErr)
     _RunningTasks[t] = nil
@@ -291,19 +296,12 @@ _G.CmdTabTap = hs.eventtap.new(
       -- First press: custom behavior
       local focusedWin = hs.window.focusedWindow()
       local focusedWinId = focusedWin and focusedWin:id()
-      util.log("before", {
-        FloatingTerminalJustHidden = FloatingTerminalJustHidden,
-        WindowAfterHide = WindowAfterHide,
-        focusedWin = focusedWin
-      })
       if FloatingTerminalJustHidden and WindowAfterHide and focusedWinId == WindowAfterHide then
-        util.log("recover terminal window")
         -- Terminal was just hidden and user hasn't switched windows → reopen
         FloatingTerminalJustHidden = false
         WindowAfterHide = nil
         hs.eventtap.keyStroke(hyper, "/", 0)
       elseif isFloatingTerminal() then
-        util.log("Hiding terminal window")
         -- Only hide hotkey window when floating terminal is actually focused
         FloatingTerminalJustHidden = true
         WindowAfterHide = nil
@@ -312,16 +310,10 @@ _G.CmdTabTap = hs.eventtap.new(
         local win = hs.window.focusedWindow()
         WindowAfterHide = win and win:id()
       else
-        util.log("focus recent")
         FloatingTerminalJustHidden = false
         WindowAfterHide = nil
         task({"wm-preset", "focus-recent"})
       end
-      util.log("after", {
-        FloatingTerminalJustHidden = FloatingTerminalJustHidden,
-        WindowAfterHide = WindowAfterHide,
-        focusedWin = hs.window.focusedWindow()
-      })
       return true  -- consume the event
     else
       -- Second+ press: let native App Switcher handle it
