@@ -36,3 +36,4 @@ abbr o ooo --model phi4
 abbr sb sketchybar
 abbr cc claude
 abbr cx claude --dangerously-skip-permissions
+abbr cxz claude --dangerously-skip-permissions --continue
