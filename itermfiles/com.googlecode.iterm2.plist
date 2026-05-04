@@ -1980,7 +1980,7 @@
 			<key>Normal Font</key>
 			<string>InconsolataGoNFM 15</string>
 			<key>Option Key Sends</key>
-			<integer>1</integer>
+			<integer>2</integer>
 			<key>Prompt Before Closing 2</key>
 			<false/>
 			<key>Prompt Path Click Opens Navigator</key>
@@ -2746,7 +2746,7 @@
 			<key>Normal Font</key>
 			<string>InconsolataGoNFM 15</string>
 			<key>Option Key Sends</key>
-			<integer>1</integer>
+			<integer>2</integer>
 			<key>Prompt Before Closing 2</key>
 			<false/>
 			<key>Right Option Key Sends</key>
@@ -3447,7 +3447,7 @@
 			<key>Normal Font</key>
 			<string>InconsolataGoNFM 21</string>
 			<key>Option Key Sends</key>
-			<integer>1</integer>
+			<integer>2</integer>
 			<key>Prompt Before Closing 2</key>
 			<false/>
 			<key>Right Option Key Sends</key>
@@ -4155,7 +4155,7 @@
 			<key>Normal Font</key>
 			<string>InconsolataGoNFM 15</string>
 			<key>Option Key Sends</key>
-			<integer>1</integer>
+			<integer>2</integer>
 			<key>Prompt Before Closing 2</key>
 			<false/>
 			<key>Restrict Alternate Mouse Scroll to Vertical</key>
