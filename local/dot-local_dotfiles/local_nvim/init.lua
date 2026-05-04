@@ -26,10 +26,10 @@ vim.g.projectionist_heuristics = vim.tbl_deep_extend(
                 dispatch= "sketchybar --reload",
             },
             ["src/dotfiles/main/nvim/init.lua"] = {
-                alternate="src/dotfiles/local/dot-local_dotfiles/local_nvim/init.lua",
+                alternate="src/dotfiles/local/dot-local_dotfiles/nvim/init.lua",
                 type= "nviminit",
             },
-            ["src/dotfiles/local/dot-local_dotfiles/local_nvim/init.lua"] = {
+            ["src/dotfiles/local/dot-local_dotfiles/nvim/init.lua"] = {
                 alternate = "src/dotfiles/main/nvim/init.lua",
                 type = "localnvim",
             },

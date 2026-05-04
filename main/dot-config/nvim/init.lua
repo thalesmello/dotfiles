@@ -29,7 +29,7 @@ local spec = {
     { import = "plugins" },
 }
 
-local local_plugins_file = vim.fn.expand("$HOME/.local_dotfiles/local_nvim/lazy_plugins.lua")
+local local_plugins_file = vim.fn.expand("$HOME/.local_dotfiles/nvim/lazy_plugins.lua")
 if vim.loop.fs_stat(local_plugins_file) then
     vim.list_extend(spec, dofile(local_plugins_file))
 end
@@ -72,10 +72,10 @@ vim.api.nvim_create_autocmd("User", {
 
         local local_dotfiles = vim.fn.expand("$HOME/.local_dotfiles")
         if vim.loop.fs_stat(local_dotfiles) then
-            package.path = local_dotfiles .. "/local_nvim/?.lua;"
-                .. local_dotfiles .. "/local_nvim/?/init.lua;"
+            package.path = local_dotfiles .. "/nvim/?.lua;"
+                .. local_dotfiles .. "/nvim/?/init.lua;"
                 .. package.path
-            dofile(local_dotfiles .. "/local_nvim/init.lua")
+            dofile(local_dotfiles .. "/nvim/init.lua")
         end
     end,
 })
