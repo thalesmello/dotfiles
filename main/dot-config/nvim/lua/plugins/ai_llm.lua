@@ -55,9 +55,23 @@ return {
          },
          {
             "<leader>.",
-            "<cmd>update | ClaudeCodeSend<cr><cmd>lua vim.schedule(function () if require('claudecode').is_claude_connected() then vim.cmd.ClaudeCodeFocus() end end)<cr>",
+            function()
+               vim.cmd.update()
+               vim.cmd.ClaudeCodeSend()
+               vim.schedule(function()
+                  local bufnr = require("claudecode.terminal").get_active_terminal_bufnr()
+
+                  if not bufnr then return end
+
+                  local info = unpack(vim.fn.getbufinfo(bufnr))
+
+                  if not info or #info.windows == 0 then return end
+
+                  vim.cmd.ClaudeCodeOpen()
+               end)
+            end,
             mode = {"v"},
-            desc = "Add file",
+            desc = "Send to Claude and focus",
          },
          {
             "<leader>.",
