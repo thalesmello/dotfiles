@@ -15,7 +15,9 @@
       "Bash(sqlite3 --version)",
       "Bash(yabai *)",
       "Bash(ps *)",
-      "Bash(gh api:*)"
+      "Bash(gh api:*)",
+      "Bash(pandoc *)",
+      "Bash(/usr/bin/osascript *)"
     ]
   }
 }
