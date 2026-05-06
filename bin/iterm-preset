@@ -33,7 +33,7 @@ function iterm-preset
         end
 
         if set -q _flag_cmd
-            set escaped_cmd (string replace -a '\\' '\\\\' -- $_flag_cmd | string replace -a '"' '\\"')
+            set escaped_cmd (string replace -a '\\' '\\\\' -- $_flag_cmd | string replace -a '$' '\\\\$' | string replace -a '"' '\\\\\\"')
             osascript -e '
                 tell application "iTerm"
                     set oldIds to unique ID of every session of current tab of current window
