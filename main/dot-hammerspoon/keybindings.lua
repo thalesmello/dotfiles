@@ -374,55 +374,50 @@ default:conditionalBindOnce(hyperShift, "l", "Swap/Snap East", {
 
 -- Ctrl+Cmd HJKL (per-app, Chrome tab nav)
 local isFloating = isFloatingTerminal
+local function isiTerm()
+  return isFloatingTerminal() or frontAppName() == "iTerm2"
+end
 
 default:conditionalBind({"ctrl", "cmd"}, "h", {
-  {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"alt", "cmd"}, "left") end},
+  {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "left"}) end},
   {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "tab") end},
-  {app = "iTerm2", function() task({"iterm-preset", "focus-pane-with-fallback", "left"}) end},
   {function() hs.eventtap.keyStroke({"alt", "cmd"}, "left") end},
 })
 default:conditionalBind({"ctrl", "cmd"}, "j", {
-  {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"alt", "cmd"}, "down") end},
+  {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "down"}) end},
   {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "9") end},
-  {app = "iTerm2", function() task({"iterm-preset", "focus-pane-with-fallback", "down"}) end},
   {function() hs.eventtap.keyStroke({"alt", "cmd"}, "down") end},
 })
 default:conditionalBind({"ctrl", "cmd"}, "k", {
-  {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"alt", "cmd"}, "up") end},
+  {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "up"}) end},
   {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "1") end},
-  {app = "iTerm2", function() task({"iterm-preset", "focus-pane-with-fallback", "up"}) end},
   {function() hs.eventtap.keyStroke({"alt", "cmd"}, "up") end},
 })
 default:conditionalBind({"ctrl", "cmd"}, "l", {
-  {app = "Google Chrome", cond = isFloating, function() hs.eventtap.keyStroke({"alt", "cmd"}, "right") end},
+  {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "right"}) end},
   {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl"}, "tab") end},
-  {app = "iTerm2", function() task({"iterm-preset", "focus-pane-with-fallback", "right"}) end},
   {function() hs.eventtap.keyStroke({"alt", "cmd"}, "right") end},
 })
 
 -- Shift+Ctrl+Cmd HJKL (per-app)
 default:conditionalBind({"shift", "ctrl", "cmd"}, "h", {
-  {cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "left") end},
+  {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "left") end},
   {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "pageup") end},
-  {app = "iTerm2", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "left") end},
   {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "left") end},
 })
 default:conditionalBind({"shift", "ctrl", "cmd"}, "j", {
-  {cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "down") end},
+  {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "down") end},
   {app = "Google Chrome", function() task({"osascript-preset", "send-keys", "ctrl", "shift", "j"}) end},
-  {app = "iTerm2", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "down") end},
   {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "down") end},
 })
 default:conditionalBind({"shift", "ctrl", "cmd"}, "k", {
-  {cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "up") end},
+  {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "up") end},
   {app = "Google Chrome", function() task({"osascript-preset", "send-keys", "ctrl", "shift", "k"}) end},
-  {app = "iTerm2", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "up") end},
   {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "up") end},
 })
 default:conditionalBind({"shift", "ctrl", "cmd"}, "l", {
-  {cond = isFloating, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "right") end},
+  {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "right") end},
   {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "pagedown") end},
-  {app = "iTerm2", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "right") end},
   {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "right") end},
 })
 
