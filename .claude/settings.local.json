@@ -17,7 +17,8 @@
       "Bash(ps *)",
       "Bash(gh api:*)",
       "Bash(pandoc *)",
-      "Bash(/usr/bin/osascript *)"
+      "Bash(/usr/bin/osascript *)",
+      "Bash(nvim --version)"
     ]
   }
 }

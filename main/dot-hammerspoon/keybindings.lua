@@ -583,7 +583,7 @@ chromeAppModal:bind({"cmd"}, "t", function()
   end
 end)
 
-chromeAppModal:bind({"cmd"}, "b", function()
+chromeAppModal:bind({"ctrl", "cmd"}, "b", function()
   task({"chrome-preset", "toggle-tabbar"})
 end)
 
