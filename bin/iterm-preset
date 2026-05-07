@@ -33,6 +33,7 @@ function iterm-preset
         end
 
         if set -q _flag_cmd
+            set _flag_cmd "$_flag_cmd; or read -P 'Press Enter to continue...'"
             set escaped_cmd (string replace -a '\\' '\\\\' -- $_flag_cmd | string replace -a '$' '\\\\$' | string replace -a '"' '\\\\\\"')
             osascript -e '
                 tell application "iTerm"
@@ -59,14 +60,23 @@ function iterm-preset
             osascript -e "tell application \"iTerm\" to tell current session of current window to split $direction with default profile"
         end
     case "nvim-open-in-tab"
-        set -l file $argv[1]
+        function __exit_on_error -a message
+            echo "Error: $message" >&2
+            exit 1
+        end
+
+        set -l file (realpath $argv[1] 2>/dev/null)
+        or __exit_on_error "file not found: $argv[1]"
+
         set -l servers (nvim --headless -c 'lua for _, s in ipairs(vim.fn.serverlist({peer=true})) do print(s) end' -c 'qa!' 2>&1)
+        or __exit_on_error "failed to list nvim servers"
 
         if test -n "$TMUX"
             set tab_ttys (tmux list-panes -F '#{pane_tty}')
         else
             set tab_ttys (osascript -e 'tell application "iTerm2" to get tty of every session of current tab of current window' | string split ", " | string trim)
         end
+        or __exit_on_error "failed to get tab ttys"
 
         set -l found_server
         for server in $servers
@@ -89,6 +99,7 @@ function iterm-preset
         else
             nvim "$file"
         end
+        or __exit_on_error "nvim exited with an error"
 
     case "focus-pane-with-fallback"
         set direction $argv[1]
