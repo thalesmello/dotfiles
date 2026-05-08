@@ -104,11 +104,33 @@ function M.getActiveApp()
   return app and app:name() or ""
 end
 
+function M.getFocusedWindowApp()
+  local win = hs.window.focusedWindow()
+  if not win then return "" end
+  local app = win:application()
+  return app and app:name() or ""
+end
+
 function M.getSelectedText()
   local elem = hs.axuielement.systemWideElement()
+
   local focused = elem:attributeValue("AXFocusedUIElement")
+
   if focused then
-    return focused:attributeValue("AXSelectedText") or ""
+    local text = focused:attributeValue("AXSelectedText")
+    if text and text ~= "" then
+      return text
+    end
+  end
+
+  local oldContents = hs.pasteboard.getContents() or ""
+  hs.eventtap.keyStroke({"cmd"}, "c")
+  hs.timer.usleep(100000)
+  local text = hs.pasteboard.getContents() or ""
+  hs.pasteboard.setContents(oldContents)
+
+  if text ~= "" and text ~= oldContents then
+    return text
   end
   return ""
 end

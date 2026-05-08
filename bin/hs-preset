@@ -31,6 +31,9 @@ function hs-preset
     case "get-active-app"
         hs -c "Preset.getActiveApp()"
 
+    case "get-focused-window-app"
+        hs -c "Preset.getFocusedWindowApp()"
+
     case "get-selected-text"
         hs -c "Preset.getSelectedText()"
 
