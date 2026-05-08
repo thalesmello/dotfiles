@@ -17,6 +17,18 @@ function sq-escape
     string replace -a "'" "''" $argv
 end
 
+function is-browser-window
+    set title (yabai-preset query-windows --window | jq -r '.title')
+    or return 1
+    string match -q -- '*- Google Chrome -*' "$title"
+end
+
+function is-app-window
+    set title (yabai-preset query-windows --window | jq -r '.title')
+    or return 1
+    not string match -q -- '*- Google Chrome -*' "$title"
+end
+
 # Browser windows (BrowserNativeWidgetWindow) have "- Google Chrome -" in the title.
 # Native app windows (NativeWidgetMacNSWindow) don't.
 function get-profile-regex
@@ -197,7 +209,7 @@ function chrome-preset
 
         set app (hs-preset get-active-app)
 
-        if test "$app" != "Google Chrome"; or set -q _flag_newtab
+        if test "$app" != "Google Chrome"; or set -q _flag_newtab; or is-app-window
             test -n "$_flag_profile"; and begin
                 set profile_name (chrome-preset get-profile-name "$_flag_profile")
                 chrome-preset focus-profile-window "$profile_name"
