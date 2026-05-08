@@ -59,14 +59,17 @@ function iterm-preset
         else
             osascript -e "tell application \"iTerm\" to tell current session of current window to split $direction with default profile"
         end
-    case "nvim-open-in-tab"
+    case "nvim-tab-remote"
         function __exit_on_error -a message
             echo "Error: $message" >&2
             exit 1
         end
 
-        set -l file (realpath $argv[1] 2>/dev/null)
-        or __exit_on_error "file not found: $argv[1]"
+        if set -q NVIM
+            nvim --server "$NVIM" $argv
+            or __exit_on_error "nvim --server exited with an error"
+            return
+        end
 
         set -l servers (nvim --headless -c 'lua for _, s in ipairs(vim.fn.serverlist({peer=true})) do print(s) end' -c 'qa!' 2>&1)
         or __exit_on_error "failed to list nvim servers"
@@ -95,11 +98,20 @@ function iterm-preset
         end
 
         if test -n "$found_server"
-            nvim --server "$found_server" --remote "$file"
+            nvim --server "$found_server" $argv
         else
-            nvim "$file"
+            nvim $argv
         end
         or __exit_on_error "nvim exited with an error"
+
+    case "nvim-open-in-tab"
+        set -l file (realpath $argv[1] 2>/dev/null)
+        or begin
+            echo "Error: file not found: $argv[1]" >&2
+            exit 1
+        end
+
+        iterm-preset nvim-tab-remote --remote "$file"
 
     case "focus-pane-with-fallback"
         set direction $argv[1]
