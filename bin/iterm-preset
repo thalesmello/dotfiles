@@ -105,7 +105,7 @@ function iterm-preset
         or __exit_on_error "nvim exited with an error"
 
     case "nvim-open-in-tab"
-        set -l file (realpath $argv[1] 2>/dev/null)
+        set -l file (realpath "$(eval echo $argv[1])" 2>/dev/null)
         or begin
             echo "Error: file not found: $argv[1]" >&2
             exit 1
