@@ -77,7 +77,7 @@ function iterm-preset
         if test -n "$TMUX"
             set tab_ttys (tmux list-panes -F '#{pane_tty}')
         else
-            set tab_ttys (osascript -e 'tell application "iTerm2" to get tty of every session of current tab of current window' | string split ", " | string trim)
+            set tab_ttys (osascript -e 'tell application "iTerm" to get tty of every session of current tab of current window' | string split ", " | string trim)
         end
         or __exit_on_error "failed to get tab ttys"
 
