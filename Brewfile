@@ -123,3 +123,4 @@ mas "Tot", id: 1491071483
 mas "Xcode", id: 497799835
 brew "multimarkdown"
 cask "claude-code"
+brew "tree-sitter-cli"
