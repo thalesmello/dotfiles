@@ -62,6 +62,67 @@ local function close_on_exit(bufnr, _, status)
   end
 end
 
+local function find_dcs_end(data, from)
+  local scan = from
+  while scan < #data do
+    if data:byte(scan) == 0x1B and data:byte(scan + 1) == 0x5C then
+      local esc_count = 0
+      local p = scan - 1
+      while p >= from and data:byte(p) == 0x1B do
+        esc_count = esc_count + 1
+        p = p - 1
+      end
+      if esc_count % 2 == 0 then
+        return scan + 1
+      end
+    end
+    scan = scan + 1
+  end
+  return nil
+end
+
+local function create_dcs_filter()
+  local pending = ''
+
+  return function(data)
+    pending = pending .. data
+    local output = {}
+    local pos = 1
+
+    while pos <= #pending do
+      local dcs_start = pending:find('\027P', pos, true)
+      if not dcs_start then
+        output[#output + 1] = pending:sub(pos)
+        break
+      end
+
+      if dcs_start > pos then
+        output[#output + 1] = pending:sub(pos, dcs_start - 1)
+      end
+
+      local dcs_end = find_dcs_end(pending, dcs_start + 2)
+      if not dcs_end then
+        pending = pending:sub(dcs_start)
+        return table.concat(output)
+      end
+
+      local body = pending:sub(dcs_start + 2, dcs_end - 2)
+      if body:match('^tmux;') then
+        local inner = body:sub(6)
+        local decoded = inner:gsub('\027\027', '\027')
+        output[#output + 1] = decoded
+      else
+        output[#output + 1] = pending:sub(dcs_start, dcs_end)
+      end
+
+      pos = dcs_end + 1
+    end
+
+    pending = ''
+    return table.concat(output)
+  end
+end
+
 local function start_terminal(opts)
   local split = opts.split
   local cmd = opts.cmd or TERMINAL_CMD
@@ -76,8 +137,51 @@ local function start_terminal(opts)
   end
 
   local bufnr = vim.fn.bufnr('')
+  local job_id
+  local filter = create_dcs_filter()
 
-  vim.fn.jobstart(cmd, { on_exit = vim_utils.partial(close_on_exit, bufnr), term = true, cwd = path})
+  local term_chan = vim.api.nvim_open_term(bufnr, {
+    on_input = function(_, _, _, data)
+      if job_id then
+        vim.fn.chansend(job_id, data)
+      end
+    end,
+  })
+
+  job_id = vim.fn.jobstart(cmd, {
+    pty = true,
+    cwd = path,
+    width = vim.api.nvim_win_get_width(0),
+    height = vim.api.nvim_win_get_height(0),
+    on_stdout = function(_, data)
+      local raw = table.concat(data, '\n')
+      if #raw == 0 then return end
+      local filtered = filter(raw)
+      if #filtered > 0 then
+        vim.api.nvim_chan_send(term_chan, filtered)
+      end
+    end,
+    on_exit = function(_, status)
+      job_id = nil
+      close_on_exit(bufnr, nil, status)
+    end,
+  })
+
+  vim.api.nvim_create_autocmd('WinResized', {
+    group = au_group,
+    callback = function()
+      if not job_id then return end
+      local win = vim.fn.bufwinid(bufnr)
+      if win == -1 then return end
+      for _, w in ipairs(vim.v.event.windows) do
+        if w == win then
+          pcall(vim.fn.jobresize, job_id, vim.api.nvim_win_get_width(win), vim.api.nvim_win_get_height(win))
+          break
+        end
+      end
+    end,
+  })
+
   vim_utils.feedkeys([[<c-\><c-n>i]])
 end
 
@@ -146,7 +250,6 @@ vim.api.nvim_create_autocmd('TermRequest', {
   group = au_group,
   callback = function(args)
     local seq = args.data.sequence
-    -- Forward only notification (OSC 9) and clipboard copy (OSC 52) sequences
     if seq:match('^\027]9;') or seq:match('^\027]52;') then
       local terminator = args.data.terminator or '\027\\'
       io.stdout:write(seq .. terminator)
