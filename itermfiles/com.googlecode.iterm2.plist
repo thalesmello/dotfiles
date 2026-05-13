@@ -4428,6 +4428,8 @@
 	<false/>
 	<key>SplitPaneDimmingAmount</key>
 	<real>0.34846271996359218</real>
+	<key>SshIntegrationForURLs</key>
+	<false/>
 	<key>StatusBarPosition</key>
 	<integer>0</integer>
 	<key>TabStyleWithAutomaticOption</key>
@@ -4437,7 +4439,7 @@
 	<key>TmuxDashboardLimit</key>
 	<integer>100</integer>
 	<key>TmuxSyncClipboard</key>
-	<false/>
+	<true/>
 	<key>TmuxUnpauseAutomatically</key>
 	<true/>
 	<key>TmuxUsesDedicatedProfile</key>
