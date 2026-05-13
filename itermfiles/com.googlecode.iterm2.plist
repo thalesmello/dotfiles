@@ -38,6 +38,8 @@
 	<false/>
 	<key>ClickToSelectCommand</key>
 	<false/>
+	<key>CloseBookmarksWindowAfterOpening</key>
+	<true/>
 	<key>ClosingTmuxTabKillsTmuxWindows</key>
 	<true/>
 	<key>ClosingTmuxTabKillsTmuxWindows_selection</key>
@@ -4419,7 +4421,7 @@
 	<key>SeparateStatusBarsPerPane</key>
 	<false/>
 	<key>ShowFullScreenTabBar</key>
-	<false/>
+	<true/>
 	<key>ShowPaneTitles</key>
 	<false/>
 	<key>ShowPaneTitlesEvenIfOnlyOnePane</key>
