@@ -123,6 +123,64 @@ local function create_dcs_filter()
   end
 end
 
+local M = {}
+
+function M.open_filtered_terminal(cmd, opts)
+  opts = opts or {}
+  local bufnr = vim.api.nvim_get_current_buf()
+  local win = vim.api.nvim_get_current_win()
+  local job_id
+  local filter = create_dcs_filter()
+
+  local term_chan = vim.api.nvim_open_term(bufnr, {
+    on_input = function(_, _, _, data)
+      if job_id then
+        vim.fn.chansend(job_id, data)
+      end
+    end,
+  })
+
+  job_id = vim.fn.jobstart(cmd, {
+    pty = true,
+    env = opts.env,
+    cwd = opts.cwd,
+    width = vim.api.nvim_win_get_width(win),
+    height = vim.api.nvim_win_get_height(win),
+    on_stdout = function(_, data)
+      local raw = table.concat(data, '\n')
+      if #raw == 0 then return end
+      local filtered = filter(raw)
+      if #filtered > 0 then
+        vim.api.nvim_chan_send(term_chan, filtered)
+      end
+    end,
+    on_exit = function(job_id_arg, exit_code)
+      job_id = nil
+      if opts.on_exit then
+        opts.on_exit(job_id_arg, exit_code)
+      end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd('WinResized', {
+    callback = function()
+      if not job_id or vim.fn.bufexists(bufnr) == 0 then
+        return true
+      end
+      local w = vim.fn.bufwinid(bufnr)
+      if w == -1 then return end
+      for _, resized in ipairs(vim.v.event.windows) do
+        if resized == w then
+          pcall(vim.fn.jobresize, job_id, vim.api.nvim_win_get_width(w), vim.api.nvim_win_get_height(w))
+          break
+        end
+      end
+    end,
+  })
+
+  return job_id
+end
+
 local function start_terminal(opts)
   local split = opts.split
   local cmd = opts.cmd or TERMINAL_CMD
@@ -137,48 +195,11 @@ local function start_terminal(opts)
   end
 
   local bufnr = vim.fn.bufnr('')
-  local job_id
-  local filter = create_dcs_filter()
 
-  local term_chan = vim.api.nvim_open_term(bufnr, {
-    on_input = function(_, _, _, data)
-      if job_id then
-        vim.fn.chansend(job_id, data)
-      end
-    end,
-  })
-
-  job_id = vim.fn.jobstart(cmd, {
-    pty = true,
+  M.open_filtered_terminal(cmd, {
     cwd = path,
-    width = vim.api.nvim_win_get_width(0),
-    height = vim.api.nvim_win_get_height(0),
-    on_stdout = function(_, data)
-      local raw = table.concat(data, '\n')
-      if #raw == 0 then return end
-      local filtered = filter(raw)
-      if #filtered > 0 then
-        vim.api.nvim_chan_send(term_chan, filtered)
-      end
-    end,
     on_exit = function(_, status)
-      job_id = nil
       close_on_exit(bufnr, nil, status)
-    end,
-  })
-
-  vim.api.nvim_create_autocmd('WinResized', {
-    group = au_group,
-    callback = function()
-      if not job_id then return end
-      local win = vim.fn.bufwinid(bufnr)
-      if win == -1 then return end
-      for _, w in ipairs(vim.v.event.windows) do
-        if w == win then
-          pcall(vim.fn.jobresize, job_id, vim.api.nvim_win_get_width(win), vim.api.nvim_win_get_height(win))
-          break
-        end
-      end
     end,
   })
 
@@ -318,3 +339,5 @@ function NvimTermWriteOperation(mode)
     vim.cmd.echoerr("No channel opened last. Navigate to a Term first!")
   end
 end
+
+return M

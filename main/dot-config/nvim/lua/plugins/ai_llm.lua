@@ -30,6 +30,12 @@ return {
          --    }
          -- end
 
+         if vim.env.TMUX then
+            opts.terminal = {
+               provider = require('claudecode_neoterm_provider'),
+            }
+         end
+
          return opts
       end,
       keys = {
