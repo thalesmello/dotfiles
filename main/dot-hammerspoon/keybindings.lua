@@ -250,6 +250,7 @@ local goto_mode = createModal("Go To", "Go To: ")
 local invoke    = createModal("Invoke", "Invoke: ")
 local resize    = createModal("Resize", "")
 local restart   = createModal("Restart", "Restart: ")
+local repin     = createModal("Repin", "Repin: ")
 
 ---------------------------------------------------------------
 -- Local config
@@ -703,6 +704,7 @@ restart:bindOnce(hyper, "m", "Restart Mouseless", function() hs.alert.show("Rest
 restart:bindOnce(hyper, "v", "Restart NVIM Ghost", function() hs.alert.show("Restart NVIM Ghost"); fish("neovim-ghost kill; sleep 2; and neovim-ghost start --spawn") end)
 restart:bindOnce(hyper, "k", "Restart Karabiner", function() hs.alert.show("Restart Karabiner"); fish('launchctl kickstart -k gui/(id -u)/org.pqrs.service.agent.karabiner_console_user_server') end)
 restart:bindOnce(hyper, "h", "Restart Hammerspoon", function() hs.alert.show("Restarting Hammerspoon"); hs.reload() end)
+restart:bindOnce(hyper, "p", "Enter Repin Mode", function() repin:enter() end)
 restart:conditionalBindOnce(hyper, "s", "Toggle AeroSpace", {
   {cond = function() return isProcessRunning("AeroSpace") end, function()
     hs.alert.show("Killing AeroSpace")
@@ -714,6 +716,11 @@ restart:conditionalBindOnce(hyper, "s", "Toggle AeroSpace", {
     task({"open", "-a", "AeroSpace"})
   end},
 })
+
+---------------------------------------------------------------
+-- REPIN MODE bindings
+---------------------------------------------------------------
+
 
 ---------------------------------------------------------------
 -- CHROME MODE bindings
@@ -776,6 +783,7 @@ local ctx = {
   invoke = invoke,
   resize = resize,
   restart = restart,
+  repin = repin,
   hyper = hyper,
   hyperShift = hyperShift,
   registerBinding = registerBinding,
