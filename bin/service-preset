@@ -40,7 +40,7 @@ function _sp_parse_toml -S
     set _sp_service_folder (path dirname "$toml_path")
     set _sp_name ""
     set _sp_description ""
-    set _sp_command ""
+    set _sp_executable ""
     set _sp_mode "daemon"
     set _sp_interval ""
     set _sp_working_directory ""
@@ -118,8 +118,8 @@ function _sp_parse_toml -S
                         set _sp_name (_sp_expand_vars "$value")
                     case description
                         set _sp_description (_sp_expand_vars "$value")
-                    case command
-                        set _sp_command (_sp_expand_vars "$value")
+                    case executable
+                        set _sp_executable (_sp_expand_vars "$value")
                     case mode
                         set _sp_mode "$value"
                     case interval
@@ -172,9 +172,32 @@ function _sp_write_file
     end
 end
 
-function _sp_generate_plist -S
+function _sp_wrapper_path
+    echo "$_SP_LOG_BASE/$argv[1]/run.sh"
+end
+
+function _sp_generate_wrapper -S
     set -l name $argv[1]
     set -l log_dir (_sp_log_dir "$name")
+    set -l log_file "$log_dir/$name.log"
+
+    echo '#!/bin/bash'
+    echo "LOG_FILE=\"$log_file\""
+    echo 'mkdir -p "$(dirname "$LOG_FILE")"'
+    echo ''
+    echo 'timestamp() {'
+    echo '    while IFS= read -r line; do'
+    echo '        printf '\''%s %s %s\n'\'' "$(date '\''+%Y-%m-%dT%H:%M:%S'\'')" "$1" "$line"'
+    echo '    done >> "$LOG_FILE"'
+    echo '}'
+    echo ''
+    echo "$_sp_executable"' > >(timestamp STDOUT) 2> >(timestamp STDERR)'
+    echo 'wait'
+end
+
+function _sp_generate_plist -S
+    set -l name $argv[1]
+    set -l wrapper (_sp_wrapper_path "$name")
 
     set -l path_parts
     for d in $_sp_path_dirs
@@ -190,7 +213,7 @@ function _sp_generate_plist -S
     echo "    <key>Label</key><string>com.service-preset.$name</string>"
     echo "    <key>ProgramArguments</key>"
     echo "    <array>"
-    echo "        <string>$_sp_command</string>"
+    echo "        <string>$wrapper</string>"
     echo "    </array>"
 
     if test "$_sp_mode" = daemon
@@ -203,9 +226,6 @@ function _sp_generate_plist -S
     if test -n "$_sp_working_directory"
         echo "    <key>WorkingDirectory</key><string>$_sp_working_directory</string>"
     end
-
-    echo "    <key>StandardOutPath</key><string>$log_dir/$name.out.log</string>"
-    echo "    <key>StandardErrorPath</key><string>$log_dir/$name.err.log</string>"
 
     echo "    <key>EnvironmentVariables</key>"
     echo "    <dict>"
@@ -222,7 +242,7 @@ end
 
 function _sp_generate_systemd_service -S
     set -l name $argv[1]
-    set -l log_dir (_sp_log_dir "$name")
+    set -l wrapper (_sp_wrapper_path "$name")
 
     set -l path_parts
     for d in $_sp_path_dirs
@@ -241,7 +261,7 @@ function _sp_generate_systemd_service -S
     else
         echo "Type=oneshot"
     end
-    echo "ExecStart=$_sp_command"
+    echo "ExecStart=$wrapper"
     if test -n "$_sp_working_directory"
         echo "WorkingDirectory=$_sp_working_directory"
     end
@@ -250,8 +270,6 @@ function _sp_generate_systemd_service -S
         set -l env_val (eval echo \$_sp_env_$env_key)
         echo "Environment=\"$env_key=$env_val\""
     end
-    echo "StandardOutput=append:$log_dir/$name.out.log"
-    echo "StandardError=append:$log_dir/$name.err.log"
 
     if test "$_sp_mode" = daemon
         echo ""
@@ -358,9 +376,15 @@ function _sp_install_service -S
     set -l name $argv[1]
     set -l os (_sp_get_os)
     set -l log_dir (_sp_log_dir "$name")
+    set -l wrapper (_sp_wrapper_path "$name")
 
     _sp_exec mkdir -p "$log_dir"
-    _sp_exec chmod +x "$_sp_command"
+    _sp_exec chmod +x "$_sp_executable"
+
+    _sp_generate_wrapper "$name" | _sp_write_file "$wrapper"
+    if test "$_SP_DRY_RUN" != 1
+        command chmod +x "$wrapper"
+    end
 
     switch "$os"
         case macos
@@ -437,8 +461,13 @@ function _sp_help
     echo "  list                    List all services and their status"
     echo "  install <name|--all>    Install a service (or all)"
     echo "  uninstall <name|--all>  Uninstall a service (or all)"
+    echo "  start <name|--all>      Start a service"
+    echo "  stop <name|--all>       Stop a service"
+    echo "  restart <name|--all>    Restart a service"
     echo "  status <name|--all>     Show service status"
-    echo "  logs <name>             Show service logs"
+    echo "  run <name>              Run the service command once"
+    echo "  logs <name> [--follow]  Show service logs"
+    echo "  create <name>           Create a new service definition"
     echo "  orphans [--uninstall]   Find/remove orphaned native services"
     echo "  help                    Show this help"
     echo ""
@@ -555,6 +584,111 @@ function service-preset
                 echo "Uninstalled $name" >&2
             end
 
+        case start
+            argparse 'all' 'dry-run' -- $argv
+            or return 1
+            if set -q _flag_dry_run
+                set -g _SP_DRY_RUN 1
+            end
+
+            set -l names
+            if set -q _flag_all
+                set names (_sp_list_service_dirs)
+            else
+                set names $argv
+            end
+
+            if test (count $names) -eq 0
+                echo "service-preset start: specify a service name or --all" >&2
+                return 1
+            end
+
+            set -l os (_sp_get_os)
+            for name in $names
+                if not _sp_is_installed "$name"
+                    echo "service-preset: $name is not installed" >&2
+                    continue
+                end
+                switch "$os"
+                    case macos
+                        set -l uid (id -u)
+                        set -l label (_sp_label "$name")
+                        _sp_exec launchctl kickstart "gui/$uid/$label"
+                    case linux
+                        _sp_exec systemctl --user start "service-preset.$name.service"
+                end
+            end
+
+        case stop
+            argparse 'all' 'dry-run' -- $argv
+            or return 1
+            if set -q _flag_dry_run
+                set -g _SP_DRY_RUN 1
+            end
+
+            set -l names
+            if set -q _flag_all
+                set names (_sp_list_service_dirs)
+            else
+                set names $argv
+            end
+
+            if test (count $names) -eq 0
+                echo "service-preset stop: specify a service name or --all" >&2
+                return 1
+            end
+
+            set -l os (_sp_get_os)
+            for name in $names
+                if not _sp_is_installed "$name"
+                    echo "service-preset: $name is not installed" >&2
+                    continue
+                end
+                switch "$os"
+                    case macos
+                        set -l uid (id -u)
+                        set -l label (_sp_label "$name")
+                        _sp_exec launchctl kill SIGTERM "gui/$uid/$label"
+                    case linux
+                        _sp_exec systemctl --user stop "service-preset.$name.service"
+                end
+            end
+
+        case restart
+            argparse 'all' 'dry-run' -- $argv
+            or return 1
+            if set -q _flag_dry_run
+                set -g _SP_DRY_RUN 1
+            end
+
+            set -l names
+            if set -q _flag_all
+                set names (_sp_list_service_dirs)
+            else
+                set names $argv
+            end
+
+            if test (count $names) -eq 0
+                echo "service-preset restart: specify a service name or --all" >&2
+                return 1
+            end
+
+            set -l os (_sp_get_os)
+            for name in $names
+                if not _sp_is_installed "$name"
+                    echo "service-preset: $name is not installed" >&2
+                    continue
+                end
+                switch "$os"
+                    case macos
+                        set -l uid (id -u)
+                        set -l label (_sp_label "$name")
+                        _sp_exec launchctl kickstart -k "gui/$uid/$label"
+                    case linux
+                        _sp_exec systemctl --user restart "service-preset.$name.service"
+                end
+            end
+
         case status
             argparse 'all' 'dry-run' -- $argv
             or return 1
@@ -599,7 +733,25 @@ function service-preset
                 echo ""
             end
 
+        case run
+            if test (count $argv) -eq 0
+                echo "service-preset run: specify a service name" >&2
+                return 1
+            end
+
+            set -l name $argv[1]
+            set -l toml "$_SP_CONFIG_DIR/$name/service.toml"
+            if not test -f "$toml"
+                echo "service-preset: $toml not found" >&2
+                return 1
+            end
+            _sp_parse_toml "$toml"
+            exec $_sp_executable
+
         case logs
+            argparse 'f/follow' -- $argv
+            or return 1
+
             if test (count $argv) -eq 0
                 echo "service-preset logs: specify a service name" >&2
                 return 1
@@ -607,26 +759,62 @@ function service-preset
 
             set -l name $argv[1]
             set -l log_dir (_sp_log_dir "$name")
+            set -l log_file "$log_dir/$name.log"
 
-            if not test -d "$log_dir"
-                echo "service-preset: no logs found at $log_dir" >&2
+            if not test -f "$log_file"
+                echo "service-preset: no logs found at $log_file" >&2
                 return 1
             end
 
-            echo "=== stdout: $log_dir/$name.out.log ===" >&2
-            if test -f "$log_dir/$name.out.log"
-                command tail -n 50 "$log_dir/$name.out.log"
+            if set -q _flag_follow
+                command tail -f "$log_file"
             else
-                echo "(empty)" >&2
+                command tail -n 50 "$log_file"
             end
 
-            echo "" >&2
-            echo "=== stderr: $log_dir/$name.err.log ===" >&2
-            if test -f "$log_dir/$name.err.log"
-                command tail -n 50 "$log_dir/$name.err.log"
-            else
-                echo "(empty)" >&2
+        case create
+            argparse 'mode=' -- $argv
+            or return 1
+
+            if test (count $argv) -eq 0
+                echo "service-preset create: specify a service name" >&2
+                return 1
             end
+
+            set -l name $argv[1]
+            set -l svc_dir "$_SP_CONFIG_DIR/$name"
+
+            if test -f "$svc_dir/service.toml"
+                echo "service-preset: $svc_dir/service.toml already exists" >&2
+                return 1
+            end
+
+            set -l mode "daemon"
+            if set -q _flag_mode
+                set mode "$_flag_mode"
+            end
+
+            command mkdir -p "$svc_dir"
+
+            set -l interval_line ""
+            if test "$mode" = scheduled
+                set interval_line "\ninterval = 300"
+            end
+
+            printf '[service]
+name = "%s"
+description = ""
+executable = "$SERVICE_FOLDER/%s.sh"
+mode = "%s"%b
+working_directory = "$HOME"
+' "$name" "$name" "$mode" "$interval_line" >"$svc_dir/service.toml"
+
+            printf '#!/bin/bash\necho "hello world"\n' >"$svc_dir/$name.sh"
+            command chmod +x "$svc_dir/$name.sh"
+
+            echo "Created $svc_dir/service.toml" >&2
+            echo "Created $svc_dir/$name.sh" >&2
+            echo "Edit these files, then run: service-preset install $name" >&2
 
         case orphans
             argparse 'uninstall' 'dry-run' -- $argv
