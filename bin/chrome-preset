@@ -532,7 +532,6 @@ function chrome-preset
                     --port="$port" &>/dev/null &
             else
                 mkdir -p "$user_data_dir"
-                display-message "Start Chrome Debug"
                 "$chrome_binary" \
                     --remote-debugging-port=$port \
                     --user-data-dir="$user_data_dir" \
