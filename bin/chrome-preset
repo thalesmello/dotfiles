@@ -486,6 +486,65 @@ function chrome-preset
                 end tell
             end tell
         '
+    case "debug-instance"
+        argparse 'start' 'focus' 'quit' 'is-alive' 'spawn' \
+            'user-data-dir=' 'p/port=' 'chrome=' -- $argv
+        or return 1
+
+        set -l pid_file "$TMPDIR/chrome_debug.pid"
+        set -l chrome_binary (set -q _flag_chrome; and echo "$_flag_chrome"; or echo "/Applications/Chrome Debug.app/Contents/MacOS/Google Chrome")
+        set -l user_data_dir (set -q _flag_user_data_dir; and echo "$_flag_user_data_dir"; or echo "$HOME/.local/share/chrome-debug")
+        set -l port (set -q _flag_port; and echo "$_flag_port"; or echo "9222")
+
+        set -l action
+        if set -q _flag_start
+            set action start
+        else if set -q _flag_focus
+            set action focus
+        else if set -q _flag_quit
+            set action quit
+        else if set -q _flag_is_alive
+            set action is-alive
+        else
+            if pgrep -q -F "$pid_file" 2>/dev/null
+                set action focus
+            else
+                set action start
+                set _flag_spawn ""
+            end
+        end
+
+        switch "$action"
+        case "is-alive"
+            pgrep -q -F "$pid_file" 2>/dev/null
+            return $status
+        case "focus"
+            yabai-preset focus-pid "$(cat "$pid_file")"
+        case "start"
+            if pgrep -q -F "$pid_file" 2>/dev/null
+                echo "Chrome Debug is already running" >&2
+                return 1
+            end
+            if set -q _flag_spawn
+                nohup (status filename) debug-instance --start \
+                    --chrome="$chrome_binary" \
+                    --user-data-dir="$user_data_dir" \
+                    --port="$port" &>/dev/null &
+            else
+                mkdir -p "$user_data_dir"
+                display-message "Start Chrome Debug"
+                "$chrome_binary" \
+                    --remote-debugging-port=$port \
+                    --user-data-dir="$user_data_dir" \
+                    --no-first-run &
+                echo "$last_pid" > "$pid_file"
+                wait
+                rm -f "$pid_file"
+            end
+        case "quit"
+            kill "$(cat "$pid_file")"
+            rm -f "$pid_file"
+        end
     case '*'
         return 1
     end
