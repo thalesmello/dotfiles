@@ -18,7 +18,8 @@
       "Bash(gh api:*)",
       "Bash(pandoc *)",
       "Bash(/usr/bin/osascript *)",
-      "Bash(nvim --version)"
+      "Bash(nvim --version)",
+      "Bash(defaults read *)"
     ]
   }
 }

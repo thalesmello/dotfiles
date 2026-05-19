@@ -70,7 +70,7 @@ function osascript-preset
         /usr/bin/osascript -e "display notification \"$message\" with title \"Preset\""
 
     case "trigger-menu-bar"
-        argparse app= -- $argv
+        argparse app= pid= -- $argv
 
         set -l path "$argv[1]"
         set app "$_flag_app"
@@ -92,7 +92,13 @@ function osascript-preset
         set escaped (string replace -a '"' '\\"' -- $trimmed)
         set items 'menu item "'$escaped[-1..2]'" of menu 1' "menu bar item \"$escaped[1]\" of menu bar 1"
         set chain (string join ' of ' $items)
-        set cmd "tell application \"System Events\" to tell process \"$app_escaped\" to click $chain"
+
+        if test -n "$_flag_pid"
+            set -l process_ref "(first process whose unix id is $_flag_pid)"
+        else
+            set -l process_ref "process \"$app_escaped\""
+        end
+        set cmd "tell application \"System Events\" to tell $process_ref to click $chain"
 
         echo osascript -e (string escape $cmd)
         /usr/bin/osascript -e "$cmd" > /dev/null

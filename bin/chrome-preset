@@ -46,6 +46,28 @@ function get-profile-regex
     end
 end
 
+function get-main-chrome-pid
+    pgrep -f '/Applications/Google Chrome\.app/Contents/MacOS/Google Chrome' | head -1
+end
+
+function chrome-trigger-menu-bar
+    set -l chrome_pid (get-main-chrome-pid)
+    set -l pid_args
+    if test -n "$chrome_pid"
+        set pid_args --pid "$chrome_pid"
+    end
+    osascript-preset trigger-menu-bar --app "Google Chrome" $pid_args $argv
+end
+
+function chrome-process-ref
+    set -l chrome_pid (get-main-chrome-pid)
+    if test -n "$chrome_pid"
+        echo "(first process whose unix id is $chrome_pid)"
+    else
+        echo 'process "Google Chrome"'
+    end
+end
+
 function chrome-preset
     set preset $argv[1]
     set -e argv[1]
@@ -190,7 +212,7 @@ function chrome-preset
 
         set profile_name (chrome-preset get-profile-name "$profile")
         and osascript-preset show-or-hide-app --only-show "Google Chrome"
-        and osascript-preset trigger-menu-bar --app "Google Chrome" "Profiles;$profile_name"
+        and chrome-trigger-menu-bar "Profiles;$profile_name"
 
     case "open-url"
         argparse profile= label= newtab newtabright -- $argv
@@ -224,9 +246,10 @@ function chrome-preset
             chrome-cli open "$url" $extra_args -t "$tab_id"
         else
             set profile_name (chrome-preset get-profile-name "$_flag_profile")
+            set -l process_ref (chrome-process-ref)
             osascript -e "
                 tell application \"System Events\"
-                    tell process \"Google Chrome\"
+                    tell $process_ref
                         set windowTitles to name of every window
                     end tell
                 end tell
@@ -438,7 +461,7 @@ function chrome-preset
             yabai-preset focus-window-id "$windows[1]"
         else
             osascript-preset show-or-hide-app --only-show "Google Chrome"
-            and osascript-preset trigger-menu-bar --app "Google Chrome" "Profiles;$profile_name"
+            and chrome-trigger-menu-bar "Profiles;$profile_name"
         end
     case "cycle-profile-windows"
         argparse 'next' 'prev' -- $argv
@@ -459,7 +482,7 @@ function chrome-preset
         set app_window_ids (sqlite3 "$CHROME_PRESET_DB" "SELECT window_id FROM apps;")
 
         if contains -- "$current_id" $app_window_ids
-            osascript-preset trigger-menu-bar --app "Google Chrome" "Profiles;$profile_name"
+            chrome-trigger-menu-bar "Profiles;$profile_name"
             return
         end
 
@@ -478,14 +501,15 @@ function chrome-preset
 
         yabai-preset focus-window-id "$windows[$target_pos]"
     case "toggle-tabbar"
-        osascript -e '
-            tell application "System Events"
-                tell process "Google Chrome"
+        set -l process_ref (chrome-process-ref)
+        osascript -e "
+            tell application \"System Events\"
+                tell $process_ref
                     set base to group 1 of group 1 of group 1 of group 1 of window 1
                     click button 1 of group 1 of UI element 3 of base
                 end tell
             end tell
-        '
+        "
     case "debug-instance"
         argparse 'start' 'focus' 'quit' 'is-alive' 'spawn' \
             'user-data-dir=' 'p/port=' 'chrome=' -- $argv
