@@ -93,10 +93,11 @@ function osascript-preset
         set items 'menu item "'$escaped[-1..2]'" of menu 1' "menu bar item \"$escaped[1]\" of menu bar 1"
         set chain (string join ' of ' $items)
 
+        set -l process_ref
         if test -n "$_flag_pid"
-            set -l process_ref "(first process whose unix id is $_flag_pid)"
+            set process_ref "(first process whose unix id is $_flag_pid)"
         else
-            set -l process_ref "process \"$app_escaped\""
+            set process_ref "process \"$app_escaped\""
         end
         set cmd "tell application \"System Events\" to tell $process_ref to click $chain"
 
