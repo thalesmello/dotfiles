@@ -37,12 +37,19 @@ local function check_visible_files()
     end
 end
 
-local function timer_callback()
+local timer_callback
+
+timer_callback = function()
     local ok, err = pcall(check_visible_files)
 
     if not ok then
         vim.notify("reloadfiles: timer disabled due to error: " .. tostring(err), vim.log.levels.ERROR)
         M.pause()
+        return
+    end
+
+    if timer then
+        timer:start(2000, 0, vim.schedule_wrap(timer_callback))
     end
 end
 
@@ -60,7 +67,7 @@ function M.resume()
     end
 
     timer = vim.uv.new_timer()
-    timer:start(2000, 2000, vim.schedule_wrap(timer_callback))
+    timer:start(2000, 0, vim.schedule_wrap(timer_callback))
 end
 
 function M.setup()

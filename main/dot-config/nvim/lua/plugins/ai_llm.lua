@@ -93,18 +93,20 @@ return {
       config = function(_, opts)
          require("claudecode").setup(opts)
 
-         local timer = vim.uv.new_timer()
-         vim.api.nvim_create_autocmd("TextChangedT", {
-            group = vim.api.nvim_create_augroup("ClaudeTermCheckTime", {}),
-            pattern = "*claude",
-            callback = function()
-               if not timer then return end
-               timer:stop()
-               timer:start(1000, 0, vim.schedule_wrap(function()
-                  vim.cmd("checktime")
-               end))
-            end,
-         })
+         -- There's now reloadfiles that automatically reload files when they change on disk
+
+         -- local timer = vim.uv.new_timer()
+         -- vim.api.nvim_create_autocmd("TextChangedT", {
+         --    group = vim.api.nvim_create_augroup("ClaudeTermCheckTime", {}),
+         --    pattern = "*claude",
+         --    callback = function()
+         --       if not timer then return end
+         --       timer:stop()
+         --       timer:start(1000, 0, vim.schedule_wrap(function()
+         --          vim.cmd("checktime")
+         --       end))
+         --    end,
+         -- })
       end,
    },
    {
