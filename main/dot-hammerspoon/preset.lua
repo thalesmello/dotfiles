@@ -1,9 +1,7 @@
 local a = require("async")
+local shell = require("shell")
 
 local M = {}
-
--- Prevent hs.task objects from being garbage-collected before their callback fires
-_G._runningTasks = {}
 
 local keyMap = {
   ctrl = "ctrl", shift = "shift", alt = "alt", cmd = "cmd",
@@ -88,13 +86,9 @@ M.triggerMenuBar = function(path, callback)
   if #items == 0 then if callback then callback(false) end; return end
 
   local script = buildMenuBarScript(app:name(), items)
-  local task
-  task = hs.task.new("/usr/bin/osascript", function(exitCode)
-    _runningTasks[task] = nil
-    if callback then callback(exitCode == 0) end
-  end, {"-e", script})
-  _runningTasks[task] = true
-  task:start()
+  shell.task({"/usr/bin/osascript", "-e", script}, function(ok)
+    if callback then callback(ok) end
+  end)
 end
 
 M.triggerMenuBarAsync = a.wrap(M.triggerMenuBar)
@@ -160,12 +154,7 @@ function M.alternateApp(appName, opts)
     end
   else
     if opts.cmd then
-      local task
-      task = hs.task.new("/opt/homebrew/bin/fish", function()
-        _runningTasks[task] = nil
-      end, {"-c", opts.cmd})
-      _runningTasks[task] = true
-      task:start()
+      shell.fish(opts.cmd)
     else
       hs.application.open(appName)
     end
