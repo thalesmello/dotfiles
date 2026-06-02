@@ -81,25 +81,48 @@ if.window-title-regex-substring = 'Picture in Picture'
 run = ['layout floating']
 
 [[on-window-detected]]
-if.app-id = 'com.google.Chrome'
-if.window-title-regex-substring = 'about:blank - Thales \(Personal\)'
-run = ['layout floating']
-
-[[on-window-detected]]
-if.app-id = 'com.googlecode.iterm2'
-if.window-title-regex-substring = 'Updating iTerm2'
-run = 'layout floating'
-
-[[on-window-detected]]
-if.app-name-regex-substring = 'Metamate'
-run = ['layout floating']
-
-[[on-window-detected]]
 if.app-id = 'net.sonuscape.mouseless'
 run = ['layout floating']
 
 [[on-window-detected]]
 if.app-name-regex-substring = 'superwhisper'
+run = ['layout floating']
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'iTerm2'
+if.window-title-regex-substring = '^floating-terminal$'
+run = ['layout floating']
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'Activity Monitor'
+run = ['layout floating']
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'Shottr'
+run = ['layout floating']
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'System Settings'
+run = ['layout floating']
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'Finder'
+run = ['layout floating']
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'BetterTouchTool'
+run = ['layout floating']
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'Karabiner-Elements'
+run = ['layout floating']
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'Mac Mouse Fix'
+run = ['layout floating']
+
+[[on-window-detected]]
+if.app-name-regex-substring = 'Raycast'
 run = ['layout floating']
 
 [workspace-to-monitor-force-assignment]
