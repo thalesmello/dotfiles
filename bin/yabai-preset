@@ -851,34 +851,33 @@ function yabai-preset
             end
         end
 
+        # Only snap the relevant dimension so corners can be composed
+        # (e.g. snap west then snap north → top-left quarter)
         switch "$direction"
             case west
                 set x (math "floor($dsp_x + $lp)")
-                set y (math "floor($dsp_y + $tp)")
                 set w (math "floor($uw * $frac - $gap / 2)")
-                set h (math "floor($uh)")
+                yabai -m window --move "abs:$x:$win_y"
+                yabai -m window --resize "abs:$w:$win_h"
             case east
                 set x (math "floor($dsp_x + $lp + $uw * (1 - $frac) + $gap / 2)")
-                set y (math "floor($dsp_y + $tp)")
                 set w (math "floor($uw * $frac - $gap / 2)")
-                set h (math "floor($uh)")
+                yabai -m window --move "abs:$x:$win_y"
+                yabai -m window --resize "abs:$w:$win_h"
             case north
-                set x (math "floor($dsp_x + $lp)")
                 set y (math "floor($dsp_y + $tp)")
-                set w (math "floor($uw)")
                 set h (math "floor($uh * $frac - $gap / 2)")
+                yabai -m window --move "abs:$win_x:$y"
+                yabai -m window --resize "abs:$win_w:$h"
             case south
-                set x (math "floor($dsp_x + $lp)")
                 set y (math "floor($dsp_y + $tp + $uh * (1 - $frac) + $gap / 2)")
-                set w (math "floor($uw)")
                 set h (math "floor($uh * $frac - $gap / 2)")
+                yabai -m window --move "abs:$win_x:$y"
+                yabai -m window --resize "abs:$win_w:$h"
             case '*'
                 echo "Invalid argument: $direction" >&2
                 return 1
         end
-
-        yabai -m window --move "abs:$x:$y"
-        yabai -m window --resize "abs:$w:$h"
     case "cycle-stack-padding"
         set direction $argv[1]
         set -e argv[1]
