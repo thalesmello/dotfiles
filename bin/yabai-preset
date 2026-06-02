@@ -679,21 +679,38 @@ function yabai-preset
 
         if yabai-preset is-space-stack-layout
             # Detect padding direction before toggling
-            yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.w)"' \
-                | read --line stk_x stk_w
-            yabai -m query --displays --display | jq -r '.frame | "\(.x)\n\(.w)"' \
-                | read --line dsp_x dsp_w
+            yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' \
+                | read --line stk_x stk_y stk_w stk_h
+            yabai -m query --displays --display | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' \
+                | read --line dsp_x dsp_y dsp_w dsp_h
 
             set left_space (math "round($stk_x - $dsp_x)")
             set right_space (math "round($dsp_x + $dsp_w - $stk_x - $stk_w)")
-            set threshold (math "round(0.1 * $dsp_w)")
+            set top_space (math "round($stk_y - $dsp_y)")
+            set bottom_space (math "round($dsp_y + $dsp_h - $stk_y - $stk_h)")
+            set h_threshold (math "round(0.1 * $dsp_w)")
+            set v_threshold (math "round(0.1 * $dsp_h)")
+
+            # Find the side with the most padding
+            set -l best_space 0
+            set -l best_dir ""
+            if test "$right_space" -gt "$h_threshold" -a "$right_space" -ge "$best_space"
+                set best_space $right_space; set best_dir east
+            end
+            if test "$left_space" -gt "$h_threshold" -a "$left_space" -gt "$best_space"
+                set best_space $left_space; set best_dir west
+            end
+            if test "$bottom_space" -gt "$v_threshold" -a "$bottom_space" -gt "$best_space"
+                set best_space $bottom_space; set best_dir south
+            end
+            if test "$top_space" -gt "$v_threshold" -a "$top_space" -gt "$best_space"
+                set best_space $top_space; set best_dir north
+            end
 
             yabai -m window --toggle float
 
-            if test "$right_space" -gt "$threshold" -a "$right_space" -ge "$left_space"
-                yabai-preset snap --frac "1/3" east
-            else if test "$left_space" -gt "$threshold"
-                yabai-preset snap --frac "1/3" west
+            if test -n "$best_dir"
+                yabai-preset snap --frac "1/3" $best_dir
             else
                 yabai -m window --grid "8:8:1:1:6:6"
             end
@@ -938,70 +955,105 @@ function yabai-preset
         set direction $argv[1]
         set -e argv[1]
 
+        # Stack padding fractions cycle in this order. Edit to tune.
+        set -l pad_fracs (math "2/3") (math "1/2")
+
         set cfg_tp (yabai -m config top_padding | string trim)
         set cfg_bp (yabai -m config bottom_padding | string trim)
         set cfg_lp (yabai -m config left_padding | string trim)
         set cfg_rp (yabai -m config right_padding | string trim)
 
-        set padding (begin
-            yabai -m query --windows --window
-            yabai -m query --displays --display
-        end | jq -rs --arg dir "$direction" \
-            --argjson cfg_tp "$cfg_tp" --argjson cfg_bp "$cfg_bp" \
-            --argjson cfg_lp "$cfg_lp" --argjson cfg_rp "$cfg_rp" '
-            .[0].frame as $win | .[1].frame as $dsp |
-            def on_side:
-                if $dir == "west" then ($win.x - $dsp.x) < ($dsp.w * 0.05)
-                elif $dir == "east" then (($dsp.x + $dsp.w) - ($win.x + $win.w)) < ($dsp.w * 0.05)
-                elif $dir == "north" then ($win.y - $dsp.y) < ($dsp.h * 0.05)
-                elif $dir == "south" then (($dsp.y + $dsp.h) - ($win.y + $win.h)) < ($dsp.h * 0.05)
-                else false end;
-            (if $dir == "west" or $dir == "east" then ($win.w / $dsp.w)
-             else ($win.h / $dsp.h) end) as $ratio |
-            (if on_side | not then "two_thirds"
-             elif ($ratio - 0.6667 | fabs) < 0.05 then "half"
-             else "two_thirds" end) as $target |
-            (if $target == "two_thirds" then
-                if $dir == "west" or $dir == "east" then ($dsp.w / 3 | floor)
-                else ($dsp.h / 3 | floor) end
-             elif $target == "half" then
-                if $dir == "west" or $dir == "east" then ($dsp.w / 2 | floor)
-                else ($dsp.h / 2 | floor) end
-             else 0 end) as $big |
-            if $dir == "west" then "\($cfg_tp):\($cfg_bp):\($cfg_lp):\($big)"
-            elif $dir == "east" then "\($cfg_tp):\($cfg_bp):\($big):\($cfg_rp)"
-            elif $dir == "north" then "\($cfg_tp):\($big):\($cfg_lp):\($cfg_rp)"
-            elif $dir == "south" then "\($big):\($cfg_bp):\($cfg_lp):\($cfg_rp)"
-            else "\($cfg_tp):\($cfg_bp):\($cfg_lp):\($cfg_rp)" end')
+        yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line win_x win_y win_w win_h
+        yabai -m query --displays --display | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line dsp_x dsp_y dsp_w dsp_h
 
-        yabai -m space --padding "abs:$padding"
+        # Detect if window is on the target side
+        set -l on_side false
+        set -l dim_ratio 0
+        switch "$direction"
+            case west east
+                set dim_ratio (math "$win_w / $dsp_w")
+            case north south
+                set dim_ratio (math "$win_h / $dsp_h")
+        end
+        switch "$direction"
+            case west
+                test (math "round(0.05 * $dsp_w - ($win_x - $dsp_x))") -gt 0; and set on_side true
+            case east
+                test (math "round(0.05 * $dsp_w - ($dsp_x + $dsp_w - $win_x - $win_w))") -gt 0; and set on_side true
+            case north
+                test (math "round(0.05 * $dsp_h - ($win_y - $dsp_y))") -gt 0; and set on_side true
+            case south
+                test (math "round(0.05 * $dsp_h - ($dsp_y + $dsp_h - $win_y - $win_h))") -gt 0; and set on_side true
+        end
+
+        # Cycle through pad_fracs: match current ratio → advance to next
+        set -l frac $pad_fracs[1]
+        if test "$on_side" = true
+            set -l n (count $pad_fracs)
+            for i in (seq $n)
+                set -l diff (math "round(abs($dim_ratio - $pad_fracs[$i]) * 1000)")
+                if test "$diff" -lt 50
+                    set -l next (math "$i % $n + 1")
+                    set frac $pad_fracs[$next]
+                    break
+                end
+            end
+        end
+
+        # Convert frac to padding: the "big" padding pushes the stack to occupy $frac of the display
+        set -l big 0
+        switch "$direction"
+            case west east
+                set big (math "floor($dsp_w * (1 - $frac))")
+            case north south
+                set big (math "floor($dsp_h * (1 - $frac))")
+        end
+
+        switch "$direction"
+            case west
+                yabai -m space --padding "abs:$cfg_tp:$cfg_bp:$cfg_lp:$big"
+            case east
+                yabai -m space --padding "abs:$cfg_tp:$cfg_bp:$big:$cfg_rp"
+            case north
+                yabai -m space --padding "abs:$cfg_tp:$big:$cfg_lp:$cfg_rp"
+            case south
+                yabai -m space --padding "abs:$big:$cfg_bp:$cfg_lp:$cfg_rp"
+        end
     case "cycle-stack-center"
+        # Center fractions cycle in this order. 1 = fullscreen (default padding).
+        set -l center_fracs 1 (math "2/3")
+
         set cfg_tp (yabai -m config top_padding | string trim)
         set cfg_bp (yabai -m config bottom_padding | string trim)
         set cfg_lp (yabai -m config left_padding | string trim)
         set cfg_rp (yabai -m config right_padding | string trim)
 
-        set padding (begin
-            yabai -m query --windows --window
-            yabai -m query --displays --display
-        end | jq -rs \
-            --argjson cfg_tp "$cfg_tp" --argjson cfg_bp "$cfg_bp" \
-            --argjson cfg_lp "$cfg_lp" --argjson cfg_rp "$cfg_rp" '
-            .[0].frame as $win | .[1].frame as $dsp |
-            ($win.w / $dsp.w) as $ratio |
-            ($win.x - $dsp.x) as $left |
-            (($dsp.x + $dsp.w) - ($win.x + $win.w)) as $right |
-            (($left > ($dsp.w * 0.1)) and ($right > ($dsp.w * 0.1)) and
-             (($left - $right) | fabs) < ($dsp.w * 0.05)) as $is_centered |
-            ($ratio > 0.9) as $is_fullscreen |
-            if $is_fullscreen then
-                ($dsp.w / 6 | floor) as $h_pad |
-                "\($cfg_tp):\($cfg_bp):\($h_pad):\($h_pad)"
-            else
-                "\($cfg_tp):\($cfg_bp):\($cfg_lp):\($cfg_rp)"
-            end')
+        yabai -m query --windows --window | jq -r '.frame | "\(.w)\n\(.h)"' | read --line win_w win_h
+        yabai -m query --displays --display | jq -r '.frame | "\(.w)\n\(.h)"' | read --line dsp_w dsp_h
 
-        yabai -m space --padding "abs:$padding"
+        # Use the smaller ratio — if either dimension is reduced, it's not fullscreen
+        set -l w_ratio (math "$win_w / $dsp_w")
+        set -l h_ratio (math "$win_h / $dsp_h")
+        set -l dim_ratio (math "min $w_ratio, $h_ratio")
+
+        # Cycle: match current ratio → advance to next
+        set -l frac $center_fracs[1]
+        set -l n (count $center_fracs)
+        for i in (seq $n)
+            set -l diff (math "round(abs($dim_ratio - $center_fracs[$i]) * 1000)")
+            if test "$diff" -lt 50
+                set -l next (math "$i % $n + 1")
+                set frac $center_fracs[$next]
+                break
+            end
+        end
+
+        if test "$frac" = 1
+            yabai -m space --padding "abs:$cfg_tp:$cfg_bp:$cfg_lp:$cfg_rp"
+        else
+            set -l h_pad (math "floor($dsp_w * (1 - $frac) / 2)")
+            yabai -m space --padding "abs:$cfg_tp:$cfg_bp:$h_pad:$h_pad"
+        end
     case "get-app-window-id"
         argparse 'match-title=' -- $argv
         or return 1
