@@ -439,6 +439,12 @@ function yabai-preset
 
         yabai -m query --spaces --space "$space" | jq -e '.type == "float"' >/dev/null
         or return 1
+    case "is-space-stack-layout"
+        set space $argv[1]
+        set -e argv[1]
+
+        yabai -m query --spaces --space "$space" | jq -e '.type == "stack"' >/dev/null
+        or return 1
     case "is-window-fullscreen"
         set window $argv[1]
         set -e argv[1]
@@ -784,62 +790,163 @@ function yabai-preset
         set direction $argv[1]
         set -e argv[1]
 
-        set grid (begin
+        set gap (yabai -m config window_gap | string trim)
+        set tp (yabai -m config top_padding | string trim)
+        set bp (yabai -m config bottom_padding | string trim)
+        set lp (yabai -m config left_padding | string trim)
+        set rp (yabai -m config right_padding | string trim)
+
+        yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line win_x win_y win_w win_h
+        # NSScreen.visibleFrame gives the usable area (excludes menu bar and dock).
+        # yabai's display frame includes the menu bar, and --move/--resize abs: uses raw screen coords.
+        # Find the screen containing the focused window by matching its position.
+        osascript -l JavaScript -e "
+            ObjC.import('AppKit');
+            var wx = $win_x, wy = $win_y;
+            var screens = \$.NSScreen.screens;
+            var s = \$.NSScreen.mainScreen;
+            for (var i = 0; i < screens.count; i++) {
+                var sf = screens.objectAtIndex(i).frame;
+                if (wx >= sf.origin.x && wx < sf.origin.x + sf.size.width) { s = screens.objectAtIndex(i); break; }
+            }
+            var f = s.frame;
+            var vf = s.visibleFrame;
+            var y = f.size.height - vf.origin.y - vf.size.height + f.origin.y;
+            [Math.round(vf.origin.x), Math.round(y), Math.round(vf.size.width), Math.round(vf.size.height)].join('\n');
+        " | read --line dsp_x dsp_y dsp_w dsp_h
+
+        set uw (math "$dsp_w - $lp - $rp")
+        set uh (math "$dsp_h - $tp - $bp")
+
+        # Detect current state for cycling
+        # fish math doesn't support < so we compute (threshold - distance), round, and test > 0
+        set -l on_side false
+        switch "$direction"
+            case west
+                test (math "round(0.05 * $dsp_w - ($win_x - $dsp_x))") -gt 0; and set on_side true
+                set dim_ratio (math "$win_w / $dsp_w")
+            case east
+                test (math "round(0.05 * $dsp_w - ($dsp_x + $dsp_w - $win_x - $win_w))") -gt 0; and set on_side true
+                set dim_ratio (math "$win_w / $dsp_w")
+            case north
+                test (math "round(0.05 * $dsp_h - ($win_y - $dsp_y))") -gt 0; and set on_side true
+                set dim_ratio (math "$win_h / $dsp_h")
+            case south
+                test (math "round(0.05 * $dsp_h - ($dsp_y + $dsp_h - $win_y - $win_h))") -gt 0; and set on_side true
+                set dim_ratio (math "$win_h / $dsp_h")
+        end
+
+        if test "$on_side" = false
+            set frac 0.5
+        else
+            # Scale differences to integers: abs(ratio - target) * 1000, threshold = 50 (i.e. 0.05)
+            set -l diff_half (math "round(abs($dim_ratio - 0.5) * 1000)")
+            set -l diff_twothirds (math "round(abs($dim_ratio - 0.6667) * 1000)")
+            if test "$diff_half" -lt 50
+                set frac (math "2/3")
+            else if test "$diff_twothirds" -lt 50
+                set frac (math "1/3")
+            else
+                set frac 0.5
+            end
+        end
+
+        switch "$direction"
+            case west
+                set x (math "floor($dsp_x + $lp)")
+                set y (math "floor($dsp_y + $tp)")
+                set w (math "floor($uw * $frac - $gap / 2)")
+                set h (math "floor($uh)")
+            case east
+                set x (math "floor($dsp_x + $lp + $uw * (1 - $frac) + $gap / 2)")
+                set y (math "floor($dsp_y + $tp)")
+                set w (math "floor($uw * $frac - $gap / 2)")
+                set h (math "floor($uh)")
+            case north
+                set x (math "floor($dsp_x + $lp)")
+                set y (math "floor($dsp_y + $tp)")
+                set w (math "floor($uw)")
+                set h (math "floor($uh * $frac - $gap / 2)")
+            case south
+                set x (math "floor($dsp_x + $lp)")
+                set y (math "floor($dsp_y + $tp + $uh * (1 - $frac) + $gap / 2)")
+                set w (math "floor($uw)")
+                set h (math "floor($uh * $frac - $gap / 2)")
+            case '*'
+                echo "Invalid argument: $direction" >&2
+                return 1
+        end
+
+        yabai -m window --move "abs:$x:$y"
+        yabai -m window --resize "abs:$w:$h"
+    case "cycle-stack-padding"
+        set direction $argv[1]
+        set -e argv[1]
+
+        set cfg_tp (yabai -m config top_padding | string trim)
+        set cfg_bp (yabai -m config bottom_padding | string trim)
+        set cfg_lp (yabai -m config left_padding | string trim)
+        set cfg_rp (yabai -m config right_padding | string trim)
+
+        set padding (begin
             yabai -m query --windows --window
             yabai -m query --displays --display
-        end | jq -rs --arg dir "$direction" '
+        end | jq -rs --arg dir "$direction" \
+            --argjson cfg_tp "$cfg_tp" --argjson cfg_bp "$cfg_bp" \
+            --argjson cfg_lp "$cfg_lp" --argjson cfg_rp "$cfg_rp" '
             .[0].frame as $win | .[1].frame as $dsp |
-            # Check if window is already on the requested side
             def on_side:
                 if $dir == "west" then ($win.x - $dsp.x) < ($dsp.w * 0.05)
                 elif $dir == "east" then (($dsp.x + $dsp.w) - ($win.x + $win.w)) < ($dsp.w * 0.05)
                 elif $dir == "north" then ($win.y - $dsp.y) < ($dsp.h * 0.05)
                 elif $dir == "south" then (($dsp.y + $dsp.h) - ($win.y + $win.h)) < ($dsp.h * 0.05)
                 else false end;
-            if on_side | not then "half"
-            elif $dir == "west" or $dir == "east" then
-                ($win.w / $dsp.w) as $ratio |
-                if ($ratio - 0.5 | fabs) < 0.05 then "two_thirds"
-                elif ($ratio - 0.6667 | fabs) < 0.05 then "one_third"
-                else "half"
-                end
+            (if $dir == "west" or $dir == "east" then ($win.w / $dsp.w)
+             else ($win.h / $dsp.h) end) as $ratio |
+            (if on_side | not then "two_thirds"
+             elif ($ratio - 0.6667 | fabs) < 0.05 then "half"
+             else "two_thirds" end) as $target |
+            (if $target == "two_thirds" then
+                if $dir == "west" or $dir == "east" then ($dsp.w / 3 | floor)
+                else ($dsp.h / 3 | floor) end
+             elif $target == "half" then
+                if $dir == "west" or $dir == "east" then ($dsp.w / 2 | floor)
+                else ($dsp.h / 2 | floor) end
+             else 0 end) as $big |
+            if $dir == "west" then "\($cfg_tp):\($cfg_bp):\($cfg_lp):\($big)"
+            elif $dir == "east" then "\($cfg_tp):\($cfg_bp):\($big):\($cfg_rp)"
+            elif $dir == "north" then "\($cfg_tp):\($big):\($cfg_lp):\($cfg_rp)"
+            elif $dir == "south" then "\($big):\($cfg_bp):\($cfg_lp):\($cfg_rp)"
+            else "\($cfg_tp):\($cfg_bp):\($cfg_lp):\($cfg_rp)" end')
+
+        yabai -m space --padding "abs:$padding"
+    case "cycle-stack-center"
+        set cfg_tp (yabai -m config top_padding | string trim)
+        set cfg_bp (yabai -m config bottom_padding | string trim)
+        set cfg_lp (yabai -m config left_padding | string trim)
+        set cfg_rp (yabai -m config right_padding | string trim)
+
+        set padding (begin
+            yabai -m query --windows --window
+            yabai -m query --displays --display
+        end | jq -rs \
+            --argjson cfg_tp "$cfg_tp" --argjson cfg_bp "$cfg_bp" \
+            --argjson cfg_lp "$cfg_lp" --argjson cfg_rp "$cfg_rp" '
+            .[0].frame as $win | .[1].frame as $dsp |
+            ($win.w / $dsp.w) as $ratio |
+            ($win.x - $dsp.x) as $left |
+            (($dsp.x + $dsp.w) - ($win.x + $win.w)) as $right |
+            (($left > ($dsp.w * 0.1)) and ($right > ($dsp.w * 0.1)) and
+             (($left - $right) | fabs) < ($dsp.w * 0.05)) as $is_centered |
+            ($ratio > 0.9) as $is_fullscreen |
+            if $is_fullscreen then
+                ($dsp.w / 6 | floor) as $h_pad |
+                "\($cfg_tp):\($cfg_bp):\($h_pad):\($h_pad)"
             else
-                ($win.h / $dsp.h) as $ratio |
-                if ($ratio - 0.5 | fabs) < 0.05 then "two_thirds"
-                elif ($ratio - 0.6667 | fabs) < 0.05 then "one_third"
-                else "half"
-                end
+                "\($cfg_tp):\($cfg_bp):\($cfg_lp):\($cfg_rp)"
             end')
 
-        switch "$direction:$grid"
-            case "west:half"
-                yabai -m window --grid 1:2:0:0:1:1
-            case "west:two_thirds"
-                yabai -m window --grid 1:3:0:0:2:1
-            case "west:one_third"
-                yabai -m window --grid 1:3:0:0:1:1
-            case "east:half"
-                yabai -m window --grid 1:2:1:0:1:1
-            case "east:two_thirds"
-                yabai -m window --grid 1:3:1:0:2:1
-            case "east:one_third"
-                yabai -m window --grid 1:3:2:0:1:1
-            case "north:half"
-                yabai -m window --grid 2:1:0:0:1:1
-            case "north:two_thirds"
-                yabai -m window --grid 3:1:0:0:1:2
-            case "north:one_third"
-                yabai -m window --grid 3:1:0:0:1:1
-            case "south:half"
-                yabai -m window --grid 2:1:0:1:1:1
-            case "south:two_thirds"
-                yabai -m window --grid 3:1:0:1:1:2
-            case "south:one_third"
-                yabai -m window --grid 3:1:0:2:1:1
-            case '*'
-                echo "Invalid argument: $direction" >&2
-                return 1
-        end
+        yabai -m space --padding "abs:$padding"
     case "get-app-window-id"
         argparse 'match-title=' -- $argv
         or return 1
