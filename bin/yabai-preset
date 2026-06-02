@@ -671,13 +671,37 @@ function yabai-preset
         set -e argv[1]
         yabai -m window --warp $direction; or yabai-preset unstack-window $direction
     case "toggle-float"
-        yabai -m window --toggle float
         if yabai-preset is-window-floating
-            yabai -m window --grid "8:8:1:1:6:6"
-            echo floating
-        else
+            yabai -m window --toggle float
             echo tiling
+            return
         end
+
+        if yabai-preset is-space-stack-layout
+            # Detect padding direction before toggling
+            yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.w)"' \
+                | read --line stk_x stk_w
+            yabai -m query --displays --display | jq -r '.frame | "\(.x)\n\(.w)"' \
+                | read --line dsp_x dsp_w
+
+            set left_space (math "round($stk_x - $dsp_x)")
+            set right_space (math "round($dsp_x + $dsp_w - $stk_x - $stk_w)")
+            set threshold (math "round(0.1 * $dsp_w)")
+
+            yabai -m window --toggle float
+
+            if test "$right_space" -gt "$threshold" -a "$right_space" -ge "$left_space"
+                yabai-preset snap --frac (math "1/3") east
+            else if test "$left_space" -gt "$threshold"
+                yabai-preset snap --frac (math "1/3") west
+            else
+                yabai -m window --grid "8:8:1:1:6:6"
+            end
+        else
+            yabai -m window --toggle float
+            yabai -m window --grid "8:8:1:1:6:6"
+        end
+        echo floating
     case "toggle-split"
         yabai -m window --toggle split
     case "balance"
@@ -810,6 +834,9 @@ function yabai-preset
         # Focus back to original window
         yabai -m window --focus "$focused"
     case "snap"
+        argparse 'frac=' -- $argv
+        or return 1
+
         set direction $argv[1]
         set -e argv[1]
 
@@ -841,36 +868,40 @@ function yabai-preset
         set uw (math "$dsp_w - $lp - $rp")
         set uh (math "$dsp_h - $tp - $bp")
 
-        # Detect current state for cycling
-        # fish math doesn't support < so we compute (threshold - distance), round, and test > 0
-        set -l on_side false
-        switch "$direction"
-            case west
-                test (math "round(0.05 * $dsp_w - ($win_x - $dsp_x))") -gt 0; and set on_side true
-                set dim_ratio (math "$win_w / $dsp_w")
-            case east
-                test (math "round(0.05 * $dsp_w - ($dsp_x + $dsp_w - $win_x - $win_w))") -gt 0; and set on_side true
-                set dim_ratio (math "$win_w / $dsp_w")
-            case north
-                test (math "round(0.05 * $dsp_h - ($win_y - $dsp_y))") -gt 0; and set on_side true
-                set dim_ratio (math "$win_h / $dsp_h")
-            case south
-                test (math "round(0.05 * $dsp_h - ($dsp_y + $dsp_h - $win_y - $win_h))") -gt 0; and set on_side true
-                set dim_ratio (math "$win_h / $dsp_h")
-        end
-
-        if test "$on_side" = false
-            set frac 0.5
+        if set -q _flag_frac
+            set frac $_flag_frac
         else
-            # Scale differences to integers: abs(ratio - target) * 1000, threshold = 50 (i.e. 0.05)
-            set -l diff_half (math "round(abs($dim_ratio - 0.5) * 1000)")
-            set -l diff_twothirds (math "round(abs($dim_ratio - 0.6667) * 1000)")
-            if test "$diff_half" -lt 50
-                set frac (math "2/3")
-            else if test "$diff_twothirds" -lt 50
-                set frac (math "1/3")
-            else
+            # Detect current state for cycling
+            # fish math doesn't support < so we compute (threshold - distance), round, and test > 0
+            set -l on_side false
+            switch "$direction"
+                case west
+                    test (math "round(0.05 * $dsp_w - ($win_x - $dsp_x))") -gt 0; and set on_side true
+                    set dim_ratio (math "$win_w / $dsp_w")
+                case east
+                    test (math "round(0.05 * $dsp_w - ($dsp_x + $dsp_w - $win_x - $win_w))") -gt 0; and set on_side true
+                    set dim_ratio (math "$win_w / $dsp_w")
+                case north
+                    test (math "round(0.05 * $dsp_h - ($win_y - $dsp_y))") -gt 0; and set on_side true
+                    set dim_ratio (math "$win_h / $dsp_h")
+                case south
+                    test (math "round(0.05 * $dsp_h - ($dsp_y + $dsp_h - $win_y - $win_h))") -gt 0; and set on_side true
+                    set dim_ratio (math "$win_h / $dsp_h")
+            end
+
+            if test "$on_side" = false
                 set frac 0.5
+            else
+                # Scale differences to integers: abs(ratio - target) * 1000, threshold = 50 (i.e. 0.05)
+                set -l diff_half (math "round(abs($dim_ratio - 0.5) * 1000)")
+                set -l diff_twothirds (math "round(abs($dim_ratio - 0.6667) * 1000)")
+                if test "$diff_half" -lt 50
+                    set frac (math "2/3")
+                else if test "$diff_twothirds" -lt 50
+                    set frac (math "1/3")
+                else
+                    set frac 0.5
+                end
             end
         end
 
