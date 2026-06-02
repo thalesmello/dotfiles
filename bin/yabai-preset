@@ -691,9 +691,9 @@ function yabai-preset
             yabai -m window --toggle float
 
             if test "$right_space" -gt "$threshold" -a "$right_space" -ge "$left_space"
-                yabai-preset snap --frac (math "1/3") east
+                yabai-preset snap --frac "1/3" east
             else if test "$left_space" -gt "$threshold"
-                yabai-preset snap --frac (math "1/3") west
+                yabai-preset snap --frac "1/3" west
             else
                 yabai -m window --grid "8:8:1:1:6:6"
             end
@@ -868,12 +868,15 @@ function yabai-preset
         set uw (math "$dsp_w - $lp - $rp")
         set uh (math "$dsp_h - $tp - $bp")
 
+        # Snap fractions cycle in this order. Edit this array to tune sizes.
+        set -l snap_fracs (math "1/2") (math "2/3") (math "1/3")
+
         if set -q _flag_frac
-            set frac $_flag_frac
+            set frac (math "$_flag_frac")
         else
-            # Detect current state for cycling
-            # fish math doesn't support < so we compute (threshold - distance), round, and test > 0
+            # Detect if window is already on the target side
             set -l on_side false
+            set -l dim_ratio 0
             switch "$direction"
                 case west
                     test (math "round(0.05 * $dsp_w - ($win_x - $dsp_x))") -gt 0; and set on_side true
@@ -889,18 +892,17 @@ function yabai-preset
                     set dim_ratio (math "$win_h / $dsp_h")
             end
 
-            if test "$on_side" = false
-                set frac 0.5
-            else
-                # Scale differences to integers: abs(ratio - target) * 1000, threshold = 50 (i.e. 0.05)
-                set -l diff_half (math "round(abs($dim_ratio - 0.5) * 1000)")
-                set -l diff_twothirds (math "round(abs($dim_ratio - 0.6667) * 1000)")
-                if test "$diff_half" -lt 50
-                    set frac (math "2/3")
-                else if test "$diff_twothirds" -lt 50
-                    set frac (math "1/3")
-                else
-                    set frac 0.5
+            # Cycle through snap_fracs: match current ratio → advance to next
+            set frac $snap_fracs[1]
+            if test "$on_side" = true
+                set -l n (count $snap_fracs)
+                for i in (seq $n)
+                    set -l diff (math "round(abs($dim_ratio - $snap_fracs[$i]) * 1000)")
+                    if test "$diff" -lt 50
+                        set -l next (math "$i % $n + 1")
+                        set frac $snap_fracs[$next]
+                        break
+                    end
                 end
             end
         end
