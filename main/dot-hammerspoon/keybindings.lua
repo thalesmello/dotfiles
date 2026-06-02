@@ -58,12 +58,7 @@ local repin     = createModal("Repin", "Repin: ")
 -- Local config
 ---------------------------------------------------------------
 
-local home = os.getenv("HOME")
-local local_dotfiles = home .. "/.local_dotfiles"
-package.path = local_dotfiles .. "/local_hammerspoon/?.lua;"
-    .. local_dotfiles .. "/local_hammerspoon/?/init.lua;"
-    .. package.path
-local ok, localConfig = pcall(dofile, local_dotfiles .. "/local_hammerspoon/keybindings.lua")
+local ok, localConfig = pcall(require, "local.keybindings")
 
 ---------------------------------------------------------------
 -- Smart Cmd+Tab

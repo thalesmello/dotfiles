@@ -1,3 +1,10 @@
+local home = os.getenv("HOME")
+local local_dotfiles = home .. "/.local_dotfiles"
+
+package.path = local_dotfiles .. "/hammerspoon/?.lua;"
+    .. local_dotfiles .. "/hammerspoon/?/init.lua;"
+    .. package.path
+
 hs.loadSpoon("EmmyLua")
 require("hs.ipc")
 local util = require('util')
