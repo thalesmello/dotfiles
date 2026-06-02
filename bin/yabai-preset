@@ -246,6 +246,29 @@ function yabai-preset
         or return 1
         yabai -m window "$winid" --focus
         or return 1
+    case "focus-stack-aware"
+        set direction $argv[1]
+        set -e argv[1]
+
+        if yabai-preset is-window-floating
+            # Floating: try floating→floating, fallback to stack top
+            yabai-preset focus-floating-window $direction
+            or begin
+                set stack_win (yabai -m query --windows --space | jq -r '
+                    [.[] | select(."is-visible" and (."is-sticky"|not) and (."is-floating" | not) and ."stack-index" > 0)]
+                    | (map(select(."has-focus"))[0] // .[0]).id // empty')
+                test -n "$stack_win"; and yabai -m window --focus "$stack_win"
+            end
+        else
+            # Stack: find nearest floating window in direction using stack position as reference
+            set focused_id (yabai -m query --windows --window | jq -r '.id')
+            set floating_ids (yabai -m query --windows --space | jq -c \
+                '[.[] | select(."is-visible" and (."is-sticky"|not) and ."split-type" == "none" and ."is-floating") | .id]')
+            set all_ids (echo "$floating_ids" | jq -c --argjson fid "$focused_id" '. + [$fid]')
+
+            set target (yabai-preset get-floating-window-target --ids "$all_ids" --focused "$focused_id" $direction)
+            test -n "$target"; and yabai -m window --focus "$target"
+        end
     case "move-window-in-stack"
         set stack $argv[1]
         set -e argv[1]
