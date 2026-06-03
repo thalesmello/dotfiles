@@ -21,7 +21,7 @@ if not hs.ipc.cliStatus(nil, true) then
 end
 
 require("preset")
-require("keybindings")
+require("keybindings").setup()
 
 local audiodevice = require("audiodevice")
 audiodevice.setup()

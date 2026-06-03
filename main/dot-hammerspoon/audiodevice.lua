@@ -1,27 +1,22 @@
 local util = require("util")
-local FISH = "/opt/homebrew/bin/fish"
+local shell = require("shell")
 
 local M = {}
 
-local function M.setPreferredInputDevice()
+function M.setPreferredInputDevice()
   util.log("audiodevice: setting preferred input device")
-  hs.task.new(FISH, function(exitCode, stdOut, stdErr)
-
-    util.log("audiodevice: exitCode=", exitCode)
-    if stdOut and #stdOut > 0 then util.log("audiodevice stdout:", stdOut) end
-    if stdErr and #stdErr > 0 then util.log("audiodevice stderr:", stdErr) end
-  end, {"-c", "set-preferred-input-device"}):start()
+  shell.fish("set-preferred-input-device")
 end
 
-local function M.audioDeviceCallback(event)
+function M.audioDeviceCallback(event)
   util.log("audiodevice: event=", event)
   if event == "dIn " then
-    setPreferredInputDevice()
+    M.setPreferredInputDevice()
   end
 end
 
-local function M.setup()
-  hs.audiodevice.watcher.setCallback(audioDeviceCallback)
+function M.setup()
+  hs.audiodevice.watcher.setCallback(M.audioDeviceCallback)
   hs.audiodevice.watcher.start()
 end
 
@@ -29,7 +24,7 @@ end
 -- local usbWatcher = hs.usb.watcher.new(function(event)
 --   util.log("audiodevice: usb event=", event.eventType, "productName=", event.productName)
 --   if event.eventType == "added" then
---     setPreferredInputDevice()
+--     M.setPreferredInputDevice()
 --   end
 -- end)
 -- usbWatcher:start()
