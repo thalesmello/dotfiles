@@ -33,7 +33,7 @@ end
 
 local watchPaths = {
   resolvePath(os.getenv("HOME") .. "/.hammerspoon"),
-  resolvePath(os.getenv("HOME") .. "/.local_dotfiles/local_hammerspoon"),
+  resolvePath(os.getenv("HOME") .. "/.local_dotfiles/hammerspoon"),
 }
 
 _G.ReloadFileListeners = {}

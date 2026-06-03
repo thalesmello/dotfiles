@@ -754,9 +754,11 @@ function yabai-preset
         yabai -m space --layout stack
         display-message "Layout stack"
     case "layout-bsp"
+        yabai-preset set-stack-default-padding
         yabai -m space --layout bsp
         display-message "Layout bsp"
     case "layout-float"
+        yabai-preset set-stack-default-padding
         yabai -m space --layout float
         display-message "Layout float"
     case "layout-float-all"
@@ -1019,9 +1021,113 @@ function yabai-preset
             case south
                 yabai -m space --padding "abs:$big:$cfg_bp:$cfg_lp:$cfg_rp"
         end
+    case "get-stack-padding"
+        yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line win_x win_y win_w win_h
+        osascript -l JavaScript -e "
+            ObjC.import('AppKit');
+            var wx = $win_x, wy = $win_y;
+            var screens = \$.NSScreen.screens;
+            var s = \$.NSScreen.mainScreen;
+            for (var i = 0; i < screens.count; i++) {
+                var sf = screens.objectAtIndex(i).frame;
+                if (wx >= sf.origin.x && wx < sf.origin.x + sf.size.width) { s = screens.objectAtIndex(i); break; }
+            }
+            var f = s.frame;
+            var vf = s.visibleFrame;
+            var y = f.size.height - vf.origin.y - vf.size.height + f.origin.y;
+            [Math.round(vf.origin.x), Math.round(y), Math.round(vf.size.width), Math.round(vf.size.height)].join('\n');
+        " | read --line dsp_x dsp_y dsp_w dsp_h
+
+        set tp (math "round($win_y - $dsp_y)")
+        set bp (math "round($dsp_y + $dsp_h - $win_y - $win_h)")
+        set lp (math "round($win_x - $dsp_x)")
+        set rp (math "round($dsp_x + $dsp_w - $win_x - $win_w)")
+        echo "$tp:$bp:$lp:$rp"
+    case "set-stack-default-padding"
+        set tp (yabai -m config top_padding | string trim)
+        set bp (yabai -m config bottom_padding | string trim)
+        set lp (yabai -m config left_padding | string trim)
+        set rp (yabai -m config right_padding | string trim)
+
+        set -l current (yabai-preset get-stack-padding)
+        or begin
+            yabai -m space --padding "abs:$tp:$bp:$lp:$rp"
+            return
+        end
+
+        set -l needs_reset false
+        set -l defaults $tp $bp $lp $rp
+        set -l vals (string split : $current)
+        for i in (seq (count $defaults))
+            if test (math "round(abs($vals[$i] - $defaults[$i]))") -gt 5
+                set needs_reset true
+                break
+            end
+        end
+
+        if test "$needs_reset" = true
+            yabai -m space --padding "abs:$tp:$bp:$lp:$rp"
+        end
+    case "snap-center"
+        # Centered snap modes: "width_frac:height_frac". Edit to tune.
+        set -l center_modes "1:1" "0.75:0.75" "2/3:1" "1/3:1"
+
+        set gap (yabai -m config window_gap | string trim)
+        set tp (yabai -m config top_padding | string trim)
+        set bp (yabai -m config bottom_padding | string trim)
+        set lp (yabai -m config left_padding | string trim)
+        set rp (yabai -m config right_padding | string trim)
+
+        yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line win_x win_y win_w win_h
+        osascript -l JavaScript -e "
+            ObjC.import('AppKit');
+            var wx = $win_x, wy = $win_y;
+            var screens = \$.NSScreen.screens;
+            var s = \$.NSScreen.mainScreen;
+            for (var i = 0; i < screens.count; i++) {
+                var sf = screens.objectAtIndex(i).frame;
+                if (wx >= sf.origin.x && wx < sf.origin.x + sf.size.width) { s = screens.objectAtIndex(i); break; }
+            }
+            var f = s.frame;
+            var vf = s.visibleFrame;
+            var y = f.size.height - vf.origin.y - vf.size.height + f.origin.y;
+            [Math.round(vf.origin.x), Math.round(y), Math.round(vf.size.width), Math.round(vf.size.height)].join('\n');
+        " | read --line dsp_x dsp_y dsp_w dsp_h
+
+        set -l uw (math "$dsp_w - $lp - $rp")
+        set -l uh (math "$dsp_h - $tp - $bp")
+        set -l w_ratio (math "$win_w / $uw")
+        set -l h_ratio (math "$win_h / $uh")
+
+        # Cycle: match current mode → advance to next
+        set -l target_w 1
+        set -l target_h 1
+        set -l n (count $center_modes)
+        for i in (seq $n)
+            echo $center_modes[$i] | read -d: mode_w_raw mode_h_raw
+            set -l mw (math "$mode_w_raw")
+            set -l mh (math "$mode_h_raw")
+            set -l dw (math "round(abs($w_ratio - $mw) * 1000)")
+            set -l dh (math "round(abs($h_ratio - $mh) * 1000)")
+            if test "$dw" -lt 80 -a "$dh" -lt 80
+                set -l next_i (math "$i % $n + 1")
+                echo $center_modes[$next_i] | read -d: target_w target_h
+                break
+            end
+        end
+
+        set -l tw (math "$target_w")
+        set -l th (math "$target_h")
+        set -l w (math "floor($uw * $tw)")
+        set -l h (math "floor($uh * $th)")
+        set -l x (math "floor($dsp_x + $lp + ($uw - $w) / 2)")
+        set -l y (math "floor($dsp_y + $tp + ($uh - $h) / 2)")
+
+        yabai -m window --move "abs:$x:$y"
+        yabai -m window --resize "abs:$w:$h"
     case "cycle-stack-center"
-        # Center fractions cycle in this order. 1 = fullscreen (default padding).
-        set -l center_fracs 1 (math "2/3")
+        # Centered stack modes: "width_frac:height_frac". Edit to tune.
+        set -l center_modes "1:1" "0.75:0.75" "2/3:1" "1/3:1"
 
         set cfg_tp (yabai -m config top_padding | string trim)
         set cfg_bp (yabai -m config bottom_padding | string trim)
@@ -1031,28 +1137,38 @@ function yabai-preset
         yabai -m query --windows --window | jq -r '.frame | "\(.w)\n\(.h)"' | read --line win_w win_h
         yabai -m query --displays --display | jq -r '.frame | "\(.w)\n\(.h)"' | read --line dsp_w dsp_h
 
-        # Use the smaller ratio — if either dimension is reduced, it's not fullscreen
         set -l w_ratio (math "$win_w / $dsp_w")
         set -l h_ratio (math "$win_h / $dsp_h")
-        set -l dim_ratio (math "min $w_ratio, $h_ratio")
 
-        # Cycle: match current ratio → advance to next
-        set -l frac $center_fracs[1]
-        set -l n (count $center_fracs)
+        # Cycle: match current mode → advance to next
+        set -l target_w 1
+        set -l target_h 1
+        set -l n (count $center_modes)
         for i in (seq $n)
-            set -l diff (math "round(abs($dim_ratio - $center_fracs[$i]) * 1000)")
-            if test "$diff" -lt 50
-                set -l next (math "$i % $n + 1")
-                set frac $center_fracs[$next]
+            echo $center_modes[$i] | read -d: mode_w_raw mode_h_raw
+            set -l mw (math "$mode_w_raw")
+            set -l mh (math "$mode_h_raw")
+            set -l dw (math "round(abs($w_ratio - $mw) * 1000)")
+            set -l dh (math "round(abs($h_ratio - $mh) * 1000)")
+            if test "$dw" -lt 80 -a "$dh" -lt 80
+                set -l next_i (math "$i % $n + 1")
+                echo $center_modes[$next_i] | read -d: target_w target_h
                 break
             end
         end
 
-        if test "$frac" = 1
+        set -l tw (math "$target_w")
+        set -l th (math "$target_h")
+        if test "$tw" = 1 -a "$th" = 1
             yabai -m space --padding "abs:$cfg_tp:$cfg_bp:$cfg_lp:$cfg_rp"
         else
-            set -l h_pad (math "floor($dsp_w * (1 - $frac) / 2)")
-            yabai -m space --padding "abs:$cfg_tp:$cfg_bp:$h_pad:$h_pad"
+            set -l h_pad (math "floor($dsp_w * (1 - $tw) / 2)")
+            if test "$th" = 1
+                yabai -m space --padding "abs:$cfg_tp:$cfg_bp:$h_pad:$h_pad"
+            else
+                set -l v_pad (math "floor($dsp_h * (1 - $th) / 2)")
+                yabai -m space --padding "abs:$v_pad:$v_pad:$h_pad:$h_pad"
+            end
         end
     case "get-app-window-id"
         argparse 'match-title=' -- $argv

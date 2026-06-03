@@ -76,15 +76,14 @@ default:bindOnce(hyperShift, ";", "Command Palette", showCommandPalette)
 -- Utility
 default:bindOnce(hyperShift, "m", "Deminimize Last", function() task({"wm-preset", "deminimize-last"}) end)
 default:bindOnce(hyper, "m", "Minimize", function() task({"wm-preset", "minimize"}) end)
-default:conditionalBindOnce(hyper, "return", "Smart Toggle Fullscreen", {
+default:conditionalBindOnce(hyper, "return", "Toggle Fullscreen", {
   {cond = function() return Preset.hasSavedFloatingFrame() end, function() Preset.toggleFloatingFullscreen() end},
   {cond = isWindowFloating, function() Preset.toggleFloatingFullscreen() end},
-  {cond = isSpaceStack, function() task({"yabai-preset", "cycle-stack-center"}) end},
+  {cond = isSpaceStack, function() Preset.toggleStackFullscreen() end},
   {function() task({"wm-preset", "smart-toggle-fullscreen"}) end},
 })
-default:conditionalBindOnce(hyperShift, "return", "Smart Toggle Fullscreen / Swap Largest", {
-  {cond = function() return Preset.hasSavedFloatingFrame() end, function() Preset.toggleFloatingFullscreen() end},
-  {cond = isWindowFloating, function() Preset.toggleFloatingFullscreen() end},
+default:conditionalBindOnce(hyperShift, "return", "Cycle Centered Layout", {
+  {cond = isWindowFloating, function() task({"yabai-preset", "snap-center"}) end},
   {cond = isSpaceStack, function() task({"yabai-preset", "cycle-stack-center"}) end},
   {function() task({"wm-preset", "unstacked-swap-largest"}) end},
 })
