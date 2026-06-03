@@ -188,32 +188,36 @@ end
 
 _G._savedStackPadding = _G._savedStackPadding or {}
 
+local function isStackFullscreenPadding(padding)
+  local count = 0
+  for val in padding:gmatch("%-?%d+") do
+    count = count + 1
+    if math.abs(tonumber(val)) > 15 then return false end
+  end
+  return count == 4
+end
+
 function M.toggleStackFullscreen()
   shell.task({"yabai", "-m", "query", "--spaces", "--space"}, function(ok, output)
     if not ok then return end
     local spaceIdx = tonumber(output:match('"index"%s*:%s*(%d+)'))
     if not spaceIdx then return end
 
-    if _G._savedStackPadding[spaceIdx] then
-      shell.task({"yabai", "-m", "space", "--padding", "abs:" .. _G._savedStackPadding[spaceIdx]})
-      _G._savedStackPadding[spaceIdx] = nil
-    else
-      shell.task({"yabai-preset", "get-stack-padding"}, function(ok2, padding)
-        if not ok2 then return end
-        _G._savedStackPadding[spaceIdx] = padding
+    shell.task({"yabai-preset", "get-stack-padding"}, function(ok2, padding)
+      if not ok2 then return end
 
-        local isFullscreen = true
-        for val in padding:gmatch("%-?%d+") do
-          if tonumber(val) > 15 then isFullscreen = false; break end
-        end
-
-        if isFullscreen then
-          shell.task({"yabai-preset", "cycle-stack-padding", "west"})
+      if isStackFullscreenPadding(padding) then
+        if _G._savedStackPadding[spaceIdx] then
+          shell.task({"yabai", "-m", "space", "--padding", "abs:" .. _G._savedStackPadding[spaceIdx]})
+          _G._savedStackPadding[spaceIdx] = nil
         else
-          shell.task({"yabai-preset", "set-stack-default-padding"})
+          shell.task({"yabai-preset", "cycle-stack-padding", "west"})
         end
-      end)
-    end
+      else
+        _G._savedStackPadding[spaceIdx] = padding
+        shell.task({"yabai-preset", "set-stack-default-padding"})
+      end
+    end)
   end)
 end
 
