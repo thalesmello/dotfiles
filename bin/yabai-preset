@@ -671,6 +671,11 @@ function yabai-preset
         set -e argv[1]
         yabai -m window --warp $direction; or yabai-preset unstack-window $direction
     case "toggle-float"
+        if yabai-preset is-space-float-layout
+            echo "Unsupported in float layout"
+            return 1
+        end
+
         if yabai-preset is-window-floating
             yabai -m window --toggle float
             echo tiling
