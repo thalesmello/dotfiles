@@ -1,7 +1,9 @@
 local util = require("util")
 local FISH = "/opt/homebrew/bin/fish"
 
-local function setPreferredInputDevice()
+local M = {}
+
+local function M.setPreferredInputDevice()
   util.log("audiodevice: setting preferred input device")
   hs.task.new(FISH, function(exitCode, stdOut, stdErr)
 
@@ -11,15 +13,17 @@ local function setPreferredInputDevice()
   end, {"-c", "set-preferred-input-device"}):start()
 end
 
-local function audioDeviceCallback(event)
+local function M.audioDeviceCallback(event)
   util.log("audiodevice: event=", event)
   if event == "dIn " then
     setPreferredInputDevice()
   end
 end
 
-hs.audiodevice.watcher.setCallback(audioDeviceCallback)
-hs.audiodevice.watcher.start()
+local function M.setup()
+  hs.audiodevice.watcher.setCallback(audioDeviceCallback)
+  hs.audiodevice.watcher.start()
+end
 
 -- TODO: This appears to not be working very well because it executes every time I manually override the microphone, so I need to investigate at some point
 -- local usbWatcher = hs.usb.watcher.new(function(event)
@@ -29,3 +33,5 @@ hs.audiodevice.watcher.start()
 --   end
 -- end)
 -- usbWatcher:start()
+
+return M

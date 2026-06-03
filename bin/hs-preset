@@ -13,7 +13,7 @@ function hs-preset
             set -a lua_args "\"$arg\""
         end
         set -l lua_table (string join ", " $lua_args)
-        hs -c "Preset.sendKeys({$lua_table})"
+        hs -c "require('preset').sendKeys({$lua_table})"
 
     case "display-message"
         argparse duration= -- $argv
@@ -22,20 +22,20 @@ function hs-preset
         set -l message (string escape -- $argv[1])
         set -l duration (test -n "$_flag_duration"; and echo "$_flag_duration"; or echo 0.5)
 
-        hs -c "Preset.displayMessage(\"$message\", $duration)"
+        hs -c "require('preset').displayMessage(\"$message\", $duration)"
 
     case "trigger-menu-bar"
         set -l path "$argv[1]"
-        hs -c "Preset.triggerMenuBar([=[$path]=])"
+        hs -c "require('preset').triggerMenuBar([=[$path]=])"
 
     case "get-active-app"
-        hs -c "Preset.getActiveApp()"
+        hs -c "require('preset').getActiveApp()"
 
     case "get-focused-window-app"
-        hs -c "Preset.getFocusedWindowApp()"
+        hs -c "require('preset').getFocusedWindowApp()"
 
     case "get-selected-text"
-        hs -c "Preset.getSelectedText()"
+        hs -c "require('preset').getSelectedText()"
 
     case "show-or-hide-app"
         argparse only-show only-hide -- $argv
@@ -53,7 +53,7 @@ function hs-preset
             set only_hide "true"
         end
 
-        hs -c "Preset.showOrHideApp(\"$app\", $only_show, $only_hide)"
+        hs -c "require('preset').showOrHideApp(\"$app\", $only_show, $only_hide)"
 
     case "show-app"
         hs-preset show-or-hide-app --only-show $argv
@@ -83,18 +83,18 @@ function hs-preset
 
         set opts "$opts}"
 
-        hs -c "Preset.alternateApp(\"$app_escaped\", $opts)"
+        hs -c "require('preset').alternateApp(\"$app_escaped\", $opts)"
 
     case "goto-space"
         set -l space_index $argv[1]
-        hs -c "Preset.gotoSpace($space_index)"
+        hs -c "require('preset').gotoSpace($space_index)"
 
     case "move-window-to-space"
         set -l space_index $argv[1]
-        hs -c "Preset.moveWindowToSpace($space_index)"
+        hs -c "require('preset').moveWindowToSpace($space_index)"
 
     case "move-window-to-next-screen"
-        hs -c "Preset.moveWindowToNextScreen()"
+        hs -c "require('preset').moveWindowToNextScreen()"
 
     case "restart-btt"
         # No-op: BTT is no longer used

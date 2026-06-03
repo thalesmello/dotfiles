@@ -4,6 +4,7 @@ local shell = require("shell")
 local mode = require("mode")
 local palette = require("palette")
 local util = require("util")
+local Preset = require("preset")
 
 local task = shell.task
 local taskAsync = shell.taskAsync
@@ -534,6 +535,7 @@ local ctx = {
   isFloatingTerminal = isFloatingTerminal,
   chromeAppModal = chromeAppModal,
   launchOrFocus = launchOrFocus,
+  Preset = Preset,
 }
 
 if ok and localConfig and localConfig.setup then

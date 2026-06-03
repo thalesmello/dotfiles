@@ -20,10 +20,11 @@ if not hs.ipc.cliStatus(nil, true) then
   hs.ipc.cliInstall()
 end
 
-Preset = require("preset")
+require("preset")
 require("keybindings")
-require("audiodevice")
-require("screenwatcher")
+
+local audiodevice = require("audiodevice")
+audiodevice.setup()
 
 -- Auto-reload config when files change
 -- Resolve symlinks so FSEvents watches the real directory
