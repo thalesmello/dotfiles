@@ -1,10 +1,7 @@
 return {
     'ThePrimeagen/refactoring.nvim',
     dependencies = {
-        {
-            "nvim-lua/plenary.nvim",
-            extra_contexts = {"vscode", "firenvim"}
-        },
+        { "lewis6991/async.nvim" },
         { "nvim-treesitter/nvim-treesitter" },
     },
     opts = {},

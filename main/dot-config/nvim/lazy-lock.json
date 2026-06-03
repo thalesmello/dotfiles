@@ -1,6 +1,7 @@
 {
   "99": { "branch": "master", "commit": "4d229141546290746c82ac90f5afc2786865b5f3" },
   "QFEnter": { "branch": "master", "commit": "1e4bf00b264e0f1541401c28c4b63ace5bb3d2be" },
+  "async.nvim": { "branch": "main", "commit": "7a1d7d49933fbe902b84b55f352a3b10fd587331" },
   "claudecode.nvim": { "branch": "main", "commit": "2a418a9f6066714ebf23330b9ea1ee8828c8f98a" },
   "cmdline-hl.nvim": { "branch": "main", "commit": "df869995620a02cd16b998419b2ecc17a1fe7529" },
   "cmp-buffer": { "branch": "main", "commit": "b74fab3656eea9de20a9b8116afa3cfc4ec09657" },
