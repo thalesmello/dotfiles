@@ -38,15 +38,13 @@ set -a configs bottom_padding               10
 set -a configs left_padding                 10
 set -a configs right_padding                10
 set -a configs window_gap                   10
-set -a configs layout                       float
+set -a configs layout                       stack
 set -a configs mouse_modifier               fn
 set -a configs mouse_action1                move
 set -a configs mouse_action2                resize
 set -a configs mouse_drop_action            swap
 
 
-# global settings
-yabai -m config $configs
 
 yabai -m signal --add event=space_changed label=announce_space_change action="display-message \"Space \$YABAI_SPACE_INDEX\""
 yabai -m signal --add event=window_created label=stack_new_windows action="/opt/homebrew/bin/fish -c \"yabai-preset stack-new-window \$YABAI_WINDOW_ID\""
@@ -66,8 +64,14 @@ yabai -m rule --add app="Google Chrome" title='^$' role="AXWindow" subrole="AXSt
 yabai -m rule --add app="Karabiner-Elements" title="Karabiner-Elements Settings" manage=off
 yabai -m rule --add app="Mac Mouse Fix" manage=off
 yabai -m rule --add app="Raycast" manage=off
+yabai -m rule --add app="Klack" manage=off
 yabai -m rule --add app="superwhisper" manage=off
 yabai -m rule --add app="Cisco Secure Client" manage=off
+
+yabai -m rule --apply
+
+# global settings
+yabai -m config $configs
 
 echo "yabai configuration loaded.."
 display-message "yabai configuration loaded.."
