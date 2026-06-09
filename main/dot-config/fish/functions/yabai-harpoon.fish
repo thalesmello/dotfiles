@@ -41,16 +41,16 @@ function yabai-harpoon
 
         and jq -nr --argjson pin "$pin" --argjson json "$json" '$pin.type, ($json.pins | length)' | read --line type count_pins
 
-        and display-message "Add $type to pin $count_pins"
+        and display-message "yabai-harpoon: Add $type to pin $count_pins"
     case "reset-file"
         echo '{ "pins": [] }' > "$FILE"
     case "delete"
         yabai-harpoon reset-file
-        display-message "Delete list"
+        display-message "yabai-harpoon: Delete list"
     case "rewrite-pins-in-file"
         yabai-harpoon get-pins-from-file | yabai-harpoon normalize-pins | yabai-harpoon write-pins-to-file
     case "edit"
-        display-message "Edit Yabai-harpoon"
+        display-message "yabai-harpoon: Edit"
 
         set tmpfile (mktemp --suffix ".js")
 
@@ -65,9 +65,9 @@ function yabai-harpoon
 
         if test "$modified_before" != "$modified_after"
             yabai-harpoon write-pins-to-file < "$tmpfile"
-            display-message "Updated list"
+            display-message "yabai-harpoon: Updated list"
         else
-            display-message "Exit Update"
+            display-message "yabai-harpoon: Exit Update"
         end
 
     case "get-pin"
@@ -85,15 +85,15 @@ function yabai-harpoon
         end
 
         set json (yabai-harpoon get-pin "$position")
-        and display-message "Focus $position"
+        and display-message "yabai-harpoon: Focus $position"
         or begin
-            display-message "Pin $position inexistant"
+            display-message "yabai-harpoon: Pin $position inexistant"
             return 1
         end
 
         echo $json | yabai-harpoon focus-pin-json
         or begin
-            display-message "Refreshing Pins"
+            display-message "yabai-harpoon: Refreshing Pins"
             yabai-harpoon rewrite-pins-in-file
             and yabai-harpoon get-pin "$position" | yabai-harpoon focus-pin-json
         end
