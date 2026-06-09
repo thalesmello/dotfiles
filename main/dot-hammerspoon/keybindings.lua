@@ -223,9 +223,9 @@ function M.setup()
   default:bindOnce(hyperShift, "p", "Move Window In Stack Prev", function() task({"wm-preset", "move-window-in-stack", "prev"}) end)
 
   -- Mode entries
-  default:bindOnce(hyper, "space", "Enter Service Mode", function() service:enter() end)
-  default:bindOnce(hyper, "i", "Enter Invoke Mode", function() invoke:enter() end)
-  default:bindOnce(hyper, "'", "Enter Chrome Mode", function() chrome:enter() end)
+  default:bindEnter(hyper, "space", "Enter Service Mode", service)
+  default:bindEnter(hyper, "i", "Enter Invoke Mode", invoke)
+  default:bindEnter(hyper, "'", "Enter Chrome Mode", chrome)
 
   -- Karabiner Mouse Layer
   default:bindOnce({}, "F18", "Enter Second Mouse Layer", function() task({"karabiner-preset", "enable-layer", "mouse-second-layer"}) end)
@@ -430,8 +430,8 @@ function M.setup()
   service:bindOnce({"shift"}, "space", "Move Window To Space Recent", function() task({"wm-preset", "move-window-to-space", "recent"}) end)
 
   -- Mode transitions
-  service:bindOnce({}, "r", "Enter Resize Mode", function() resize:enter() end)
-  service:bindOnce(hyper, "r", "Enter Restart Mode", function() restart:enter() end)
+  service:bindEnter({}, "r", "Enter Resize Mode", resize)
+  service:bindEnter(hyper, "r", "Enter Restart Mode", restart)
 
   -- Window management
   service:bindOnce({"shift"}, "y", "Toggle WM", function() task({"wm-preset", "toggle-wm"}) end)
@@ -512,7 +512,7 @@ function M.setup()
   service:bindOnce(hyper, "return", "True Fullscreen", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "f") end)
 
   -- Enter chrome from service
-  service:bindOnce({}, "c", "Enter Chrome Mode", function() chrome:enter() end)
+  service:bindEnter({}, "c", "Enter Chrome Mode", chrome)
 
   ---------------------------------------------------------------
   -- RESIZE MODE bindings (stays in mode, no exit on key press)
@@ -535,13 +535,12 @@ function M.setup()
   ---------------------------------------------------------------
 
   restart:bindOnce(hyper, "y", "Restart WM", function() task({"yabai-preset", "restart-wm"}) end)
-  restart:bindOnce(hyperShift, "b", "Restart Hammerspoon", function() hs.alert.show("Restarting Hammerspoon"); hs.relaunch() end)
   restart:bindOnce(hyper, "a", "Restart Alfred", function() hs.alert.show("Restart Alfred"); fish('killall Alfred; sleep 2; and open -a "Alfred 5"') end)
   restart:bindOnce(hyper, "m", "Restart Mouseless", function() hs.alert.show("Restart Mouseless"); fish('killall mouseless; sleep 2; and open -a "Mouseless"') end)
   restart:bindOnce(hyper, "v", "Restart NVIM Ghost", function() hs.alert.show("Restart NVIM Ghost"); fish("neovim-ghost kill; sleep 2; and neovim-ghost start --spawn") end)
   restart:bindOnce(hyper, "k", "Restart Karabiner", function() hs.alert.show("Restart Karabiner"); fish('launchctl kickstart -k gui/(id -u)/org.pqrs.service.agent.karabiner_console_user_server') end)
   restart:bindOnce(hyper, "h", "Restart Hammerspoon", function() hs.alert.show("Restarting Hammerspoon"); hs.reload() end)
-  restart:bindOnce(hyper, "p", "Enter Repin Mode", function() repin:enter() end)
+  restart:bindEnter(hyper, "p", "Enter Repin Mode", repin)
   restart:conditionalBindOnce(hyper, "s", "Toggle AeroSpace", {
     {cond = function() return isProcessRunning("AeroSpace") end, function()
       hs.alert.show("Killing AeroSpace")
@@ -564,7 +563,7 @@ function M.setup()
   ---------------------------------------------------------------
 
   -- Mode transitions
-  chrome:bindOnce(hyper, "'", "Enter Go To Mode", function() goto_mode:enter() end)
+  chrome:bindEnter(hyper, "'", "Enter Go To Mode", goto_mode)
   chrome:bind({}, "'", function() chrome:exit(); goto_mode:enter() end)
 
   -- Close zoom tabs
