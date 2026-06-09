@@ -11,7 +11,7 @@ function M.isFloatingTerminal()
   local win = hs.window.focusedWindow()
   if not win then return false end
   local app = win:application()
-  return app ~= nil and app:name() == "iTerm2" and win:title() == "floating-terminal"
+  return app ~= nil and app:name() == "iTerm2" and win:title():find("floating-terminal", 1, true) ~= nil
 end
 
 local Mode = {}
