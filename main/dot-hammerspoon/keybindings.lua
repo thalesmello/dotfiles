@@ -415,8 +415,31 @@ function M.setup()
     {function() fish("yabai-harpoon delete") end},
   })
 
-  -- Side-by-side
-  service:bindOnce({"shift"}, ";", "Side By Side", function() task({"yabai-preset", "side-by-side"}) end)
+  -- Side-by-side: arrange the marked windows (2-6) into an optimal grid.
+  service:bindOnce({"shift"}, ";", "Side By Side", function()
+    local count = ArgList.count()
+    if count == 0 then
+      Preset.displayMessage("Side By Side: no windows selected", 2)
+      return
+    elseif count == 1 then
+      Preset.displayMessage("Side By Side: select at least 2 windows", 2)
+      return
+    elseif count >= 7 then
+      Preset.displayMessage("Side By Side: too many windows (max 6)", 2)
+      return
+    end
+
+    local args = {"yabai-preset", "side-by-side"}
+    for _, id in ipairs(ArgList.items()) do args[#args + 1] = id end
+    task(args, function(ok)
+      if ok then
+        Preset.displayMessage("Side By Side: arranged " .. count .. " windows\nArgList cleared", 2)
+        ArgList.clear()
+      else
+        Preset.displayMessage("Side By Side: failed", 2)
+      end
+    end)
+  end)
 
   -- Edit hammerspoon keybindings
   service:bindOnce(hyper, "e", "Edit Keybindings", function()

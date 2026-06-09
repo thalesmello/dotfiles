@@ -460,6 +460,24 @@ function yabai-preset
 
         test "$is_floating" = true
         or return 1
+    case "enforce-tiling"
+        # Force a window into a floating/tiling state (or toggle it).
+        # Usage: enforce-tiling --floating|--tiling|--toggle [window_id]
+        argparse floating tiling toggle -- $argv
+        or return 1
+        set window $argv[1]; set -e argv[1]
+        test -z "$window"; and set window (yabai-preset get-focused-window-id)
+
+        if set -q _flag_toggle
+            yabai -m window "$window" --toggle float
+        else if set -q _flag_floating
+            yabai-preset is-window-floating "$window"; or yabai -m window "$window" --toggle float
+        else if set -q _flag_tiling
+            not yabai-preset is-window-floating "$window"; or yabai -m window "$window" --toggle float
+        else
+            echo "enforce-tiling: specify --floating, --tiling or --toggle" >&2
+            return 1
+        end
     case "is-space-float-layout"
         set space $argv[1]
         set -e argv[1]
@@ -681,7 +699,7 @@ function yabai-preset
         end
 
         if yabai-preset is-window-floating
-            yabai -m window --toggle float
+            yabai-preset enforce-tiling --tiling
             echo tiling
             return
         end
@@ -716,7 +734,7 @@ function yabai-preset
                 set best_space $top_space; set best_dir north
             end
 
-            yabai -m window --toggle float
+            yabai-preset enforce-tiling --floating
 
             if test -n "$best_dir"
                 switch "$best_dir"
@@ -730,7 +748,7 @@ function yabai-preset
                 yabai -m window --grid "8:8:1:1:6:6"
             end
         else
-            yabai -m window --toggle float
+            yabai-preset enforce-tiling --floating
             yabai -m window --grid "8:8:1:1:6:6"
         end
         echo floating
@@ -853,20 +871,111 @@ function yabai-preset
         set recent (yabai-preset get-recent-window-id)
         or return 1
         yabai -m window --focus "$recent"
+    case "get-visible-frame"
+        # Output "x\ny\nw\nh" of the usable area (excludes menu bar and dock) of
+        # the display containing the given window (default: focused window).
+        set window $argv[1]; set -e argv[1]
+        test -z "$window"; and set window (yabai-preset get-focused-window-id)
+
+        yabai -m query --windows --window "$window" | jq -r '.frame.x' | read --line win_x
+        # NSScreen.visibleFrame gives the usable area; yabai --move/--resize abs:
+        # uses raw screen coords, so convert the origin to top-left space.
+        osascript -l JavaScript -e "
+            ObjC.import('AppKit');
+            var wx = $win_x;
+            var screens = \$.NSScreen.screens;
+            var s = \$.NSScreen.mainScreen;
+            for (var i = 0; i < screens.count; i++) {
+                var sf = screens.objectAtIndex(i).frame;
+                if (wx >= sf.origin.x && wx < sf.origin.x + sf.size.width) { s = screens.objectAtIndex(i); break; }
+            }
+            var f = s.frame;
+            var vf = s.visibleFrame;
+            var y = f.size.height - vf.origin.y - vf.size.height + f.origin.y;
+            [Math.round(vf.origin.x), Math.round(y), Math.round(vf.size.width), Math.round(vf.size.height)].join('\n');
+        "
     case "side-by-side"
-        set focused (yabai-preset get-focused-window-id)
+        # Arrange the given window ids into an optimal grid on their display.
+        set ids $argv
 
-        # Make focused window floating if not already, then snap left
-        wm-preset is-window-floating; or wm-preset toggle-float
-        yabai-preset snap west
+        set n (count $ids)
+        if test "$n" -lt 2 -o "$n" -gt 6
+            echo "side-by-side: need between 2 and 6 windows (got $n)" >&2
+            return 1
+        end
 
-        # Switch to recent window, make floating if not already, then snap right
-        yabai-preset focus-recent
-        wm-preset is-window-floating; or wm-preset toggle-float
-        yabai-preset snap east
+        # Make every target window floating so it can be positioned freely.
+        for id in $ids
+            yabai-preset enforce-tiling --floating "$id"
+        end
 
-        # Focus back to original window
-        yabai -m window --focus "$focused"
+        # Usable area of the display that holds the first window.
+        yabai-preset get-visible-frame "$ids[1]" | read --line dsp_x dsp_y dsp_w dsp_h
+
+        set gap (yabai -m config window_gap | string trim)
+        set tp (yabai -m config top_padding | string trim)
+        set bp (yabai -m config bottom_padding | string trim)
+        set lp (yabai -m config left_padding | string trim)
+        set rp (yabai -m config right_padding | string trim)
+
+        set ox (math "$dsp_x + $lp")
+        set oy (math "$dsp_y + $tp")
+        set uw (math "$dsp_w - $lp - $rp")
+        set uh (math "$dsp_h - $tp - $bp")
+
+        # Bands = windows per band. Bands stack along the screen's short axis and
+        # split along the long axis, giving each window the most room.
+        switch "$n"
+            case 2
+                set bands 2
+            case 3
+                set bands 3
+            case 4
+                set bands 2 2
+            case 5
+                set bands 2 3
+            case 6
+                set bands 3 3
+        end
+
+        set num_bands (count $bands)
+        set idx 1
+
+        if test "$uh" -gt "$uw"
+            # Vertical display: bands are columns split into stacked rows.
+            set band_w (math "($uw - $gap * ($num_bands - 1)) / $num_bands")
+            for b in (seq $num_bands)
+                set size $bands[$b]
+                set x (math "floor($ox + ($b - 1) * ($band_w + $gap))")
+                set w (math "floor($band_w)")
+                set cell_h (math "($uh - $gap * ($size - 1)) / $size")
+                for r in (seq $size)
+                    set y (math "floor($oy + ($r - 1) * ($cell_h + $gap))")
+                    set h (math "floor($cell_h)")
+                    set id $ids[$idx]
+                    yabai -m window "$id" --move "abs:$x:$y"
+                    yabai -m window "$id" --resize "abs:$w:$h"
+                    set idx (math "$idx + 1")
+                end
+            end
+        else
+            # Horizontal display: bands are rows split into side-by-side columns.
+            set band_h (math "($uh - $gap * ($num_bands - 1)) / $num_bands")
+            for r in (seq $num_bands)
+                set size $bands[$r]
+                set y (math "floor($oy + ($r - 1) * ($band_h + $gap))")
+                set h (math "floor($band_h)")
+                set cell_w (math "($uw - $gap * ($size - 1)) / $size")
+                for c in (seq $size)
+                    set x (math "floor($ox + ($c - 1) * ($cell_w + $gap))")
+                    set w (math "floor($cell_w)")
+                    set id $ids[$idx]
+                    yabai -m window "$id" --move "abs:$x:$y"
+                    yabai -m window "$id" --resize "abs:$w:$h"
+                    set idx (math "$idx + 1")
+                end
+            end
+        end
     case "snap"
         argparse 'frac=' -- $argv
         or return 1

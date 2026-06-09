@@ -450,8 +450,27 @@ function aerospace-preset
         set aero_dir (__wm_translate_direction $direction)
         aerospace join-with $aero_dir
     case "toggle-float"
-        aerospace layout floating tiling
+        aerospace-preset enforce-tiling --toggle
         aerospace list-windows --focused --format '%{window-layout}'
+    case "enforce-tiling"
+        # Force a window into a floating/tiling state (or toggle it).
+        # Usage: enforce-tiling --floating|--tiling|--toggle [window_id]
+        argparse floating tiling toggle -- $argv
+        or return 1
+        set window $argv[1]; set -e argv[1]
+        set -l wflag
+        test -n "$window"; and set wflag --window-id $window
+
+        if set -q _flag_toggle
+            aerospace layout floating tiling $wflag
+        else if set -q _flag_floating
+            aerospace layout floating $wflag
+        else if set -q _flag_tiling
+            aerospace layout tiling $wflag
+        else
+            echo "enforce-tiling: specify --floating, --tiling or --toggle" >&2
+            return 1
+        end
     case "toggle-split"
         aerospace layout horizontal vertical
     case "balance"
