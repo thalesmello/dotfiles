@@ -27,6 +27,13 @@ function M.contains(id)
   return false
 end
 
+-- Adds id if it is absent. Returns true if it was added, false if already present.
+function M.add(id)
+  if M.contains(id) then return false end
+  table.insert(_G._ArgList, id)
+  return true
+end
+
 -- Adds id if it is absent, removes it if it is already present.
 -- Returns "added" or "removed".
 function M.toggle(id)

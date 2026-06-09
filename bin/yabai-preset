@@ -11,6 +11,8 @@ function yabai-preset
         yabai -m query --windows $argv
     case "get-focused-window-id"
         yabai -m query --windows --window | jq -r '.id'
+    case "get-space-window-ids"
+        yabai -m query --windows --space | jq -r '.[] | select(."is-visible" and (."is-sticky"|not)) | .id'
     case "focus-window-id"
         set window_id $argv[1]
         set -e argv[1]

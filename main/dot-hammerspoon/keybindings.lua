@@ -379,6 +379,32 @@ function M.setup()
     end)
   end)
 
+  -- Select every window in the current space. If they are all already selected,
+  -- deselect all; otherwise add the ones that are missing from the list.
+  service:bindOnce(hyper, "a", "Select All Windows In Space", function()
+    task({"yabai-preset", "get-space-window-ids"}, function(ok, out)
+      if not ok or out == "" then
+        Preset.displayMessage("ArgList: no windows in space")
+        return
+      end
+      local ids = {}
+      for id in out:gmatch("[^\n]+") do ids[#ids + 1] = id end
+
+      local allSelected = true
+      for _, id in ipairs(ids) do
+        if not ArgList.contains(id) then allSelected = false; break end
+      end
+
+      if allSelected then
+        ArgList.clear()
+        Preset.displayMessage("Deselected all windows")
+      else
+        for _, id in ipairs(ids) do ArgList.add(id) end
+        Preset.displayMessage("Selected all windows (" .. ArgList.count() .. " marked)")
+      end
+    end)
+  end)
+
   -- ArgList populated: clear it. Empty: clear the harpoon pins (default behavior).
   service:conditionalBindOnce({}, "delete", "Clear ArgList / Harpoon Pins", {
     {cond = function() return not ArgList.isEmpty() end, function()
