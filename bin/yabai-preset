@@ -9,6 +9,8 @@ function yabai-preset
     switch "$preset"
     case "query-windows"
         yabai -m query --windows $argv
+    case "get-focused-window-id"
+        yabai -m query --windows --window | jq -r '.id'
     case "focus-window-id"
         set window_id $argv[1]
         set -e argv[1]
@@ -261,7 +263,7 @@ function yabai-preset
             end
         else
             # Stack: find nearest floating window in direction using stack position as reference
-            set focused_id (yabai -m query --windows --window | jq -r '.id')
+            set focused_id (yabai-preset get-focused-window-id)
             set floating_ids (yabai -m query --windows --space | jq -c \
                 '[.[] | select(."is-visible" and (."is-sticky"|not) and ."split-type" == "none" and ."is-floating") | .id]')
             set all_ids (echo "$floating_ids" | jq -c --argjson fid "$focused_id" '. + [$fid]')
@@ -311,7 +313,7 @@ function yabai-preset
             yabai -m display --focus "$display"
         end
     case "smart-move-window-to-next-display"
-        set win (yabai -m query --windows --window | jq '.id')
+        set win (yabai-preset get-focused-window-id)
 
         if yabai-preset is-window-floating
             hs-preset move-window-to-next-screen
@@ -563,7 +565,7 @@ function yabai-preset
     case "restore-window-position"
         set winid $argv[1]; set -e argv[1]
 
-        set winid (test -n "$winid"; and echo "$winid"; or echo "$(yabai -m query --windows --window | jq '.id')")
+        set winid (test -n "$winid"; and echo "$winid"; or yabai-preset get-focused-window-id)
 
         yabai-preset init-window-db
         sqlite3 "$DB_PATH" "SELECT x, y, w, h FROM window_positions WHERE window_id = $winid;" \
@@ -599,7 +601,7 @@ function yabai-preset
 
         echo "$space_mode:$space_number/$spaces_count ($window_mode)"
     case "unstacked-swap-largest"
-        set focus_id (yabai -m query --windows --window | jq -r '.id')
+        set focus_id (yabai-preset get-focused-window-id)
 
         if yabai -m query --windows --window | jq -e '."stack-index" > 0'
             set pending_stack_id (yabai -m query --windows --window largest | jq -r '.id')
@@ -850,7 +852,7 @@ function yabai-preset
         or return 1
         yabai -m window --focus "$recent"
     case "side-by-side"
-        set focused (yabai -m query --windows --window | jq -r '.id')
+        set focused (yabai-preset get-focused-window-id)
 
         # Make focused window floating if not already, then snap left
         wm-preset is-window-floating; or wm-preset toggle-float

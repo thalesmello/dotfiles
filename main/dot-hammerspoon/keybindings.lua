@@ -3,9 +3,12 @@ local mode = require("mode")
 local palette = require("palette")
 local util = require("util")
 local Preset = require("preset")
+local a = require("async")
+local ArgList = require("arglist")
 
 local task = shell.task
 local taskAsync = shell.taskAsync
+local sleepAsync = shell.sleepAsync
 local fish = shell.fish
 local fishAsync = shell.fishAsync
 local frontAppName = mode.frontAppName
@@ -38,6 +41,21 @@ end
 
 local function isSpaceStack()
   return taskAsync({"yabai-preset", "is-space-stack-layout"})
+end
+
+-- Poll the focused window id until it matches `id`, or give up after `timeout`
+-- seconds. Must be called from within an async coroutine (a.sync). Returns true
+-- once the window is focused, false on timeout.
+local function awaitFocusedWindowIdAsync(id, timeout)
+  local interval = 0.05
+  local elapsed = 0
+  while elapsed < timeout do
+    local _, current = a.wait(taskAsync({"yabai-preset", "get-focused-window-id"}))
+    if current == id then return true end
+    a.wait(sleepAsync(interval))
+    elapsed = elapsed + interval
+  end
+  return false
 end
 
 local M = {}
@@ -346,8 +364,30 @@ function M.setup()
 
   -- Harpoon
   service:bindOnce({}, "a", "Harpoon Add", function() fish("yabai-harpoon add") end)
-  service:bindOnce({}, "delete", "Harpoon Delete", function() fish("yabai-harpoon delete") end)
   service:bindOnce({}, "e", "Harpoon Edit", function() fish("yabai-harpoon edit") end)
+
+  -- ArgList: mark/unmark windows so a single action can operate on many at once
+  service:bindOnce(hyper, "x", "Toggle Window In ArgList", function()
+    task({"yabai-preset", "get-focused-window-id"}, function(ok, id)
+      if not ok or id == "" then
+        Preset.displayMessage("ArgList: no focused window")
+        return
+      end
+      local action = ArgList.toggle(id)
+      local verb = action == "added" and "Marked" or "Unmarked"
+      Preset.displayMessage(verb .. " window " .. id .. " (" .. ArgList.count() .. " marked)")
+    end)
+  end)
+
+  -- ArgList populated: clear it. Empty: clear the harpoon pins (default behavior).
+  service:conditionalBindOnce({}, "delete", "Clear ArgList / Harpoon Pins", {
+    {cond = function() return not ArgList.isEmpty() end, function()
+      local count = ArgList.count()
+      ArgList.clear()
+      Preset.displayMessage("Cleared ArgList (" .. count .. " windows)")
+    end},
+    {function() fish("yabai-harpoon delete") end},
+  })
 
   -- Side-by-side
   service:bindOnce({"shift"}, ";", "Side By Side", function() task({"yabai-preset", "side-by-side"}) end)
@@ -395,9 +435,34 @@ function M.setup()
     service:bindOnce({}, tostring(i), "Focus Space " .. i, function() task({"wm-preset", "focus-space", tostring(i)}) end)
   end
 
-  -- Move window to space 1-9
+  -- Move window to space 1-9.
+  -- ArgList empty: move the current window. ArgList populated: focus each marked
+  -- window in turn, move it to the space, then clear the list when done.
   for i = 1, 9 do
-    service:bindOnce({"shift"}, tostring(i), "Move Window To Space " .. i, function() task({"wm-preset", "move-window-to-space", tostring(i)}) end)
+    service:conditionalBindOnce({"shift"}, tostring(i), "Move Window(s) To Space " .. i, {
+      {cond = function() return ArgList.isEmpty() end, function()
+        task({"wm-preset", "move-window-to-space", tostring(i)})
+      end},
+      {function()
+        local ids = {}
+        for _, id in ipairs(ArgList.items()) do ids[#ids + 1] = id end
+
+        a.sync(function()
+          for _, id in ipairs(ids) do
+            a.wait(taskAsync({"wm-preset", "focus-window-id", id}))
+            if not awaitFocusedWindowIdAsync(id, 3) then
+              Preset.displayMessage("Move cancelled: window " .. id .. " did not focus")
+              return
+            end
+            a.wait(sleepAsync(0.3))
+            a.wait(taskAsync({"wm-preset", "move-window-to-space", tostring(i)}))
+            a.wait(sleepAsync(0.7))
+          end
+          ArgList.clear()
+          Preset.displayMessage("Moved " .. #ids .. " windows to space " .. i)
+        end)()
+      end},
+    })
   end
 
   -- Warp window HJKL
