@@ -1,0 +1,72 @@
+#!/bin/sh
+
+# Paste whatever is on the macOS clipboard to a file: a file copied in Finder, a
+# screenshot, a copied image, or a PDF. Pairs with `bincopy`.
+#
+#   binpaste photo.png     # write to the file (format picked to match extension)
+#   binpaste >photo.png    # write to stdout
+
+if [ -n "$1" ]; then
+    case "$1" in
+        /*) dest="$1" ;;
+        *)  dest="$PWD/$1" ;;
+    esac
+else
+    dest=""
+fi
+
+osascript -l JavaScript - "$dest" <<'JXA'
+ObjC.import('AppKit')
+ObjC.import('Foundation')
+
+function run(argv) {
+  const dest = argv[0]
+  const pb = $.NSPasteboard.generalPasteboard
+  const types = ObjC.deepUnwrap(pb.types) || []
+
+  const map = {
+    png: 'public.png', jpg: 'public.jpeg', jpeg: 'public.jpeg',
+    gif: 'com.compuserve.gif', tif: 'public.tiff', tiff: 'public.tiff',
+    heic: 'public.heic', bmp: 'com.microsoft.bmp', pdf: 'com.adobe.pdf',
+  }
+
+  let data = null
+
+  // A file copied in Finder is a file URL — read the original bytes verbatim.
+  if (types.indexOf('public.file-url') !== -1) {
+    const d = pb.dataForType('public.file-url')
+    const s = $.NSString.alloc.initWithDataEncoding(d, $.NSUTF8StringEncoding)
+    const url = $.NSURL.URLWithString(s)
+    if (url.isFileURL) data = $.NSData.dataWithContentsOfURL(url)
+  }
+
+  // Otherwise raw data on the pasteboard. Prefer the type matching dest's
+  // extension, then fall back through the common ones.
+  if (!data || ObjC.unwrap(data.length) === 0) {
+    const ext = dest ? dest.split('.').pop().toLowerCase() : ''
+    const order = []
+    if (map[ext]) order.push(map[ext])
+    ;['public.png', 'public.tiff', 'public.jpeg', 'com.adobe.pdf'].forEach(function (t) {
+      if (order.indexOf(t) === -1) order.push(t)
+    })
+    for (let i = 0; i < order.length; i++) {
+      if (types.indexOf(order[i]) !== -1) {
+        const d = pb.dataForType(order[i])
+        if (d && ObjC.unwrap(d.length) > 0) { data = d; break }
+      }
+    }
+  }
+
+  if (!data || ObjC.unwrap(data.length) === 0) {
+    throw new Error('clipboard has no file or image data')
+  }
+
+  if (dest && dest.length > 0) {
+    if (!data.writeToFileAtomically($(dest), true)) {
+      throw new Error('could not write to ' + dest)
+    }
+  } else {
+    $.NSFileHandle.fileHandleWithStandardOutput.writeData(data)
+  }
+}
+JXA

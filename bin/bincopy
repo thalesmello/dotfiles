@@ -1,0 +1,56 @@
+#!/bin/sh
+
+# Copy a file's contents onto the macOS clipboard as real, pasteable data so it
+# drops straight into Preview, Mail, Messages, Notes, Keynote, image editors,
+# etc. Handles images (png/jpg/gif/tiff/heic/bmp) and pdf.
+#
+#   bincopy photo.png      # copy the file
+#   bincopy <photo.png     # copy bytes from stdin (type sniffed from content)
+
+set -e
+
+if [ -n "$1" ]; then
+    file="$1"
+else
+    file="$(mktemp "${TMPDIR:-/tmp}/bincopy.XXXXXX")"
+    cat > "$file"
+fi
+
+case "$file" in
+    /*) abs="$file" ;;
+    *)  abs="$PWD/$file" ;;
+esac
+
+osascript -l JavaScript - "$abs" <<'JXA'
+ObjC.import('AppKit')
+ObjC.import('Foundation')
+
+function run(argv) {
+  const path = argv[0]
+  const data = $.NSData.dataWithContentsOfFile(path)
+  if (!data || ObjC.unwrap(data.length) === 0) throw new Error('cannot read ' + path)
+
+  const map = {
+    png: 'public.png', jpg: 'public.jpeg', jpeg: 'public.jpeg',
+    gif: 'com.compuserve.gif', tif: 'public.tiff', tiff: 'public.tiff',
+    heic: 'public.heic', bmp: 'com.microsoft.bmp', pdf: 'com.adobe.pdf',
+  }
+
+  const ext = ObjC.unwrap($(path).pathExtension).toLowerCase()
+  let uti = map[ext] || null
+
+  // No (or unknown) extension — sniff: if it's an image, fall back to tiff.
+  if (!uti) {
+    const img = $.NSImage.alloc.initWithContentsOfFile(path)
+    if (img && ObjC.unwrap(img.valid)) uti = 'public.tiff'
+  }
+  if (!uti) {
+    throw new Error('unsupported type "' + ext + '" — clipboard only takes images and pdf')
+  }
+
+  const pb = $.NSPasteboard.generalPasteboard
+  pb.clearContents
+  pb.declareTypesOwner($([uti]), $())
+  if (!pb.setDataForType(data, uti)) throw new Error('could not write to clipboard')
+}
+JXA
