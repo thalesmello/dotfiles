@@ -48,6 +48,25 @@ function M.toggle(id)
   return "added"
 end
 
+-- Returns the id `delta` steps away from `currentId` in the list, wrapping
+-- around the ends. If `currentId` is not in the list, returns the first element
+-- when moving forward or the last when moving backward. Returns nil if empty.
+function M.relative(currentId, delta)
+  local list = _G._ArgList
+  local n = #list
+  if n == 0 then return nil end
+
+  local idx
+  for i, v in ipairs(list) do
+    if v == currentId then idx = i; break end
+  end
+  if not idx then
+    return delta >= 0 and list[1] or list[n]
+  end
+
+  return list[((idx - 1 + delta) % n) + 1]
+end
+
 function M.clear()
   -- Replace in place so external references to the table stay valid while still
   -- clearing the global store.

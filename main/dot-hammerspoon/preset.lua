@@ -38,7 +38,7 @@ function M.displayMessage(message, duration)
   -- Center the text so multi-line messages line up under each other.
   hs.alert.show(message, {
     textStyle = { paragraphStyle = { alignment = "center" } },
-  }, duration or 0.5)
+  }, duration or 0.75)
 end
 
 -- Helper: build AppleScript to click a menu path

@@ -58,6 +58,15 @@ local function awaitFocusedWindowIdAsync(id, timeout)
   return false
 end
 
+-- Focus the window `delta` steps from the currently focused one within the
+-- arglist (wrapping). Assumes the arglist is non-empty.
+local function navigateArgList(delta)
+  task({"yabai-preset", "get-focused-window-id"}, function(ok, id)
+    local target = ArgList.relative(ok and id or "", delta)
+    if target then task({"wm-preset", "focus-window-id", target}) end
+  end)
+end
+
 local M = {}
 
 function M.setup()
@@ -219,8 +228,15 @@ function M.setup()
   -- Window cycling
   default:bindOnce(hyper, "n", "Focus Next Window", function() fish("wm-preset focus-window-in-space next") end)
   default:bindOnce(hyper, "p", "Focus Prev Window", function() fish("wm-preset focus-window-in-space prev") end)
-  default:bindOnce(hyperShift, "n", "Move Window In Stack Next", function() task({"wm-preset", "move-window-in-stack", "next"}) end)
-  default:bindOnce(hyperShift, "p", "Move Window In Stack Prev", function() task({"wm-preset", "move-window-in-stack", "prev"}) end)
+  -- ArgList navigation: focus next/prev marked window, or error if none marked.
+  default:conditionalBindOnce(hyperShift, "n", "ArgList Navigate Next", {
+    {cond = function() return not ArgList.isEmpty() end, function() navigateArgList(1) end},
+    {function() Preset.displayMessage("ArgList: empty") end},
+  })
+  default:conditionalBindOnce(hyperShift, "p", "ArgList Navigate Prev", {
+    {cond = function() return not ArgList.isEmpty() end, function() navigateArgList(-1) end},
+    {function() Preset.displayMessage("ArgList: empty") end},
+  })
 
   -- Mode entries
   default:bindEnter(hyper, "space", "Enter Service Mode", service)
@@ -419,13 +435,13 @@ function M.setup()
   service:bindOnce({"shift"}, ";", "Side By Side", function()
     local count = ArgList.count()
     if count == 0 then
-      Preset.displayMessage("Side By Side: no windows selected", 2)
+      Preset.displayMessage("Side By Side: no windows selected")
       return
     elseif count == 1 then
-      Preset.displayMessage("Side By Side: select at least 2 windows", 2)
+      Preset.displayMessage("Side By Side: select at least 2 windows")
       return
     elseif count >= 7 then
-      Preset.displayMessage("Side By Side: too many windows (max 6)", 2)
+      Preset.displayMessage("Side By Side: too many windows (max 6)")
       return
     end
 
@@ -433,10 +449,9 @@ function M.setup()
     for _, id in ipairs(ArgList.items()) do args[#args + 1] = id end
     task(args, function(ok)
       if ok then
-        Preset.displayMessage("Side By Side: arranged " .. count .. " windows\nArgList cleared", 2)
-        ArgList.clear()
+        Preset.displayMessage("Side By Side: arranged " .. count .. " windows")
       else
-        Preset.displayMessage("Side By Side: failed", 2)
+        Preset.displayMessage("Side By Side: failed")
       end
     end)
   end)
@@ -460,7 +475,33 @@ function M.setup()
   service:bindOnce({"shift"}, "y", "Toggle WM", function() task({"wm-preset", "toggle-wm"}) end)
   service:bindOnce({}, "v", "Insert Direction East", function() task({"wm-preset", "insert-direction", "east"}) end)
   service:bindOnce({"shift"}, "'", "Insert Direction South", function() task({"wm-preset", "insert-direction", "south"}) end)
-  service:bindOnce({}, "t", "Toggle Float", function() fish('display-message (wm-preset toggle-float)') end)
+  -- ArgList empty: toggle the focused window. Populated: if any marked window is
+  -- floating, tile them all; otherwise float them all.
+  service:conditionalBindOnce({}, "t", "Toggle Float", {
+    {cond = function() return not ArgList.isEmpty() end, function()
+      local ids = {}
+      for _, id in ipairs(ArgList.items()) do ids[#ids + 1] = id end
+
+      a.sync(function()
+        local anyFloating = false
+        for _, id in ipairs(ids) do
+          if a.wait(taskAsync({"yabai-preset", "is-window-floating", id})) then
+            anyFloating = true
+            break
+          end
+        end
+
+        local flag = anyFloating and "--tiling" or "--floating"
+        for _, id in ipairs(ids) do
+          a.wait(taskAsync({"wm-preset", "enforce-tiling", flag, id}))
+        end
+
+        local verb = anyFloating and "Tiled" or "Floated"
+        Preset.displayMessage(verb .. " " .. #ids .. " windows")
+      end)()
+    end},
+    {function() fish('display-message (wm-preset toggle-float)') end},
+  })
   service:bindOnce({}, "z", "Insert Direction Stack", function() task({"wm-preset", "insert-direction", "stack"}) end)
   service:bindOnce({}, "s", "Insert Direction Stack (s)", function() task({"wm-preset", "insert-direction", "stack"}) end)
   service:bindOnce({"shift"}, "s", "Stack Windows In Space", function() task({"wm-preset", "stack-windows-in-space"}) end)
@@ -486,7 +527,7 @@ function M.setup()
 
   -- Move window to space 1-9.
   -- ArgList empty: move the current window. ArgList populated: focus each marked
-  -- window in turn, move it to the space, then clear the list when done.
+  -- window in turn and move it to the space (the list is kept for further use).
   for i = 1, 9 do
     service:conditionalBindOnce({"shift"}, tostring(i), "Move Window(s) To Space " .. i, {
       {cond = function() return ArgList.isEmpty() end, function()
@@ -507,7 +548,6 @@ function M.setup()
             a.wait(taskAsync({"wm-preset", "move-window-to-space", tostring(i)}))
             a.wait(sleepAsync(0.7))
           end
-          ArgList.clear()
           Preset.displayMessage("Moved " .. #ids .. " windows to space " .. i)
         end)()
       end},
