@@ -321,6 +321,10 @@ function aerospace-preset
             aerospace move-node-to-workspace --window-id $id $space
         end
         aerospace workspace $space
+    case "get-space-window-ids"
+        # Workspaces are virtual in aerospace, so query the focused workspace
+        # directly rather than relying on yabai-style spaces.
+        aerospace list-windows --workspace focused --format '%{window-id}'
     case "focus-window-id"
         # --wait-focus is ignored: aerospace focus is synchronous.
         argparse wait-focus -- $argv
@@ -430,7 +434,13 @@ function aerospace-preset
         aerospace reload-config
         display-message "AeroSpace config reloaded"
     case "is-window-floating"
-        set layout (aerospace list-windows --focused --format '%{window-layout}')
+        set window_id $argv[1]; set -e argv[1]
+        if test -n "$window_id"
+            set layout (aerospace list-windows --all --format '%{window-id}:%{window-layout}' \
+                | string match -er "^$window_id:" | string replace -r '^[^:]*:' '')
+        else
+            set layout (aerospace list-windows --focused --format '%{window-layout}')
+        end
         test "$layout" = floating
         return $status
     case "print-window-mode"

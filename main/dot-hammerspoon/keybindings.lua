@@ -382,7 +382,7 @@ function M.setup()
   -- Select every window in the current space. If they are all already selected,
   -- deselect all; otherwise add the ones that are missing from the list.
   service:bindOnce(hyper, "a", "Select All Windows In Space", function()
-    task({"yabai-preset", "get-space-window-ids"}, function(ok, out)
+    task({"wm-preset", "get-space-window-ids"}, function(ok, out)
       if not ok or out == "" then
         Preset.displayMessage("ArgList: no windows in space")
         return
@@ -469,7 +469,7 @@ function M.setup()
       a.sync(function()
         local anyFloating = false
         for _, id in ipairs(ids) do
-          if a.wait(taskAsync({"yabai-preset", "is-window-floating", id})) then
+          if a.wait(taskAsync({"wm-preset", "is-window-floating", id})) then
             anyFloating = true
             break
           end
