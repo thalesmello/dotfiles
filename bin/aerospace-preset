@@ -309,7 +309,22 @@ function aerospace-preset
             case '*'
                 aerospace move-node-to-workspace --focus-follows-window $space
         end
+    case "move-window-ids-to-space"
+        # No per-window focus needed: aerospace can target windows by id, so just
+        # move them all, then switch focus to the destination workspace.
+        argparse 'space=' -- $argv
+        or return 1
+        set space $_flag_space
+        set ids $argv
+
+        for id in $ids
+            aerospace move-node-to-workspace --window-id $id $space
+        end
+        aerospace workspace $space
     case "focus-window-id"
+        # --wait-focus is ignored: aerospace focus is synchronous.
+        argparse wait-focus -- $argv
+        or return 1
         set window_id $argv[1]
         set -e argv[1]
         aerospace focus --window-id "$window_id"

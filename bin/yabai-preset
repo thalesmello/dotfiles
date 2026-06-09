@@ -14,9 +14,38 @@ function yabai-preset
     case "get-space-window-ids"
         yabai -m query --windows --space | jq -r '.[] | select(."is-visible" and (."is-sticky"|not)) | .id'
     case "focus-window-id"
+        argparse wait-focus -- $argv
+        or return 1
         set window_id $argv[1]
         set -e argv[1]
+
+        # Without --wait-focus, or when the window is already on the focused
+        # space, just focus and return immediately.
+        if not set -q _flag_wait_focus
+            yabai -m window --focus "$window_id"
+            return
+        end
+
+        set target_space (yabai -m query --windows --window "$window_id" | jq -r '.space')
+        set current_space (yabai -m query --spaces --space | jq -r '.index')
+        if test "$target_space" = "$current_space"
+            yabai -m window --focus "$window_id"
+            return
+        end
+
+        # Cross-space focus: switching spaces takes time, so poll until the
+        # window is actually focused, then settle briefly before returning.
+        # ~3s timeout: 60 polls spaced 0.05s apart.
         yabai -m window --focus "$window_id"
+        for i in (seq 60)
+            if test (yabai-preset get-focused-window-id) = "$window_id"
+                sleep 0.3
+                return 0
+            end
+            sleep 0.05
+        end
+        echo "focus-window-id: timed out waiting for window $window_id to focus" >&2
+        return 1
     case "focus-window"
         set direction $argv[1]
         set -e argv[1]
@@ -176,6 +205,24 @@ function yabai-preset
         end
 
         hs-preset move-window-to-space $space
+    case "move-window-ids-to-space"
+        # Move each window id to the given space. Because the move is a drag
+        # gesture on the focused window, we focus each one (waiting for the
+        # cross-space switch) before moving it, then let the drag settle.
+        argparse 'space=' -- $argv
+        or return 1
+        set space $_flag_space
+        set ids $argv
+
+        for id in $ids
+            yabai-preset focus-window-id --wait-focus "$id"
+            or begin
+                echo "move-window-ids-to-space: failed to focus window $id" >&2
+                return 1
+            end
+            yabai-preset move-window-to-space "$space"
+            sleep 0.7
+        end
     case "focus-window-in-stack"
         set stack $argv[1]
         set -e argv[1]

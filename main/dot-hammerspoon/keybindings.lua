@@ -8,7 +8,6 @@ local ArgList = require("arglist")
 
 local task = shell.task
 local taskAsync = shell.taskAsync
-local sleepAsync = shell.sleepAsync
 local fish = shell.fish
 local fishAsync = shell.fishAsync
 local frontAppName = mode.frontAppName
@@ -41,21 +40,6 @@ end
 
 local function isSpaceStack()
   return taskAsync({"yabai-preset", "is-space-stack-layout"})
-end
-
--- Poll the focused window id until it matches `id`, or give up after `timeout`
--- seconds. Must be called from within an async coroutine (a.sync). Returns true
--- once the window is focused, false on timeout.
-local function awaitFocusedWindowIdAsync(id, timeout)
-  local interval = 0.05
-  local elapsed = 0
-  while elapsed < timeout do
-    local _, current = a.wait(taskAsync({"yabai-preset", "get-focused-window-id"}))
-    if current == id then return true end
-    a.wait(sleepAsync(interval))
-    elapsed = elapsed + interval
-  end
-  return false
 end
 
 -- Focus the window `delta` steps from the currently focused one within the
@@ -335,7 +319,6 @@ function M.setup()
   ---------------------------------------------------------------
 
   local chromeAppModal = mode.createAppModal("Google Chrome")
-  local sleepAsync = shell.sleepAsync
 
   chromeAppModal:bind({"ctrl", "shift"}, "d", function() Preset.triggerMenuBar("Tab;Move Tab to New Window") end)
   chromeAppModal:bind({"ctrl", "alt"}, "d", function() Preset.triggerMenuBar("Tab;Duplicate Tab") end)
@@ -527,30 +510,24 @@ function M.setup()
   end
 
   -- Move window to space 1-9.
-  -- ArgList empty: move the current window. ArgList populated: focus each marked
-  -- window in turn and move it to the space (the list is kept for further use).
+  -- ArgList empty: move the current window. ArgList populated: hand the ids to
+  -- move-window-ids-to-space (the list is kept for further use).
   for i = 1, 9 do
     service:conditionalBindOnce({"shift"}, tostring(i), "Move Window(s) To Space " .. i, {
       {cond = function() return ArgList.isEmpty() end, function()
         task({"wm-preset", "move-window-to-space", tostring(i)})
       end},
       {function()
-        local ids = {}
-        for _, id in ipairs(ArgList.items()) do ids[#ids + 1] = id end
-
-        a.sync(function()
-          for _, id in ipairs(ids) do
-            a.wait(taskAsync({"wm-preset", "focus-window-id", id}))
-            if not awaitFocusedWindowIdAsync(id, 3) then
-              Preset.displayMessage("Move cancelled: window " .. id .. " did not focus")
-              return
-            end
-            a.wait(sleepAsync(0.3))
-            a.wait(taskAsync({"wm-preset", "move-window-to-space", tostring(i)}))
-            a.wait(sleepAsync(0.7))
+        local count = ArgList.count()
+        local args = {"wm-preset", "move-window-ids-to-space", "--space", tostring(i)}
+        for _, id in ipairs(ArgList.items()) do args[#args + 1] = id end
+        task(args, function(ok)
+          if ok then
+            Preset.displayMessage("Moved " .. count .. " windows to space " .. i)
+          else
+            Preset.displayMessage("Move cancelled: a window did not focus")
           end
-          Preset.displayMessage("Moved " .. #ids .. " windows to space " .. i)
-        end)()
+        end)
       end},
     })
   end
