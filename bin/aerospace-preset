@@ -287,9 +287,9 @@ function aerospace-preset
 
         switch "$space"
             case next
-                aerospace workspace --wrap-around next
+                aerospace workspace --wrap-around --no-stdin next
             case prev
-                aerospace workspace --wrap-around prev
+                aerospace workspace --wrap-around --no-stdin prev
             case recent
                 aerospace workspace-back-and-forth
             case '*'
@@ -301,9 +301,9 @@ function aerospace-preset
 
         switch "$space"
             case next
-                aerospace move-node-to-workspace --wrap-around --focus-follows-window next
+                aerospace move-node-to-workspace --wrap-around --focus-follows-window --no-stdin next
             case prev
-                aerospace move-node-to-workspace --wrap-around --focus-follows-window prev
+                aerospace move-node-to-workspace --wrap-around --focus-follows-window --no-stdin prev
             case recent
                 aerospace-preset move-to-previous-workspace
             case '*'

@@ -46,7 +46,13 @@ key-mapping.preset = 'qwerty'
 # Fallback value (if you omit the key): on-focused-monitor-changed = []
 on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
 # on-focus-changed = ['move-mouse window-lazy-center']
-exec-on-workspace-change = ['/opt/homebrew/bin/fish', '-c', 'aerospace-on-workspace-change']
+exec-on-workspace-change = [
+  '/opt/homebrew/bin/fish',
+  '-c',
+  '''
+display-message "Workspace $AEROSPACE_FOCUSED_WORKSPACE"
+''',
+]
 
 # Gaps between windows (inner-*) and between monitor edges (outer-*).
 # Possible values:
