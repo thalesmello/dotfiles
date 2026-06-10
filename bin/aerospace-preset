@@ -427,7 +427,26 @@ function aerospace-preset
     case "toggle-window-zoom-or-fullscreen" "smart-toggle-fullscreen" "toggle-monocle-mode"
         aerospace fullscreen
     case "stack-windows-in-space"
-        aerospace layout accordion
+        display-message "Not supported in AeroSpace"
+    case "stack-window-ids"
+        # Stack the given window ids together; the first id is the stack base.
+        set ids $argv
+        if test (count $ids) -lt 2
+            echo "stack-window-ids: need at least 2 windows" >&2
+            return 1
+        end
+
+        # Float every window except the base so re-tiling them lands in the base.
+        for id in $ids[2..]
+            aerospace-preset enforce-tiling --floating $id
+        end
+
+        aerospace-preset focus-window-id $ids[1]
+        aerospace-preset enforce-tiling --tiling $ids[1]
+
+        for id in $ids[2..]
+            aerospace-preset enforce-tiling --tiling $id
+        end
     case "toggle-yabai" "toggle-wm"
         aerospace enable toggle
     case "restart-wm"

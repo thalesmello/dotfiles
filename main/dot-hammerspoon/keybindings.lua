@@ -315,6 +315,19 @@ function M.setup()
     end
   end)
 
+  -- ArgList: mark/unmark windows so a single action can operate on many at once
+  default:bindOnce(hyper, ".", "Toggle Window In ArgList", function()
+    task({"yabai-preset", "get-focused-window-id"}, function(ok, id)
+      if not ok or id == "" then
+        Preset.displayMessage("ArgList: no focused window")
+        return
+      end
+      local action = ArgList.toggle(id)
+      local verb = action == "added" and "Marked" or "Unmarked"
+      Preset.displayMessage(verb .. " window " .. id .. " (" .. ArgList.count() .. " marked)")
+    end)
+  end)
+
   ---------------------------------------------------------------
   -- Chrome app-specific hotkeys (only active when Chrome is focused)
   ---------------------------------------------------------------
@@ -366,19 +379,6 @@ function M.setup()
   -- Harpoon
   service:bindOnce({}, "a", "Harpoon Add", function() fish("yabai-harpoon add") end)
   service:bindOnce({}, "e", "Harpoon Edit", function() fish("yabai-harpoon edit") end)
-
-  -- ArgList: mark/unmark windows so a single action can operate on many at once
-  service:bindOnce(hyper, "x", "Toggle Window In ArgList", function()
-    task({"yabai-preset", "get-focused-window-id"}, function(ok, id)
-      if not ok or id == "" then
-        Preset.displayMessage("ArgList: no focused window")
-        return
-      end
-      local action = ArgList.toggle(id)
-      local verb = action == "added" and "Marked" or "Unmarked"
-      Preset.displayMessage(verb .. " window " .. id .. " (" .. ArgList.count() .. " marked)")
-    end)
-  end)
 
   -- Select every window in the current space. If they are all already selected,
   -- deselect all; otherwise add the ones that are missing from the list.
@@ -489,7 +489,28 @@ function M.setup()
   })
   service:bindOnce({}, "z", "Insert Direction Stack", function() task({"wm-preset", "insert-direction", "stack"}) end)
   service:bindOnce({}, "s", "Insert Direction Stack (s)", function() task({"wm-preset", "insert-direction", "stack"}) end)
-  service:bindOnce({"shift"}, "s", "Stack Windows In Space", function() task({"wm-preset", "stack-windows-in-space"}) end)
+  -- ArgList empty: stack everything in the space (default). 1 marked: error.
+  -- 2+ marked: stack just the marked windows.
+  service:conditionalBindOnce({"shift"}, "s", "Stack Windows In Space", {
+    {cond = function() return ArgList.isEmpty() end, function()
+      task({"wm-preset", "stack-windows-in-space"})
+    end},
+    {cond = function() return ArgList.count() == 1 end, function()
+      Preset.displayMessage("Stack: select at least 2 windows")
+    end},
+    {function()
+      local count = ArgList.count()
+      local args = {"wm-preset", "stack-window-ids"}
+      for _, id in ipairs(ArgList.items()) do args[#args + 1] = id end
+      task(args, function(ok)
+        if ok then
+          Preset.displayMessage("Stacked " .. count .. " windows")
+        else
+          Preset.displayMessage("Stack: failed")
+        end
+      end)
+    end},
+  })
   service:bindOnce({}, "m", "Minimize After 3rd", function() task({"wm-preset", "minimize-after-nth-window", "3"}) end)
   service:bindOnce({"shift"}, "m", "Deminimize All", function() task({"wm-preset", "deminimize-all"}) end)
   service:bindOnce({}, ",", "Layout Stack", function() task({"wm-preset", "layout-stack"}) end)

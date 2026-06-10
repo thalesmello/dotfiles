@@ -405,6 +405,25 @@ function yabai-preset
         end
 
         display-message "$(count $second_passing) windows stacked"
+    case "stack-window-ids"
+        # Stack the given window ids together; the first id is the stack base.
+        set ids $argv
+        if test (count $ids) -lt 2
+            echo "stack-window-ids: need at least 2 windows" >&2
+            return 1
+        end
+
+        yabai-preset focus-window-id $ids[1]
+        yabai-preset enforce-tiling --tiling $ids[1]
+
+        for id in $ids[2..]
+            # While the previous window is focused, point its insertion at the
+            # stack, then re-tile the next window so it joins that stack.
+            yabai-preset insert-direction stack
+            yabai-preset focus-window-id $id
+            yabai-preset enforce-tiling --floating $id
+            yabai-preset enforce-tiling --tiling $id
+        end
     case "stack-after-nth-window"
         set nth $argv[1]
         set -e argv[1]
