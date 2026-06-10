@@ -10,6 +10,7 @@ local task = shell.task
 local taskAsync = shell.taskAsync
 local fish = shell.fish
 local fishAsync = shell.fishAsync
+local sleep = shell.sleepAsync
 local frontAppName = mode.frontAppName
 local isFloatingTerminal = mode.isFloatingTerminal
 local Mode = mode.Mode
@@ -584,8 +585,24 @@ function M.setup()
   restart:bindEnter(hyper, "p", "Enter Repin Mode", repin)
   restart:conditionalBindOnce(hyper, "s", "Toggle AeroSpace", {
     {cond = function() return isProcessRunning("AeroSpace") end, function()
-      hs.alert.show("Killing AeroSpace")
-      task({"killall", "AeroSpace"})
+      a.sync(function()
+        hs.alert.show("Quitting AeroSpace")
+        -- Click "Quit AeroSpace" in AeroSpace's menu bar extra (graceful quit).
+        a.wait(taskAsync({"osascript", "-e", [[
+          tell application "System Events" to tell process "AeroSpace"
+            tell menu bar item 1 of menu bar 2
+              click
+              click menu item "Quit AeroSpace" of menu 1
+            end tell
+          end tell
+        ]]}))
+        -- If it didn't quit gracefully within 5s, force kill it.
+        a.wait(sleep(5))
+        if a.wait(isProcessRunning("AeroSpace")) then
+          hs.alert.show("Force killing AeroSpace")
+          task({"killall", "AeroSpace"})
+        end
+      end)()
     end},
     {function()
       task({"yabai-preset", "layout-float-all"})
