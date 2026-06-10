@@ -7,10 +7,10 @@ return {
         end, mode = "n", expr = true, noremap = true}
     },
     cmd = "Dirvish",
+    event = {"VimEnter"},
     init = function ()
         vim.g.dirvish_relative_paths = 0
-    end,
-    config = function()
+
         local group = vim.api.nvim_create_augroup("DirvishGroup", {
             clear = true
         })
@@ -28,6 +28,16 @@ return {
             end,
         })
 
+        vim.api.nvim_create_autocmd('VimEnter', {
+            callback = function()
+                -- Check if Neovim was started with a directory argument
+                local arg = vim.fn.argv(0)
+                if arg ~= '' and vim.fn.isdirectory(arg) == 1 then
+                    -- Enter Dirvish
+                    vim.cmd('Dirvish ' .. vim.fn.fnameescape(arg))
+                end
+            end
+        })
     end,
     cond = true,
     extra_context = {"ssh"},
