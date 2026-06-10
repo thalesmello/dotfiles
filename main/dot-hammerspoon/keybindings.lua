@@ -588,14 +588,7 @@ function M.setup()
       a.sync(function()
         hs.alert.show("Quitting AeroSpace")
         -- Click "Quit AeroSpace" in AeroSpace's menu bar extra (graceful quit).
-        a.wait(taskAsync({"osascript", "-e", [[
-          tell application "System Events" to tell process "AeroSpace"
-            tell menu bar item 1 of menu bar 2
-              click
-              click menu item "Quit AeroSpace" of menu 1
-            end tell
-          end tell
-        ]]}))
+        a.wait(taskAsync({"osascript-preset", "click-status-menu", "AeroSpace;Quit AeroSpace"}))
         -- If it didn't quit gracefully within 5s, force kill it.
         a.wait(sleep(5))
         if a.wait(isProcessRunning("AeroSpace")) then

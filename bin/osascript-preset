@@ -104,6 +104,46 @@ function osascript-preset
         echo osascript -e (string escape $cmd)
         /usr/bin/osascript -e "$cmd" > /dev/null
 
+    case "click-status-menu"
+        # Click an item in an app's menu bar extra (status item next to the
+        # clock). Path is semicolon-separated: first section is the process
+        # name, the rest is the menu item path. Supports nested submenus, e.g.
+        #   osascript-preset click-status-menu "AeroSpace;Quit AeroSpace"
+        #   osascript-preset click-status-menu "Flux;Disable;For an hour"
+        set -l path "$argv[1]"
+
+        set -l sections (string trim -- (string split ";" -- "$path"))
+        if test (count $sections) -lt 2
+            echo "click-status-menu: expected \"App;Menu Item[;Submenu…]\"" >&2
+            return 1
+        end
+
+        set -l escaped (string replace -a '"' '\\"' -- $sections)
+        set -l app $escaped[1]
+        set -l items $escaped[2..-1]
+
+        # Build one click per level: open the status item, then click each
+        # menu item in turn (opening submenus on the way down).
+        set -l clicks "click"
+        set -l suffix ""
+        for item in $items
+            if test -z "$suffix"
+                set suffix "menu item \"$item\" of menu 1"
+            else
+                set suffix "menu item \"$item\" of menu 1 of $suffix"
+            end
+            set -a clicks "click $suffix"
+        end
+
+        set -l body (string join \n $clicks)
+        set -l cmd "tell application \"System Events\" to tell process \"$app\"
+            tell menu bar item 1 of menu bar 2
+                $body
+            end tell
+        end tell"
+
+        /usr/bin/osascript -e "$cmd" > /dev/null
+
     case "get-active-app"
         /usr/bin/osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'
 
