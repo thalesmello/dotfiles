@@ -46,10 +46,17 @@ end
 -- Focus the window `delta` steps from the currently focused one within the
 -- arglist (wrapping). Assumes the arglist is non-empty.
 local function navigateArgList(delta)
-  task({"yabai-preset", "get-focused-window-id"}, function(ok, id)
+  a.sync(function()
+    local ok, id = a.wait(taskAsync({"yabai-preset", "get-focused-window-id"}))
     local target = ArgList.relative(ok and id or "", delta)
-    if target then task({"wm-preset", "focus-window-id", target}) end
-  end)
+    if not target then return end
+
+    local focusOk = a.wait(taskAsync({"wm-preset", "focus-window-id", target}))
+    if not focusOk then return end
+
+    local pos = ArgList.indexOf(target) or 0
+    Preset.displayMessage("ArgList " .. pos .. " / " .. ArgList.count())
+  end)()
 end
 
 local M = {}

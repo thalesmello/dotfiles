@@ -27,6 +27,14 @@ function M.contains(id)
   return false
 end
 
+-- Returns the 1-based position of id in the list, or nil if absent.
+function M.indexOf(id)
+  for i, v in ipairs(_G._ArgList) do
+    if v == id then return i end
+  end
+  return nil
+end
+
 -- Adds id if it is absent. Returns true if it was added, false if already present.
 function M.add(id)
   if M.contains(id) then return false end
