@@ -89,6 +89,12 @@ function M.setup()
   require("smartcmdtab").setup(hyper)
 
   ---------------------------------------------------------------
+  -- Fallback hyper key (Caps Lock) when Karabiner is not running
+  ---------------------------------------------------------------
+
+  require("caps_hyper").setup()
+
+  ---------------------------------------------------------------
   -- DEFAULT MODE bindings
   ---------------------------------------------------------------
 
@@ -610,6 +616,7 @@ function M.setup()
   restart:bindOnce(hyper, "v", "Restart NVIM Ghost", function() hs.alert.show("Restart NVIM Ghost"); fish("neovim-ghost kill; sleep 2; and neovim-ghost start --spawn") end)
   restart:bindOnce(hyper, "k", "Restart Karabiner", function() hs.alert.show("Restart Karabiner"); fish('launchctl kickstart -k gui/(id -u)/org.pqrs.service.agent.karabiner_console_user_server') end)
   restart:bindOnce(hyper, "h", "Restart Hammerspoon", function() hs.alert.show("Restarting Hammerspoon"); hs.reload() end)
+  restart:bindOnce(hyperShift, "b", "Restart Hammerspoon", function() hs.alert.show("Restarting Hammerspoon"); hs.reload() end)
   restart:bindEnter(hyper, "p", "Enter Repin Mode", repin)
   restart:conditionalBindOnce(hyper, "s", "Toggle AeroSpace", {
     {cond = function() return isProcessRunning("AeroSpace") end, function()
