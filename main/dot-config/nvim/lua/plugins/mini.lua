@@ -62,6 +62,9 @@ return {
             vim.keymap.set({ "v" }, "gp", "avP", {remap = true})
 
             local repeatable_ok, ts_repeat_move = pcall(require, "nvim-treesitter.textobjects.repeatable_move")
+            if not repeatable_ok then
+                repeatable_ok, ts_repeat_move = pcall(require, "nvim-treesitter-textobjects.repeatable_move")
+            end
 
             if repeatable_ok then
                 function _G.FallbackMiniMove(opts)

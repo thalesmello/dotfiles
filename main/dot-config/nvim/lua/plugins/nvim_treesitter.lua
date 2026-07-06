@@ -10,7 +10,8 @@ return {
             vim.cmd('TSUpdate')
         end,
         dependencies = {
-            'nvim-treesitter/nvim-treesitter-textobjects',
+            -- TODO: Drop the branch pin when migrating to the main branch
+            { 'nvim-treesitter/nvim-treesitter-textobjects', branch = "master" },
             'nvim-treesitter/nvim-treesitter-context',
             'kana/vim-textobj-user',
         },
