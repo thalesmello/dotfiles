@@ -1,188 +1,133 @@
-local vim_utils = require("vim_utils")
+local ensure_installed = { "lua", "vim", "python", "ruby", "query",
+    "sql", "regex", "markdown", "markdown_inline", "html",
+    "latex", "typst", "yaml", "fish" }
 
 return {
     {
         'nvim-treesitter/nvim-treesitter',
-        -- TODO: Migrate to the new format
-        branch = "master",
+        branch = "main",
         event = { "BufReadPost", "BufNewFile", "BufFilePost" },
-        build = function ()
-            vim.cmd('TSUpdate')
-        end,
+        -- String form so lazy loads the plugin (registering the :TSUpdate
+        -- command) before running the build. On `main` the command is defined in
+        -- plugin/nvim-treesitter.lua at load time.
+        build = ":TSUpdate",
         dependencies = {
-            -- TODO: Drop the branch pin when migrating to the main branch
-            { 'nvim-treesitter/nvim-treesitter-textobjects', branch = "master" },
+            { 'nvim-treesitter/nvim-treesitter-textobjects', branch = "main" },
             'nvim-treesitter/nvim-treesitter-context',
             'kana/vim-textobj-user',
         },
-        opts = function(_, opts)
-            return vim.tbl_deep_extend('force', opts or {}, {
-                ensure_installed = { "lua", "vim", "python", "ruby", "query",
-                    "sql", "regex", "markdown", "markdown_inline", "html",
-                    "latex", "typst", "yaml", "fish" },
+        config = function ()
+            local nts = require('nvim-treesitter')
+            nts.setup()
 
-                modules = {},
-                sync_install = false,
-                ignore_install = {},
-
-                highlight = {
-                    enable = true,
-                    additional_vim_regex_highlighting = false,
-                },
-
-                auto_install = true,
-
-                incremental_selection = {
-                    enable = true,
-                    keymaps = {
-                        init_selection = "ghh", -- set to `false` to disable one of the mappings
-                        node_incremental = "gh]",
-                        scope_incremental = "gh}",
-                        node_decremental = "gh[",
-                    },
-                },
-
-                indent = {
-                    enable = true
-                },
-
-                textobjects = {
-                    select = {
-                        enable = true,
-
-                        -- Automatically jump forward to textobj, similar to targets.vim
-                        lookahead = true,
-
-                        keymaps = {
-                            -- You can use the capture groups defined in textobjects.scm
-                            -- ["af"] = "@function.outer",
-                            -- ["if"] = "@function.inner",
-                            -- ["i,"] = "@parameter.inner",
-                            -- ["a,"] = "@parameter.outer",
-                            -- ["a;"] = "@pair.value",
-                            -- ["a:"] = "@pair.key",
-                            -- ["aq"] = "@multiline_string.outer",
-                            -- ["iq"] = "@multiline_string.inner",
-                            -- You can optionally set descriptions to the mappings (used in the desc parameter of
-                            -- nvim_buf_set_keymap) which plugins like which-key display
-                            -- ["iC"] = { query = "@class.inner", desc = "Select inner part of a class region" },
-                            -- ["aC"] = { query = "@class.outer", desc = "Select outer part of a class region" },
-                            -- You can also use captures from other query groups like `locals.scm`
-                            -- ["as"] = { query = "@scope", query_group = "locals", desc = "Select language scope" },
-                        },
-
-                        selection_modes = {
-                            -- ['@parameter.outer'] = 'v', -- charwise
-                            -- ['@function.outer'] = 'v', -- linewise
-                            -- ['@class.outer'] = '<c-v>', -- blockwise
-                        },
-
-                    },
-
-                    move = {
-                        enable = true,
-                        set_jumps = true, -- whether to set jumps in the jumplist
-                        goto_next_start = {
-                            -- ["],"] = "@parameter.outer",
-                            ["]m"] = "@function.outer",
-                            ["]]"] = { query = "@class.outer", desc = "Next class start" },
-                            --
-                            -- You can use regex matching (i.e. lua pattern) and/or pass a list in a "query" key to group multiple queires.
-                            ["]o"] = "@loop.*",
-                            -- ["]o"] = { query = { "@loop.inner", "@loop.outer" } }
-                            --
-                            -- You can pass a query group to use query from `queries/<lang>/<query_group>.scm file in your runtime path.
-                            -- Below example nvim-treesitter's `locals.scm` and `folds.scm`. They also provide highlights.scm and indent.scm.
-                            ["]s"] = { query = "@scope", query_group = "locals", desc = "Next scope" },
-                            ["]z"] = { query = "@fold", query_group = "folds", desc = "Next fold" },
-                        },
-                        goto_next_end = {
-                            ["]M"] = "@function.outer",
-                            ["]["] = "@class.outer",
-                        },
-                        goto_previous_start = {
-                            -- ["[,"] = "@parameter.outer",
-                            ["[m"] = "@function.outer",
-                            ["[["] = "@class.outer",
-                            ["[z"] = { query = "@fold", query_group = "folds", desc = "Prev fold" },
-                        },
-                        goto_previous_end = {
-                            ["[M"] = "@function.outer",
-                            ["[]"] = "@class.outer",
-                        },
-                        -- Below will go to either the start or the end, whichever is closer.
-                        -- Use if you want more granular movements
-                        -- Make it even more gradual by adding multiple queries and regex.
-                        goto_next = {
-                            ["]i"] = "@conditional.outer",
-                        },
-                        goto_previous = {
-                            ["[i"] = "@conditional.outer",
-                        }
-                    },
-
-                    swap = {
-                        enable = true,
-                        swap_next = {
-                            -- [">,"] = "@parameter.inner",
-                        },
-                        swap_previous = {
-                            -- ["<,"] = "@parameter.inner",
-                        },
-                    },
-
-
-                    lsp_interop = {
-                        enable = true,
-                        border = 'none',
-                        floating_preview_opts = {},
-                        peek_definition_code = {
-                            ["<leader>df"] = "@function.outer",
-                            ["<leader>dF"] = "@class.outer",
-                        },
-                    },
-                },
-
-
-                query_linter = {
-                    enable = true,
-                    use_virtual_text = true,
-                    lint_events = {"BufWrite", "CursorHold"},
-                },
-            })
-        end,
-        config = function (_, opts)
-            -- Monkeypatch: guard against nil/invalid nodes in injection parsing (markdown code blocks).
-            -- TODO: Remove after migrating nvim-treesitter to main branch or upgrading Neovim.
-            local orig_get_range = vim.treesitter.get_range
-            vim.treesitter.get_range = function(node, source, metadata)
-                if not node or not node.range then
-                    return { 0, 0, 0, 0, 0, 0 }
+            -- Install any parsers from `ensure_installed` that are missing.
+            -- (main branch: no `ensure_installed`/`auto_install` config keys;
+            -- installation is an explicit async call.)
+            do
+                local installed = nts.get_installed()
+                local missing = vim.tbl_filter(function(lang)
+                    return not vim.tbl_contains(installed, lang)
+                end, ensure_installed)
+                if #missing > 0 then
+                    nts.install(missing)
                 end
-                return orig_get_range(node, source, metadata)
             end
-
-            require('nvim-treesitter.configs').setup(opts)
 
             local group = vim.api.nvim_create_augroup("TreesitterAutogroup", {
                 clear = true
             })
 
+            -- Replaces the master-branch `highlight`, `indent`, and `auto_install`
+            -- modules: enable treesitter highlighting + indentation per buffer, and
+            -- fetch a missing-but-available parser on demand.
+            vim.api.nvim_create_autocmd({ 'FileType' }, {
+                group = group,
+                pattern = "*",
+                callback = function(args)
+                    local buf = args.buf
+                    local ft = vim.bo[buf].filetype
+                    local lang = vim.treesitter.language.get_lang(ft) or ft
+
+                    -- auto_install: fetch parser if available but not installed
+                    if vim.tbl_contains(nts.get_available(), lang)
+                        and not vim.tbl_contains(nts.get_installed(), lang) then
+                        nts.install({ lang })
+                    end
+
+                    -- highlight (returns false / errors when no parser: guard it)
+                    local started = pcall(vim.treesitter.start, buf)
+
+                    -- indent (only when a parser is actually active)
+                    if started then
+                        vim.bo[buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+                    end
+                end,
+            })
+
+            -- The plugin loads at startup, so the buffer opened on the command line
+            -- may have fired FileType before the autocmd above existed. Apply it now.
+            if vim.bo.filetype ~= "" then
+                vim.api.nvim_exec_autocmds("FileType", { group = group, pattern = vim.bo.filetype })
+            end
+
+            -- Treesitter-based folding for python.
+            -- Replaces the master-branch `nvim_treesitter#foldexpr()` with the
+            -- builtin `vim.treesitter.foldexpr()`.
             for _, lang in ipairs({"python"}) do
                 vim.api.nvim_create_autocmd({ 'FileType' }, {
                     group = group,
                     pattern = lang,
                     callback = function()
                         vim.opt_local.foldmethod = "expr"
-                        vim.opt_local.foldexpr = "nvim_treesitter#foldexpr()"
+                        vim.opt_local.foldexpr = "v:lua.vim.treesitter.foldexpr()"
                     end,
                 })
             end
 
-            local ok, ts_repeat_move = pcall(require, "nvim-treesitter.textobjects.repeatable_move")
-            if not ok then
-                ts_repeat_move = require("nvim-treesitter-textobjects.repeatable_move")
+            -- textobjects (main branch): call setup once, then register keymaps
+            -- manually. The `move` module wraps itself with `make_repeatable_move`,
+            -- so `;` / `,` below repeat these motions automatically.
+            require('nvim-treesitter-textobjects').setup({
+                select = { lookahead = true },
+                move = { set_jumps = true },
+            })
+
+            local move = require('nvim-treesitter-textobjects.move')
+
+            -- { lhs, move fn, query (string or list), query_group, desc }
+            local motions = {
+                { "]m", move.goto_next_start, "@function.outer", nil, "Next function start" },
+                { "]]", move.goto_next_start, "@class.outer", nil, "Next class start" },
+                { "]o", move.goto_next_start, { "@loop.inner", "@loop.outer" }, nil, "Next loop start" },
+                { "]s", move.goto_next_start, "@scope", "locals", "Next scope" },
+                { "]z", move.goto_next_start, "@fold", "folds", "Next fold" },
+                { "]M", move.goto_next_end, "@function.outer", nil, "Next function end" },
+                { "][", move.goto_next_end, "@class.outer", nil, "Next class end" },
+                { "[m", move.goto_previous_start, "@function.outer", nil, "Prev function start" },
+                { "[[", move.goto_previous_start, "@class.outer", nil, "Prev class start" },
+                { "[z", move.goto_previous_start, "@fold", "folds", "Prev fold" },
+                { "[M", move.goto_previous_end, "@function.outer", nil, "Prev function end" },
+                { "[]", move.goto_previous_end, "@class.outer", nil, "Prev class end" },
+                { "]i", move.goto_next, "@conditional.outer", nil, "Next conditional" },
+                { "[i", move.goto_previous, "@conditional.outer", nil, "Prev conditional" },
+            }
+
+            for _, m in ipairs(motions) do
+                local lhs, fn, query, query_group, desc = m[1], m[2], m[3], m[4], m[5]
+                vim.keymap.set({ "n", "x", "o" }, lhs, function()
+                    fn(query, query_group)
+                end, { desc = desc })
             end
+
+            -- NOTE: the master-branch `lsp_interop.peek_definition_code`
+            -- (<leader>df / <leader>dF) has no equivalent in textobjects `main`
+            -- and was dropped in the migration. It used the LSP to peek the
+            -- source code of the enclosing textobject in a floating window:
+            -- <leader>df peeked the definition of the function (@function.outer)
+            -- under the cursor, <leader>dF the enclosing class (@class.outer) --
+            -- without leaving the current buffer.
+
+            local ts_repeat_move = require("nvim-treesitter-textobjects.repeatable_move")
 
             vim.keymap.set({ "n", "x" }, ";", ts_repeat_move.repeat_last_move)
             vim.keymap.set({ "n", "x" }, ",", ts_repeat_move.repeat_last_move_opposite)
@@ -190,6 +135,18 @@ return {
             vim.keymap.set({ "n", "x" }, "F", ts_repeat_move.builtin_F_expr, { expr = true })
             vim.keymap.set({ "n", "x" }, "t", ts_repeat_move.builtin_t_expr, { expr = true })
             vim.keymap.set({ "n", "x" }, "T", ts_repeat_move.builtin_T_expr, { expr = true })
+
+            -- Local main-branch reimplementation of the expand/shrink half of
+            -- nvim-treesitter-textsubjects (see lua/textsubjects_shim.lua and
+            -- queries/*/textsubjects-smart.scm).
+            -- <cr> = expand smart, <bs> = shrink to previous selection.
+            require('textsubjects_shim').setup({
+                prev_selection = '<bs>',
+                keymaps = {
+                    ['<cr>'] = 'textsubjects-smart',
+                },
+            })
+
             vim.keymap.set({ "n" }, "<leader>eto", function()
                 local config = vim.fn.stdpath("config")
 
@@ -287,18 +244,9 @@ return {
         }
     },
 
-    vim_utils.injector_module({
-        'RRethy/nvim-treesitter-textsubjects',
-        opts = {
-            prev_selection = '<bs>',
-            keymaps = {
-                ['<cr>'] = 'textsubjects-smart',
-                ['a<cr>'] = 'textsubjects-container-outer',
-                ['i<cr>'] = 'textsubjects-container-inner' ,
-            },
-        },
-        config = function (_, opts) require('nvim-treesitter-textsubjects').configure(opts) end,
-        dependencies = {"nvim-treesitter/nvim-treesitter"},
-        extra_contexts = {"vscode", "firenvim"}
-    })
+    -- NOTE: RRethy/nvim-treesitter-textsubjects was dropped in the master->main
+    -- migration (it needs master-only modules and has no `main` branch). Its
+    -- <cr> expand + <bs> shrink behavior is reimplemented locally on builtin
+    -- vim.treesitter -- see lua/textsubjects_shim.lua (wired up in the
+    -- nvim-treesitter config above) and the vendored queries/*/textsubjects-smart.scm.
 }

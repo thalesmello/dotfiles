@@ -61,10 +61,7 @@ return {
             vim.keymap.set({ "n" }, "gp", "vaP", {remap = true})
             vim.keymap.set({ "v" }, "gp", "avP", {remap = true})
 
-            local repeatable_ok, ts_repeat_move = pcall(require, "nvim-treesitter.textobjects.repeatable_move")
-            if not repeatable_ok then
-                repeatable_ok, ts_repeat_move = pcall(require, "nvim-treesitter-textobjects.repeatable_move")
-            end
+            local repeatable_ok, ts_repeat_move = pcall(require, "nvim-treesitter-textobjects.repeatable_move")
 
             if repeatable_ok then
                 function _G.FallbackMiniMove(opts)
@@ -126,10 +123,12 @@ return {
                     local ok, char = pcall(vim.fn.getcharstr)
                     if not ok or char == '\27' then return nil end
 
-                    local function mini_move(opts)
-                        visual_mini_move({direction=opts.forward and "right" or "left", char = char, ai = ai})
-                        ts_repeat_move.set_last_move(mini_move, {forward = direction == "right"})
-                    end
+                    -- `main` textobjects has no `set_last_move`; wrap the move with
+                    -- `make_repeatable_move` so `;`/`,` repeat/reverse it (the wrapped
+                    -- fn records the last move when called).
+                    local mini_move = ts_repeat_move.make_repeatable_move(function(move_opts)
+                        visual_mini_move({direction = move_opts.forward and "right" or "left", char = char, ai = ai})
+                    end)
 
                     mini_move({ forward = direction == "right" })
                 end
@@ -179,44 +178,12 @@ return {
                     local ok, char = pcall(vim.fn.getcharstr)
                     if not ok or char == '\27' then return nil end
                     local history = {}
-                    local move, _ = ts_repeat_move.make_repeatable_move_pair(
-                        function ()
-
-                            -- mini_ai.select_textobject(ai, char, {search_method=search_method})
-
-                            local left_reg, right_reg
-                            local is_visual_mode = vim_utils.is_visual_mode()
-                            if is_visual_mode then
-                                vim.cmd.normal({ args = {vim_utils.keycodes([[<c-\><c-n>gv]])}, bang = true })
-                                left_reg, right_reg = "'<", "'>"
-                            else
-                                left_reg, right_reg = ".", "."
-                            end
-
-                            local _, line, col = unpack(vim.fn.getpos(left_reg))
-                            local from = {line = line, col = col}
-                            _, line, col = unpack(vim.fn.getpos(right_reg))
-                            local to = {line = line, col = col}
-
-                            local reference_region = {from = from, to = to}
-
-                            local selection = mini_ai.find_textobject(ai, char, {search_method=search_method, reference_region=reference_region})
-
-                            if not selection then
-                                if is_visual_mode and not vim.tbl_get(vim.b.miniai_config or {}, 'custom_textobjects', char) then
-                                    table.insert(history, reference_region)
-                                    vim_utils.feedkeys(ai .. char)
-                                end
-                                return
-                            end
-
-                            table.insert(history, reference_region)
-
-                            vim.fn.setpos("'<", {0, selection.from.line, selection.from.col, 0})
-                            vim.fn.setpos("'>", {0, selection.to.line, selection.to.col, 0})
-                            vim.cmd.normal({ args = {vim_utils.keycodes([[gv]])}, bang = true })
-                        end,
-                        function ()
+                    -- `main` textobjects has no `make_repeatable_move_pair`; use a
+                    -- single direction-aware move wrapped with `make_repeatable_move`.
+                    -- `;` (repeat_last_move) re-runs the forward branch; `,`
+                    -- (repeat_last_move_opposite) runs the backward branch below.
+                    local move = ts_repeat_move.make_repeatable_move(function(move_opts)
+                        if move_opts.forward == false then
                             local selection = table.remove(history)
 
                             if not selection then
@@ -226,9 +193,45 @@ return {
                             vim.fn.setpos("'<", {0, selection.from.line, selection.from.col, 0})
                             vim.fn.setpos("'>", {0, selection.to.line, selection.to.col, 0})
                             vim.cmd.normal({ args = {vim_utils.keycodes([[gv]])}, bang = true })
-                        end)
+                            return
+                        end
 
-                    move()
+                        -- mini_ai.select_textobject(ai, char, {search_method=search_method})
+
+                        local left_reg, right_reg
+                        local is_visual_mode = vim_utils.is_visual_mode()
+                        if is_visual_mode then
+                            vim.cmd.normal({ args = {vim_utils.keycodes([[<c-\><c-n>gv]])}, bang = true })
+                            left_reg, right_reg = "'<", "'>"
+                        else
+                            left_reg, right_reg = ".", "."
+                        end
+
+                        local _, line, col = unpack(vim.fn.getpos(left_reg))
+                        local from = {line = line, col = col}
+                        _, line, col = unpack(vim.fn.getpos(right_reg))
+                        local to = {line = line, col = col}
+
+                        local reference_region = {from = from, to = to}
+
+                        local selection = mini_ai.find_textobject(ai, char, {search_method=search_method, reference_region=reference_region})
+
+                        if not selection then
+                            if is_visual_mode and not vim.tbl_get(vim.b.miniai_config or {}, 'custom_textobjects', char) then
+                                table.insert(history, reference_region)
+                                vim_utils.feedkeys(ai .. char)
+                            end
+                            return
+                        end
+
+                        table.insert(history, reference_region)
+
+                        vim.fn.setpos("'<", {0, selection.from.line, selection.from.col, 0})
+                        vim.fn.setpos("'>", {0, selection.to.line, selection.to.col, 0})
+                        vim.cmd.normal({ args = {vim_utils.keycodes([[gv]])}, bang = true })
+                    end)
+
+                    move({ forward = true })
                 end
 
                 vim.keymap.set({ "x" }, "a", function () visual_ai({ ai = "a" }) end)
