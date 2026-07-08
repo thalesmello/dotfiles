@@ -393,30 +393,57 @@ function M.setup()
   service:bindOnce({}, "a", "Harpoon Add", function() fish("yabai-harpoon add") end)
   service:bindOnce({}, "e", "Harpoon Edit", function() fish("yabai-harpoon edit") end)
 
-  -- Select every window in the current space. If they are all already selected,
-  -- deselect all; otherwise add the ones that are missing from the list.
-  service:bindOnce(hyper, "a", "Select All Windows In Space", function()
-    task({"wm-preset", "get-space-window-ids"}, function(ok, out)
-      if not ok or out == "" then
+  -- Cycle window selection in three stages: first press marks the foreground
+  -- (un-occluded) windows, second press expands to every window in the space,
+  -- third press (everything already marked) clears the arglist.
+  service:bindOnce(hyper, "a", "Select Visible / All Windows In Space", function()
+    -- Splits newline-separated command output into a list of window ids.
+    local function splitIds(out)
+      local ids = {}
+      for _, id in ipairs(hs.fnutils.split(out, "\n")) do
+        if id ~= "" then ids[#ids + 1] = id end
+      end
+      return ids
+    end
+
+    -- Marks every id in the list; returns true if anything new was added,
+    -- i.e. the arglist changed.
+    local function addAll(ids)
+      local changed = false
+      for _, id in ipairs(ids) do
+        if ArgList.add(id) then changed = true end
+      end
+      return changed
+    end
+
+    a.sync(function()
+      -- Stage 1: foreground-visible windows. Skipped when there is only one
+      -- visible window (marking a single window is pointless) or when
+      -- empty/unsupported (e.g. AeroSpace) — both fall through to the
+      -- all-windows stage below.
+      local _, visibleOut = a.wait(fishAsync("wm-preset list-visible-windows | jq -r .id"))
+      local visible = splitIds(visibleOut)
+      if #visible > 1 and addAll(visible) then
+        Preset.displayMessage("Selected visible windows (" .. ArgList.count() .. " marked)")
+        return
+      end
+
+      -- Stage 2: every window in the current space.
+      local ok, spaceOut = a.wait(taskAsync({"wm-preset", "get-space-window-ids"}))
+      local space = splitIds(spaceOut)
+      if not ok or #space == 0 then
         Preset.displayMessage("ArgList: no windows in space")
         return
       end
-      local ids = {}
-      for id in out:gmatch("[^\n]+") do ids[#ids + 1] = id end
-
-      local allSelected = true
-      for _, id in ipairs(ids) do
-        if not ArgList.contains(id) then allSelected = false; break end
-      end
-
-      if allSelected then
-        ArgList.clear()
-        Preset.displayMessage("Deselected all windows")
-      else
-        for _, id in ipairs(ids) do ArgList.add(id) end
+      if addAll(space) then
         Preset.displayMessage("Selected all windows (" .. ArgList.count() .. " marked)")
+        return
       end
-    end)
+
+      -- Stage 3: everything already marked -> clear.
+      ArgList.clear()
+      Preset.displayMessage("Deselected all windows")
+    end)()
   end)
 
   -- ArgList populated: clear it. Empty: clear the harpoon pins (default behavior).
