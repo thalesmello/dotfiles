@@ -314,7 +314,7 @@ function M.setup()
   })
 
   -- Paste as plain text
-  default:bindOnce({"cmd", "alt"}, "v", "Paste as Plain Text", function()
+  default:bindOnce({"ctrl", "cmd"}, "v", "Paste as Plain Text", function()
     local text = hs.pasteboard.getContents()
     if text then hs.eventtap.keyStrokes(text) end
   end)
