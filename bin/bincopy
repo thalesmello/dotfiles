@@ -1,7 +1,8 @@
 #!/bin/sh
 
 # Copy a file onto the macOS clipboard as a real file reference, so it pastes
-# straight into Finder, Mail, Messages, etc. Pairs with `binpaste`/`binmove`.
+# straight into Finder, Mail, Messages, Claude Code, etc. Pairs with
+# `binpaste`/`binmove`.
 #
 #   bincopy photo.png      # copy the file itself
 
@@ -14,8 +15,25 @@ fi
 
 file="$(realpath "$1")"
 
-osascript \
-    -e 'on run argv' \
-    -e 'set the clipboard to item 1 of argv as «class furl»' \
-    -e 'end run' \
-    "$file"
+# Two things share the clipboard here:
+#   - public.file-url / NSFilenamesPboardType: a real file reference, so GUI apps
+#     (Finder, Mail, Messages) paste the file itself.
+#   - public.utf8-plain-text: the POSIX path. Terminals paste this as text, which
+#     is the only way tools that don't read the pasteboard (e.g. Claude Code, which
+#     ingests a pasted image *path*) can receive the file.
+# AppleScript's `set the clipboard to ... as «class furl»` can't do either
+# reliably, so write the pasteboard natively.
+FILE_TO_COPY="$file" swift - <<'SWIFT'
+import AppKit
+import Foundation
+let path = ProcessInfo.processInfo.environment["FILE_TO_COPY"]!
+let pb = NSPasteboard.general
+pb.clearContents()
+let item = NSPasteboardItem()
+item.setString(URL(fileURLWithPath: path).absoluteString, forType: .fileURL)
+item.setString(path, forType: .string)
+if !pb.writeObjects([item]) {
+    FileHandle.standardError.write("bincopy: failed to write to pasteboard\n".data(using: .utf8)!)
+    exit(1)
+}
+SWIFT
