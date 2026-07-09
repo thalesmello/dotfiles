@@ -1,38 +1,57 @@
 #!/bin/sh
 
-# Copy a file onto the macOS clipboard as a real file reference, so it pastes
-# straight into Finder, Mail, Messages, Claude Code, etc. Pairs with
-# `binpaste`/`binmove`.
+# Copy one or more files onto the macOS clipboard as real file references, so they
+# paste straight into Finder, Mail, Messages, Claude Code, etc. Pairs with
+# `binpaste`.
 #
-#   bincopy photo.png      # copy the file itself
+#   bincopy photo.png                 # copy a single file
+#   bincopy file1.png file2.png       # copy several files at once
 
 set -e
 
-if [ -z "$1" ]; then
-    echo "usage: bincopy <filename>" >&2
+if [ "$#" -eq 0 ]; then
+    echo "usage: bincopy <filename> [filename ...]" >&2
     exit 1
 fi
 
-file="$(realpath "$1")"
+# Resolve every argument to an absolute path, rebuilding "$@" in place so paths
+# with spaces survive. realpath errors out (via set -e) on a missing file.
+n=$#
+while [ "$n" -gt 0 ]; do
+    set -- "$@" "$(realpath "$1")"
+    shift
+    n=$((n - 1))
+done
 
-# Two things share the clipboard here:
-#   - public.file-url / NSFilenamesPboardType: a real file reference, so GUI apps
-#     (Finder, Mail, Messages) paste the file itself.
-#   - public.utf8-plain-text: the POSIX path. Terminals paste this as text, which
-#     is the only way tools that don't read the pasteboard (e.g. Claude Code, which
-#     ingests a pasted image *path*) can receive the file.
+# Two flavors share the clipboard:
+#   - public.file-url / NSFilenamesPboardType: real file references, so GUI apps
+#     (Finder, Mail, Messages) paste the files themselves.
+#   - public.utf8-plain-text: the newline-joined POSIX paths. Terminals paste this
+#     as text, which is how tools that don't read the pasteboard (e.g. Claude Code,
+#     which ingests pasted image paths) receive the files.
 # AppleScript's `set the clipboard to ... as «class furl»` can't do either
 # reliably, so write the pasteboard natively.
-FILE_TO_COPY="$file" swift - <<'SWIFT'
+swift - "$@" <<'SWIFT'
 import AppKit
 import Foundation
-let path = ProcessInfo.processInfo.environment["FILE_TO_COPY"]!
+
+let paths = Array(CommandLine.arguments.dropFirst())
+guard !paths.isEmpty else { exit(1) }
+
 let pb = NSPasteboard.general
 pb.clearContents()
-let item = NSPasteboardItem()
-item.setString(URL(fileURLWithPath: path).absoluteString, forType: .fileURL)
-item.setString(path, forType: .string)
-if !pb.writeObjects([item]) {
+
+let items = paths.enumerated().map { (i, path) -> NSPasteboardItem in
+    let item = NSPasteboardItem()
+    item.setString(URL(fileURLWithPath: path).absoluteString, forType: .fileURL)
+    // Attach the plain-text path list once, on the first item.
+    if i == 0 {
+        item.setString(paths.joined(separator: "\n"), forType: .string)
+    }
+    return item
+}
+
+if !pb.writeObjects(items) {
     FileHandle.standardError.write("bincopy: failed to write to pasteboard\n".data(using: .utf8)!)
     exit(1)
 }

@@ -1,17 +1,143 @@
 #!/bin/sh
 
-# Paste the file on the macOS clipboard into a folder (a copy). Pairs with
-# `bincopy`.
+# Paste the file(s) on the macOS clipboard into a folder. Pairs with `bincopy`.
+# Handles any number of files placed on the clipboard, and prints each file it
+# writes.
 #
-#   binpaste ~/Downloads   # copy the clipboard's file into the folder
+#   binpaste ~/Downloads            # copy the clipboard's file(s) into the folder
+#   binpaste --move ~/Downloads     # move them instead of copying
+#
+# By default it refuses to run if any file would collide with an existing name
+# (nothing is written). Choose how to resolve collisions:
+#
+#   binpaste --replace ~/Downloads  # overwrite existing files
+#   binpaste --rename ~/Downloads   # keep both, renaming ("name 2.ext", ...)
 
 set -e
 
-if [ -z "$1" ]; then
-    echo "usage: binpaste <foldername>" >&2
+usage() {
+    echo "usage: binpaste [--move] [--replace|--rename] <foldername>" >&2
+    exit 1
+}
+
+move=0
+replace=0
+rename=0
+folder=""
+for arg in "$@"; do
+    case "$arg" in
+        --move|-m) move=1 ;;
+        --replace) replace=1 ;;
+        --rename)  rename=1 ;;
+        -*) echo "binpaste: unknown option: $arg" >&2; usage ;;
+        *)
+            [ -n "$folder" ] && usage
+            folder="$arg"
+            ;;
+    esac
+done
+
+[ -z "$folder" ] && usage
+if [ "$replace" -eq 1 ] && [ "$rename" -eq 1 ]; then
+    echo "binpaste: --replace and --rename are mutually exclusive" >&2
     exit 1
 fi
 
-folder="$(realpath "$1")"
+collision=fail
+[ "$replace" -eq 1 ] && collision=replace
+[ "$rename" -eq 1 ] && collision=rename
 
-osascript -e "tell application \"Finder\" to duplicate ((the clipboard as «class furl») as alias) to (POSIX file \"$folder\" as alias)"
+BINPASTE_DEST="$(realpath "$folder")" BINPASTE_MOVE="$move" BINPASTE_COLLISION="$collision" \
+swift - <<'SWIFT'
+import AppKit
+import Foundation
+
+func die(_ msg: String) -> Never {
+    FileHandle.standardError.write((msg + "\n").data(using: .utf8)!)
+    exit(1)
+}
+
+let env = ProcessInfo.processInfo.environment
+let dest = URL(fileURLWithPath: env["BINPASTE_DEST"]!, isDirectory: true)
+let move = env["BINPASTE_MOVE"] == "1"
+let collision = env["BINPASTE_COLLISION"]!   // fail | replace | rename
+let verb = move ? "move" : "copy"
+
+let pb = NSPasteboard.general
+guard let urls = pb.readObjects(forClasses: [NSURL.self],
+                                options: [.urlReadingFileURLsOnly: true]) as? [URL],
+      !urls.isEmpty else {
+    die("binpaste: no files on the clipboard")
+}
+
+let fm = FileManager.default
+
+func samePath(_ a: URL, _ b: URL) -> Bool {
+    a.standardizedFileURL.path == b.standardizedFileURL.path
+}
+
+// Default: refuse to run if any file collides with an existing name or with
+// another file in the same batch. Checked before anything is written.
+if collision == "fail" {
+    var seen = Set<String>()
+    var clashes: [String] = []
+    for url in urls {
+        let name = url.lastPathComponent
+        let target = dest.appendingPathComponent(name)
+        if seen.contains(name) || (fm.fileExists(atPath: target.path) && !samePath(url, target)) {
+            clashes.append(name)
+        }
+        seen.insert(name)
+    }
+    if !clashes.isEmpty {
+        die("binpaste: refusing to overwrite existing files (use --replace or --rename):\n"
+            + clashes.map { "  " + $0 }.joined(separator: "\n"))
+    }
+}
+
+// Pick a non-colliding destination, mimicking Finder ("name 2.ext", "name 3.ext"...).
+func uniqueDestination(for name: String) -> URL {
+    var candidate = dest.appendingPathComponent(name)
+    guard fm.fileExists(atPath: candidate.path) else { return candidate }
+    let base = (name as NSString).deletingPathExtension
+    let ext = (name as NSString).pathExtension
+    var n = 2
+    repeat {
+        let newName = ext.isEmpty ? "\(base) \(n)" : "\(base) \(n).\(ext)"
+        candidate = dest.appendingPathComponent(newName)
+        n += 1
+    } while fm.fileExists(atPath: candidate.path)
+    return candidate
+}
+
+var failed = false
+for url in urls {
+    let target = collision == "rename"
+        ? uniqueDestination(for: url.lastPathComponent)
+        : dest.appendingPathComponent(url.lastPathComponent)
+
+    // Never touch a file that is already exactly in place.
+    if samePath(url, target) {
+        print(target.path)
+        continue
+    }
+
+    do {
+        if collision == "replace" && fm.fileExists(atPath: target.path) {
+            try fm.removeItem(at: target)
+        }
+        if move {
+            try fm.moveItem(at: url, to: target)
+        } else {
+            try fm.copyItem(at: url, to: target)
+        }
+        print(target.path)
+    } catch {
+        FileHandle.standardError.write(
+            "binpaste: cannot \(verb) \(url.path): \(error.localizedDescription)\n"
+                .data(using: .utf8)!)
+        failed = true
+    }
+}
+if failed { exit(1) }
+SWIFT
