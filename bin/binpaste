@@ -10,25 +10,29 @@
 # By default it refuses to run if any file would collide with an existing name
 # (nothing is written). Choose how to resolve collisions:
 #
-#   binpaste --replace ~/Downloads  # overwrite existing files
+#   binpaste --replace ~/Downloads  # overwrite existing files/folders wholesale
 #   binpaste --rename ~/Downloads   # keep both, renaming ("name 2.ext", ...)
+#   binpaste --merge ~/Downloads    # merge into existing folders: overwrite the
+#                                   # nested files that overlap, keep the rest
 
 set -e
 
 usage() {
-    echo "usage: binpaste [--move] [--replace|--rename] <foldername>" >&2
+    echo "usage: binpaste [--move] [--replace|--rename|--merge] <foldername>" >&2
     exit 1
 }
 
 move=0
 replace=0
 rename=0
+merge=0
 folder=""
 for arg in "$@"; do
     case "$arg" in
         --move|-m) move=1 ;;
         --replace) replace=1 ;;
         --rename)  rename=1 ;;
+        --merge)   merge=1 ;;
         -*) echo "binpaste: unknown option: $arg" >&2; usage ;;
         *)
             [ -n "$folder" ] && usage
@@ -38,14 +42,15 @@ for arg in "$@"; do
 done
 
 [ -z "$folder" ] && usage
-if [ "$replace" -eq 1 ] && [ "$rename" -eq 1 ]; then
-    echo "binpaste: --replace and --rename are mutually exclusive" >&2
+if [ "$((replace + rename + merge))" -gt 1 ]; then
+    echo "binpaste: --replace, --rename, and --merge are mutually exclusive" >&2
     exit 1
 fi
 
 collision=fail
 [ "$replace" -eq 1 ] && collision=replace
 [ "$rename" -eq 1 ] && collision=rename
+[ "$merge" -eq 1 ] && collision=merge
 
 BINPASTE_DEST="$(realpath "$folder")" BINPASTE_MOVE="$move" BINPASTE_COLLISION="$collision" \
 swift - <<'SWIFT'
@@ -60,7 +65,7 @@ func die(_ msg: String) -> Never {
 let env = ProcessInfo.processInfo.environment
 let dest = URL(fileURLWithPath: env["BINPASTE_DEST"]!, isDirectory: true)
 let move = env["BINPASTE_MOVE"] == "1"
-let collision = env["BINPASTE_COLLISION"]!   // fail | replace | rename
+let collision = env["BINPASTE_COLLISION"]!   // fail | replace | rename | merge
 let verb = move ? "move" : "copy"
 
 let pb = NSPasteboard.general
@@ -74,6 +79,32 @@ let fm = FileManager.default
 
 func samePath(_ a: URL, _ b: URL) -> Bool {
     a.standardizedFileURL.path == b.standardizedFileURL.path
+}
+
+func isDirectory(_ url: URL) -> Bool {
+    var isDir: ObjCBool = false
+    return fm.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
+}
+
+func transfer(from src: URL, to dst: URL) throws {
+    if move { try fm.moveItem(at: src, to: dst) } else { try fm.copyItem(at: src, to: dst) }
+}
+
+// Merge src into dst: overlapping files are overwritten, directories are merged
+// recursively, and anything already in dst that src doesn't touch is preserved.
+func merge(from src: URL, to dst: URL) throws {
+    // If src is a directory being merged into an existing directory, recurse per
+    // child. Every other case is a wholesale overwrite of dst with src.
+    guard isDirectory(src), isDirectory(dst) else {
+        if fm.fileExists(atPath: dst.path) { try fm.removeItem(at: dst) }
+        try transfer(from: src, to: dst)
+        return
+    }
+    for child in try fm.contentsOfDirectory(at: src, includingPropertiesForKeys: nil) {
+        try merge(from: child, to: dst.appendingPathComponent(child.lastPathComponent))
+    }
+    // When moving, the children have been relocated out of src; drop the husk.
+    if move { try? fm.removeItem(at: src) }
 }
 
 // Default: refuse to run if any file collides with an existing name or with
@@ -123,13 +154,13 @@ for url in urls {
     }
 
     do {
-        if collision == "replace" && fm.fileExists(atPath: target.path) {
-            try fm.removeItem(at: target)
-        }
-        if move {
-            try fm.moveItem(at: url, to: target)
+        if collision == "merge" {
+            try merge(from: url, to: target)
         } else {
-            try fm.copyItem(at: url, to: target)
+            if collision == "replace" && fm.fileExists(atPath: target.path) {
+                try fm.removeItem(at: target)
+            }
+            try transfer(from: url, to: target)
         }
         print(target.path)
     } catch {
