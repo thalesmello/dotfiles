@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# Move the file on the macOS clipboard into a folder. Pairs with `bincopy`.
+#
+#   binmove ~/Downloads    # move the clipboard's file into the folder
+
+set -e
+
+if [ -z "$1" ]; then
+    echo "usage: binmove <foldername>" >&2
+    exit 1
+fi
+
+folder="$(realpath "$1")"
+
+osascript -e "tell application \"Finder\" to move ((the clipboard as «class furl») as alias) to (POSIX file \"$folder\" as alias)"
