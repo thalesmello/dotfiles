@@ -15,6 +15,7 @@ end
 require("keybindings").setup()
 require("audiodevice").setup()
 require("filewatcher").setup()
+require("downloadwatcher").setup()
 require("debuglog").setup()
 
 hs.loadSpoon("EmmyLua")
