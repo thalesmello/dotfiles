@@ -1,0 +1,28 @@
+#!/bin/sh
+
+# Quick Look one or more files from the command line — the same preview you get
+# by highlighting a file in Finder and pressing the space bar.
+#
+#   preview photo.jpg                 # Quick Look a single file
+#   preview page1.pdf page2.pdf       # Quick Look several files at once
+#   cat image.png | preview           # Quick Look data piped on stdin
+
+set -e
+
+# No arguments: if something is piped in, stash it in a temp file and preview
+# that; otherwise show usage.
+if [ "$#" -eq 0 ]; then
+    if [ -t 0 ]; then
+        echo "usage: preview <filename> [filename ...]" >&2
+        echo "       <command> | preview" >&2
+        exit 1
+    fi
+    tmp=$(mktemp "${TMPDIR:-/tmp}/preview.XXXXXX")
+    cat > "$tmp"
+    trap 'rm -f "$tmp"' EXIT
+    qlmanage -p "$tmp" >/dev/null 2>&1
+    exit 0
+fi
+
+# qlmanage is chatty on stderr/stdout even on success; silence it.
+qlmanage -p "$@" >/dev/null 2>&1
