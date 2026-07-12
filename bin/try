@@ -442,7 +442,7 @@ class TrySelector
         @cursor_pos = 0
       when "\x0B"  # Ctrl-K - kill to end of line
         @input_buffer = @input_buffer[0...@input_cursor_pos]
-      when "\x17"  # Ctrl-W - delete word backward (alphanumeric)
+      when "\x17", "\e\x7F", "\e\b"  # Ctrl-W or Meta-Backspace (Option+Backspace) - delete word backward
         if @input_cursor_pos > 0
           # Start from cursor position and move backward
           pos = @input_cursor_pos - 1
@@ -831,7 +831,7 @@ class TrySelector
     when "\x0B"  # Ctrl-K - kill to end
       @rename_buffer = @rename_buffer[0...@rename_cursor_pos]
       @rename_error = nil
-    when "\x17"  # Ctrl-W - delete word backward
+    when "\x17", "\e\x7F", "\e\b"  # Ctrl-W or Meta-Backspace (Option+Backspace) - delete word backward
       if @rename_cursor_pos > 0
         pos = @rename_cursor_pos - 1
         pos -= 1 while pos > 0 && @rename_buffer[pos] !~ /[a-zA-Z0-9]/
