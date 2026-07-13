@@ -1,6 +1,5 @@
 # vi: ft=ruby
 
-tap "homebrew/services"
 brew "bash"
 brew "bat"
 brew "black"
