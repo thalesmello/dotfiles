@@ -7,6 +7,7 @@ function M.setup(hyper)
   _G.CmdTabCount = 0
   _G.FloatingTerminalJustHidden = false
   _G.WindowAfterHide = nil
+  _G.PendingAction = nil
 
   _G.CmdTabTap = hs.eventtap.new(
     {hs.eventtap.event.types.keyDown, hs.eventtap.event.types.flagsChanged},
@@ -14,9 +15,26 @@ function M.setup(hyper)
       local type = event:getType()
       local flags = event:getFlags()
 
-      -- On Cmd release: reset counter
+      -- On Cmd release: run any pending action, then reset counter
       if type == hs.eventtap.event.types.flagsChanged then
         if not flags.cmd then
+          if PendingAction == "restore" then
+            FloatingTerminalJustHidden = false
+            WindowAfterHide = nil
+            hs.eventtap.keyStroke(hyper, "/", 0)
+          elseif PendingAction == "hide" then
+            FloatingTerminalJustHidden = true
+            WindowAfterHide = nil
+            hs.osascript.applescript('tell application "iTerm2" to hide hotkey window current window')
+            hs.timer.usleep(200000)
+            local win = hs.window.focusedWindow()
+            WindowAfterHide = win and win:id()
+          elseif PendingAction == "focus-recent" then
+            FloatingTerminalJustHidden = false
+            WindowAfterHide = nil
+            shell.task({"wm-preset", "focus-recent"})
+          end
+          PendingAction = nil
           CmdTabCount = 0
         end
         return false  -- never consume modifier events
@@ -31,28 +49,21 @@ function M.setup(hyper)
       CmdTabCount = CmdTabCount + 1
 
       if CmdTabCount == 1 then
-        -- First press: custom behavior
+        -- First press: decide the action but defer it until Cmd is released
         local focusedWin = hs.window.focusedWindow()
         local focusedWinId = focusedWin and focusedWin:id()
         if FloatingTerminalJustHidden and WindowAfterHide and focusedWinId == WindowAfterHide then
-          FloatingTerminalJustHidden = false
-          WindowAfterHide = nil
-          hs.eventtap.keyStroke(hyper, "/", 0)
+          PendingAction = "restore"
         elseif mode.isFloatingTerminal() then
-          FloatingTerminalJustHidden = true
-          WindowAfterHide = nil
-          hs.osascript.applescript('tell application "iTerm2" to hide hotkey window current window')
-          hs.timer.usleep(200000)
-          local win = hs.window.focusedWindow()
-          WindowAfterHide = win and win:id()
+          PendingAction = "hide"
         else
-          FloatingTerminalJustHidden = false
-          WindowAfterHide = nil
-          shell.task({"wm-preset", "focus-recent"})
+          PendingAction = "focus-recent"
         end
         return true  -- consume the event
       else
-        -- Second+ press: let native App Switcher handle it
+        -- Second+ press: cancel the deferred action and let the native
+        -- App Switcher / underlying window handle Cmd+Tab
+        PendingAction = nil
         return false
       end
     end
