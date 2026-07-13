@@ -74,6 +74,8 @@ brew "waydabber/betterdisplay/betterdisplaycli", trusted: true
 brew "yqrashawn/goku/goku", trusted: true
 cask "nikitabobko/tap/aerospace", trusted: true
 cask "1password"
+cask "google-drive"
+cask "google-chrome"
 cask "1password-cli"
 cask "alfred"
 cask "bartender"
