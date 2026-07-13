@@ -15,6 +15,14 @@ echo "$(which fish)" | sudo tee -a /etc/shells
 chsh -s "$(which fish)"
 ```
 
+Create a symbolic links for your files:
+
+```
+stow --target "$HOME" --dotfiles main
+stow --target "$HOME" --dotfiles local
+ln "$(pwd)/mouseless/config.yaml" "$HOME/Library/Containers/net.sonuscape.mouseless/Data/.mouseless/configs/config.yaml"
+```
+
 Include the local bin folder in the PATH
 
 ```
@@ -30,10 +38,3 @@ mkdir -p ~/.local/bin && fish_add_path ~/.local/bin
 mkdir -p ~/go/bin && fish_add_path ~/go/bin
 ```
 
-Create a symbolic links for your files:
-
-```
-stow --target "$HOME" --dotfiles main
-stow --target "$HOME" --dotfiles local
-ln "$(pwd)/mouseless/config.yaml" "$HOME/Library/Containers/net.sonuscape.mouseless/Data/.mouseless/configs/config.yaml"
-```
