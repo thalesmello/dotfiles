@@ -38,8 +38,8 @@ defaults write com.apple.dock "expose-group-apps" -bool "true"
 # displays have separate spaces
 defaults write com.apple.spaces "spans-displays" -bool "false"
 
-# hide menu bar
-defaults write NSGlobalDomain _HIHideMenuBar -bool true
+# don't hide menu bar
+defaults write NSGlobalDomain _HIHideMenuBar -bool false
 defaults write NSGlobalDomain AppleMenuBarVisibleInFullscreen -bool false
 
 # Set top hight of rectangle pro to have space for Sketchy bar
