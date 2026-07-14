@@ -147,7 +147,7 @@ function osascript-preset
     case "get-active-app"
         /usr/bin/osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'
 
-    case "mission-control-active"
+    case "is-mission-control-active"
         # Print "true"/"false" and exit 0 when Mission Control is on screen,
         # non-zero otherwise, so it works both as `$(... )` and `if ...`.
         #
