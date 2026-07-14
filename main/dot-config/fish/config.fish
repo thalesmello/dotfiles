@@ -1,12 +1,6 @@
-if status --is-interactive
-    fundle plugin brgmnn/fish-docker-compose
-    fundle plugin fischerling/plugin-wd
-    fundle plugin thalesmello/theme-cmorrell.com
-    fundle plugin ankitsumitg/docker-fish-completions
-    fundle plugin lgathy/google-cloud-sdk-fish-completion
-    # fundle plugin franciscolourenco/done
-    fundle plugin PatrickF1/colored_man_pages.fish
+# fundle packages in conf.d/packages.fish
 
+if status --is-interactive
     if not test -e "$__fish_user_data_dir/vendor_conf.d/fzf.fish"
 	fish_install_autoload
     end
