@@ -250,6 +250,14 @@ vim.api.nvim_create_autocmd("BufLeave", {
   end
 })
 
+local function copyVisualSelection ()
+  local selection = vim_utils.get_visual_selection("char")
+  if #selection > 1 then
+    vim.fn.setreg("+", selection)
+  end
+end
+
+
 vim.api.nvim_create_autocmd("TermOpen", {
   pattern = "*",
   group = au_group,
@@ -262,6 +270,8 @@ vim.api.nvim_create_autocmd("TermOpen", {
 
     vim.keymap.set("n", "<cr>", vim.cmd.startinsert, {buffer = true})
     vim.keymap.set({"v", "s"}, "<cr>", "<esc>i", {buffer = true, remap = false})
+    vim.keymap.set("x", "<LeftRelease>", copyVisualSelection, {buffer = true, remap = false})
+    vim.keymap.set("x", "<2-LeftRelease>", copyVisualSelection, {buffer = true, remap = false})
   end
 })
 
