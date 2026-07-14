@@ -406,13 +406,17 @@ keymaps:
     wheel right: null
     wheel right fast: l
     wheel step down: null
-    wheel step down large: d
+    wheel step down large:
+    - d
+    - ctrl+cmd+option+d
     wheel step left: null
     wheel step left large: null
     wheel step right: null
     wheel step right large: null
     wheel step up: null
-    wheel step up large: u
+    wheel step up large:
+    - u
+    - ctrl+cmd+option+u
     wheel up: null
     wheel up fast: k
   name: mac
