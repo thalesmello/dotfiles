@@ -147,6 +147,40 @@ function osascript-preset
     case "get-active-app"
         /usr/bin/osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'
 
+    case "mission-control-active"
+        # Print "true"/"false" and exit 0 when Mission Control is on screen,
+        # non-zero otherwise, so it works both as `$(... )` and `if ...`.
+        #
+        # Detection: when Mission Control is closed the Dock process only owns
+        # the desktop wallpaper window (a deeply negative window layer). While
+        # Mission Control is up the Dock also owns the overlay backdrop and the
+        # per-window preview tiles at layers 17-18. We look for a Dock-owned
+        # window in that range (staying below the Dock bar's own level, 20, so a
+        # visible Dock never false-positives). The classic Y == -1 heuristic no
+        # longer holds on recent macOS.
+        set -l result (/usr/bin/osascript -l JavaScript -e '
+            ObjC.import("CoreGraphics");
+            ObjC.import("Foundation");
+            // CGWindowListCopyWindowInfo returns a CFArrayRef; castRefToObject
+            // bridges it to a usable NSArray (CFBridgingRelease is inlined and
+            // segfaults from JXA).
+            var list = ObjC.castRefToObject(
+                $.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, 0));
+            var active = false;
+            for (var i = 0; i < list.count; i++) {
+                var entry = list.objectAtIndex(i);
+                if (ObjC.unwrap(entry.objectForKey("kCGWindowOwnerName")) === "Dock") {
+                    var layer = ObjC.unwrap(entry.objectForKey("kCGWindowLayer"));
+                    if (layer >= 17 && layer < 20) { active = true; }
+                }
+            }
+            active ? "true" : "false";
+        ')
+        or return 1
+
+        echo $result
+        test "$result" = true
+
     case "show-or-hide-app"
         argparse only-show only-hide -- $argv
         or return 1
