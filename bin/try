@@ -442,6 +442,9 @@ class TrySelector
         @cursor_pos = 0
       when "\x0B"  # Ctrl-K - kill to end of line
         @input_buffer = @input_buffer[0...@input_cursor_pos]
+      when "\x15"  # Ctrl-U - kill to beginning of line (Cmd+Backspace)
+        @input_buffer = @input_buffer[@input_cursor_pos..-1] || ""
+        @input_cursor_pos = 0
       when "\x17", "\e\x7F", "\e\b"  # Ctrl-W or Meta-Backspace (Option+Backspace) - delete word backward
         if @input_cursor_pos > 0
           # Start from cursor position and move backward
@@ -830,6 +833,10 @@ class TrySelector
       @rename_cursor_pos = [@rename_cursor_pos + 1, @rename_buffer.length].min
     when "\x0B"  # Ctrl-K - kill to end
       @rename_buffer = @rename_buffer[0...@rename_cursor_pos]
+      @rename_error = nil
+    when "\x15"  # Ctrl-U - kill to beginning of line (Cmd+Backspace)
+      @rename_buffer = @rename_buffer[@rename_cursor_pos..-1] || ""
+      @rename_cursor_pos = 0
       @rename_error = nil
     when "\x17", "\e\x7F", "\e\b"  # Ctrl-W or Meta-Backspace (Option+Backspace) - delete word backward
       if @rename_cursor_pos > 0
