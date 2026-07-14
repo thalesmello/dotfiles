@@ -15,7 +15,9 @@ function M.setup(hyper)
       -- On Cmd release: run the deferred action (if any), then reset per-hold state
       -- Modifier changes never get consumed; on Cmd release, run the deferred action
       if event:getType() == hs.eventtap.event.types.flagsChanged then
-        if flags.cmd then return false end
+        if flags.cmd or PendingCmdTabAction == nil then
+          return false
+        end
 
         PendingCmdTabAction()
         PendingCmdTabAction = nil
