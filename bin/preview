@@ -9,6 +9,25 @@
 
 set -e
 
+# Quick Look the given files. qlmanage -p blocks until the preview window is
+# closed, but it opens the window in the background. Launch it, then bring the
+# qlmanage process frontmost so the preview appears on top of other windows.
+quick_look() {
+    # qlmanage is chatty on stderr/stdout even on success; silence it.
+    qlmanage -p "$@" >/dev/null 2>&1 &
+    ql_pid=$!
+
+    # Give the window a moment to appear, then raise qlmanage to the front.
+    # Setting frontmost succeeds even before the window exists, so activate a
+    # few times over a short window to reliably catch it once it's up.
+    for _ in 1 2 3; do
+        sleep 0.2
+        osascript -e "tell application \"System Events\" to set frontmost of every process whose unix id is $ql_pid to true" >/dev/null 2>&1
+    done
+
+    wait "$ql_pid"
+}
+
 # No arguments: if something is piped in, stash it in a temp file and preview
 # that; otherwise show usage.
 if [ "$#" -eq 0 ]; then
@@ -20,9 +39,8 @@ if [ "$#" -eq 0 ]; then
     tmp=$(mktemp "${TMPDIR:-/tmp}/preview.XXXXXX")
     cat > "$tmp"
     trap 'rm -f "$tmp"' EXIT
-    qlmanage -p "$tmp" >/dev/null 2>&1
+    quick_look "$tmp"
     exit 0
 fi
 
-# qlmanage is chatty on stderr/stdout even on success; silence it.
-qlmanage -p "$@" >/dev/null 2>&1
+quick_look "$@"
