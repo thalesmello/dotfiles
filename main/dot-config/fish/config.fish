@@ -1,19 +1,8 @@
 # fundle packages in conf.d/packages.fish
 
-if status --is-interactive
-    if not test -e "$__fish_user_data_dir/vendor_conf.d/fzf.fish"
-	fish_install_autoload
-    end
+if not test -e "$__fish_user_data_dir/vendor_conf.d/fzf.fish"
+    fish_install_autoload
 end
-
-if status --is-interactive; or set -q IS_FIFC_COMPLETION
-    set -gx FIFC_KEYBINDING shift-tab
-    set -gx FIFC_EDITOR lvim
-
-    fundle plugin thalesmello/fifc
-end
-
-set -q __fundle_plugin_names && fundle init
 
 # Configure theme
 set -g theme_display_docker_machine no
