@@ -1,60 +1,152 @@
 #!/usr/bin/env -S fish --no-config
 set -x PATH /opt/homebrew/bin (status dirname) $PATH
 
+function __mp_err
+    echo "markdown-preset: $argv" >&2
+end
+
+# Print the clipboard's rich text (RTF preferred, else HTML), empty if neither.
+function __mp_clipboard_rich
+    /usr/bin/osascript -l JavaScript -e '
+        ObjC.import("AppKit");
+        var pb = $.NSPasteboard.generalPasteboard;
+        var data = pb.dataForType($.NSPasteboardTypeRTF);
+        if (!data || data.isNil()) { data = pb.dataForType($.NSPasteboardTypeHTML); }
+        if (data && !data.isNil()) {
+            var str = $.NSString.alloc.initWithDataEncoding(data, 4);
+            str.js;
+        }
+    '
+end
+
 function markdown-preset
     set preset $argv[1]
     set -e argv[1]
 
     switch "$preset"
     case "is-clipboard-rtf"
-        set -l has_rtf (/usr/bin/osascript -l JavaScript -e '
-            ObjC.import("AppKit");
-            var pb = $.NSPasteboard.generalPasteboard;
-            var rtfData = pb.dataForType($.NSPasteboardTypeRTF);
-            (rtfData && !rtfData.isNil()) ? "yes" : "no";
-        ')
-        test "$has_rtf" = yes
+        set -l rich (__mp_clipboard_rich)
+        or begin
+            __mp_err "failed to read pasteboard via osascript"
+            return 2
+        end
+        test -n "$rich"
 
     case "is-clipboard-md"
         set -l text (pbpaste 2>/dev/null)
-        or return 1
+        or begin
+            __mp_err "failed to read clipboard via pbpaste"
+            return 2
+        end
         test -n "$text"
         or return 1
         string match -rq '(?m)^#{1,6} |(?m)^```|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)|(?m)^> |(?m)^[-*+] ' -- "$text"
 
     case "stdin-to-md"
-        pandoc -f rtf -t markdown
+        read -z -l input
+        test -n "$input"
+        or begin
+            __mp_err "no input on stdin to convert"
+            return 1
+        end
+        # Auto-detect the rich text format: RTF (including pandoc's headerless
+        # fragments) always begins with a "{\" control group, HTML never does.
+        set -l format html
+        if string match -qr '^\s*\{\\\\' -- "$input"
+            set format rtf
+        end
+        printf '%s\n' $input | pandoc -f $format -t gfm-raw_html
+        or begin
+            __mp_err "pandoc failed to convert stdin ($format -> markdown)"
+            return 1
+        end
 
     case "stdin-to-rtf"
-        pandoc -f markdown -t rtf
+        read -z -l input
+        test -n "$input"
+        or begin
+            __mp_err "no input on stdin to convert"
+            return 1
+        end
+        printf '%s\n' $input | pandoc -f gfm -t rtf
+        or begin
+            __mp_err "pandoc failed to convert stdin (markdown -> rtf)"
+            return 1
+        end
 
     case "clipboard-to-md"
-        set -l rtf (/usr/bin/osascript -l JavaScript -e '
-            ObjC.import("AppKit");
-            var pb = $.NSPasteboard.generalPasteboard;
-            var rtfData = pb.dataForType($.NSPasteboardTypeRTF);
-            if (rtfData && !rtfData.isNil()) {
-                var str = $.NSString.alloc.initWithDataEncoding(rtfData, 4);
-                str.js;
-            }
-        ')
-        or return 1
-        test -n "$rtf"
-        or return 1
-        printf '%s\n' $rtf | pandoc -f rtf -t markdown | pbcopy
+        set -l rich (__mp_clipboard_rich)
+        or begin
+            __mp_err "failed to read rich text from pasteboard via osascript"
+            return 2
+        end
+        test -n "$rich"
+        or begin
+            __mp_err "clipboard contains no rich text (RTF or HTML) to convert"
+            return 1
+        end
+        # Delegate the format detection and conversion to stdin-to-md.
+        printf '%s\n' $rich | markdown-preset stdin-to-md | pbcopy
+        or begin
+            __mp_err "failed to convert clipboard to markdown and copy result"
+            return 1
+        end
 
     case "clipboard-to-rtf"
         set -l tmpfile (mktemp /tmp/markdown-preset.XXXXXX.rtf)
-        pbpaste | pandoc -f markdown -t rtf > $tmpfile
         or begin
+            __mp_err "failed to create temp file via mktemp"
+            return 2
+        end
+        pbpaste | markdown-preset stdin-to-rtf > $tmpfile
+        or begin
+            __mp_err "failed to convert clipboard (markdown -> rtf)"
             rm -f $tmpfile
             return 1
         end
         /usr/bin/osascript -e "set the clipboard to (read POSIX file \"$tmpfile\" as «class RTF »)"
+        or begin
+            __mp_err "failed to set clipboard to RTF via osascript"
+            rm -f $tmpfile
+            return 2
+        end
         rm -f $tmpfile
 
+    case "selection-to-md"
+        # Copy the current selection and convert it, leaving markdown on the clipboard.
+        # send-keys posts an event with explicit flags so any held modifiers
+        # (e.g. a hyper hotkey) don't contaminate the synthetic Cmd+C.
+        osascript-preset send-keys cmd c
+        or begin
+            __mp_err "failed to copy selection (grant Accessibility permission?)"
+            return 2
+        end
+        sleep 0.5
+        markdown-preset clipboard-to-md
+        or return $status
+
+    case "selection-to-rtf"
+        # Copy the current selection and convert it, leaving rich text on the clipboard.
+        # send-keys posts an event with explicit flags so any held modifiers
+        # (e.g. a hyper hotkey) don't contaminate the synthetic Cmd+C.
+        osascript-preset send-keys cmd c
+        or begin
+            __mp_err "failed to copy selection (grant Accessibility permission?)"
+            return 2
+        end
+        sleep 0.5
+        markdown-preset clipboard-to-rtf
+        or return $status
+
+    case ''
+        __mp_err "no preset given"
+        __mp_err "usage: markdown-preset <is-clipboard-rtf|is-clipboard-md|stdin-to-md|stdin-to-rtf|clipboard-to-md|clipboard-to-rtf|selection-to-md|selection-to-rtf>"
+        return 2
+
     case '*'
-        return 1
+        __mp_err "unknown preset: $preset"
+        __mp_err "usage: markdown-preset <is-clipboard-rtf|is-clipboard-md|stdin-to-md|stdin-to-rtf|clipboard-to-md|clipboard-to-rtf|selection-to-md|selection-to-rtf>"
+        return 2
     end
 end
 

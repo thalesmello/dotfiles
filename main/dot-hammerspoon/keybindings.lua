@@ -165,7 +165,6 @@ function M.setup()
   })
 
   -- Ctrl+Cmd HJKL (per-app, Chrome tab nav)
-  local isFloating = isFloatingTerminal
   local function isiTerm()
     return isFloatingTerminal() or frontAppName() == "iTerm2"
   end
@@ -317,6 +316,20 @@ function M.setup()
   default:bindOnce({"ctrl", "cmd"}, "v", "Paste as Plain Text", function()
     local text = hs.pasteboard.getContents()
     if text then hs.eventtap.keyStrokes(text) end
+  end)
+
+  -- Copy selection as markdown: selection-to-md copies the selection and
+  -- converts the rich text to markdown, leaving the result on the clipboard.
+  -- It copies via send-keys so the held hyper modifiers don't corrupt the Cmd+C.
+  default:bindOnce(hyperShift, "c", "Copy Selection As Markdown", function()
+    -- Merge stderr into stdout so the callback receives the error text.
+    fish("markdown-preset selection-to-md 2>&1", function(ok, out)
+      if ok then
+        Preset.displayMessage("Copied as markdown", 1.5)
+      else
+        Preset.displayMessage(out ~= "" and out or "Copy as markdown failed", 1.5)
+      end
+    end)
   end)
 
   -- Smart lock (screensaver on AC, lock on battery)
