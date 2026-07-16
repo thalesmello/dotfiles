@@ -19,24 +19,35 @@ function yabai-preset
         set window_id $argv[1]
         set -e argv[1]
 
-        # Without --wait-focus, or when the window is already on the focused
-        # space, just focus and return immediately.
+
+        # Without --wait-focus, simplify algorithm
         if not set -q _flag_wait_focus
-            yabai -m window --focus "$window_id"
-            return
+            # Restore the window first if it's minimized. Focusing a minimized window
+            # activates the app before the window can become key, so macOS surfaces a
+            # different (non-minimized) window of the same app first. Deminimizing up
+            # front avoids that flash.
+            set is_min (yabai -m query --windows --window "$window_id" 2>/dev/null | jq -r '."is-minimized"')
+            if test "$is_min" = "true"
+                yabai -m window --deminimize "$window_id"
+            else
+                yabai -m window --focus "$window_id"
+            end
         end
 
-        set target_space (yabai -m query --windows --window "$window_id" | jq -r '.space')
-        set current_space (yabai -m query --spaces --space | jq -r '.index')
-        if test "$target_space" = "$current_space"
-            yabai -m window --focus "$window_id"
-            return
-        end
 
         # Cross-space focus: switching spaces takes time, so poll until the
         # window is actually focused, then settle briefly before returning.
         # ~3s timeout: 60 polls spaced 0.05s apart.
+        set target_space (yabai -m query --windows --window "$window_id" | jq -r '.space')
+        set current_space (yabai -m query --spaces --space | jq -r '.index')
+
         yabai -m window --focus "$window_id"
+
+        # If window already in current space, no need to wait further
+        if test "$target_space" = "$current_space"
+            return
+        end
+
         for i in (seq 60)
             if test (yabai-preset get-focused-window-id) = "$window_id"
                 sleep 0.3
