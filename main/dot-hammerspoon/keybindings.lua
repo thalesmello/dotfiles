@@ -269,7 +269,7 @@ function M.setup()
   default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() launchOrFocus("Google Chrome") end)
   default:bindOnce(hyperShift, "z", "Focus Google Keep", function() launchOrFocus("Google Keep") end)
   default:conditionalBindOnce(hyperShift, "w", "Focus Zoom/Meet", {
-    {cond = function() return isProcessRunning("zoom.us") end, function() launchOrFocus("zoom.us") end},
+    {cond = function() return isProcessRunning("zoom.us") end, function() task({"wm-preset", "alternate-window", "--title", "Zoom Meeting"}) end},
     {function() task({"chrome-preset", "focus-or-open-url", "meet.google.com", "--label", "Google Meet"}) end},
   })
   default:conditionalBindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", {

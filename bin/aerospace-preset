@@ -634,6 +634,44 @@ function aerospace-preset
         else
             open -a "$app_name"
         end
+    case "alternate-window"
+        # Toggle a single window: minimize it when it's already focused,
+        # otherwise focus it (restoring if minimized). Identify the window by
+        # --id or by a --title regex.
+        argparse 'id=' 'title=' -- $argv
+        or return 1
+
+        set window "$_flag_id"
+        if test -z "$window"
+            set -q _flag_title
+            or begin
+                echo "alternate-window: --id or --title required" >&2
+                return 1
+            end
+
+            # Prefer yabai's lookup (minimize is yabai-based anyway); fall back
+            # to aerospace. Both share macOS window ids.
+            if pgrep -xq yabai
+                set window (yabai -m query --windows | jq -re --arg title_re "$_flag_title" '
+                    [.[] | select(.title | test($title_re))]
+                    | sort_by(if ."is-minimized" then 1 else 0 end)
+                    | first | .id')
+            end
+            if test -z "$window"
+                set window (aerospace list-windows --all --json \
+                    | jq -re --arg title_re "$_flag_title" '
+                        [.[] | select(."window-title" | test($title_re))]
+                        | first | ."window-id"')
+                or return 1
+            end
+        end
+
+        set focused (aerospace list-windows --focused --format '%{window-id}')
+        if test "$focused" = "$window"
+            wm-preset minimize "$window"
+        else
+            aerospace-preset focus-window-id "$window"
+        end
     case "swap-workspaces-between-monitors"
         set main_ws (aerospace list-workspaces --monitor main --visible --format '%{workspace}')
         set secondary_ws (aerospace list-workspaces --monitor secondary --visible --format '%{workspace}')

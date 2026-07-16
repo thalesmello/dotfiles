@@ -1374,6 +1374,42 @@ function yabai-preset
         end
 
         yabai -m window "$window" --focus
+    case "alternate-window"
+        # Toggle a single window: minimize it when it's already focused,
+        # otherwise focus it (restoring if minimized). Identify the window by
+        # --id or by a --title regex (preferring non-minimized on the current
+        # space when several match).
+        argparse 'id=' 'title=' -- $argv
+        or return 1
+
+        set window "$_flag_id"
+        if test -z "$window"
+            set -q _flag_title
+            or begin
+                echo "alternate-window: --id or --title required" >&2
+                return 1
+            end
+
+            set current_space (yabai -m query --spaces --space | jq '.index')
+            set window (yabai -m query --windows \
+                | jq -re --arg title_re "$_flag_title" --argjson cs "$current_space" '
+                    [.[] | select(.title | test($title_re))]
+                    | if length == 0 then error("no windows") else . end
+                    | sort_by([
+                        (if ."is-minimized" then 1 else 0 end),
+                        (if .space == $cs then 0 else 1 end)
+                    ])
+                    | first
+                    | .id')
+            or return 1
+        end
+
+        set focused (yabai-preset get-focused-window-id)
+        if test "$focused" = "$window"
+            yabai-preset minimize "$window"
+        else
+            yabai-preset focus-window-id "$window"
+        end
     case "get-focused-display"
         yabai -m query --windows --window 2>/dev/null | jq -r '.display // empty'
     case "list-windows"
