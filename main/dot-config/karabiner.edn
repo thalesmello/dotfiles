@@ -78,7 +78,10 @@
             [:!ROspacebar :button2]
             [:!RCspacebar :button3]
             ; opens wheel scroll mode in mouseless
-            [:!Sright_shift :!Sright_shift nil {:alone :f14}]
+            ; f14 is assigned to decrease brightness on mac os, so it can't be used
+            ; f15 is assigned to increase brightness on mac os, so it can't be used
+            ; Turn off becuase it's not needed right now
+            ; [:!Sright_shift :!Sright_shift nil {:alone :f14}]
             [:!Tright_shift :!Tright_shift nil {:alone [:hs-cmd "Preset.hideCursor()"]}]
             :mouseless-mode
             [:h {:mkey {:x -1546}}]
