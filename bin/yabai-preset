@@ -1404,7 +1404,12 @@ function yabai-preset
             or return 1
         end
 
-        set focused (yabai-preset get-focused-window-id)
+        # Read the focused window id first (hs sees the floating terminal, which
+        # yabai doesn't), then collapse the floating terminal in the background
+        # so it doesn't hover in front of whatever we focus next.
+        set focused (hs-preset get-floatingterm-or-focused-window-id)
+        iterm-preset hide-floating-terminal &
+        disown
         if test "$focused" = "$window"
             yabai-preset minimize "$window"
         else

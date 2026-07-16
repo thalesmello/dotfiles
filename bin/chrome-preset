@@ -444,9 +444,13 @@ function chrome-preset
 
         if test -n "$app_window_id"
 
-            if set active (yabai -m query --windows --window 2>/dev/null)
-                and set active_id (jq -nr --argjson active "$active" '$active.id' 2>/dev/null)
-                and test "$active_id" = "$app_window_id"
+            # Read the focused window id first (hs sees the floating terminal,
+            # which yabai doesn't), then collapse the floating terminal in the
+            # background so it doesn't hover in front of the app we focus next.
+            set active_id (hs-preset get-floatingterm-or-focused-window-id)
+            iterm-preset hide-floating-terminal &
+            disown
+            if test "$active_id" = "$app_window_id"
 
                 if set -q _flag_hide
                     hs-preset send-keys cmd h

@@ -108,6 +108,16 @@ function M.getFocusedWindowApp()
   return app and app:name() or ""
 end
 
+-- Return the id of the truly focused window. yabai doesn't report the iTerm
+-- floating terminal (manage=off) as focused, so it surfaces a background
+-- window instead. hs.window.focusedWindow() reports the real focus, and its
+-- id is the CGWindowID that matches yabai's window ids.
+function M.getFloatingTermOrFocusedWindowId()
+  local win = hs.window.focusedWindow()
+  if not win then return "" end
+  return string.format("%d", win:id())
+end
+
 function M.getSelectedText()
   local elem = hs.axuielement.systemWideElement()
 

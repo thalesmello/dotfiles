@@ -34,6 +34,9 @@ function hs-preset
     case "get-focused-window-app"
         hs -c "require('preset').getFocusedWindowApp()"
 
+    case "get-floatingterm-or-focused-window-id"
+        hs -c "require('preset').getFloatingTermOrFocusedWindowId()"
+
     case "get-selected-text"
         hs -c "require('preset').getSelectedText()"
 
