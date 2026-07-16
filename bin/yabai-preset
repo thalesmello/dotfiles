@@ -878,7 +878,7 @@ function yabai-preset
         end
     case "get-recent-window-id"
         yabai -m query --windows --space | jq -er '
-            first(.[] | select(."is-visible" and (."is-sticky"|not) and (."has-focus"|not)))
+            first(.[] | select(."is-visible" and (."is-sticky"|not) and (."has-focus"|not) and ."can-resize"))
             | .id'
         or return 1
     case "focus-recent"
