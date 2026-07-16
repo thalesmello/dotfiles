@@ -159,10 +159,34 @@ function yabai-harpoon
     case "write-pins-to-file"
         jq -s '{ pins: [. | to_entries | unique_by(.value.uuid) | sort_by(.key) | .[] | .value] }' > "$FILE"
     case "normalize-pins"
-        set wm_wins (__harpoon_get_all_windows)
-        set chrome_tabs (env OUTPUT_FORMAT=json chrome-cli list tabs | string collect)
+        # Read the incoming pins once so we can decide which (slow) data sources
+        # we actually need before paying for them. A command substitution like
+        # `(cat)` does NOT inherit a piped function's stdin in fish, so slurp the
+        # lines explicitly with `read`.
+        set -l pins
+        while read -l line
+            set -a pins $line
+        end
 
-        jq -c --argjson "wm_wins" "$wm_wins" --argjson "chrome_tabs" "$chrome_tabs" '
+        if test (count $pins) -eq 0
+            return 0
+        end
+
+        set -l types (printf '%s\n' $pins | jq -r '.type')
+
+        set -l wm_wins '[]'
+        if contains -- window $types
+            set wm_wins (__harpoon_get_all_windows)
+        end
+
+        set -l chrome_tabs '{"tabs":[]}'
+        if contains -- chrome_tab $types
+            or contains -- chrome_preset_app $types
+            or contains -- chrome_search_tab $types
+            set chrome_tabs (chrome-preset list-tabs-json | string collect)
+        end
+
+        printf '%s\n' $pins | jq -c --argjson "wm_wins" "$wm_wins" --argjson "chrome_tabs" "$chrome_tabs" '
             ($wm_wins | map({({window: .id} | @base64): {title}}) | add) as $wm_registry
             | ($chrome_tabs | .tabs | map({({chrome_tab: .id} | @base64): {title, tab_window_id: .windowId, url}}) | add) as $chrome_registry
             | ($chrome_tabs | .tabs | map({(.url): {title, tab_window_id: .windowId, tab_id: .id, uuid: ({chrome_tab: .id} | @base64), url: .url, type: "chrome_tab"}}) | add) as $chrome_urls

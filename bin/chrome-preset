@@ -73,6 +73,34 @@ function chrome-preset
     set -e argv[1]
 
     switch "$preset"
+    case "list-tabs-json"
+        # Fast replacement for `chrome-cli list tabs` / `chrome-cli list links`.
+        # chrome-cli reads each tab's id, url and title with a separate Apple
+        # Event, so listing many tabs costs hundreds of round-trips (seconds).
+        # JXA array-property calls (`w.tabs.id()` etc.) return every value for a
+        # whole window in a single Apple Event, keeping this to a handful of
+        # round-trips regardless of tab count. Output matches chrome-cli's JSON
+        # shape for the fields callers consume: {tabs: [{id, url, title, windowId}]}.
+        osascript -l JavaScript -e '
+            const chrome = Application("Google Chrome");
+            const wins = chrome.windows;
+            let wids;
+            try { wids = wins.id(); } catch (e) { wids = []; }
+            const tabs = [];
+            for (let i = 0; i < wids.length; i++) {
+                const w = wins[i];
+                let ids, urls, titles;
+                try {
+                    ids = w.tabs.id();
+                    urls = w.tabs.url();
+                    titles = w.tabs.title();
+                } catch (e) { continue; }
+                for (let j = 0; j < ids.length; j++) {
+                    tabs.push({id: ids[j], url: urls[j] || "", title: titles[j] || "", windowId: wids[i]});
+                }
+            }
+            JSON.stringify({tabs: tabs});
+        '
     case "focus-tab"
         # Activate a Chrome tab and bring its window to front in a single
         # osascript call. Returns non-zero if the tab/window wasn't found
@@ -120,7 +148,7 @@ function chrome-preset
         set regex $argv[1]
         set -e argv[1]
 
-        env OUTPUT_FORMAT=json chrome-cli list links \
+        chrome-preset list-tabs-json \
         | jq -er --arg regex "$regex" '
         first(.tabs.[] | select(.url | test($regex)))
         | "\(.windowId):\(.id)"' \
@@ -134,7 +162,7 @@ function chrome-preset
         set regex $argv[1]
         set -e argv[1]
 
-        set json (env OUTPUT_FORMAT=json chrome-cli list links | string collect)
+        set json (chrome-preset list-tabs-json | string collect)
         jq -ern --arg regex "$regex" --argjson json "$json" '
         $json
         | first(.tabs.[] | select(.url | test($regex)))
@@ -311,7 +339,7 @@ function chrome-preset
         set regex $argv[1]
         set -e argv[1]
 
-        set tabs (env OUTPUT_FORMAT=json chrome-cli list links \
+        set tabs (chrome-preset list-tabs-json \
         | jq -er --arg regex "$regex" '
         .tabs.[]
         | select(.url | test($regex))
