@@ -382,8 +382,17 @@ function yabai-preset
         set window $argv[1]
         set -e argv[1]
 
-        yabai -m window $window --minimize
-        yabai-preset focus-topmost
+        # Default to the focused window when no id is given.
+        test -z "$window"; and set window (yabai-preset get-focused-window-id)
+
+        # Some apps (e.g. Chrome "app" windows created via chrome-preset) hijack
+        # focus to another of their windows when minimized, which overrides a
+        # post-minimize focus and leaves us on the wrong window. Focus the recent
+        # window first and then minimize the original by id so focus lands where
+        # we want.
+        set recent (yabai-preset get-recent-window-id)
+        and yabai -m window --focus "$recent"
+        yabai -m window "$window" --minimize
     case "focus-topmost"
         yabai -m window --focus (yabai -m query --windows --space | jq 'first(.[] | select(."is-visible" and (."is-sticky"|not))).id')
     case "deminimize-last"

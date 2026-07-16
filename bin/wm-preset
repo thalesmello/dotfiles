@@ -2,6 +2,13 @@
 set -x PATH /opt/homebrew/bin (status dirname) $PATH
 
 function wm-preset
+    # minimize always uses the yabai-preset implementation (focus recent, then
+    # minimize the original) regardless of the active window manager.
+    if test "$argv[1]" = minimize
+        yabai-preset $argv
+        return $status
+    end
+
     if pgrep -xq AeroSpace
         aerospace-preset $argv
         return $status
