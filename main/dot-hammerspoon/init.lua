@@ -21,6 +21,11 @@ require("debuglog").setup()
 
 hs.loadSpoon("EmmyLua")
 
+hs.loadSpoon("HoldToQuit")
+spoon.HoldToQuit.duration = 1
+spoon.HoldToQuit:init()
+spoon.HoldToQuit:start()
+
 hs.console.darkMode(true)
 
 util.notify("Hammerspoon!")
