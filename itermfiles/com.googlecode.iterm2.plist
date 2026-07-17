@@ -1113,6 +1113,8 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>CustomScriptsFolder</key>
+	<string>/Users/thalesmello/src/dotfiles/iterm</string>
 	<key>Default Bookmark Guid</key>
 	<string>FE34BC10-D56F-4821-81BE-4489A74F48D9</string>
 	<key>Default Browser Profile Guid</key>
@@ -5224,6 +5226,8 @@
 	<true/>
 	<key>TmuxWarnBeforePausing</key>
 	<false/>
+	<key>UseCustomScriptsFolder</key>
+	<true/>
 	<key>VisualIndicatorForEsc</key>
 	<false/>
 	<key>com.apple.WebPrivacy.ResourceMonitorURLsVersion</key>
