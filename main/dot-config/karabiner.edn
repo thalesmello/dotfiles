@@ -150,10 +150,12 @@
             [{:pkey :button5} nil ["mouse-second-layer" 0] {:alone [["mouse-second-layer" 1] [:noti :mouse-second-hud "Mouse Second Layer"]] :held :button5 :params {:held 150}}]
             [:##left_option :##left_option ["option-pressed-once" 1] {:alone :!Cgrave_accent_and_tilde :afterup ["option-pressed-once" 0]}]
             [:##left_option [["option-pressed-once" 1] :##left_option] nil {:delayed {:invoked ["option-pressed-once" 0] :canceled ["option-pressed-once" 0]}}]
-            [:##left_control :##left_control ["control-pressed-once" 1] {:alone :!TOCslash :afterup ["control-pressed-once" 0]}]
-            [:##left_control [["control-pressed-once" 1] :##left_control] nil {:delayed {:invoked ["control-pressed-once" 0] :canceled ["control-pressed-once" 0]}}]
-            [:##left_command :##left_command ["command-pressed-once" 1] {:alone :!TOc :afterup ["command-pressed-once" 0]}]
-            [:##left_command [["command-pressed-once" 1] :##left_command] nil {:delayed {:invoked ["command-pressed-once" 0] :canceled ["command-pressed-once" 0]}}]
+            ; Disable for Migrating this behavior to iterm directly
+            ; [:##left_control :##left_control ["control-pressed-once" 1] {:alone :!TOCslash :afterup ["control-pressed-once" 0]}]
+            ; [:##left_control [["control-pressed-once" 1] :##left_control] nil {:delayed {:invoked ["control-pressed-once" 0] :canceled ["control-pressed-once" 0]}}]
+            ; Disabled for migrating shortcut to alfred directly
+            ; [:##left_command :##left_command ["command-pressed-once" 1] {:alone :!TOc :afterup ["command-pressed-once" 0]}]
+            ; [:##left_command [["command-pressed-once" 1] :##left_command] nil {:delayed {:invoked ["command-pressed-once" 0] :canceled ["command-pressed-once" 0]}}]
             ; [:!Cq nil ["command-q-once" 1] {:alone :!Cq :afterup ["command-q-once" 0]}]
             ; [:!Cq [[:msg "Double press Cmd+Q to Quit"] ["command-q-once" 1]] nil {:delayed {:invoked ["command-q-once" 0] :canceled ["command-q-once" 0]}}]
             ; opens mouseless
