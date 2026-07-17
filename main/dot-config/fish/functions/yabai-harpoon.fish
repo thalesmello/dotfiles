@@ -1,4 +1,5 @@
 set FILE "$HOME/.yabai-harpoon.json"
+set PINFILE_DIR "$HOME/.local_dotfiles/yabai-harpoon/pinfiles"
 
 function __harpoon_get_focused_window
     if pgrep -xq AeroSpace
@@ -97,6 +98,80 @@ function yabai-harpoon
             yabai-harpoon rewrite-pins-in-file
             and yabai-harpoon get-pin "$position" | yabai-harpoon focus-pin-json
         end
+    case "focus-pin"
+        set direction $argv[1]
+        set -e argv[1]
+
+        if test ! -e "$FILE"
+            yabai-harpoon reset-file
+        end
+
+        set count (jq '.pins | length' < "$FILE")
+
+        if test "$count" -eq 0
+            display-message "yabai-harpoon: No pins"
+            return 1
+        end
+
+        # Find the 1-based index of the currently focused pin (by uuid). If the
+        # focused window isn't pinned, `current` is empty.
+        set focused (yabai-harpoon get-focused-pin-json)
+        set uuid (jq -nr --argjson focused "$focused" '$focused.uuid')
+        set current (jq --arg uuid "$uuid" 'first(.pins | to_entries[] | select(.value.uuid == $uuid) | .key + 1) // empty' < "$FILE")
+
+        switch "$direction"
+        case "first"
+            set position 1
+        case "last"
+            set position "$count"
+        case "next"
+            if test -z "$current"
+                set position 1
+            else
+                set position (math "$current % $count + 1")
+            end
+        case "prev"
+            if test -z "$current"
+                set position "$count"
+            else
+                set position (math "($current - 2 + $count) % $count + 1")
+            end
+        case "*"
+            display-message "yabai-harpoon: Invalid direction $direction"
+            return 1
+        end
+
+        yabai-harpoon focus "$position"
+    case "write-pinfile"
+        set pinname $argv[1]
+        set -e argv[1]
+
+        mkdir -p "$PINFILE_DIR"
+        and cp "$FILE" "$PINFILE_DIR/$pinname.json"
+        and display-message "yabai-harpoon: Wrote pinfile $pinname"
+        and echo "Wrote pinfile '$pinname' to $PINFILE_DIR/$pinname.json"
+    case "read-pinfile"
+        set pinname $argv[1]
+        set -e argv[1]
+
+        cat "$PINFILE_DIR/$pinname.json"
+        return $status
+    case "load-pinfile"
+        set pinname $argv[1]
+        set -e argv[1]
+
+        if test ! -e "$PINFILE_DIR/$pinname.json"
+            display-message "yabai-harpoon: Pinfile $pinname inexistant"
+            echo "Pinfile '$pinname' not found at $PINFILE_DIR/$pinname.json" >&2
+            return 1
+        end
+
+        cp "$PINFILE_DIR/$pinname.json" "$FILE"
+        and display-message "yabai-harpoon: Loaded pinfile $pinname"
+        and echo "Loaded pinfile '$pinname' from $PINFILE_DIR/$pinname.json"
+    case "edit-pinfiles"
+        mkdir -p "$PINFILE_DIR"
+        neovim-ghost edit --no-wait "$PINFILE_DIR/"
     case "focus-pin-json"
         read json
 
@@ -209,4 +284,4 @@ function yabai-harpoon
 end
 
 complete -c yabai-harpoon -f
-complete -c yabai-harpoon -d "mode" -a "add delete edit"
+complete -c yabai-harpoon -d "mode" -a "add delete edit focus-pin write-pinfile read-pinfile load-pinfile edit-pinfiles"
