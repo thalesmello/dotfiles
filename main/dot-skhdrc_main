@@ -189,7 +189,7 @@ service < ctrl + alt + cmd - e : skhd -k "escape"; if pgrep -q -F "$TMPDIR/nvim_
         neovim-ghost focus-or-new-tab "$HOME/.skhdrc_main"; \
     else; \
         display-message "Edit SKHD"; \
-        fish -c "neovim-ghost edit --delete-hidden --close-minimize-on-cmd-enter '$HOME/.skhdrc_main'" &; \
+        fish -c "neovim-ghost edit --close-minimize-on-cmd-enter '$HOME/.skhdrc_main'" &; \
         echo "$last_pid" > "$TMPDIR/nvim_skhd.pid"; \
         wait; \
         rm "$TMPDIR/nvim_skhd.pid"; \

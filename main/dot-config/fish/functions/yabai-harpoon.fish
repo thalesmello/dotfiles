@@ -59,7 +59,7 @@ function yabai-harpoon
 
         set -l modified_before (stat -c %y "$tmpfile")
 
-        neovim-ghost edit --delete-hidden --close-minimize-on-cmd-enter "$tmpfile" -c "setlocal nowrap"
+        neovim-ghost edit --close-minimize-on-cmd-enter "$tmpfile" -c "setlocal nowrap"
 
         set -l modified_after (stat -c %y "$tmpfile")
 

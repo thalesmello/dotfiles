@@ -29,36 +29,67 @@ function neovim-ghost
         else
             neovim-ghost start --spawn
         end;
-    case "focus-or-new-tab"
-        set skip_focus 0
-        if not neovim-ghost is-alive
-            neovim-ghost start --spawn
-            sleep 2
-            set skip_focus 1
+    case "ensure-active"
+        # Spawn neovide if it isn't running and wait until it is fully started so
+        # callers using `nvr --nostart` don't fail instantly (socket missing) or,
+        # worse, send a remote command mid-startup: nvim creates its --listen
+        # socket very early, before config/VimEnter finish, and a --remote-tab-wait
+        # issued then registers its close-notification on a buffer that the rest of
+        # startup discards, so the tab never signals nvr on close. Waiting for
+        # v:vim_did_enter guarantees a fully-initialized instance. Focus is handled
+        # separately by the caller. Prints "spawned" when a new instance was started
+        # (already focused by the OS), "alive" when one was already running. Fails
+        # if it doesn't come up in time.
+        argparse timeout= -- $argv
+        set -l timeout 5
+        set -q _flag_timeout; and set timeout "$_flag_timeout"
+
+        if neovim-ghost is-alive
+            echo alive
+            return 0
         end
+
+        neovim-ghost start --spawn
+
+        set -l socket "$TMPDIR/nvim_ghost.socket"
+        set -l deadline (math "round($timeout * 10)")
+        set -l waited 0
+        while test "$waited" -lt "$deadline"
+            if test -S "$socket"; and test (nvr --nostart --servername "$socket" --remote-expr 'get(v:, "vim_did_enter", 0)' 2>/dev/null) = 1
+                # Trick to make remove-tab-wait work without killing all tabs
+                echo spawned
+                return 0
+            end
+            sleep 0.1
+            set waited (math "$waited + 1")
+        end
+
+        return 1
+    case "focus-or-new-tab"
+        set should_focus 1
+        set state (neovim-ghost ensure-active); or return 1
+        test "$state" = spawned; and set should_focus 0
 
         nvr --nostart --servername "$TMPDIR/nvim_ghost.socket" -c "lua require'vim_utils'.focus_or_new_tab [[$argv]]"
 
-        if test "$skip_focus" != 1
-            neovim-ghost focus
-        end
+        # A freshly spawned neovide is already focused; only focus an already
+        # running one, and do it after the remote tab has been sent.
+        test "$should_focus" = 1; and neovim-ghost focus
     case "edit"
-        argparse --stop-nonopt delete-hidden no-wait close-on-cmd-enter close-minimize-on-cmd-enter -- $argv
-        set skip_focus 0
+        argparse --stop-nonopt no-wait close-on-cmd-enter close-minimize-on-cmd-enter -- $argv
 
-        if not neovim-ghost is-alive
-            neovim-ghost start --spawn
-            set skip_focus 1
-        end
+        set should_focus 1
+        set state (neovim-ghost ensure-active); or return 1
+        test "$state" = spawned; and set should_focus 0
 
+        # Default to waiting for the tab to close, with bufhidden=delete so that
+        # closing it releases --remote-tab-wait. --no-wait fire-and-forgets the
+        # tab, which implies keeping the buffer around (no bufhidden=delete).
         set -l remote_arg --remote-tab-wait
+        set -l bufhidden_args +"set bufhidden=delete"
         if set -q _flag_no_wait
             set remote_arg --remote-tab
-        end
-
-        set -l bufhidden_args
-        if set -q _flag_delete_hidden
-            set bufhidden_args +"set bufhidden=delete"
+            set bufhidden_args
         end
 
         set -l close_map_args
@@ -73,11 +104,12 @@ function neovim-ghost
 
         nvr --nostart --servername "$TMPDIR/nvim_ghost.socket" $remote_arg $bufhidden_args $close_map_args $argv &
 
-        if test "$skip_focus" != 1
-            neovim-ghost focus
-        end
+        set nvr_pid $last_pid
+        # A freshly spawned neovide is already focused; only focus an already
+        # running one, and do it after the remote tab has been sent.
+        test "$should_focus" = 1; and neovim-ghost focus
 
-        wait
+        wait $nvr_pid
 
     case "kill"
         kill -9 "$(cat "$TMPDIR/nvim_ghost.pid")"
