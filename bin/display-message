@@ -30,4 +30,4 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-hs -c "hs.alert.show([=[$1]=], $duration_s)"
+hs -c "hs.alert.show([=[$1]=], $duration_s)" >/dev/null
