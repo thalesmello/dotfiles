@@ -404,6 +404,7 @@ function yabai-preset
         set recent (yabai-preset get-recent-window-id)
         and yabai -m window --focus "$recent"
         yabai -m window "$window" --minimize
+        display-message -t 0.3 "Minimize"
     case "focus-topmost"
         yabai -m window --focus (yabai -m query --windows --space | jq 'first(.[] | select(."is-visible" and (."is-sticky"|not))).id')
     case "deminimize-last"

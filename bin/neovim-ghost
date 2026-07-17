@@ -43,7 +43,7 @@ function neovim-ghost
             neovim-ghost focus
         end
     case "edit"
-        argparse minimize=? -- $argv
+        argparse --stop-nonopt delete-hidden no-wait close-on-cmd-enter close-minimize-on-cmd-enter -- $argv
         set skip_focus 0
 
         if not neovim-ghost is-alive
@@ -51,15 +51,33 @@ function neovim-ghost
             set skip_focus 1
         end
 
-        nvr --nostart --servername "$TMPDIR/nvim_ghost.socket" --remote-tab-wait +"set bufhidden=delete" +"nnoremap <buffer> <D-CR> ZZ" +"inoremap <buffer> <D-CR> <Esc>ZZ" $argv &
+        set -l remote_arg --remote-tab-wait
+        if set -q _flag_no_wait
+            set remote_arg --remote-tab
+        end
+
+        set -l bufhidden_args
+        if set -q _flag_delete_hidden
+            set bufhidden_args +"set bufhidden=delete"
+        end
+
+        set -l close_map_args
+        if set -q _flag_close_minimize_on_cmd_enter
+            # Minimize the neovide window (pid read from the file at keypress time
+            # by the shell) then write+close, so it only happens on cmd+enter.
+            set -l minimize_cmd "call system('yabai-preset minimize-pid \$(cat $TMPDIR/nvim_ghost.pid)')"
+            set close_map_args +"nnoremap <buffer> <D-CR> <Cmd>$minimize_cmd<CR>ZZ" +"inoremap <buffer> <D-CR> <Esc><Cmd>$minimize_cmd<CR>ZZ"
+        else if set -q _flag_close_on_cmd_enter
+            set close_map_args +"nnoremap <buffer> <D-CR> ZZ" +"inoremap <buffer> <D-CR> <Esc>ZZ"
+        end
+
+        nvr --nostart --servername "$TMPDIR/nvim_ghost.socket" $remote_arg $bufhidden_args $close_map_args $argv &
 
         if test "$skip_focus" != 1
             neovim-ghost focus
         end
 
         wait
-
-        set -q _flag_minimize; and yabai-preset minimize-pid "$(cat "$TMPDIR/nvim_ghost.pid")"
 
     case "kill"
         kill -9 "$(cat "$TMPDIR/nvim_ghost.pid")"

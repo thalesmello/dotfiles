@@ -1,3 +1,3 @@
 #!/usr/bin/env fish
 
-env NVIMCMD="neovim-ghost edit" pbvim $argv && display-message "Copied to clipboard"
+env NVIMCMD="neovim-ghost edit --delete-hidden --close-minimize-on-cmd-enter" pbvim $argv && display-message "Copied to clipboard"
