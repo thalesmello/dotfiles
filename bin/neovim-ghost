@@ -10,6 +10,10 @@ function neovim-ghost
         pgrep -q -F "$TMPDIR/nvim_ghost.pid"
         return $status
     case "focus"
+        # Collapse the iTerm floating terminal first if it's up, otherwise it
+        # would stay layered over neovide. Must happen before focusing neovide,
+        # since hide-floating-terminal only fires while the terminal is active.
+        iterm-preset hide-floating-terminal
         yabai-preset focus-pid "$(cat "$TMPDIR/nvim_ghost.pid")"
     case "start"
         argparse spawn=? -- $argv
