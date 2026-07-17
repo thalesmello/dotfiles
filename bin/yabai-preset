@@ -676,8 +676,7 @@ function yabai-preset
         | read --line window
         or return 1
 
-        yabai -m window "$window" --minimize
-        yabai-preset focus-topmost
+        yabai-preset minimize "$window"
     case "stack-new-window"
         set winid $argv[1]; set -e argv[1]
         set window (yabai -m query --windows --window "$window" | string collect)
