@@ -22,6 +22,14 @@ function iterm-preset
                 hide hotkey window current window
             end tell
         '
+    case "reveal-hotkey-window"
+        # A hidden hotkey window is not exposed to AppleScript at all, so it
+        # can't be revealed via `reveal hotkey window`. Instead synthesize the
+        # profile's global hotkey (Ctrl+Opt+Cmd+/), which iTerm2 catches
+        # system-wide. Guard on the window already being active so this only
+        # ever reveals.
+        iterm-preset is-floating-window-active
+        or osascript-preset send-keys ctrl alt cmd slash
     case "new-split"
         argparse 'v/vertical' 'h/horizontal' 'c/cmd=' -- $argv
         or return 1
