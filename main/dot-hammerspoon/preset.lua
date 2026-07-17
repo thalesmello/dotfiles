@@ -157,7 +157,10 @@ end
 
 function M.alternateApp(appName, opts)
   opts = opts or {}
-  local front = hs.application.frontmostApplication()
+  -- The iTerm floating terminal is manage=off, so it can sit on top of whichever
+  -- app we're alternating to. Hide it first (no-op unless it's currently active).
+  local front = hs.window.focusedWindow():application()
+  shell.task({"iterm-preset", "hide-floating-terminal"})
   if front and front:name() == appName then
     if opts.hide then
       front:hide()
