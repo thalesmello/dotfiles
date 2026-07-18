@@ -156,6 +156,13 @@ function yabai-harpoon
 
         cat "$PINFILE_DIR/$pinname.json"
         return $status
+    case "list-pinfiles"
+        test -d "$PINFILE_DIR"; or return 0
+
+        for file in "$PINFILE_DIR"/*.json
+            test -e "$file"; or continue
+            basename "$file" .json
+        end
     case "load-pinfile"
         set pinname $argv[1]
         set -e argv[1]
@@ -283,5 +290,8 @@ function yabai-harpoon
     end
 end
 
+set -l __yabai_harpoon_modes add delete edit focus-pin write-pinfile read-pinfile load-pinfile list-pinfiles edit-pinfiles
+
 complete -c yabai-harpoon -f
-complete -c yabai-harpoon -d "mode" -a "add delete edit focus-pin write-pinfile read-pinfile load-pinfile edit-pinfiles"
+complete -c yabai-harpoon -n "not __fish_seen_subcommand_from $__yabai_harpoon_modes" -d "mode" -a "$__yabai_harpoon_modes"
+complete -c yabai-harpoon -n "__fish_seen_subcommand_from read-pinfile load-pinfile" -d "pinfile" -a "(yabai-harpoon list-pinfiles)"
