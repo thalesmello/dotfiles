@@ -221,6 +221,7 @@ function M.setup()
     default:bindOnce(hyper, tostring(i), "Harpoon Focus " .. i, function() fish("yabai-harpoon focus " .. i) end)
   end
   default:bindOnce(hyperShift, "=", "Harpoon Add", function() fish("yabai-harpoon add") end)
+  default:bindOnce(hyper, "tab", "Harpoon Focus Pin Next", function() fish("yabai-harpoon focus-pin next") end)
 
   -- Window cycling
   default:bindOnce(hyper, "n", "Focus Next Window", function() fish("wm-preset focus-window-in-space next") end)
@@ -405,6 +406,32 @@ function M.setup()
   -- Harpoon
   service:bindOnce({}, "a", "Harpoon Add", function() fish("yabai-harpoon add") end)
   service:bindOnce({}, "e", "Harpoon Edit", function() fish("yabai-harpoon edit") end)
+
+  -- Harpoon pinfiles: save, load (via chooser), edit
+  service:bindOnce(hyper, "s", "Harpoon Write Pinfile", function()
+    local button, name = hs.dialog.textPrompt("Write Pinfile", "Enter pinfile name:", "", "OK", "Cancel")
+    if button == "OK" and name and name ~= "" then
+      fish("yabai-harpoon write-pinfile " .. string.format("%q", name))
+    end
+  end)
+  service:bindOnce(hyper, "y", "Harpoon Load Pinfile", function()
+    fish("yabai-harpoon list-pinfiles", function(ok, out)
+      if not ok or out == "" then
+        Preset.displayMessage("yabai-harpoon: no pinfiles")
+        return
+      end
+      local choices = {}
+      for name in out:gmatch("[^\n]+") do
+        choices[#choices + 1] = {text = name, name = name}
+      end
+      local chooser = hs.chooser.new(function(choice)
+        if choice then fish("yabai-harpoon load-pinfile " .. string.format("%q", choice.name)) end
+      end)
+      chooser:choices(choices)
+      chooser:show()
+    end)
+  end)
+  service:bindOnce({"shift"}, "e", "Harpoon Edit Pinfiles", function() fish("yabai-harpoon edit-pinfiles") end)
 
   -- Cycle window selection in three stages: first press marks the foreground
   -- (un-occluded) windows, second press expands to every window in the space,
