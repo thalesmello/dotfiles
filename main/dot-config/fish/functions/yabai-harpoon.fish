@@ -1,29 +1,6 @@
 set FILE "$HOME/.yabai-harpoon.json"
+set STATE "$HOME/.yabai-harpoon-current"
 set PINFILE_DIR "$HOME/.local_dotfiles/yabai-harpoon/pinfiles"
-
-function __harpoon_get_focused_window
-    if pgrep -xq AeroSpace
-        aerospace list-windows --focused --json | jq 'first(.[] | {id: ."window-id", app: ."app-name", title: ."window-title", "has-focus": true})'
-    else
-        yabai -m query --windows --space | jq 'first(.[] | select(."has-focus"))'
-    end | string collect
-end
-
-function __harpoon_focus_window_id
-    if pgrep -xq AeroSpace
-        aerospace focus --window-id $argv[1]
-    else
-        yabai -m window --focus $argv[1]
-    end
-end
-
-function __harpoon_get_all_windows
-    if pgrep -xq AeroSpace
-        aerospace list-windows --all --json | jq '[.[] | {id: ."window-id", app: ."app-name", title: ."window-title"}]'
-    else
-        yabai -m query --windows
-    end | string collect
-end
 
 function yabai-harpoon
     set mode $argv[1]
@@ -77,72 +54,85 @@ function yabai-harpoon
 
         jq -ec --argjson pos "$position" '.pins[$pos - 1]' < "$FILE"
         return $status
-    case "focus"
-        set position $argv[1]
+    case "focus" "focus-pin"
+        # Accepts either a 1-based position (e.g. `focus 2`) or a direction
+        # keyword (`first`/`last`/`next`/`prev`).
+        set target $argv[1]
         set -e argv[1]
 
-        if test ! -e "$FILE"
-            yabai-harpoon reset-file
+        # --- TIMING DEBUG (remove once benchmarking is done) ---
+        # Each lap is ~2ms of `date` overhead itself; compare relative sizes.
+        set -g __harpoon_t0 (date +%s%3N)
+        set -g __harpoon_t $__harpoon_t0
+        function __harpoon_lap
+            set -l now (date +%s%3N)
+            echo "[harpoon] $argv[1]: "(math $now - $__harpoon_t)"ms" >&2
+            set -g __harpoon_t $now
         end
-
-        set json (yabai-harpoon get-pin "$position")
-        and display-message "yabai-harpoon: Focus $position"
-        or begin
-            display-message "yabai-harpoon: Pin $position inexistant"
-            return 1
-        end
-
-        iterm-preset hide-floating-terminal
-        echo $json | yabai-harpoon focus-pin-json
-        or begin
-            display-message "yabai-harpoon: Refreshing Pins"
-            yabai-harpoon rewrite-pins-in-file
-            and yabai-harpoon get-pin "$position" | yabai-harpoon focus-pin-json
-        end
-    case "focus-pin"
-        set direction $argv[1]
-        set -e argv[1]
 
         if test ! -e "$FILE"
             yabai-harpoon reset-file
         end
 
         set count (jq '.pins | length' < "$FILE")
+        __harpoon_lap "read count ($count pins)"
 
         if test "$count" -eq 0
             display-message "yabai-harpoon: No pins"
             return 1
         end
 
-        # Find the 1-based index of the currently focused pin (by uuid). If the
-        # focused window isn't pinned, `current` is empty.
-        set focused (yabai-harpoon get-focused-pin-json)
-        set uuid (jq -nr --argjson focused "$focused" '$focused.uuid')
-        set current (jq --arg uuid "$uuid" 'first(.pins | to_entries[] | select(.value.uuid == $uuid) | .key + 1) // empty' < "$FILE")
+        # Resolve a direction keyword to a 1-based position. `current` is the pin
+        # we last focused, cached in $STATE, which avoids an expensive query of
+        # the focused window on every next/prev. A missing/out-of-range value is
+        # treated as "not on a pin".
+        switch "$target"
+        case "first" "last" "next" "prev"
+            set current (cat "$STATE" 2>/dev/null)
+            if not string match -qr '^[0-9]+$' -- "$current"
+                or test "$current" -lt 1 -o "$current" -gt "$count"
+                set current ""
+            end
 
-        switch "$direction"
-        case "first"
-            set position 1
-        case "last"
-            set position "$count"
-        case "next"
-            if test -z "$current"
+            switch "$target"
+            case "first"
                 set position 1
-            else
-                set position (math "$current % $count + 1")
-            end
-        case "prev"
-            if test -z "$current"
+            case "last"
                 set position "$count"
-            else
-                set position (math "($current - 2 + $count) % $count + 1")
+            case "next"
+                test -n "$current"; and set position (math "$current % $count + 1"); or set position 1
+            case "prev"
+                test -n "$current"; and set position (math "($current - 2 + $count) % $count + 1"); or set position "$count"
             end
-        case "*"
-            display-message "yabai-harpoon: Invalid direction $direction"
+        case '*'
+            set position "$target"
+        end
+        __harpoon_lap "resolve position ($position)"
+
+        set json (yabai-harpoon get-pin "$position")
+        set -l get_pin_status $status
+        __harpoon_lap "get-pin"
+        test $get_pin_status -eq 0
+        and display-message "yabai-harpoon: Focus $position"
+        or begin
+            display-message "yabai-harpoon: Pin $position inexistant"
             return 1
         end
+        __harpoon_lap "display-message"
 
-        yabai-harpoon focus "$position"
+        iterm-preset hide-floating-terminal
+        __harpoon_lap "iterm hide-floating-terminal"
+        if echo $json | yabai-harpoon focus-pin-json
+            echo "$position" > "$STATE"
+        else
+            display-message "yabai-harpoon: Refreshing Pins"
+            yabai-harpoon rewrite-pins-in-file
+            and yabai-harpoon get-pin "$position" | yabai-harpoon focus-pin-json
+            and echo "$position" > "$STATE"
+        end
+        __harpoon_lap "focus-pin-json + state write"
+        echo "[harpoon] TOTAL: "(math (date +%s%3N) - $__harpoon_t0)"ms" >&2
+        functions -e __harpoon_lap
     case "write-pinfile"
         set pinname $argv[1]
         set -e argv[1]
@@ -187,29 +177,29 @@ function yabai-harpoon
 
         set has_failed 0
 
-        if jq -en --arg type "$type" '$type == "chrome_tab"' >/dev/null
+        switch "$type"
+        case chrome_tab
             jq -nr --argjson json "$json" '$json.tab_id, $json.tab_window_id' | read --line _tab_id _tab_window_id
+            # --- TIMING DEBUG (remove once benchmarking is done) ---
+            set -l _ft (date +%s%3N)
             chrome-preset focus-tab "$_tab_id" "$_tab_window_id"
             or set has_failed 1
-        else if jq -en --arg type "$type" '$type == "chrome_preset_app"' >/dev/null
-            set app (jq -nr --argjson json "$json" '$json.uuid')
-            set url (jq -nr --argjson json "$json" '$json.url')
-
-            echo app $app >&2
-            echo url $url >&2
+            echo "[harpoon]   chrome-preset focus-tab: "(math (date +%s%3N) - $_ft)"ms" >&2
+        case chrome_preset_app
+            jq -nr --argjson json "$json" '$json.uuid, $json.url' | read --line app url
 
             # TODO: profile name needs to be fetched from the json
             # it can be done by checking the name of the window using the yabai -m query subcommand
             chrome-preset alternate-app --minimize --profile "Default" --app "$app" "$url"
-        else if jq -en --arg type "$type" '$type == "chrome_search_tab"' >/dev/null
-            chrome-cli activate -t "$(jq -nr --argjson json "$json" '$json.tab_id')"
-            and chrome-preset focus-or-open-url "$(jq -nr --argjson json "$json" '$json.uuid')"
+        case chrome_search_tab
+            jq -nr --argjson json "$json" '$json.tab_id, $json.uuid' | read --line _tab_id _uuid
+            chrome-cli activate -t "$_tab_id"
+            and chrome-preset focus-or-open-url "$_uuid"
             or set has_failed 1
-        else if jq -en --arg type "$type" '$type == "window"' >/dev/null
-            __harpoon_focus_window_id "$(jq -nr --argjson json "$json" '$json.window_id')"
+        case window
+            yabai-preset focus-window-id (jq -nr --argjson json "$json" '$json.window_id')
             or set has_failed 1
-        else
-            set type unkown_pin
+        case '*'
             set has_failed 1
         end
 
@@ -217,10 +207,10 @@ function yabai-harpoon
             return 1
         end
     case "get-focused-pin-json"
-        set window (__harpoon_get_focused_window)
-        set window_id (jq -nr --argjson window "$window" '$window.id')
+        set window (yabai-preset query-windows --window | string collect)
+        jq -nr --argjson window "$window" '$window.id, $window.app' | read --line window_id window_app
 
-        if jq -en --argjson window "$window" '$window.app == "Google Chrome"' >/dev/null
+        if test "$window_app" = "Google Chrome"
             set chrome_tab (env OUTPUT_FORMAT=json chrome-cli info | string collect)
 
             if set appname (chrome-preset get-app-name --window-id "$window_id")
@@ -259,7 +249,7 @@ function yabai-harpoon
 
         set -l wm_wins '[]'
         if contains -- window $types
-            set wm_wins (__harpoon_get_all_windows)
+            set wm_wins (yabai-preset query-windows | string collect)
         end
 
         set -l chrome_tabs '{"tabs":[]}'

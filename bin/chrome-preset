@@ -116,9 +116,12 @@ function chrome-preset
             let found = false;
             for (const w of wins) {
                 if (w.id() == $chrome_window_id) {
-                    const tabs = w.tabs();
-                    for (let i = 0; i < tabs.length; i++) {
-                        if (tabs[i].id() == $tab_id) {
+                    // Fetch all tab ids in ONE Apple Event, then match in memory.
+                    // Calling tabs[i].id() per tab is one round-trip each and costs
+                    // ~500ms for a busy window (e.g. 32 tabs); the bulk form is ~15ms.
+                    const tabIds = w.tabs.id();
+                    for (let i = 0; i < tabIds.length; i++) {
+                        if (tabIds[i] == $tab_id) {
                             w.activeTabIndex = i + 1;
                             w.index = 1;
                             chrome.activate();
