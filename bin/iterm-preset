@@ -84,10 +84,14 @@ function iterm-preset
 
         if test -n "$TMUX"
             set tab_ttys (tmux list-panes -F '#{pane_tty}')
+            or __exit_on_error "failed to get tab ttys"
         else
-            set tab_ttys (osascript -e 'tell application "iTerm" to get tty of every session of current tab of current window' | string split ", " | string trim)
+            set -l raw_ttys (osascript -e 'tell application "iTerm" to get tty of every session of current tab of current window')
+            or __exit_on_error "failed to get tab ttys"
+            # Note: `string trim` exits 1 when it trims nothing, so keep it out
+            # of the status check above.
+            set tab_ttys (string split ", " -- $raw_ttys | string trim)
         end
-        or __exit_on_error "failed to get tab ttys"
 
         set -l found_server
         for server in $servers
