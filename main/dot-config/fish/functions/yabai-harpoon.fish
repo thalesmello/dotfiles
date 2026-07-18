@@ -92,6 +92,7 @@ function yabai-harpoon
             return 1
         end
 
+        iterm-preset hide-floating-terminal
         echo $json | yabai-harpoon focus-pin-json
         or begin
             display-message "yabai-harpoon: Refreshing Pins"

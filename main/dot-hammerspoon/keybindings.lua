@@ -221,7 +221,6 @@ function M.setup()
     default:bindOnce(hyper, tostring(i), "Harpoon Focus " .. i, function() fish("yabai-harpoon focus " .. i) end)
   end
   default:bindOnce(hyperShift, "=", "Harpoon Add", function() fish("yabai-harpoon add") end)
-  default:bindOnce(hyper, "tab", "Harpoon Focus Pin Next", function() fish("yabai-harpoon focus-pin next") end)
 
   -- Window cycling
   default:bindOnce(hyper, "n", "Focus Next Window", function() fish("wm-preset focus-window-in-space next") end)
@@ -647,7 +646,8 @@ function M.setup()
   service:bindOnce({}, "l", "Focus Display East", function() task({"wm-preset", "focus-display-with-fallback", "east"}) end)
 
   -- Misc service
-  service:bindOnce({}, "tab", "Move Window To Next Display", function() task({"wm-preset", "smart-move-window-to-next-display"}) end)
+  service:bindOnce({}, "tab", "Harpoon Focus Pin Next", function() fish("yabai-harpoon focus-pin next") end)
+  service:bindOnce({"shift"}, "tab", "Move Window To Next Display", function() task({"wm-preset", "smart-move-window-to-next-display"}) end)
   service:bindOnce(hyperShift, "tab", "Swap Workspaces Between Monitors", function() task({"wm-preset", "swap-workspaces-between-monitors"}) end)
   service:bindOnce({"shift"}, "/", "Trigger Help Menu", function() Preset.triggerMenuBar("Help") end)
   service:bindOnce(hyper, "/", "Search Mappings", showCommandPalette)
