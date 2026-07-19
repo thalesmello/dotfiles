@@ -60,22 +60,11 @@ function yabai-harpoon
         set target $argv[1]
         set -e argv[1]
 
-        # --- TIMING DEBUG (remove once benchmarking is done) ---
-        # Each lap is ~2ms of `date` overhead itself; compare relative sizes.
-        set -g __harpoon_t0 (date +%s%3N)
-        set -g __harpoon_t $__harpoon_t0
-        function __harpoon_lap
-            set -l now (date +%s%3N)
-            echo "[harpoon] $argv[1]: "(math $now - $__harpoon_t)"ms" >&2
-            set -g __harpoon_t $now
-        end
-
         if test ! -e "$FILE"
             yabai-harpoon reset-file
         end
 
         set count (jq '.pins | length' < "$FILE")
-        __harpoon_lap "read count ($count pins)"
 
         if test "$count" -eq 0
             display-message "yabai-harpoon: No pins"
@@ -107,21 +96,19 @@ function yabai-harpoon
         case '*'
             set position "$target"
         end
-        __harpoon_lap "resolve position ($position)"
 
         set json (yabai-harpoon get-pin "$position")
-        set -l get_pin_status $status
-        __harpoon_lap "get-pin"
-        test $get_pin_status -eq 0
-        and display-message "yabai-harpoon: Focus $position"
         or begin
             display-message "yabai-harpoon: Pin $position inexistant"
             return 1
         end
-        __harpoon_lap "display-message"
 
-        iterm-preset hide-floating-terminal
-        __harpoon_lap "iterm hide-floating-terminal"
+        # Fire the user feedback and floating-terminal hide concurrently with the
+        # (longer) Chrome focus below. Both are shorter than focus-pin-json, so
+        # they complete during its wait rather than being orphaned on exit.
+        display-message "yabai-harpoon: Focus $position" &
+        iterm-preset hide-floating-terminal &
+
         if echo $json | yabai-harpoon focus-pin-json
             echo "$position" > "$STATE"
         else
@@ -130,9 +117,7 @@ function yabai-harpoon
             and yabai-harpoon get-pin "$position" | yabai-harpoon focus-pin-json
             and echo "$position" > "$STATE"
         end
-        __harpoon_lap "focus-pin-json + state write"
-        echo "[harpoon] TOTAL: "(math (date +%s%3N) - $__harpoon_t0)"ms" >&2
-        functions -e __harpoon_lap
+        wait
     case "write-pinfile"
         set pinname $argv[1]
         set -e argv[1]
@@ -180,11 +165,8 @@ function yabai-harpoon
         switch "$type"
         case chrome_tab
             jq -nr --argjson json "$json" '$json.tab_id, $json.tab_window_id' | read --line _tab_id _tab_window_id
-            # --- TIMING DEBUG (remove once benchmarking is done) ---
-            set -l _ft (date +%s%3N)
             chrome-preset focus-tab "$_tab_id" "$_tab_window_id"
             or set has_failed 1
-            echo "[harpoon]   chrome-preset focus-tab: "(math (date +%s%3N) - $_ft)"ms" >&2
         case chrome_preset_app
             jq -nr --argjson json "$json" '$json.uuid, $json.url' | read --line app url
 
