@@ -1,3 +1,16 @@
+local vim_utils = require("vim_utils")
+
+local function claude_window_active()
+   local bufnr = require("claudecode.terminal").get_active_terminal_bufnr()
+   local info = bufnr and unpack(vim.fn.getbufinfo(bufnr))
+   return info and #info.windows > 0
+end
+
+local function copy_reference(reference)
+   vim.fn.setreg("+", reference)
+   vim.notify("Copied to clipboard: " .. reference)
+end
+
 return {
    {
       "coder/claudecode.nvim",
@@ -45,7 +58,21 @@ return {
          { "<leader>ar", "<cmd>update | ClaudeCode --resume<cr>", desc = "Resume Claude" },
          { "<leader>aC", "<cmd>update | ClaudeCode --continue<cr>", desc = "Continue Claude" },
          { "<leader>am", "<cmd>ClaudeCodeSelectModel<cr>", desc = "Select Claude model" },
-         { "<leader>ab", "<cmd>update | ClaudeCodeAdd %<cr>", desc = "Add current buffer" },
+         {
+            "<leader>ab",
+            function()
+               vim.cmd.update()
+
+               if claude_window_active() then
+                  vim.cmd("ClaudeCodeAdd %")
+                  return
+               end
+
+               local path = vim.fn.fnamemodify(vim.fn.expand("%"), ":.")
+               copy_reference("@" .. path)
+            end,
+            desc = "Add current buffer",
+         },
          { "<leader>as", "<cmd>update | ClaudeCodeSend<cr>", mode = "v", desc = "Send to Claude" },
          {
             "<leader>as",
@@ -63,21 +90,19 @@ return {
             "<leader>.",
             function()
                vim.cmd.update()
-               vim.cmd.ClaudeCodeSend()
-               vim.schedule(function()
-                  local bufnr = require("claudecode.terminal").get_active_terminal_bufnr()
 
-                  if not bufnr then return end
+               if claude_window_active() then
+                  vim.cmd.ClaudeCodeSend()
+                  vim.schedule(function()
+                     vim.cmd.ClaudeCodeOpen()
+                  end)
+                  return
+               end
 
-                  local info = unpack(vim.fn.getbufinfo(bufnr))
-
-                  if not info or #info.windows == 0 then return end
-
-                  vim.cmd.ClaudeCodeOpen()
-               end)
+               copy_reference(vim_utils.visual_reference())
             end,
             mode = {"v"},
-            desc = "Send to Claude and focus",
+            desc = "Send to Claude or copy reference",
          },
          {
             "<leader>.",

@@ -268,6 +268,18 @@ function M.reload_lazy_file(module_name)
     end
 end
 
+--- Build an `@path#Lstart-end` reference for the current visual selection.
+function M.visual_reference()
+    local line1 = vim.fn.line("v")
+    local line2 = vim.fn.line(".")
+    if line1 > line2 then
+        line1, line2 = line2, line1
+    end
+
+    local path = vim.fn.fnamemodify(vim.fn.expand("%"), ":.")
+    return string.format("@%s#L%d-%d", path, line1, line2)
+end
+
 function M.focus_or_new_tab(filepath)
     local abs_path = vim.fn.fnamemodify(filepath, ':p')
     local bufnr = vim.fn.bufnr(abs_path)
