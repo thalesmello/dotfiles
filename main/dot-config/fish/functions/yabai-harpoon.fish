@@ -88,10 +88,19 @@ function yabai-harpoon
                 set position 1
             case "last"
                 set position "$count"
-            case "next"
-                test -n "$current"; and set position (math "$current % $count + 1"); or set position 1
-            case "prev"
-                test -n "$current"; and set position (math "($current - 2 + $count) % $count + 1"); or set position "$count"
+            case "next" "prev"
+                # If the actually-focused window is not the pin we last focused
+                # ($current/$STATE), snap back to it instead of advancing. This
+                # reintroduces the (expensive) focused-window query, but only for
+                # next/prev and only when we have a $current to compare against.
+                if test -n "$current"
+                    and test (yabai-harpoon get-focused-pin-json | jq -r '.uuid') != (yabai-harpoon get-pin "$current" | jq -r '.uuid')
+                    set position "$current"
+                else if test "$target" = "next"
+                    test -n "$current"; and set position (math "$current % $count + 1"); or set position 1
+                else
+                    test -n "$current"; and set position (math "($current - 2 + $count) % $count + 1"); or set position "$count"
+                end
             end
         case '*'
             set position "$target"
