@@ -158,7 +158,7 @@
             ; [:!Cq nil ["command-q-once" 1] {:alone :!Cq :afterup ["command-q-once" 0]}]
             ; [:!Cq [[:msg "Double press Cmd+Q to Quit"] ["command-q-once" 1]] nil {:delayed {:invoked ["command-q-once" 0] :canceled ["command-q-once" 0]}}]
             ; opens mouseless
-            [:##right_shift :right_shift nil {:alone :f13 :params {:alone 150}}]
+            [:##right_shift :right_shift nil {:alone :!CTOsemicolon :params {:alone 150}}]
             ]
     }
 

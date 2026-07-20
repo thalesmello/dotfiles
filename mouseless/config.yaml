@@ -56,7 +56,7 @@ grid_configs:
     num_cells_x: 2
     num_cells_y: 1
   hold_subgrid_key_for_nudge: true
-  name: row_column
+  name: my_row_column
   nudges_per_cell: 4
   strategy: subgrid
   subgrid_dims:
@@ -390,9 +390,7 @@ keymaps:
     toggle continuous mode: Command+ShiftRight
     toggle continuous mode until closed: null
     toggle free mode: F14
-    toggle overlay:
-    - F13
-    - ctrl+cmd+option+;
+    toggle overlay: ctrl+cmd+option+;
     toggle overlay lock: Control+ShiftRight
     undo last key:
     - Escape
@@ -483,8 +481,8 @@ style_configs:
   - 0.32
   - 0.7
   cursor_size: 7
-  font_family: HackNF-Bold
-  font_size_multiplier: 0.4
+  font_family: InconsolataGoNFM-Bold
+  font_size_multiplier: 0.6
   font_weight: 500
   free_mode_indicator_offset_x: 20.0
   free_mode_indicator_offset_y: 20.0
@@ -509,7 +507,7 @@ style_configs:
   - 0.3
   name: default
   show_initial_highlight: true
-  subgrid_font_size_multiplier: 0.85
+  subgrid_font_size_multiplier: 0.8
   subgrid_rgba:
   - 1.0
   - 1.0
@@ -537,4 +535,4 @@ style_configs:
   text_y_offset: 0.0
   toast_opacity: 0.5
   use_bg_color_transforms: false
-  window_opacity: 1.0
+  window_opacity: 0.9
