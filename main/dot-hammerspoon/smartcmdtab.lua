@@ -1,5 +1,5 @@
 local shell = require("shell")
-local mode = require("mode")
+local preset = require("preset")
 
 local M = {}
 
@@ -45,7 +45,7 @@ function M.setup(hyper)
           QuickTerminalAlternateWindowId = nil
           hs.eventtap.keyStroke(hyper, "/", 0)
         end
-      elseif mode.isFloatingTerminal() then
+      elseif preset.isFloatingTerminalActive() then
         PendingCmdTabAction = function()
           hs.osascript.applescript('tell application "iTerm2" to hide hotkey window current window')
           hs.timer.usleep(200000)

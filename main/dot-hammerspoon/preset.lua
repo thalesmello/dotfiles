@@ -118,6 +118,17 @@ function M.getFloatingTermOrFocusedWindowId()
   return string.format("%d", win:id())
 end
 
+-- True when the focused window is the iTerm2 floating terminal. Its profile
+-- names the window "floating-terminal"; in fullscreen iTerm2 prefixes the
+-- window number (e.g. "2. floating-terminal"), so match it as a substring.
+function M.isFloatingTerminalActive()
+  local win = hs.window.focusedWindow()
+  if not win then return false end
+  local app = win:application()
+  return app ~= nil and app:name() == "iTerm2"
+    and win:title():find("floating-terminal", 1, true) ~= nil
+end
+
 function M.getSelectedText()
   local elem = hs.axuielement.systemWideElement()
 
