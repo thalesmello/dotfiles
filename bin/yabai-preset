@@ -32,6 +32,10 @@ function yabai-preset
             else
                 yabai -m window --focus "$window_id"
             end
+            # Window is focused; the cross-space polling below is only needed
+            # for --wait-focus callers. Return now to avoid extra yabai queries
+            # that can stall behind the app activation we just triggered.
+            return
         end
 
 
