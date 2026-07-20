@@ -29,9 +29,9 @@ function yabai-preset
             set is_min (yabai -m query --windows --window "$window_id" 2>/dev/null | jq -r '."is-minimized"')
             if test "$is_min" = "true"
                 yabai -m window --deminimize "$window_id"
-            else
-                yabai -m window --focus "$window_id"
             end
+
+            yabai -m window --focus "$window_id"
             # Window is focused; the cross-space polling below is only needed
             # for --wait-focus callers. Return now to avoid extra yabai queries
             # that can stall behind the app activation we just triggered.
@@ -1413,12 +1413,12 @@ function yabai-preset
         # so it doesn't hover in front of whatever we focus next.
         set focused (hs-preset get-floatingterm-or-focused-window-id)
         iterm-preset hide-floating-terminal &
-        disown
         if test "$focused" = "$window"
             yabai-preset minimize "$window"
         else
             yabai-preset focus-window-id "$window"
         end
+        wait
     case "get-focused-display"
         yabai -m query --windows --window 2>/dev/null | jq -r '.display // empty'
     case "list-windows"
