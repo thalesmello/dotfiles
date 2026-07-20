@@ -29,6 +29,10 @@ do
     end
   end
   _taskEnv.PATH = table.concat(_PathDirs, ":")
+  -- pbpaste and other CLIs pick their text encoding from the locale; Hammerspoon's
+  -- GUI environment has none, so default to UTF-8 (else pbpaste emits Mac Roman).
+  _taskEnv.LANG = _taskEnv.LANG or "en_US.UTF-8"
+  _taskEnv.LC_CTYPE = _taskEnv.LC_CTYPE or "en_US.UTF-8"
 end
 
 -- Memoized binary resolution
