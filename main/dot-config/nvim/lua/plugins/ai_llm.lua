@@ -53,7 +53,25 @@ return {
       end,
       keys = {
          { "<leader>a", nil, desc = "AI/Claude Code" },
-         { "<leader>ac", "<cmd>update | ClaudeCode<cr>", desc = "Toggle Claude", mode = {"n", "v"} },
+         { "<leader>ac", "<cmd>update | ClaudeCode<cr>", desc = "Toggle Claude" },
+         {
+            "<leader>ac",
+            function()
+               vim.cmd.update()
+
+               local was_active = claude_window_active()
+
+               vim.cmd.ClaudeCodeSend()
+
+               if was_active then
+                  vim.schedule(function()
+                     vim.cmd.ClaudeCodeOpen()
+                  end)
+               end
+            end,
+            mode = {"v"},
+            desc = "Send to Claude",
+         },
          { "<leader>af", "<cmd>update | ClaudeCodeFocus<cr>", desc = "Focus Claude" },
          { "<leader>ar", "<cmd>update | ClaudeCode --resume<cr>", desc = "Resume Claude" },
          { "<leader>aC", "<cmd>update | ClaudeCode --continue<cr>", desc = "Continue Claude" },
