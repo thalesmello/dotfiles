@@ -98,6 +98,7 @@ function hs-preset
 
     case "move-window-to-next-screen"
         hs -c "require('preset').moveWindowToNextScreen()"
+        sleep 0.2
 
     case "restart-btt"
         # No-op: BTT is no longer used
