@@ -154,6 +154,93 @@ function iterm-preset
                 osascript-preset send-keys ctrl alt $fallback_key
             end
         end
+    case "iterate-windows"
+        # Cycle iTerm windows, skipping the devserver window. When iTerm is
+        # already frontmost, advance to the next eligible window (wrapping);
+        # otherwise bring the most recently used eligible window forward.
+        # Windows are ordered by id (like chrome-preset cycle-profile-windows)
+        # so repeated presses cycle predictably.
+        #
+        # Everything runs in ONE osascript call: querying, the cycle math, and
+        # the focus. Splitting it across multiple osascript invocations (and a
+        # System Events frontmost lookup) added several slow Apple-event
+        # round-trips per press.
+        argparse 'except-window-id=' 'prev' -- $argv
+        or return 1
+
+        set -l except_id ""
+        set -q _flag_except_window_id; and set except_id "$_flag_except_window_id"
+
+        set -l want_prev 0
+        set -q _flag_prev; and set want_prev 1
+
+        osascript -e '
+            on run argv
+                set exceptId to item 1 of argv
+                set wantPrev to (item 2 of argv) is "1"
+                tell application "iTerm"
+                    -- Eligible window ids (devserver excluded).
+                    set ids to {}
+                    repeat with w in windows
+                        set wid to id of w
+                        if (wid as text) is not exceptId then set end of ids to wid
+                    end repeat
+                    if (count of ids) is 0 then
+                        activate
+                        return
+                    end if
+                    -- iTerm lists windows front-to-back, so the first eligible
+                    -- id is the most recently used non-devserver window.
+                    set recentId to item 1 of ids
+                    -- Sort ascending for stable cycling.
+                    set n to count of ids
+                    repeat with i from 1 to n - 1
+                        repeat with j from 1 to (n - i)
+                            if (item j of ids) > (item (j + 1) of ids) then
+                                set tmp to item j of ids
+                                set item j of ids to item (j + 1) of ids
+                                set item (j + 1) of ids to tmp
+                            end if
+                        end repeat
+                    end repeat
+                    -- Locate the current window within the eligible list.
+                    set isFront to frontmost
+                    set curId to missing value
+                    try
+                        set curId to id of current window
+                    end try
+                    set pos to 0
+                    repeat with i from 1 to n
+                        if (item i of ids) is curId then
+                            set pos to i
+                            exit repeat
+                        end if
+                    end repeat
+                    -- Already in iTerm on an eligible window: step to the next.
+                    -- On the current eligible window from elsewhere: return to
+                    -- it. On the devserver (or nothing): most recent eligible.
+                    if isFront and pos > 0 then
+                        if wantPrev then
+                            set targetPos to ((pos - 2 + n) mod n) + 1
+                        else
+                            set targetPos to (pos mod n) + 1
+                        end if
+                        set targetId to item targetPos of ids
+                    else if pos > 0 then
+                        set targetId to item pos of ids
+                    else
+                        set targetId to recentId
+                    end if
+                    activate
+                    repeat with w in windows
+                        if id of w is targetId then
+                            set index of w to 1
+                            exit repeat
+                        end if
+                    end repeat
+                end tell
+            end run
+        ' "$except_id" "$want_prev"
     case "*"
         return
     end

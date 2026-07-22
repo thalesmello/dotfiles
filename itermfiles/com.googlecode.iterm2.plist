@@ -1357,7 +1357,7 @@
 	<key>Leader</key>
 	<string>0x62-0x100000-0xb</string>
 	<key>LeftTabBarWidth</key>
-	<real>182</real>
+	<real>114</real>
 	<key>NeverWarnAboutMeta</key>
 	<true/>
 	<key>NeverWarnAboutMeta_selection</key>
