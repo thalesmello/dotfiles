@@ -35,6 +35,8 @@ set -gx LIBGL_ALWAYS_INDIRECT 1
 set -x fish_features qmark-noglob
 set -x fifc_editor nvim
 
+set -x CLAUDE_CODE_NO_FLICKER 1
+
 # Setup envs
 #fzf --fish | source
 set -xg FZF_DEFAULT_OPTS '--bind "ctrl-n:down,ctrl-p:up,ctrl-r:previous-history,ctrl-s:next-history,ctrl-q:select-all,ctrl-x:toggle-out,ctrl-e:preview-down,ctrl-y:preview-up,shift-right:toggle-preview-wrap" --height 40%'
