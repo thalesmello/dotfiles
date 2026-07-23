@@ -127,6 +127,37 @@ function M.setup()
   local restart   = createModal("Restart", "Restart: ")
   local repin     = createModal("Repin", "Repin: ")
 
+  -- Build the chrome-preset invocation for a web app in the given mode command.
+  local function webAppArgs(cmd, profile, name, url)
+    if cmd == "alternate-app" then
+      return {"chrome-preset", "alternate-app", "--minimize", "--profile", profile, "--app", name, url}
+    elseif cmd == "focus-or-open-url" then
+      return {"chrome-preset", "focus-or-open-url", "--profile", profile, url}
+    elseif cmd == "open-url" then
+      return {"chrome-preset", "open-url", "--profile", profile, "--label", name, url}
+    else
+      error("bindWebApp: unknown chrome-preset command '" .. tostring(cmd) .. "'")
+    end
+  end
+
+  -- Register a web app under `key` in both Chrome mode (focus/alternate its
+  -- dedicated app window) and Go To mode (open its URL in a new tab), keeping the
+  -- two modes in sync. `opts` is optional:
+  --   mods    - modifier list (default {})
+  --   profile - Chrome profile (default "Default")
+  --   chrome  - chrome-preset command for Chrome mode (default "alternate-app")
+  --   goto    - chrome-preset command for Go To mode (default "open-url")
+  local function bindWebApp(key, name, url, opts)
+    opts = opts or {}
+    local mods = opts.mods or {}
+    local profile = opts.profile or "Default"
+    local chromeCmd = opts.chrome or "alternate-app"
+    local gotoCmd = opts["goto"] or "open-url"
+
+    chrome:bindOnce(mods, key, name, function() task(webAppArgs(chromeCmd, profile, name, url)) end)
+    goto_mode:bindOnce(mods, key, name, function() task(webAppArgs(gotoCmd, profile, name, url)) end)
+  end
+
   ---------------------------------------------------------------
   -- Local config
   ---------------------------------------------------------------
@@ -778,16 +809,9 @@ function M.setup()
     chrome:bindOnce({}, tostring(i), "Focus Pinned Tab " .. i, function() task({"chrome-preset", "focus-pinned-tab", tostring(i)}) end)
   end
 
-  -- Chrome URL shortcuts
-  chrome:bindOnce({}, "y", "YouTube", function() task({"chrome-preset", "focus-or-open-url", "--profile=Default", "youtube.com"}) end)
-  chrome:bindOnce({}, "g", "Gmail", function() task({"chrome-preset", "focus-or-open-url", "--profile=Default", "gmail.com"}) end)
-
-  ---------------------------------------------------------------
-  -- GOTO MODE bindings
-  ---------------------------------------------------------------
-
-  goto_mode:bindOnce({}, "y", "YouTube (new tab)", function() task({"chrome-preset", "open-url", "--profile=Default", "youtube.com"}) end)
-  goto_mode:bindOnce({}, "g", "Gmail (new tab)", function() task({"chrome-preset", "open-url", "--profile=Default", "gmail.com"}) end)
+  -- Chrome / Go To URL shortcuts
+  bindWebApp("y", "YouTube", "youtube.com", {chrome = "focus-or-open-url"})
+  bindWebApp("g", "Gmail", "mail.google.com", {chrome = "focus-or-open-url"})
 
   ---------------------------------------------------------------
   -- INVOKE MODE bindings
@@ -832,6 +856,7 @@ function M.setup()
     chromeAppModal = chromeAppModal,
     launchOrFocus = launchOrFocus,
     Preset = Preset,
+    bindWebApp = bindWebApp,
   }
 
   if ok and localConfig and localConfig.setup then
