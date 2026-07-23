@@ -2,6 +2,43 @@
 set -x PATH /opt/homebrew/bin (status dirname) $PATH
 set DB_PATH "$HOME/.local/share/yabai-preset/window.db"
 
+# Parse a stack layout "anchor:main[:secondary]" where anchor is one of
+# center/left/right/up/down, main is the fraction along the anchored axis, and
+# secondary (default 1) is the fraction along the other axis. Echoes four lines:
+# h_mode v_mode fw fh (width/height fractions). Returns 1 on an unknown anchor.
+function _stack_layout_parse
+    echo $argv[1] | read -d: anchor main secondary
+    test -n "$secondary"; or set secondary 1
+    set -l h_mode center
+    set -l v_mode center
+    set -l fw
+    set -l fh
+    switch "$anchor"
+        case center
+            set fw $main
+            set fh $secondary
+        case left
+            set h_mode left
+            set fw $main
+            set fh $secondary
+        case right
+            set h_mode right
+            set fw $main
+            set fh $secondary
+        case up
+            set v_mode up
+            set fw $secondary
+            set fh $main
+        case down
+            set v_mode down
+            set fw $secondary
+            set fh $main
+        case '*'
+            return 1
+    end
+    printf '%s\n%s\n%s\n%s\n' $h_mode $v_mode $fw $fh
+end
+
 function yabai-preset
     set preset $argv[1]
     set -e argv[1]
@@ -1096,73 +1133,39 @@ function yabai-preset
                 return 1
         end
     case "cycle-stack-padding"
+        # Directional stack padding: cycle a fraction for one side (via
+        # cycle-stack-layout) and apply it (via apply-stack-layout). The side is
+        # one of left/right/up/down.
+        argparse 'layout=' preview -- $argv
+        or return 1
+
         set direction $argv[1]
         set -e argv[1]
 
-        # Stack padding fractions cycle in this order. Edit to tune.
-        set -l pad_fracs (math "2/3") (math "1/2")
-
-        set cfg_tp (yabai -m config top_padding | string trim)
-        set cfg_bp (yabai -m config bottom_padding | string trim)
-        set cfg_lp (yabai -m config left_padding | string trim)
-        set cfg_rp (yabai -m config right_padding | string trim)
-
-        yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line win_x win_y win_w win_h
-        yabai -m query --displays --display | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line dsp_x dsp_y dsp_w dsp_h
-
-        # Detect if window is on the target side
-        set -l on_side false
-        set -l dim_ratio 0
         switch "$direction"
-            case west east
-                set dim_ratio (math "$win_w / $dsp_w")
-            case north south
-                set dim_ratio (math "$win_h / $dsp_h")
-        end
-        switch "$direction"
-            case west
-                test (math "round(0.05 * $dsp_w - ($win_x - $dsp_x))") -gt 0; and set on_side true
-            case east
-                test (math "round(0.05 * $dsp_w - ($dsp_x + $dsp_w - $win_x - $win_w))") -gt 0; and set on_side true
-            case north
-                test (math "round(0.05 * $dsp_h - ($win_y - $dsp_y))") -gt 0; and set on_side true
-            case south
-                test (math "round(0.05 * $dsp_h - ($dsp_y + $dsp_h - $win_y - $win_h))") -gt 0; and set on_side true
+            case left right up down
+            case '*'
+                echo "Invalid argument: $direction" >&2
+                return 1
         end
 
-        # Cycle through pad_fracs: match current ratio → advance to next
-        set -l frac $pad_fracs[1]
-        if test "$on_side" = true
-            set -l n (count $pad_fracs)
-            for i in (seq $n)
-                set -l diff (math "round(abs($dim_ratio - $pad_fracs[$i]) * 1000)")
-                if test "$diff" -lt 50
-                    set -l next (math "$i % $n + 1")
-                    set frac $pad_fracs[$next]
-                    break
-                end
-            end
+        # Padding fractions cycle in this order. Edit to tune. The anchor is the
+        # direction, so each mode is "<direction>:<fraction>".
+        set -l pad_fracs "2/3" "1/2"
+        set -l modes $direction:$pad_fracs
+
+        set -l fwd
+        set -q _flag_layout; and set fwd --layout=$_flag_layout
+
+        if set -q _flag_preview
+            # Report the next mode without applying it.
+            yabai-preset cycle-stack-layout $fwd $modes
+            return 0
         end
 
-        # Convert frac to padding: the "big" padding pushes the stack to occupy $frac of the display
-        set -l big 0
-        switch "$direction"
-            case west east
-                set big (math "floor($dsp_w * (1 - $frac))")
-            case north south
-                set big (math "floor($dsp_h * (1 - $frac))")
-        end
-
-        switch "$direction"
-            case west
-                yabai -m space --padding "abs:$cfg_tp:$cfg_bp:$cfg_lp:$big"
-            case east
-                yabai -m space --padding "abs:$cfg_tp:$cfg_bp:$big:$cfg_rp"
-            case north
-                yabai -m space --padding "abs:$cfg_tp:$big:$cfg_lp:$cfg_rp"
-            case south
-                yabai -m space --padding "abs:$big:$cfg_bp:$cfg_lp:$cfg_rp"
-        end
+        # Apply exactly what --preview reports.
+        set -l next_mode (yabai-preset cycle-stack-padding $direction --preview $fwd)
+        yabai-preset apply-stack-layout $next_mode
     case "get-stack-padding"
         yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line win_x win_y win_w win_h
         osascript -l JavaScript -e "
@@ -1267,51 +1270,193 @@ function yabai-preset
 
         yabai -m window --move "abs:$x:$y"
         yabai -m window --resize "abs:$w:$h"
-    case "cycle-stack-center"
-        # Centered stack modes: "width_frac:height_frac". Edit to tune.
-        set -l center_modes "1:1" "0.75:0.75" "2/3:1" "1/3:1"
+    case "get-current-stack-layout"
+        # Report which "anchor:main[:secondary]" layout from the given list most
+        # closely reflects the focused window's current layout. The anchor is
+        # taken from the layouts (they share one); for a directional anchor the
+        # window must be anchored to that side, otherwise nothing is echoed
+        # (there is no current layout in the list).
+        set -l modes $argv
+        test (count $modes) -gt 0
+        or return 1
+
+        # The anchor is shared across the list — derive it from the first layout.
+        set -l first (_stack_layout_parse $modes[1])
+        or return 1
+        set -l h_ref $first[1]
+        set -l v_ref $first[2]
+
+        yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line win_x win_y win_w win_h
+        yabai -m query --displays --display | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line dsp_x dsp_y dsp_w dsp_h
+
+        # For a directional anchor, require the window to be anchored to that
+        # side; if it isn't, there's no current layout in this list.
+        switch "$h_ref"
+            case left
+                test (math "round(0.05 * $dsp_w - ($win_x - $dsp_x))") -gt 0; or return 0
+            case right
+                test (math "round(0.05 * $dsp_w - ($dsp_x + $dsp_w - $win_x - $win_w))") -gt 0; or return 0
+        end
+        switch "$v_ref"
+            case up
+                test (math "round(0.05 * $dsp_h - ($win_y - $dsp_y))") -gt 0; or return 0
+            case down
+                test (math "round(0.05 * $dsp_h - ($dsp_y + $dsp_h - $win_y - $win_h))") -gt 0; or return 0
+        end
+
+        # Pick the layout whose fractions are closest to the measured ratios.
+        set -l w_ratio (math "$win_w / $dsp_w")
+        set -l h_ratio (math "$win_h / $dsp_h")
+
+        set -l best
+        set -l best_d ""
+        for mode in $modes
+            set -l p (_stack_layout_parse $mode)
+            or return 1
+            set -l mw (math "$p[3]")
+            set -l mh (math "$p[4]")
+            set -l d (math "round((abs($w_ratio - $mw) + abs($h_ratio - $mh)) * 1000)")
+            if test -z "$best_d" -o "$d" -lt "$best_d"
+                set best_d $d
+                set best $mode
+            end
+        end
+
+        # Only report a match when the window is actually near that layout (allows
+        # for the default padding offset); otherwise it isn't at any listed
+        # layout, so echo nothing. 1000 == one full display dimension.
+        if test "$best_d" -gt 150
+            set best ""
+        end
+        echo $best
+    case "apply-stack-layout"
+        # Apply a layout "anchor:main[:secondary]": compute the space padding that
+        # makes the stack occupy that fraction of the display, anchored at the
+        # given point, and apply it. With --abs, echo the resulting rect
+        # "x:y:w:h" instead of applying.
+        #
+        #   center       symmetric slack on both axes
+        #   left/right   anchor horizontally: keep the default padding on the
+        #                anchor side, push the slack to the other
+        #   up/down      anchor vertically likewise
+        argparse abs -- $argv
+        or return 1
+
+        set -l layout $argv[1]
+        test -n "$layout"
+        or return 1
+
+        set -l parsed (_stack_layout_parse $layout)
+        or return 1
+        set -l h_mode $parsed[1]
+        set -l v_mode $parsed[2]
+        set -l fw (math "$parsed[3]")
+        set -l fh (math "$parsed[4]")
 
         set cfg_tp (yabai -m config top_padding | string trim)
         set cfg_bp (yabai -m config bottom_padding | string trim)
         set cfg_lp (yabai -m config left_padding | string trim)
         set cfg_rp (yabai -m config right_padding | string trim)
 
-        yabai -m query --windows --window | jq -r '.frame | "\(.w)\n\(.h)"' | read --line win_w win_h
-        yabai -m query --displays --display | jq -r '.frame | "\(.w)\n\(.h)"' | read --line dsp_w dsp_h
+        yabai -m query --displays --display | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line dsp_x dsp_y dsp_w dsp_h
 
-        set -l w_ratio (math "$win_w / $dsp_w")
-        set -l h_ratio (math "$win_h / $dsp_h")
+        # Horizontal padding: distribute the slack per the reference point.
+        set -l lp $cfg_lp
+        set -l rp $cfg_rp
+        if test (math "round($fw * 1000)") -lt 1000
+            set -l big (math "$dsp_w * (1 - $fw)")
+            switch $h_mode
+                case left
+                    set rp (math "floor($big)")
+                case right
+                    set lp (math "floor($big)")
+                case '*'
+                    set lp (math "floor($big / 2)")
+                    set rp (math "floor($big / 2)")
+            end
+        end
 
-        # Cycle: match current mode → advance to next
-        set -l target_w 1
-        set -l target_h 1
-        set -l n (count $center_modes)
+        # Vertical padding: distribute the slack per the reference point.
+        set -l tp $cfg_tp
+        set -l bp $cfg_bp
+        if test (math "round($fh * 1000)") -lt 1000
+            set -l big (math "$dsp_h * (1 - $fh)")
+            switch $v_mode
+                case up
+                    set bp (math "floor($big)")
+                case down
+                    set tp (math "floor($big)")
+                case '*'
+                    set tp (math "floor($big / 2)")
+                    set bp (math "floor($big / 2)")
+            end
+        end
+
+        if set -q _flag_abs
+            set -l x (math "$dsp_x + $lp")
+            set -l y (math "$dsp_y + $tp")
+            set -l w (math "$dsp_w - $lp - $rp")
+            set -l h (math "$dsp_h - $tp - $bp")
+            echo "$x:$y:$w:$h"
+            return 0
+        end
+
+        yabai -m space --padding "abs:$tp:$bp:$lp:$rp"
+    case "cycle-stack-layout"
+        # Cycle a list of "anchor:main[:secondary]" layouts: echo the one that
+        # follows the current layout (--layout, else detected via
+        # get-current-stack-layout). Applies nothing — feed the result to
+        # apply-stack-layout.
+        argparse 'layout=' -- $argv
+        or return 1
+
+        set -l modes $argv
+        set -l n (count $modes)
+        test "$n" -gt 0
+        or return 1
+
+        # Current layout: use --layout, else detect (empty when the window isn't
+        # at any listed mode).
+        set -l cur
+        if set -q _flag_layout
+            set cur $_flag_layout
+        else
+            set cur (yabai-preset get-current-stack-layout $modes)
+        end
+
+        # Advance to the next mode (default to last so we wrap to the first when
+        # the current layout isn't one of the listed modes).
+        set -l cur_i $n
         for i in (seq $n)
-            echo $center_modes[$i] | read -d: mode_w_raw mode_h_raw
-            set -l mw (math "$mode_w_raw")
-            set -l mh (math "$mode_h_raw")
-            set -l dw (math "round(abs($w_ratio - $mw) * 1000)")
-            set -l dh (math "round(abs($h_ratio - $mh) * 1000)")
-            if test "$dw" -lt 80 -a "$dh" -lt 80
-                set -l next_i (math "$i % $n + 1")
-                echo $center_modes[$next_i] | read -d: target_w target_h
+            if test "$modes[$i]" = "$cur"
+                set cur_i $i
                 break
             end
         end
+        set -l next_i (math "$cur_i % $n + 1")
+        echo $modes[$next_i]
+    case "cycle-stack-center"
+        # Centered stack layout: cycle a symmetric "width:height" mode (via
+        # cycle-stack-layout) and apply it (via apply-stack-layout). --preview
+        # reports the next mode; applying resizes to exactly what --preview reports.
+        argparse 'layout=' preview -- $argv
+        or return 1
 
-        set -l tw (math "$target_w")
-        set -l th (math "$target_h")
-        if test "$tw" = 1 -a "$th" = 1
-            yabai -m space --padding "abs:$cfg_tp:$cfg_bp:$cfg_lp:$cfg_rp"
-        else
-            set -l h_pad (math "floor($dsp_w * (1 - $tw) / 2)")
-            if test "$th" = 1
-                yabai -m space --padding "abs:$cfg_tp:$cfg_bp:$h_pad:$h_pad"
-            else
-                set -l v_pad (math "floor($dsp_h * (1 - $th) / 2)")
-                yabai -m space --padding "abs:$v_pad:$v_pad:$h_pad:$h_pad"
-            end
+        # Centered stack modes: "center:main[:secondary]". Edit to tune.
+        set -l center_modes "center:1" "center:2/3" "center:3/4:3/4" "center:1/3"
+
+        set -l fwd
+        set -q _flag_layout; and set fwd --layout=$_flag_layout
+
+        if set -q _flag_preview
+            # Report the next mode without applying it.
+            yabai-preset cycle-stack-layout $fwd $center_modes
+            return 0
         end
+
+        # Apply exactly what --preview reports.
+        set -l next_mode (yabai-preset cycle-stack-center --preview $fwd)
+        yabai-preset apply-stack-layout $next_mode
     case "get-app-window-id"
         argparse 'match-title=' -- $argv
         or return 1

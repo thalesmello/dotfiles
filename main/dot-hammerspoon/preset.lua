@@ -238,7 +238,7 @@ function M.toggleStackFullscreen()
           shell.task({"yabai", "-m", "space", "--padding", "abs:" .. _G._savedStackPadding[spaceIdx]})
           _G._savedStackPadding[spaceIdx] = nil
         else
-          shell.task({"yabai-preset", "cycle-stack-padding", "west"})
+          shell.task({"yabai-preset", "cycle-stack-padding", "left"})
         end
       else
         _G._savedStackPadding[spaceIdx] = padding
