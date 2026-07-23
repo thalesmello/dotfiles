@@ -144,22 +144,22 @@ function M.setup()
 
   -- Window swap/snap/pad HJKL
   default:conditionalBindOnce(hyperShift, "h", "Swap/Snap/Pad West", {
-    {cond = isWindowFloating, function() task({"yabai-preset", "snap", "west"}) end},
+    {cond = isWindowFloating, function() task({"yabai-preset", "snap", "left"}) end},
     {cond = isSpaceStack, function() task({"yabai-preset", "cycle-stack-padding", "left"}) end},
     {function() task({"wm-preset", "swap-window", "west"}) end},
   })
   default:conditionalBindOnce(hyperShift, "j", "Swap/Snap/Pad South", {
-    {cond = isWindowFloating, function() task({"yabai-preset", "snap", "south"}) end},
+    {cond = isWindowFloating, function() task({"yabai-preset", "snap", "down"}) end},
     {cond = isSpaceStack, function() task({"yabai-preset", "cycle-stack-padding", "down"}) end},
     {function() task({"wm-preset", "swap-window", "south"}) end},
   })
   default:conditionalBindOnce(hyperShift, "k", "Swap/Snap/Pad North", {
-    {cond = isWindowFloating, function() task({"yabai-preset", "snap", "north"}) end},
+    {cond = isWindowFloating, function() task({"yabai-preset", "snap", "up"}) end},
     {cond = isSpaceStack, function() task({"yabai-preset", "cycle-stack-padding", "up"}) end},
     {function() task({"wm-preset", "swap-window", "north"}) end},
   })
   default:conditionalBindOnce(hyperShift, "l", "Swap/Snap/Pad East", {
-    {cond = isWindowFloating, function() task({"yabai-preset", "snap", "east"}) end},
+    {cond = isWindowFloating, function() task({"yabai-preset", "snap", "right"}) end},
     {cond = isSpaceStack, function() task({"yabai-preset", "cycle-stack-padding", "right"}) end},
     {function() task({"wm-preset", "swap-window", "east"}) end},
   })
