@@ -91,7 +91,23 @@ return {
             end,
             desc = "Add current buffer",
          },
+         {
+            "<leader>aB",
+            function()
+               local path = vim.fn.fnamemodify(vim.fn.expand("%"), ":.")
+               copy_reference("@" .. path)
+            end,
+            desc = "Copy file reference",
+         },
          { "<leader>as", "<cmd>update | ClaudeCodeSend<cr>", mode = "v", desc = "Send to Claude" },
+         {
+            "<leader>ay",
+            function()
+               copy_reference(vim_utils.visual_reference())
+            end,
+            mode = {"v"},
+            desc = "Copy code reference",
+         },
          {
             "<leader>as",
             "<cmd>ClaudeCodeTreeAdd<cr>",
