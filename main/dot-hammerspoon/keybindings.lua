@@ -5,6 +5,7 @@ local util = require("util")
 local Preset = require("preset")
 local a = require("async")
 local ArgList = require("arglist")
+local PreviewHud = require("preview_hud")
 
 local task = shell.task
 local taskAsync = shell.taskAsync
@@ -56,6 +57,56 @@ local function navigateArgList(delta)
 
     local pos = ArgList.indexOf(target) or 0
     Preset.displayMessage("ArgList " .. pos .. " / " .. ArgList.count())
+  end)()
+end
+
+-- Preview a yabai layout as a rectangle in the hyper-release HUD, then apply it
+-- once the hyper key is let go. `previewArgs` is the yabai-preset invocation
+-- (including --preview) that echoes the next layout string; `family` is "snap"
+-- (floating windows) or "stack", selecting the matching convert-*-layout-to-abs
+-- and apply-*-layout subcommands.
+--
+-- The previewed layout is stored on hud.action.layout and fed back to the next
+-- press via --cur-layout, so repeated presses cycle forward through the fraction
+-- stops even though the window hasn't actually moved yet (yabai would otherwise
+-- keep detecting the same current layout from the unchanged window). While
+-- iterating we also feed the previously previewed rectangle back via
+-- --logical-abs so the convert step composes against the preview (e.g. left then
+-- up -> top-left corner) instead of the still-unmoved window frame.
+local function previewLayout(previewArgs, family)
+  local convertCmd = "convert-" .. family .. "-layout-to-abs"
+  local applyCmd   = "apply-" .. family .. "-layout"
+  local hud = PreviewHud.HYPER_RELEASE
+  a.sync(function()
+    local prev = hud.action
+    local args = previewArgs
+    if prev and prev.layout then
+      args = {table.unpack(previewArgs)}
+      args[#args + 1] = "--cur-layout=" .. prev.layout
+    end
+
+    local ok, layout = a.wait(taskAsync(args))
+    if not ok or layout == "" then return end
+
+    local convertArgs = {"yabai-preset", convertCmd, layout}
+    if prev and prev.preview then
+      local p = prev.preview
+      convertArgs[#convertArgs + 1] =
+        string.format("--logical-abs=%d:%d:%d:%d", p.x, p.y, p.w, p.h)
+    end
+
+    local absOk, abs = a.wait(taskAsync(convertArgs))
+    if not absOk then return end
+
+    local x, y, w, h = abs:match("abs:(%-?%d+):(%-?%d+):(%-?%d+):(%-?%d+)")
+    if not x then return end
+
+    hud:enter({
+      preview_type = "rectangle",
+      preview = {x = tonumber(x), y = tonumber(y), w = tonumber(w), h = tonumber(h)},
+      layout = layout,
+      apply = function() task({"yabai-preset", applyCmd, abs}) end,
+    })
   end)()
 end
 
@@ -111,8 +162,8 @@ function M.setup()
     {function() task({"wm-preset", "smart-toggle-fullscreen"}) end},
   })
   default:conditionalBindOnce(hyperShift, "return", "Cycle Centered Layout", {
-    {cond = isWindowFloating, function() task({"yabai-preset", "snap-center"}) end},
-    {cond = isSpaceStack, function() task({"yabai-preset", "cycle-stack-center"}) end},
+    {cond = isWindowFloating, function() previewLayout({"yabai-preset", "snap-center", "--preview"}, "snap") end},
+    {cond = isSpaceStack, function() previewLayout({"yabai-preset", "cycle-stack-center", "--preview"}, "stack") end},
     {function() task({"wm-preset", "unstacked-swap-largest"}) end},
   })
 
@@ -144,23 +195,23 @@ function M.setup()
 
   -- Window swap/snap/pad HJKL
   default:conditionalBindOnce(hyperShift, "h", "Swap/Snap/Pad West", {
-    {cond = isWindowFloating, function() task({"yabai-preset", "snap", "left"}) end},
-    {cond = isSpaceStack, function() task({"yabai-preset", "cycle-stack-padding", "left"}) end},
+    {cond = isWindowFloating, function() previewLayout({"yabai-preset", "snap", "left", "--preview"}, "snap") end},
+    {cond = isSpaceStack, function() previewLayout({"yabai-preset", "cycle-stack-padding", "left", "--preview"}, "stack") end},
     {function() task({"wm-preset", "swap-window", "west"}) end},
   })
   default:conditionalBindOnce(hyperShift, "j", "Swap/Snap/Pad South", {
-    {cond = isWindowFloating, function() task({"yabai-preset", "snap", "down"}) end},
-    {cond = isSpaceStack, function() task({"yabai-preset", "cycle-stack-padding", "down"}) end},
+    {cond = isWindowFloating, function() previewLayout({"yabai-preset", "snap", "down", "--preview"}, "snap") end},
+    {cond = isSpaceStack, function() previewLayout({"yabai-preset", "cycle-stack-padding", "down", "--preview"}, "stack") end},
     {function() task({"wm-preset", "swap-window", "south"}) end},
   })
   default:conditionalBindOnce(hyperShift, "k", "Swap/Snap/Pad North", {
-    {cond = isWindowFloating, function() task({"yabai-preset", "snap", "up"}) end},
-    {cond = isSpaceStack, function() task({"yabai-preset", "cycle-stack-padding", "up"}) end},
+    {cond = isWindowFloating, function() previewLayout({"yabai-preset", "snap", "up", "--preview"}, "snap") end},
+    {cond = isSpaceStack, function() previewLayout({"yabai-preset", "cycle-stack-padding", "up", "--preview"}, "stack") end},
     {function() task({"wm-preset", "swap-window", "north"}) end},
   })
   default:conditionalBindOnce(hyperShift, "l", "Swap/Snap/Pad East", {
-    {cond = isWindowFloating, function() task({"yabai-preset", "snap", "right"}) end},
-    {cond = isSpaceStack, function() task({"yabai-preset", "cycle-stack-padding", "right"}) end},
+    {cond = isWindowFloating, function() previewLayout({"yabai-preset", "snap", "right", "--preview"}, "snap") end},
+    {cond = isSpaceStack, function() previewLayout({"yabai-preset", "cycle-stack-padding", "right", "--preview"}, "stack") end},
     {function() task({"wm-preset", "swap-window", "east"}) end},
   })
 

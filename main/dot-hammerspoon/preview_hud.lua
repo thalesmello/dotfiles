@@ -87,7 +87,7 @@ function PreviewHud:unbindExit() end
 -- action = { preview = <arg>, apply = function() ... end, preview_type = <string> }
 function PreviewHud:enter(action)
   self:init()
-  self._action = action
+  self.action = action
   self:render(action)
 end
 
@@ -119,8 +119,8 @@ function PreviewHud:exit()
   self:clear()
   self:unbindExit()
   self._initialized = false
-  local action = self._action
-  self._action = nil
+  local action = self.action
+  self.action = nil
   if action and action.apply then action.apply() end
 end
 

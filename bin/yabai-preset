@@ -1058,7 +1058,7 @@ function yabai-preset
         # cycle-layout) and apply it (via apply-snap-layout), keeping the
         # orthogonal axis so corners compose (snap left then up → top-left).
         # The side is one of left/right/up/down.
-        argparse preview -- $argv
+        argparse 'cur-layout=' preview -- $argv
         or return 1
 
         set direction $argv[1]
@@ -1076,7 +1076,9 @@ function yabai-preset
         set -l snap_fracs "1/2" "2/3" "1/3"
         set -l modes $direction:$snap_fracs
 
-        set -l next_mode (yabai-preset cycle-layout --detect=get-current-snap-layout $modes)
+        set -l fwd
+        set -q _flag_cur_layout; and set fwd --cur-layout=$_flag_cur_layout
+        set -l next_mode (yabai-preset cycle-layout --detect=get-current-snap-layout $fwd $modes)
 
         # --preview just reports the next layout; otherwise apply it.
         if set -q _flag_preview
@@ -1088,7 +1090,7 @@ function yabai-preset
         # Directional stack padding: cycle a fraction for one side (via
         # cycle-layout) and apply it (via apply-stack-layout). The side is
         # one of left/right/up/down.
-        argparse preview -- $argv
+        argparse 'cur-layout=' preview -- $argv
         or return 1
 
         set direction $argv[1]
@@ -1106,7 +1108,9 @@ function yabai-preset
         set -l pad_fracs "2/3" "1/2"
         set -l modes $direction:$pad_fracs
 
-        set -l next_mode (yabai-preset cycle-layout $modes)
+        set -l fwd
+        set -q _flag_cur_layout; and set fwd --cur-layout=$_flag_cur_layout
+        set -l next_mode (yabai-preset cycle-layout $fwd $modes)
 
         # --preview just reports the next layout; otherwise apply it.
         if set -q _flag_preview
@@ -1164,13 +1168,15 @@ function yabai-preset
     case "snap-center"
         # Centered floating-window snap: cycle a symmetric mode (via cycle-layout)
         # and apply it (via apply-snap-layout).
-        argparse preview -- $argv
+        argparse 'cur-layout=' preview -- $argv
         or return 1
 
         # Centered snap modes: "center:main[:secondary]". Edit to tune.
         set -l center_modes center:{1,3/4:3/4,2/3,1/3}
 
-        set -l next_mode (yabai-preset cycle-layout --detect=get-current-snap-layout $center_modes)
+        set -l fwd
+        set -q _flag_cur_layout; and set fwd --cur-layout=$_flag_cur_layout
+        set -l next_mode (yabai-preset cycle-layout --detect=get-current-snap-layout $fwd $center_modes)
 
         # --preview just reports the next layout; otherwise apply it.
         if set -q _flag_preview
@@ -1182,8 +1188,12 @@ function yabai-preset
         # Convert a floating-window layout "anchor:main[:secondary]" into an
         # absolute rect "abs:x:y:w:h". center sizes both axes and centers within
         # the usable area; left/right/up/down size one axis, anchor it to that
-        # side, and keep the focused window's current other axis (so corners
-        # compose). An "abs:*" layout is returned unchanged.
+        # side, and keep the current window's other axis (so corners compose). An
+        # "abs:*" layout is returned unchanged. --logical-abs "x:y:w:h" overrides
+        # the window frame used for the kept axis (e.g. a previewed rect).
+        argparse 'logical-abs=' -- $argv
+        or return 1
+
         set -l layout $argv[1]
         test -n "$layout"
         or return 1
@@ -1206,18 +1216,23 @@ function yabai-preset
         set lp (yabai -m config left_padding | string trim)
         set rp (yabai -m config right_padding | string trim)
 
-        yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line win_x win_y win_w win_h
+        # Window frame (for keeping the orthogonal axis): --logical-abs or query.
+        if set -q _flag_logical_abs
+            echo $_flag_logical_abs | read -d: win_x win_y win_w win_h
+        else
+            yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line win_x win_y win_w win_h
+        end
         yabai-preset get-visible-frame | read --line dsp_x dsp_y dsp_w dsp_h
 
         set -l uw (math "$dsp_w - $lp - $rp")
         set -l uh (math "$dsp_h - $tp - $bp")
 
-        # Default to the current frame; each anchor overrides only its own axis so
-        # directional snaps compose into corners.
-        set -l x $win_x
-        set -l y $win_y
-        set -l w $win_w
-        set -l h $win_h
+        # Default to the current frame (floored to integer pixels); each anchor
+        # overrides only its own axis so directional snaps compose into corners.
+        set -l x (math "floor($win_x)")
+        set -l y (math "floor($win_y)")
+        set -l w (math "floor($win_w)")
+        set -l h (math "floor($win_h)")
 
         if test "$h_mode" = center -a "$v_mode" = center
             set w (math "floor($uw * $fw)")
@@ -1261,14 +1276,24 @@ function yabai-preset
         # Report which floating "anchor:main[:secondary]" layout best reflects the
         # focused window. For a directional anchor the window must be anchored to
         # that side and only the main axis is compared; center compares both. Echoes
-        # nothing when the window isn't at any listed layout.
+        # nothing when the window isn't at any listed layout. --logical-abs
+        # "x:y:w:h" overrides the window frame used to find the position.
+        argparse 'logical-abs=' -- $argv
+        or return 1
+
         set -l modes $argv
         test (count $modes) -gt 0
         or return 1
 
+        # Window frame: use --logical-abs when given, else the focused window.
+        if set -q _flag_logical_abs
+            echo $_flag_logical_abs | read -d: win_x win_y win_w win_h
+        else
+            yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line win_x win_y win_w win_h
+        end
+
         # An abs:x:y:w:h list is matched directly by rectangle distance.
         if string match -q 'abs:*' -- "$modes[1]"
-            yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line win_x win_y win_w win_h
             _closest_abs $win_x $win_y $win_w $win_h $modes
             return 0
         end
@@ -1284,7 +1309,6 @@ function yabai-preset
         set lp (yabai -m config left_padding | string trim)
         set rp (yabai -m config right_padding | string trim)
 
-        yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line win_x win_y win_w win_h
         yabai-preset get-visible-frame | read --line dsp_x dsp_y dsp_w dsp_h
 
         set -l uw (math "$dsp_w - $lp - $rp")
@@ -1340,14 +1364,24 @@ function yabai-preset
         # closely reflects the focused window's current layout. The anchor is
         # taken from the layouts (they share one); for a directional anchor the
         # window must be anchored to that side, otherwise nothing is echoed
-        # (there is no current layout in the list).
+        # (there is no current layout in the list). --logical-abs "x:y:w:h"
+        # overrides the window frame used to find the position.
+        argparse 'logical-abs=' -- $argv
+        or return 1
+
         set -l modes $argv
         test (count $modes) -gt 0
         or return 1
 
+        # Window frame: use --logical-abs when given, else the focused window.
+        if set -q _flag_logical_abs
+            echo $_flag_logical_abs | read -d: win_x win_y win_w win_h
+        else
+            yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line win_x win_y win_w win_h
+        end
+
         # An abs:x:y:w:h list is matched directly by rectangle distance.
         if string match -q 'abs:*' -- "$modes[1]"
-            yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line win_x win_y win_w win_h
             _closest_abs $win_x $win_y $win_w $win_h $modes
             return 0
         end
@@ -1358,7 +1392,6 @@ function yabai-preset
         set -l h_ref $first[1]
         set -l v_ref $first[2]
 
-        yabai -m query --windows --window | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line win_x win_y win_w win_h
         yabai -m query --displays --display | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' | read --line dsp_x dsp_y dsp_w dsp_h
 
         # For a directional anchor, require the window to be anchored to that
@@ -1406,7 +1439,12 @@ function yabai-preset
         # "abs:x:y:w:h" the stack would occupy (the padded region of the display).
         # center spreads the slack symmetrically; left/right/up/down keep the
         # default padding on the anchor side and push the slack to the other. An
-        # "abs:*" layout is returned unchanged.
+        # "abs:*" layout is returned unchanged. --logical-abs is accepted for a
+        # uniform interface but unused: the stack region doesn't depend on any
+        # single window.
+        argparse 'logical-abs=' -- $argv
+        or return 1
+
         set -l layout $argv[1]
         test -n "$layout"
         or return 1
@@ -1486,11 +1524,11 @@ function yabai-preset
         yabai -m space --padding "abs:$tp:$bp:$lp:$rp"
     case "cycle-layout"
         # Cycle a list of "anchor:main[:secondary]" layouts: echo the one that
-        # follows the current layout (--layout, else detected). --detect names the
-        # detector preset (default get-current-stack-layout; snap uses
+        # follows the current layout (--cur-layout, else detected). --detect names
+        # the detector preset (default get-current-stack-layout; snap uses
         # get-current-snap-layout). Applies nothing — feed the result to an apply
         # preset.
-        argparse 'layout=' 'detect=' -- $argv
+        argparse 'cur-layout=' 'detect=' -- $argv
         or return 1
 
         set -l detect get-current-stack-layout
@@ -1501,11 +1539,11 @@ function yabai-preset
         test "$n" -gt 0
         or return 1
 
-        # Current layout: use --layout, else detect (empty when the window isn't
-        # at any listed mode).
+        # Current layout: use --cur-layout, else detect (empty when the window
+        # isn't at any listed mode).
         set -l cur
-        if set -q _flag_layout
-            set cur $_flag_layout
+        if set -q _flag_cur_layout
+            set cur $_flag_cur_layout
         else
             set cur (yabai-preset $detect $modes)
         end
@@ -1525,13 +1563,15 @@ function yabai-preset
         # Centered stack layout: cycle a symmetric "width:height" mode (via
         # cycle-layout) and apply it (via apply-stack-layout). --preview
         # reports the next mode; applying resizes to exactly what --preview reports.
-        argparse preview -- $argv
+        argparse 'cur-layout=' preview -- $argv
         or return 1
 
         # Centered stack modes: "center:main[:secondary]". Edit to tune.
         set -l center_modes "center:"{"1","2/3","3/4:3/4","1/3"}
 
-        set -l next_mode (yabai-preset cycle-layout $center_modes)
+        set -l fwd
+        set -q _flag_cur_layout; and set fwd --cur-layout=$_flag_cur_layout
+        set -l next_mode (yabai-preset cycle-layout $fwd $center_modes)
 
         # --preview just reports the next layout; otherwise apply it.
         if set -q _flag_preview
