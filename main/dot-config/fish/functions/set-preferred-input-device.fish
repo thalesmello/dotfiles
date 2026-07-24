@@ -1,7 +1,7 @@
 function set-preferred-input-device
     set -l priorities \
-        "Yeti Nano" \
         "Sennheiser XS LAV USB-C" \
+        "Yeti Nano" \
         "MacBook Pro Microphone" \
         "MacBook Air Microphone"
         # Add more device names here — first entry = highest priority
