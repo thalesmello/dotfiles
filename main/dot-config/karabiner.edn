@@ -147,7 +147,7 @@
             ; [:##left_shift [["shift-pressed-once" 1] :##left_shift] nil {:delayed {:invoked ["shift-pressed-once" 0] :canceled ["shift-pressed-once" 0]}}]
             ; Shortcut used to assign f18 to mac mouse fix, so that f18 can later enable mouse layer
             ; [:!CSz :f18]
-            [{:pkey :button5} nil ["mouse-second-layer" 0] {:alone [["mouse-second-layer" 1] [:noti :mouse-second-hud "Mouse Second Layer"]] :held :button5 :params {:held 150}}]
+            [{:pkey :button5} nil ["mouse-second-layer" 0] {:alone [["mouse-second-layer" 1] [:noti :mouse-second-hud "Mouse Second Layer"]] :held :!Ospacebar :params {:held 150}}]
             [:##left_option :##left_option ["option-pressed-once" 1] {:alone :!Cgrave_accent_and_tilde :afterup ["option-pressed-once" 0]}]
             [:##left_option [["option-pressed-once" 1] :##left_option] nil {:delayed {:invoked ["option-pressed-once" 0] :canceled ["option-pressed-once" 0]}}]
             [:##left_control :##left_control ["control-pressed-once" 1] {:alone :!TOCslash :afterup ["control-pressed-once" 0]}]
@@ -173,7 +173,7 @@
             ; Left click = down
             [{:pkey :button1} :down_arrow]
             ; Middle click = enter + exit layer
-            [{:pkey :button3} nil nil {:alone [:return_or_enter ["mouse-second-layer" 0] [:noti :mouse-second-hud]] :held :button5}]
+            [{:pkey :button3} nil nil {:alone [:return_or_enter ["mouse-second-layer" 0] [:noti :mouse-second-hud]] :held :!Ospacebar}]
             ; Right click = up arrow
             [{:pkey :button2} :up_arrow]
             ; Escape = exit layer
