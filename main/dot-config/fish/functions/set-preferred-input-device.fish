@@ -23,7 +23,7 @@ function set-preferred-input-device
             if set -q _flag_dry_run
                 echo "Would select: $priority"
             else
-                SwitchAudioSource -t input -s "$priority"
+                SwitchAudioSource -t input -s "$priority" >/dev/null
                 echo "Switched to: $priority"
             end
             return
