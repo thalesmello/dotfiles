@@ -150,18 +150,80 @@ function chrome-preset
         end tell"
         or return 1
     case "focus-url"
+        argparse profile= -- $argv
+        or return 1
+
         set regex $argv[1]
         set -e argv[1]
 
-        chrome-preset list-tabs-json \
-        | jq -er --arg regex "$regex" '
-        first(.tabs.[] | select(.url | test($regex)))
-        | "\(.windowId):\(.id)"' \
-        | read -d: -l chrome_window_id tab_id
+        # When --profile is given, scope the search to that profile's browser
+        # windows. Chrome scripting can't read a window's profile directly, but
+        # yabai sees the profile suffix in the window title (e.g. "… - Google
+        # Chrome - Thales (Personal)") — the same signal focus-profile-window
+        # uses. We hand those titles to the JXA below, which keeps only windows
+        # whose active-tab title correlates with one of them. With no profile (or
+        # no matching window) the search falls back to every window.
+        set -l titles
+        if test -n "$_flag_profile"
+            set -l profile_name (chrome-preset get-profile-name "$_flag_profile")
+            set -l profile_regex (get-profile-regex --browser-only "$profile_name")
+            set titles (yabai-preset list-windows --regex "$profile_regex" | jq -r '.title')
+        end
 
-        chrome-preset focus-window "$chrome_window_id"
-        and chrome-cli activate -t "$tab_id"
+        # Find the first tab whose URL matches $regex and focus it — locate,
+        # select and activate in a SINGLE JXA round-trip. Only window names and
+        # tab URLs are fetched (one Apple Event each) and we stop at the first
+        # match, so this avoids list-tabs-json's extra id/title fetches, the jq
+        # subprocess, the separate focus-window osascript, and the slow chrome-cli
+        # activate process the previous implementation chained together.
+        #
+        # Inputs are passed via the environment (not string-interpolated) to avoid
+        # quoting/injection issues. Note the pattern is matched by JavaScript's
+        # RegExp rather than jq/Oniguruma; simple URL patterns behave identically.
+        set result (env CHROME_FOCUS_REGEX="$regex" CHROME_FOCUS_TITLES=(string join \n -- $titles) osascript -l JavaScript -e '
+            ObjC.import("Foundation");
+            const chrome = Application("Google Chrome");
+            const env = $.NSProcessInfo.processInfo.environment;
+            const re = new RegExp(ObjC.unwrap(env.objectForKey("CHROME_FOCUS_REGEX")));
+            const rawTitles = ObjC.unwrap(env.objectForKey("CHROME_FOCUS_TITLES")) || "";
+            const titles = rawTitles ? rawTitles.split("\n").filter(t => t.length) : null;
+            const wins = chrome.windows;
+            let count;
+            try { count = wins.length; } catch (e) { count = 0; }
+            let found = false;
+            for (let wi = 0; wi < count && !found; wi++) {
+                const w = wins[wi];
 
+                // Restrict to the profile windows. Chrome exposes no profile, and
+                // window.name() is middle-truncated (with an ellipsis) and lacks the
+                // profile suffix, so it cannot be matched. Instead correlate on the
+                // full active-tab title, which appears verbatim inside the yabai
+                // window title (e.g. "<tab title> - Google Chrome - Thales (Personal)").
+                if (titles) {
+                    let tabTitles, activeIdx;
+                    try { tabTitles = w.tabs.title(); activeIdx = w.activeTabIndex(); } catch (e) { continue; }
+                    const activeTitle = tabTitles[activeIdx - 1];
+                    if (!(activeTitle && titles.some(t => t.indexOf(activeTitle) !== -1))) {
+                        continue;
+                    }
+                }
+
+                let urls;
+                try { urls = w.tabs.url(); } catch (e) { continue; }
+                for (let i = 0; i < urls.length; i++) {
+                    if (urls[i] && re.test(urls[i])) {
+                        w.activeTabIndex = i + 1;
+                        w.index = 1;
+                        chrome.activate();
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            found ? "ok" : "not_found";
+        ')
+
+        test "$result" = "ok"
         or return 1
     case "check-url"
         set regex $argv[1]
@@ -192,7 +254,7 @@ function chrome-preset
             display-message "Open $_flag_label"
         end
 
-        chrome-preset focus-url "$regex"
+        chrome-preset focus-url --profile="$_flag_profile" "$regex"
         or chrome-preset open-url --newtab --profile="$_flag_profile" "$url"
         or return 1
     case "check-or-open-url"
