@@ -356,12 +356,12 @@ function M.setup()
   })
   default:conditionalBindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", {
     {cond = function() return isProcessRunning("zoom.us") end, function()
-      hs.alert.show("Toggle Mute")
+      Preset.displayMessage("Toggle Mute")
       launchOrFocus("zoom.us")
       hs.timer.doAfter(0.5, function() hs.eventtap.keyStroke({"cmd", "shift"}, "a") end)
     end},
     {function()
-      hs.alert.show("Toggle Mute")
+      Preset.displayMessage("Toggle Mute")
       task({"chrome-preset", "focus-or-open-url", "meet.google.com", "--label", "Google Meet"})
       hs.timer.doAfter(0.5, function() hs.eventtap.keyStroke({"cmd"}, "d") end)
     end},
@@ -385,11 +385,11 @@ function M.setup()
   -- kindaVim toggle
   default:conditionalBindOnce(hyperShift, "v", "Toggle kindaVim", {
     {cond = function() return isProcessRunning("kindaVim") end, function()
-      hs.alert.show("Exit kindaVim")
+      Preset.displayMessage("Exit kindaVim")
       task({"killall", "kindaVim"})
     end},
     {function()
-      hs.alert.show("Enter kindaVim")
+      Preset.displayMessage("Enter kindaVim")
       task({"open", "-a", "kindaVim"})
     end},
   })
@@ -604,7 +604,7 @@ function M.setup()
 
   -- Edit hammerspoon keybindings
   service:bindOnce(hyper, "e", "Edit Keybindings", function()
-    hs.alert.show("Edit Keybindings")
+    Preset.displayMessage("Edit Keybindings")
     fish('neovim-ghost focus-or-new-tab "$HOME/.hammerspoon/keybindings.lua"')
   end)
 
@@ -760,30 +760,30 @@ function M.setup()
   ---------------------------------------------------------------
 
   restart:bindOnce(hyper, "y", "Restart WM", function() task({"yabai-preset", "restart-wm"}) end)
-  restart:bindOnce(hyper, "a", "Restart Alfred", function() hs.alert.show("Restart Alfred"); fish('killall Alfred; sleep 2; and open -a "Alfred 5"') end)
-  restart:bindOnce(hyper, "m", "Restart Mouseless", function() hs.alert.show("Restart Mouseless"); fish('killall mouseless; sleep 2; and open -a "Mouseless"') end)
-  restart:bindOnce(hyper, "v", "Restart NVIM Ghost", function() hs.alert.show("Restart NVIM Ghost"); fish("neovim-ghost kill; sleep 2; and neovim-ghost start --spawn") end)
-  restart:bindOnce(hyper, "k", "Restart Karabiner", function() hs.alert.show("Restart Karabiner"); fish('launchctl kickstart -k gui/(id -u)/org.pqrs.service.agent.karabiner_console_user_server') end)
-  restart:bindOnce(hyper, "h", "Restart Hammerspoon", function() hs.alert.show("Restarting Hammerspoon"); hs.reload() end)
-  restart:bindOnce(hyperShift, "b", "Restart Hammerspoon", function() hs.alert.show("Restarting Hammerspoon"); hs.reload() end)
+  restart:bindOnce(hyper, "a", "Restart Alfred", function() Preset.displayMessage("Restart Alfred"); fish('killall Alfred; sleep 2; and open -a "Alfred 5"') end)
+  restart:bindOnce(hyper, "m", "Restart Mouseless", function() Preset.displayMessage("Restart Mouseless"); fish('killall mouseless; sleep 2; and open -a "Mouseless"') end)
+  restart:bindOnce(hyper, "v", "Restart NVIM Ghost", function() Preset.displayMessage("Restart NVIM Ghost"); fish("neovim-ghost kill; sleep 2; and neovim-ghost start --spawn") end)
+  restart:bindOnce(hyper, "k", "Restart Karabiner", function() Preset.displayMessage("Restart Karabiner"); fish('launchctl kickstart -k gui/(id -u)/org.pqrs.service.agent.karabiner_console_user_server') end)
+  restart:bindOnce(hyper, "h", "Restart Hammerspoon", function() Preset.displayMessage("Restarting Hammerspoon"); hs.reload() end)
+  restart:bindOnce(hyperShift, "b", "Restart Hammerspoon", function() Preset.displayMessage("Restarting Hammerspoon"); hs.reload() end)
   restart:bindEnter(hyper, "p", "Enter Repin Mode", repin)
   restart:conditionalBindOnce(hyper, "s", "Toggle AeroSpace", {
     {cond = function() return isProcessRunning("AeroSpace") end, function()
       a.sync(function()
-        hs.alert.show("Quitting AeroSpace")
+        Preset.displayMessage("Quitting AeroSpace")
         -- Click "Quit AeroSpace" in AeroSpace's menu bar extra (graceful quit).
         a.wait(taskAsync({"osascript-preset", "click-status-menu", "AeroSpace;Quit AeroSpace"}))
         -- If it didn't quit gracefully within 5s, force kill it.
         a.wait(sleep(5))
         if a.wait(isProcessRunning("AeroSpace")) then
-          hs.alert.show("Force killing AeroSpace")
+          Preset.displayMessage("Force killing AeroSpace")
           task({"killall", "AeroSpace"})
         end
       end)()
     end},
     {function()
       task({"yabai-preset", "layout-float-all"})
-      hs.alert.show("Starting AeroSpace")
+      Preset.displayMessage("Starting AeroSpace")
       task({"open", "-a", "AeroSpace"})
     end},
   })
@@ -817,6 +817,7 @@ function M.setup()
   -- INVOKE MODE bindings
   ---------------------------------------------------------------
 
+
   invoke:bindOnce({}, "1", "Arrange Work Spaces", function()
     task({"wm-preset", "arrange-spaces", "-w", [[1:.*Thales \(Work\).*]], "-a", "2:iTerm2", "-a", [[3:.*VS Code.*]], "-a", "4:Workchat", "-a", "5:Obsidian"})
   end)
@@ -827,9 +828,8 @@ function M.setup()
   invoke:bindOnce({}, "t", "Alfred Top Search", function() hs.applescript([[tell application "Alfred" to search "top "]]) end)
   invoke:bindOnce({}, "y", "YouTube Search", function() task({"open", "raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D"}) end)
   invoke:bindOnce({}, "return", "New iTerm Window", function() task({"iterm-preset", "new-window"}) end)
-  invoke:bindOnce(hyper, "i", "AI Input Mode", function() hs.alert.show("AI Input Mode"); fish('osascript -e "set volume input volume 100"; set-preferred-input-device') end)
-  invoke:bindOnce(hyper, "r", "Reinitialize Displays", function() hs.alert.show("Reinitialize Displays"); fish("betterdisplaycli perform --reinitialize") end)
-
+  invoke:bindOnce(hyper, "i", "AI Input Mode", function() Preset.displayMessage("AI Input Mode"); fish('osascript -e "set volume input volume 100"; display-message "$(set-preferred-input-device)"') end)
+  invoke:bindOnce(hyper, "r", "Reinitialize Displays", function() Preset.displayMessage("Reinitialize Displays"); fish("betterdisplaycli perform --reinitialize") end)
   ---------------------------------------------------------------
   -- Apply local overrides
   ---------------------------------------------------------------
