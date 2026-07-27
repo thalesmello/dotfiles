@@ -19,6 +19,19 @@ function __mp_clipboard_rich
     '
 end
 
+# Print the clipboard's HTML, empty if none.
+function __mp_clipboard_html
+    /usr/bin/osascript -l JavaScript -e '
+        ObjC.import("AppKit");
+        var pb = $.NSPasteboard.generalPasteboard;
+        var data = pb.dataForType($.NSPasteboardTypeHTML);
+        if (data && !data.isNil()) {
+            var str = $.NSString.alloc.initWithDataEncoding(data, 4);
+            str.js;
+        }
+    '
+end
+
 function markdown-preset
     set preset $argv[1]
     set -e argv[1]
@@ -31,6 +44,14 @@ function markdown-preset
             return 2
         end
         test -n "$rich"
+
+    case "is-clipboard-html"
+        set -l html (__mp_clipboard_html)
+        or begin
+            __mp_err "failed to read pasteboard via osascript"
+            return 2
+        end
+        test -n "$html"
 
     case "is-clipboard-md"
         set -l text (pbpaste 2>/dev/null)
@@ -50,15 +71,23 @@ function markdown-preset
             return 1
         end
         # Auto-detect the rich text format: RTF (including pandoc's headerless
-        # fragments) always begins with a "{\" control group, HTML never does.
-        set -l format html
+        # fragments) always begins with a "{\" control group. If it's not RTF,
+        # fall back to HTML only when the input actually contains HTML tags;
+        # otherwise treat it as already-plain markdown and pass it through.
+        set -l format
         if string match -qr '^\s*\{\\\\' -- "$input"
             set format rtf
+        else if string match -qr '<[a-zA-Z!/][^>]*>' -- "$input"
+            set format html
         end
-        printf '%s\n' $input | pandoc -f $format -t gfm-raw_html
-        or begin
-            __mp_err "pandoc failed to convert stdin ($format -> markdown)"
-            return 1
+        if test -z "$format"
+            printf '%s\n' $input
+        else
+            printf '%s\n' $input | pandoc -f $format -t gfm-raw_html
+            or begin
+                __mp_err "pandoc failed to convert stdin ($format -> markdown)"
+                return 1
+            end
         end
 
     case "stdin-to-rtf"
@@ -80,9 +109,13 @@ function markdown-preset
             __mp_err "failed to read rich text from pasteboard via osascript"
             return 2
         end
+        # Fall back to the clipboard's plain text when there's no rich text;
+        # stdin-to-md passes plain markdown through unchanged.
+        test -n "$rich"
+        or set rich (pbpaste 2>/dev/null)
         test -n "$rich"
         or begin
-            __mp_err "clipboard contains no rich text (RTF or HTML) to convert"
+            __mp_err "clipboard is empty; nothing to convert"
             return 1
         end
         # Delegate the format detection and conversion to stdin-to-md.
@@ -140,12 +173,12 @@ function markdown-preset
 
     case ''
         __mp_err "no preset given"
-        __mp_err "usage: markdown-preset <is-clipboard-rtf|is-clipboard-md|stdin-to-md|stdin-to-rtf|clipboard-to-md|clipboard-to-rtf|selection-to-md|selection-to-rtf>"
+        __mp_err "usage: markdown-preset <is-clipboard-rtf|is-clipboard-html|is-clipboard-md|stdin-to-md|stdin-to-rtf|clipboard-to-md|clipboard-to-rtf|selection-to-md|selection-to-rtf>"
         return 2
 
     case '*'
         __mp_err "unknown preset: $preset"
-        __mp_err "usage: markdown-preset <is-clipboard-rtf|is-clipboard-md|stdin-to-md|stdin-to-rtf|clipboard-to-md|clipboard-to-rtf|selection-to-md|selection-to-rtf>"
+        __mp_err "usage: markdown-preset <is-clipboard-rtf|is-clipboard-html|is-clipboard-md|stdin-to-md|stdin-to-rtf|clipboard-to-md|clipboard-to-rtf|selection-to-md|selection-to-rtf>"
         return 2
     end
 end
