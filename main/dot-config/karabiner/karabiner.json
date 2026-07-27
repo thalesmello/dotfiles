@@ -1435,12 +1435,19 @@
             "key_code" : "slash",
             "modifiers" : [ "left_command", "left_control", "left_option" ]
           } ],
+          "to_if_held_down" : [ {
+            "key_code" : "spacebar",
+            "modifiers" : [ "left_option" ]
+          } ],
           "to_after_key_up" : [ {
             "set_variable" : {
               "name" : "control-pressed-once",
               "value" : 0
             }
           } ],
+          "parameters" : {
+            "basic.to_if_held_down_threshold_milliseconds" : 150
+          },
           "from" : {
             "key_code" : "left_control",
             "modifiers" : {
@@ -1529,6 +1536,68 @@
           "to" : [ {
             "key_code" : "delete_or_backspace",
             "modifiers" : [ "left_command" ]
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "c",
+            "modifiers" : {
+              "mandatory" : [ "fn" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "c",
+            "modifiers" : [ "left_control" ]
+          } ],
+          "type" : "basic"
+        }, {
+          "to_if_held_down" : [ {
+            "key_code" : "spacebar",
+            "modifiers" : [ "left_option" ]
+          } ],
+          "to_after_key_up" : [ {
+            "set_variable" : {
+              "name" : "fn-pressed-once",
+              "value" : 0
+            }
+          } ],
+          "from" : {
+            "key_code" : "fn"
+          },
+          "to" : [ {
+            "key_code" : "fn"
+          } ],
+          "conditions" : [ {
+            "name" : "fn-pressed-once",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "to_delayed_action" : {
+            "to_if_invoked" : [ {
+              "set_variable" : {
+                "name" : "fn-pressed-once",
+                "value" : 0
+              }
+            } ],
+            "to_if_canceled" : [ {
+              "set_variable" : {
+                "name" : "fn-pressed-once",
+                "value" : 0
+              }
+            } ]
+          },
+          "from" : {
+            "key_code" : "fn"
+          },
+          "to" : [ {
+            "set_variable" : {
+              "name" : "fn-pressed-once",
+              "value" : 1
+            }
+          }, {
+            "key_code" : "fn"
           } ],
           "type" : "basic"
         } ]
