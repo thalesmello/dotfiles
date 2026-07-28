@@ -124,6 +124,10 @@ if.app-name-regex-substring = 'Karabiner-Elements'
 run = ['layout floating']
 
 [[on-window-detected]]
+if.app-name-regex-substring = 'Hammerspoon'
+run = ['layout floating']
+
+[[on-window-detected]]
 if.app-name-regex-substring = 'Mac Mouse Fix'
 run = ['layout floating']
 
