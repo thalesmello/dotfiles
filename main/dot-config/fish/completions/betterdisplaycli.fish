@@ -2,7 +2,7 @@
 
 function __betterdisplaycli_complete_displays -a jq_filter
   if command -q jq
-    command betterdisplaycli get --identifiers |  sed 's/},{/}\\n{/' | jq -r $jq_filter
+    command betterdisplaycli get --identifiers |  sed 's/},{/}\\n{/' | jq -r "$jq_filter | select(. != null)"
   end
 end
 
