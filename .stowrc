@@ -1,3 +1,4 @@
 --target=~
 --dotfiles
+--dir=./stow_modules
 --ignore=\.stowrc
