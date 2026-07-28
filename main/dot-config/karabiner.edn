@@ -101,6 +101,10 @@
             :space-mode
             [:left_shift :left_shift]
             [:right_shift :left_shift]
+            [:left_command :left_command]
+            [:left_option :left_option]
+            [:left_control :left_control]
+            [:fn :fn]
             [:##a :!Cleft_arrow]
             [:##0 :!Cleft_arrow]
             [:##4 :!Cright_arrow]
