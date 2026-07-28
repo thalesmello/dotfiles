@@ -177,7 +177,60 @@ vim.keymap.set("c", "<c-->", '\\{-}', { noremap = true })
 -- Map default C-t
 vim.keymap.set("n", "<leader><c-t>", '<c-t>', { noremap = true })
 
-vim.keymap.set({"n", "v"}, "<leader>z", function () 
+-- Jump through the jumplist stopping at file boundaries, then let the plain
+-- <c-o>/<c-i> navigate back and forth within the reached file.
+--   <leader><c-o>: jump backward to the nearest entry in a different file.
+--   <leader><c-i>: jump forward to the last entry of the next different file,
+--                  so a subsequent <c-i> crosses into yet another file.
+local function jump_to_different_file(direction)
+  local jl = vim.fn.getjumplist()
+  local jumps = jl[1]
+  local len = #jumps
+  -- getjumplist returns a 0-based index; the current position sits at
+  -- jumps[cur_pos] (or just past the end when cur_pos > len).
+  local cur_pos = jl[2] + 1
+  local ref = vim.api.nvim_get_current_buf()
+
+  local function valid(entry)
+    return entry ~= nil and entry.bufnr > 0 and vim.api.nvim_buf_is_valid(entry.bufnr)
+  end
+
+  local target
+
+  if direction < 0 then
+    -- Walk backward, skipping the current file, to the first different file.
+    local i = cur_pos - 1
+    while i >= 1 and (not valid(jumps[i]) or jumps[i].bufnr == ref) do
+      i = i - 1
+    end
+    if i >= 1 then target = i end
+  else
+    -- Walk forward past the current file to the next different file...
+    local i = cur_pos + 1
+    while i <= len and (not valid(jumps[i]) or jumps[i].bufnr == ref) do
+      i = i + 1
+    end
+    if i <= len then
+      -- ...then advance to the last consecutive entry of that file.
+      local buf = jumps[i].bufnr
+      while i + 1 <= len and valid(jumps[i + 1]) and jumps[i + 1].bufnr == buf do
+        i = i + 1
+      end
+      target = i
+    end
+  end
+
+  if target == nil then return end
+
+  local count = math.abs(target - cur_pos)
+  local key = vim.api.nvim_replace_termcodes(direction < 0 and "<c-o>" or "<c-i>", true, false, true)
+  vim.api.nvim_feedkeys(count .. key, "n", false)
+end
+
+vim.keymap.set("n", "<leader><c-o>", function () jump_to_different_file(-1) end, { noremap = true })
+vim.keymap.set("n", "<leader><c-i>", function () jump_to_different_file(1) end, { noremap = true })
+
+vim.keymap.set({"n", "v"}, "<leader>z", function ()
   if vim.g.fuzzy_finder_to_resume == 'fzf' then
     vim.cmd.FzfLua('resume')
   elseif vim.g.fuzzy_finder_to_resume == "telescope" then
