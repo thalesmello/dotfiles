@@ -2,7 +2,7 @@
 
 set -eo pipefail
 
-DOTDIR="${STOWMAN_DOTDIR:-$HOME/.dotfiles}"
+DOTDIR="${STOWMAN_DOTDIR:-$HOME/src/dotfiles}"
 HOMEDIR="${STOWMAN_HOMEDIR:-$HOME}"
 
 BLUE='\033[0;34m'
@@ -12,7 +12,7 @@ PINK='\033[0;35m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-stowcmd="stow -d $DOTDIR -t $HOMEDIR -v"
+stowcmd="stow --dotfiles -d $DOTDIR -t $HOMEDIR -v"
 gitcmd="git -C $DOTDIR"
 
 function push() {
@@ -86,6 +86,9 @@ function add() {
   what=$(echo "$what" | sed -e "s/~\///g")
   what=$(echo "$what" | sed -e "s/\/home\/$(whoami)\///g")
   what=$(echo "$what" | sed -e "s/\/Users\/$(whoami)\///g")
+  # Translate dotfiles into stow's --dotfiles convention: each path
+  # component starting with "." becomes "dot-" (e.g. .config -> dot-config)
+  what=$(echo "$what" | sed -E "s#(^|/)\.#\1dot-#g")
 
   if [[ ! -e "$src" ]]; then
     echo
