@@ -18,8 +18,8 @@ chsh -s "$(which fish)"
 Create a symbolic links for your files:
 
 ```
-stow --target "$HOME" --dotfiles main
-stow --target "$HOME" --dotfiles local
+stow main
+stow local
 ln "$(pwd)/mouseless/config.yaml" "$HOME/Library/Containers/net.sonuscape.mouseless/Data/.mouseless/configs/config.yaml"
 ```
 
