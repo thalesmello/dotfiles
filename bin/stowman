@@ -12,6 +12,44 @@ PINK='\033[0;35m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+# Expand a leading ~ (in case it was quoted on the command line) into $HOME.
+function expandPath() {
+  case "$1" in
+  "~") echo "$HOME" ;;
+  "~/"*) echo "$HOME/${1#\~/}" ;;
+  *) echo "$1" ;;
+  esac
+}
+
+# Parse global options (--dotdir/--homedir) and collect the remaining
+# positional arguments (the subcommand and its arguments).
+ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --dotdir)
+    DOTDIR="$(expandPath "$2")"
+    shift 2
+    ;;
+  --dotdir=*)
+    DOTDIR="$(expandPath "${1#*=}")"
+    shift
+    ;;
+  --homedir)
+    HOMEDIR="$(expandPath "$2")"
+    shift 2
+    ;;
+  --homedir=*)
+    HOMEDIR="$(expandPath "${1#*=}")"
+    shift
+    ;;
+  *)
+    ARGS+=("$1")
+    shift
+    ;;
+  esac
+done
+set -- "${ARGS[@]}"
+
 stowcmd="stow --dotfiles -d $DOTDIR -t $HOMEDIR -v"
 gitcmd="git -C $DOTDIR"
 
@@ -144,14 +182,14 @@ function list() {
 }
 
 function usage() {
-  echo -e "Invalid operation. Use stowman.sh ${PINK}help${NC} for help."
+  echo -e "Invalid operation. Use stowman ${PINK}help${NC} for help."
 }
 
 function help() {
   cat <<EOF
    _==_ _
  _,(",)|_|
-  \/. \-|   stowman.sh
+  \/. \-|   stowman
 __( :  )|_  Manage your dotfiles easily.
 
 EOF
@@ -178,25 +216,29 @@ EOF
   echo -e "git: \t${GREEN}$gv${NC}\tstow: \t${GREEN}$sv${NC} \t dots: ${ddir}"
   echo
   echo -e "${BLUE}Usage:${NC}"
-  echo -e "stowman.sh ${PINK}init <repo>${NC}  \t${BLUE}Initialize a new config${NC}"
-  echo -e "stowman.sh ${PINK}add <src> <pkg>${NC}  \t${BLUE}Adds a file/folder to a specific package${NC}"
-  echo -e "stowman.sh ${PINK}reload <pkg>|all${NC} \t${BLUE}Applies changes to a specific package or all packages${NC}"
-  echo -e "stowman.sh ${PINK}push${NC} \t\t${BLUE}Push changes to the repository${NC}"
-  echo -e "stowman.sh ${PINK}pull${NC} \t\t${BLUE}Pull changes from the repository${NC}"
+  echo -e "stowman ${PINK}init <repo>${NC}  \t${BLUE}Initialize a new config${NC}"
+  echo -e "stowman ${PINK}add <src> <pkg>${NC}  \t${BLUE}Adds a file/folder to a specific package${NC}"
+  echo -e "stowman ${PINK}reload <pkg>|all${NC} \t${BLUE}Applies changes to a specific package or all packages${NC}"
+  echo -e "stowman ${PINK}push${NC} \t\t${BLUE}Push changes to the repository${NC}"
+  echo -e "stowman ${PINK}pull${NC} \t\t${BLUE}Pull changes from the repository${NC}"
+  echo
+  echo -e "${BLUE}Options:${NC}"
+  echo -e "${PINK}--dotdir <dir>${NC}  \t${BLUE}Override the dotfiles directory (default: $DOTDIR)${NC}"
+  echo -e "${PINK}--homedir <dir>${NC} \t${BLUE}Override the target home directory (default: $HOMEDIR)${NC}"
   echo
   echo -e "${BLUE}Initializing a new config${NC}"
-  echo -e "stowman.sh ${PINK}init${NC} git@github.com:user/repo.git"
+  echo -e "stowman ${PINK}init${NC} git@github.com:user/repo.git"
   echo
   echo -e "${BLUE}Adding new files or folders${NC}"
-  echo -e "stowman.sh ${PINK}add${NC} ~/.config/nvim packagename"
-  echo -e "stowman.sh ${PINK}add${NC} . packagename"
+  echo -e "stowman ${PINK}add${NC} ~/.config/nvim packagename"
+  echo -e "stowman ${PINK}add${NC} . packagename"
   echo
   echo -e "${BLUE}Reloading changes${NC}"
-  echo -e "stowman.sh ${PINK}reload${NC} all"
-  echo -e "stowman.sh ${PINK}reload${NC} packagename"
+  echo -e "stowman ${PINK}reload${NC} all"
+  echo -e "stowman ${PINK}reload${NC} packagename"
   echo
   echo -e "${BLUE}List stowed files and folders${NC}"
-  echo -e "stowman.sh ${PINK}list${NC}"
+  echo -e "stowman ${PINK}list${NC}"
   echo
 }
 
