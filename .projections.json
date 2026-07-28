@@ -1,21 +1,21 @@
 {
-  "main/dot-config/fish/fundle/*.fish": {"type": "fishplugin"},
-  "main/dot-config/fish/completions/*.fish": {"type": "fishcompletion"},
-  "main/dot-config/fish/functions/*.fish": {
+  "stow_modules/main/dot-config/fish/fundle/*.fish": {"type": "fishplugin"},
+  "stow_modules/main/dot-config/fish/completions/*.fish": {"type": "fishcompletion"},
+  "stow_modules/main/dot-config/fish/functions/*.fish": {
     "type": "fishfunction",
     "template": [
       "function {}",
       "end"
     ]
   },
-  "main/dot-config/fish/conf.d/*.fish": {"type": "fishconf"},
-  "main/dot-config/fish/config.fish": {"type": "fishinit"},
+  "stow_modules/main/dot-config/fish/conf.d/*.fish": {"type": "fishconf"},
+  "stow_modules/main/dot-config/fish/config.fish": {"type": "fishinit"},
   "README.md": {"type": "doc"},
-  "main/dot-config/karabiner.edn": { "type": "karabiner", "dispatch": "goku" },
-  "main/dot-config/nvim/lua/config/*.lua":{
+  "stow_modules/main/dot-config/karabiner.edn": { "type": "karabiner", "dispatch": "goku" },
+  "stow_modules/main/dot-config/nvim/lua/config/*.lua":{
     "type":"config"
   },
-  "main/dot-config/nvim/lua/plugins/*.lua":{
+  "stow_modules/main/dot-config/nvim/lua/plugins/*.lua":{
     "type":"plugin",
     "dispatch": "nvr --nostart -cc \"lua require'vim_utils'.reload_lazy_file('plugin.{}')\"",
     "template": [
@@ -28,17 +28,17 @@
       "}"
     ]
   },
-  "main/dot-config/nvim/lua/*.lua":{
+  "stow_modules/main/dot-config/nvim/lua/*.lua":{
     "type":"lua",
     "dispatch": "nvr --nostart -cc \"source {file}\""
   },
-  "main/dot-config/nvim/local_plugins/**/lua/*.lua":{
+  "stow_modules/main/dot-config/nvim/local_plugins/**/lua/*.lua":{
     "type":"localplugins"
   },
-  "main/dot-config/nvim/after/queries/*/textobjects.scm":{
+  "stow_modules/main/dot-config/nvim/after/queries/*/textobjects.scm":{
     "type":"textobjects"
   },
-  "main/dot-config/nvim/lua/ftmini/*.lua":{
+  "stow_modules/main/dot-config/nvim/lua/ftmini/*.lua":{
     "type":"ftmini"
   }
 }
