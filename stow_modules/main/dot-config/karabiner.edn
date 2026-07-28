@@ -172,10 +172,10 @@
             [:!Fw  :!Odelete_or_backspace]
             [:!Fu  :!Cdelete_or_backspace]
             [:!Fc  :!Tc]
-            [:##Fup_arrow :page_up]
-            [:##Fdown_arrow :page_down]
-            [:##Fleft_arrow :home]
-            [:##Fright_arrow :end]
+            [:!F##up_arrow :page_up]
+            [:!F##down_arrow :page_down]
+            [:!F##left_arrow :home]
+            [:!F##right_arrow :end]
             ; Fn double-tap-hold sends Option+Space
             ; Second press (fn-pressed-once=1): tap alone does nothing; hold sends option+spacebar while held
             [:fn :fn ["fn-pressed-once" 1] {:held :!Ospacebar :afterup ["fn-pressed-once" 0]}]
