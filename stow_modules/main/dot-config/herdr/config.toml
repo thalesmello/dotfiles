@@ -165,7 +165,7 @@ description = "copy last command output"
 [[keys.command]]
 key = "prefix+ctrl+t"
 type = "shell"
-command = "herdr tab create --focus"
+command = "\"${HERDR_BIN_PATH:-herdr}\" tab create --focus"
 description = "new tab (no name prompt)"
 
 # Smart pane navigation: focus the pane in that direction, but forward ctrl+hjkl
