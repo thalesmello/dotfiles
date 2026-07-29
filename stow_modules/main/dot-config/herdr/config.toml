@@ -161,6 +161,13 @@ type = "shell"
 command = "~/.config/herdr/scripts/copy-last-output.sh"
 description = "copy last command output"
 
+# Copy the focused pane's id to the clipboard and show a notification.
+[[keys.command]]
+key = "prefix+y"
+type = "shell"
+command = "~/.config/herdr/scripts/copy-pane-id.sh"
+description = "copy pane id"
+
 # New tab without the name prompt (new_tab action always honors prompt_new_tab_name).
 [[keys.command]]
 key = "prefix+ctrl+t"
@@ -312,12 +319,13 @@ copy_on_select = true
 # accent = "cyan"
 
 # Background notification popup delivery
+agent_panel_sort = "spaces"
 [ui.toast]
 # off = disable pop-up notifications
 # herdr = show in-app toasts
 # terminal = ask the outer terminal to show a desktop notification
 # system = ask the OS notification service directly
-# delivery = "off"
+delivery = "herdr"
 # delay_seconds = 1
 
 [ui.toast.herdr]
