@@ -85,7 +85,7 @@ previous_agent = "prefix+shift+tab"
 next_agent = "prefix+tab"
 focus_agent = "prefix+shift+1..9"   # focus agent 1-9
 # remote_image_paste = "ctrl+v" # only active in herdr --remote; empty disables raw-key image paste
-# new_tab = "prefix+c"
+new_tab = ["prefix+c", "prefix+ctrl+t"]
 # rename_tab = "prefix+shift+t"
 # tmux parity: `bind -r C-p previous-window` / `bind -r C-n next-window`
 # accept both prefix+ctrl+p/n and plain prefix+p/n
@@ -167,13 +167,6 @@ key = "prefix+y"
 type = "shell"
 command = "~/.config/herdr/scripts/copy-pane-id.sh"
 description = "copy pane id"
-
-# New tab without the name prompt (new_tab action always honors prompt_new_tab_name).
-[[keys.command]]
-key = "prefix+ctrl+t"
-type = "shell"
-command = "\"${HERDR_BIN_PATH:-herdr}\" tab create --focus"
-description = "new tab (no name prompt)"
 
 # Smart pane navigation: focus the pane in that direction, but forward ctrl+hjkl
 # to (n)vim when the pane is zoomed or is the only pane in the tab.
@@ -271,13 +264,13 @@ copy_on_select = true
 
 # Ask for a tab name before creating a new tab.
 # Set false to create tabs immediately with generated names.
-# prompt_new_tab_name = true
+prompt_new_tab_name = false
 
 # Ask for a workspace name before interactive creation.
-# prompt_new_workspace_name = false
+prompt_new_workspace_name = false
 
 # Draw borders around split panes.
-# pane_borders = true
+pane_borders = true
 
 # Keep split panes visually separated instead of sharing divider borders.
 # pane_gaps = true
@@ -287,7 +280,7 @@ copy_on_select = true
 
 # Hide the tab row when a workspace has exactly one tab.
 # New tabs can still be created with the configured keybinding.
-# hide_tab_bar_when_single_tab = false
+hide_tab_bar_when_single_tab = true
 
 # Agent panel ordering: "spaces" (grouped by space) or "priority" (attention queue).
 # "workspaces" is accepted as an alias for "spaces".
