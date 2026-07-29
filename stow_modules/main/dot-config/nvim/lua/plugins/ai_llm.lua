@@ -43,11 +43,20 @@ return {
          --    }
          -- end
 
-         if vim.env.TMUX then
-            opts.terminal = {
-               provider = require('claudecode_neoterm_provider'),
-            }
-         end
+         -- Always route Claude Code through the neoterminal provider so it
+         -- inherits the same callbacks/keymaps as a regular <c-space>v terminal
+         -- (including alt-screen scroll forwarding via open_filtered_terminal).
+         -- The snacks default has no output hook, so it can't detect alt mode.
+         --
+         -- Previously this was gated behind `vim.env.TMUX or vim.env.HERDR_PANE_ID`
+         -- so only multiplexer sessions used the neoterm provider and everything
+         -- else fell back to snacks. That left snacks-based terminals (e.g.
+         -- :ClaudeCodeOpen outside tmux/herdr) without scroll forwarding, so the
+         -- gate was removed. (Herdr exports HERDR_PANE_ID into every pane shell,
+         -- which nvim inherits.)
+         opts.terminal = {
+            provider = require('claudecode_neoterm_provider'),
+         }
 
          return opts
       end,
@@ -83,6 +92,9 @@ return {
 
                if claude_window_active() then
                   vim.cmd("ClaudeCodeAdd %")
+                  vim.schedule(function()
+                     vim.cmd.ClaudeCodeOpen()
+                  end)
                   return
                end
 
