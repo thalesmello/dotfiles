@@ -379,7 +379,8 @@ return {
 
             -- Replace text with register
             replace = {
-                prefix = 'gr',
+                -- Disable default mappings; set up custom ones without `line`
+                prefix = 'cg',
 
                 -- Whether to reindent new text to match previous indent
                 reindent_linewise = true,
@@ -394,11 +395,10 @@ return {
             }
         },
         config = function (_, opts)
-            require("mini.operators").setup(opts)
+            local operators = require("mini.operators")
+            operators.setup(opts)
 
-            vim.keymap.set("n", "<leader>gr", '"+gr', { remap = true })
-            vim.keymap.set("n", "<leader>R", '"+gr', { remap = true })
-            vim.keymap.set("n", "R", 'gr', { remap = true })
+            vim.keymap.set("n", "<leader>cg", '"+cg', { remap = true })
         end,
         extra_contexts = {"vscode", "firenvim", "lite_mode", "ssh"},
     }
