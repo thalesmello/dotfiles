@@ -1,3 +1,4 @@
+onboarding = false
 # herdr configuration
 # Place this file at ~/.config/herdr/config.toml
 
@@ -28,7 +29,8 @@
 [terminal]
 # Executable used for new interactive panes.
 # Empty means $SHELL, then /bin/sh.
-# default_shell = ""
+# tmux parity: `set -g default-command "fish"`
+default_shell = "fish"
 
 # Startup mode for new interactive pane shells: "auto", "login", or "non_login".
 # "auto" uses login shells on macOS and keeps the current behavior elsewhere.
@@ -60,13 +62,14 @@
 # Named punctuation such as minus, comma, ampersand, plus, and backtick is also accepted.
 # Most reliable direct bindings are ctrl+letter, function keys, and explicit modified chords.
 # alt+..., cmd/super, and punctuation-with-modifiers may depend on your terminal/tmux setup.
-# prefix = "ctrl+b"
+# tmux parity: `set -g prefix C-Space`
+prefix = "ctrl+space"
 
 # Prefix-mode actions
 # help = "prefix+?"
 # settings = "prefix+s"
 # detach = "prefix+q"
-# reload_config = "prefix+shift+r"
+reload_config = "prefix+shift+r"
 # open_notification_target = "prefix+o"
 # workspace_picker = "prefix+w"
 # goto = "prefix+g"
@@ -78,41 +81,56 @@
 # close_workspace = "prefix+shift+d"
 # previous_workspace = "" # optional, unset by default
 # next_workspace = ""     # optional, unset by default
-# previous_agent = ""     # optional, unset by default
-# next_agent = ""         # optional, unset by default
-# focus_agent = ""        # optional indexed binding, e.g. "prefix+alt+1..9"
+previous_agent = "prefix+shift+tab"
+next_agent = "prefix+tab"
+focus_agent = "prefix+shift+1..9"   # focus agent 1-9
 # remote_image_paste = "ctrl+v" # only active in herdr --remote; empty disables raw-key image paste
 # new_tab = "prefix+c"
 # rename_tab = "prefix+shift+t"
-# previous_tab = "prefix+p"
-# next_tab = "prefix+n"
+# tmux parity: `bind -r C-p previous-window` / `bind -r C-n next-window`
+# accept both prefix+ctrl+p/n and plain prefix+p/n
+previous_tab = ["prefix+ctrl+p", "prefix+p"]
+next_tab = ["prefix+ctrl+n", "prefix+n"]
 # switch_tab = "prefix+1..9"
-# switch_workspace = ""   # optional indexed binding, e.g. "prefix+shift+1..9"
+# switch_workspace = ""   # freed: prefix+shift+1..9 now focuses agents (focus_agent)
 # close_tab = "prefix+shift+x"
 # rename_pane = "prefix+shift+p"
 # edit_scrollback = "prefix+e"
-# focus_pane_left = "prefix+h"
-# focus_pane_down = "prefix+j"
-# focus_pane_up = "prefix+k"
-# focus_pane_right = "prefix+l"
-# cycle_pane_next = "prefix+tab"
-# cycle_pane_previous = "prefix+shift+tab"
+# tmux parity: `bind Space copy-mode` (herdr default is prefix+[)
+copy_mode = ["prefix+[", "prefix+space"]
+# plain prefix+h/j/k/l = herdr's native pane focus.
+# prefix+ctrl+h/j/k/l is handled by smart-pane-nav.sh (see [[keys.command]] below):
+# it focuses panes too, but forwards ctrl+hjkl to (n)vim when zoomed / single pane.
+focus_pane_left = "prefix+h"
+focus_pane_down = "prefix+j"
+focus_pane_up = "prefix+k"
+focus_pane_right = "prefix+l"
+# freed for next_agent / previous_agent (prefix+tab / prefix+shift+tab)
+cycle_pane_next = ""
+cycle_pane_previous = ""
 # last_pane = ""          # optional, unset by default; bind e.g. "prefix+tab" for global back-and-forth
-# split_vertical = "prefix+v"
-# split_horizontal = "prefix+minus"
-# close_pane = "prefix+x"
+# tmux parity: `bind v` / `bind % split-window -h` (side-by-side / vertical divider)
+split_vertical = ["prefix+v", "prefix+%"]
+# tmux parity: `bind '"' split-window -v` (stacked / horizontal divider)
+split_horizontal = ["prefix+minus", "prefix+\""]
+# prefix+backspace is repurposed as smart-close (see [[keys.command]] below);
+# plain pane close lives on prefix+shift+backspace.
+close_pane = "prefix+shift+backspace"
 # zoom = "prefix+z"       # legacy alias: fullscreen
-# resize_mode = "prefix+r"
+resize_mode = "prefix+r"
 # toggle_sidebar = "prefix+b"
 
 # Navigate-mode movement. These local shortcuts win while navigate mode is open.
 # They are independent from focus_pane_*. Do not include prefix+, esc, enter, tab, or 1..9 here.
-# navigate_workspace_up = "up"
-# navigate_workspace_down = "down"
-# navigate_pane_left = "h"      # left arrow always focuses the pane to the left
-# navigate_pane_down = "j"
-# navigate_pane_up = "k"
-# navigate_pane_right = "l"     # right arrow always focuses the pane to the right
+# j/k (plus arrows) move up/down the sidebar workspace list in navigate mode
+navigate_workspace_up = ["up", "k"]
+navigate_workspace_down = ["down", "j"]
+# h/j/k/l are freed here so navigate mode only moves the sidebar (j/k above);
+# pane focus stays on prefix+h/j/k/l. Arrow keys still move pane left/right.
+navigate_pane_left = ""
+navigate_pane_down = ""
+navigate_pane_up = ""
+navigate_pane_right = ""
 
 # Custom commands use the same binding syntax.
 # type = "shell" runs detached in the background.
@@ -126,6 +144,62 @@
 # command = "lazygit"
 # width = "80%"
 # height = "80%"
+
+# tmux parity: `bind C send-keys C-l` — clear the focused pane's screen.
+# (tmux also ran `clear-history`; herdr has no scrollback-clear CLI, so this
+#  only sends ctrl+l, same as pressing it directly in the shell.)
+[[keys.command]]
+key = "prefix+shift+c"
+type = "shell"
+command = "herdr pane send-keys \"$HERDR_PANE_ID\" ctrl+l"
+description = "clear screen (ctrl+l)"
+
+# Copy the previous command's output to the clipboard (fish panes only).
+[[keys.command]]
+key = "prefix+shift+b"
+type = "shell"
+command = "~/.config/herdr/scripts/copy-last-output.sh"
+description = "copy last command output"
+
+# New tab without the name prompt (new_tab action always honors prompt_new_tab_name).
+[[keys.command]]
+key = "prefix+ctrl+t"
+type = "shell"
+command = "herdr tab create --focus"
+description = "new tab (no name prompt)"
+
+# Smart pane navigation: focus the pane in that direction, but forward ctrl+hjkl
+# to (n)vim when the pane is zoomed or is the only pane in the tab.
+[[keys.command]]
+key = "prefix+ctrl+h"
+type = "shell"
+command = "~/.config/herdr/scripts/smart-pane-nav.sh left h"
+description = "focus/forward pane left"
+
+[[keys.command]]
+key = "prefix+ctrl+j"
+type = "shell"
+command = "~/.config/herdr/scripts/smart-pane-nav.sh down j"
+description = "focus/forward pane down"
+
+[[keys.command]]
+key = "prefix+ctrl+k"
+type = "shell"
+command = "~/.config/herdr/scripts/smart-pane-nav.sh up k"
+description = "focus/forward pane up"
+
+[[keys.command]]
+key = "prefix+ctrl+l"
+type = "shell"
+command = "~/.config/herdr/scripts/smart-pane-nav.sh right l"
+description = "focus/forward pane right"
+
+# prefix+backspace: forward <c-space><bs> to (n)vim, else close the tab.
+[[keys.command]]
+key = "prefix+backspace"
+type = "shell"
+command = "~/.config/herdr/scripts/smart-close.sh"
+description = "close: forward to nvim or close tab"
 
 # Legacy indexed shortcut config is still parsed for compatibility.
 # Prefer switch_tab, switch_workspace, and focus_agent for new configs.
@@ -160,11 +234,13 @@
 # Capture mouse input for Herdr's mouse UI.
 # Set false to let the terminal handle normal clicks, such as Cmd-clicking URLs.
 # Pane apps like lazygit and btop can still receive mouse when they request it.
-# mouse_capture = true
+# tmux parity: `set -g mouse on`
+mouse_capture = true
 
 # Automatically copy text selected by mouse drag.
 # Set false to keep drag selection visible without copying; double-click still copies a word.
-# copy_on_select = true
+# tmux parity: copy-mode-vi `copy-pipe "pbcopy"` on selection
+copy_on_select = true
 
 # Host cursor policy: "auto", "native", or "drawn".
 # "auto" draws Herdr's own cursor on native Windows builds and WSL to avoid ConPTY cursor flicker, and uses the native terminal cursor elsewhere.
@@ -267,7 +343,8 @@
 [session]
 # Resume supported AI-agent panes into their native conversation sessions after
 # a Herdr server restart. Requires official integrations that report session refs.
-# resume_agents_on_restore = true
+# closest analog to tmux-resurrect/tmux-continuum session restore
+resume_agents_on_restore = true
 
 [remote]
 # Whether herdr manages the ssh config used for `herdr --remote`.
@@ -287,7 +364,8 @@
 # Requires a Kitty graphics-compatible outer terminal.
 # kitty_graphics = false
 # Save recent pane screen history across full server restarts.
-pane_history = false
+# tmux parity: `@resurrect-capture-pane-contents 'on'`
+pane_history = true
 # While prefix mode is active, temporarily switch the macOS host input
 # source to an ASCII-capable keyboard layout so prefix commands register
 # even when a CJK IME is active, then restore the previous input source
