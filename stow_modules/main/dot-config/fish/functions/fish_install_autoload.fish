@@ -20,35 +20,49 @@ function fish_install_autoload --description 'Install fish autoload files for av
     argparse if-absent -- $argv
     or return 1
 
-    set brew_file "$__fish_user_data_dir/vendor_conf.d/brew.fish"
-    set fzf_file "$__fish_user_data_dir/vendor_conf.d/fzf.fish"
-    set try_file "$__fish_user_data_dir/vendor_functions.d/try.fish"
+    set -l SEP \x1f
+    set -l INSTALL_FILES
+    set -l INSTALL_COND
+    set -l INSTALL_COMMANDS
+
+    # fzf
+    set -a INSTALL_FILES "$__fish_user_data_dir/vendor_conf.d/fzf.fish"
+    set -a INSTALL_COND (string join $SEP -- command -q fzf)
+    set -a INSTALL_COMMANDS (string join $SEP -- fzf --fish)
+
+    # try
+    set -a INSTALL_FILES "$__fish_user_data_dir/vendor_functions.d/try.fish"
+    set -a INSTALL_COND __fish_install_autoload_have_try
+    set -a INSTALL_COMMANDS (string join $SEP -- try init)
+
+    # herdr
+    set -a INSTALL_FILES "$__fish_user_data_dir/vendor_completions.d/herdr.fish"
+    set -a INSTALL_COND (string join $SEP -- command -q herdr)
+    set -a INSTALL_COMMANDS (string join $SEP -- herdr completion fish)
+
+    # brew
+    set -a INSTALL_FILES "$__fish_user_data_dir/vendor_conf.d/brew.fish"
+    set -a INSTALL_COND (string join $SEP -- command -q brew)
+    set -a INSTALL_COMMANDS (string join $SEP -- (__fish_install_autoload_brew_path) shellenv)
 
     # In --if-absent mode, only check whether the config files already exist. If
     # they all do, there is nothing to do. Otherwise fall through and reinstall
-    # everything; the command probes below decide what actually gets written.
-    if set -q _flag_if_absent
-        if test -e "$brew_file"; and test -e "$fzf_file"; and test -e "$try_file"
-            return 0
-        end
+    # everything; the per-tool conditions below decide what actually gets written.
+    if set -q _flag_if_absent; and not path filter -qv -- $INSTALL_FILES
+        return 0
     end
 
-    mkdir -p "$__fish_user_data_dir/vendor_conf.d/"
+    mkdir -p \
+        "$__fish_user_data_dir/vendor_conf.d/" \
+        "$__fish_user_data_dir/vendor_functions.d/" \
+        "$__fish_user_data_dir/vendor_completions.d/"
     or return 1
-    mkdir -p "$__fish_user_data_dir/vendor_functions.d/"
-    or return 1
 
-    set brew_path (__fish_install_autoload_brew_path)
-    if test -n "$brew_path"; and not test -e "$brew_file"
-        "$brew_path" shellenv > "$brew_file"
-        and source "$brew_file"
+    for i in (seq (count $INSTALL_FILES))
+        set -l cond (string split $SEP -- $INSTALL_COND[$i])
+        eval $cond; or continue
+        set -l cmd (string split $SEP -- $INSTALL_COMMANDS[$i])
+        command $cmd > $INSTALL_FILES[$i]
     end
 
-    if command -q fzf
-        command fzf --fish > "$fzf_file"
-    end
-
-    if __fish_install_autoload_have_try
-        command try init > "$try_file"
-    end
 end
