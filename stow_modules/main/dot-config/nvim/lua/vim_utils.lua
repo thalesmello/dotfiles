@@ -4,10 +4,10 @@ function M.keycodes(str)
 end
 
 --- @param str string keys to feed into editor
---- @param mode? 'n'|'m' mode passed to the feedkeys() function call, defaults to 'n'
+--- @param mode? string mode passed to the feedkeys() function call, defaults to 'n'
 function M.feedkeys(str, mode)
     mode = mode or 'n'
-    vim.api.nvim_feedkeys(M.keycodes(str), 'n', false)
+    vim.api.nvim_feedkeys(M.keycodes(str), mode, false)
 end
 
 function M.get_visual_selection(mode)
