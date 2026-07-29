@@ -10,6 +10,9 @@ stow_modules/main/dot-config/fish/fishd.*
 stow_modules/main/dot-config/fish/fundle
 stow_modules/main/dot-config/fish/fish_variables
 stow_modules/main/dot-config/karabiner/automatic_backups/
+stow_modules/main/dot-config/herdr/.plugins.lock
+stow_modules/main/dot-config/herdr/*.log
+stow_modules/main/dot-config/herdr/session.json
 .DS_Store
 stow_modules/main/dot-config/nvim/tmp/
 .watchman-cookie*
