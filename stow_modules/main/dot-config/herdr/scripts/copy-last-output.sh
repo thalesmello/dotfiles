@@ -7,18 +7,25 @@
 # `prompt_segment`. The previous command's output is everything between the two
 # most recent prompt markers (the marker line itself holds the prompt + typed
 # command, so it is skipped).
+#
+# Pane identity comes from $HERDR_ACTIVE_PANE_ID, which herdr auto-injects into
+# custom commands (along with HERDR_SOCKET_PATH and HERDR_BIN_PATH). Note it is
+# NOT $HERDR_PANE_ID -- that only exists inside a pane's interactive shell and is
+# empty in this detached command context.
 
-pane="${HERDR_PANE_ID}"
+herdr="${HERDR_BIN_PATH:-herdr}"
+
+pane="${HERDR_ACTIVE_PANE_ID}"
 [ -n "$pane" ] || exit 1
 
 # Gate: only act when fish is the foreground program in this pane.
-herdr pane process-info --pane "$pane" 2>/dev/null | grep -qw fish || exit 0
+"$herdr" pane process-info --pane "$pane" 2>/dev/null | grep -qw fish || exit 0
 
 # Prompt marker glyph U+E007, given as octal bytes so the raw glyph never has to
 # survive an editor/transport that might strip Private-Use characters.
 marker=$(printf '\357\200\207')
 
-herdr pane read "$pane" --source recent --lines 2000 2>/dev/null | awk -v m="$marker" '
+"$herdr" pane read "$pane" --source recent --lines 2000 2>/dev/null | awk -v m="$marker" '
   { line[NR] = $0; if (index($0, m)) mark[++n] = NR }
   END {
     if (n < 2) exit 1                       # need a previous prompt and the current one

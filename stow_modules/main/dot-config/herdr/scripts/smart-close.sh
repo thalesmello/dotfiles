@@ -6,7 +6,9 @@
 #
 # Pane identity comes from `herdr pane layout --current`.
 
-info=$(herdr pane layout --current 2>/dev/null | python3 -c '
+herdr="${HERDR_BIN_PATH:-herdr}"
+
+info=$("$herdr" pane layout --current 2>/dev/null | python3 -c '
 import sys, json
 try:
     l = json.load(sys.stdin)["result"]["layout"]
@@ -18,8 +20,8 @@ except Exception:
 ')
 pane=$(printf '%s\n' "$info" | sed -n 1p)
 
-if herdr pane process-info --current 2>/dev/null | grep -Eqw 'nvim|vim'; then
-  [ -n "$pane" ] && herdr pane send-keys "$pane" ctrl+space backspace
+if "$herdr" pane process-info --current 2>/dev/null | grep -Eqw 'nvim|vim'; then
+  [ -n "$pane" ] && "$herdr" pane send-keys "$pane" ctrl+space backspace
 else
-  [ -n "$pane" ] && herdr pane close "$pane"
+  [ -n "$pane" ] && "$herdr" pane close "$pane"
 fi

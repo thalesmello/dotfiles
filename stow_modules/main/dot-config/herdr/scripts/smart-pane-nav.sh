@@ -17,7 +17,9 @@
 dir="$1"      # left | down | up | right
 letter="$2"   # h | j | k | l
 
-layout=$(herdr pane layout --current 2>/dev/null)
+herdr="${HERDR_BIN_PATH:-herdr}"
+
+layout=$("$herdr" pane layout --current 2>/dev/null)
 
 # Parse: line 1 = focused pane id, line 2 = "1" if zoomed or single pane else "0".
 parsed=$(printf '%s' "$layout" | python3 -c '
@@ -35,7 +37,7 @@ pane=$(printf '%s\n' "$parsed" | sed -n 1p)
 no_room=$(printf '%s\n' "$parsed" | sed -n 2p)
 
 is_vim=no
-if herdr pane process-info --current 2>/dev/null | grep -Eqw 'nvim|vim'; then
+if "$herdr" pane process-info --current 2>/dev/null | grep -Eqw 'nvim|vim'; then
   is_vim=yes
 fi
 
@@ -47,7 +49,7 @@ if [ "${HERDR_SMARTNAV_DEBUG:-}" = "1" ]; then
 fi
 
 if [ "$no_room" = "1" ] && [ "$is_vim" = "yes" ] && [ -n "$pane" ]; then
-  herdr pane send-keys "$pane" ctrl+space "ctrl+$letter"
+  "$herdr" pane send-keys "$pane" ctrl+space "ctrl+$letter"
 else
-  herdr pane focus --direction "$dir" --current 2>/dev/null
+  "$herdr" pane focus --direction "$dir" --current 2>/dev/null
 fi

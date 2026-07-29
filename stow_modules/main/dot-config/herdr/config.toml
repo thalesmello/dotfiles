@@ -151,7 +151,7 @@ navigate_pane_right = ""
 [[keys.command]]
 key = "prefix+shift+c"
 type = "shell"
-command = "herdr pane send-keys \"$HERDR_PANE_ID\" ctrl+l"
+command = "\"${HERDR_BIN_PATH:-herdr}\" pane send-keys \"$HERDR_ACTIVE_PANE_ID\" ctrl+l"
 description = "clear screen (ctrl+l)"
 
 # Copy the previous command's output to the clipboard (fish panes only).
