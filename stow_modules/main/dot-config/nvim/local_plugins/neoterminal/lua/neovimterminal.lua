@@ -288,11 +288,55 @@ end
 
 local au_group = vim.api.nvim_create_augroup("NeovimTerminalGroup", { clear = true })
 
-vim.api.nvim_create_autocmd({ "BufWinEnter", "WinEnter", "BufEnter" }, {
-  pattern = "term://*",
+-- Remember whether each terminal was in Terminal-mode (insert) so it can be
+-- restored when the window is focused again. Navigating away with a mapping like
+-- <c-space>h escapes to normal mode (<c-\><c-n>) as a side effect, so the mode
+-- can't simply be read on BufLeave. Instead track TermEnter (user is in insert)
+-- and defer the TermLeave reset with a short delay: once things have settled, if
+-- we're still in the same terminal window the user genuinely switched to normal
+-- mode; if the window changed, the escape was only part of navigating away, so
+-- insert should persist. A next-tick schedule is too eager to see the window
+-- change land, so use a small timer.
+local NEOTERM_MODE_SETTLE_MS = 50
+
+vim.api.nvim_create_autocmd("TermEnter", {
+  pattern = "*",
   group = au_group,
-  callback = function ()
-    vim.cmd.startinsert()
+  callback = function (args)
+    vim.b[args.buf].neoterm_insert = true
+  end
+})
+
+vim.api.nvim_create_autocmd("TermLeave", {
+  pattern = "*",
+  group = au_group,
+  callback = function (args)
+    local buf = args.buf
+    local win = vim.api.nvim_get_current_win()
+    vim.defer_fn(function ()
+      if vim.api.nvim_buf_is_valid(buf)
+        and vim.api.nvim_win_is_valid(win)
+        and vim.api.nvim_get_current_win() == win
+        and vim.api.nvim_win_get_buf(win) == buf then
+        vim.b[buf].neoterm_insert = false
+      end
+    end, NEOTERM_MODE_SETTLE_MS)
+  end
+})
+
+vim.api.nvim_create_autocmd({ "BufWinEnter", "WinEnter", "BufEnter" }, {
+  pattern = "*",
+  group = au_group,
+  callback = function (args)
+    -- These terminals are created with nvim_open_term, so the buffer name is not
+    -- "term://*"; match every buffer and filter by buftype instead.
+    if vim.bo[args.buf].buftype ~= "terminal" then return end
+    -- Default (flag unset) to insert to preserve the original behaviour.
+    if vim.b[args.buf].neoterm_insert ~= false then
+      vim.cmd.startinsert()
+    else
+      vim.cmd.stopinsert()
+    end
     vim.g.neovimterm_last_channel = vim.o.channel
   end
 })
