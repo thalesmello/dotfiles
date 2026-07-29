@@ -2,7 +2,11 @@
 
 set -eo pipefail
 
-DOTDIR="${STOWMAN_DOTDIR:-$HOME/src/dotfiles}"
+# Resolve the directory this script lives in so the default stow dir can be
+# located relative to it (bin/../stow_modules) regardless of the caller's cwd.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+DOTDIR="${STOWMAN_DOTDIR:-$(cd "$SCRIPT_DIR/.." && pwd)/stow_modules}"
 HOMEDIR="${STOWMAN_HOMEDIR:-$HOME}"
 
 BLUE='\033[0;34m'
@@ -21,16 +25,16 @@ function expandPath() {
   esac
 }
 
-# Parse global options (--dotdir/--homedir) and collect the remaining
+# Parse global options (--dir/--homedir) and collect the remaining
 # positional arguments (the subcommand and its arguments).
 ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --dotdir)
+  --dir)
     DOTDIR="$(expandPath "$2")"
     shift 2
     ;;
-  --dotdir=*)
+  --dir=*)
     DOTDIR="$(expandPath "${1#*=}")"
     shift
     ;;
@@ -223,7 +227,7 @@ EOF
   echo -e "stowman ${PINK}pull${NC} \t\t${BLUE}Pull changes from the repository${NC}"
   echo
   echo -e "${BLUE}Options:${NC}"
-  echo -e "${PINK}--dotdir <dir>${NC}  \t${BLUE}Override the dotfiles directory (default: $DOTDIR)${NC}"
+  echo -e "${PINK}--dir <dir>${NC}  \t${BLUE}Override the stow directory (default: $DOTDIR)${NC}"
   echo -e "${PINK}--homedir <dir>${NC} \t${BLUE}Override the target home directory (default: $HOMEDIR)${NC}"
   echo
   echo -e "${BLUE}Initializing a new config${NC}"

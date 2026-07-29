@@ -1,16 +1,42 @@
 # Completions for stowman
 
-# Resolve the dotfiles directory, honoring --dotdir given on the command line,
+# Directory of the stowman script itself (resolving symlinks), used to locate
+# the default stow dir and its sibling repos.
+function __stowman_script_dir
+  set -l p (command -v stowman)
+  test -n "$p"; or return
+  set -l real (realpath "$p" 2>/dev/null; or echo "$p")
+  dirname "$real"
+end
+
+# Extra directories to always offer for --dir: this repo's stow_modules and
+# the sibling meta-dotfiles/stow_modules, resolved relative to the script.
+function __stowman_extra_dotdirs
+  set -l base (__stowman_script_dir)
+  test -n "$base"; or return
+  set -l repo (builtin cd "$base/.." 2>/dev/null; and pwd)
+  and printf '%s\n' "$repo/stow_modules"
+  set -l parent (builtin cd "$base/../.." 2>/dev/null; and pwd)
+  and printf '%s\n' "$parent/meta-dotfiles/stow_modules"
+end
+
+# Directory completions plus the always-included stow_modules directories.
+function __stowman_dotdir_candidates
+  __fish_complete_directories
+  __stowman_extra_dotdirs
+end
+
+# Resolve the dotfiles directory, honoring --dir given on the command line,
 # then STOWMAN_DOTDIR, then the built-in default.
 function __stowman_dotdir
   set -l tokens (commandline -opc)
   set -l i 1
   while test $i -le (count $tokens)
     switch $tokens[$i]
-      case '--dotdir=*'
-        echo (string replace -- '--dotdir=' '' $tokens[$i])
+      case '--dir=*'
+        echo (string replace -- '--dir=' '' $tokens[$i])
         return
-      case '--dotdir'
+      case '--dir'
         set -l next (math $i + 1)
         if test $next -le (count $tokens)
           echo $tokens[$next]
@@ -23,7 +49,12 @@ function __stowman_dotdir
   if set -q STOWMAN_DOTDIR
     echo $STOWMAN_DOTDIR
   else
-    echo $HOME/src/dotfiles
+    set -l base (__stowman_script_dir)
+    if test -n "$base"
+      builtin cd "$base/.." 2>/dev/null; and echo (pwd)/stow_modules
+    else
+      echo $HOME/src/dotfiles/stow_modules
+    end
   end
 end
 
@@ -45,8 +76,8 @@ complete -c stowman -n "__fish_is_first_token" -f -a "pull" -d "Pull changes fro
 complete -c stowman -n "__fish_is_first_token" -f -a "list" -d "List stowed files and folders"
 complete -c stowman -n "__fish_is_first_token" -f -a "help" -d "Show help"
 
-# Global options: --dotdir and --homedir expand to directories
-complete -c stowman -l dotdir -r -f -a "(__fish_complete_directories)" -d "Override the dotfiles directory"
+# Global options: --dir and --homedir expand to directories
+complete -c stowman -l dir -r -f -a "(__stowman_dotdir_candidates)" -d "Override the stow directory"
 complete -c stowman -l homedir -r -f -a "(__fish_complete_directories)" -d "Override the target home directory"
 
 # `reload` takes a module name or "all"
@@ -54,7 +85,7 @@ complete -c stowman -n "__fish_seen_subcommand_from reload" -f -a "all" -d "All 
 complete -c stowman -n "__fish_seen_subcommand_from reload" -f -a "(__stowman_modules)" -d "module"
 
 # Count the positional arguments already given after the subcommand,
-# skipping global options (--dotdir/--homedir) and their values.
+# skipping global options (--dir/--homedir) and their values.
 function __stowman_arg_index
   set -l tokens (commandline -opc)
   set -l count 0
@@ -62,9 +93,9 @@ function __stowman_arg_index
   set -l i 2 # skip the command name itself
   while test $i -le (count $tokens)
     switch $tokens[$i]
-      case '--dotdir=*' '--homedir=*'
+      case '--dir=*' '--homedir=*'
         # inline value, nothing to skip
-      case '--dotdir' '--homedir'
+      case '--dir' '--homedir'
         set i (math $i + 1) # skip the option's value
       case '*'
         if test $seen_cmd -eq 0
