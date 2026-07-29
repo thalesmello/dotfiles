@@ -1357,7 +1357,7 @@
 	<key>Leader</key>
 	<string>0x62-0x100000-0xb</string>
 	<key>LeftTabBarWidth</key>
-	<real>114</real>
+	<real>176</real>
 	<key>NeverWarnAboutMeta</key>
 	<true/>
 	<key>NeverWarnAboutMeta_selection</key>
@@ -5157,6 +5157,8 @@
 	<integer>2</integer>
 	<key>PMPrintingPanelSize</key>
 	<string>{777, 828}</string>
+	<key>PassOnControlClick</key>
+	<true/>
 	<key>PasteTabToStringTabStopSize</key>
 	<integer>4</integer>
 	<key>PointerActions</key>
@@ -5193,6 +5195,8 @@
 		</dict>
 	</dict>
 	<key>Print In Black And White</key>
+	<true/>
+	<key>ReportRightClick</key>
 	<true/>
 	<key>Selection Respects Soft Boundaries</key>
 	<false/>
