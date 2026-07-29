@@ -416,10 +416,18 @@ class TrySelector
         @cursor_pos = [@cursor_pos - 1, 0].max
       when "\e[B", "\x0E"  # Down arrow or Ctrl-N
         @cursor_pos = [@cursor_pos + 1, total_items - 1].min
-      when "\e[C"  # Right arrow - ignore
-        # Do nothing
-      when "\e[D"  # Left arrow - ignore
-        # Do nothing
+      when "\e[C", "\eOC"  # Right arrow - forward char
+        @input_cursor_pos = [@input_cursor_pos + 1, @input_buffer.length].min
+      when "\e[D", "\eOD"  # Left arrow - backward char
+        @input_cursor_pos = [@input_cursor_pos - 1, 0].max
+      when "\eb", "\e[1;3D", "\e[1;5D", "\e\e[D"  # Option/Alt+Left - move word backward
+        @input_cursor_pos = word_backward_pos(@input_buffer, @input_cursor_pos)
+      when "\ef", "\e[1;3C", "\e[1;5C", "\e\e[C"  # Option/Alt+Right - move word forward
+        @input_cursor_pos = word_forward_pos(@input_buffer, @input_cursor_pos)
+      when "\e[1;9D", "\e[H", "\eOH", "\e[1~"  # Command+Left / Home - beginning of line
+        @input_cursor_pos = 0
+      when "\e[1;9C", "\e[F", "\eOF", "\e[4~"  # Command+Right / End - end of line
+        @input_cursor_pos = @input_buffer.length
       when "\x7F", "\b"  # Backspace
         if @input_cursor_pos > 0
           @input_buffer = @input_buffer[0...(@input_cursor_pos-1)] + @input_buffer[@input_cursor_pos..-1]
@@ -504,6 +512,25 @@ class TrySelector
     end
 
     @selected
+  end
+
+  # Move cursor to the start of the previous word (skip separators, then word chars)
+  def word_backward_pos(buffer, pos)
+    return 0 if pos <= 0
+    i = pos - 1
+    i -= 1 while i >= 0 && buffer[i] !~ /[a-zA-Z0-9]/
+    i -= 1 while i >= 0 && buffer[i] =~ /[a-zA-Z0-9]/
+    i + 1
+  end
+
+  # Move cursor to the end of the next word (skip separators, then word chars)
+  def word_forward_pos(buffer, pos)
+    len = buffer.length
+    return len if pos >= len
+    i = pos
+    i += 1 while i < len && buffer[i] !~ /[a-zA-Z0-9]/
+    i += 1 while i < len && buffer[i] =~ /[a-zA-Z0-9]/
+    i
   end
 
   def read_key
@@ -831,6 +858,18 @@ class TrySelector
       @rename_cursor_pos = [@rename_cursor_pos - 1, 0].max
     when "\x06"  # Ctrl-F - forward one char
       @rename_cursor_pos = [@rename_cursor_pos + 1, @rename_buffer.length].min
+    when "\e[C", "\eOC"  # Right arrow - forward char
+      @rename_cursor_pos = [@rename_cursor_pos + 1, @rename_buffer.length].min
+    when "\e[D", "\eOD"  # Left arrow - backward char
+      @rename_cursor_pos = [@rename_cursor_pos - 1, 0].max
+    when "\eb", "\e[1;3D", "\e[1;5D", "\e\e[D"  # Option/Alt+Left - move word backward
+      @rename_cursor_pos = word_backward_pos(@rename_buffer, @rename_cursor_pos)
+    when "\ef", "\e[1;3C", "\e[1;5C", "\e\e[C"  # Option/Alt+Right - move word forward
+      @rename_cursor_pos = word_forward_pos(@rename_buffer, @rename_cursor_pos)
+    when "\e[1;9D", "\e[H", "\eOH", "\e[1~"  # Command+Left / Home - beginning of line
+      @rename_cursor_pos = 0
+    when "\e[1;9C", "\e[F", "\eOF", "\e[4~"  # Command+Right / End - end of line
+      @rename_cursor_pos = @rename_buffer.length
     when "\x0B"  # Ctrl-K - kill to end
       @rename_buffer = @rename_buffer[0...@rename_cursor_pos]
       @rename_error = nil
