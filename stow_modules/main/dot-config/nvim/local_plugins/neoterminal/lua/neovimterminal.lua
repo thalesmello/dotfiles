@@ -123,6 +123,17 @@ local function create_dcs_filter()
   end
 end
 
+-- Track whether the terminal app is on the alternate screen buffer (alt mode),
+-- e.g. vim/less/htop. Scans the raw output for the DEC private mode toggles
+-- 1049/1047/47 and records the latest state on the buffer.
+local function update_alt_screen(bufnr, raw)
+  for code, action in raw:gmatch('\027%[%?(%d+)(%a)') do
+    if code == '1049' or code == '1047' or code == '47' then
+      vim.b[bufnr].neoterm_alt_screen = (action == 'h')
+    end
+  end
+end
+
 local M = {}
 
 function M.open_filtered_terminal(cmd, opts)
@@ -140,15 +151,25 @@ function M.open_filtered_terminal(cmd, opts)
     end,
   })
 
+  -- jobstart({pty=true}) defaults the child's TERM to "ansi", which lacks
+  -- alternate-screen (smcup/rmcup) and 256-color capabilities. Give it a proper
+  -- terminfo so full-screen apps (vim/less/htop) switch to the alt screen (and
+  -- emit ?1049h, which update_alt_screen relies on) and render colors correctly.
+  local env = vim.tbl_extend('force', {
+    TERM = 'xterm-256color',
+    COLORTERM = 'truecolor',
+  }, opts.env or {})
+
   job_id = vim.fn.jobstart(cmd, {
     pty = true,
-    env = opts.env,
+    env = env,
     cwd = opts.cwd,
     width = vim.api.nvim_win_get_width(win),
     height = vim.api.nvim_win_get_height(win),
     on_stdout = function(_, data)
       local raw = table.concat(data, '\n')
       if #raw == 0 then return end
+      update_alt_screen(bufnr, raw)
       local filtered = filter(raw)
       if #filtered > 0 then
         vim.api.nvim_chan_send(term_chan, filtered)
@@ -226,6 +247,43 @@ vim.keymap.set("t", "<2-ScrollWheelUp>", '<nop>', { noremap = true })
 vim.keymap.set("t", "<4-ScrollWheelDown>", '<nop>', { noremap = true })
 vim.keymap.set("t", "<3-ScrollWheelDown>", '<nop>', { noremap = true })
 vim.keymap.set("t", "<2-ScrollWheelDown>", '<nop>', { noremap = true })
+
+-- When scrolling the mouse wheel over a terminal that is on the alternate screen
+-- (alt mode, e.g. vim/less/htop), focus that terminal, enter terminal mode, and
+-- forward the scroll into the running app instead of moving neovim's window view.
+-- The window under the pointer (getmousepos) may differ from the focused window,
+-- and the wheel can be spun from any mode, so this is a global mapping for
+-- normal/visual/insert that always acts on the pointed-at window.
+local function forward_scroll_in_alt(keys)
+  return function ()
+    local mouse_winid = vim.fn.getmousepos().winid
+    local target_buf = mouse_winid ~= 0
+      and vim.api.nvim_win_get_buf(mouse_winid)
+      or nil
+
+    if target_buf
+      and vim.bo[target_buf].buftype == "terminal"
+      and vim.b[target_buf].neoterm_alt_screen then
+      -- Leave the current mode synchronously (works from normal/visual/insert)
+      -- so the focus switch and the following `i` land cleanly, then forward the
+      -- scroll into the terminal app.
+      vim_utils.feedkeys("<C-\\><C-N>", "nx")
+      if mouse_winid ~= vim.api.nvim_get_current_win() then
+        vim.api.nvim_set_current_win(mouse_winid)
+      end
+      vim_utils.feedkeys("i" .. keys, "n")
+      return
+    end
+
+    -- Default: replay the scroll (builtin scrolls the window under the pointer's
+    -- viewport). Use noremap ("n") to avoid re-triggering this mapping.
+    vim_utils.feedkeys(keys, "n")
+  end
+end
+
+for _, key in ipairs({"<ScrollWheelUp>", "<ScrollWheelDown>"}) do
+  vim.keymap.set({"n", "v", "i"}, key, forward_scroll_in_alt(key), { silent = true })
+end
 
 
 local au_group = vim.api.nvim_create_augroup("NeovimTerminalGroup", { clear = true })
@@ -308,7 +366,7 @@ local function find_fallback_terminal()
   local windows = vim.api.nvim_tabpage_list_wins(0)
   for _, window in ipairs(windows) do
     local buf = vim.api.nvim_win_get_buf(window)
-    local buftype = vim.api.nvim_buf_get_option(buf, "buftype")
+    local buftype = vim.bo[buf].buftype
     if buftype == "terminal" then
       terminals[#terminals + 1] = window
     end
@@ -317,7 +375,7 @@ local function find_fallback_terminal()
   if #terminals == 1 then
     local terminal = terminals[1]
     local term_buf = vim.api.nvim_win_get_buf(terminal)
-    local term_channel = vim.api.nvim_buf_get_option(term_buf, "channel")
+    local term_channel = vim.bo[term_buf].channel
     channel = vim.api.nvim_get_chan_info(term_channel).id
   end
 
