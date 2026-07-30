@@ -42,6 +42,7 @@
 # # Just for example:
 # resize-overlay-duration = 4s 200ms
 quick-terminal-position = bottom
+quick-terminal-animation-duration = 0
 
 
 keybind = super+page_up=scroll_page_up
@@ -69,14 +70,14 @@ keybind = shift+page_up=adjust_selection:page_up
 keybind = super+physical:three=goto_tab:3
 keybind = super+right=text:\x05
 keybind = super+d=new_split:right
-keybind = super+ctrl+down=resize_split:down,10
+keybind = super+ctrl+down=resize_split:down,50
 keybind = shift+end=adjust_selection:end
 keybind = super+plus=increase_font_size:1
 keybind = super+q=quit
 keybind = super+home=scroll_to_top
-keybind = super+ctrl+left=resize_split:left,10
+keybind = super+ctrl+left=resize_split:left,50
 keybind = alt+left=esc:b
-keybind = super+ctrl+up=resize_split:up,10
+keybind = super+ctrl+up=resize_split:up,50
 keybind = super+left=text:\x01
 keybind = super+shift+up=jump_to_prompt:-1
 keybind = shift+right=adjust_selection:right
@@ -90,7 +91,7 @@ keybind = alt+right=esc:f
 keybind = super+shift+enter=toggle_split_zoom
 keybind = super+alt+down=goto_split:down
 keybind = super+ctrl+f=toggle_fullscreen
-keybind = super+ctrl+right=resize_split:right,10
+keybind = super+ctrl+right=resize_split:right,50
 keybind = super+alt+shift+j=write_screen_file:open
 keybind = shift+down=adjust_selection:down
 keybind = ctrl+shift+tab=previous_tab
@@ -117,3 +118,4 @@ keybind = super+physical:six=goto_tab:6
 keybind = super+v=paste_from_clipboard
 keybind = cmd+p=text:\x14
 keybind = ctrl+shift+slash=toggle_quick_terminal
+keybind = global:f17=toggle_quick_terminal

@@ -13,7 +13,9 @@ local fish = shell.fish
 local fishAsync = shell.fishAsync
 local sleep = shell.sleepAsync
 local frontAppName = mode.frontAppName
-local isFloatingTerminal = Preset.isFloatingTerminalActive
+local isiTermFloatingTerminal = Preset.isFloatingTerminalActive
+-- Combined: either the iTerm hotkey window or the Ghostty quick terminal.
+local isFloatingTerminal = Preset.isFloatingTerminal
 local Mode = mode.Mode
 local createModal = mode.createModal
 local registerBinding = palette.registerBinding
@@ -248,7 +250,7 @@ function M.setup()
 
   -- Ctrl+Cmd HJKL (per-app, Chrome tab nav)
   local function isiTerm()
-    return isFloatingTerminal() or frontAppName() == "iTerm2"
+    return isiTermFloatingTerminal() or frontAppName() == "iTerm2"
   end
 
   -- Ghostty dispatch only fires for a regular Ghostty window (floating terminal
@@ -520,7 +522,7 @@ function M.setup()
   end)
 
   chromeAppModal:bind({"cmd"}, "t", function()
-    if isFloatingTerminal() then
+    if isiTermFloatingTerminal() then
       task({"osascript", "-e", [[
         tell application "iTerm"
           tell current window
@@ -796,7 +798,7 @@ function M.setup()
   service:bindOnce({"shift"}, "tab", "Move Window To Next Display", function() task({"wm-preset", "smart-move-window-to-next-display"}) end)
   service:bindOnce(hyperShift, "tab", "Swap Workspaces Between Monitors", function() task({"wm-preset", "swap-workspaces-between-monitors"}) end)
   service:bindOnce({"shift"}, "/", "Trigger Help Menu", function() Preset.triggerMenuBar("Help") end)
-  service:bindOnce(hyper, "/", "Search Mappings", showCommandPalette)
+  service:bindOnce(hyper, "/", "Toggle Ghostty Quick Terminal", function() hs.eventtap.keyStroke({}, "f17") end)
   service:bindOnce({"shift"}, "v", "Tile Left", function() Preset.triggerMenuBar("Window;Full Screen Tile; Left of Screen") end)
   service:bindOnce(hyper, "return", "True Fullscreen", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "f") end)
 
@@ -916,6 +918,7 @@ function M.setup()
     hyperShift = hyperShift,
     registerBinding = registerBinding,
     Mode = Mode,
+    isiTermFloatingTerminal = isiTermFloatingTerminal,
     isFloatingTerminal = isFloatingTerminal,
     chromeAppModal = chromeAppModal,
     launchOrFocus = launchOrFocus,

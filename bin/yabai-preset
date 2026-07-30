@@ -1679,7 +1679,7 @@ function yabai-preset
         # yabai doesn't), then collapse the floating terminal in the background
         # so it doesn't hover in front of whatever we focus next.
         set focused (hs-preset get-floatingterm-or-focused-window-id)
-        iterm-preset hide-floating-terminal &
+        term-preset hide-floating-terminal &
         if test "$focused" = "$window"
             yabai-preset minimize "$window"
         else

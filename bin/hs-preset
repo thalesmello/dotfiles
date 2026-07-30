@@ -103,10 +103,6 @@ function hs-preset
     case "restart-btt"
         # No-op: BTT is no longer used
 
-    case "is-ghostty-zoomed"
-        # Predicate: exit 0 when a Ghostty split is zoomed, 1 otherwise.
-        test "$(hs -c 'if require("preset").isGhosttyZoomed() then print("yes") end')" = "yes"
-
     case "get-key-codes"
         printf "%s\n" $argv | jq -Rsr '
             {

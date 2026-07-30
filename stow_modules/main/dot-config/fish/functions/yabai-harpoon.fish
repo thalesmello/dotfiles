@@ -116,7 +116,7 @@ function yabai-harpoon
         # (longer) Chrome focus below. Both are shorter than focus-pin-json, so
         # they complete during its wait rather than being orphaned on exit.
         display-message "yabai-harpoon: Focus $position" &
-        iterm-preset hide-floating-terminal &
+        term-preset hide-floating-terminal &
 
         if echo $json | yabai-harpoon focus-pin-json
             echo "$position" > "$STATE"

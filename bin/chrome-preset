@@ -515,7 +515,7 @@ function chrome-preset
             # which yabai doesn't), then collapse the floating terminal in the
             # background so it doesn't hover in front of the app we focus next.
             set active_id (hs-preset get-floatingterm-or-focused-window-id)
-            iterm-preset hide-floating-terminal &
+            term-preset hide-floating-terminal &
             disown
             if test "$active_id" = "$app_window_id"
 

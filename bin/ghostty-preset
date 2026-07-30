@@ -8,6 +8,23 @@ set -x PATH /opt/homebrew/bin (status dirname) $PATH
 # Address the app by bundle id; targeting by name "Ghostty" errors -600.
 set -g GHOSTTY_ID 'application id "com.mitchellh.ghostty"'
 
+# Exactly one visible surface (AX, checked in Hammerspoon): zoomed OR a genuine
+# single pane. Direct `hs -c` (no ghostty-preset/hs-preset re-spawn), cheap
+# enough for the per-keystroke path.
+function __ghostty_zoomed_or_single_surface
+    test "$(hs -c 'if require("preset").isGhosttyZoomedOrSingleSurface() then print("yes") end')" = "yes"
+end
+
+# Zoomed = one visible surface AND the active tab still has >1 logical split. The
+# logical-split count runs here via osascript in a subprocess, NOT inside
+# Hammerspoon where hs.osascript would block the event loop.
+function __ghostty_is_zoomed
+    __ghostty_zoomed_or_single_surface
+    or return 1
+    set -l logical (osascript -e 'tell application id "com.mitchellh.ghostty" to count of terminals of selected tab of front window')
+    test "$logical" -gt 1 2>/dev/null
+end
+
 function ghostty-preset
     set preset $argv[1]
     set -e argv[1]
@@ -29,35 +46,76 @@ function ghostty-preset
         end
 
         if set -q _flag_cmd
-            # Match iterm-preset: run under `exec fish -c` so the split closes
-            # when the command exits, and keep it open on error.
-            set -l inner "$_flag_cmd; or read -P 'Press Enter to close'"
-            set -l payload "exec fish -c "(string escape -- $inner)
+            # Create the split with the command baked into Ghostty's surface
+            # configuration (instead of the old `input text "exec fish -c ..."`
+            # hack that typed into the split's default login shell).
+            #
+            # Semantics we want (mirror iterm-preset new-split -c):
+            #   * CMD succeeds -> the split closes cleanly, no error screen.
+            #   * CMD errors   -> keep the split open showing the output.
+            #
+            # Why we CLOSE the split ourselves on success instead of leaning on
+            # Ghostty's close-on-exit (`wait after command:false`):
+            # Ghostty flags any surface whose process exits faster than
+            # `abnormal-command-exit-runtime` (default 250ms) as an "abnormal"
+            # exit and shows the red "Ghostty failed to launch the requested
+            # command" box. On macOS that fires for ANY exit code (see
+            # ghostty.5.md), so a fast success like `echo hello world` would
+            # still pop the box. Closing the surface via AppleScript is a
+            # script-initiated teardown, not a process exit, so it never trips
+            # the abnormal-exit detector. `wait after command:false` still
+            # governs the error path: after the user dismisses `read`, fish
+            # exits and Ghostty closes the surface (a slow exit -> no box).
+            set -l close_cmd "osascript -e 'tell application id \"com.mitchellh.ghostty\" to close (focused terminal of selected tab of front window)'"
+            set -l inner "$_flag_cmd; and $close_cmd; or read -P 'Press Enter to close'"
 
-            # Direction is a controlled keyword (interpolated); the arbitrary
-            # command text is passed as argv so it needs no AppleScript escaping.
-            # `input text` pastes literally and does NOT append a newline, so we
-            # send `enter` afterward to run it.
+            # Ghostty runs a `command` with arguments via `/bin/sh -c`, so wrap
+            # the fish invocation in single quotes for that shell (escaping any
+            # embedded single quote the POSIX way: ' -> '\'').
+            set -l sq (string replace -a "'" "'\\''" -- "$inner")
+            set -l command_value "fish -c '$sq'"
+
+            # Direction is a controlled keyword (interpolated); the command
+            # string is passed as argv so it needs no AppleScript escaping.
             set -l script '
 on run argv
     set cmdText to item 1 of argv
     tell application id "com.mitchellh.ghostty"
-        set nt to split (focused terminal of selected tab of front window) direction '$direction'
-        input text cmdText to nt
-        send key "enter" to nt
+        split (focused terminal of selected tab of front window) direction '$direction' with configuration {command:cmdText, wait after command:false}
     end tell
 end run
 '
-            osascript -e "$script" "$payload"
+            osascript -e "$script" "$command_value"
         else
             osascript -e "tell application id \"com.mitchellh.ghostty\" to split (focused terminal of selected tab of front window) direction $direction"
         end
 
+    case "is-zoomed-or-single-surface"
+        # Exit 0 when the focused Ghostty window shows exactly one terminal
+        # surface (zoomed or single pane), 1 otherwise.
+        __ghostty_zoomed_or_single_surface
+
     case "is-zoomed"
-        # Delegate to Hammerspoon (Ghostty exposes no zoom state to AppleScript;
-        # the zoom signal lives in the AppKit accessibility tree). Exit 0 when a
-        # split is zoomed, 1 otherwise.
-        hs-preset is-ghostty-zoomed
+        # Exit 0 when a split is zoomed, 1 otherwise. See __ghostty_is_zoomed.
+        __ghostty_is_zoomed
+
+    case "is-floating-terminal"
+        # Predicate: exit 0 when Ghostty's quick (floating) terminal is the
+        # focused window, 1 otherwise. Mirrors iterm-preset is-floating-window-active.
+        test "$(hs -c 'if require("preset").isGhosttyQuickTerminalActive() then print("yes") end')" = "yes"
+
+    case "reveal-floating-terminal"
+        # Show the quick terminal if it isn't already the focused window. F17 is
+        # bound globally to toggle_quick_terminal in the Ghostty config, so a
+        # synthesized F17 toggles it. Guarded so this only ever reveals.
+        ghostty-preset is-floating-terminal
+        or osascript-preset send-keys f17
+
+    case "hide-floating-terminal"
+        # Hide the quick terminal if it is currently the focused window. Guarded
+        # so this only ever hides. Mirrors iterm-preset hide-floating-terminal.
+        ghostty-preset is-floating-terminal
+        and osascript-preset send-keys f17
 
     case "focus-pane-with-fallback"
         set direction $argv[1]
@@ -81,7 +139,7 @@ end run
         # osascript-preset (CGEvent with explicit flags) so the held Ctrl+Cmd
         # from the triggering shortcut is not merged in — hs.eventtap/keyStroke
         # would bleed those modifiers.
-        if ghostty-preset is-zoomed
+        if __ghostty_is_zoomed
             osascript-preset send-keys ctrl $fallback_key
             return
         end

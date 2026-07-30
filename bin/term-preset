@@ -1,0 +1,29 @@
+#!/usr/bin/env -S fish --no-config
+set -x PATH /opt/homebrew/bin (status dirname) $PATH
+
+# Terminal-agnostic dispatcher over iterm-preset and ghostty-preset for the
+# shared floating-terminal operations, so callers don't have to know which
+# terminal is in use.
+function term-preset
+    set preset $argv[1]
+    set -e argv[1]
+
+    switch "$preset"
+    case "is-floating-terminal"
+        # Exit 0 when EITHER terminal's floating window is active.
+        iterm-preset is-floating-window-active
+        or ghostty-preset is-floating-terminal
+
+    case "hide-floating-terminal"
+        # Hide whichever floating terminal is active. Each subcommand is already
+        # guarded to no-op when its own terminal's floating window isn't active,
+        # so running both is safe.
+        iterm-preset hide-floating-terminal
+        ghostty-preset hide-floating-terminal
+
+    case "*"
+        return 1
+    end
+end
+
+term-preset $argv

@@ -5,7 +5,8 @@ local M = {}
 
 function M.setup(hyper)
   _G.PendingCmdTabAction = nil          -- per Cmd-hold: nil (no press yet) | callback (deferred)
-  _G.QuickTerminalAlternateWindowId = nil -- persists across holds: window id to restore the terminal into
+  _G.QuickTerminalAlternateWindowId = nil -- persists across holds: the window we switched to after hiding
+  _G.QuickTerminalKind = nil            -- "iterm" | "ghostty": which floating terminal to restore
 
   _G.CmdTabTap = hs.eventtap.new(
     {hs.eventtap.event.types.keyDown, hs.eventtap.event.types.flagsChanged},
@@ -38,23 +39,58 @@ function M.setup(hyper)
         return false
       end
 
+      -- Which floating terminal (if any) is currently up.
+      local kind = nil
+      if preset.isGhosttyQuickTerminalActive() then
+        kind = "ghostty"
+      elseif preset.isFloatingTerminalActive() then
+        kind = "iterm"
+      end
+
       -- First press: pick an action, defer it until Cmd is released
       local win = hs.window.focusedWindow()
       if QuickTerminalAlternateWindowId and win and win:id() == QuickTerminalAlternateWindowId then
+        -- We're on the window we switched to after hiding a floating terminal;
+        -- restore whichever terminal that was.
         PendingCmdTabAction = function()
+          local restore = QuickTerminalKind
           QuickTerminalAlternateWindowId = nil
-          hs.eventtap.keyStroke(hyper, "/", 0)
+          QuickTerminalKind = nil
+          if restore == "ghostty" then
+            shell.task({"ghostty-preset", "reveal-floating-terminal"})
+          else
+            shell.task({"iterm-preset", "reveal-hotkey-window"})
+          end
         end
-      elseif preset.isFloatingTerminalActive() then
+      elseif kind then
+        -- A floating terminal is up: hide it, then record the window focus lands
+        -- on (ground truth) so Cmd+Tab from there reopens it. The hide is async
+        -- (term-preset -> ghostty/iterm -> CGEvent/osascript, and Ghostty's F17
+        -- toggle settles a beat later), so poll for focus to leave the floating
+        -- terminal instead of reading it after a fixed sleep or guessing the
+        -- z-order beforehand (both of which mismatched the landed window).
+        local floatingId = win and win:id()
         PendingCmdTabAction = function()
-          hs.osascript.applescript('tell application "iTerm2" to hide hotkey window current window')
-          hs.timer.usleep(200000)
-          local hidden = hs.window.focusedWindow()
-          QuickTerminalAlternateWindowId = hidden and hidden:id()
+          QuickTerminalKind = kind
+          QuickTerminalAlternateWindowId = nil
+          shell.task({"term-preset", "hide-floating-terminal"}, function()
+            local tries = 0
+            local function capture()
+              local f = hs.window.focusedWindow()
+              if f and f:id() ~= floatingId then
+                QuickTerminalAlternateWindowId = f:id()
+              elseif tries < 30 then
+                tries = tries + 1
+                hs.timer.doAfter(0.02, capture)
+              end
+            end
+            capture()
+          end)
         end
       else
         PendingCmdTabAction = function()
           QuickTerminalAlternateWindowId = nil
+          QuickTerminalKind = nil
           shell.task({"wm-preset", "focus-recent"})
         end
       end

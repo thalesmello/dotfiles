@@ -129,39 +129,55 @@ function M.isFloatingTerminalActive()
     and win:title():find("floating-terminal", 1, true) ~= nil
 end
 
--- True when the focused Ghostty window has a zoomed split.
+-- True when the focused Ghostty window shows exactly one terminal surface.
 --
 -- Ghostty exposes no zoom state via AppleScript and draws the terminal grid with
 -- Metal. The "Reset (Split) Zoom" button is only a hover affordance, so it can't
 -- be relied on. Instead: Ghostty renders only the active tab's surfaces, and a
 -- zoomed split collapses the content to a single surface, so count the visible
--- "Terminal content area" AXTextAreas. Exactly one surface means either zoomed
--- (splits hidden) or a genuine single pane -- distinguish those via the logical
--- split count from AppleScript, which still sees the hidden splits.
-function M.isGhosttyZoomed()
+-- "Terminal content area" AXTextAreas.
+--
+-- This is a pure-AX check (no AppleScript, which would block the Hammerspoon
+-- event loop). Exactly one surface means either zoomed (splits hidden) or a
+-- genuine single pane; the caller (ghostty-preset) disambiguates those with the
+-- logical split count from AppleScript, run in a subprocess rather than here.
+function M.isGhosttyZoomedOrSingleSurface()
   local app = hs.application.get("Ghostty")
   local win = app and app:focusedWindow()
   local ax = win and hs.axuielement.windowElement(win)
   if not ax then return false end
 
-  local visible = 0
+  local count = 0
   local function walk(el, depth)
-    if not el or depth > 12 then return end
+    if not el or depth > 12 or count > 1 then return end
     if el:attributeValue("AXRole") == "AXTextArea"
       and el:attributeValue("AXHelp") == "Terminal content area" then
-      visible = visible + 1
+      count = count + 1
     end
-    for _, c in ipairs(el:attributeValue("AXChildren") or {}) do walk(c, depth + 1) end
+    for _, c in ipairs(el:attributeValue("AXChildren") or {}) do
+      walk(c, depth + 1)
+      if count > 1 then return end
+    end
   end
   walk(ax, 0)
+  return count == 1
+end
 
-  -- More than one surface shown => real splits are visible, not zoomed.
-  if visible ~= 1 then return false end
+-- True when the focused window is Ghostty's quick (floating) terminal. Ghostty
+-- gives that window the AXFloatingWindow subrole (a normal Ghostty window is
+-- AXStandardWindow), so match on that. Pure hs.window (no AppleScript).
+function M.isGhosttyQuickTerminalActive()
+  local win = hs.window.focusedWindow()
+  if not win then return false end
+  local app = win:application()
+  return app ~= nil and app:name() == "Ghostty"
+    and win:subrole() == "AXFloatingWindow"
+end
 
-  -- One surface shown: zoomed iff the active tab logically still has >1 split.
-  local ok, logical = hs.osascript.applescript(
-    'tell application id "com.mitchellh.ghostty" to count of terminals of selected tab of front window')
-  return ok and type(logical) == "number" and logical > 1
+-- True when either terminal's floating window is active: the iTerm hotkey window
+-- or the Ghostty quick terminal. Mirror of `term-preset is-floating-terminal`.
+function M.isFloatingTerminal()
+  return M.isFloatingTerminalActive() or M.isGhosttyQuickTerminalActive()
 end
 
 function M.getSelectedText()
@@ -203,10 +219,11 @@ end
 
 function M.alternateApp(appName, opts)
   opts = opts or {}
-  -- The iTerm floating terminal is manage=off, so it can sit on top of whichever
-  -- app we're alternating to. Hide it first (no-op unless it's currently active).
+  -- A floating terminal (iTerm hotkey window / Ghostty quick terminal) is
+  -- manage=off, so it can sit on top of whichever app we're alternating to. Hide
+  -- whichever is active first (no-op when none is).
   local front = hs.window.focusedWindow():application()
-  shell.task({"iterm-preset", "hide-floating-terminal"})
+  shell.task({"term-preset", "hide-floating-terminal"})
   if front and front:name() == appName then
     if opts.hide then
       front:hide()
