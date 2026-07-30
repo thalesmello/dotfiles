@@ -54,7 +54,8 @@ function __ghostty_is_herdr_window
                 set tb to item 1 of tabs of win
                 if (count of terminals of tb) is not 1 then return "no"
                 set t to item 1 of terminals of tb
-                if (name of t) starts with "herdr" then return "yes"
+                set nm to (name of t)
+                if nm starts with "herdr" or nm starts with "[mosh] herdr" then return "yes"
             end try
             return "no"
         end tell
@@ -177,12 +178,23 @@ end run
 
     case "new-tab-with-fallback"
         # In a lone herdr window, send herdr's new-tab sequence (ctrl+space prefix,
-        # then shift+n). Anywhere else, make a native Ghostty tab.
+        # then ctrl+t). Anywhere else, make a native Ghostty tab.
+        if __ghostty_is_herdr_window
+            osascript-preset send-keys ctrl space
+            osascript-preset send-keys ctrl t
+        else
+            osascript -e 'tell application id "com.mitchellh.ghostty" to new tab in front window'
+        end
+
+    case "new-window-with-fallback"
+        # In a lone herdr window herdr owns the "windows" (no separate tab/window
+        # concept), so send its new-window sequence (ctrl+space prefix, then
+        # shift+n) -- same as new-tab. Anywhere else, make a native Ghostty window.
         if __ghostty_is_herdr_window
             osascript-preset send-keys ctrl space
             osascript-preset send-keys shift n
         else
-            osascript -e 'tell application id "com.mitchellh.ghostty" to new tab in front window'
+            ghostty-preset new-window
         end
 
     case "reveal-floating-terminal"

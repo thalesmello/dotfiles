@@ -164,13 +164,20 @@ function M.isGhosttyZoomedOrSingleSurface()
   return count == 1
 end
 
+-- mosh prepends "[mosh] " to the terminal title while connected, so strip that
+-- prefix before matching the underlying program name (e.g. "[mosh] herdr ~").
+local function withoutMoshPrefix(title)
+  return (title:gsub("^%[mosh%] ", ""))
+end
+
 -- True when the focused Ghostty window shows a single surface (a zoomed split or
 -- a lone pane) whose program is herdr. The window title reflects the focused
--- surface's title, and herdr sets it to "herdr ...".
+-- surface's title, which herdr sets to "herdr ..." (or "[mosh] herdr ..." over
+-- mosh).
 function M.isGhosttyHerdrZoomedOrSingleSurface()
   if not M.isGhosttyZoomedOrSingleSurface() then return false end
   local win = hs.window.focusedWindow()
-  local title = win and win:title() or ""
+  local title = withoutMoshPrefix(win and win:title() or "")
   return title:sub(1, 5) == "herdr"
 end
 
@@ -181,7 +188,7 @@ end
 function M.isGhosttyMultiplexerZoomedOrSingleSurface()
   if not M.isGhosttyZoomedOrSingleSurface() then return false end
   local win = hs.window.focusedWindow()
-  local title = win and win:title() or ""
+  local title = withoutMoshPrefix(win and win:title() or "")
   return title:sub(1, 5) == "herdr" or title:sub(1, 4) == "nvim"
 end
 

@@ -100,6 +100,7 @@ keybind = super+alt+shift+j=write_screen_file:open
 keybind = shift+down=adjust_selection:down
 keybind = ctrl+shift+tab=previous_tab
 keybind = super+n=new_window
+keybind = super+shift+n=new_window
 keybind = super+alt+left=goto_split:left
 keybind = super+page_down=scroll_page_down
 keybind = super+alt+shift+w=close_all_windows

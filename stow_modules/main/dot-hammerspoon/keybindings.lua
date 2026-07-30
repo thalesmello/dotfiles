@@ -272,13 +272,19 @@ function M.setup()
     if not flags.cmd or flags.ctrl or flags.alt then return false end
     local code = event:getKeyCode()
     local isD = code == hs.keycodes.map["d"]
+    -- cmd+t -> new tab; cmd+n -> new window/workspace (herdr: ctrl+space > shift+n).
+    -- cmd+shift+n is left to pass through so the config's super+shift+n=new_window
+    -- always makes a native Ghostty window.
     local isT = code == hs.keycodes.map["t"] and not flags.shift
-    if not (isD or isT) then return false end
+    local isN = code == hs.keycodes.map["n"] and not flags.shift
+    if not (isD or isT or isN) then return false end
     if frontAppName() ~= "Ghostty" then return false end
     if isD then
       task({"ghostty-preset", "new-split-with-fallback", flags.shift and "--horizontal" or "--vertical"})
-    else
+    elseif isT then
       task({"ghostty-preset", "new-tab-with-fallback"})
+    else
+      task({"ghostty-preset", "new-window-with-fallback"})
     end
     return true
   end)
@@ -432,6 +438,7 @@ function M.setup()
     { cond = function() return hs.application.get("iTerm2") ~= nil end, function() launchOrFocus("iTerm") end },
     { function() launchOrFocus("Ghostty") end },
   })
+
   default:bindOnce(hyper, "q", "Focus Gemini", function() task({"chrome-preset", "focus-or-open-url", "gemini.google.com", "--label", "Gemini"}) end)
   default:bindOnce(hyper, "w", "Focus WhatsApp", function() launchOrFocus("WhatsApp") end)
   default:bindOnce(hyperShift, "z", "Focus Obsidian", function() launchOrFocus("Obsidian") end)
@@ -546,19 +553,9 @@ function M.setup()
     hs.eventtap.keyStroke({"ctrl", "shift"}, "1")
   end)
 
-  chromeAppModal:bind({"cmd"}, "t", function()
-    if isiTermFloatingTerminal() then
-      task({"osascript", "-e", [[
-        tell application "iTerm"
-          tell current window
-            set pName to profile name of current session of current tab
-            create tab with profile pName
-          end tell
-        end tell
-      ]]})
-    else
-      task({"chrome-preset", "new-tab", "--right"})
-    end
+  -- new tab to the right
+  chromeAppModal:bind({"ctrl", "cmd"}, "t", function()
+    task({"chrome-preset", "new-tab", "--right"})
   end)
 
   chromeAppModal:bind({"ctrl", "cmd"}, "b", function()
