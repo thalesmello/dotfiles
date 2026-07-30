@@ -1,0 +1,279 @@
+#!/usr/bin/env -S fish --no-config
+set -x PATH /opt/homebrew/bin (status dirname) $PATH
+
+# Standalone Ghostty counterpart to iterm-preset. Same subcommand names, backed
+# by Ghostty AppleScript. Ghostty exposes application -> windows -> tabs ->
+# terminals (a `terminal` is one split surface) and no tty/pid.
+#
+# Address the app by bundle id; targeting by name "Ghostty" errors -600.
+set -g GHOSTTY_ID 'application id "com.mitchellh.ghostty"'
+
+function ghostty-preset
+    set preset $argv[1]
+    set -e argv[1]
+
+    switch "$preset"
+    case "new-window"
+        osascript -e 'tell application id "com.mitchellh.ghostty" to new window'
+
+    case "new-split"
+        # -v/--vertical = left/right divider = Ghostty `direction right`
+        # -h/--horizontal = top/bottom divider = Ghostty `direction down`
+        argparse 'v/vertical' 'h/horizontal' 'c/cmd=' -- $argv
+        or return 1
+
+        if set -q _flag_vertical
+            set direction right
+        else
+            set direction down
+        end
+
+        if set -q _flag_cmd
+            # Match iterm-preset: run under `exec fish -c` so the split closes
+            # when the command exits, and keep it open on error.
+            set -l inner "$_flag_cmd; or read -P 'Press Enter to close'"
+            set -l payload "exec fish -c "(string escape -- $inner)
+
+            # Direction is a controlled keyword (interpolated); the arbitrary
+            # command text is passed as argv so it needs no AppleScript escaping.
+            # `input text` pastes literally and does NOT append a newline, so we
+            # send `enter` afterward to run it.
+            set -l script '
+on run argv
+    set cmdText to item 1 of argv
+    tell application id "com.mitchellh.ghostty"
+        set nt to split (focused terminal of selected tab of front window) direction '$direction'
+        input text cmdText to nt
+        send key "enter" to nt
+    end tell
+end run
+'
+            osascript -e "$script" "$payload"
+        else
+            osascript -e "tell application id \"com.mitchellh.ghostty\" to split (focused terminal of selected tab of front window) direction $direction"
+        end
+
+    case "is-zoomed"
+        # Delegate to Hammerspoon (Ghostty exposes no zoom state to AppleScript;
+        # the zoom signal lives in the AppKit accessibility tree). Exit 0 when a
+        # split is zoomed, 1 otherwise.
+        hs-preset is-ghostty-zoomed
+
+    case "focus-pane-with-fallback"
+        set direction $argv[1]
+
+        switch "$direction"
+        case "left"
+            set fallback_key h
+        case "right"
+            set fallback_key l
+        case "down"
+            set fallback_key j
+        case "up"
+            set fallback_key k
+        case "*"
+            return 1
+        end
+
+        # When a split is zoomed, don't navigate Ghostty splits (that un-zooms
+        # and jumps to a neighbor). Forward Ctrl+HJKL to the pane instead, which
+        # nvim maps to <C-w>hjkl so navigation stays inside the zoom. Send via
+        # osascript-preset (CGEvent with explicit flags) so the held Ctrl+Cmd
+        # from the triggering shortcut is not merged in — hs.eventtap/keyStroke
+        # would bleed those modifiers.
+        if ghostty-preset is-zoomed
+            osascript-preset send-keys ctrl $fallback_key
+            return
+        end
+
+        # Not zoomed. Don't trust perform action's boolean: it reports whether
+        # the action was dispatched, not whether focus actually moved (a single
+        # pane or an edge still return true). Mirror iterm-preset instead:
+        # compare the focused pane id before/after and fall back to the WM focus
+        # keys (ctrl+alt+hjkl) only if it did NOT change.
+        set -l changed (osascript -e "
+            tell application id \"com.mitchellh.ghostty\"
+                set t to focused terminal of selected tab of front window
+                set beforeId to id of t
+                perform action \"goto_split:$direction\" on t
+                set afterId to id of (focused terminal of selected tab of front window)
+                return (beforeId is not afterId) as text
+            end tell
+        ")
+        if test "$changed" != "true"
+            osascript-preset send-keys ctrl alt $fallback_key
+        end
+
+    case "nvim-tab-remote"
+        function __exit_on_error -a message
+            echo "Error: $message" >&2
+            exit 1
+        end
+
+        # Fast path: already inside an nvim terminal.
+        if set -q NVIM
+            nvim --server "$NVIM" $argv
+            or __exit_on_error "nvim --server exited with an error"
+            return
+        end
+
+        # Under tmux the sibling-pane lookup is terminal-agnostic (tmux gives us
+        # the tab's ttys), so reuse the socket path unchanged. This is the
+        # dev-preset / devserver case and works identically in Ghostty.
+        if test -n "$TMUX"
+            set -l servers (nvim --headless -c 'lua for _, s in ipairs(vim.fn.serverlist({peer=true})) do print(s) end' -c 'qa!' 2>&1)
+            or __exit_on_error "failed to list nvim servers"
+
+            set tab_ttys (tmux list-panes -F '#{pane_tty}')
+            or __exit_on_error "failed to get tab ttys"
+
+            set -l found_server
+            for server in $servers
+                set -l nvim_pid (string match -r 'nvim\.(\d+)\.' "$server")[2]
+                if test -n "$nvim_pid"
+                    if test -d /proc/$nvim_pid/fd
+                        set nvim_tty (readlink /proc/$nvim_pid/fd/0 2>/dev/null)
+                    else
+                        set nvim_tty (lsof -p "$nvim_pid" 2>/dev/null | string match -r '/dev/ttys\d+' | head -1)
+                    end
+                    if contains -- "$nvim_tty" $tab_ttys
+                        set found_server "$server"
+                        break
+                    end
+                end
+            end
+
+            if test -n "$found_server"
+                nvim --server "$found_server" $argv
+            else
+                nvim $argv
+            end
+            or __exit_on_error "nvim exited with an error"
+            return
+        end
+
+        # Bare Ghostty (no tmux): no tty means no server->pane correlation.
+        # Drive the sibling nvim by keystrokes, located by its "nvim:" title
+        # marker (set via titlestring in nvim config). If none is found, exec
+        # nvim in this split (repurposing the split new-split created for us).
+        argparse 'remote' -- $argv
+        or return 1
+        set -l file $argv[1]
+
+        set -l drop_script '
+on run argv
+    set filePath to item 1 of argv
+    tell application id "com.mitchellh.ghostty"
+        try
+            set target to (first terminal of selected tab of front window whose name starts with "nvim:")
+        on error
+            return "no"
+        end try
+        -- 1) force normal mode
+        send key "\\" modifiers "control" to target
+        send key "n" modifiers "control" to target
+        -- 2) open cmdline with an explicit keypress
+        send key ":" to target
+        -- 3) paste the path literally (cmdline paste inserts literally)
+        input text ("drop " & filePath) to target
+        -- 4) execute
+        send key "enter" to target
+        return "yes"
+    end tell
+end run
+'
+        set -l found (osascript -e "$drop_script" "$file")
+
+        if test "$found" != "yes"
+            exec nvim $file
+        end
+
+    case "nvim-open-in-tab"
+        set -l file (realpath "$(eval echo $argv[1])" 2>/dev/null)
+        or begin
+            echo "Error: file not found: $argv[1]" >&2
+            exit 1
+        end
+
+        ghostty-preset nvim-tab-remote --remote "$file"
+
+    case "iterate-windows"
+        # Cycle Ghostty windows, skipping the devserver window (by id). Mirrors
+        # iterm-preset iterate-windows: when Ghostty is already frontmost advance
+        # to the next eligible window (wrapping); otherwise bring the most recent
+        # eligible window forward. Ordered by id for predictable cycling.
+        argparse 'except-window-id=' 'prev' -- $argv
+        or return 1
+
+        set -l except_id ""
+        set -q _flag_except_window_id; and set except_id "$_flag_except_window_id"
+
+        set -l want_prev 0
+        set -q _flag_prev; and set want_prev 1
+
+        osascript -e '
+            on run argv
+                set exceptId to item 1 of argv
+                set wantPrev to (item 2 of argv) is "1"
+                tell application id "com.mitchellh.ghostty"
+                    set ids to {}
+                    repeat with w in windows
+                        set wid to id of w
+                        if (wid as text) is not exceptId then set end of ids to wid
+                    end repeat
+                    if (count of ids) is 0 then
+                        activate
+                        return
+                    end if
+                    set recentId to item 1 of ids
+                    set n to count of ids
+                    repeat with i from 1 to n - 1
+                        repeat with j from 1 to (n - i)
+                            if (item j of ids) > (item (j + 1) of ids) then
+                                set tmp to item j of ids
+                                set item j of ids to item (j + 1) of ids
+                                set item (j + 1) of ids to tmp
+                            end if
+                        end repeat
+                    end repeat
+                    set isFront to frontmost
+                    set curId to missing value
+                    try
+                        set curId to id of front window
+                    end try
+                    set pos to 0
+                    repeat with i from 1 to n
+                        if (item i of ids) is curId then
+                            set pos to i
+                            exit repeat
+                        end if
+                    end repeat
+                    if isFront and pos > 0 then
+                        if wantPrev then
+                            set targetPos to ((pos - 2 + n) mod n) + 1
+                        else
+                            set targetPos to (pos mod n) + 1
+                        end if
+                        set targetId to item targetPos of ids
+                    else if pos > 0 then
+                        set targetId to item pos of ids
+                    else
+                        set targetId to recentId
+                    end if
+                    activate
+                    repeat with w in windows
+                        if id of w is targetId then
+                            activate window w
+                            exit repeat
+                        end if
+                    end repeat
+                end tell
+            end run
+        ' "$except_id" "$want_prev"
+
+    case "*"
+        return 1
+    end
+end
+
+ghostty-preset $argv

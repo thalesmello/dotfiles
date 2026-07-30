@@ -251,45 +251,113 @@ function M.setup()
     return isFloatingTerminal() or frontAppName() == "iTerm2"
   end
 
+  -- Ghostty dispatch only fires for a regular Ghostty window (floating terminal
+  -- is deferred and stays on iTerm).
+  local function isGhostty()
+    return frontAppName() == "Ghostty"
+  end
+
+  -- Cycle iTerm + Ghostty windows as if they were a single app. Windows from
+  -- both apps are merged and ordered by (Hammerspoon/CG) window id for stable
+  -- cycling. When a terminal window is focused, step to the next merged window
+  -- (wrapping, possibly crossing into the other app); otherwise bring the most
+  -- recently used terminal window forward. `exceptId` (optional) is a window id
+  -- to skip. hs.window:focus() activates the owning app for us, so no per-app
+  -- AppleScript is needed.
+  local function cycleTerminalWindows(exceptId)
+    local wins = {}
+    local eligible = {}
+    for _, appName in ipairs({ "iTerm2", "Ghostty" }) do
+      local app = hs.application.get(appName)
+      if app then
+        for _, w in ipairs(app:allWindows()) do
+          local id = w:id()
+          if id and w:isStandard() and id ~= exceptId then
+            table.insert(wins, w)
+            eligible[id] = true
+          end
+        end
+      end
+    end
+
+    if #wins == 0 then return end
+
+    table.sort(wins, function(x, y) return x:id() < y:id() end)
+
+    local focused = hs.window.focusedWindow()
+    local focusedId = focused and focused:id()
+    local pos = nil
+    for i, w in ipairs(wins) do
+      if w:id() == focusedId then
+        pos = i
+        break
+      end
+    end
+
+    if pos then
+      -- On an eligible terminal window: advance to the next (wrapping).
+      wins[(pos % #wins) + 1]:focus()
+    else
+      -- Elsewhere (or on an excluded window): most recently used eligible window.
+      for _, w in ipairs(hs.window.orderedWindows()) do
+        local id = w:id()
+        if id and eligible[id] then
+          w:focus()
+          return
+        end
+      end
+      wins[1]:focus()
+    end
+  end
+
   default:conditionalBind({"ctrl", "cmd"}, "h", {
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "left"}) end},
+    {cond = isGhostty, function() task({"ghostty-preset", "focus-pane-with-fallback", "left"}) end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "tab") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "left") end},
   })
   default:conditionalBind({"ctrl", "cmd"}, "j", {
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "down"}) end},
+    {cond = isGhostty, function() task({"ghostty-preset", "focus-pane-with-fallback", "down"}) end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "9") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "down") end},
   })
   default:conditionalBind({"ctrl", "cmd"}, "k", {
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "up"}) end},
+    {cond = isGhostty, function() task({"ghostty-preset", "focus-pane-with-fallback", "up"}) end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "1") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "up") end},
   })
   default:conditionalBind({"ctrl", "cmd"}, "l", {
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "right"}) end},
+    {cond = isGhostty, function() task({"ghostty-preset", "focus-pane-with-fallback", "right"}) end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl"}, "tab") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "right") end},
   })
 
-  -- Shift+Ctrl+Cmd HJKL (per-app)
+  -- Shift+Ctrl+Cmd HJKL (per-app). Ghostty maps ctrl+cmd+arrow to resize_split
+  -- in its config, so send the same keys the iTerm branch does.
   default:conditionalBind({"shift", "ctrl", "cmd"}, "h", {
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "left") end},
+    {cond = isGhostty, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "left") end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "pageup") end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "left") end},
   })
   default:conditionalBind({"shift", "ctrl", "cmd"}, "j", {
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "down") end},
+    {cond = isGhostty, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "down") end},
     {app = "Google Chrome", function() task({"osascript-preset", "send-keys", "ctrl", "shift", "j"}) end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "down") end},
   })
   default:conditionalBind({"shift", "ctrl", "cmd"}, "k", {
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "up") end},
+    {cond = isGhostty, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "up") end},
     {app = "Google Chrome", function() task({"osascript-preset", "send-keys", "ctrl", "shift", "k"}) end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "up") end},
   })
   default:conditionalBind({"shift", "ctrl", "cmd"}, "l", {
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "right") end},
+    {cond = isGhostty, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "right") end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "pagedown") end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "right") end},
   })
@@ -328,19 +396,14 @@ function M.setup()
   -- App shortcuts
   default:bindOnce(hyper, "b", "Focus Hammerspoon Console", function() hs.toggleConsole() end)
   default:bindOnce(hyper, "c", "Focus Cursor", function() launchOrFocus("Cursor") end)
-  default:conditionalBindOnce(hyper, "x", "Focus iTerm2", {
-    {
-      app = "iTerm2", function ()
-        hs.eventtap.keyStroke({"cmd"}, "`")
-      end
-    },
-    {
-      cond = isFloatingTerminal, function ()
-        launchOrFocus("iTerm")
-        hs.eventtap.keyStroke({"cmd"}, "`")
-      end
-    },
-    { function () launchOrFocus("iTerm") end }
+  -- iTerm + Ghostty behave as one app: when a terminal is frontmost, cycle
+  -- across the windows of both; otherwise focus iTerm (if running), else Ghostty
+  -- (running or launched).
+  default:conditionalBindOnce(hyper, "x", "Focus Terminal", {
+    { cond = isiTerm, function() cycleTerminalWindows() end },
+    { cond = isGhostty, function() cycleTerminalWindows() end },
+    { cond = function() return hs.application.get("iTerm2") ~= nil end, function() launchOrFocus("iTerm") end },
+    { function() launchOrFocus("Ghostty") end },
   })
   default:bindOnce(hyper, "q", "Focus Gemini", function() task({"chrome-preset", "focus-or-open-url", "gemini.google.com", "--label", "Gemini"}) end)
   default:bindOnce(hyper, "w", "Focus WhatsApp", function() launchOrFocus("WhatsApp") end)
@@ -378,6 +441,7 @@ function M.setup()
   -- Universal Actions (per-app)
   default:conditionalBindOnce(hyper, "o", "Universal Actions", {
     {app = "iTerm2", function() fish("ua --clipboard") end},
+    {app = "Ghostty", function() fish("ua --clipboard") end},
     {function() fish("ua") end},
   })
   default:bindOnce(hyperShift, "o", "Universal Actions (force)", function() fish("ua") end)
@@ -827,7 +891,7 @@ function M.setup()
   invoke:bindOnce({}, "b", "Alfred BTT Search", function() hs.applescript([[tell application "Alfred" to search "btt "]]) end)
   invoke:bindOnce({}, "t", "Alfred Top Search", function() hs.applescript([[tell application "Alfred" to search "top "]]) end)
   invoke:bindOnce({}, "y", "YouTube Search", function() task({"open", "raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D"}) end)
-  invoke:bindOnce({}, "return", "New iTerm Window", function() task({"iterm-preset", "new-window"}) end)
+  invoke:bindOnce({}, "return", "New Ghostty Window", function() task({"ghostty-preset", "new-window"}) end)
   invoke:bindOnce(hyper, "i", "AI Input Mode", function() Preset.displayMessage("AI Input Mode"); fish('osascript -e "set volume input volume 100"; display-message "$(set-preferred-input-device)"') end)
   invoke:bindOnce(hyper, "r", "Reinitialize Displays", function() Preset.displayMessage("Reinitialize Displays"); fish("betterdisplaycli perform --reinitialize") end)
   ---------------------------------------------------------------

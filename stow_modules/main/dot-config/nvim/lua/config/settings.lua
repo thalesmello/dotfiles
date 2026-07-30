@@ -7,6 +7,11 @@ vim.opt.conceallevel = 1
 
 vim.o.statusline = '%<%f %w%m%r'
 
+-- Mark the terminal title so ghostty-preset can locate an nvim pane by title
+-- when running under a bare Ghostty (no tmux) to open files in a sibling pane.
+vim.o.title = true
+vim.o.titlestring = "nvim:%f"
+
 vim.opt.showcmd = true
 
 vim.opt.wildignorecase = true

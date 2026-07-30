@@ -129,6 +129,41 @@ function M.isFloatingTerminalActive()
     and win:title():find("floating-terminal", 1, true) ~= nil
 end
 
+-- True when the focused Ghostty window has a zoomed split.
+--
+-- Ghostty exposes no zoom state via AppleScript and draws the terminal grid with
+-- Metal. The "Reset (Split) Zoom" button is only a hover affordance, so it can't
+-- be relied on. Instead: Ghostty renders only the active tab's surfaces, and a
+-- zoomed split collapses the content to a single surface, so count the visible
+-- "Terminal content area" AXTextAreas. Exactly one surface means either zoomed
+-- (splits hidden) or a genuine single pane -- distinguish those via the logical
+-- split count from AppleScript, which still sees the hidden splits.
+function M.isGhosttyZoomed()
+  local app = hs.application.get("Ghostty")
+  local win = app and app:focusedWindow()
+  local ax = win and hs.axuielement.windowElement(win)
+  if not ax then return false end
+
+  local visible = 0
+  local function walk(el, depth)
+    if not el or depth > 12 then return end
+    if el:attributeValue("AXRole") == "AXTextArea"
+      and el:attributeValue("AXHelp") == "Terminal content area" then
+      visible = visible + 1
+    end
+    for _, c in ipairs(el:attributeValue("AXChildren") or {}) do walk(c, depth + 1) end
+  end
+  walk(ax, 0)
+
+  -- More than one surface shown => real splits are visible, not zoomed.
+  if visible ~= 1 then return false end
+
+  -- One surface shown: zoomed iff the active tab logically still has >1 split.
+  local ok, logical = hs.osascript.applescript(
+    'tell application id "com.mitchellh.ghostty" to count of terminals of selected tab of front window')
+  return ok and type(logical) == "number" and logical > 1
+end
+
 function M.getSelectedText()
   local elem = hs.axuielement.systemWideElement()
 
