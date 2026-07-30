@@ -48,3 +48,7 @@ defaults write com.knollsoft.Hookshot screenEdgeGapTop -int 30
 
 # Enable Keyboard navigation
 defaults write NSGlobalDomain AppleKeyboardUIMode -int 2
+
+# Disable ctrl + command + d for lookup word
+defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys -dict-add 70 '<dict><key>enabled</key><false/></dict>'
+

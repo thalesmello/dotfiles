@@ -31,6 +31,36 @@ function __ghostty_is_floating_terminal
     test "$(hs -c 'if require("preset").isGhosttyQuickTerminalActive() then print("yes") end')" = "yes"
 end
 
+# Exit 0 when the front window is a lone herdr session: exactly one tab, exactly
+# one pane (a real single surface -- `count of terminals` counts logical splits,
+# so a zoomed multi-split reports >1 and is excluded), and that pane's title
+# identifies herdr. Exit 1 otherwise (including no window / AppleScript error).
+function __ghostty_is_herdr_zoomed_or_single_surface
+    test "$(hs -c 'if require("preset").isGhosttyHerdrZoomedOrSingleSurface() then print("yes") end')" = "yes"
+end
+
+# Exit 0 when the focused window shows a single surface (zoomed or lone pane)
+# running a multiplexer -- nvim or herdr -- so pane-nav keys should go to it.
+function __ghostty_is_multiplexer_app_zoomed_or_single_surface
+    test "$(hs -c 'if require("preset").isGhosttyMultiplexerZoomedOrSingleSurface() then print("yes") end')" = "yes"
+end
+
+function __ghostty_is_herdr_window
+    test "$(osascript -e '
+        tell application id "com.mitchellh.ghostty"
+            try
+                set win to front window
+                if (count of tabs of win) is not 1 then return "no"
+                set tb to item 1 of tabs of win
+                if (count of terminals of tb) is not 1 then return "no"
+                set t to item 1 of terminals of tb
+                if (name of t) starts with "herdr" then return "yes"
+            end try
+            return "no"
+        end tell
+    ')" = "yes"
+end
+
 function ghostty-preset
     set preset $argv[1]
     set -e argv[1]
@@ -110,6 +140,51 @@ end run
         # focused window, 1 otherwise. Mirrors iterm-preset is-floating-window-active.
         __ghostty_is_floating_terminal
 
+    case "is-herdr-window"
+        # Exit 0 when the front window is a lone herdr session (one tab, one pane,
+        # not zoomed, title starts with "herdr"), 1 otherwise. See helper.
+        __ghostty_is_herdr_window
+
+    case "is-herdr-zoomed-or-single-surface"
+        # Exit 0 when the focused window shows a single surface (zoomed split or
+        # lone pane) running herdr, 1 otherwise. See helper.
+        __ghostty_is_herdr_zoomed_or_single_surface
+
+    case "is-multiplexer-app-zoomed-or-single-surface"
+        # Exit 0 when the focused window shows a single surface (zoomed or lone
+        # pane) running nvim or herdr, 1 otherwise. See helper.
+        __ghostty_is_multiplexer_app_zoomed_or_single_surface
+
+    case "new-split-with-fallback"
+        # When the focused surface is a zoomed/single multiplexer pane (nvim or
+        # herdr), it owns the split, so send its sequence: ctrl+space prefix, then
+        # `v` (vertical) or `-` (horizontal). Otherwise make a native Ghostty
+        # split. Defaults to horizontal like new-split.
+        argparse 'v/vertical' 'h/horizontal' -- $argv
+        or return 1
+        if __ghostty_is_multiplexer_app_zoomed_or_single_surface
+            osascript-preset send-keys ctrl space
+            if set -q _flag_vertical
+                osascript-preset send-keys v
+            else
+                osascript-preset send-keys minus
+            end
+        else if set -q _flag_vertical
+            ghostty-preset new-split --vertical
+        else
+            ghostty-preset new-split --horizontal
+        end
+
+    case "new-tab-with-fallback"
+        # In a lone herdr window, send herdr's new-tab sequence (ctrl+space prefix,
+        # then shift+n). Anywhere else, make a native Ghostty tab.
+        if __ghostty_is_herdr_window
+            osascript-preset send-keys ctrl space
+            osascript-preset send-keys shift n
+        else
+            osascript -e 'tell application id "com.mitchellh.ghostty" to new tab in front window'
+        end
+
     case "reveal-floating-terminal"
         # Show the quick terminal if it isn't already the focused window. F17 is
         # bound globally to toggle_quick_terminal in the Ghostty config, so a
@@ -139,11 +214,14 @@ end run
             return 1
         end
 
-        # If a single surface is shown -- a zoomed split or a lone pane -- forward
-        # Ctrl+HJKL to it so nvim navigates its own windows (<C-w>hjkl) instead of
-        # leaving the surface. (AX check on the focused window, works for the quick
-        # terminal too.)
-        if __ghostty_zoomed_or_single_surface
+        # If a single surface (zoomed split or lone pane) running a multiplexer
+        # (nvim or herdr) is shown, forward its pane-nav sequence: the ctrl+space
+        # prefix, then ctrl+<hjkl>. Both bind this -- nvim's neoterminal maps
+        # <c-space><c-h> -> <C-w>h (normal and terminal mode), and herdr uses the
+        # same prefix -- so one sequence covers both. A non-multiplexer single
+        # pane falls through to goto_split (a no-op if there's no split).
+        if __ghostty_is_multiplexer_app_zoomed_or_single_surface
+            osascript-preset send-keys ctrl space
             osascript-preset send-keys ctrl $fallback_key
             return
         end

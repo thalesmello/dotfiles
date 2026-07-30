@@ -117,6 +117,7 @@ split_horizontal = ["prefix+minus", "prefix+\""]
 # plain pane close lives on prefix+shift+backspace.
 close_pane = "prefix+shift+backspace"
 # zoom = "prefix+z"       # legacy alias: fullscreen
+fullscreen = "prefix+ctrl+enter"
 resize_mode = "prefix+r"
 # toggle_sidebar = "prefix+b"
 

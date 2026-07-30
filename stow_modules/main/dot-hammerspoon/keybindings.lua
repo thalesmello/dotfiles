@@ -260,6 +260,30 @@ function M.setup()
     return frontAppName() == "Ghostty" or Preset.isGhosttyQuickTerminalActive()
   end
 
+  -- cmd+d / cmd+shift+d / cmd+t in Ghostty -> herdr-aware split/tab fallbacks.
+  -- Ghostty keybinds can't run a shell command, so we intercept here. An eventtap
+  -- (not a hotkey) so it only fires when Ghostty is frontmost and passes through
+  -- everywhere else (cmd+d still bookmarks in browsers, etc.). cmd+ctrl+* (ctrl
+  -- held) is excluded and left to Ghostty's own default new_split/new_tab binds.
+  -- Gated on frontAppName (not isGhostty) so the quick terminal keeps Ghostty's
+  -- native split rather than the AppleScript fallback (which targets front window).
+  _G._GhosttyNewSplitTabTap = hs.eventtap.new({hs.eventtap.event.types.keyDown}, function(event)
+    local flags = event:getFlags()
+    if not flags.cmd or flags.ctrl or flags.alt then return false end
+    local code = event:getKeyCode()
+    local isD = code == hs.keycodes.map["d"]
+    local isT = code == hs.keycodes.map["t"] and not flags.shift
+    if not (isD or isT) then return false end
+    if frontAppName() ~= "Ghostty" then return false end
+    if isD then
+      task({"ghostty-preset", "new-split-with-fallback", flags.shift and "--horizontal" or "--vertical"})
+    else
+      task({"ghostty-preset", "new-tab-with-fallback"})
+    end
+    return true
+  end)
+  _G._GhosttyNewSplitTabTap:start()
+
   -- Cycle iTerm + Ghostty windows as if they were a single app. Windows from
   -- both apps are merged and ordered by (Hammerspoon/CG) window id for stable
   -- cycling. When a terminal window is focused, step to the next merged window

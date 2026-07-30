@@ -164,6 +164,27 @@ function M.isGhosttyZoomedOrSingleSurface()
   return count == 1
 end
 
+-- True when the focused Ghostty window shows a single surface (a zoomed split or
+-- a lone pane) whose program is herdr. The window title reflects the focused
+-- surface's title, and herdr sets it to "herdr ...".
+function M.isGhosttyHerdrZoomedOrSingleSurface()
+  if not M.isGhosttyZoomedOrSingleSurface() then return false end
+  local win = hs.window.focusedWindow()
+  local title = win and win:title() or ""
+  return title:sub(1, 5) == "herdr"
+end
+
+-- True when the focused Ghostty window shows a single surface (zoomed split or
+-- lone pane) running a multiplexer-like app -- nvim or herdr -- so forwarding
+-- pane-navigation keys to it makes sense. Identified by the focused surface's
+-- title (nvim sets "nvim:...", herdr sets "herdr ...").
+function M.isGhosttyMultiplexerZoomedOrSingleSurface()
+  if not M.isGhosttyZoomedOrSingleSurface() then return false end
+  local win = hs.window.focusedWindow()
+  local title = win and win:title() or ""
+  return title:sub(1, 5) == "herdr" or title:sub(1, 4) == "nvim"
+end
+
 -- True when the focused window is Ghostty's quick (floating) terminal. Ghostty
 -- gives that window the AXFloatingWindow subrole (a normal Ghostty window is
 -- AXStandardWindow), so match on that. Pure hs.window (no AppleScript).
