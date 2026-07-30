@@ -43,6 +43,7 @@
 # resize-overlay-duration = 4s 200ms
 quick-terminal-position = bottom
 quick-terminal-animation-duration = 0
+copy-on-select = clipboard
 
 
 keybind = super+page_up=scroll_page_up

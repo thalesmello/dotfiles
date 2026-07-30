@@ -142,8 +142,9 @@ end
 -- genuine single pane; the caller (ghostty-preset) disambiguates those with the
 -- logical split count from AppleScript, run in a subprocess rather than here.
 function M.isGhosttyZoomedOrSingleSurface()
-  local app = hs.application.get("Ghostty")
-  local win = app and app:focusedWindow()
+  -- Use the globally focused window (not app:focusedWindow) so this also covers
+  -- the quick/floating terminal panel, which app:focusedWindow may not return.
+  local win = hs.window.focusedWindow()
   local ax = win and hs.axuielement.windowElement(win)
   if not ax then return false end
 

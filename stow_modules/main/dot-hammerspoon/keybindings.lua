@@ -253,10 +253,11 @@ function M.setup()
     return isiTermFloatingTerminal() or frontAppName() == "iTerm2"
   end
 
-  -- Ghostty dispatch only fires for a regular Ghostty window (floating terminal
-  -- is deferred and stays on iTerm).
+  -- True when Ghostty is frontmost, OR its quick (floating) terminal is focused.
+  -- frontAppName() doesn't report the floating panel's app as frontmost, so OR in
+  -- the quick-terminal check -- mirrors isiTerm()'s isFloatingTerminalActive() OR.
   local function isGhostty()
-    return frontAppName() == "Ghostty"
+    return frontAppName() == "Ghostty" or Preset.isGhosttyQuickTerminalActive()
   end
 
   -- Cycle iTerm + Ghostty windows as if they were a single app. Windows from

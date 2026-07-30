@@ -25,6 +25,12 @@ function __ghostty_is_zoomed
     test "$logical" -gt 1 2>/dev/null
 end
 
+# Exit 0 when Ghostty's quick (floating) terminal is the focused window. Direct
+# `hs -c` (no re-spawn) so it's cheap on the per-keystroke focus path.
+function __ghostty_is_floating_terminal
+    test "$(hs -c 'if require("preset").isGhosttyQuickTerminalActive() then print("yes") end')" = "yes"
+end
+
 function ghostty-preset
     set preset $argv[1]
     set -e argv[1]
@@ -102,7 +108,7 @@ end run
     case "is-floating-terminal"
         # Predicate: exit 0 when Ghostty's quick (floating) terminal is the
         # focused window, 1 otherwise. Mirrors iterm-preset is-floating-window-active.
-        test "$(hs -c 'if require("preset").isGhosttyQuickTerminalActive() then print("yes") end')" = "yes"
+        __ghostty_is_floating_terminal
 
     case "reveal-floating-terminal"
         # Show the quick terminal if it isn't already the focused window. F17 is
@@ -133,34 +139,21 @@ end run
             return 1
         end
 
-        # When a split is zoomed, don't navigate Ghostty splits (that un-zooms
-        # and jumps to a neighbor). Forward Ctrl+HJKL to the pane instead, which
-        # nvim maps to <C-w>hjkl so navigation stays inside the zoom. Send via
-        # osascript-preset (CGEvent with explicit flags) so the held Ctrl+Cmd
-        # from the triggering shortcut is not merged in — hs.eventtap/keyStroke
-        # would bleed those modifiers.
-        if __ghostty_is_zoomed
+        # If a single surface is shown -- a zoomed split or a lone pane -- forward
+        # Ctrl+HJKL to it so nvim navigates its own windows (<C-w>hjkl) instead of
+        # leaving the surface. (AX check on the focused window, works for the quick
+        # terminal too.)
+        if __ghostty_zoomed_or_single_surface
             osascript-preset send-keys ctrl $fallback_key
             return
         end
 
-        # Not zoomed. Don't trust perform action's boolean: it reports whether
-        # the action was dispatched, not whether focus actually moved (a single
-        # pane or an edge still return true). Mirror iterm-preset instead:
-        # compare the focused pane id before/after and fall back to the WM focus
-        # keys (ctrl+alt+hjkl) only if it did NOT change.
-        set -l changed (osascript -e "
-            tell application id \"com.mitchellh.ghostty\"
-                set t to focused terminal of selected tab of front window
-                set beforeId to id of t
-                perform action \"goto_split:$direction\" on t
-                set afterId to id of (focused terminal of selected tab of front window)
-                return (beforeId is not afterId) as text
-            end tell
-        ")
-        if test "$changed" != "true"
-            osascript-preset send-keys ctrl alt $fallback_key
-        end
+        # Otherwise move between visible splits with Ghostty's own goto_split
+        # keybind (cmd+alt+<arrow>, per the config). The keybind acts on the
+        # *focused* surface, so it works even when a floating terminal overlays
+        # another window -- unlike `perform action` on `front window`, which
+        # targeted whatever regular window was in the background.
+        osascript-preset send-keys cmd alt $direction
 
     case "nvim-tab-remote"
         function __exit_on_error -a message
