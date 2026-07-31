@@ -62,6 +62,29 @@ function __ghostty_is_herdr_window
     ')" = "yes"
 end
 
+# Exit 0 when the front window is a lone multiplexer session -- same shape as
+# __ghostty_is_herdr_window (exactly one tab, exactly one pane, so a zoomed
+# multi-split is excluded) but matching nvim as well as herdr. Used for the
+# tab/window fallbacks: unlike splits, a multiplexer only owns the tabs when it
+# is the whole window; with real Ghostty splits around, Ghostty owns them.
+function __ghostty_is_multiplexer_window
+    test "$(osascript -e '
+        tell application id "com.mitchellh.ghostty"
+            try
+                set win to front window
+                if (count of tabs of win) is not 1 then return "no"
+                set tb to item 1 of tabs of win
+                if (count of terminals of tb) is not 1 then return "no"
+                set t to item 1 of terminals of tb
+                set nm to (name of t)
+                if nm starts with "[mosh] " then set nm to text 8 thru -1 of nm
+                if nm starts with "herdr" or nm starts with "nvim" then return "yes"
+            end try
+            return "no"
+        end tell
+    ')" = "yes"
+end
+
 function ghostty-preset
     set preset $argv[1]
     set -e argv[1]
@@ -146,6 +169,11 @@ end run
         # not zoomed, title starts with "herdr"), 1 otherwise. See helper.
         __ghostty_is_herdr_window
 
+    case "is-multiplexer-window"
+        # Exit 0 when the front window is a lone multiplexer session (one tab,
+        # one pane, not zoomed, title nvim or herdr), 1 otherwise. See helper.
+        __ghostty_is_multiplexer_window
+
     case "is-herdr-zoomed-or-single-surface"
         # Exit 0 when the focused window shows a single surface (zoomed split or
         # lone pane) running herdr, 1 otherwise. See helper.
@@ -177,9 +205,10 @@ end run
         end
 
     case "new-tab-with-fallback"
-        # In a lone herdr window, send herdr's new-tab sequence (ctrl+space prefix,
-        # then ctrl+t). Anywhere else, make a native Ghostty tab.
-        if __ghostty_is_herdr_window
+        # In a lone multiplexer window (nvim or herdr), it owns the tabs, so send
+        # its new-tab sequence: ctrl+space prefix, then ctrl+t (both bind it).
+        # Anywhere else, make a native Ghostty tab.
+        if __ghostty_is_multiplexer_window
             osascript-preset send-keys ctrl space
             osascript-preset send-keys ctrl t
         else
@@ -187,10 +216,11 @@ end run
         end
 
     case "new-window-with-fallback"
-        # In a lone herdr window herdr owns the "windows" (no separate tab/window
-        # concept), so send its new-window sequence (ctrl+space prefix, then
-        # shift+n) -- same as new-tab. Anywhere else, make a native Ghostty window.
-        if __ghostty_is_herdr_window
+        # In a lone multiplexer window (nvim or herdr) it owns the "windows" (no
+        # separate tab/window concept), so send its new-window sequence
+        # (ctrl+space prefix, then shift+n) -- same as new-tab. Anywhere else,
+        # make a native Ghostty window.
+        if __ghostty_is_multiplexer_window
             osascript-preset send-keys ctrl space
             osascript-preset send-keys shift n
         else

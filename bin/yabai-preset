@@ -770,6 +770,11 @@ function yabai-preset
         set -e argv[1]
         yabai -m window --warp $direction; or yabai-preset unstack-window $direction
     case "toggle-float"
+        if test -z (yabai-preset get-focused-window-id 2>/dev/null | string collect)
+            echo "No focused window"
+            return 1
+        end
+
         if yabai-preset is-space-float-layout
             echo "Unsupported in float layout"
             return 1
@@ -788,27 +793,30 @@ function yabai-preset
             yabai -m query --displays --display | jq -r '.frame | "\(.x)\n\(.y)\n\(.w)\n\(.h)"' \
                 | read --line dsp_x dsp_y dsp_w dsp_h
 
-            set left_space (math "round($stk_x - $dsp_x)")
-            set right_space (math "round($dsp_x + $dsp_w - $stk_x - $stk_w)")
-            set top_space (math "round($stk_y - $dsp_y)")
-            set bottom_space (math "round($dsp_y + $dsp_h - $stk_y - $stk_h)")
-            set h_threshold (math "round(0.1 * $dsp_w)")
-            set v_threshold (math "round(0.1 * $dsp_h)")
-
             # Find the side with the most padding
             set -l best_space 0
             set -l best_dir ""
-            if test "$right_space" -gt "$h_threshold" -a "$right_space" -ge "$best_space"
-                set best_space $right_space; set best_dir right
-            end
-            if test "$left_space" -gt "$h_threshold" -a "$left_space" -gt "$best_space"
-                set best_space $left_space; set best_dir left
-            end
-            if test "$bottom_space" -gt "$v_threshold" -a "$bottom_space" -gt "$best_space"
-                set best_space $bottom_space; set best_dir down
-            end
-            if test "$top_space" -gt "$v_threshold" -a "$top_space" -gt "$best_space"
-                set best_space $top_space; set best_dir up
+
+            if test -n "$stk_w" -a -n "$dsp_w"
+                set left_space (math "round($stk_x - $dsp_x)")
+                set right_space (math "round($dsp_x + $dsp_w - $stk_x - $stk_w)")
+                set top_space (math "round($stk_y - $dsp_y)")
+                set bottom_space (math "round($dsp_y + $dsp_h - $stk_y - $stk_h)")
+                set h_threshold (math "round(0.1 * $dsp_w)")
+                set v_threshold (math "round(0.1 * $dsp_h)")
+
+                if test "$right_space" -gt "$h_threshold" -a "$right_space" -ge "$best_space"
+                    set best_space $right_space; set best_dir right
+                end
+                if test "$left_space" -gt "$h_threshold" -a "$left_space" -gt "$best_space"
+                    set best_space $left_space; set best_dir left
+                end
+                if test "$bottom_space" -gt "$v_threshold" -a "$bottom_space" -gt "$best_space"
+                    set best_space $bottom_space; set best_dir down
+                end
+                if test "$top_space" -gt "$v_threshold" -a "$top_space" -gt "$best_space"
+                    set best_space $top_space; set best_dir up
+                end
             end
 
             yabai-preset enforce-tiling --floating
