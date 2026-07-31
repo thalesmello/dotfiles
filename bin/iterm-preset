@@ -24,7 +24,7 @@ function iterm-preset
         # system-wide. Guard on the window already being active so this only
         # ever reveals.
         iterm-preset is-floating-window-active
-        or osascript-preset send-keys ctrl alt cmd slash
+        or osascript-preset send-keys f20
     case "new-split"
         argparse 'v/vertical' 'h/horizontal' 'c/cmd=' -- $argv
         or return 1

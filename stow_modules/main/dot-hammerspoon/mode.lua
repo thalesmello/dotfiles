@@ -2,8 +2,9 @@ local palette = require("palette")
 
 local M = {}
 
-function M.frontAppName()
-  local app = hs.application.frontmostApplication()
+function M.focusedWindowAppName()
+  local win = hs.window.focusedWindow()
+  local app = win and win:application()
   return app and app:name() or ""
 end
 
@@ -103,7 +104,7 @@ local function _makeRulesEvalFunc(rules)
       return
     end
 
-    local app = M.frontAppName()
+    local app = M.focusedWindowAppName()
     local rule = rules[i]
     local appMatch = not rule.app or rule.app == app
     local condMatch = true
@@ -172,14 +173,16 @@ end
 
 function M.createAppModal(appName)
   local modal = hs.hotkey.modal.new()
-  local watcher = hs.application.watcher.new(function(name, event)
-    if event == hs.application.watcher.activated then
-      if name == appName then modal:enter() else modal:exit() end
-    end
-  end)
-  watcher:start()
+  local function sync()
+    if M.focusedWindowAppName() == appName then modal:enter() else modal:exit() end
+  end
+  local watcher = hs.window.filter.new(nil)
+  watcher:subscribe({
+    hs.window.filter.windowFocused,
+    hs.window.filter.windowUnfocused,
+  }, sync)
   modal._appWatcher = watcher
-  if M.frontAppName() == appName then modal:enter() end
+  sync()
   return modal
 end
 

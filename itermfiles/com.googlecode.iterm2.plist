@@ -3340,15 +3340,15 @@
 			<key>HotKey Alternate Shortcuts</key>
 			<array/>
 			<key>HotKey Characters</key>
-			<string>/</string>
+			<string></string>
 			<key>HotKey Characters Ignoring Modifiers</key>
-			<string>/</string>
+			<string></string>
 			<key>HotKey Key Code</key>
-			<integer>44</integer>
+			<integer>106</integer>
 			<key>HotKey Modifier Activation</key>
 			<integer>0</integer>
 			<key>HotKey Modifier Flags</key>
-			<integer>1835008</integer>
+			<integer>0</integer>
 			<key>HotKey Window Animates</key>
 			<false/>
 			<key>HotKey Window AutoHides</key>

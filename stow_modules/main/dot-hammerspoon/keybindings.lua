@@ -12,7 +12,7 @@ local taskAsync = shell.taskAsync
 local fish = shell.fish
 local fishAsync = shell.fishAsync
 local sleep = shell.sleepAsync
-local frontAppName = mode.frontAppName
+local focusedWindowAppName = mode.focusedWindowAppName
 local isiTermFloatingTerminal = Preset.isFloatingTerminalActive
 -- Combined: either the iTerm hotkey window or the Ghostty quick terminal.
 local isFloatingTerminal = Preset.isFloatingTerminal
@@ -250,16 +250,24 @@ function M.setup()
 
   -- Ctrl+Cmd HJKL (per-app, Chrome tab nav)
   local function isiTerm()
-    return isiTermFloatingTerminal() or frontAppName() == "iTerm2"
+    return isiTermFloatingTerminal() or focusedWindowAppName() == "iTerm2"
   end
 
   -- True when Ghostty is frontmost, OR its quick (floating) terminal is focused.
-  -- frontAppName() doesn't report the floating panel's app as frontmost, so OR in
+  -- focusedWindowAppName() doesn't see the floating panel as a focused window, so OR in
   -- the quick-terminal check -- mirrors isiTerm()'s isFloatingTerminalActive() OR.
   local function isGhostty()
-    return frontAppName() == "Ghostty" or Preset.isGhosttyQuickTerminalActive()
+    return focusedWindowAppName() == "Ghostty" or Preset.isGhosttyQuickTerminalActive()
   end
 
+  -- Floating terminal shortcuts
+  default:bindOnce(hyper, "/", "Toggle Ghostty Quick Terminal", function()
+    hs.eventtap.keyStroke({}, "f17")
+  end)
+
+  service:bindOnce(hyper, "/", "Toggle iTerm Floating Termianl", function()
+    hs.eventtap.keyStroke({}, "f20")
+  end)
   -- cmd+d / cmd+shift+d / cmd+t in Ghostty -> herdr-aware split/tab fallbacks.
   -- Ghostty keybinds can't run a shell command, so we intercept here. An eventtap
   -- (not a hotkey) so it only fires when Ghostty is frontmost and passes through
@@ -821,7 +829,6 @@ function M.setup()
   service:bindOnce({"shift"}, "tab", "Move Window To Next Display", function() task({"wm-preset", "smart-move-window-to-next-display"}) end)
   service:bindOnce(hyperShift, "tab", "Swap Workspaces Between Monitors", function() task({"wm-preset", "swap-workspaces-between-monitors"}) end)
   service:bindOnce({"shift"}, "/", "Trigger Help Menu", function() Preset.triggerMenuBar("Help") end)
-  service:bindOnce(hyper, "/", "Toggle Ghostty Quick Terminal", function() hs.eventtap.keyStroke({}, "f17") end)
   service:bindOnce({"shift"}, "v", "Tile Left", function() Preset.triggerMenuBar("Window;Full Screen Tile; Left of Screen") end)
   service:bindOnce(hyper, "return", "True Fullscreen", function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "f") end)
 
@@ -928,7 +935,7 @@ function M.setup()
     fishAsync = fishAsync,
     task = task,
     taskAsync = taskAsync,
-    frontAppName = frontAppName,
+    focusedWindowAppName = focusedWindowAppName,
     default = default,
     service = service,
     chrome = chrome,

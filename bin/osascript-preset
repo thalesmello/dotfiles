@@ -11,6 +11,8 @@ function osascript-preset
         set -l key
 
         for arg in $argv
+            # Accept arguments in any case, eg F17 or CMD
+            set arg (string lower -- "$arg")
             switch "$arg"
                 case ctrl shift alt meta cmd fn
                     set -a modifiers $arg
