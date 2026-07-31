@@ -13,7 +13,6 @@ abbr gp 'git push'
 abbr gr 'git remote'
 abbr gs 'git status'
 abbr gu 'git reset HEAD'
-abbr how 'howdoi -n 5'
 abbr ovim /usr/local/bin/vim
 abbr ssx 'ssh -C -c blowfish -X'
 abbr vim nvim
