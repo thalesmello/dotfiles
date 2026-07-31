@@ -10,8 +10,9 @@
 # The (n)vim gate matters: ctrl+h/j/k/l sent to a shell would be
 # backspace/newline/kill-line/clear. When in doubt we focus, never forward.
 #
-# Pane identity comes from `herdr pane layout --current` (focused_pane_id), so it
-# does not depend on $HERDR_PANE_ID being injected into the command environment.
+# Pane identity comes from $HERDR_ACTIVE_PANE_ID, which herdr injects into every
+# keys.command environment (the same var the clear-screen binding uses), so we
+# read it directly instead of parsing it back out of the layout.
 # Set HERDR_SMARTNAV_DEBUG=1 to print the decision instead of acting.
 
 dir="$1"      # left | down | up | right
@@ -19,36 +20,33 @@ letter="$2"   # h | j | k | l
 
 herdr="${HERDR_BIN_PATH:-herdr}"
 
-layout=$("$herdr" pane layout --current 2>/dev/null)
+# Focused pane id is injected by herdr; no CLI call needed for it.
+pane="${HERDR_ACTIVE_PANE_ID:-}"
 
-# Parse: line 1 = focused pane id, line 2 = "1" if zoomed or single pane else "0".
-parsed=$(printf '%s' "$layout" | python3 -c '
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    s = d.get("result", d).get("layout", {})
-    print(s.get("focused_pane_id") or "")
-    print("1" if (bool(s.get("zoomed")) or len(s.get("panes") or []) <= 1) else "0")
-except Exception:
-    print("")
-    print("0")
-')
-pane=$(printf '%s\n' "$parsed" | sed -n 1p)
-no_room=$(printf '%s\n' "$parsed" | sed -n 2p)
+# layout is still required for no_room: "1" if zoomed or a single pane else "0".
+# jq starts far faster than python3, so parsing stays cheap.
+no_room=$("$herdr" pane layout --current 2>/dev/null | jq -r '
+  (.result // .).layout as $s
+  | if ($s.zoomed == true) or (($s.panes // []) | length) <= 1 then "1" else "0" end
+' 2>/dev/null)
 
-is_vim=no
-if "$herdr" pane process-info --current 2>/dev/null | grep -Eqw 'nvim|vim'; then
-  is_vim=yes
-fi
+# The (n)vim gate only matters when herdr has no room to navigate (zoomed or a
+# single pane). In the common multi-pane case we skip the extra process-info
+# call entirely and just focus. is_vim is computed lazily via check_vim().
+check_vim() {
+  "$herdr" pane process-info --current 2>/dev/null | grep -Eqw 'nvim|vim'
+}
 
 if [ "${HERDR_SMARTNAV_DEBUG:-}" = "1" ]; then
+  is_vim=no
+  check_vim && is_vim=yes
   printf 'dir=%s letter=%s pane=%s no_room=%s is_vim=%s -> %s\n' \
     "$dir" "$letter" "$pane" "$no_room" "$is_vim" \
     "$([ "$no_room" = 1 ] && [ "$is_vim" = yes ] && [ -n "$pane" ] && echo forward || echo focus)"
   exit 0
 fi
 
-if [ "$no_room" = "1" ] && [ "$is_vim" = "yes" ] && [ -n "$pane" ]; then
+if [ "$no_room" = "1" ] && [ -n "$pane" ] && check_vim; then
   "$herdr" pane send-keys "$pane" ctrl+space "ctrl+$letter"
 else
   "$herdr" pane focus --direction "$dir" --current 2>/dev/null
