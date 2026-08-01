@@ -79,18 +79,17 @@ reload_config = "prefix+shift+r"
 # remove_worktree = ""  # optional, unset by default; opens confirmation
 # rename_workspace = "prefix+shift+w"
 # close_workspace = "prefix+shift+d"
-# previous_workspace = "" # optional, unset by default
-# next_workspace = ""     # optional, unset by default
-previous_agent = "prefix+shift+tab"
-next_agent = "prefix+tab"
+previous_workspace = "prefix+ctrl+p"
+next_workspace = "prefix+ctrl+n"
+previous_agent = ["prefix+shift+tab", "prefix+ctrl+comma"]
+next_agent = ["prefix+tab", "prefix+ctrl+period"]
 focus_agent = "prefix+shift+1..9"   # focus agent 1-9
 # remote_image_paste = "ctrl+v" # only active in herdr --remote; empty disables raw-key image paste
 new_tab = ["prefix+c", "prefix+ctrl+t"]
 # rename_tab = "prefix+shift+t"
-# tmux parity: `bind -r C-p previous-window` / `bind -r C-n next-window`
-# accept both prefix+ctrl+p/n and plain prefix+p/n
-previous_tab = ["prefix+ctrl+p", "prefix+p"]
-next_tab = ["prefix+ctrl+n", "prefix+n"]
+# prefix+ctrl+p/n now navigate workspaces; tabs use prefix+ctrl+[/] plus plain prefix+p/n
+previous_tab = ["prefix+ctrl+[", "prefix+p"]
+next_tab = ["prefix+ctrl+]", "prefix+n"]
 # switch_tab = "prefix+1..9"
 # switch_workspace = ""   # freed: prefix+shift+1..9 now focuses agents (focus_agent)
 # close_tab = "prefix+shift+x"
