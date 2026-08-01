@@ -1,6 +1,20 @@
 local vim_utils = require("vim_utils")
 
+-- Inside herdr, run Claude in its own herdr pane so it shows up in the agents
+-- sidebar (herdr only detects agents by a pane's foreground process, so an
+-- in-nvim terminal is invisible to it). See claudecode_herdr_provider.lua.
+-- Set vim.g.claudecode_herdr_pane = false before startup to stay in-nvim.
+local use_herdr_pane = vim.env.HERDR_PANE_ID ~= nil and vim.g.claudecode_herdr_pane ~= false
+
+local function claude_provider()
+   return require(use_herdr_pane and "claudecode_herdr_provider" or "claudecode_neoterm_provider")
+end
+
 local function claude_window_active()
+   if use_herdr_pane then
+      return claude_provider().is_pane_active()
+   end
+
    local bufnr = require("claudecode.terminal").get_active_terminal_bufnr()
    local info = bufnr and unpack(vim.fn.getbufinfo(bufnr))
    return info and #info.windows > 0
@@ -54,8 +68,11 @@ return {
          -- :ClaudeCodeOpen outside tmux/herdr) without scroll forwarding, so the
          -- gate was removed. (Herdr exports HERDR_PANE_ID into every pane shell,
          -- which nvim inherits.)
+         --
+         -- Under herdr the neoterm provider is swapped for the herdr provider,
+         -- which puts Claude in a real herdr pane (agents sidebar integration).
          opts.terminal = {
-            provider = require('claudecode_neoterm_provider'),
+            provider = claude_provider(),
          }
 
          return opts
@@ -163,6 +180,53 @@ return {
       extra_contexts = {"ssh"},
       config = function(_, opts)
          require("claudecode").setup(opts)
+
+         if use_herdr_pane then
+            -- Adopt a Claude that is already running in another herdr pane
+            -- rather than splitting a new one. Claude connects to this nvim
+            -- from its side via /ide (lock files in ~/.claude/ide), which the
+            -- attach helper types into the pane for us.
+            vim.api.nvim_create_user_command("ClaudeCodeHerdrAttach", function(cmd_opts)
+               local provider = claude_provider()
+
+               if cmd_opts.args ~= "" then
+                  provider.attach(cmd_opts.args, { focus = true })
+                  return
+               end
+
+               local agents = provider.list_claude_agents()
+               if #agents == 0 then
+                  vim.notify("No other Claude panes in this herdr tab", vim.log.levels.WARN)
+                  return
+               end
+
+               if #agents == 1 then
+                  provider.attach(agents[1].pane_id, { focus = true })
+                  return
+               end
+
+               vim.ui.select(agents, {
+                  prompt = "Attach to Claude pane",
+                  format_item = function(agent)
+                     return table.concat({
+                        agent.pane_id,
+                        agent.agent_status or "?",
+                        agent.terminal_title_stripped or agent.cwd or "",
+                     }, "  ")
+                  end,
+               }, function(agent)
+                  if agent then
+                     provider.attach(agent.pane_id, { focus = true })
+                  end
+               end)
+            end, { nargs = "?", desc = "Attach to an existing Claude herdr pane" })
+
+            vim.api.nvim_create_user_command("ClaudeCodeHerdrDetach", function()
+               claude_provider().detach()
+            end, { desc = "Forget the attached Claude herdr pane" })
+
+            vim.keymap.set("n", "<leader>aR", "<cmd>ClaudeCodeHerdrAttach<cr>", { desc = "Attach Claude pane" })
+         end
 
          -- There's now reloadfiles that automatically reload files when they change on disk
 
