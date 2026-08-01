@@ -68,6 +68,16 @@ end
 # tab/window fallbacks: unlike splits, a multiplexer only owns the tabs when it
 # is the whole window; with real Ghostty splits around, Ghostty owns them.
 function __ghostty_is_multiplexer_window
+    # The quick terminal can only ever hold one tab, so the "is the multiplexer
+    # the whole window" question collapses to "is it the whole surface" -- and
+    # the AppleScript below can't answer it anyway (`front window` is whatever
+    # regular window sits behind the panel). Answer from AX instead, which does
+    # look at the globally focused window.
+    if __ghostty_is_floating_terminal
+        __ghostty_is_multiplexer_app_zoomed_or_single_surface
+        return
+    end
+
     test "$(osascript -e '
         tell application id "com.mitchellh.ghostty"
             try
@@ -198,6 +208,20 @@ end run
             else
                 osascript-preset send-keys minus
             end
+        else if __ghostty_is_floating_terminal
+            # The quick terminal isn't reachable through AppleScript's `front
+            # window` (that targets whatever regular window is behind it), so
+            # drive Ghostty's own new_split keybinds instead. Not the plain cmd+d
+            # ones: the Hammerspoon eventtap that calls us would intercept its
+            # own output and re-enter this command. ctrl+shift+d (right) and
+            # cmd+ctrl+shift+d (down) both dodge it -- it ignores chords without
+            # cmd or with ctrl held. Plain cmd+ctrl+d is unusable here: that's
+            # the macOS Look Up shortcut.
+            if set -q _flag_vertical
+                osascript-preset send-keys ctrl shift d
+            else
+                osascript-preset send-keys cmd ctrl shift d
+            end
         else if set -q _flag_vertical
             ghostty-preset new-split --vertical
         else
@@ -211,6 +235,12 @@ end run
         if __ghostty_is_multiplexer_window
             osascript-preset send-keys ctrl space
             osascript-preset send-keys ctrl t
+        else if __ghostty_is_floating_terminal
+            # `new tab in front window` would open in the regular window behind
+            # the quick terminal, so use Ghostty's own new_tab keybind instead.
+            # cmd+ctrl+t rather than cmd+t: the eventtap that calls us skips
+            # ctrl-held chords, so this doesn't loop back into this command.
+            osascript-preset send-keys cmd ctrl t
         else
             osascript -e 'tell application id "com.mitchellh.ghostty" to new tab in front window'
         end
@@ -223,6 +253,11 @@ end run
         if __ghostty_is_multiplexer_window
             osascript-preset send-keys ctrl space
             osascript-preset send-keys shift n
+        else if __ghostty_is_floating_terminal
+            # AppleScript `new window` works from the quick terminal, but the new
+            # window lands behind it; Ghostty's own new_window keybind focuses it
+            # properly. cmd+ctrl+n for the same no-re-entry reason as cmd+ctrl+t.
+            osascript-preset send-keys cmd ctrl n
         else
             ghostty-preset new-window
         end
@@ -248,12 +283,31 @@ end run
             # ctrl+tab / ctrl+shift+tab are bound to next_tab / previous_tab in
             # the Ghostty config. Synthesizing those (instead of the cmd+shift+
             # bracket binds) keeps the Hammerspoon eventtap that calls us from
-            # intercepting its own output.
+            # intercepting its own output. Being a keybind rather than
+            # AppleScript, this also already covers the quick (floating)
+            # terminal, which `front window` can't address -- so unlike the
+            # new-tab/window/split fallbacks there's no separate branch for it.
             if test "$fallback_key" = p
                 osascript-preset send-keys ctrl shift tab
             else
                 osascript-preset send-keys ctrl tab
             end
+        end
+
+    case "close-pane-with-fallback"
+        # When the focused surface is a zoomed/single multiplexer pane (nvim or
+        # herdr), it owns the pane, so send its close sequence: ctrl+space
+        # prefix, then backspace. Anywhere else, close the native Ghostty
+        # surface via the config's super+ctrl+w=close_surface keybind -- not
+        # AppleScript `close`, and not plain cmd+w, which the Hammerspoon
+        # eventtap that calls us would intercept and re-enter. Being a keybind
+        # it acts on the *focused* surface, so it already covers the quick
+        # (floating) terminal, which `front window` can't address.
+        if __ghostty_is_multiplexer_app_zoomed_or_single_surface
+            osascript-preset send-keys ctrl space
+            osascript-preset send-keys backspace
+        else
+            osascript-preset send-keys cmd ctrl w
         end
 
     case "reveal-floating-terminal"

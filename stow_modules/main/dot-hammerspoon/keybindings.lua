@@ -268,8 +268,8 @@ function M.setup()
   service:bindOnce(hyper, "/", "Toggle iTerm Floating Termianl", function()
     hs.eventtap.keyStroke({}, "f20")
   end)
-  -- cmd+d / cmd+shift+d / cmd+t / cmd+shift+[ / cmd+shift+] in Ghostty ->
-  -- herdr-aware split/tab fallbacks.
+  -- cmd+d / cmd+shift+d / cmd+t / cmd+n / cmd+w / cmd+shift+[ / cmd+shift+] in
+  -- Ghostty -> herdr-aware split/tab/close fallbacks.
   -- Ghostty keybinds can't run a shell command, so we intercept here. An eventtap
   -- (not a hotkey) so it only fires when Ghostty is frontmost and passes through
   -- everywhere else (cmd+d still bookmarks in browsers, etc.). cmd+ctrl+* (ctrl
@@ -289,15 +289,24 @@ function M.setup()
     -- cmd+shift+[ / cmd+shift+] -> prev/next tab (herdr: ctrl+space > ctrl+p/n).
     local isPrevTab = code == hs.keycodes.map["["] and flags.shift
     local isNextTab = code == hs.keycodes.map["]"] and flags.shift
-    if not (isD or isT or isN or isPrevTab or isNextTab) then return false end
+    -- cmd+w -> close pane (herdr/nvim: ctrl+space > backspace). cmd+shift+w is
+    -- left to pass through so the config's super+shift+w=close_window stands.
+    local isW = code == hs.keycodes.map["w"] and not flags.shift
+    if not (isD or isT or isN or isPrevTab or isNextTab or isW) then return false end
     local focused = hs.window.focusedWindow()
-    if not (focused and focused:application() and focused:application():name() == "Ghostty") then return false end
+    local isGhosttyWindow = focused and focused:application() and focused:application():name() == "Ghostty"
+    -- close-pane-with-fallback drives keybinds only (no `front window`
+    -- AppleScript), so unlike the split/tab fallbacks it works in the quick
+    -- terminal too -- accept it there as well.
+    if not (isGhosttyWindow or (isW and Preset.isGhosttyQuickTerminalActive())) then return false end
     if isD then
       task({"ghostty-preset", "new-split-with-fallback", flags.shift and "--horizontal" or "--vertical"})
     elseif isT then
       task({"ghostty-preset", "new-tab-with-fallback"})
     elseif isPrevTab or isNextTab then
       task({"ghostty-preset", "focus-tab-with-fallback", isPrevTab and "prev" or "next"})
+    elseif isW then
+      task({"ghostty-preset", "close-pane-with-fallback"})
     else
       task({"ghostty-preset", "new-window-with-fallback"})
     end

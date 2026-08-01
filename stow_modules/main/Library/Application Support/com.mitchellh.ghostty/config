@@ -72,8 +72,11 @@ keybind = super+physical:three=goto_tab:3
 keybind = super+right=text:\x05
 keybind = super+d=new_split:right
 keybind = super+ctrl+d=new_split:right
+keybind = ctrl+shift+d=new_split:right
 keybind = super+ctrl+shift+d=new_split:down
 keybind = super+ctrl+t=new_tab
+keybind = super+ctrl+n=new_window
+keybind = super+ctrl+w=close_surface
 keybind = super+ctrl+down=resize_split:down,50
 keybind = shift+end=adjust_selection:end
 keybind = super+plus=increase_font_size:1
