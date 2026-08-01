@@ -22,6 +22,8 @@ vim.keymap.set({"n", "t"}, "<c-space><bs>", '<c-\\><C-n><c-w>q', { noremap = tru
 
 vim.keymap.set({"t", "n", "v", "i"}, "<c-space><c-n>", '<c-\\><C-n><c-w>gt', { noremap = true, silent = true })
 vim.keymap.set({"t", "n", "v", "i"}, "<c-space><c-p>", '<c-\\><C-n><c-w>gT', { noremap = true, silent = true })
+vim.keymap.set({"t", "n", "v", "i"}, "<c-space><c-]>", '<c-\\><C-n><c-w>gt', { noremap = true, silent = true })
+vim.keymap.set({"t", "n", "v", "i"}, "<c-space><c-[>", '<c-\\><C-n><c-w>gT', { noremap = true, silent = true })
 
 vim.keymap.set({"n", "t"}, "<c-space>J", '<c-\\><C-n><leader>J', { remap = true, silent = true })
 vim.keymap.set({"n", "t"}, "<c-space>H", '<c-\\><C-n><leader>H', { remap = true, silent = true })
