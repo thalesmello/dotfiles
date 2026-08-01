@@ -88,8 +88,8 @@ focus_agent = "prefix+shift+1..9"   # focus agent 1-9
 new_tab = ["prefix+c", "prefix+ctrl+t"]
 # rename_tab = "prefix+shift+t"
 # prefix+ctrl+p/n now navigate workspaces; tabs use prefix+ctrl+[/] plus plain prefix+p/n
-previous_tab = ["prefix+ctrl+[", "prefix+p"]
-next_tab = ["prefix+ctrl+]", "prefix+n"]
+previous_tab = ["prefix+ctrl+["]
+next_tab = ["prefix+ctrl+]"]
 # switch_tab = "prefix+1..9"
 # switch_workspace = ""   # freed: prefix+shift+1..9 now focuses agents (focus_agent)
 # close_tab = "prefix+shift+x"

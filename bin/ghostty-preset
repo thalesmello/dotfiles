@@ -227,6 +227,35 @@ end run
             ghostty-preset new-window
         end
 
+    case "focus-tab-with-fallback"
+        # In a lone multiplexer window (nvim or herdr) it owns the tabs, so send
+        # its prefix sequence: ctrl+space, then ctrl+p/ctrl+n. Both bind it --
+        # herdr moves between workspaces, nvim's neoterminal maps
+        # <c-space><c-p>/<c-n> to gT/gt. Anywhere else, switch Ghostty's tabs.
+        switch "$argv[1]"
+        case "prev" "previous"
+            set fallback_key p
+        case "next"
+            set fallback_key n
+        case "*"
+            return 1
+        end
+
+        if __ghostty_is_multiplexer_window
+            osascript-preset send-keys ctrl space
+            osascript-preset send-keys ctrl $fallback_key
+        else
+            # ctrl+tab / ctrl+shift+tab are bound to next_tab / previous_tab in
+            # the Ghostty config. Synthesizing those (instead of the cmd+shift+
+            # bracket binds) keeps the Hammerspoon eventtap that calls us from
+            # intercepting its own output.
+            if test "$fallback_key" = p
+                osascript-preset send-keys ctrl shift tab
+            else
+                osascript-preset send-keys ctrl tab
+            end
+        end
+
     case "reveal-floating-terminal"
         # Show the quick terminal if it isn't already the focused window. F17 is
         # bound globally to toggle_quick_terminal in the Ghostty config, so a

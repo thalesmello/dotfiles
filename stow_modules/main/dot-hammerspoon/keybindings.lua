@@ -268,7 +268,8 @@ function M.setup()
   service:bindOnce(hyper, "/", "Toggle iTerm Floating Termianl", function()
     hs.eventtap.keyStroke({}, "f20")
   end)
-  -- cmd+d / cmd+shift+d / cmd+t in Ghostty -> herdr-aware split/tab fallbacks.
+  -- cmd+d / cmd+shift+d / cmd+t / cmd+shift+[ / cmd+shift+] in Ghostty ->
+  -- herdr-aware split/tab fallbacks.
   -- Ghostty keybinds can't run a shell command, so we intercept here. An eventtap
   -- (not a hotkey) so it only fires when Ghostty is frontmost and passes through
   -- everywhere else (cmd+d still bookmarks in browsers, etc.). cmd+ctrl+* (ctrl
@@ -285,13 +286,18 @@ function M.setup()
     -- always makes a native Ghostty window.
     local isT = code == hs.keycodes.map["t"] and not flags.shift
     local isN = code == hs.keycodes.map["n"] and not flags.shift
-    if not (isD or isT or isN) then return false end
+    -- cmd+shift+[ / cmd+shift+] -> prev/next tab (herdr: ctrl+space > ctrl+p/n).
+    local isPrevTab = code == hs.keycodes.map["["] and flags.shift
+    local isNextTab = code == hs.keycodes.map["]"] and flags.shift
+    if not (isD or isT or isN or isPrevTab or isNextTab) then return false end
     local focused = hs.window.focusedWindow()
     if not (focused and focused:application() and focused:application():name() == "Ghostty") then return false end
     if isD then
       task({"ghostty-preset", "new-split-with-fallback", flags.shift and "--horizontal" or "--vertical"})
     elseif isT then
       task({"ghostty-preset", "new-tab-with-fallback"})
+    elseif isPrevTab or isNextTab then
+      task({"ghostty-preset", "focus-tab-with-fallback", isPrevTab and "prev" or "next"})
     else
       task({"ghostty-preset", "new-window-with-fallback"})
     end
