@@ -126,5 +126,6 @@ keybind = super+physical:two=goto_tab:2
 keybind = super+physical:six=goto_tab:6
 keybind = super+v=paste_from_clipboard
 keybind = cmd+p=text:\x14
+keybind = cmd+z=text:\x1f
 keybind = ctrl+shift+slash=toggle_quick_terminal
 keybind = global:f17=toggle_quick_terminal
