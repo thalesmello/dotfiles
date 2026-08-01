@@ -170,6 +170,14 @@ local function withoutMoshPrefix(title)
   return (title:gsub("^%[mosh%] ", ""))
 end
 
+-- The program doesn't always own the title: in dev-preset's --herdr-server mode
+-- the remote can write a title naming the command it was handed ("exec env zsh
+-- -c herdr", "exec env zsh -c nvim") rather than the program. Accept both shapes.
+local function titleRuns(title, program)
+  title = withoutMoshPrefix(title)
+  return title:sub(1, #program) == program or title:find(" " .. program, 1, true) ~= nil
+end
+
 -- True when the focused Ghostty window shows a single surface (a zoomed split or
 -- a lone pane) whose program is herdr. The window title reflects the focused
 -- surface's title, which herdr sets to "herdr ..." (or "[mosh] herdr ..." over
@@ -177,8 +185,7 @@ end
 function M.isGhosttyHerdrZoomedOrSingleSurface()
   if not M.isGhosttyZoomedOrSingleSurface() then return false end
   local win = hs.window.focusedWindow()
-  local title = withoutMoshPrefix(win and win:title() or "")
-  return title:sub(1, 5) == "herdr"
+  return titleRuns(win and win:title() or "", "herdr")
 end
 
 -- True when the focused Ghostty window shows a single surface (zoomed split or
@@ -188,8 +195,8 @@ end
 function M.isGhosttyMultiplexerZoomedOrSingleSurface()
   if not M.isGhosttyZoomedOrSingleSurface() then return false end
   local win = hs.window.focusedWindow()
-  local title = withoutMoshPrefix(win and win:title() or "")
-  return title:sub(1, 5) == "herdr" or title:sub(1, 4) == "nvim"
+  local title = win and win:title() or ""
+  return titleRuns(title, "herdr") or titleRuns(title, "nvim")
 end
 
 -- True when the focused window is Ghostty's quick (floating) terminal. Ghostty

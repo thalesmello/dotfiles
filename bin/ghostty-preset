@@ -8,6 +8,21 @@ set -x PATH /opt/homebrew/bin (status dirname) $PATH
 # Address the app by bundle id; targeting by name "Ghostty" errors -600.
 set -g GHOSTTY_ID 'application id "com.mitchellh.ghostty"'
 
+# The program doesn't always own the title: in dev-preset's --herdr-server mode
+# the remote can write a title naming the command it was handed ("exec env zsh
+# -c herdr", "exec env zsh -c nvim") rather than the program. Accept both
+# shapes. Interpolated into the osascript calls below, which must call it as
+# `my titleRuns(...)` so AppleScript resolves it locally instead of sending it
+# to Ghostty.
+set -g GHOSTTY_TITLE_RUNS '
+    on titleRuns(nm, program)
+        if nm starts with "[mosh] " then set nm to text 8 thru -1 of nm
+        if nm starts with program then return true
+        if nm contains (" " & program) then return true
+        return false
+    end titleRuns
+'
+
 # Exactly one visible surface (AX, checked in Hammerspoon): zoomed OR a genuine
 # single pane. Direct `hs -c` (no ghostty-preset/hs-preset re-spawn), cheap
 # enough for the per-keystroke path.
@@ -46,7 +61,7 @@ function __ghostty_is_multiplexer_app_zoomed_or_single_surface
 end
 
 function __ghostty_is_herdr_window
-    test "$(osascript -e '
+    test "$(osascript -e "$GHOSTTY_TITLE_RUNS"'
         tell application id "com.mitchellh.ghostty"
             try
                 set win to front window
@@ -55,7 +70,7 @@ function __ghostty_is_herdr_window
                 if (count of terminals of tb) is not 1 then return "no"
                 set t to item 1 of terminals of tb
                 set nm to (name of t)
-                if nm starts with "herdr" or nm starts with "[mosh] herdr" then return "yes"
+                if my titleRuns(nm, "herdr") then return "yes"
             end try
             return "no"
         end tell
@@ -78,7 +93,7 @@ function __ghostty_is_multiplexer_window
         return
     end
 
-    test "$(osascript -e '
+    test "$(osascript -e "$GHOSTTY_TITLE_RUNS"'
         tell application id "com.mitchellh.ghostty"
             try
                 set win to front window
@@ -87,8 +102,8 @@ function __ghostty_is_multiplexer_window
                 if (count of terminals of tb) is not 1 then return "no"
                 set t to item 1 of terminals of tb
                 set nm to (name of t)
-                if nm starts with "[mosh] " then set nm to text 8 thru -1 of nm
-                if nm starts with "herdr" or nm starts with "nvim" then return "yes"
+                if my titleRuns(nm, "herdr") then return "yes"
+                if my titleRuns(nm, "nvim") then return "yes"
             end try
             return "no"
         end tell
