@@ -264,7 +264,7 @@ copy_on_select = true
 
 # Ask for a tab name before creating a new tab.
 # Set false to create tabs immediately with generated names.
-prompt_new_tab_name = false
+prompt_new_tab_name = true
 
 # Ask for a workspace name before interactive creation.
 prompt_new_workspace_name = false
@@ -318,7 +318,7 @@ agent_panel_sort = "spaces"
 # herdr = show in-app toasts
 # terminal = ask the outer terminal to show a desktop notification
 # system = ask the OS notification service directly
-delivery = "terminal"
+delivery = "system"
 # delay_seconds = 1
 
 [ui.toast.herdr]
