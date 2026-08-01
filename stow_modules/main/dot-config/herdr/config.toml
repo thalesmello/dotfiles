@@ -280,7 +280,7 @@ pane_borders = true
 
 # Hide the tab row when a workspace has exactly one tab.
 # New tabs can still be created with the configured keybinding.
-hide_tab_bar_when_single_tab = true
+hide_tab_bar_when_single_tab = false
 
 # Agent panel ordering: "spaces" (grouped by space) or "priority" (attention queue).
 # "workspaces" is accepted as an alias for "spaces".
@@ -363,7 +363,7 @@ manage_ssh_config = false
 # allow_nested = false
 # Experimental local Kitty graphics rendering for attached clients.
 # Requires a Kitty graphics-compatible outer terminal.
-# kitty_graphics = false
+kitty_graphics = true
 # Save recent pane screen history across full server restarts.
 # tmux parity: `@resurrect-capture-pane-contents 'on'`
 pane_history = true

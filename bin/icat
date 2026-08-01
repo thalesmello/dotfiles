@@ -1,0 +1,637 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+set -euo pipefail
+# ghostty-imgcat
+# Display images in Ghostty via the Kitty graphics protocol.
+#
+# Examples:
+#   ghostty-imgcat photo.jpg
+#   ghostty-imgcat --width 40 diagram.png
+#   cat image.webp | ghostty-imgcat --height 20 -
+#
+# Width/height values accept terminal cell counts only.
+#
+# Dependencies:
+#   - base64
+#   - optional: magick, convert, sips, ffmpeg (for format conversion)
+
+prog="$(basename "$0")"
+
+usage() {
+  cat <<EOF
+Usage:
+  $prog [options] IMAGE...
+  $prog [options] -
+
+Options:
+  -w, --width N           Width in terminal cells
+  -h, --height N          Height in terminal cells
+      --crop SPEC         Crop source image as WxH+X+Y before display
+      --transport MODE    direct | file   (default: direct)
+      --no-newline        Do not print a trailing newline
+      --no-move-cursor    Leave cursor position unchanged after display
+      --place XxY@CxR     Place image in X by Y cells at column C row R
+      --unicode-placeholder
+                          Request a unicode placeholder placement mode
+      --stdin-ext EXT     Hint extension when reading from stdin (png, jpg, ...)
+      --detect-support    Exit 0 if the Kitty graphics probe succeeds, else 1
+      --debug             Print debug info to stderr
+      --help              Show this help
+
+Notes:
+  - Ghostty supports the Kitty image protocol for static images.
+  - Non-PNG images are converted to PNG when possible.
+  - --crop requires ImageMagick (magick or convert).
+  - IMAGE can be '-' to read from stdin.
+  - Multiple IMAGE arguments are displayed in order.
+EOF
+}
+
+debug=0
+log() {
+  if (( debug )); then
+    printf '[debug] %s\n' "$*" >&2
+  fi
+}
+
+die() {
+  printf '%s: %s\n' "$prog" "$*" >&2
+  exit 1
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+is_remote_session() {
+  [[ -n "${SSH_CONNECTION:-}" || -n "${SSH_CLIENT:-}" || -n "${SSH_TTY:-}" ]]
+}
+
+make_temp_file() {
+  local tag="$1"
+  local ext="${2:-}"
+  local dir path target
+
+  dir="${TMPDIR:-/tmp}"
+  path="$(mktemp "${dir%/}/${prog}.${tag}.XXXXXX")" || return 1
+
+  if [[ -n "$ext" ]]; then
+    target="${path}.${ext}"
+    mv -- "$path" "$target"
+    path="$target"
+  fi
+
+  printf '%s' "$path"
+}
+
+# Output target: prefer stdout if it's a tty, else controlling tty.
+tty_out="/dev/stdout"
+if [[ ! -t 1 ]]; then
+  [[ -w /dev/tty ]] || die "stdout is not a terminal and /dev/tty is not writable"
+  tty_out="/dev/tty"
+fi
+
+# Best-effort environment detection.
+likely_support_from_env() {
+  # Ghostty exposes TERM=xterm-ghostty in typical setups.
+  # Kitty protocol support may also exist in kitty itself and compatible terminals.
+  [[ "${TERM:-}" == "xterm-ghostty" ]] && return 0
+  [[ "${TERM_PROGRAM:-}" == "ghostty" ]] && return 0
+  [[ "${KITTY_WINDOW_ID:-}" != "" ]] && return 0
+  return 1
+}
+
+probe_detail=""
+support_checked=0
+support_status=1
+support_method=""
+support_detail=""
+
+probe_graphics_support() {
+  local tty=""
+  local saved_tty=""
+  local query_id=""
+  local response=""
+  local chunk=""
+  local rc=1
+  local i
+
+  probe_detail=""
+
+  tty="$(tty 2>/dev/null)" || tty=""
+  if [[ -z "$tty" || "$tty" == "not a tty" ]]; then
+    probe_detail="interactive tty is not available for graphics probing"
+    return 2
+  fi
+
+  exec 3<>"$tty" || {
+    probe_detail="failed to open tty for graphics probing"
+    return 2
+  }
+
+  saved_tty="$(stty -g <&3 2>/dev/null)" || {
+    probe_detail="failed to read tty mode for graphics probing"
+    exec 3>&-
+    exec 3<&-
+    return 2
+  }
+
+  if ! stty -echo -icanon min 0 time 1 <&3 2>/dev/null; then
+    probe_detail="failed to put tty into raw mode for graphics probing"
+    exec 3>&-
+    exec 3<&-
+    return 2
+  fi
+
+  query_id=$(( ((RANDOM << 16) + RANDOM) % 4294967294 + 1 ))
+  log "graphics probe id: $query_id"
+
+  if ! printf '\033_Gi=%s,s=1,v=1,a=q,t=d,f=24;AAAA\033\\' "$query_id" >&3; then
+    probe_detail="failed to write graphics probe to tty"
+    rc=2
+  else
+    for ((i = 0; i < 40; i++)); do
+      if IFS= read -r -u 3 -N 1 -t 0.1 chunk; then
+        response+="$chunk"
+
+        if [[ "$response" == *$'\033_Gi='"$query_id"';'*$'\033\\'* ]]; then
+          response="${response#*$'\033_Gi='"$query_id"';'}"
+          probe_detail="${response%%$'\033\\'*}"
+          rc=0
+          break
+        fi
+
+        if ((${#response} > 8192)); then
+          response="${response: -4096}"
+        fi
+      fi
+    done
+
+    if (( rc != 0 )); then
+      probe_detail="no reply to the graphics support probe"
+    fi
+  fi
+
+  stty "$saved_tty" <&3 >/dev/null 2>&1 || true
+  exec 3>&-
+  exec 3<&-
+  return "$rc"
+}
+
+check_support() {
+  local rc
+
+  if (( support_checked )); then
+    return "$support_status"
+  fi
+
+  support_checked=1
+
+  if probe_graphics_support; then
+    support_status=0
+    support_method="probe"
+    support_detail="${probe_detail:-OK}"
+    return 0
+  else
+    rc=$?
+  fi
+  if (( rc == 2 )) && likely_support_from_env; then
+    support_status=0
+    support_method="env"
+    support_detail="support inferred from terminal environment; tty probe was unavailable"
+    return 0
+  fi
+
+  support_status=1
+  if (( rc == 2 )); then
+    support_method="env"
+    support_detail="${probe_detail:-support is not indicated by terminal environment}"
+  else
+    support_method="probe"
+    support_detail="${probe_detail:-graphics support probe failed}"
+  fi
+  return 1
+}
+
+# Parse dimensions:
+#   "10" -> cells
+parse_dim() {
+  local value="$1"
+  if [[ "$value" =~ ^[0-9]+$ ]]; then
+    printf 'cell:%s' "$value"
+  else
+    return 1
+  fi
+}
+
+png_signature() {
+  LC_ALL=C dd if="$1" bs=8 count=1 2>/dev/null | od -An -tx1 | tr -d ' \n'
+}
+
+is_png_file() {
+  [[ "$(png_signature "$1")" == "89504e470d0a1a0a" ]]
+}
+
+ensure_png() {
+  local path="$1"
+  [[ -s "$path" ]] || die "PNG payload is empty: $path"
+  is_png_file "$path" || die "expected PNG payload: $path"
+}
+
+# Base64 with no wrapping, GNU and BSD compatible.
+b64_nowrap() {
+  if base64 --help 2>/dev/null | grep -q -- '-w'; then
+    base64 -w0
+  else
+    base64 | tr -d '\n'
+  fi
+}
+
+tmp_files=()
+deferred_tmp_files=()
+cleanup() {
+  local f
+  for f in "${tmp_files[@]:-}"; do
+    [[ -n "$f" && -e "$f" ]] && rm -f -- "$f"
+  done
+
+  if ((${#deferred_tmp_files[@]} > 0)); then
+    (
+      sleep 5
+      for f in "${deferred_tmp_files[@]:-}"; do
+        [[ -n "$f" && -e "$f" ]] && rm -f -- "$f"
+      done
+    ) >/dev/null 2>&1 &
+  fi
+}
+trap cleanup EXIT
+
+move_tmp_to_deferred() {
+  local file="$1"
+  local kept=()
+  local current
+
+  for current in "${tmp_files[@]:-}"; do
+    if [[ "$current" != "$file" ]]; then
+      kept+=("$current")
+    fi
+  done
+
+  tmp_files=("${kept[@]}")
+  deferred_tmp_files+=("$file")
+}
+
+width=""
+height=""
+crop=""
+transport="direct"
+transport_set=0
+no_newline=0
+no_move_cursor=0
+place=""
+unicode_placeholder=0
+stdin_ext=""
+detect_support_only=0
+images=()
+stdin_count=0
+
+while (($#)); do
+  case "$1" in
+    -w|--width)
+      [[ $# -ge 2 ]] || die "missing value for $1"
+      width="$2"
+      shift 2
+      ;;
+    -h|--height)
+      [[ $# -ge 2 ]] || die "missing value for $1"
+      height="$2"
+      shift 2
+      ;;
+    --crop)
+      [[ $# -ge 2 ]] || die "missing value for $1"
+      crop="$2"
+      shift 2
+      ;;
+    --transport)
+      [[ $# -ge 2 ]] || die "missing value for $1"
+      transport="$2"
+      transport_set=1
+      shift 2
+      ;;
+    --no-newline)
+      no_newline=1
+      shift
+      ;;
+    --no-move-cursor)
+      no_move_cursor=1
+      shift
+      ;;
+    --place)
+      [[ $# -ge 2 ]] || die "missing value for $1"
+      place="$2"
+      shift 2
+      ;;
+    --unicode-placeholder)
+      unicode_placeholder=1
+      shift
+      ;;
+    --stdin-ext)
+      [[ $# -ge 2 ]] || die "missing value for $1"
+      stdin_ext="$2"
+      shift 2
+      ;;
+    --detect-support)
+      detect_support_only=1
+      shift
+      ;;
+    --debug)
+      debug=1
+      shift
+      ;;
+    --help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -)
+      if (( stdin_count > 0 )); then
+        die "stdin can only be specified once"
+      fi
+      images+=("$1")
+      stdin_count=$((stdin_count + 1))
+      shift
+      ;;
+    -*)
+      die "unknown option: $1"
+      ;;
+    *)
+      images+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if (( detect_support_only )); then
+  if check_support; then
+    log "support check ($support_method): $support_detail"
+    exit 0
+  else
+    log "support check ($support_method): $support_detail"
+    exit 1
+  fi
+fi
+
+if (($# > 0)); then
+  images+=("$@")
+fi
+
+((${#images[@]} > 0)) || die "missing IMAGE argument"
+
+case "$transport" in
+  file|direct) ;;
+  *)
+    die "invalid --transport: $transport"
+    ;;
+esac
+
+if [[ -n "$crop" ]] && [[ ! "$crop" =~ ^[0-9]+x[0-9]+\+[0-9]+\+[0-9]+$ ]]; then
+  die "invalid --crop: $crop (expected WxH+X+Y)"
+fi
+
+if (( transport_set )) && [[ "$transport" == "file" ]] && is_remote_session; then
+  die "file transport is not available in remote sessions; use --transport direct"
+fi
+
+if [[ -n "$place" ]] && ((${#images[@]} > 1)); then
+  die "--place does not support multiple images"
+fi
+
+if (( unicode_placeholder )) && ((${#images[@]} > 1)); then
+  die "--unicode-placeholder does not support multiple images"
+fi
+
+if ! check_support; then
+  die "$support_detail"
+fi
+log "support check ($support_method): $support_detail"
+
+width_kind=""
+width_value=""
+height_kind=""
+height_value=""
+width_cells=""
+height_cells=""
+
+if [[ -n "$width" ]]; then
+  parsed="$(parse_dim "$width")" || die "invalid --width: $width"
+  width_kind="${parsed%%:*}"
+  width_value="${parsed##*:}"
+fi
+
+if [[ -n "$height" ]]; then
+  parsed="$(parse_dim "$height")" || die "invalid --height: $height"
+  height_kind="${parsed%%:*}"
+  height_value="${parsed##*:}"
+fi
+
+if [[ -n "$width_kind" ]]; then
+  width_cells="$width_value"
+fi
+
+if [[ -n "$height_kind" ]]; then
+  height_cells="$height_value"
+fi
+
+# Build Kitty protocol control parameters.
+# a=T  -> transmit and display
+# f=100 -> PNG
+params="a=T,f=100,q=2"
+
+if (( no_move_cursor )); then
+  params+=",C=1"
+fi
+
+if [[ -n "$width_cells" ]]; then
+  params+=",c=$width_cells"
+fi
+
+if [[ -n "$height_cells" ]]; then
+  params+=",r=$height_cells"
+fi
+
+# place format: XxY@CxR
+# Example: 10x5@20x3  means 10 cols by 5 rows at col 20 row 3
+# Mapped to Kitty placement params x/y are pixel offsets normally,
+# so here we keep this as a convenience by moving the cursor first.
+if [[ -n "$place" ]]; then
+  if [[ "$place" =~ ^([0-9]+)x([0-9]+)@([0-9]+)x([0-9]+)$ ]]; then
+    place_w="${BASH_REMATCH[1]}"
+    place_h="${BASH_REMATCH[2]}"
+    place_c="${BASH_REMATCH[3]}"
+    place_r="${BASH_REMATCH[4]}"
+    if (( no_move_cursor )); then
+      printf '\0337' > "$tty_out"
+    fi
+    params+=",c=$place_w,r=$place_h"
+    printf '\033[%s;%sH' "$place_r" "$place_c" > "$tty_out"
+  else
+    die "invalid --place format, expected XxY@CxR"
+  fi
+fi
+
+if (( unicode_placeholder )); then
+  # U=1 requests unicode placeholder rendering where supported.
+  params+=",U=1"
+fi
+
+params+=",t=d"
+log "kitty params: $params"
+
+display_image() {
+  local image="$1"
+  local print_newline="$2"
+  local current_transport="$transport"
+  local lower=""
+  local png_file="$image"
+  local needs_convert=1
+  local tmp_in=""
+  local tmp_png=""
+  local path_payload=""
+  local chunk_size=4096
+  local first=1
+  local chunk=""
+  local next_chunk=""
+  local payload_len=""
+  local base64_len=""
+  local more=0
+  local image_tmp_files=()
+
+  if [[ "$image" == "-" ]]; then
+    local ext="${stdin_ext:-bin}"
+    tmp_in="$(make_temp_file "stdin" "$ext")" || die "failed to create temporary stdin file"
+    image_tmp_files+=("$tmp_in")
+    tmp_files+=("$tmp_in")
+    cat > "$tmp_in"
+    image="$tmp_in"
+    png_file="$image"
+  fi
+
+  [[ -f "$image" ]] || die "file not found: $image"
+
+  lower="${image##*.}"
+  lower="$(printf '%s' "$lower" | tr '[:upper:]' '[:lower:]')"
+
+  if [[ -n "$crop" ]]; then
+    needs_convert=1
+  elif [[ "$lower" == "png" ]] || is_png_file "$image"; then
+    needs_convert=0
+  fi
+
+  if (( needs_convert )); then
+    tmp_png="$(make_temp_file "png" "png")" || die "failed to create temporary PNG file"
+    image_tmp_files+=("$tmp_png")
+    tmp_files+=("$tmp_png")
+
+    if [[ -n "$crop" ]]; then
+      if have magick; then
+        log "cropping with magick"
+        magick "$image" -crop "$crop" +repage PNG:"$tmp_png"
+      elif have convert; then
+        log "cropping with convert"
+        convert "$image" -crop "$crop" +repage PNG:"$tmp_png"
+      else
+        die "--crop requires ImageMagick (magick or convert)"
+      fi
+    elif have magick; then
+      log "converting with magick"
+      magick "$image" PNG:"$tmp_png"
+    elif have convert; then
+      log "converting with convert"
+      convert "$image" PNG:"$tmp_png"
+    elif [[ "$(uname -s)" == "Darwin" ]] && have sips; then
+      log "converting with sips"
+      sips -s format png "$image" --out "$tmp_png" >/dev/null
+    elif have ffmpeg; then
+      log "converting with ffmpeg"
+      ffmpeg -v error -y -i "$image" "$tmp_png" >/dev/null 2>&1
+    else
+      die "need PNG input or a converter (magick, convert, sips, or ffmpeg)"
+    fi
+
+    png_file="$tmp_png"
+  fi
+
+  ensure_png "$png_file"
+
+  if (( needs_convert )) && (( ! transport_set )); then
+    if is_remote_session; then
+      current_transport="direct"
+    else
+      current_transport="file"
+    fi
+  fi
+
+  case "$current_transport" in
+    file)
+      path_payload="$(printf '%s' "$png_file" | b64_nowrap)"
+      log "transport: file"
+      if ((${#image_tmp_files[@]} > 0)); then
+        for tmp_file in "${image_tmp_files[@]}"; do
+          move_tmp_to_deferred "$tmp_file"
+        done
+      fi
+      printf '\033_G%s,t=f;%s\033\\' "${params%,t=d}" "$path_payload" > "$tty_out"
+      ;;
+    direct)
+      payload_len="$(wc -c < "$png_file" | tr -d '[:space:]')"
+      base64_len=$(( ((payload_len + 2) / 3) * 4 ))
+      log "transport: direct"
+      log "payload bytes (base64): $base64_len"
+
+      exec 4< <(b64_nowrap < "$png_file")
+      if ! IFS= read -r -u 4 -N "$chunk_size" chunk; then
+        [[ -n "$chunk" ]] || die "failed to read base64 payload for direct transport"
+      fi
+
+      while :; do
+        next_chunk=""
+        if ! IFS= read -r -u 4 -N "$chunk_size" next_chunk; then
+          :
+        fi
+
+        more=0
+        [[ -n "$next_chunk" ]] && more=1
+        if (( first )); then
+          printf '\033_G%s,m=%d;%s\033\\' "$params" "$more" "$chunk" > "$tty_out"
+          first=0
+        else
+          printf '\033_Gm=%d;%s\033\\' "$more" "$chunk" > "$tty_out"
+        fi
+
+        (( more )) || break
+        chunk="$next_chunk"
+      done
+
+      exec 4<&-
+      ;;
+  esac
+
+  if (( print_newline )); then
+    printf '\n' > "$tty_out"
+  fi
+
+  if [[ -n "$place" ]] && (( no_move_cursor )); then
+    printf '\0338' > "$tty_out"
+  fi
+}
+
+for i in "${!images[@]}"; do
+  print_newline=1
+  if (( i == ${#images[@]} - 1 && no_newline )); then
+    print_newline=0
+  fi
+  display_image "${images[$i]}" "$print_newline"
+done
