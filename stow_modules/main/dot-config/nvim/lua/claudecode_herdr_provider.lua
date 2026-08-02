@@ -144,6 +144,14 @@ function M.open(cmd_string, env_table, effective_config, focus)
    end
 
    pane_id = nil
+
+   -- A Claude already sitting in this tab is almost always the one meant, so
+   -- adopt it before splitting another pane. Note this ignores the command's
+   -- flags (--resume, --continue): the running session is what you get.
+   if M.attach_existing({ focus = focus }) then
+      return
+   end
+
    spawn(cmd_string, env_table, effective_config or {}, focus)
 end
 
@@ -261,6 +269,48 @@ local function label_lockfile()
    return label
 end
 
+--- Find the number of the `/ide` menu entry whose line contains `label`.
+--- The menu is a numbered list, so take the "N." immediately before the label:
+---
+---   1. Neovim
+--- ❯ 2. Neovim wQ:p4 dotfiles
+---   3. Neovim
+---
+---@return string? number
+local function find_menu_entry(text, label)
+   for line in text:gmatch("[^\n]+") do
+      local at = line:find(label, 1, true)
+      if at then
+         local number = line:sub(1, at - 1):match("(%d+)%.%s*$")
+         if number then
+            return number
+         end
+      end
+   end
+   return nil
+end
+
+--- Answer the `/ide` prompt we just typed into the pane. The menu takes a moment
+--- to render, so read the pane back after a short delay, locate our own entry by
+--- the label we wrote into the lock file, and press its number.
+local function select_ide_entry(target_pane, label)
+   vim.defer_fn(function()
+      if pane_id ~= target_pane then
+         return
+      end
+
+      local res = herdr_run({ "pane", "read", target_pane })
+      local number = res and find_menu_entry(res.stdout or "", label)
+
+      if not number then
+         vim.notify('Could not find "' .. label .. '" in the /ide menu; pick it manually', vim.log.levels.WARN)
+         return
+      end
+
+      herdr_run({ "pane", "send-text", target_pane, number })
+   end, 500)
+end
+
 --- Adopt a Claude that is already running in another herdr pane instead of
 --- spawning one. The websocket link is Claude's side of the handshake: it picks
 --- this nvim from the lock files in ~/.claude/ide via the `/ide` command, which
@@ -277,17 +327,62 @@ function M.attach(target_pane, opts)
    end
 
    pane_id = target_pane
+   vim.notify("Attached to Claude pane " .. target_pane)
 
    if opts.send_ide ~= false then
       local label = label_lockfile()
+      -- Anything half-typed in Claude's prompt would turn "/ide" into a normal
+      -- message. Stash it with ctrl+s rather than deleting it (ctrl+u only kills
+      -- one line, so it can leave a multi-line draft behind); Claude restores the
+      -- stash on its own once the slash command is done.
+      herdr_run({ "pane", "send-keys", pane_id, "ctrl+s" })
       herdr_run({ "pane", "send-text", pane_id, "/ide" })
       herdr_run({ "pane", "send-keys", pane_id, "enter" })
-      vim.notify("Pick " .. (label and ('"' .. label .. '"') or "this nvim") .. " in the Claude pane")
+
+      if label then
+         select_ide_entry(pane_id, label)
+      else
+         vim.notify("Pick this nvim in the Claude pane", vim.log.levels.WARN)
+      end
    end
 
    if opts.focus then
       focus_pane()
    end
+
+   return true
+end
+
+--- Attach to a Claude already running in this herdr tab, asking which one when
+--- there is more than one.
+---@param opts? { send_ide?: boolean, focus?: boolean }
+---@return boolean started true when an attach happened, or a picker was opened
+function M.attach_existing(opts)
+   opts = opts or {}
+
+   local agents = M.list_claude_agents()
+   if #agents == 0 then
+      return false
+   end
+
+   if #agents == 1 then
+      return M.attach(agents[1].pane_id, opts)
+   end
+
+   vim.ui.select(agents, {
+      prompt = "Attach to Claude pane",
+      format_item = function(agent)
+         return table.concat({
+            agent.pane_id,
+            agent.agent_status or "?",
+            agent.terminal_title_stripped or agent.cwd or "",
+         }, "  ")
+      end,
+   }, function(agent)
+      if agent then
+         M.attach(agent.pane_id, opts)
+      end
+   end)
 
    return true
 end

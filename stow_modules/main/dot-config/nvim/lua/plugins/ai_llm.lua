@@ -185,7 +185,9 @@ return {
             -- Adopt a Claude that is already running in another herdr pane
             -- rather than splitting a new one. Claude connects to this nvim
             -- from its side via /ide (lock files in ~/.claude/ide), which the
-            -- attach helper types into the pane for us.
+            -- attach helper types into the pane for us. Any ClaudeCode command
+            -- attaches on its own when the tab already has a Claude; this
+            -- command is for attaching on demand or to a named pane.
             vim.api.nvim_create_user_command("ClaudeCodeHerdrAttach", function(cmd_opts)
                local provider = claude_provider()
 
@@ -194,31 +196,9 @@ return {
                   return
                end
 
-               local agents = provider.list_claude_agents()
-               if #agents == 0 then
+               if not provider.attach_existing({ focus = true }) then
                   vim.notify("No other Claude panes in this herdr tab", vim.log.levels.WARN)
-                  return
                end
-
-               if #agents == 1 then
-                  provider.attach(agents[1].pane_id, { focus = true })
-                  return
-               end
-
-               vim.ui.select(agents, {
-                  prompt = "Attach to Claude pane",
-                  format_item = function(agent)
-                     return table.concat({
-                        agent.pane_id,
-                        agent.agent_status or "?",
-                        agent.terminal_title_stripped or agent.cwd or "",
-                     }, "  ")
-                  end,
-               }, function(agent)
-                  if agent then
-                     provider.attach(agent.pane_id, { focus = true })
-                  end
-               end)
             end, { nargs = "?", desc = "Attach to an existing Claude herdr pane" })
 
             vim.api.nvim_create_user_command("ClaudeCodeHerdrDetach", function()
