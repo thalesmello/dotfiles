@@ -188,7 +188,9 @@ return {
             -- from its side via /ide (lock files in ~/.claude/ide), which the
             -- attach helper types into the pane for us. Any ClaudeCode command
             -- attaches on its own when the tab already has a Claude; this
-            -- command is for attaching on demand or to a named pane.
+            -- command is for attaching on demand or to a named pane. Unlike the
+            -- implicit adopt on open (tab-scoped), it picks from every Claude in
+            -- the workspace, auto-attaching when there is only one.
             vim.api.nvim_create_user_command("ClaudeCodeHerdrAttach", function(cmd_opts)
                local provider = claude_provider()
 
@@ -197,8 +199,8 @@ return {
                   return
                end
 
-               if not provider.attach_existing({ focus = true }) then
-                  vim.notify("No other Claude panes in this herdr tab", vim.log.levels.WARN)
+               if not provider.attach_existing({ focus = true, scope = "workspace" }) then
+                  vim.notify("No other Claude panes in this herdr workspace", vim.log.levels.WARN)
                end
             end, { nargs = "?", desc = "Attach to an existing Claude herdr pane" })
 

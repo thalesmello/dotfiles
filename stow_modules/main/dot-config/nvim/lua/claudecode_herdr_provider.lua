@@ -194,21 +194,27 @@ function M.get_pane_id()
    return pane_id
 end
 
---- Claude agents herdr has detected in this nvim's own tab, excluding this
---- nvim's pane. Scoping to the tab keeps attach unambiguous: the Claude you
---- mean is the one sitting next to the editor, not one in another workspace.
+--- Claude agents herdr has detected, excluding this nvim's own pane.
+---
+--- "tab" scope (the default) keeps implicit attaches unambiguous: the Claude
+--- meant when a ClaudeCode command opens is the one sitting next to the editor.
+--- "workspace" scope is for the explicit attach command, where picking a Claude
+--- from another tab of the same workspace is the point.
+---@param scope? "tab"|"workspace"
 ---@return table[] agents entries from `herdr agent list`
-function M.list_claude_agents()
+function M.list_claude_agents(scope)
    local result = herdr({ "agent", "list" })
    local agents = (result and result.agents) or {}
-   local tab_id = vim.env.HERDR_TAB_ID
+
+   local key = scope == "workspace" and "workspace_id" or "tab_id"
+   local id = scope == "workspace" and vim.env.HERDR_WORKSPACE_ID or vim.env.HERDR_TAB_ID
 
    local out = {}
    for _, agent in ipairs(agents) do
       if
          agent.agent == "claude"
          and agent.pane_id ~= vim.env.HERDR_PANE_ID
-         and (tab_id == nil or agent.tab_id == tab_id)
+         and (id == nil or agent[key] == id)
       then
          table.insert(out, agent)
       end
@@ -353,14 +359,15 @@ function M.attach(target_pane, opts)
    return true
 end
 
---- Attach to a Claude already running in this herdr tab, asking which one when
---- there is more than one.
----@param opts? { send_ide?: boolean, focus?: boolean }
+--- Attach to a Claude already running in this herdr tab (or anywhere in the
+--- workspace with opts.scope = "workspace"), asking which one when there is more
+--- than one.
+---@param opts? { send_ide?: boolean, focus?: boolean, scope?: "tab"|"workspace" }
 ---@return boolean started true when an attach happened, or a picker was opened
 function M.attach_existing(opts)
    opts = opts or {}
 
-   local agents = M.list_claude_agents()
+   local agents = M.list_claude_agents(opts.scope)
    if #agents == 0 then
       return false
    end
@@ -374,6 +381,7 @@ function M.attach_existing(opts)
       format_item = function(agent)
          return table.concat({
             agent.pane_id,
+            agent.tab_id or "?",
             agent.agent_status or "?",
             agent.terminal_title_stripped or agent.cwd or "",
          }, "  ")
