@@ -110,7 +110,7 @@ next_tab = ["prefix+ctrl+]"]
 # switch_workspace = ""   # freed: prefix+shift+1..9 now focuses agents (focus_agent)
 # close_tab = "prefix+shift+x"
 # rename_pane = "prefix+shift+p"
-# edit_scrollback = "prefix+e"
+edit_scrollback = "prefix+shift+v"
 # tmux parity: `bind Space copy-mode` (herdr default is prefix+[)
 copy_mode = ["prefix+[", "prefix+space"]
 # plain prefix+h/j/k/l = herdr's native pane focus.
@@ -124,8 +124,9 @@ focus_pane_right = "prefix+l"
 cycle_pane_next = ""
 cycle_pane_previous = ""
 # last_pane = ""          # optional, unset by default; bind e.g. "prefix+tab" for global back-and-forth
-# tmux parity: `bind v` / `bind % split-window -h` (side-by-side / vertical divider)
-split_vertical = ["prefix+v", "prefix+%"]
+# tmux parity: `bind v` (side-by-side / vertical divider)
+# prefix+% (prefix+shift+5) intentionally dropped: it collided with focus_agent 5.
+split_vertical = ["prefix+v"]
 # tmux parity: `bind '"' split-window -v` (stacked / horizontal divider)
 split_horizontal = ["prefix+minus", "prefix+\""]
 # prefix+backspace is repurposed as smart-close (see [[keys.command]] below);
@@ -169,6 +170,14 @@ key = "prefix+shift+c"
 type = "shell"
 command = "\"${HERDR_BIN_PATH:-herdr}\" pane send-keys \"$HERDR_ACTIVE_PANE_ID\" ctrl+l"
 description = "clear screen (ctrl+l)"
+
+# Open the live config.toml in a new tab for editing. Save, then reload with
+# prefix+shift+r (reload_config) to apply without restarting Herdr.
+[[keys.command]]
+key = "prefix+e"
+type = "shell"
+command = "~/.config/herdr/scripts/edit-config.sh"
+description = "edit herdr config"
 
 # Copy the previous command's output to the clipboard (fish panes only).
 [[keys.command]]
