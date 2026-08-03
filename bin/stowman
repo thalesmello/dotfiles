@@ -124,6 +124,10 @@ function add() {
     src=$(pwd)/$src
   fi
 
+  # Strip any trailing slash so the final path component (which may be a
+  # dotfile that needs the dot- rename) survives the transform below.
+  src="${src%/}"
+
   what=$src
   what=$(echo "$what" | sed -e "s/~\///g")
   what=$(echo "$what" | sed -e "s/\/home\/$(whoami)\///g")
@@ -139,7 +143,8 @@ function add() {
   fi
 
   from="$src"
-  to=$(dirname "$DOTDIR/$pkg/$what")
+  dest="$DOTDIR/$pkg/$what"
+  to=$(dirname "$dest")
 
   echo -e "${BLUE}From:\t${NC} $from"
   echo -e "${BLUE}To:\t${NC} $DOTDIR/${PINK}$pkg${NC}/$what"
@@ -151,7 +156,7 @@ function add() {
     if [[ ! -e "$to" ]]; then
       mkdir -p "$to"
     fi
-    mv "$from" "$to/"
+    mv "$from" "$dest"
     eval "$stowcmd $pkg"
   fi
 
