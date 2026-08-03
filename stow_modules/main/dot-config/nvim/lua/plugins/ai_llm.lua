@@ -25,6 +25,24 @@ local function copy_reference(reference)
    vim.notify("Copied to clipboard: " .. reference)
 end
 
+local function copy_file_reference()
+   local path = vim.fn.fnamemodify(vim.fn.expand("%"), ":.")
+   copy_reference("@" .. path)
+end
+
+local function copy_visual_reference()
+   copy_reference(vim_utils.visual_reference())
+end
+
+-- Yank keymaps that work regardless of whether the claudecode plugin is loaded
+-- (e.g. lite mode). <leader>aB and <leader>ay are pure copy, so these are the
+-- only definitions. <leader>ab and <leader>. are overridden by the plugin's
+-- lazy `keys` handlers with the full send-or-copy behavior when it loads.
+vim.keymap.set("n", "<leader>ab", copy_file_reference, { desc = "Copy file reference" })
+vim.keymap.set("n", "<leader>aB", copy_file_reference, { desc = "Copy file reference" })
+vim.keymap.set("v", "<leader>ay", copy_visual_reference, { desc = "Copy code reference" })
+vim.keymap.set("v", "<leader>.", copy_visual_reference, { desc = "Copy code reference" })
+
 return {
    {
       "coder/claudecode.nvim",
@@ -121,23 +139,7 @@ return {
             end,
             desc = "Add current buffer",
          },
-         {
-            "<leader>aB",
-            function()
-               local path = vim.fn.fnamemodify(vim.fn.expand("%"), ":.")
-               copy_reference("@" .. path)
-            end,
-            desc = "Copy file reference",
-         },
          { "<leader>as", "<cmd>update | ClaudeCodeSend<cr>", mode = "v", desc = "Send to Claude" },
-         {
-            "<leader>ay",
-            function()
-               copy_reference(vim_utils.visual_reference())
-            end,
-            mode = {"v"},
-            desc = "Copy code reference",
-         },
          {
             "<leader>as",
             "<cmd>ClaudeCodeTreeAdd<cr>",
