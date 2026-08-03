@@ -73,6 +73,7 @@ return {
          -- which puts Claude in a real herdr pane (agents sidebar integration).
          opts.terminal = {
             provider = claude_provider(),
+            split_width_percentage = 0.40,
          }
 
          return opts

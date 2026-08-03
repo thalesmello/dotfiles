@@ -10,7 +10,7 @@ onboarding = false
 # Built-in themes: catppuccin, terminal, tokyo-night, dracula, nord,
 #                  gruvbox, one-dark, solarized, kanagawa, rose-pine,
 #                  vesper
-# name = "catppuccin"
+name = "catppuccin"
 
 # Follow host terminal light/dark appearance and switch Herdr UI themes.
 # Existing manual behavior is unchanged unless this is true.
@@ -20,11 +20,25 @@ onboarding = false
 
 # Override individual color tokens on top of the base theme.
 # Accepts: hex (#rrggbb), named colors, rgb(r,g,b), or panel_bg = "reset"
-# [theme.custom]
-# panel_bg = "reset"
-# accent = "#f5c2e7"
-# red = "#ff6188"
-# green = "#a6e3a1"
+# Herdr only ships catppuccin (mocha) and catppuccin-latte, so the Frappé
+# palette is applied on top of the mocha base here.
+[theme.custom]
+panel_bg = "#303446"     # base
+surface0 = "#414559"
+surface1 = "#51576d"
+surface_dim = "#292c3c"  # mantle
+overlay0 = "#737994"
+overlay1 = "#838ba7"
+text = "#c6d0f5"
+subtext0 = "#a5adce"
+accent = "#ca9ee6"       # mauve
+mauve = "#ca9ee6"
+green = "#a6d189"
+yellow = "#e5c890"
+red = "#e78284"
+blue = "#8caaee"
+teal = "#81c8be"
+peach = "#ef9f76"
 
 [terminal]
 # Executable used for new interactive panes.
