@@ -312,7 +312,7 @@ description = "close: forward to nvim or close tab"
 # sidebar_min_width = 18
 
 # Maximum sidebar width when expanded (columns)
-# sidebar_max_width = 36
+sidebar_max_width = 60
 
 # Start with the sidebar collapsed. Changes take effect on the next launch.
 # sidebar_start_collapsed = false
@@ -342,7 +342,7 @@ copy_on_select = true
 
 # Optional modifier that forwards right-click hold/drag gestures to pane apps instead of opening Herdr's pane menu.
 # Empty/off disables this. Shift is intentionally unsupported because terminals commonly reserve Shift+mouse.
-# right_click_passthrough_modifier = ""
+right_click_passthrough_modifier = "ctrl"
 
 # Force a full redraw when the outer terminal regains focus.
 # Set false to reduce visible flashing when switching back to Herdr.
@@ -392,6 +392,19 @@ hide_tab_bar_when_single_tab = false
 # [ui.sidebar.agents.rows_by_agent]
 # claude = [["state_icon", "workspace", "tab"], ["terminal_title_stripped"], ["agent"]]
 
+# Agent panel ordering: "spaces" (grouped by space) or "priority" (attention queue).
+agent_panel_sort = "priority"
+
+[ui.sidebar.agents]
+# First line:  <state_icon> <workspace> <agent>
+# Second line: <state_text> <terminal_title_stripped>
+# herdr joins row tokens with a space (sidebar rows can't contain literal text,
+# only builtin tokens and `$name` metadata tokens).
+rows = [
+    ["state_icon", "workspace", "tab"],
+    ["terminal_title_stripped"]
+]
+
 # Expanded space rows. Built-ins are state_icon, state_text, workspace, branch, and git_status.
 # Custom values reported through workspace metadata use a $name token, for example $jj_status.
 # Inline token styles accept strict #RGB/#RRGGBB foregrounds plus bold and dim booleans.
@@ -405,13 +418,12 @@ hide_tab_bar_when_single_tab = false
 # accent = "cyan"
 
 # Background notification popup delivery
-agent_panel_sort = "spaces"
 [ui.toast]
 # off = disable pop-up notifications
 # herdr = show in-app toasts
 # terminal = ask the outer terminal to show a desktop notification
 # system = ask the OS notification service directly
-delivery = "system"
+delivery = "terminal"
 # delay_seconds = 1
 
 [ui.toast.herdr]
