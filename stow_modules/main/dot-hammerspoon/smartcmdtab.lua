@@ -1,5 +1,6 @@
 local shell = require("shell")
 local preset = require("preset")
+local ghosttyPreset = require("ghosttyPreset")
 
 local M = {}
 
@@ -57,7 +58,7 @@ function M.setup(hyper)
           QuickTerminalAlternateWindowId = nil
           QuickTerminalKind = nil
           if restore == "ghostty" then
-            shell.task({"ghostty-preset", "reveal-floating-terminal"})
+            ghosttyPreset.revealFloatingTerminal()
           else
             shell.task({"iterm-preset", "reveal-hotkey-window"})
           end

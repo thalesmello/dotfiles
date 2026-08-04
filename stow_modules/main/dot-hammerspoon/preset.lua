@@ -19,7 +19,12 @@ local keyMap = {
 
 local modifiers = { ctrl = true, shift = true, alt = true, cmd = true, fn = true }
 
-function M.sendKeys(args)
+-- Legacy send-keys, kept for reference: relies on hs.eventtap.keyStroke, which
+-- can merge physically-held modifiers (e.g. the hyper chord that triggered the
+-- binding) into the synthesized event. Superseded by M.sendKeys below, which
+-- sets the flags absolutely. Retained under a new name so the old approach
+-- isn't lost.
+function M.sendKeysLegacy(args)
   local mods = {}
   local key = nil
   for _, arg in ipairs(args) do
@@ -32,6 +37,99 @@ function M.sendKeys(args)
   if key then
     hs.eventtap.keyStroke(mods, key)
   end
+end
+
+-- Numeric keycodes, mirroring `osascript-preset get-key-codes` so every key the
+-- presets synthesize resolves identically. Using explicit keycodes (rather than
+-- hs.keycodes.map name lookups) keeps names like "leftbracket"/"f17" working.
+local sendKeyCodes = {
+  ctrl = 59, shift = 56, alt = 58, cmd = 55,
+  a = 0, b = 11, c = 8, d = 2, e = 14, f = 3,
+  g = 5, h = 4, i = 34, j = 38, k = 40, l = 37,
+  m = 46, n = 45, o = 31, p = 35, q = 12, r = 15,
+  s = 1, t = 17, u = 32, v = 9, w = 13, x = 7,
+  y = 16, z = 6, space = 49, ["return"] = 36, left = 123,
+  right = 124, up = 126, down = 125, fn = 63, ["1"] = 18,
+  ["2"] = 19, ["3"] = 20, ["4"] = 21, ["5"] = 23, ["6"] = 22, ["7"] = 26,
+  ["8"] = 28, ["9"] = 25, ["0"] = 29, tab = 48, escape = 53,
+  backspace = 51, delete = 51,
+  backtick = 50, backslash = 42, slash = 44, minus = 27,
+  leftbracket = 33, rightbracket = 30,
+  f1 = 122, f2 = 120, f3 = 99, f4 = 118, f5 = 96,
+  f6 = 97, f7 = 98, f8 = 100, f9 = 101, f10 = 109,
+  f11 = 103, f12 = 111, f13 = 105, f14 = 107, f15 = 113,
+  f16 = 106, f17 = 64, f18 = 79, f19 = 80, f20 = 90,
+}
+
+-- Raw CGEventFlags per modifier, matching osascript-preset exactly: each combines
+-- the device-independent mask with the left-key device mask (NX_DEVICEL*KEYMASK).
+local sendModFlags = {
+  cmd = 1048584,   -- kCGEventFlagMaskCommand   + NX_DEVICELCMDKEYMASK
+  alt = 524320,    -- kCGEventFlagMaskAlternate + NX_DEVICELALTKEYMASK
+  meta = 524320,   -- alias for alt
+  ctrl = 262145,   -- kCGEventFlagMaskControl   + NX_DEVICELCTRLKEYMASK
+  shift = 131074,  -- kCGEventFlagMaskShift     + NX_DEVICELSHIFTKEYMASK
+  fn = 8388608,    -- kCGEventFlagMaskSecondaryFn
+}
+
+local FLAG_FN = 8388608        -- kCGEventFlagMaskSecondaryFn
+local FLAG_NUMPAD = 2097152    -- kCGEventFlagMaskNumericPad
+
+-- Synthesize a keystroke carrying exactly the requested modifiers, immune to
+-- whatever is physically held when it fires (these presets fire from hyper-key
+-- bindings, often with ctrl/cmd held continuously while tapping h/j/k/l).
+--
+-- This is osascript-preset's EXACT mechanism -- a CGEvent built with a NULL event
+-- source, whose flags are set absolutely and therefore never merge with the held
+-- hardware modifiers -- but run IN-PROCESS via hs.osascript.javascript, so there's
+-- no subprocess and no `hs -c` mach-port race. We tried hs.eventtap first and it
+-- failed: its events post through an HID-backed source that ORs in the held
+-- modifiers, and the workarounds (rawFlags, releasing modifiers, PID posting)
+-- either didn't reach the app or polluted cmd-based shortcuts (copy/paste).
+--
+-- The `app` argument is accepted for call-site compatibility but unused: a
+-- null-source event posted to the session tap already lands on the focused app.
+function M.sendKeys(args, app)
+  local flags = 0
+  local key = nil
+  local hasFn = false
+  for _, arg in ipairs(args) do
+    arg = tostring(arg):lower()
+    if arg == "meta" then arg = "alt" end
+    local mod = sendModFlags[arg]
+    if mod then
+      flags = flags + mod
+      if arg == "fn" then hasFn = true end
+    else
+      key = arg
+    end
+  end
+  if not key then return false end
+
+  local code = sendKeyCodes[key]
+  if not code then return false end
+
+  -- Arrow keys are only recognized with fn + numericpad flags (matches osascript).
+  if key == "left" or key == "right" or key == "up" or key == "down" then
+    if not hasFn then flags = flags + FLAG_FN end
+    flags = flags + FLAG_NUMPAD
+  end
+
+  -- Pre-release the key: when a hyper binding's trigger key is the SAME as this
+  -- synthesized key (e.g. ctrl+cmd+h -> ctrl+alt+h), the physical key is still
+  -- held, so the synthesized keyDown is a no-op (key already down) and the app
+  -- never sees a clean press. A leading keyUp for the same keycode clears that
+  -- held state; it's a harmless no-op when the key isn't held.
+  local js = string.format(
+    'ObjC.import("CoreGraphics");'
+    .. 'var p=$.CGEventCreateKeyboardEvent(null,%d,false);$.CGEventPost(1,p);'
+    .. 'var d=$.CGEventCreateKeyboardEvent(null,%d,true);$.CGEventSetFlags(d,%d);$.CGEventPost(1,d);'
+    .. 'var u=$.CGEventCreateKeyboardEvent(null,%d,false);$.CGEventSetFlags(u,%d);$.CGEventPost(1,u);',
+    code, code, flags, code, flags)
+
+  local ok, _, err = hs.osascript.javascript(js)
+  if not ok then print("[preset] sendKeys failed: " .. tostring(err)) end
+  return ok
 end
 
 function M.displayMessage(message, duration)

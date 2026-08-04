@@ -3,6 +3,7 @@ local mode = require("mode")
 local palette = require("palette")
 local util = require("util")
 local Preset = require("preset")
+local GhosttyPreset = require("ghosttyPreset")
 local a = require("async")
 local ArgList = require("arglist")
 local PreviewHud = require("preview_hud")
@@ -300,15 +301,15 @@ function M.setup()
     -- terminal too -- accept it there as well.
     if not (isGhosttyWindow or (isW and Preset.isGhosttyQuickTerminalActive())) then return false end
     if isD then
-      task({"ghostty-preset", "new-split-with-fallback", flags.shift and "--horizontal" or "--vertical"})
+      GhosttyPreset.newSplitWithFallback(flags.shift)
     elseif isT then
-      task({"ghostty-preset", "new-tab-with-fallback"})
+      GhosttyPreset.newTabWithFallback()
     elseif isPrevTab or isNextTab then
-      task({"ghostty-preset", "focus-tab-with-fallback", isPrevTab and "prev" or "next"})
+      GhosttyPreset.focusTabWithFallback(isPrevTab and "prev" or "next")
     elseif isW then
-      task({"ghostty-preset", "close-pane-with-fallback"})
+      GhosttyPreset.closePaneWithFallback()
     else
-      task({"ghostty-preset", "new-window-with-fallback"})
+      GhosttyPreset.newWindowWithFallback()
     end
     return true
   end)
@@ -369,25 +370,25 @@ function M.setup()
 
   default:conditionalBind({"ctrl", "cmd"}, "h", {
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "left"}) end},
-    {cond = isGhostty, function() task({"ghostty-preset", "focus-pane-with-fallback", "left"}) end},
+    {cond = isGhostty, function() GhosttyPreset.focusPaneWithFallback("left") end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "tab") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "left") end},
   })
   default:conditionalBind({"ctrl", "cmd"}, "j", {
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "down"}) end},
-    {cond = isGhostty, function() task({"ghostty-preset", "focus-pane-with-fallback", "down"}) end},
+    {cond = isGhostty, function() GhosttyPreset.focusPaneWithFallback("down") end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "9") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "down") end},
   })
   default:conditionalBind({"ctrl", "cmd"}, "k", {
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "up"}) end},
-    {cond = isGhostty, function() task({"ghostty-preset", "focus-pane-with-fallback", "up"}) end},
+    {cond = isGhostty, function() GhosttyPreset.focusPaneWithFallback("up") end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "1") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "up") end},
   })
   default:conditionalBind({"ctrl", "cmd"}, "l", {
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "right"}) end},
-    {cond = isGhostty, function() task({"ghostty-preset", "focus-pane-with-fallback", "right"}) end},
+    {cond = isGhostty, function() GhosttyPreset.focusPaneWithFallback("right") end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl"}, "tab") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "right") end},
   })
@@ -938,7 +939,7 @@ function M.setup()
   invoke:bindOnce({}, "b", "Alfred BTT Search", function() hs.applescript([[tell application "Alfred" to search "btt "]]) end)
   invoke:bindOnce({}, "t", "Alfred Top Search", function() hs.applescript([[tell application "Alfred" to search "top "]]) end)
   invoke:bindOnce({}, "y", "YouTube Search", function() task({"open", "raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D"}) end)
-  invoke:bindOnce({}, "return", "New Ghostty Window", function() task({"ghostty-preset", "new-window"}) end)
+  invoke:bindOnce({}, "return", "New Ghostty Window", function() GhosttyPreset.newWindow() end)
   invoke:bindOnce(hyper, "i", "AI Input Mode", function() Preset.displayMessage("AI Input Mode"); fish('osascript -e "set volume input volume 100"; display-message "$(set-preferred-input-device)"') end)
   invoke:bindOnce(hyper, "r", "Reinitialize Displays", function() Preset.displayMessage("Reinitialize Displays"); fish("betterdisplaycli perform --reinitialize") end)
   ---------------------------------------------------------------
