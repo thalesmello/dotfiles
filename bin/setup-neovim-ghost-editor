@@ -1,0 +1,187 @@
+#!/opt/homebrew/bin/fish --no-config
+# Make neovim-ghost the default text/source editor on macOS.
+#
+# macOS routes `open <file>` (which is what Ghostty's `open_config`, Finder
+# double-clicks, etc. use) to a registered .app via LaunchServices -- a bare
+# shell script like `neovim-ghost` can't be a default handler. So this builds a
+# tiny wrapper app that forwards opened files to `neovim-ghost focus-or-new-tab`,
+# then registers it as the default handler for plain-text and source-code UTIs.
+#
+# The Ghostty config itself has no extension, so macOS types it as `public.data`
+# (not text) -- which is why cmd+, was landing it in Notes. We deliberately do
+# NOT grab all `public.data` files (that UTI covers many unrecognized files);
+# instead we set a per-file "Open With" association on just the config, so it too
+# opens in neovim-ghost.
+#
+# Defaults are set via the LaunchServices API (a small swift helper) rather than
+# `duti`, which isn't installed and can't be brew-installed here.
+#
+# Re-runnable and idempotent. `--uninstall` reverses everything.
+set -x PATH /opt/homebrew/bin (status dirname) $PATH
+
+set -g APP_NAME "Neovim Ghost Editor"
+# Kept under Application Support rather than ~/Applications: the latter is
+# TCC-protected and not writable from a terminal process. LaunchServices
+# resolves the handler by bundle id regardless of the bundle's location.
+set -g APP "$HOME/Library/Application Support/NeovimGhostEditor/$APP_NAME.app"
+set -g BUNDLE_ID "com.thalesmello.neovim-ghost-editor"
+set -g NG (realpath (status dirname)/neovim-ghost)
+set -g GHOSTTY_CONFIG "$HOME/Library/Application Support/com.mitchellh.ghostty/config"
+# UTIs to claim as the default editor. public.data is intentionally excluded --
+# see header; the config is handled per-file below instead.
+set -g TEXT_UTIS public.plain-text public.source-code public.script public.shell-script
+
+set -g LSREGISTER /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+
+function log
+    echo ">> $argv"
+end
+
+# Set the default handler for one or more UTIs to a bundle id, via the
+# LaunchServices API. Usage: set_handler <bundleid> <uti>...
+function set_handler
+    set -l bundle $argv[1]
+    set -e argv[1]
+    set -l swiftsrc (mktemp --suffix=.swift)
+    printf '%s\n' \
+        'import Foundation' \
+        'import CoreServices' \
+        'let a = CommandLine.arguments' \
+        'let bundle = a[1] as CFString' \
+        'for uti in a[2...] {' \
+        '  let s = LSSetDefaultRoleHandlerForContentType(uti as CFString, .all, bundle)' \
+        '  if s != 0 { FileHandle.standardError.write("  failed \(uti): \(s)\n".data(using: .utf8)!) }' \
+        '  else { print("  set \(uti)") }' \
+        '}' \
+        > $swiftsrc
+    swift $swiftsrc $bundle $argv
+    rm $swiftsrc
+end
+
+function build_app
+    log "Building $APP"
+    rm -rf "$APP"
+    mkdir -p (dirname "$APP")
+
+    set -l src (mktemp --suffix=.applescript)
+    # NG is baked in as an absolute path: `do shell script` runs under a minimal
+    # PATH, and neovim-ghost sets its own PATH for its dependencies internally.
+    printf '%s\n' \
+        'on open theItems' \
+        '	repeat with f in theItems' \
+        '		my openPath(POSIX path of f)' \
+        '	end repeat' \
+        'end open' \
+        '' \
+        'on run' \
+        '	my openPath("")' \
+        'end run' \
+        '' \
+        'on openPath(p)' \
+        "	set ng to \"$NG\"" \
+        '	set sub to "trigger"' \
+        '	if p is not "" then set sub to "focus-or-new-tab " & quoted form of p' \
+        '	-- Fire-and-forget: nohup + background + discard output so a nonzero' \
+        '	-- exit or stray stderr never surfaces as a macOS error dialog.' \
+        '	do shell script "nohup " & quoted form of ng & " " & sub & " > /dev/null 2>&1 &"' \
+        'end openPath' \
+        > $src
+
+    osacompile -o "$APP" $src
+    rm $src
+
+    set -l plist "$APP/Contents/Info.plist"
+    set -l pb /usr/libexec/PlistBuddy
+
+    # osacompile's Info.plist has no CFBundleIdentifier -- add it (Set fails on a
+    # missing key). CFBundleName is present, so Set it.
+    $pb -c "Add :CFBundleIdentifier string $BUNDLE_ID" "$plist"
+    or $pb -c "Set :CFBundleIdentifier $BUNDLE_ID" "$plist"
+    $pb -c "Set :CFBundleName $APP_NAME" "$plist"
+    # Agent app: no dock icon, but still fully receives document-open Apple
+    # events (LSUIElement is safer than LSBackgroundOnly for a doc handler).
+    $pb -c "Add :LSUIElement bool true" "$plist" 2>/dev/null
+    or $pb -c "Set :LSUIElement true" "$plist"
+
+    # Declare the document types this app can edit so it can be set as default
+    # and appear in "Open With". public.data is included only so the per-file
+    # config association below is allowed -- it is NOT registered as a default.
+    $pb -c "Delete :CFBundleDocumentTypes" "$plist" 2>/dev/null
+    $pb -c "Add :CFBundleDocumentTypes array" "$plist"
+    $pb -c "Add :CFBundleDocumentTypes:0 dict" "$plist"
+    $pb -c "Add :CFBundleDocumentTypes:0:CFBundleTypeName string 'Text Document'" "$plist"
+    $pb -c "Add :CFBundleDocumentTypes:0:CFBundleTypeRole string Editor" "$plist"
+    $pb -c "Add :CFBundleDocumentTypes:0:LSHandlerRank string Alternate" "$plist"
+    $pb -c "Add :CFBundleDocumentTypes:0:LSItemContentTypes array" "$plist"
+    set -l i 0
+    for uti in $TEXT_UTIS public.text public.data
+        $pb -c "Add :CFBundleDocumentTypes:0:LSItemContentTypes:$i string $uti" "$plist"
+        set i (math $i + 1)
+    end
+
+    # Editing Info.plist after osacompile's ad-hoc signing invalidates the
+    # signature, which makes macOS refuse to launch the app (LaunchServices
+    # error -54). Re-sign ad-hoc so it launches.
+    log "Re-signing (ad-hoc)"
+    codesign --force --deep -s - "$APP"
+
+    log "Registering with LaunchServices"
+    $LSREGISTER -f "$APP"
+end
+
+function set_defaults
+    log "Setting default handlers -> $BUNDLE_ID"
+    set_handler $BUNDLE_ID $TEXT_UTIS
+end
+
+# Set a per-file "Open With" override (com.apple.LaunchServices.OpenWith xattr),
+# which takes precedence over the UTI default without changing it globally.
+function set_openwith --argument-names file
+    if not test -e "$file"
+        log "skip per-file assoc (missing): $file"
+        return
+    end
+    # Resolve symlinks: `open` acts on the target, and the config is stow-linked.
+    set -l target (realpath "$file")
+    set -l tmp (mktemp --suffix=.plist)
+    printf '%s\n' \
+        '<?xml version="1.0" encoding="UTF-8"?>' \
+        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+        '<plist version="1.0"><dict>' \
+        '<key>version</key><integer>0</integer>' \
+        "<key>path</key><string>$APP</string>" \
+        "<key>bundleidentifier</key><string>$BUNDLE_ID</string>" \
+        '</dict></plist>' \
+        > $tmp
+    plutil -convert binary1 $tmp
+    log "Setting per-file Open With on $target"
+    xattr -wx com.apple.LaunchServices.OpenWith (xxd -p $tmp | tr -d '\n') "$target"
+    rm $tmp
+end
+
+function do_install
+    build_app
+    set_defaults
+    set_openwith "$GHOSTTY_CONFIG"
+    log "Done. neovim-ghost is now the default editor for: $TEXT_UTIS"
+    log "The Ghostty config opens in it via a per-file association."
+end
+
+function do_uninstall
+    log "Reverting text/source UTIs to TextEdit"
+    set_handler com.apple.TextEdit $TEXT_UTIS
+    if test -e "$GHOSTTY_CONFIG"
+        set -l target (realpath "$GHOSTTY_CONFIG")
+        log "Removing per-file Open With on $target"
+        xattr -d com.apple.LaunchServices.OpenWith "$target" 2>/dev/null
+    end
+    log "Removing $APP"
+    rm -rf "$APP"
+    $LSREGISTER -f "$APP" 2>/dev/null
+end
+
+if test "$argv[1]" = --uninstall
+    do_uninstall
+else
+    do_install
+end
