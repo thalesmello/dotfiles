@@ -132,9 +132,8 @@ split_horizontal = ["prefix+minus", "prefix+\""]
 # prefix+backspace is repurposed as smart-close (see [[keys.command]] below);
 # plain pane close lives on prefix+shift+backspace.
 close_pane = "prefix+shift+backspace"
-# zoom = "prefix+z"       # legacy alias: fullscreen
-fullscreen = "prefix+ctrl+enter"
-resize_mode = "prefix+r"
+zoom = ["prefix+z", "prefix+ctrl+enter"]
+resize_mode = [ "prefix+r"]
 # toggle_sidebar = "prefix+b"
 
 # Navigate-mode movement. These local shortcuts win while navigate mode is open.
