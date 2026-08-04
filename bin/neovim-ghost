@@ -7,7 +7,9 @@ function neovim-ghost
 
     switch "$preset"
     case "is-alive"
-        pgrep -q -F "$TMPDIR/nvim_ghost.pid"
+        # Suppress pgrep's "Cannot open pidfile" stderr for the common
+        # not-yet-started case; the exit status is what callers check.
+        pgrep -q -F "$TMPDIR/nvim_ghost.pid" 2>/dev/null
         return $status
     case "focus"
         # Collapse the iTerm floating terminal first if it's up, otherwise it
