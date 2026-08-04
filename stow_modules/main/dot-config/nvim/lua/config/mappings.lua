@@ -35,6 +35,7 @@ vim.keymap.set({'n'}, 'g\\\\', "V" .. lineContinuationToggle, { silent = true })
 vim.keymap.set("n", "<leader>v", "<C-w>v", { remap = true })
 vim.keymap.set("n", "<leader>%", "<C-w>v", { remap = true })
 vim.keymap.set("n", '<leader>"', "<C-w>s", { remap = true })
+vim.keymap.set("n", '<leader>-', "<C-w>s", { remap = true })
 vim.keymap.set("n", "<leader><bs>", "<c-w>q", { remap = true })
 
 -- Edit and load vimrc
