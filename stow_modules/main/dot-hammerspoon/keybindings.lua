@@ -209,23 +209,34 @@ function M.setup()
   default:bindOnce(hyper, "[", "Focus Space Prev", function() task({"wm-preset", "focus-space", "prev"}) end)
   default:bindOnce(hyper, "]", "Focus Space Next", function() task({"wm-preset", "focus-space", "next"}) end)
 
-  -- Window focus HJKL
-  default:conditionalBindOnce(hyper, "h", "Focus Window West", {
-    {cond = isSpaceStack, function() task({"yabai-preset", "focus-stack-aware", "west"}) end},
-    {function() fish("wm-preset focus-window west; or wm-preset focus-floating-window west") end},
-  })
-  default:conditionalBindOnce(hyper, "j", "Focus Window South", {
-    {cond = isSpaceStack, function() task({"yabai-preset", "focus-stack-aware", "south"}) end},
-    {function() fish("wm-preset focus-window south; or wm-preset focus-floating-window south") end},
-  })
-  default:conditionalBindOnce(hyper, "k", "Focus Window North", {
-    {cond = isSpaceStack, function() task({"yabai-preset", "focus-stack-aware", "north"}) end},
-    {function() fish("wm-preset focus-window north; or wm-preset focus-floating-window north") end},
-  })
-  default:conditionalBindOnce(hyper, "l", "Focus Window East", {
-    {cond = isSpaceStack, function() task({"yabai-preset", "focus-stack-aware", "east"}) end},
-    {function() fish("wm-preset focus-window east; or wm-preset focus-floating-window east") end},
-  })
+  -- Window focus HJKL, with a Ghostty pane-nav fallback (GhosttyPreset
+  -- focus-pane-with-fallback) in two cases:
+  --   * the Ghostty quick (floating) terminal is focused -- it's a floating panel
+  --     outside yabai's layout, so intercept it first and navigate its panes;
+  --   * a stack layout has no floating window to shift focus to -- focus-stack-aware
+  --     exits non-zero, so fall back to Ghostty pane nav.
+  -- Otherwise: stack-aware focus, then plain window / floating-window focus.
+  local function focusWindowOrGhosttyPane(yabaiDir, paneDir)
+    return {
+      {cond = Preset.isGhosttyQuickTerminalActive,
+        function() GhosttyPreset.focusPaneWithFallback(paneDir) end},
+      {cond = isSpaceStack, function()
+        task({"yabai-preset", "focus-stack-aware", yabaiDir}, function(ok)
+          -- Only fall back to Ghostty pane nav when Ghostty is focused; otherwise
+          -- there's just no window that way and we leave focus put.
+          if not ok and focusedWindowAppName() == "Ghostty" then
+            GhosttyPreset.focusPaneWithFallback(paneDir)
+          end
+        end)
+      end},
+      {function() fish("wm-preset focus-window " .. yabaiDir ..
+        "; or wm-preset focus-floating-window " .. yabaiDir) end},
+    }
+  end
+  default:conditionalBindOnce(hyper, "h", "Focus Window West", focusWindowOrGhosttyPane("west", "left"))
+  default:conditionalBindOnce(hyper, "j", "Focus Window South", focusWindowOrGhosttyPane("south", "down"))
+  default:conditionalBindOnce(hyper, "k", "Focus Window North", focusWindowOrGhosttyPane("north", "up"))
+  default:conditionalBindOnce(hyper, "l", "Focus Window East", focusWindowOrGhosttyPane("east", "right"))
 
   -- Window swap/snap/pad HJKL
   default:conditionalBindOnce(hyperShift, "h", "Swap/Snap/Pad West", {
