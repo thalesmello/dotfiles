@@ -65,6 +65,12 @@ if status --is-interactive
     end
 end
 
+# Load herdr-specific configuration when running inside a herdr session
+if set -q HERDR_ENV
+    and test -f $__fish_config_dir/herdr.fish
+    source $__fish_config_dir/herdr.fish
+end
+
 # Load local dotfiles fish configuration
 set -gx __LOCAL_FISH_DIR ~/.local_dotfiles/fish
 
