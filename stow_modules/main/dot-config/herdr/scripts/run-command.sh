@@ -16,7 +16,7 @@ cmd=''
 printf '%s' "$prompt"
 
 old=$(stty -g); stty -echo -icanon min 1 time 0
-trap 'stty "$old"' EXIT
+trap 'stty "$old" 2>/dev/null || stty sane' EXIT
 
 while IFS= read -rsn1 c; do
   case $c in
@@ -34,7 +34,8 @@ while IFS= read -rsn1 c; do
   esac
 done
 
-stty "$old"; trap - EXIT
+stty "$old" 2>/dev/null || stty sane
+trap - EXIT
 printf '\n'
 [ -n "$cmd" ] || exit 0
 
@@ -44,5 +45,5 @@ status=$?
 # Success -> close immediately. Error -> keep output on screen until a keypress.
 [ "$status" -eq 0 ] && exit 0
 
-printf '\n[exit %d — press any key to close]' "$status"
+printf '\n[exit %d] press any key to close ' "$status"
 read -rsn1 _
