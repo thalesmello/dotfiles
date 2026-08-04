@@ -197,6 +197,18 @@ description = "claude in new tab (prompts for name)"
 width = "40%"
 height = 3
 
+# ctrl+alt+shift+semicolon (ctrl+meta+shift+:): prompt for a shell command in a
+# popup, then eval it in the popup's own bash process. Output stays on screen
+# until a key is pressed. type = "popup" so the prompt runs in a herdr-rendered
+# PTY where interactive line editing works.
+[[keys.command]]
+key = "ctrl+alt+shift+semicolon"
+type = "popup"
+command = "~/.config/herdr/scripts/run-command.sh"
+description = "prompt for a command and run it"
+width = "60%"
+height = "40%"
+
 # Open the live config.toml in a new tab for editing. Save, then reload with
 # prefix+shift+r (reload_config) to apply without restarting Herdr.
 [[keys.command]]
