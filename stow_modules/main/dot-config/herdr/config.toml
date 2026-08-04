@@ -111,7 +111,7 @@ previous_tab = ["prefix+ctrl+["]
 next_tab = ["prefix+ctrl+]"]
 # switch_tab = "prefix+1..9"
 # switch_workspace = ""   # freed: prefix+shift+1..9 now focuses agents (focus_agent)
-# close_tab = "prefix+shift+x"
+close_tab = "prefix+shift+backspace"
 # rename_pane = "prefix+shift+p"
 edit_scrollback = "prefix+shift+v"
 # tmux parity: `bind Space copy-mode` (herdr default is prefix+[)
@@ -134,7 +134,6 @@ split_vertical = ["prefix+v"]
 split_horizontal = ["prefix+minus", "prefix+\""]
 # prefix+backspace is repurposed as smart-close (see [[keys.command]] below);
 # plain pane close lives on prefix+shift+backspace.
-close_pane = "prefix+shift+backspace"
 zoom = ["prefix+z", "prefix+ctrl+enter"]
 resize_mode = [ "prefix+r"]
 # toggle_sidebar = "prefix+b"
@@ -180,12 +179,16 @@ type = "shell"
 command = "~/.config/herdr/scripts/claude-split.sh"
 description = "claude in 40% vertical split"
 
-# prefix+shift+c: open a new tab running Claude Code.
+# prefix+shift+c: prompt for a tab name, then open a new tab running Claude Code.
+# type = "popup" so the name prompt runs in a herdr-rendered PTY where
+# interactive input works (a detached type = "shell" command has no terminal).
 [[keys.command]]
 key = "prefix+shift+c"
-type = "shell"
+type = "popup"
 command = "~/.config/herdr/scripts/claude-tab.sh"
-description = "claude in new tab"
+description = "claude in new tab (prompts for name)"
+width = "40%"
+height = 3
 
 # Open the live config.toml in a new tab for editing. Save, then reload with
 # prefix+shift+r (reload_config) to apply without restarting Herdr.
