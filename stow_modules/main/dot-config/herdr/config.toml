@@ -102,7 +102,12 @@ focus_agent = "prefix+shift+1..9"   # focus agent 1-9
 # prefix+c / prefix+shift+c are repurposed to launch Claude Code (see
 # [[keys.command]] below): prefix+c opens a 40%-width vertical split, and
 # prefix+shift+c opens a whole new tab. Plain new-tab lives on prefix+ctrl+t.
-new_tab = ["prefix+ctrl+t"]
+# ctrl+alt+t is a direct (prefix-less) chord forwarded by Ghostty for cmd+t,
+# mirroring new_tab without the prefix-timeout delay.
+new_tab = ["prefix+ctrl+t", "ctrl+alt+t"]
+# ctrl+alt+n is the direct chord for cmd+n; like prefix+shift+n it makes a new
+# workspace (Ghostty's cmd+n = new_window), not a tab.
+new_workspace = ["prefix+shift+n", "ctrl+alt+n"]
 # rename_tab = "prefix+shift+t"
 # prefix+ctrl+p/n are smart-tab-nav.sh (see [[keys.command]] below): tab-wise, but
 # spilling into the neighbouring workspace at either end. prefix+ctrl+[/] stay as
@@ -129,9 +134,11 @@ cycle_pane_previous = ""
 # last_pane = ""          # optional, unset by default; bind e.g. "prefix+tab" for global back-and-forth
 # tmux parity: `bind v` (side-by-side / vertical divider)
 # prefix+% (prefix+shift+5) intentionally dropped: it collided with focus_agent 5.
-split_vertical = ["prefix+v"]
+# ctrl+alt+d is a direct chord forwarded by Ghostty for cmd+d (no prefix delay).
+split_vertical = ["prefix+v", "ctrl+alt+d"]
 # tmux parity: `bind '"' split-window -v` (stacked / horizontal divider)
-split_horizontal = ["prefix+minus", "prefix+\""]
+# ctrl+alt+shift+d is a direct chord forwarded by Ghostty for cmd+shift+d.
+split_horizontal = ["prefix+minus", "prefix+\"", "ctrl+alt+shift+d"]
 # prefix+backspace is repurposed as smart-close (see [[keys.command]] below);
 # plain pane close lives on prefix+shift+backspace.
 zoom = ["prefix+z", "prefix+ctrl+enter"]
@@ -224,47 +231,53 @@ height = 1
 
 # Smart pane navigation: focus the pane in that direction, but forward ctrl+hjkl
 # to (n)vim when the pane is zoomed or is the only pane in the tab.
+# ctrl+alt+h/j/k/l are the direct (prefix-less) chords forwarded by Ghostty for
+# the pane-nav fallback: same command, no prefix-timeout delay.
 [[keys.command]]
-key = "prefix+ctrl+h"
+key = ["prefix+ctrl+h", "ctrl+alt+h"]
 type = "shell"
 command = "~/.config/herdr/scripts/smart-pane-nav.sh left h"
 description = "focus/forward pane left"
 
 [[keys.command]]
-key = "prefix+ctrl+j"
+key = ["prefix+ctrl+j", "ctrl+alt+j"]
 type = "shell"
 command = "~/.config/herdr/scripts/smart-pane-nav.sh down j"
 description = "focus/forward pane down"
 
 [[keys.command]]
-key = "prefix+ctrl+k"
+key = ["prefix+ctrl+k", "ctrl+alt+k"]
 type = "shell"
 command = "~/.config/herdr/scripts/smart-pane-nav.sh up k"
 description = "focus/forward pane up"
 
 [[keys.command]]
-key = "prefix+ctrl+l"
+key = ["prefix+ctrl+l", "ctrl+alt+l"]
 type = "shell"
 command = "~/.config/herdr/scripts/smart-pane-nav.sh right l"
 description = "focus/forward pane right"
 
 # Smart tab navigation: move to the next/previous tab, but hop to the neighbouring
 # workspace (and its first/last tab) when already at the end of the current one.
+# ctrl+alt+shift+] / ctrl+alt+shift+[ are the direct chords forwarded by Ghostty
+# for cmd+shift+] / cmd+shift+[: same command, no prefix-timeout delay.
 [[keys.command]]
-key = "prefix+ctrl+n"
+key = ["prefix+ctrl+n", "ctrl+alt+shift+]"]
 type = "shell"
 command = "~/.config/herdr/scripts/smart-tab-nav.sh next"
 description = "next tab (spills into next workspace)"
 
 [[keys.command]]
-key = "prefix+ctrl+p"
+key = ["prefix+ctrl+p", "ctrl+alt+shift+["]
 type = "shell"
 command = "~/.config/herdr/scripts/smart-tab-nav.sh prev"
 description = "previous tab (spills into previous workspace)"
 
 # prefix+backspace: forward <c-space><bs> to (n)vim, else close the tab.
+# ctrl+alt+w is the direct chord forwarded by Ghostty for cmd+w: same smart
+# close, no prefix-timeout delay.
 [[keys.command]]
-key = "prefix+backspace"
+key = ["prefix+backspace", "ctrl+alt+w"]
 type = "shell"
 command = "~/.config/herdr/scripts/smart-close.sh"
 description = "close: forward to nvim or close tab"

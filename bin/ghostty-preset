@@ -211,17 +211,19 @@ end run
 
     case "new-split-with-fallback"
         # When the focused surface is a zoomed/single multiplexer pane (nvim or
-        # herdr), it owns the split, so send its sequence: ctrl+space prefix, then
-        # `v` (vertical) or `-` (horizontal). Otherwise make a native Ghostty
+        # herdr), it owns the split, so send the direct ctrl+meta chord it binds:
+        # ctrl+alt+d (vertical) or ctrl+alt+shift+d (horizontal). This is a single
+        # keystroke, avoiding the prefix-timeout delay of the old ctrl+space
+        # prefix sequence. ctrl-held/no-cmd, so the Hammerspoon eventtap that
+        # calls us ignores it (no re-entry). Otherwise make a native Ghostty
         # split. Defaults to horizontal like new-split.
         argparse 'v/vertical' 'h/horizontal' -- $argv
         or return 1
         if __ghostty_is_multiplexer_app_zoomed_or_single_surface
-            osascript-preset send-keys ctrl space
             if set -q _flag_vertical
-                osascript-preset send-keys v
+                osascript-preset send-keys ctrl alt d
             else
-                osascript-preset send-keys minus
+                osascript-preset send-keys ctrl alt shift d
             end
         else if __ghostty_is_floating_terminal
             # The quick terminal isn't reachable through AppleScript's `front
@@ -245,11 +247,11 @@ end run
 
     case "new-tab-with-fallback"
         # In a lone multiplexer window (nvim or herdr), it owns the tabs, so send
-        # its new-tab sequence: ctrl+space prefix, then ctrl+t (both bind it).
+        # the direct ctrl+meta chord it binds: ctrl+alt+t. A single keystroke
+        # (no prefix-timeout delay); ctrl-held/no-cmd dodges the eventtap.
         # Anywhere else, make a native Ghostty tab.
         if __ghostty_is_multiplexer_window
-            osascript-preset send-keys ctrl space
-            osascript-preset send-keys ctrl t
+            osascript-preset send-keys ctrl alt t
         else if __ghostty_is_floating_terminal
             # `new tab in front window` would open in the regular window behind
             # the quick terminal, so use Ghostty's own new_tab keybind instead.
@@ -262,12 +264,12 @@ end run
 
     case "new-window-with-fallback"
         # In a lone multiplexer window (nvim or herdr) it owns the "windows" (no
-        # separate tab/window concept), so send its new-window sequence
-        # (ctrl+space prefix, then shift+n) -- same as new-tab. Anywhere else,
-        # make a native Ghostty window.
+        # separate tab/window concept), so send the direct ctrl+meta chord it
+        # binds: ctrl+alt+n (herdr -> new_workspace, nvim -> new tab). A single
+        # keystroke (no prefix-timeout delay); ctrl-held/no-cmd dodges the
+        # eventtap. Anywhere else, make a native Ghostty window.
         if __ghostty_is_multiplexer_window
-            osascript-preset send-keys ctrl space
-            osascript-preset send-keys shift n
+            osascript-preset send-keys ctrl alt n
         else if __ghostty_is_floating_terminal
             # AppleScript `new window` works from the quick terminal, but the new
             # window lands behind it; Ghostty's own new_window keybind focuses it
@@ -279,21 +281,22 @@ end run
 
     case "focus-tab-with-fallback"
         # In a lone multiplexer window (nvim or herdr) it owns the tabs, so send
-        # its prefix sequence: ctrl+space, then ctrl+p/ctrl+n. Both bind it --
-        # herdr moves between workspaces, nvim's neoterminal maps
-        # <c-space><c-p>/<c-n> to gT/gt. Anywhere else, switch Ghostty's tabs.
+        # the direct ctrl+meta chord it binds: ctrl+alt+shift+[ (prev) /
+        # ctrl+alt+shift+] (next). Both bind it -- herdr runs smart-tab-nav
+        # (spills into neighbouring workspaces), nvim's neoterminal maps them to
+        # gT/gt. A single keystroke (no prefix-timeout delay); ctrl-held/no-cmd
+        # dodges the eventtap. Anywhere else, switch Ghostty's tabs.
         switch "$argv[1]"
         case "prev" "previous"
-            set fallback_key p
+            set fallback_key leftbracket
         case "next"
-            set fallback_key n
+            set fallback_key rightbracket
         case "*"
             return 1
         end
 
         if __ghostty_is_multiplexer_window
-            osascript-preset send-keys ctrl space
-            osascript-preset send-keys ctrl $fallback_key
+            osascript-preset send-keys ctrl alt shift $fallback_key
         else
             # ctrl+tab / ctrl+shift+tab are bound to next_tab / previous_tab in
             # the Ghostty config. Synthesizing those (instead of the cmd+shift+
@@ -302,7 +305,7 @@ end run
             # AppleScript, this also already covers the quick (floating)
             # terminal, which `front window` can't address -- so unlike the
             # new-tab/window/split fallbacks there's no separate branch for it.
-            if test "$fallback_key" = p
+            if test "$fallback_key" = leftbracket
                 osascript-preset send-keys ctrl shift tab
             else
                 osascript-preset send-keys ctrl tab
@@ -311,16 +314,16 @@ end run
 
     case "close-pane-with-fallback"
         # When the focused surface is a zoomed/single multiplexer pane (nvim or
-        # herdr), it owns the pane, so send its close sequence: ctrl+space
-        # prefix, then backspace. Anywhere else, close the native Ghostty
-        # surface via the config's super+ctrl+w=close_surface keybind -- not
-        # AppleScript `close`, and not plain cmd+w, which the Hammerspoon
+        # herdr), it owns the pane, so send the direct ctrl+meta chord it binds:
+        # ctrl+alt+w (smart-close). A single keystroke (no prefix-timeout delay);
+        # ctrl-held/no-cmd dodges the eventtap. Anywhere else, close the native
+        # Ghostty surface via the config's super+ctrl+w=close_surface keybind --
+        # not AppleScript `close`, and not plain cmd+w, which the Hammerspoon
         # eventtap that calls us would intercept and re-enter. Being a keybind
         # it acts on the *focused* surface, so it already covers the quick
         # (floating) terminal, which `front window` can't address.
         if __ghostty_is_multiplexer_app_zoomed_or_single_surface
-            osascript-preset send-keys ctrl space
-            osascript-preset send-keys backspace
+            osascript-preset send-keys ctrl alt w
         else
             osascript-preset send-keys cmd ctrl w
         end
@@ -355,14 +358,14 @@ end run
         end
 
         # If a single surface (zoomed split or lone pane) running a multiplexer
-        # (nvim or herdr) is shown, forward its pane-nav sequence: the ctrl+space
-        # prefix, then ctrl+<hjkl>. Both bind this -- nvim's neoterminal maps
-        # <c-space><c-h> -> <C-w>h (normal and terminal mode), and herdr uses the
-        # same prefix -- so one sequence covers both. A non-multiplexer single
-        # pane falls through to goto_split (a no-op if there's no split).
+        # (nvim or herdr) is shown, forward the direct ctrl+meta chord it binds:
+        # ctrl+alt+<hjkl>. Both bind this -- nvim's neoterminal maps it to <C-w>h
+        # (normal and terminal mode), and herdr runs smart-pane-nav -- so one
+        # chord covers both. A single keystroke (no prefix-timeout delay);
+        # ctrl-held/no-cmd dodges the eventtap. A non-multiplexer single pane
+        # falls through to goto_split (a no-op if there's no split).
         if __ghostty_is_multiplexer_app_zoomed_or_single_surface
-            osascript-preset send-keys ctrl space
-            osascript-preset send-keys ctrl $fallback_key
+            osascript-preset send-keys ctrl alt $fallback_key
             return
         end
 

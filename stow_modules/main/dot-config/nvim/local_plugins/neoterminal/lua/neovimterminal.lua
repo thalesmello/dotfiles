@@ -14,10 +14,19 @@ vim.keymap.set({"n", "t", "i", "v"}, "<c-space><c-h>", '<c-\\><C-n><C-w><C-h>', 
 vim.keymap.set({"n", "t", "i", "v"}, "<c-space><c-j>", '<c-\\><C-n><C-w><C-j>', { noremap = true, silent = true })
 vim.keymap.set({"n", "t", "i", "v"}, "<c-space><c-k>", '<c-\\><C-n><C-w><C-k>', { noremap = true, silent = true })
 vim.keymap.set({"n", "t", "i", "v"}, "<c-space><c-l>", '<c-\\><C-n><C-w><C-l>', { noremap = true, silent = true })
+-- Direct (prefix-less) ctrl+meta pane-nav chords forwarded by Ghostty, same
+-- action as <c-space><c-h/j/k/l> above but with no prefix-timeout delay.
+vim.keymap.set({"n", "t", "i", "v"}, "<c-m-h>", '<c-\\><C-n><C-w><C-h>', { noremap = true, silent = true })
+vim.keymap.set({"n", "t", "i", "v"}, "<c-m-j>", '<c-\\><C-n><C-w><C-j>', { noremap = true, silent = true })
+vim.keymap.set({"n", "t", "i", "v"}, "<c-m-k>", '<c-\\><C-n><C-w><C-k>', { noremap = true, silent = true })
+vim.keymap.set({"n", "t", "i", "v"}, "<c-m-l>", '<c-\\><C-n><C-w><C-l>', { noremap = true, silent = true })
 
 vim.keymap.set({"n", "t"}, "<c-space>:", '<c-\\><C-n>:', { noremap = true })
 vim.keymap.set("t", "<c-space><space>", '<c-\\><C-n>', { noremap = true, silent = true })
 vim.keymap.set({"n", "t"}, "<c-space><bs>", '<c-\\><C-n><c-w>q', { noremap = true, silent = true })
+-- Direct (prefix-less) ctrl+meta close chord forwarded by Ghostty for cmd+w,
+-- same action as <c-space><bs> above but with no prefix-timeout delay.
+vim.keymap.set({"n", "t", "i", "v"}, "<c-m-w>", '<c-\\><C-n><c-w>q', { noremap = true, silent = true })
 
 
 vim.keymap.set({"t", "n", "v", "i"}, "<c-space><c-n>", '<c-\\><C-n><c-w>gt', { noremap = true, silent = true })
@@ -249,6 +258,25 @@ end, { noremap = true, silent = true })
 vim.keymap.set({'n', 't', 'v', 'i'}, '<c-space>N',  function ()
   start_terminal({split="tab"})
 end, { noremap = true, silent = true })
+
+-- Direct (prefix-less) chords forwarded by Ghostty for cmd+* (ctrl+meta = ctrl+alt).
+-- Same actions as the <c-space> prefix chords above, but with no prefix-timeout delay.
+-- cmd+d -> vertical split, cmd+shift+d -> horizontal split, cmd+t / cmd+n -> new tab.
+vim.keymap.set({'n', 't', 'v', 'i'}, '<c-m-d>', function ()
+  start_terminal({split="vertical"})
+end, { noremap = true, silent = true })
+vim.keymap.set({'n', 't', 'v', 'i'}, '<c-m-S-d>', function ()
+  start_terminal({split="horizontal"})
+end, { noremap = true, silent = true })
+vim.keymap.set({'n', 't', 'v', 'i'}, '<c-m-t>', function ()
+  start_terminal({split="tab"})
+end, { noremap = true, silent = true })
+vim.keymap.set({'n', 't', 'v', 'i'}, '<c-m-n>', function ()
+  start_terminal({split="tab"})
+end, { noremap = true, silent = true })
+-- cmd+shift+[ -> previous tab (gT), cmd+shift+] -> next tab (gt).
+vim.keymap.set({"n", "t", "v", "i"}, "<c-m-S-[>", '<c-\\><C-n><c-w>gT', { noremap = true, silent = true })
+vim.keymap.set({"n", "t", "v", "i"}, "<c-m-S-]>", '<c-\\><C-n><c-w>gt', { noremap = true, silent = true })
 
 vim.keymap.set("t", "<4-ScrollWheelUp>", '<nop>', { noremap = true })
 vim.keymap.set("t", "<3-ScrollWheelUp>", '<nop>', { noremap = true })
