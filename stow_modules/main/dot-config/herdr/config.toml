@@ -99,7 +99,10 @@ previous_agent = "prefix+ctrl+comma"
 next_agent = "prefix+ctrl+period"
 focus_agent = "prefix+shift+1..9"   # focus agent 1-9
 # remote_image_paste = "ctrl+v" # only active in herdr --remote; empty disables raw-key image paste
-new_tab = ["prefix+c", "prefix+ctrl+t"]
+# prefix+c / prefix+shift+c are repurposed to launch Claude Code (see
+# [[keys.command]] below): prefix+c opens a 40%-width vertical split, and
+# prefix+shift+c opens a whole new tab. Plain new-tab lives on prefix+ctrl+t.
+new_tab = ["prefix+ctrl+t"]
 # rename_tab = "prefix+shift+t"
 # prefix+ctrl+p/n are smart-tab-nav.sh (see [[keys.command]] below): tab-wise, but
 # spilling into the neighbouring workspace at either end. prefix+ctrl+[/] stay as
@@ -165,10 +168,24 @@ navigate_pane_right = ""
 # (tmux also ran `clear-history`; herdr has no scrollback-clear CLI, so this
 #  only sends ctrl+l, same as pressing it directly in the shell.)
 [[keys.command]]
-key = "prefix+shift+c"
+key = "prefix+ctrl+r"
 type = "shell"
 command = "\"${HERDR_BIN_PATH:-herdr}\" pane send-keys \"$HERDR_ACTIVE_PANE_ID\" ctrl+l"
 description = "clear screen (ctrl+l)"
+
+# prefix+c: open a new vertical split (40% of width) running Claude Code.
+[[keys.command]]
+key = "prefix+c"
+type = "shell"
+command = "~/.config/herdr/scripts/claude-split.sh"
+description = "claude in 40% vertical split"
+
+# prefix+shift+c: open a new tab running Claude Code.
+[[keys.command]]
+key = "prefix+shift+c"
+type = "shell"
+command = "~/.config/herdr/scripts/claude-tab.sh"
+description = "claude in new tab"
 
 # Open the live config.toml in a new tab for editing. Save, then reload with
 # prefix+shift+r (reload_config) to apply without restarting Herdr.
@@ -179,18 +196,28 @@ command = "~/.config/herdr/scripts/edit-config.sh"
 description = "edit herdr config"
 
 # Copy the previous command's output to the clipboard (fish panes only).
+# Runs as a popup (a herdr-rendered PTY) rather than a detached shell so the
+# script's OSC 52 clipboard sequence is intercepted by herdr and forwarded to the
+# attached client's machine -- this is what makes it work over `herdr --remote`.
+# The popup emits the escape and exits immediately, so it just flickers closed.
 [[keys.command]]
 key = "prefix+shift+b"
-type = "shell"
+type = "popup"
 command = "~/.config/herdr/scripts/copy-last-output.sh"
 description = "copy last command output"
+width = 20
+height = 1
 
 # Copy the focused pane's id to the clipboard and show a notification.
+# Runs as a popup (a herdr-rendered PTY) so the script's OSC 52 clipboard
+# sequence is forwarded to the attached client -- works over `herdr --remote`.
 [[keys.command]]
 key = "prefix+y"
-type = "shell"
+type = "popup"
 command = "~/.config/herdr/scripts/copy-pane-id.sh"
 description = "copy pane id"
+width = 20
+height = 1
 
 # Smart pane navigation: focus the pane in that direction, but forward ctrl+hjkl
 # to (n)vim when the pane is zoomed or is the only pane in the tab.
