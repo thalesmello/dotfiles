@@ -1,0 +1,121 @@
+#!/usr/bin/env -S fish --no-config
+set -x PATH /opt/homebrew/bin (status dirname) $PATH
+
+# Operations on a herdr session. herdr multiplexes many panes inside a single
+# Ghostty surface (like tmux), so these drive it through the `herdr` CLI (socket
+# API) rather than Ghostty AppleScript.
+#
+# Errors are printed to stderr with a "herdr-preset:" prefix and a non-zero exit.
+# When invoked from herdr's run-command popup, run-command.sh keeps the popup on
+# screen (until a keypress) whenever the command exits non-zero, so these
+# messages are actually visible -- don't silence them.
+function herdr-preset
+    set preset $argv[1]
+    set -e argv[1]
+
+    switch "$preset"
+    case "open-file-with-fallback"
+        # Open <file> in nvim within the current herdr tab. If an nvim is already
+        # running in another pane of this tab, drop the file into it over its RPC
+        # socket; otherwise make a new vertical split running `exec nvim <file>`.
+        #
+        # Anchor on the pane that was active when we were invoked. In a herdr
+        # command popup (how ghostty-preset open-file-with-fallback calls us)
+        # herdr injects HERDR_ACTIVE_PANE_ID; HERDR_TAB_ID is NOT set there, so we
+        # derive the tab from the anchor. When run straight from a pane shell
+        # instead, fall back to HERDR_PANE_ID.
+        #
+        # Expand a leading ~ ourselves: the path arrives single-quoted from the
+        # popup's bash `eval`, so bash never expands it.
+        set -l tag "herdr-preset open-file-with-fallback"
+
+        set -l file (string replace -r '^~(?=/|$)' -- "$HOME" $argv[1])
+        test -n "$file"; or begin
+            echo "$tag: no file argument given" >&2
+            return 1
+        end
+
+        set -l anchor "$HERDR_ACTIVE_PANE_ID"
+        test -n "$anchor"; or set anchor "$HERDR_PANE_ID"
+        test -n "$anchor"; or begin
+            echo "$tag: no anchor pane (HERDR_ACTIVE_PANE_ID and HERDR_PANE_ID both unset -- not running inside herdr?)" >&2
+            return 1
+        end
+
+        set -l get_out (herdr pane get "$anchor" 2>&1)
+        set -l tab (printf '%s' "$get_out" | jq -r '.result.pane.tab_id // empty' 2>/dev/null)
+        test -n "$tab"; or begin
+            echo "$tag: could not resolve tab for anchor pane '$anchor'" >&2
+            echo "  herdr pane get output: $get_out" >&2
+            return 1
+        end
+
+        # Real panes of this tab, excluding our own popup pane (HERDR_PANE_ID).
+        set -l self "$HERDR_PANE_ID"
+        set -l list_out (herdr pane list 2>&1)
+        set -l panes (printf '%s' "$list_out" | jq -r --arg tab "$tab" --arg self "$self" '.result.panes[] | select(.tab_id == $tab and .pane_id != $self) | .pane_id' 2>/dev/null)
+        test -n "$panes"; or begin
+            echo "$tag: no other panes found in tab '$tab' (self='$self')" >&2
+            echo "  herdr pane list output: $list_out" >&2
+            return 1
+        end
+
+        # Find an nvim already running in one of them AND its live RPC socket.
+        # process-info reports the pane's foreground nvim (the TUI parent); the
+        # socket is owned by its `nvim --embed` child, so scan the nvim pid plus
+        # its children with lsof for the listening unix socket. (vim.fn.serverlist
+        # peer-discovery proved unreliable, and the socket name embeds the child's
+        # pid, not the pane's -- so neither can be matched by name.)
+        set -l sock
+        set -l nvim_target
+        for pane in $panes
+            set -l pid (herdr pane process-info --pane "$pane" 2>/dev/null | jq -r '.result.process_info.foreground_processes[]? | select(.name == "nvim") | .pid' 2>/dev/null | head -n1)
+            test -n "$pid"; or continue
+            set -l pids $pid (pgrep -P $pid)
+            set -l s (lsof -p (string join , $pids) -a -U 2>/dev/null | string match -r '\S+/nvim\.\d+\.0$' | head -n1)
+            if test -n "$s"
+                set sock "$s"
+                set nvim_target "$pane"
+                break
+            else
+                echo "$tag: found nvim (pid $pid) in pane $pane but no RPC socket via lsof; ignoring" >&2
+            end
+        end
+
+        if test -n "$sock"
+            # Reuse the running nvim: open the file over its socket, then focus it.
+            set -l abs (realpath -- "$file" 2>/dev/null; or echo "$file")
+            set -l rem_out (nvim --server "$sock" --remote "$abs" 2>&1)
+            or begin
+                echo "$tag: nvim --server '$sock' --remote failed for '$abs'" >&2
+                echo "  nvim output: $rem_out" >&2
+                return 1
+            end
+            set -l focus_out (herdr agent focus "$nvim_target" 2>&1)
+            or echo "$tag: warning: could not focus nvim pane '$nvim_target': $focus_out" >&2
+        else
+            # No reachable nvim in this tab: make a vertical split running nvim on
+            # the file, splitting off the pane that was active. `exec` so quitting
+            # nvim closes the pane.
+            set -l split_out (herdr pane split "$anchor" --direction right --focus 2>&1)
+            set -l new (printf '%s' "$split_out" | jq -r '.result.pane.pane_id // empty' 2>/dev/null)
+            test -n "$new"; or begin
+                echo "$tag: pane split failed for anchor '$anchor'" >&2
+                echo "  herdr pane split output: $split_out" >&2
+                return 1
+            end
+            set -l run_out (herdr pane run "$new" "exec nvim $(string escape -- $file)" 2>&1)
+            or begin
+                echo "$tag: pane run (exec nvim) failed in pane '$new'" >&2
+                echo "  herdr pane run output: $run_out" >&2
+                return 1
+            end
+        end
+
+    case "*"
+        echo "herdr-preset: unknown subcommand '$preset'" >&2
+        return 1
+    end
+end
+
+herdr-preset $argv

@@ -96,6 +96,12 @@ function ghostty-preset
     case "hide-floating-terminal"
         hs -c "require('ghosttyPreset').hideFloatingTerminal()"
 
+    case "open-file-with-fallback"
+        # Dispatch to ghosttyPreset.openFileWithFallback (herdr-aware). base64 the
+        # path so it survives fish -> hs -c shell arg -> Lua without quoting.
+        set -l enc (printf '%s' "$argv[1]" | base64 | tr -d '\n')
+        hs -c "require('ghosttyPreset').openFileWithFallback(hs.base64.decode('$enc'))"
+
     case "iterate-windows"
         argparse 'except-window-id=' 'prev' -- $argv
         or return 1

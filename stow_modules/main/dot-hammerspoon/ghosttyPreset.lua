@@ -365,4 +365,46 @@ function M.iterateWindows(opts)
   ]], escapeAS(exceptId), wantPrev))
 end
 
+---------------------------------------------------------------
+-- Open file (herdr-aware)
+---------------------------------------------------------------
+
+-- Open <file> split off the focused surface. When herdr owns the surface, a
+-- native Ghostty split would make a pane herdr can't manage, so drive herdr's
+-- run-command prompt (ctrl+alt+shift+semicolon -> run-command.sh popup): open
+-- it, type the herdr-preset invocation, then Enter. run-command.sh evals it in
+-- the popup (which has HERDR_* env), so herdr-preset targets the right tab. No
+-- `exec` -- the popup closes when herdr-preset returns 0. Anywhere else, a
+-- native Ghostty split driving nvim-open-in-tab (implemented in the fish shim).
+function M.openFileWithFallback(file)
+  if not file or file == "" then return false end
+  log("openFileWithFallback " .. file)
+  if M.isHerdrZoomedOrSingleSurface() then
+    -- Put the command on the clipboard and paste it in one shot rather than
+    -- typing it: per-character keystroke synthesis was triggering a keyboard
+    -- sound (klack) on every letter. Single-quote the path for the popup's bash
+    -- `eval`. Restore the previous clipboard once the paste has been consumed.
+    local cmd = "herdr-preset open-file-with-fallback '" .. file:gsub("'", "'\\''") .. "'"
+    local saved = hs.pasteboard.getContents()
+    hs.pasteboard.setContents(cmd)
+    Preset.sendKeys({"ctrl", "alt", "shift", "semicolon"})
+    hs.timer.doAfter(0.25, function()
+      Preset.sendKeys({"cmd", "v"})
+      hs.timer.doAfter(0.08, function()
+        Preset.sendKeys({"return"})
+        hs.timer.doAfter(0.15, function()
+          if saved ~= nil then
+            hs.pasteboard.setContents(saved)
+          else
+            hs.pasteboard.clearContents()
+          end
+        end)
+      end)
+    end)
+  else
+    M.newSplit({ vertical = true, cmd = 'ghostty-preset nvim-open-in-tab "' .. file .. '"' })
+  end
+  return true
+end
+
 return M
