@@ -24,7 +24,7 @@ function iterm-preset
         # system-wide. Guard on the window already being active so this only
         # ever reveals.
         iterm-preset is-floating-window-active
-        or osascript-preset send-keys f20
+        or hs-preset send-keys f20
     case "new-split"
         argparse 'v/vertical' 'h/horizontal' 'c/cmd=' -- $argv
         or return 1
@@ -143,15 +143,15 @@ function iterm-preset
         echo (osascript -e 'tell application "iTerm2" to get ((count of sessions of current tab of current window) as text) & " " & (id of current session of current window)') | read session_count old_session
 
         if test "$session_count" -le 1
-            osascript-preset send-keys ctrl alt $fallback_key
+            hs-preset send-keys ctrl alt $fallback_key
         else
 
-            osascript-preset send-keys cmd alt $direction
+            hs-preset send-keys cmd alt $direction
 
             set new_session (osascript -e 'tell application "iTerm2" to get id of current session of current window')
 
             if test "$old_session" = "$new_session"
-                osascript-preset send-keys ctrl alt $fallback_key
+                hs-preset send-keys ctrl alt $fallback_key
             end
         end
     case "iterate-windows"

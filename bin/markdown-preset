@@ -149,7 +149,7 @@ function markdown-preset
         # Copy the current selection and convert it, leaving markdown on the clipboard.
         # send-keys posts an event with explicit flags so any held modifiers
         # (e.g. a hyper hotkey) don't contaminate the synthetic Cmd+C.
-        osascript-preset send-keys cmd c
+        hs-preset send-keys cmd c
         or begin
             __mp_err "failed to copy selection (grant Accessibility permission?)"
             return 2
@@ -162,7 +162,7 @@ function markdown-preset
         # Copy the current selection and convert it, leaving rich text on the clipboard.
         # send-keys posts an event with explicit flags so any held modifiers
         # (e.g. a hyper hotkey) don't contaminate the synthetic Cmd+C.
-        osascript-preset send-keys cmd c
+        hs-preset send-keys cmd c
         or begin
             __mp_err "failed to copy selection (grant Accessibility permission?)"
             return 2

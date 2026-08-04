@@ -197,7 +197,7 @@ function yabai-preset
             set space (yabai -m query --spaces --space "$space" | jq .index)
         end
 
-        osascript-preset send-keys ctrl $space
+        hs-preset send-keys ctrl $space
     case "move-window-to-space"
         set space $argv[1]
         set -e argv[1]
