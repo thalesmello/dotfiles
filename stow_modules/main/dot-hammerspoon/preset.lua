@@ -54,6 +54,7 @@ local sendKeyCodes = {
   ["8"] = 28, ["9"] = 25, ["0"] = 29, tab = 48, escape = 53,
   backspace = 51, delete = 51,
   backtick = 50, backslash = 42, slash = 44, minus = 27,
+  semicolon = 41,
   leftbracket = 33, rightbracket = 30,
   f1 = 122, f2 = 120, f3 = 99, f4 = 118, f5 = 96,
   f6 = 97, f7 = 98, f8 = 100, f9 = 101, f10 = 109,
