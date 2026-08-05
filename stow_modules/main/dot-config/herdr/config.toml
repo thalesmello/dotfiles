@@ -115,7 +115,10 @@ new_workspace = ["prefix+shift+n", "ctrl+alt+n"]
 previous_tab = ["prefix+ctrl+["]
 next_tab = ["prefix+ctrl+]"]
 # switch_tab = "prefix+1..9"
-# switch_workspace = ""   # freed: prefix+shift+1..9 now focuses agents (focus_agent)
+# prefix+shift+1..9 focuses agents (focus_agent), so workspace focus lives on the
+# alt variants: prefix+alt+1..9, plus the direct chord ctrl+alt+1..9 that Ghostty
+# forwards for cmd+1..9 (mirrors nvim's Ngt on the same chord).
+switch_workspace = ["prefix+alt+1..9", "ctrl+alt+1..9"]
 close_tab = "prefix+shift+backspace"
 # rename_pane = "prefix+shift+p"
 edit_scrollback = ["prefix+shift+v", "prefix+e"]

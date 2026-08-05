@@ -312,6 +312,32 @@ function M.focusTabWithFallback(direction)
   return true
 end
 
+-- Focus tab/workspace `index` (1-9) inside a multiplexer surface: the direct
+-- ctrl+alt+N chord is `Ngt` in nvim and focus-workspace in herdr. Over mosh only
+-- the prefix sequences are bound remotely, so send prefix, then w, then N --
+-- herdr's workspace picker, mirrored by nvim's <c-space>wN tab mapping, so the
+-- same sequence works in either multiplexer.
+-- Returns false when this isn't a multiplexer surface, so the caller can let
+-- cmd+N fall through to Ghostty's own goto_tab / to the frontmost app.
+function M.focusTabIndexWithFallback(index)
+  if type(index) ~= "number" or index < 1 or index > 9 then return false end
+  if not M.isMultiplexerWindow() then
+    log("focusTabIndexWithFallback " .. index .. " -> route: not a multiplexer, passing through")
+    return false
+  end
+  log("focusTabIndexWithFallback " .. index)
+  local key = tostring(index)
+  if isMoshMode() then
+    log("  -> route: multiplexer (mosh prefix + w)")
+    sendPrefixThen({"w"})
+    sendKeyToTerminal({key})
+  else
+    log("  -> route: multiplexer (direct ctrl+alt)")
+    sendKeyToTerminal({"ctrl", "alt", key})
+  end
+  return true
+end
+
 function M.closePaneWithFallback()
   log("closePaneWithFallback")
   if M.isMultiplexerAppZoomedOrSingleSurface() then

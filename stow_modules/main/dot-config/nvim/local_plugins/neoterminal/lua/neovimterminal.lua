@@ -43,15 +43,26 @@ vim.keymap.set({"n", "t"}, "<c-space>=", '<c-\\><c-n><c-w>=', { noremap = true }
 vim.keymap.set({"n", "t"}, "<c-space>+", '<c-\\><c-n><c-w>|<c-w>_', { noremap = true })
 vim.keymap.set({"n", "t"}, "<c-space>|", '<c-\\><c-n><c-w>|', { noremap = true })
 
-vim.keymap.set({"n", "t"}, "<c-space>1", '<c-\\><c-n>1gt', { noremap = true })
-vim.keymap.set({"n", "t"}, "<c-space>2", '<c-\\><c-n>2gt', { noremap = true })
-vim.keymap.set({"n", "t"}, "<c-space>3", '<c-\\><c-n>3gt', { noremap = true })
-vim.keymap.set({"n", "t"}, "<c-space>4", '<c-\\><c-n>4gt', { noremap = true })
-vim.keymap.set({"n", "t"}, "<c-space>5", '<c-\\><c-n>5gt', { noremap = true })
-vim.keymap.set({"n", "t"}, "<c-space>6", '<c-\\><c-n>6gt', { noremap = true })
-vim.keymap.set({"n", "t"}, "<c-space>7", '<c-\\><c-n>7gt', { noremap = true })
-vim.keymap.set({"n", "t"}, "<c-space>8", '<c-\\><c-n>8gt', { noremap = true })
-vim.keymap.set({"n", "t"}, "<c-space>9", '<c-\\><c-n>9gt', { noremap = true })
+-- Focus tab N. Besides the plain <c-space>N prefix chord, the same tab is
+-- reachable through <c-m-N> (the direct, prefix-less chord Ghostty forwards for
+-- cmd+N) and through the <c-space><m-N> / <c-space>{!,@,...} prefix variants,
+-- which mirror herdr's prefix+alt+1..9 workspace focus over mosh. <c-space>wN
+-- matches herdr's workspace picker (prefix+w then N) -- it's the sequence cmd+N
+-- sends over mosh, where the same keys have to work in both multiplexers.
+local shifted_digits = { "!", "@", "#", "$", "%", "^", "&", "*", "(" }
+for i = 1, 9 do
+  local goto_tab = '<c-\\><c-n>' .. i .. 'gt'
+  local chords = {
+    "<c-space>" .. i,
+    "<c-space><m-" .. i .. ">",
+    "<c-space>" .. shifted_digits[i],
+    "<c-space>w" .. i,
+    "<c-m-" .. i .. ">",
+  }
+  for _, chord in ipairs(chords) do
+    vim.keymap.set({"n", "t", "v", "i"}, chord, goto_tab, { noremap = true, silent = true })
+  end
+end
 
 local function close_on_exit(bufnr, _, status)
   vim.g.neovimterm_last_channel = nil

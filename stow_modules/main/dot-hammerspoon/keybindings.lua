@@ -304,14 +304,26 @@ function M.setup()
     -- cmd+w -> close pane (herdr/nvim: ctrl+space > backspace). cmd+shift+w is
     -- left to pass through so the config's super+shift+w=close_window stands.
     local isW = code == hs.keycodes.map["w"] and not flags.shift
-    if not (isD or isT or isN or isPrevTab or isNextTab or isW) then return false end
+    -- cmd+1..9 -> focus tab/workspace N (herdr: ctrl+alt+N, nvim: Ngt). Only
+    -- claimed on a multiplexer surface; elsewhere it falls through to Ghostty's
+    -- own goto_tab (super+physical:N) or to whatever app is frontmost.
+    local digit = nil
+    if not flags.shift then
+      for n = 1, 9 do
+        if code == hs.keycodes.map[tostring(n)] then digit = n break end
+      end
+    end
+    if not (isD or isT or isN or isPrevTab or isNextTab or isW or digit) then return false end
     local focused = hs.window.focusedWindow()
     local isGhosttyWindow = focused and focused:application() and focused:application():name() == "Ghostty"
     -- close-pane-with-fallback drives keybinds only (no `front window`
     -- AppleScript), so unlike the split/tab fallbacks it works in the quick
     -- terminal too -- accept it there as well.
-    if not (isGhosttyWindow or (isW and Preset.isGhosttyQuickTerminalActive())) then return false end
-    if isD then
+    if not (isGhosttyWindow or ((isW or digit) and Preset.isGhosttyQuickTerminalActive())) then return false end
+    if digit then
+      -- Returns false when the surface isn't a multiplexer: pass cmd+N through.
+      return GhosttyPreset.focusTabIndexWithFallback(digit)
+    elseif isD then
       GhosttyPreset.newSplitWithFallback(flags.shift)
     elseif isT then
       GhosttyPreset.newTabWithFallback()
