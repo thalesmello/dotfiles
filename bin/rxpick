@@ -1,0 +1,498 @@
+#!/usr/bin/env python3
+"""
+rxpick - interactively pick regex matches out of piped terminal output.
+
+A generalized PathPicker (fpp): instead of only finding file paths, it takes any
+regex you give it, overlays a TUI on the original output with every match
+highlighted, and prints the ones you select to stdout.
+
+USAGE
+    # unnamed: one pattern, applied to every line
+    <command> | rxpick PATTERN [-i] [-g N]
+
+    # named: one or more typed patterns; each match carries the type it matched
+    <command> | rxpick -t TYPE PATTERN [-t TYPE PATTERN ...] [-b TYPE ...]
+
+    PATTERN         Python regex, applied to each line of the input.
+    -t, --type      TYPE PATTERN pair; the matched text is tagged with TYPE.
+    -b, --builtin-type TYPE
+                    Use a builtin pattern. TYPE is one of:
+                      path       a path that exists (file or directory)
+                      file       a path that exists and is a regular file
+                      directory  a path that exists and is a directory
+                      url        an http/https/ftp/file URL
+    -i, --ignore-case   Case-insensitive matching.
+    -g, --group N   Highlight/output capture group N instead of the whole match.
+    -B, --from-bottom   Start on the bottom-most match; space then moves upward.
+    --json          Emit one JSON object per line instead of raw text.
+    -h              This help.
+
+    In named mode every line is matched against all patterns. When a span is
+    matched by more than one pattern only the first (in the order the patterns
+    were given on the command line) is kept, so overlapping matches never
+    produce duplicates.
+
+KEYS
+    j / down / n     next match          k / up / p    previous match
+    g / G            first / last match  left / right  scroll long lines
+    PgDn / PgUp      jump 10 matches     space         select match + advance
+    a                select / clear all  c             clear selection
+    enter            confirm and print   q / esc       abort, print nothing
+
+OUTPUT
+    Without --json, one selected match per line (types are dropped).
+    With --json, one object per line:
+      unnamed:  {"match": "abc123"}
+      named:    {"match": "http://meta.com", "type": "url"}
+
+EXAMPLES
+    # pick a container id out of docker ps
+    docker ps | rxpick '^[0-9a-f]{12}'
+
+    # pick failing test names, feed them back to the runner
+    pytest | rxpick 'FAILED (\\S+)' -g 1 | xargs pytest
+
+    # pick urls or existing files out of a log, tagged by type, as json
+    tail -n 500 app.log | rxpick -b url -b file --json
+
+NOTES
+    * Selections are printed in the order they appear in the input, one per line.
+    * Confirming with nothing selected prints the match under the cursor.
+    * Aborting, or matching nothing at all, prints nothing and exits non-zero.
+    * ANSI colour codes are stripped before matching and display, so patterns
+      never have to account for escape sequences (the overlay supplies its own
+      colours). Tabs are expanded to 8 spaces.
+    * Matching is per line; a pattern cannot span a newline.
+"""
+
+import argparse
+import curses
+import json
+import os
+import re
+import sys
+
+ANSI = re.compile(
+    r"""
+    \x1b\] .*? (?: \x07 | \x1b\\ )   # OSC ... BEL / ST
+  | \x1b \[ [0-9;:?]* [ -/]* [@-~]   # CSI ...
+  | \x1b [ -/]+ [0-~]                # ESC + intermediates, e.g. charset \x1b(B
+  | \x1b [0-~]                       # single-char escapes, e.g. \x1b= \x1b> \x1bc
+  | [\x00-\x08\x0b-\x1f\x7f]         # stray control characters
+""",
+    re.VERBOSE | re.DOTALL,
+)
+
+PAIR_MATCH, PAIR_CURRENT, PAIR_SELECTED, PAIR_STATUS = 1, 2, 3, 4
+
+# Builtin patterns keyed by type name. Each value is (regex_source, predicate);
+# the predicate is applied to the matched text and must return True for the
+# match to be kept. Paths are checked against the filesystem so "file" and
+# "directory" only surface things that actually exist and are of that kind.
+BUILTIN_URL_RE = r"\b(?:https?|ftp|file)://[^\s<>\"'`|)\]}]+"
+BUILTIN_PATH_RE = r"[~./]?[\w./+@%\-]*[\w]"
+
+def _fs_pred(check):
+    def pred(text):
+        try:
+            return check(os.path.expanduser(text))
+        except OSError:
+            return False
+    return pred
+
+BUILTINS = {
+    "url": (BUILTIN_URL_RE, lambda text: True),
+    "path": (BUILTIN_PATH_RE, _fs_pred(os.path.exists)),
+    "file": (BUILTIN_PATH_RE, _fs_pred(os.path.isfile)),
+    "directory": (BUILTIN_PATH_RE, _fs_pred(os.path.isdir)),
+}
+
+class Match:
+    __slots__ = ("line", "start", "end", "text", "type")
+
+    def __init__(self, line, start, end, text, type=None):
+        self.line = line
+        self.start = start
+        self.end = end
+        self.text = text
+        self.type = type
+
+def clean(line):
+    return ANSI.sub("", line).expandtabs(8).rstrip("\n")
+
+def find_matches(lines, specs, group):
+    """Collect matches across every (type, regex, predicate) spec.
+
+    Within a line, patterns are tried in the order given. A candidate that
+    overlaps a span already accepted on that line is dropped, so a word matched
+    by more than one pattern is only counted once (first pattern wins).
+    """
+    matches = []
+    for i, line in enumerate(lines):
+        taken = []
+        for name, regex, pred in specs:
+            for m in regex.finditer(line):
+                start, end = m.span(group)
+                if start < 0 or start == end:
+                    continue
+                text = m.group(group)
+                if not pred(text):
+                    continue
+                if any(start < e and s < end for s, e in taken):
+                    continue
+                taken.append((start, end))
+                matches.append(Match(i, start, end, text, name))
+    matches.sort(key=lambda m: (m.line, m.start))
+    return matches
+
+class Picker:
+    def __init__(self, lines, matches, label, from_bottom=False):
+        self.lines = lines
+        self.matches = matches
+        self.label = label
+        self.from_bottom = from_bottom
+        self.selected = set()
+        self.cursor = len(matches) - 1 if from_bottom else 0
+        self.top = 0
+        self.xoff = 0
+
+    def run(self, stdscr):
+        curses.curs_set(0)
+        self._init_colors()
+        while True:
+            self._draw(stdscr)
+            key = stdscr.getch()
+            if key == 27:
+                key = self._resolve_escape(stdscr)
+                if key is None:
+                    return None
+            if key == ord("q"):
+                return None
+            if key in (curses.KEY_ENTER, 10, 13):
+                if not self.selected:
+                    self.selected.add(self.cursor)
+                return [self.matches[i] for i in sorted(self.selected)]
+            self._handle(key)
+
+    # A lone ESC means abort, but terminals that ignore keypad mode send arrows
+    # as raw CSI/SS3 (ESC [ B, ESC O B). Peek without blocking to tell them
+    # apart, so an arrow press is never mistaken for a quit.
+    def _resolve_escape(self, stdscr):
+        stdscr.nodelay(True)
+        try:
+            second = stdscr.getch()
+            if second == -1:
+                return None
+            if second not in (ord("["), ord("O")):
+                return second
+            final = stdscr.getch()
+            while final != -1 and chr(final) in "0123456789;":
+                final = stdscr.getch()
+            return {
+                ord("A"): curses.KEY_UP,
+                ord("B"): curses.KEY_DOWN,
+                ord("C"): curses.KEY_RIGHT,
+                ord("D"): curses.KEY_LEFT,
+                ord("H"): curses.KEY_HOME,
+                ord("F"): curses.KEY_END,
+                ord("~"): curses.KEY_NPAGE,
+            }.get(final, -1)
+        finally:
+            stdscr.nodelay(False)
+
+    def _init_colors(self):
+        if not curses.has_colors():
+            return
+        curses.start_color()
+        try:
+            curses.use_default_colors()
+            bg = -1  # keep the terminal's own background
+        except curses.error:
+            bg = curses.COLOR_BLACK
+        curses.init_pair(PAIR_MATCH, curses.COLOR_YELLOW, bg)
+        curses.init_pair(PAIR_CURRENT, curses.COLOR_BLACK, curses.COLOR_YELLOW)
+        curses.init_pair(PAIR_SELECTED, curses.COLOR_BLACK, curses.COLOR_GREEN)
+        curses.init_pair(PAIR_STATUS, curses.COLOR_WHITE, curses.COLOR_BLUE)
+
+    def _attr(self, pair, fallback):
+        return curses.color_pair(pair) if curses.has_colors() else fallback
+
+    def _advance(self):
+        last = len(self.matches) - 1
+        if self.from_bottom:
+            self.cursor = max(self.cursor - 1, 0)
+        else:
+            self.cursor = min(self.cursor + 1, last)
+
+    def _handle(self, key):
+        last = len(self.matches) - 1
+        if key in (ord("j"), ord("n"), curses.KEY_DOWN):
+            self.cursor = min(self.cursor + 1, last)
+        elif key in (ord("k"), ord("p"), curses.KEY_UP):
+            self.cursor = max(self.cursor - 1, 0)
+        elif key in (curses.KEY_NPAGE, 4):
+            self.cursor = min(self.cursor + 10, last)
+        elif key in (curses.KEY_PPAGE, 21):
+            self.cursor = max(self.cursor - 10, 0)
+        elif key in (ord("g"), curses.KEY_HOME):
+            self.cursor = 0
+        elif key in (ord("G"), curses.KEY_END):
+            self.cursor = last
+        elif key == ord(" "):
+            self.selected.symmetric_difference_update({self.cursor})
+            self._advance()
+        elif key == curses.KEY_LEFT:
+            self.xoff = max(0, self.xoff - 8)
+        elif key == curses.KEY_RIGHT:
+            self.xoff += 8
+        elif key == ord("a"):
+            if len(self.selected) == len(self.matches):
+                self.selected.clear()
+            else:
+                self.selected = set(range(len(self.matches)))
+        elif key == ord("c"):
+            self.selected.clear()
+
+    def _scroll_to_cursor(self, height, width):
+        m = self.matches[self.cursor]
+        body = max(1, height - 1)
+        if m.line < self.top:
+            self.top = m.line
+        elif m.line >= self.top + body:
+            self.top = m.line - body + 1
+        self.top = max(0, min(self.top, max(0, len(self.lines) - body)))
+        if m.start < self.xoff:
+            self.xoff = max(0, m.start - 8)
+        elif m.end > self.xoff + width:
+            self.xoff = max(0, m.end - width + 8)
+
+    def _draw(self, stdscr):
+        height, width = stdscr.getmaxyx()
+        body = max(1, height - 1)
+        self._scroll_to_cursor(height, width)
+        stdscr.erase()
+
+        by_line = {}
+        for idx, m in enumerate(self.matches):
+            by_line.setdefault(m.line, []).append(idx)
+
+        for row in range(body):
+            line_idx = self.top + row
+            if line_idx >= len(self.lines):
+                break
+            text = self.lines[line_idx][self.xoff : self.xoff + width]
+            try:
+                stdscr.addnstr(row, 0, text, max(0, width - 1))
+            except curses.error:
+                pass
+            for idx in by_line.get(line_idx, ()):
+                self._highlight(stdscr, row, width, idx)
+
+        self._draw_status(stdscr, height, width)
+        stdscr.refresh()
+
+    def _highlight(self, stdscr, row, width, idx):
+        m = self.matches[idx]
+        x = m.start - self.xoff
+        length = m.end - m.start
+        if x < 0:
+            length += x
+            x = 0
+        length = min(length, width - 1 - x)
+        if length <= 0:
+            return
+        if idx == self.cursor:
+            attr = self._attr(PAIR_CURRENT, curses.A_REVERSE) | curses.A_BOLD
+        elif idx in self.selected:
+            attr = self._attr(PAIR_SELECTED, curses.A_REVERSE)
+        else:
+            attr = self._attr(PAIR_MATCH, curses.A_UNDERLINE) | curses.A_BOLD
+        try:
+            stdscr.chgat(row, x, length, attr)
+        except curses.error:
+            pass
+
+    def _draw_status(self, stdscr, height, width):
+        left = " [%d/%d]  %d selected  %s" % (
+            self.cursor + 1,
+            len(self.matches),
+            len(self.selected),
+            self.label,
+        )
+        right = "SPACE select  ENTER confirm  a all  c clear  q quit "
+        pad = width - 1 - len(left) - len(right)
+        status = left + " " * pad + right if pad > 0 else left[: width - 1]
+        try:
+            stdscr.addnstr(
+                height - 1,
+                0,
+                status.ljust(width - 1),
+                width - 1,
+                self._attr(PAIR_STATUS, curses.A_REVERSE) | curses.A_BOLD,
+            )
+        except curses.error:
+            pass
+
+def build_specs(args, parser, flags):
+    """Turn parsed arguments into a list of (type, regex, predicate) specs."""
+    typed = getattr(args, "typed_specs", None) or []
+    if typed and args.pattern is not None:
+        parser.error("cannot mix an unnamed PATTERN with -t/--type or -b/--builtin-type")
+    if not typed and args.pattern is None:
+        parser.error("need a PATTERN, or at least one -t/--type or -b/--builtin-type")
+
+    always = lambda text: True
+    specs = []
+
+    def compile_re(source, label):
+        try:
+            return re.compile(source, flags)
+        except re.error as exc:
+            parser.error("bad regex %r: %s" % (label, exc))
+
+    def check_group(regex, label):
+        if args.group > regex.groups:
+            parser.error(
+                "%s has %d capture group(s), cannot pick group %d"
+                % (label, regex.groups, args.group)
+            )
+
+    if not typed:
+        regex = compile_re(args.pattern, args.pattern)
+        check_group(regex, "pattern")
+        return [(None, regex, always)], "/%s/" % args.pattern
+
+    labels = []
+    for kind, value in typed:
+        if kind == "builtin":
+            name = value
+            if name not in BUILTINS:
+                parser.error(
+                    "unknown builtin type %r; choose from %s"
+                    % (name, ", ".join(sorted(BUILTINS)))
+                )
+            source, pred = BUILTINS[name]
+            regex = compile_re(source, "builtin:" + name)
+        else:
+            name, source = value
+            regex = compile_re(source, source)
+            pred = always
+        check_group(regex, "type %r" % name)
+        specs.append((name, regex, pred))
+        labels.append(name)
+    return specs, "types: " + ", ".join(labels)
+
+class TypeAction(argparse.Action):
+    """Append typed patterns to a single ordered list, preserving the order in
+    which -t and -b appear so the first-match-wins dedup is deterministic."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        specs = getattr(namespace, "typed_specs", None)
+        if specs is None:
+            specs = []
+            setattr(namespace, "typed_specs", specs)
+        if option_string in ("-b", "--builtin-type"):
+            specs.append(("builtin", values))
+        else:
+            specs.append(("custom", tuple(values)))
+
+def main(argv):
+    parser = argparse.ArgumentParser(
+        prog="rxpick",
+        description="Interactively pick regex matches out of piped output.",
+        epilog="See the docstring at the top of this file for keys and examples.",
+    )
+    parser.add_argument(
+        "pattern",
+        nargs="?",
+        help="Python regex applied to each input line (unnamed usage)",
+    )
+    parser.add_argument(
+        "-t",
+        "--type",
+        action=TypeAction,
+        nargs=2,
+        metavar=("TYPE", "PATTERN"),
+        help="tag matches of PATTERN with TYPE (repeatable)",
+    )
+    parser.add_argument(
+        "-b",
+        "--builtin-type",
+        action=TypeAction,
+        metavar="TYPE",
+        help="use a builtin pattern: path, file, directory, url (repeatable)",
+    )
+    parser.add_argument(
+        "-i", "--ignore-case", action="store_true", help="case-insensitive matching"
+    )
+    parser.add_argument(
+        "-g",
+        "--group",
+        type=int,
+        default=0,
+        metavar="N",
+        help="pick capture group N instead of the whole match",
+    )
+    parser.add_argument(
+        "-B",
+        "--from-bottom",
+        action="store_true",
+        help="start on the bottom-most match; space then moves upward",
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="emit one JSON object per line"
+    )
+    args = parser.parse_args(argv)
+
+    if sys.stdin.isatty():
+        parser.error("no piped input; usage: <command> | %s PATTERN" % parser.prog)
+
+    flags = re.IGNORECASE if args.ignore_case else 0
+    specs, label = build_specs(args, parser, flags)
+
+    raw = sys.stdin.buffer.read().decode("utf-8", "replace")
+    lines = [clean(line) for line in raw.splitlines()]
+    matches = find_matches(lines, specs, args.group)
+    if not matches:
+        sys.stderr.write("rxpick: no matches for %s\n" % label)
+        return 1
+
+    # stdin is the payload and stdout may be a pipe, so drive curses from the
+    # controlling terminal and keep the real stdout aside for the results.
+    result_fd = os.dup(1)
+    try:
+        tty_in = os.open("/dev/tty", os.O_RDONLY)
+        tty_out = os.open("/dev/tty", os.O_WRONLY)
+    except OSError as exc:
+        sys.stderr.write("rxpick: cannot open /dev/tty: %s\n" % exc)
+        return 1
+    os.dup2(tty_in, 0)
+    os.dup2(tty_out, 1)
+    os.close(tty_in)
+    os.close(tty_out)
+
+    picker = Picker(lines, matches, label, from_bottom=args.from_bottom)
+    try:
+        picked = curses.wrapper(picker.run)
+    except KeyboardInterrupt:
+        picked = None
+
+    if not picked:
+        return 1
+    os.write(result_fd, format_output(picked, args.json).encode("utf-8"))
+    return 0
+
+def format_output(picked, as_json):
+    out = []
+    for m in picked:
+        if as_json:
+            obj = {"match": m.text}
+            if m.type is not None:
+                obj["type"] = m.type
+            out.append(json.dumps(obj, ensure_ascii=False))
+        else:
+            out.append(m.text)
+    return "\n".join(out) + "\n"
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
