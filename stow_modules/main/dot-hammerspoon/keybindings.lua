@@ -576,6 +576,12 @@ function M.setup()
 
   local chromeAppModal = mode.createAppModal("Google Chrome")
 
+  -- Only let Chrome's app-specific hotkeys fire when Chrome is the truly focused
+  -- window, not merely the active app: when a floating terminal (Ghostty quick
+  -- terminal / iTerm hotkey window) is up on top of Chrome, its keys (e.g.
+  -- ctrl+alt+d) should go to the terminal, not Chrome.
+  chromeAppModal:addPredicate(function() return not isFloatingTerminal() end)
+
   chromeAppModal:bind({"ctrl", "shift"}, "d", function() Preset.triggerMenuBar("Tab;Move Tab to New Window") end)
   chromeAppModal:bind({"ctrl", "alt"}, "d", function() Preset.triggerMenuBar("Tab;Duplicate Tab") end)
   chromeAppModal:bind({"ctrl", "alt", "shift"}, "d", function()

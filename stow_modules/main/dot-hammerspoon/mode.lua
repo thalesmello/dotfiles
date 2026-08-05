@@ -182,6 +182,57 @@ function M.createAppModal(appName)
     hs.window.filter.windowUnfocused,
   }, sync)
   modal._appWatcher = watcher
+
+  -- Predicates gate every binding on this modal: a bound callback runs only when
+  -- all predicates return true. The modal enters/exits on the app being focused,
+  -- but that state can be stale (e.g. a floating terminal panel opening on top
+  -- doesn't fire a window-filter event), so predicates give a live check at
+  -- press time -- add one via modal:addPredicate(fn).
+  modal._predicates = {}
+  function modal:addPredicate(pred)
+    table.insert(self._predicates, pred)
+    return self
+  end
+  local function predicatesPass()
+    for _, pred in ipairs(modal._predicates) do
+      if not pred() then return false end
+    end
+    return true
+  end
+  local rawBind = modal.bind
+  function modal:bind(mods, key, ...)
+    local args = {...}
+    local seenFn = false
+    for i, v in ipairs(args) do
+      if type(v) == "function" then
+        local orig = v
+        if not seenFn then
+          -- First function arg is the pressed callback: run it only when the
+          -- predicates pass; otherwise forward the chord to the underlying
+          -- window. We exit the modal first so its (now-disabled) hotkey won't
+          -- re-catch the synthetic event (which would loop), replay the key, then
+          -- re-enter once the event has drained. We re-enter rather than re-sync
+          -- because the modal was already entered (its hotkey fired) and the
+          -- predicate, not focus state, is what gates the binding -- sync() would
+          -- wrongly keep it exited while the floating panel holds focus.
+          seenFn = true
+          args[i] = function(...)
+            if predicatesPass() then return orig(...) end
+            modal:exit()
+            hs.eventtap.keyStroke(mods, key, 0)
+            hs.timer.doAfter(0.05, function() modal:enter() end)
+          end
+        else
+          args[i] = function(...)
+            if not predicatesPass() then return end
+            return orig(...)
+          end
+        end
+      end
+    end
+    return rawBind(self, mods, key, table.unpack(args))
+  end
+
   sync()
   return modal
 end
