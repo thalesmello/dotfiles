@@ -47,6 +47,26 @@ local function sendKeyToTerminal(chord)
   return Preset.sendKeys(chord)
 end
 
+-- True when the focused surface is a mosh session: mosh prepends "[mosh] " to
+-- the terminal title, so the word appears anywhere in the title. Over mosh the
+-- remote multiplexer (nvim/herdr) only binds the ctrl+space *prefix* sequences,
+-- not the direct ctrl+alt chords the local multiplexer uses -- so the fallbacks
+-- below switch to prefix+key when this is true. Only consulted inside a branch
+-- that has already confirmed the multiplexer predicate.
+local function isMoshMode()
+  local win = hs.window.focusedWindow()
+  local title = win and win:title() or ""
+  return title:find("mosh", 1, true) ~= nil
+end
+
+-- Send the multiplexer prefix (ctrl+space) then a follow-up chord. This is the
+-- original pre-"direct mappings" sequence, kept for mosh mode where the remote
+-- multiplexer binds the prefix rather than the local direct ctrl+alt chords.
+local function sendPrefixThen(chord)
+  sendKeyToTerminal({"ctrl", "space"})
+  sendKeyToTerminal(chord)
+end
+
 -- Run an AppleScript snippet, returning (ok, result). Blocks the event loop, so
 -- keep the scripts tiny; the AX predicates below avoid AppleScript entirely.
 local function runAS(script)
@@ -203,7 +223,12 @@ end
 function M.newSplitWithFallback(horizontal)
   log("newSplitWithFallback " .. (horizontal and "horizontal" or "vertical"))
   if M.isMultiplexerAppZoomedOrSingleSurface() then
-    sendKeyToTerminal(horizontal and {"ctrl", "alt", "shift", "d"} or {"ctrl", "alt", "d"})
+    if isMoshMode() then
+      -- Old prefix sequence: prefix, then `-` (horizontal) or `v` (vertical).
+      sendPrefixThen(horizontal and {"minus"} or {"v"})
+    else
+      sendKeyToTerminal(horizontal and {"ctrl", "alt", "shift", "d"} or {"ctrl", "alt", "d"})
+    end
   elseif M.isFloatingTerminal() then
     sendToFocused(horizontal and {"cmd", "ctrl", "shift", "d"} or {"ctrl", "shift", "d"})
   else
@@ -214,7 +239,11 @@ end
 function M.newTabWithFallback()
   log("newTabWithFallback")
   if M.isMultiplexerWindow() then
-    sendKeyToTerminal({"ctrl", "alt", "t"})
+    if isMoshMode() then
+      sendPrefixThen({"ctrl", "t"})
+    else
+      sendKeyToTerminal({"ctrl", "alt", "t"})
+    end
   elseif M.isFloatingTerminal() then
     sendToFocused({"cmd", "ctrl", "t"})
   else
@@ -225,7 +254,12 @@ end
 function M.newWindowWithFallback()
   log("newWindowWithFallback")
   if M.isMultiplexerWindow() then
-    sendKeyToTerminal({"ctrl", "alt", "n"})
+    if isMoshMode() then
+      -- Old prefix sequence for new-window was prefix, then shift+n.
+      sendPrefixThen({"shift", "n"})
+    else
+      sendKeyToTerminal({"ctrl", "alt", "n"})
+    end
   elseif M.isFloatingTerminal() then
     sendToFocused({"cmd", "ctrl", "n"})
   else
@@ -235,18 +269,25 @@ end
 
 -- direction: "prev"/"previous" or "next".
 function M.focusTabWithFallback(direction)
-  local fallbackKey
+  local fallbackKey, moshKey
   if direction == "prev" or direction == "previous" then
     fallbackKey = "leftbracket"
+    moshKey = "p"
   elseif direction == "next" then
     fallbackKey = "rightbracket"
+    moshKey = "n"
   else
     return false
   end
   log("focusTabWithFallback " .. direction)
 
   if M.isMultiplexerWindow() then
-    sendKeyToTerminal({"ctrl", "alt", "shift", fallbackKey})
+    if isMoshMode() then
+      -- Old prefix sequence: prefix, then ctrl+p (prev) / ctrl+n (next).
+      sendPrefixThen({"ctrl", moshKey})
+    else
+      sendKeyToTerminal({"ctrl", "alt", "shift", fallbackKey})
+    end
   elseif fallbackKey == "leftbracket" then
     sendToFocused({"ctrl", "shift", "tab"})
   else
@@ -258,7 +299,12 @@ end
 function M.closePaneWithFallback()
   log("closePaneWithFallback")
   if M.isMultiplexerAppZoomedOrSingleSurface() then
-    sendKeyToTerminal({"ctrl", "alt", "w"})
+    if isMoshMode() then
+      -- Old prefix sequence for close-pane was prefix, then backspace.
+      sendPrefixThen({"backspace"})
+    else
+      sendKeyToTerminal({"ctrl", "alt", "w"})
+    end
   else
     sendToFocused({"cmd", "ctrl", "w"})
   end
@@ -270,7 +316,12 @@ function M.focusPaneWithFallback(direction)
   if not fallbackKey then return false end
   log("focusPaneWithFallback " .. direction)
   if M.isMultiplexerAppZoomedOrSingleSurface() then
-    sendKeyToTerminal({"ctrl", "alt", fallbackKey})
+    if isMoshMode() then
+      -- Old prefix sequence: prefix, then ctrl+<hjkl>.
+      sendPrefixThen({"ctrl", fallbackKey})
+    else
+      sendKeyToTerminal({"ctrl", "alt", fallbackKey})
+    end
   else
     sendToFocused({"cmd", "alt", direction})
   end
