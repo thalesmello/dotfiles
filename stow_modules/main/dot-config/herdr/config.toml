@@ -118,7 +118,7 @@ next_tab = ["prefix+ctrl+]"]
 # switch_workspace = ""   # freed: prefix+shift+1..9 now focuses agents (focus_agent)
 close_tab = "prefix+shift+backspace"
 # rename_pane = "prefix+shift+p"
-edit_scrollback = "prefix+shift+v"
+edit_scrollback = ["prefix+shift+v", "prefix+e"]
 # tmux parity: `bind Space copy-mode` (herdr default is prefix+[)
 copy_mode = ["prefix+[", "prefix+space"]
 # plain prefix+h/j/k/l = herdr's native pane focus.
@@ -212,7 +212,7 @@ height = "40%"
 # Open the live config.toml in a new tab for editing. Save, then reload with
 # prefix+shift+r (reload_config) to apply without restarting Herdr.
 [[keys.command]]
-key = "prefix+e"
+key = "prefix+shift+e"
 type = "shell"
 command = "~/.config/herdr/scripts/edit-config.sh"
 description = "edit herdr config"
