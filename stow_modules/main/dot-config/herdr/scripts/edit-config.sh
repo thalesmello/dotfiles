@@ -17,4 +17,4 @@ pane=$("$herdr" tab create --focus --label "herdr config" | jq -r '.result.root_
 # whole chain as the pane's single foreground process; $EDITOR and the herdr
 # path are expanded by the pane's fish, not by this detached script.
 "$herdr" pane run "$pane" exec fish -c \
-  "\$EDITOR $config; command $herdr server reload-config"
+  "'\$EDITOR $config; command $herdr server reload-config'"
