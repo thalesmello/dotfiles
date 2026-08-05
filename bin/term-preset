@@ -1,6 +1,32 @@
 #!/usr/bin/env -S fish --no-config
 set -x PATH /opt/homebrew/bin (status dirname) $PATH
 
+# Window ids of the on-screen iTerm/Ghostty windows, ordered front to back.
+# CGWindowListCopyWindowInfo reports the same ids yabai does (both are
+# CGWindowIDs) in stacking order, and unlike an Accessibility query it can't
+# stall behind a busy app -- which is the point of doing this out of
+# Hammerspoon's process. Layer 0 skips overlays (the floating/quick terminals).
+function __tp_stacked_terminal_ids
+    /usr/bin/osascript -l JavaScript -e '
+        ObjC.import("CoreGraphics");
+        ObjC.import("Foundation");
+        // CGWindowListCopyWindowInfo returns a CFArrayRef; castRefToObject
+        // bridges it to a usable NSArray (CFBridgingRelease is inlined and
+        // segfaults from JXA).
+        var list = ObjC.castRefToObject(
+            $.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, 0));
+        var ids = [];
+        for (var i = 0; i < list.count; i++) {
+            var entry = list.objectAtIndex(i);
+            var owner = ObjC.unwrap(entry.objectForKey("kCGWindowOwnerName"));
+            if (owner !== "iTerm2" && owner !== "Ghostty") { continue; }
+            if (ObjC.unwrap(entry.objectForKey("kCGWindowLayer")) !== 0) { continue; }
+            ids.push(ObjC.unwrap(entry.objectForKey("kCGWindowNumber")));
+        }
+        ids.join("\n");
+    '
+end
+
 # Terminal-agnostic dispatcher over iterm-preset and ghostty-preset for the
 # shared floating-terminal operations, so callers don't have to know which
 # terminal is in use.
@@ -20,6 +46,72 @@ function term-preset
         # so running both is safe.
         iterm-preset hide-floating-terminal
         ghostty-preset hide-floating-terminal
+
+    case "iterate-windows"
+        # Iterate iTerm + Ghostty windows as if they were a single app -- the
+        # cross-terminal counterpart to `iterm-preset iterate-windows` and
+        # `ghostty-preset iterate-windows`, with the same flags. Windows from
+        # both apps are merged and ordered by window id: yabai reports
+        # CGWindowIDs, which are comparable across apps -- unlike the per-app
+        # AppleScript id spaces those two use. When a terminal window is
+        # focused, step to the next merged window (wrapping, possibly crossing
+        # into the other app); otherwise raise the frontmost terminal window.
+        argparse 'except-window-id=' 'prev' -- $argv
+        or return 1
+
+        set -l excluded ""
+        set -q _flag_except_window_id; and set excluded "$_flag_except_window_id"
+
+        # One query answers both "which windows" and "which is focused". Sticky
+        # windows (the floating/quick terminals) sit outside the cycle.
+        set -l query (yabai -m query --windows | string collect)
+        or return 1
+
+        set -l all (echo $query | jq -r '
+            .[] | select((.app == "iTerm2" or .app == "Ghostty")
+                         and (."is-sticky" | not)) | .id' | sort -n)
+
+        # No terminal window at all. Return non-zero so a caller can chain its
+        # own fallback (`term-preset iterate-windows; or open -a Ghostty`); this
+        # subcommand only ever iterates, it never launches a terminal.
+        test (count $all) -gt 0
+        or return 1
+
+        set -l windows
+        for id in $all
+            contains -- "$id" $excluded
+            or set -a windows "$id"
+        end
+
+        # Terminal windows exist but every one is excluded (e.g. the devserver
+        # is the only one open): that is a deliberate no-op, not a fallback
+        # case, so leave focus where it is and report success.
+        test (count $windows) -gt 0
+        or return 0
+
+        set -l current (echo $query | jq -r '.[] | select(."has-focus") | .id')
+        set -l pos (contains --index -- "$current" $windows)
+
+        if test -n "$pos"
+            set -l count (count $windows)
+            if set -q _flag_prev
+                set pos (math "($pos - 2 + $count) % $count + 1")
+            else
+                set pos (math "$pos % $count + 1")
+            end
+            wm-preset focus-window-id "$windows[$pos]"
+            return
+        end
+
+        # Not on a terminal window: raise the frontmost eligible one, falling
+        # back to the lowest id when none of them is on the current space.
+        for id in (__tp_stacked_terminal_ids)
+            if contains -- "$id" $windows
+                wm-preset focus-window-id "$id"
+                return
+            end
+        end
+        wm-preset focus-window-id "$windows[1]"
 
     case "*"
         return 1
