@@ -225,13 +225,17 @@ function M.newSplitWithFallback(horizontal)
   if M.isMultiplexerAppZoomedOrSingleSurface() then
     if isMoshMode() then
       -- Old prefix sequence: prefix, then `-` (horizontal) or `v` (vertical).
+      log("  -> route: multiplexer (mosh prefix)")
       sendPrefixThen(horizontal and {"minus"} or {"v"})
     else
+      log("  -> route: multiplexer (direct ctrl+alt)")
       sendKeyToTerminal(horizontal and {"ctrl", "alt", "shift", "d"} or {"ctrl", "alt", "d"})
     end
   elseif M.isFloatingTerminal() then
+    log("  -> route: floating terminal")
     sendToFocused(horizontal and {"cmd", "ctrl", "shift", "d"} or {"ctrl", "shift", "d"})
   else
+    log("  -> route: native Ghostty split")
     M.newSplit({ vertical = not horizontal })
   end
 end
@@ -240,13 +244,17 @@ function M.newTabWithFallback()
   log("newTabWithFallback")
   if M.isMultiplexerWindow() then
     if isMoshMode() then
+      log("  -> route: multiplexer (mosh prefix)")
       sendPrefixThen({"ctrl", "t"})
     else
+      log("  -> route: multiplexer (direct ctrl+alt)")
       sendKeyToTerminal({"ctrl", "alt", "t"})
     end
   elseif M.isFloatingTerminal() then
+    log("  -> route: floating terminal")
     sendToFocused({"cmd", "ctrl", "t"})
   else
+    log("  -> route: native Ghostty tab")
     M.newTab()
   end
 end
@@ -256,13 +264,17 @@ function M.newWindowWithFallback()
   if M.isMultiplexerWindow() then
     if isMoshMode() then
       -- Old prefix sequence for new-window was prefix, then shift+n.
+      log("  -> route: multiplexer (mosh prefix)")
       sendPrefixThen({"shift", "n"})
     else
+      log("  -> route: multiplexer (direct ctrl+alt)")
       sendKeyToTerminal({"ctrl", "alt", "n"})
     end
   elseif M.isFloatingTerminal() then
+    log("  -> route: floating terminal")
     sendToFocused({"cmd", "ctrl", "n"})
   else
+    log("  -> route: native Ghostty window")
     M.newWindow()
   end
 end
@@ -284,13 +296,17 @@ function M.focusTabWithFallback(direction)
   if M.isMultiplexerWindow() then
     if isMoshMode() then
       -- Old prefix sequence: prefix, then ctrl+p (prev) / ctrl+n (next).
+      log("  -> route: multiplexer (mosh prefix)")
       sendPrefixThen({"ctrl", moshKey})
     else
+      log("  -> route: multiplexer (direct ctrl+alt)")
       sendKeyToTerminal({"ctrl", "alt", "shift", fallbackKey})
     end
   elseif fallbackKey == "leftbracket" then
+    log("  -> route: focused window (ctrl+shift+tab)")
     sendToFocused({"ctrl", "shift", "tab"})
   else
+    log("  -> route: focused window (ctrl+tab)")
     sendToFocused({"ctrl", "tab"})
   end
   return true
@@ -301,11 +317,14 @@ function M.closePaneWithFallback()
   if M.isMultiplexerAppZoomedOrSingleSurface() then
     if isMoshMode() then
       -- Old prefix sequence for close-pane was prefix, then backspace.
+      log("  -> route: multiplexer (mosh prefix)")
       sendPrefixThen({"backspace"})
     else
+      log("  -> route: multiplexer (direct ctrl+alt)")
       sendKeyToTerminal({"ctrl", "alt", "w"})
     end
   else
+    log("  -> route: focused window (cmd+ctrl+w)")
     sendToFocused({"cmd", "ctrl", "w"})
   end
 end
@@ -318,11 +337,14 @@ function M.focusPaneWithFallback(direction)
   if M.isMultiplexerAppZoomedOrSingleSurface() then
     if isMoshMode() then
       -- Old prefix sequence: prefix, then ctrl+<hjkl>.
+      log("  -> route: multiplexer (mosh prefix)")
       sendPrefixThen({"ctrl", fallbackKey})
     else
+      log("  -> route: multiplexer (direct ctrl+alt)")
       sendKeyToTerminal({"ctrl", "alt", fallbackKey})
     end
   else
+    log("  -> route: focused window (cmd+alt+" .. direction .. ")")
     sendToFocused({"cmd", "alt", direction})
   end
   return true
@@ -431,6 +453,7 @@ function M.openFileWithFallback(file)
   if not file or file == "" then return false end
   log("openFileWithFallback " .. file)
   if M.isHerdrZoomedOrSingleSurface() then
+    log("  -> route: herdr run-command popup")
     -- Put the command on the clipboard and paste it in one shot rather than
     -- typing it: per-character keystroke synthesis was triggering a keyboard
     -- sound (klack) on every letter. Single-quote the path for the popup's bash
@@ -453,6 +476,7 @@ function M.openFileWithFallback(file)
       end)
     end)
   else
+    log("  -> route: native Ghostty split (nvim-open-in-tab)")
     M.newSplit({ vertical = true, cmd = 'ghostty-preset nvim-open-in-tab "' .. file .. '"' })
   end
   return true
