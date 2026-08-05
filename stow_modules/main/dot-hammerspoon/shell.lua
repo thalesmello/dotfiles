@@ -57,10 +57,19 @@ end
 -- Prevent hs.task objects from being garbage-collected before their callback fires
 _G._RunningTasks = {}
 
--- Fire-and-forget direct binary execution
+-- Fire-and-forget direct binary execution.
+--
+-- `args` is the argv array, optionally carrying named options alongside it (the
+-- hash part is invisible to table.unpack/ipairs, so it never reaches the
+-- binary):
+--   print_stdout = false  -- don't debug-log this task's stdout
+-- Use it for commands whose output is large and uninteresting -- e.g.
+-- `yabai -m query --windows` is ~11KB of JSON that would otherwise land in the
+-- console on every keypress. The trace line and stderr are still logged.
 function M.task(args, callback)
   local resolvedPath = M.resolvePath(args[1])
   if not resolvedPath then if callback then callback(false, "") end; return end
+  local printStdout = args.print_stdout ~= false
   local taskArgs = {table.unpack(args, 2)}
   local quotedPath = resolvedPath:find("%s") and string.format("%q", resolvedPath) or resolvedPath
   local quotedArgs = {}
@@ -71,7 +80,7 @@ function M.task(args, callback)
   local t
   t = hs.task.new(resolvedPath, function(exitCode, stdOut, stdErr)
     _RunningTasks[t] = nil
-    if stdOut and #stdOut > 0 then util.log("task stdout:", stdOut) end
+    if stdOut and #stdOut > 0 and printStdout then util.log("task stdout:", stdOut) end
     if stdErr and #stdErr > 0 then util.log("task stderr:", stdErr) end
     if callback then callback(exitCode == 0, (stdOut or ""):gsub("%s+$", "")) end
   end, taskArgs)

@@ -1,35 +1,24 @@
 #!/usr/bin/env -S fish --no-config
 set -x PATH /opt/homebrew/bin (status dirname) $PATH
 
-# Window ids of the on-screen iTerm/Ghostty windows, ordered front to back.
-# CGWindowListCopyWindowInfo reports the same ids yabai does (both are
-# CGWindowIDs) in stacking order, and unlike an Accessibility query it can't
-# stall behind a busy app -- which is the point of doing this out of
-# Hammerspoon's process. Layer 0 skips overlays (the floating/quick terminals).
-function __tp_stacked_terminal_ids
-    /usr/bin/osascript -l JavaScript -e '
-        ObjC.import("CoreGraphics");
-        ObjC.import("Foundation");
-        // CGWindowListCopyWindowInfo returns a CFArrayRef; castRefToObject
-        // bridges it to a usable NSArray (CFBridgingRelease is inlined and
-        // segfaults from JXA).
-        var list = ObjC.castRefToObject(
-            $.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, 0));
-        var ids = [];
-        for (var i = 0; i < list.count; i++) {
-            var entry = list.objectAtIndex(i);
-            var owner = ObjC.unwrap(entry.objectForKey("kCGWindowOwnerName"));
-            if (owner !== "iTerm2" && owner !== "Ghostty") { continue; }
-            if (ObjC.unwrap(entry.objectForKey("kCGWindowLayer")) !== 0) { continue; }
-            ids.push(ObjC.unwrap(entry.objectForKey("kCGWindowNumber")));
-        }
-        ids.join("\n");
-    '
+# Thin shim over termPreset.lua (Hammerspoon). Each subcommand dispatches to the
+# matching function there via a single `hs -c`, so there is ONE implementation
+# shared by the CLI callers and the Hammerspoon keybindings -- except the
+# keybindings call the module directly (in-process) rather than through this
+# shim, which is what removes the per-keystroke `hs -c` mach-port race.
+#
+# This replaces a fan-out that was more expensive than it looked: every
+# subcommand called iterm-preset AND ghostty-preset, and both of those are
+# themselves `hs -c` shims, so one `term-preset hide-floating-terminal` meant two
+# round trips into Hammerspoon plus three fish startups. termPreset.lua does the
+# fan-out in process.
+
+# Run a Lua boolean predicate and map it to this process's exit code, so the
+# `case is-*` predicates keep working in `if` / `and` / `or`.
+function __tp_bool
+    test "$(hs -c "if $argv[1] then print('yes') end")" = yes
 end
 
-# Terminal-agnostic dispatcher over iterm-preset and ghostty-preset for the
-# shared floating-terminal operations, so callers don't have to know which
-# terminal is in use.
 function term-preset
     set preset $argv[1]
     set -e argv[1]
@@ -37,81 +26,24 @@ function term-preset
     switch "$preset"
     case "is-floating-terminal"
         # Exit 0 when EITHER terminal's floating window is active.
-        iterm-preset is-floating-window-active
-        or ghostty-preset is-floating-terminal
+        __tp_bool "require('termPreset').isFloatingTerminal()"
 
     case "hide-floating-terminal"
-        # Hide whichever floating terminal is active. Each subcommand is already
-        # guarded to no-op when its own terminal's floating window isn't active,
-        # so running both is safe.
-        iterm-preset hide-floating-terminal
-        ghostty-preset hide-floating-terminal
+        # Hides whichever floating terminal is active; each branch inside is
+        # guarded, so calling it when neither is up is a no-op.
+        hs -c "require('termPreset').hideFloatingTerminal()"
 
     case "iterate-windows"
-        # Iterate iTerm + Ghostty windows as if they were a single app -- the
-        # cross-terminal counterpart to `iterm-preset iterate-windows` and
-        # `ghostty-preset iterate-windows`, with the same flags. Windows from
-        # both apps are merged and ordered by window id: yabai reports
-        # CGWindowIDs, which are comparable across apps -- unlike the per-app
-        # AppleScript id spaces those two use. When a terminal window is
-        # focused, step to the next merged window (wrapping, possibly crossing
-        # into the other app); otherwise raise the frontmost terminal window.
+        # Iterate iTerm + Ghostty windows as one app. Same flags as
+        # `iterm-preset iterate-windows` / `ghostty-preset iterate-windows`.
         argparse 'except-window-id=' 'prev' -- $argv
         or return 1
 
-        set -l excluded ""
-        set -q _flag_except_window_id; and set excluded "$_flag_except_window_id"
+        set -l except ""
+        set -q _flag_except_window_id; and set except "$_flag_except_window_id"
+        set -l prev (set -q _flag_prev; and echo true; or echo false)
 
-        # One query answers both "which windows" and "which is focused". Sticky
-        # windows (the floating/quick terminals) sit outside the cycle.
-        set -l query (yabai -m query --windows | string collect)
-        or return 1
-
-        set -l all (echo $query | jq -r '
-            .[] | select((.app == "iTerm2" or .app == "Ghostty")
-                         and (."is-sticky" | not)) | .id' | sort -n)
-
-        # No terminal window at all. Return non-zero so a caller can chain its
-        # own fallback (`term-preset iterate-windows; or open -a Ghostty`); this
-        # subcommand only ever iterates, it never launches a terminal.
-        test (count $all) -gt 0
-        or return 1
-
-        set -l windows
-        for id in $all
-            contains -- "$id" $excluded
-            or set -a windows "$id"
-        end
-
-        # Terminal windows exist but every one is excluded (e.g. the devserver
-        # is the only one open): that is a deliberate no-op, not a fallback
-        # case, so leave focus where it is and report success.
-        test (count $windows) -gt 0
-        or return 0
-
-        set -l current (echo $query | jq -r '.[] | select(."has-focus") | .id')
-        set -l pos (contains --index -- "$current" $windows)
-
-        if test -n "$pos"
-            set -l count (count $windows)
-            if set -q _flag_prev
-                set pos (math "($pos - 2 + $count) % $count + 1")
-            else
-                set pos (math "$pos % $count + 1")
-            end
-            wm-preset focus-window-id "$windows[$pos]"
-            return
-        end
-
-        # Not on a terminal window: raise the frontmost eligible one, falling
-        # back to the lowest id when none of them is on the current space.
-        for id in (__tp_stacked_terminal_ids)
-            if contains -- "$id" $windows
-                wm-preset focus-window-id "$id"
-                return
-            end
-        end
-        wm-preset focus-window-id "$windows[1]"
+        hs -c "require('termPreset').iterateWindows({exceptId='$except', prev=$prev})"
 
     case "*"
         return 1
