@@ -19,8 +19,17 @@
 -- app on this thread, with a 6s macOS timeout per app, which is what made the
 -- hotkey lag in the first place. It reads yabai's window table instead -- yabai
 -- reports CGWindowIDs, comparable across apps, unlike the per-app AppleScript id
--- spaces iterm-preset and ghostty-preset use -- and every subprocess it needs
+-- spaces iterm-preset and ghostty-preset use -- and the one subprocess it needs
 -- runs through shell.task, off the event loop.
+--
+-- That subprocess is `yabai-preset list-windows`, which already applies the
+-- visible/non-sticky filter every window-cycling caller wants and emits the
+-- windows in yabai's query order -- front-to-back stacking order, since yabai
+-- builds its table from CGWindowList. So one call answers membership, focus and
+-- z-order. An earlier version shelled out to a second process (`osascript -l
+-- JavaScript` over CGWindowListCopyWindowInfo) purely to learn the z-order for
+-- the "raise the frontmost terminal" fallback: ~65ms of osascript startup for
+-- an ordering the window list already carried.
 
 local Preset = require("preset")
 local GhosttyPreset = require("ghosttyPreset")
@@ -28,7 +37,9 @@ local task = require("shell").task
 
 local M = {}
 
-local TERMINAL_APPS = { ["iTerm2"] = true, ["Ghostty"] = true }
+-- Matched against yabai's `.app` by `list-windows --app`, so the two terminals
+-- are merged into one cycle.
+local TERMINAL_APP_REGEX = "^(iTerm2|Ghostty)$"
 
 -- Simple trace: which termPreset action a keybinding just invoked.
 local function log(msg)
@@ -60,42 +71,6 @@ end
 -- Window iteration
 -----------------------------------------------------------------
 
--- Front-to-back ids of the on-screen terminal windows.
--- CGWindowListCopyWindowInfo reports the same ids yabai does, in stacking order,
--- and unlike an AX query it can't stall behind a busy app. Layer 0 skips overlays
--- (the floating/quick terminals). Run as a task rather than through
--- hs.osascript.javascript because the JXA bridge costs ~90ms and would spend all
--- of it on Hammerspoon's event loop.
-local STACKED_IDS_JS = [[
-  ObjC.import("CoreGraphics");
-  ObjC.import("Foundation");
-  // CGWindowListCopyWindowInfo returns a CFArrayRef; castRefToObject bridges it
-  // to a usable NSArray (CFBridgingRelease is inlined and segfaults from JXA).
-  var list = ObjC.castRefToObject(
-      $.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, 0));
-  var ids = [];
-  for (var i = 0; i < list.count; i++) {
-      var entry = list.objectAtIndex(i);
-      var owner = ObjC.unwrap(entry.objectForKey("kCGWindowOwnerName"));
-      if (owner !== "iTerm2" && owner !== "Ghostty") { continue; }
-      if (ObjC.unwrap(entry.objectForKey("kCGWindowLayer")) !== 0) { continue; }
-      ids.push(ObjC.unwrap(entry.objectForKey("kCGWindowNumber")));
-  }
-  ids.join("\n");
-]]
-
-local function stackedTerminalIds(callback)
-  task({"osascript", "-l", "JavaScript", "-e", STACKED_IDS_JS}, function (ok, output)
-    local ids = {}
-    if ok and output then
-      for id in output:gmatch("%d+") do
-        table.insert(ids, tonumber(id))
-      end
-    end
-    callback(ids)
-  end)
-end
-
 local function focusWindowId(id)
   task({"wm-preset", "focus-window-id", tostring(id)})
 end
@@ -108,6 +83,9 @@ end
 -- window. Iterating only: when there is no terminal window at all this no-ops,
 -- and the caller decides whether to launch one.
 --
+-- The cycle covers the visible windows -- `list-windows` filters to those, so a
+-- terminal parked on another space is not part of the rotation.
+--
 -- opts.exceptId (number, or string as passed by the shim; "" means none) is the
 -- window to skip -- the devserver. opts.prev (bool) walks backwards.
 function M.iterateWindows(opts)
@@ -115,26 +93,41 @@ function M.iterateWindows(opts)
   local exceptId = tonumber(opts.exceptId)
   local prev = opts.prev and true or false
 
-  -- print_stdout = false: the query is ~11KB of JSON, and shell.task debug-logs
-  -- every task's stdout -- which would dump all of it into the Hammerspoon
-  -- console on each keypress. The trace line and stderr are still logged.
-  task({"yabai", "-m", "query", "--windows", print_stdout = false}, function (ok, output)
+  local args = {"yabai-preset", "list-windows", "--app", TERMINAL_APP_REGEX,
+    -- print_stdout = false: shell.task debug-logs every task's stdout, and these
+    -- are whole yabai window objects -- kilobytes of JSON in the Hammerspoon
+    -- console on each keypress. The trace line and stderr are still logged.
+    print_stdout = false}
+  if exceptId then
+    table.insert(args, "--except-id")
+    table.insert(args, tostring(exceptId))
+  end
+
+  task(args, function (ok, output)
+    -- `list-windows` pipes through `jq -e`, so "nothing left after filtering"
+    -- arrives as a non-zero exit -- no terminal visible, or the devserver was
+    -- the only one. Nothing to iterate: no-op and let the caller's next rule
+    -- (launch Ghostty) decide.
     if not ok or not output or output == "" then return end
 
-    local queried = hs.json.decode(output)
-    if not queried then return end
-
-    -- One pass for both "which windows" and "which is focused". Sticky windows
-    -- (the floating/quick terminals) sit outside the cycle.
-    local windows, focusedId = {}, nil
-    for _, w in ipairs(queried) do
-      if w["has-focus"] then focusedId = w.id end
-      if TERMINAL_APPS[w.app] and not w["is-sticky"] and w.id ~= exceptId then
-        table.insert(windows, w.id)
+    -- One object per line, already filtered to visible non-sticky terminals
+    -- minus the excluded id, and already in front-to-back stacking order. So
+    -- `stacked` is just the lines in order, and `windows` is the same set sorted
+    -- by id -- the cycle order, which has to be stable: z-order changes every
+    -- time we focus something, so cycling by it would only bounce between two
+    -- windows.
+    local stacked, focusedId = {}, nil
+    for line in output:gmatch("[^\n]+") do
+      local w = hs.json.decode(line)
+      if w and w.id then
+        if w["has-focus"] then focusedId = w.id end
+        table.insert(stacked, w.id)
       end
     end
 
-    if #windows == 0 then return end
+    if #stacked == 0 then return end
+
+    local windows = {table.unpack(stacked)}
     table.sort(windows)
 
     local pos = nil
@@ -155,22 +148,12 @@ function M.iterateWindows(opts)
       return
     end
 
-    -- Elsewhere: raise the frontmost eligible window, falling back to the lowest
-    -- id when none of the candidates is on the current space.
-    local eligible = {}
-    for _, id in ipairs(windows) do eligible[id] = true end
-
-    stackedTerminalIds(function (stacked)
-      for _, id in ipairs(stacked) do
-        if eligible[id] then
-          log("raise frontmost " .. tostring(id))
-          focusWindowId(id)
-          return
-        end
-      end
-      log("raise fallback " .. tostring(windows[1]))
-      focusWindowId(windows[1])
-    end)
+    -- Elsewhere (Chrome, or the excluded devserver window): raise the frontmost
+    -- terminal. Every candidate is visible, so there is always one -- the old
+    -- lowest-id fallback only existed for the case where the stacking query saw
+    -- the current space and the window list didn't.
+    log("raise frontmost " .. tostring(stacked[1]))
+    focusWindowId(stacked[1])
   end)
 end
 

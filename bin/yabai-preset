@@ -1697,11 +1697,25 @@ function yabai-preset
     case "get-focused-display"
         yabai -m query --windows --window 2>/dev/null | jq -r '.display // empty'
     case "list-windows"
-        argparse 'regex=' -- $argv
+        # One JSON object per line, in yabai's query order -- which is
+        # front-to-back stacking order, since yabai builds its window table from
+        # CGWindowList. Callers that want a different order re-sort.
+        #   --regex     RE  only windows whose title matches RE
+        #   --app       RE  only windows whose app name matches RE
+        #   --except-id ID  drop this window id (repeatable)
+        # The regexes default to matching everything, so omitting them keeps the
+        # unfiltered listing.
+        argparse 'regex=' 'app=' 'except-id=+' -- $argv
         or return 1
 
-        yabai -m query --windows | jq -cer --arg regex "$_flag_regex" '
-            .[] | select(."is-visible" and (."is-sticky" | not) and (.title | test($regex)))'
+        # jq wants the exclusions as a JSON array; no flag means an empty one.
+        set -l except (printf '%s\n' $_flag_except_id | jq -R . | jq -sc 'map(select(. != ""))')
+
+        yabai -m query --windows | jq -cer --arg regex "$_flag_regex" --arg app "$_flag_app" \
+            --argjson except "$except" '
+            .[] | select(."is-visible" and (."is-sticky" | not)
+                         and (.title | test($regex)) and (.app | test($app))
+                         and ((.id | tostring) as $id | $except | index($id) | not))'
     case "list-visible-windows"
         # List windows that have a significant fraction of their area actually
         # shown in the foreground (not covered by windows above them). Reuses the
