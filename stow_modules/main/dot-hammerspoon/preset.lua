@@ -271,10 +271,12 @@ end
 
 -- The program doesn't always own the title: in dev-preset's --herdr-server mode
 -- the remote can write a title naming the command it was handed ("exec env zsh
--- -c herdr", "exec env zsh -c nvim") rather than the program. Accept both shapes.
+-- -c herdr", "exec env zsh -c nvim"), mosh may prefix it, and the connect
+-- command shows as "dev connect --mosh - ...". Rather than anchor to the start
+-- or a word boundary, accept the program name appearing anywhere in the title.
 local function titleRuns(title, program)
   title = withoutMoshPrefix(title)
-  return title:sub(1, #program) == program or title:find(" " .. program, 1, true) ~= nil
+  return title:find(program, 1, true) ~= nil
 end
 
 -- True when the focused Ghostty window shows a single surface (a zoomed split or

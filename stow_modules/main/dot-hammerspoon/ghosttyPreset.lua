@@ -65,13 +65,13 @@ local function withoutMoshPrefix(title)
   return (title:gsub("^%[mosh%] ", ""))
 end
 
--- The program doesn't always own the title (dev-preset --herdr-server writes
--- "exec env zsh -c herdr" etc.), so accept a leading match or a " <program>"
--- substring. Mirrors GHOSTTY_TITLE_RUNS in the fish script.
+-- The program doesn't always own the title: mosh may prefix it ("[mosh] ..."),
+-- dev-preset --herdr-server writes "exec env zsh -c herdr", the connect command
+-- shows up as "dev connect --mosh - ...", etc. Rather than anchor to the start
+-- or a word boundary, accept the program name appearing anywhere in the title.
 local function titleRuns(title, program)
   title = withoutMoshPrefix(title or "")
-  return title:sub(1, #program) == program
-    or title:find(" " .. program, 1, true) ~= nil
+  return title:find(program, 1, true) ~= nil
 end
 
 -- Name of the sole terminal when the front window is exactly one tab with
