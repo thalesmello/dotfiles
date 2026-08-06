@@ -1,0 +1,120 @@
+#!/usr/bin/env -S fish --no-config
+set -x PATH /opt/homebrew/bin (status dirname) $PATH
+
+# Generic counterpart of meta-preset: acts on the current selection/clipboard,
+# opening files in nvim and URLs in Chrome. No work-specific branches here —
+# on a Meta machine this name is a symlink to meta-preset instead.
+
+function __workflow_preset_default
+    for val in $argv
+        if test -n "$val"
+            echo $val
+            return 0
+        end
+    end
+    return 1
+end
+
+set self (status filename)
+
+set preset $argv[1]; set -e argv[1]
+
+switch "$preset"
+case "get-page-id"
+    set old_clipboard "$(pbpaste)"
+    set focused_app "$(hs-preset get-focused-window-app)"
+
+    if test "$focused_app" = "Google Chrome"
+        set url $argv[1]; set -e argv[1]
+        set value (__workflow_preset_default "$url" "$(env OUTPUT_FORMAT=json chrome-cli info | jq -r '.url')" "$(pbpaste)")
+    else if test "$focused_app" = "iTerm2" -o "$focused_app" = "Ghostty"
+        if string match -qr '\n\s+' "$old_clipboard"
+            set value (string replace -ra '\n\s*' '' "$old_clipboard")
+        end
+    end
+
+    if test -n "$value"
+        echo "$value"
+    else
+        return 1
+    end
+
+case "selector"
+    argparse 'fallback-alfred' 'app=' -- $argv
+    or return 1
+
+    if set -q argv[1]
+        set selection $argv[1]
+    else
+        read -z selection
+    end
+
+    set selection "$(string trim -- $selection | string trim --left --chars='(' | string trim --right --chars='),.:')"
+
+    set -q _flag_app; or set _flag_app (hs-preset get-active-app)
+
+    # Determine action
+    if test "$_flag_app" = "iTerm2" -o "$_flag_app" = "Ghostty" -o "$_flag_app" = "Code"
+        or iterm-preset is-floating-window-active
+
+        # Claude Code wraps long URLs/paths across lines; join to check if it's a valid URL or filename
+        set -l old_selection "$selection"
+        set selection (string replace -ra '\n\s*' '' "$selection")
+
+        if string match -qr '^[a-zA-Z0-9_.-]+\.(py|js|jsx|mjs|cjs|ts|tsx|rb|php|html|htm|css|scss|c|cc|cpp|h|hpp|java|go|rs|lua|sh|fish|pl|r|swift|kt|scala|sql|vim|hs|md|txt|toml|json|yaml|yml|xml|csv|ini|cfg|conf)$' "$selection"
+            # A bare filename with a known code/text extension (e.g. myfile.md) is a
+            # file to open, not a URL — must win over the domain heuristic below since
+            # extensions like .md/.sh are also TLDs.
+            set action nvim_open
+        else if string match -qr '^https?://' "$selection"
+            set action open_url
+        else if string match -qr '^[a-zA-Z0-9_.-]+\.[a-zA-Z]{2,}/' "$selection"
+            set selection "https://$selection"
+            set action open_url
+        else if string match -qr '^(~/|/)?[a-zA-Z0-9_.~][a-zA-Z0-9_.-]*/' "$selection"
+            set action nvim_open
+        else
+            set selection "$old_selection"
+        end
+    else if test "$_flag_app" = "Google Chrome"
+        if string match -qr '^https?://' "$selection"
+            set action open_url
+        end
+    end
+
+    # Execute action
+    switch "$action"
+    case open_url
+        chrome-preset open-url --profile "Default" "$selection" --newtabright
+    case nvim_open
+        # Two commands by design: new-split makes the terminal split, and the
+        # command it runs drives nvim into the right pane (remoting to a sibling
+        # nvim if one exists, else opening nvim in the split).
+        if test "$_flag_app" = "Ghostty"
+            # ghostty-preset decides: herdr surface -> open in a herdr pane
+            # (reuse an existing nvim or make a herdr split); otherwise a native
+            # Ghostty split driving nvim-open-in-tab.
+            ghostty-preset open-file-with-fallback "$selection"
+        else
+            iterm-preset new-split --vertical -c "$(printf 'iterm-preset nvim-open-in-tab "%s"' $selection)"
+        end
+    case '*'
+        if set -q _flag_fallback_alfred; and not string match -qr '^https?://' "$selection"
+            echo "$selection" | ua
+        else
+            return 1
+        end
+    end
+
+case "open-selection"
+    set clipboard "$(pbpaste)"
+    set selection "$(hs-preset get-selected-text | string match -rv '^-- Loading extension:')"
+    set active_app "$(hs-preset get-focused-window-app | string match -rv '^-- Loading extension:')"
+
+    set -l selector_input "$(test -n "$selection"; and echo "$selection"; or echo "$clipboard")"
+    echo "$selector_input" | $self selector --app "$active_app"
+    or return 1
+
+case "*"
+    return 1
+end
