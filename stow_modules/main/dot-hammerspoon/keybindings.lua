@@ -285,13 +285,19 @@ function M.setup()
   -- Ghostty keybinds can't run a shell command, so we intercept here. An eventtap
   -- (not a hotkey) so it only fires when Ghostty is frontmost and passes through
   -- everywhere else (cmd+d still bookmarks in browsers, etc.). cmd+ctrl+* (ctrl
-  -- held) is excluded and left to Ghostty's own default new_split/new_tab binds.
+  -- held) is excluded and left to Ghostty's own default new_split/new_tab binds,
+  -- the one exception being cmd+ctrl+b, which toggles the herdr sidebar like cmd+b.
   -- Gated on the focused window's app (not isGhostty) so the quick terminal keeps
   -- Ghostty's native split rather than the AppleScript fallback (targets front window).
   _G._GhosttyNewSplitTabTap = hs.eventtap.new({hs.eventtap.event.types.keyDown}, function(event)
     local flags = event:getFlags()
-    if not flags.cmd or flags.ctrl or flags.alt then return false end
+    if not flags.cmd or flags.alt then return false end
     local code = event:getKeyCode()
+    -- cmd+b / cmd+ctrl+b -> herdr's sidebar toggle (prefix+b), only when herdr
+    -- owns the visible surface; otherwise it passes through.
+    local isB = code == hs.keycodes.map["b"] and not flags.shift
+    -- Every other cmd+ctrl+* chord stays with Ghostty's own new_split/new_tab binds.
+    if flags.ctrl and not isB then return false end
     local isD = code == hs.keycodes.map["d"]
     -- cmd+t -> new tab; cmd+n -> new window/workspace (herdr: ctrl+space > shift+n).
     -- cmd+shift+n is left to pass through so the config's super+shift+n=new_window
@@ -313,16 +319,19 @@ function M.setup()
         if code == hs.keycodes.map[tostring(n)] then digit = n break end
       end
     end
-    if not (isD or isT or isN or isPrevTab or isNextTab or isW or digit) then return false end
+    if not (isD or isT or isN or isPrevTab or isNextTab or isW or isB or digit) then return false end
     local focused = hs.window.focusedWindow()
     local isGhosttyWindow = focused and focused:application() and focused:application():name() == "Ghostty"
     -- close-pane-with-fallback drives keybinds only (no `front window`
     -- AppleScript), so unlike the split/tab fallbacks it works in the quick
     -- terminal too -- accept it there as well.
-    if not (isGhosttyWindow or ((isW or digit) and Preset.isGhosttyQuickTerminalActive())) then return false end
+    if not (isGhosttyWindow or ((isW or isB or digit) and Preset.isGhosttyQuickTerminalActive())) then return false end
     if digit then
       -- Returns false when the surface isn't a multiplexer: pass cmd+N through.
       return GhosttyPreset.focusTabIndexWithFallback(digit)
+    elseif isB then
+      -- Returns false when herdr doesn't own the surface: pass cmd+b through.
+      return GhosttyPreset.toggleSidebarWithFallback()
     elseif isD then
       GhosttyPreset.newSplitWithFallback(flags.shift)
     elseif isT then

@@ -146,7 +146,9 @@ split_horizontal = ["prefix+minus", "prefix+\"", "ctrl+alt+shift+d"]
 # plain pane close lives on prefix+shift+backspace.
 zoom = ["prefix+z", "prefix+ctrl+enter"]
 resize_mode = [ "prefix+r"]
-# toggle_sidebar = "prefix+b"
+# ctrl+alt+b is the direct (prefix-less) chord, same toggle as prefix+b without
+# the prefix-timeout delay.
+toggle_sidebar = ["prefix+b", "ctrl+alt+b"]
 
 # Navigate-mode movement. These local shortcuts win while navigate mode is open.
 # They are independent from focus_pane_*. Do not include prefix+, esc, enter, tab, or 1..9 here.

@@ -338,6 +338,18 @@ function M.focusTabIndexWithFallback(index)
   return true
 end
 
+-- Toggle herdr's sidebar (prefix+b) when herdr owns the visible surface.
+-- Returns false otherwise so the caller can let cmd+b through untouched.
+function M.toggleSidebarWithFallback()
+  if not M.isHerdrZoomedOrSingleSurface() then
+    log("toggleSidebarWithFallback -> route: not herdr, passing through")
+    return false
+  end
+  log("toggleSidebarWithFallback -> route: herdr (prefix+b)")
+  sendPrefixThen({"b"})
+  return true
+end
+
 function M.closePaneWithFallback()
   log("closePaneWithFallback")
   if M.isMultiplexerAppZoomedOrSingleSurface() then
