@@ -106,10 +106,26 @@ case "selector"
         end
     end
 
+case "pick-selections"
+    # Interactively pick matches out of piped terminal output (stdin) and print
+    # the chosen ones, one per line. Only the generic types here — a Meta
+    # machine gets the work-specific patterns from meta-preset instead.
+    rxpick -B -b file -b url $argv
+
 case "open-selection"
+    set active_app "$(hs-preset get-focused-window-app | string match -rv '^-- Loading extension:')"
+
+    if set -q argv[1]
+        # Explicit text (e.g. piped in from `pick-selections`) wins over
+        # whatever is selected/copied right now.
+        set -l selector_input "$argv[1]"
+        echo "$selector_input" | $self selector --app "$active_app"
+        or return 1
+        return 0
+    end
+
     set clipboard "$(pbpaste)"
     set selection "$(hs-preset get-selected-text | string match -rv '^-- Loading extension:')"
-    set active_app "$(hs-preset get-focused-window-app | string match -rv '^-- Loading extension:')"
 
     set -l selector_input "$(test -n "$selection"; and echo "$selection"; or echo "$clipboard")"
     echo "$selector_input" | $self selector --app "$active_app"

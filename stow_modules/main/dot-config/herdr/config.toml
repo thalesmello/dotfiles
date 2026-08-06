@@ -1,4 +1,5 @@
 onboarding = false
+
 # herdr configuration
 # Place this file at ~/.config/herdr/config.toml
 
@@ -84,7 +85,9 @@ prefix = "ctrl+space"
 # settings = "prefix+s"
 # detach = "prefix+q"
 reload_config = "prefix+shift+r"
-# open_notification_target = "prefix+o"
+# prefix+o is repurposed as the output picker (see [[keys.command]] below), so
+# the notification-target jump is unbound.
+open_notification_target = ""
 # workspace_picker = "prefix+w"
 # goto = "prefix+g"
 # new_workspace = "prefix+shift+n"
@@ -214,13 +217,17 @@ description = "prompt for a command and run it"
 width = "60%"
 height = "40%"
 
-# Open the live config.toml in a new tab for editing. Save, then reload with
-# prefix+shift+r (reload_config) to apply without restarting Herdr.
+# Open the live config.toml in a full-screen popup for editing. The script
+# reloads the config when the editor exits, so no manual prefix+shift+r needed.
+# type = "popup" so the editor runs in a herdr-rendered PTY that overtakes the
+# current pane instead of spawning a new tab.
 [[keys.command]]
 key = "prefix+shift+e"
-type = "shell"
+type = "popup"
 command = "~/.config/herdr/scripts/edit-config.sh"
 description = "edit herdr config"
+width = "100%"
+height = "100%"
 
 # Copy the previous command's output to the clipboard (fish panes only).
 # Runs as a popup (a herdr-rendered PTY) rather than a detached shell so the
@@ -235,11 +242,33 @@ description = "copy last command output"
 width = 20
 height = 1
 
+# prefix+o / prefix+y: interactively pick files, urls (and, on a Meta machine,
+# diff/task/table ids) out of the focused pane's recent output. prefix+o opens
+# the first pick, prefix+y copies every pick to the clipboard.
+# Full-screen popups: the picker is a curses UI and needs a herdr-rendered PTY,
+# which is also what lets the copy variant's OSC 52 reach the attached client
+# over `herdr --remote`.
+[[keys.command]]
+key = "prefix+o"
+type = "popup"
+command = "~/.config/herdr/scripts/pick-selection.sh open"
+description = "pick from pane output and open"
+width = "100%"
+height = "100%"
+
+[[keys.command]]
+key = "prefix+y"
+type = "popup"
+command = "~/.config/herdr/scripts/pick-selection.sh copy"
+description = "pick from pane output and copy"
+width = "100%"
+height = "100%"
+
 # Copy the focused pane's id to the clipboard and show a notification.
 # Runs as a popup (a herdr-rendered PTY) so the script's OSC 52 clipboard
 # sequence is forwarded to the attached client -- works over `herdr --remote`.
 [[keys.command]]
-key = "prefix+y"
+key = "prefix+shift+y"
 type = "popup"
 command = "~/.config/herdr/scripts/copy-pane-id.sh"
 description = "copy pane id"
