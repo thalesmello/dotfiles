@@ -608,12 +608,22 @@ function chrome-preset
         # subtree (whose "UI element 3" has no "group 1" -> error -1719). So we
         # scan every top-level group, drill the same relative depth, and click
         # the one that actually contains an AXTabGroup.
+        #
+        # Act on the focused window rather than `window 1`: Chrome keeps an
+        # untitled AXUnknown window around that can sit first in the AX window
+        # order, and it holds no groups at all, so `window 1` finds no tab strip
+        # and every toggle fails.
         set -l process_ref (chrome-process-ref)
         osascript -e "
             tell application \"System Events\"
                 tell $process_ref
+                    set targetWindow to missing value
+                    try
+                        set targetWindow to value of attribute \"AXFocusedWindow\"
+                    end try
+                    if targetWindow is missing value then set targetWindow to window 1
                     set clicked to false
-                    repeat with g in (groups of window 1)
+                    repeat with g in (groups of targetWindow)
                         try
                             set base to group 1 of group 1 of group 1 of g
                             repeat with e in (UI elements of base)
