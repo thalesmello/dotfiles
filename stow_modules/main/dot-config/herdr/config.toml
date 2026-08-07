@@ -217,17 +217,16 @@ description = "prompt for a command and run it"
 width = "60%"
 height = "40%"
 
-# Open the live config.toml in a full-screen popup for editing. The script
+# Open the live config.toml for editing in a zoomed vertical split. The script
 # reloads the config when the editor exits, so no manual prefix+shift+r needed.
-# type = "popup" so the editor runs in a herdr-rendered PTY that overtakes the
-# current pane instead of spawning a new tab.
+# type = "shell" (not "popup"): a full-screen popup is session-modal and eats the
+# prefix key while the editor runs. A real pane keeps every prefix binding live,
+# and quitting the editor closes the pane.
 [[keys.command]]
 key = "prefix+shift+e"
-type = "popup"
+type = "shell"
 command = "~/.config/herdr/scripts/edit-config.sh"
 description = "edit herdr config"
-width = "100%"
-height = "100%"
 
 # Copy the previous command's output to the clipboard (fish panes only).
 # Runs as a popup (a herdr-rendered PTY) rather than a detached shell so the
