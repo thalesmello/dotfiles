@@ -6,10 +6,26 @@
 # command is evaluated in this popup's own bash process; its output stays on
 # screen until you press a key, then the popup closes.
 #
+# Anything the command does to panes must act on the pane that was focused when
+# the keybinding fired, NOT on this popup:
+#
+#   * HERDR_ACTIVE_PANE_ID is that pane (herdr injects it into custom commands)
+#     and is what `herdr-preset open-file-with-fallback` anchors its split on, so
+#     the new nvim split lands next to the pane you were looking at.
+#   * HERDR_PANE_ID is unset before the eval, so a command that falls back to it
+#     (herdr-preset does, for the case where it is run straight from a pane
+#     shell) anchors on nothing rather than silently on the popup. A popup is not
+#     a real pane -- `herdr pane list` from inside one does not include it -- so
+#     nothing else depends on that variable here.
+#   * The eval runs in that pane's cwd, so a relative path typed at the prompt
+#     resolves the way it would if you had typed it in the pane.
+#
 # The prompt reads in raw mode so a lone Esc cancels immediately. Escape
 # sequences (arrow keys, etc.) also start with 0x1b, so we peek for a follow-up
 # byte with a tiny timeout to tell them apart. An empty command (just Enter)
 # also cancels.
+
+herdr="${HERDR_BIN_PATH:-herdr}"
 
 prompt='Command: '
 cmd=''
@@ -38,6 +54,14 @@ stty "$old" 2>/dev/null || stty sane
 trap - EXIT
 printf '\n'
 [ -n "$cmd" ] || exit 0
+
+# Hand the invoking pane, not the popup, to whatever gets run.
+if [ -n "$HERDR_ACTIVE_PANE_ID" ]; then
+  unset HERDR_PANE_ID
+  pane_cwd=$("$herdr" pane get "$HERDR_ACTIVE_PANE_ID" 2>/dev/null \
+    | sed -n 's/.*"foreground_cwd":"\([^"]*\)".*/\1/p' | head -1)
+  [ -n "$pane_cwd" ] && cd "$pane_cwd" 2>/dev/null
+fi
 
 eval "$cmd"
 status=$?

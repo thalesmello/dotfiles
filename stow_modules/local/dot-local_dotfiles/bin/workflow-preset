@@ -124,7 +124,7 @@ case "pick-selections"
     # Interactively pick matches out of piped terminal output (stdin) and print
     # the chosen ones, one per line. Only the generic types here — a Meta
     # machine gets the work-specific patterns from meta-preset instead.
-    rxpick -B -b file -b url $argv
+    rxpick -B -b file -b directory -b url $argv
 
 case "open-selection"
     set active_app "$(hs-preset get-focused-window-app | string match -rv '^-- Loading extension:')"

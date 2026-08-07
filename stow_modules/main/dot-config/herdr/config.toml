@@ -87,7 +87,7 @@ prefix = "ctrl+space"
 reload_config = "prefix+shift+r"
 # prefix+o is repurposed as the output picker (see [[keys.command]] below), so
 # the notification-target jump is unbound.
-open_notification_target = ""
+open_notification_target = "prefix+shift+o"
 # workspace_picker = "prefix+w"
 # goto = "prefix+g"
 # new_workspace = "prefix+shift+n"
@@ -206,9 +206,11 @@ width = "40%"
 height = 3
 
 # ctrl+alt+shift+semicolon (ctrl+meta+shift+:): prompt for a shell command in a
-# popup, then eval it in the popup's own bash process. Output stays on screen
-# until a key is pressed. type = "popup" so the prompt runs in a herdr-rendered
-# PTY where interactive line editing works.
+# popup, then eval it there. type = "popup" so the prompt runs in a herdr-rendered
+# PTY where interactive line editing works, and so command output can stay on
+# screen until a keypress. The script evals with HERDR_PANE_ID (the popup)
+# unset and cwd set to the invoking pane's, so `herdr-preset
+# open-file-with-fallback` splits off the pane you were in, not the popup.
 [[keys.command]]
 key = "ctrl+alt+shift+semicolon"
 type = "popup"
@@ -244,24 +246,21 @@ height = 1
 # prefix+o / prefix+y: interactively pick files, urls (and, on a Meta machine,
 # diff/task/table ids) out of the focused pane's recent output. prefix+o opens
 # the first pick, prefix+y copies every pick to the clipboard.
-# Full-screen popups: the picker is a curses UI and needs a herdr-rendered PTY,
-# which is also what lets the copy variant's OSC 52 reach the attached client
-# over `herdr --remote`.
+# type = "shell": the script splits off the active pane itself and runs the
+# picker there, zoomed. That pane is a herdr-rendered PTY, which the curses UI
+# needs and which also lets the copy variant's OSC 52 reach the attached client
+# over `herdr --remote`. The split closes when the picker exits.
 [[keys.command]]
 key = "prefix+o"
-type = "popup"
+type = "shell"
 command = "~/.config/herdr/scripts/pick-selection.sh open"
 description = "pick from pane output and open"
-width = "100%"
-height = "100%"
 
 [[keys.command]]
 key = "prefix+y"
-type = "popup"
+type = "shell"
 command = "~/.config/herdr/scripts/pick-selection.sh copy"
 description = "pick from pane output and copy"
-width = "100%"
-height = "100%"
 
 # Copy the focused pane's id to the clipboard and show a notification.
 # Runs as a popup (a herdr-rendered PTY) so the script's OSC 52 clipboard
@@ -456,8 +455,8 @@ rows = [
 # herdr = show in-app toasts
 # terminal = ask the outer terminal to show a desktop notification
 # system = ask the OS notification service directly
-delivery = "terminal"
-# delay_seconds = 1
+delivery = "herdr"
+delay_seconds = 2
 
 [ui.toast.herdr]
 # position = "bottom-right"
