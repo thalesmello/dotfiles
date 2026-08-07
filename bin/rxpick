@@ -83,7 +83,7 @@ ANSI = re.compile(
     re.VERBOSE | re.DOTALL,
 )
 
-PAIR_MATCH, PAIR_CURRENT, PAIR_SELECTED, PAIR_STATUS = 1, 2, 3, 4
+PAIR_MATCH, PAIR_CURRENT, PAIR_SELECTED = 1, 2, 3
 
 # Builtin patterns keyed by type name. Each value is (regex_source, predicate);
 # the predicate is applied to the matched text and must return True for the
@@ -212,7 +212,6 @@ class Picker:
         curses.init_pair(PAIR_MATCH, curses.COLOR_YELLOW, bg)
         curses.init_pair(PAIR_CURRENT, curses.COLOR_BLACK, curses.COLOR_YELLOW)
         curses.init_pair(PAIR_SELECTED, curses.COLOR_BLACK, curses.COLOR_GREEN)
-        curses.init_pair(PAIR_STATUS, curses.COLOR_WHITE, curses.COLOR_BLUE)
 
     def _attr(self, pair, fallback):
         return curses.color_pair(pair) if curses.has_colors() else fallback
@@ -322,13 +321,17 @@ class Picker:
         right = "SPACE select  ENTER confirm  a all  c clear  q quit "
         pad = width - 1 - len(left) - len(right)
         status = left + " " * pad + right if pad > 0 else left[: width - 1]
+        # Reverse video on the terminal's own colours rather than a fixed
+        # colour pair: white-on-blue is unreadable under pastel palettes
+        # (Catppuccin and friends), whereas inverting whatever the user
+        # already reads comfortably is legible in any theme.
         try:
             stdscr.addnstr(
                 height - 1,
                 0,
                 status.ljust(width - 1),
                 width - 1,
-                self._attr(PAIR_STATUS, curses.A_REVERSE) | curses.A_BOLD,
+                curses.A_REVERSE | curses.A_BOLD,
             )
         except curses.error:
             pass

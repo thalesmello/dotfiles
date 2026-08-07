@@ -67,7 +67,13 @@ return {
       injectable_opts = {
          "hrsh7th/nvim-cmp",
          merge_opts = function()
-            if (vim.fn.getcwd() ~= vim.fn.expand('~')) then
+            -- cmp-rg recurses from cwd on every completion, so refuse to enable
+            -- it on roots where that means grepping the whole disk. `/` shows up
+            -- whenever nvim is spawned by a GUI app -- LaunchServices gives its
+            -- processes cwd `/` -- and recursing from there into ~/Downloads,
+            -- ~/Pictures & co. makes macOS pop TCC permission prompts.
+            local cwd = vim.fn.getcwd()
+            if cwd ~= '/' and cwd ~= vim.fn.expand('~') then
                return { sources = { { name = 'rg' } } }
             end
          end,

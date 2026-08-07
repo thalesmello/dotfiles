@@ -24,6 +24,18 @@ function neovim-ghost
             nohup (status filename) start &>/dev/null &
         else
             display-message "Start GHOST"
+            # Anchor the instance to an empty scratch dir. Whatever cwd we
+            # inherit gets baked into nvim for the lifetime of the instance, and
+            # tools that recurse from cwd (cmp-rg runs `rg . <cwd>` on every
+            # completion) then walk that whole tree. When the wrapper app from
+            # setup-neovim-ghost-editor is the caller that cwd is `/`, because
+            # LaunchServices starts apps there -- so completion ends up grepping
+            # the entire disk and macOS pops TCC prompts for ~/Downloads,
+            # ~/Pictures & co. Callers always pass absolute paths, so nothing
+            # depends on the inherited cwd.
+            set -l scratch "$TMPDIR/nvim_ghost_cwd"
+            mkdir -p "$scratch"
+            cd "$scratch"
             env NVIM_GHOST_ENABLE=1 neovide --frame buttonless --title-hidden -- --listen "$TMPDIR/nvim_ghost.socket" &
             echo "$last_pid" > "$TMPDIR/nvim_ghost.pid"
             wait
