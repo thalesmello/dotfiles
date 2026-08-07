@@ -11,6 +11,10 @@ stow_modules/main/dot-config/fish/fundle
 stow_modules/main/dot-config/fish/fish_variables
 stow_modules/main/dot-config/karabiner/automatic_backups/
 stow_modules/main/dot-config/herdr/.plugins.lock
+# `herdr plugin link` registry + per-plugin state: machine-local absolute paths.
+# The plugin manifests under plugins/<name>/ are tracked.
+stow_modules/main/dot-config/herdr/plugins.json
+stow_modules/main/dot-config/herdr/plugins/config/
 stow_modules/main/dot-config/herdr/*.log
 stow_modules/main/dot-config/herdr/session.json
 stow_modules/main/dot-config/herdr/session-history.json
