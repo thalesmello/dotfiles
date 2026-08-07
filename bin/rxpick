@@ -24,6 +24,16 @@ USAGE
     -i, --ignore-case   Case-insensitive matching.
     -g, --group N   Highlight/output capture group N instead of the whole match.
     -B, --from-bottom   Start on the bottom-most match; space then moves upward.
+    --single-selection  Pick exactly one match: space confirms immediately and
+                    the multi-select keys (a, c) are disabled.
+    --no-action     Browse only. Space and enter do nothing, nothing is ever
+                    selected, and quitting prints nothing and exits 0.
+    --url-format FMT
+                    Render FMT with str.format(match=..., type=...) for every
+                    selected match and wrap the printed text in an OSC 8
+                    hyperlink pointing at it. Values are percent-encoded, so
+                    FMT can drop them straight into a query string. With
+                    --json the rendered URL is added as a "url" field instead.
     --json          Emit one JSON object per line instead of raw text.
     -h              This help.
 
@@ -35,15 +45,27 @@ USAGE
 KEYS
     j / down / n     next match          k / up / p    previous match
     g / G            first / last match  left / right  scroll long lines
-    PgDn / PgUp      jump 10 matches     space         select match + advance
+    PgDn / PgUp      scroll a full page  ctrl-d/ctrl-u scroll half a page
+    space            select match + advance
     a                select / clear all  c             clear selection
     enter            confirm and print   q / esc       abort, print nothing
+
+    The paging keys scroll the text and pull the cursor to the nearest match
+    on screen, so long match-free stretches can be skimmed past.
 
 OUTPUT
     Without --json, one selected match per line (types are dropped).
     With --json, one object per line:
       unnamed:  {"match": "abc123"}
       named:    {"match": "http://meta.com", "type": "url"}
+    With --url-format, plain output is wrapped in OSC 8 and the JSON form
+    grows a "url" key:
+      {"match": "http://meta.com", "type": "url", "url": "hammerspoon://..."}
+
+    NOTE: OSC 8 only makes text clickable; no terminal, Ghostty included, has
+    an escape sequence that opens a URL on its own. Driving an action from a
+    remote host needs a real side channel (an ssh -R tunnel to a local
+    listener, or OSC 52 clipboard writes watched from the Mac side).
 
 EXAMPLES
     # pick a container id out of docker ps
@@ -54,6 +76,10 @@ EXAMPLES
 
     # pick urls or existing files out of a log, tagged by type, as json
     tail -n 500 app.log | rxpick -b url -b file --json
+
+    # hand a single pick to hammerspoon as a clickable link
+    tail -n 500 app.log | rxpick -b url -b file --single-selection \\
+        --url-format 'hammerspoon://open-selection?type={type}&match={match}'
 
 NOTES
     * Selections are printed in the order they appear in the input, one per line.
@@ -71,6 +97,7 @@ import json
 import os
 import re
 import sys
+import urllib.parse
 
 ANSI = re.compile(
     r"""
@@ -146,15 +173,26 @@ def find_matches(lines, specs, group):
     return matches
 
 class Picker:
-    def __init__(self, lines, matches, label, from_bottom=False):
+    def __init__(
+        self,
+        lines,
+        matches,
+        label,
+        from_bottom=False,
+        single=False,
+        no_action=False,
+    ):
         self.lines = lines
         self.matches = matches
         self.label = label
         self.from_bottom = from_bottom
+        self.single = single
+        self.no_action = no_action
         self.selected = set()
         self.cursor = len(matches) - 1 if from_bottom else 0
         self.top = 0
         self.xoff = 0
+        self.body = 1  # visible text rows, refreshed on every draw
 
     def run(self, stdscr):
         curses.curs_set(0)
@@ -168,10 +206,15 @@ class Picker:
                     return None
             if key == ord("q"):
                 return None
-            if key in (curses.KEY_ENTER, 10, 13):
-                if not self.selected:
-                    self.selected.add(self.cursor)
-                return [self.matches[i] for i in sorted(self.selected)]
+            if not self.no_action:
+                # In single-selection mode space is a confirm, so both keys
+                # land on the same path and the picker exits on one keystroke.
+                if key in (curses.KEY_ENTER, 10, 13) or (
+                    self.single and key == ord(" ")
+                ):
+                    if not self.selected:
+                        self.selected.add(self.cursor)
+                    return [self.matches[i] for i in sorted(self.selected)]
             self._handle(key)
 
     # A lone ESC means abort, but terminals that ignore keypad mode send arrows
@@ -223,27 +266,60 @@ class Picker:
         else:
             self.cursor = min(self.cursor + 1, last)
 
+    # Paging scrolls the text rather than hopping N matches, which is what
+    # makes a wall of output skimmable. The cursor is dragged along only when
+    # it would otherwise fall off screen, so the view stays where it was put.
+    def _page(self, delta):
+        body = max(1, self.body)
+        limit = max(0, len(self.lines) - body)
+        self.top = max(0, min(self.top + delta, limit))
+        lo, hi = self.top, self.top + body
+        if lo <= self.matches[self.cursor].line < hi:
+            return
+        if delta > 0:
+            nxt = next((i for i, m in enumerate(self.matches) if m.line >= lo), None)
+            self.cursor = len(self.matches) - 1 if nxt is None else nxt
+        else:
+            prev = next(
+                (
+                    i
+                    for i in range(len(self.matches) - 1, -1, -1)
+                    if self.matches[i].line < hi
+                ),
+                None,
+            )
+            self.cursor = 0 if prev is None else prev
+
     def _handle(self, key):
         last = len(self.matches) - 1
+        body = max(1, self.body)
         if key in (ord("j"), ord("n"), curses.KEY_DOWN):
             self.cursor = min(self.cursor + 1, last)
         elif key in (ord("k"), ord("p"), curses.KEY_UP):
             self.cursor = max(self.cursor - 1, 0)
-        elif key in (curses.KEY_NPAGE, 4):
-            self.cursor = min(self.cursor + 10, last)
-        elif key in (curses.KEY_PPAGE, 21):
-            self.cursor = max(self.cursor - 10, 0)
+        elif key == curses.KEY_NPAGE:
+            self._page(body)
+        elif key == curses.KEY_PPAGE:
+            self._page(-body)
+        elif key == 4:  # ctrl-d
+            self._page(body // 2 or 1)
+        elif key == 21:  # ctrl-u
+            self._page(-(body // 2 or 1))
         elif key in (ord("g"), curses.KEY_HOME):
             self.cursor = 0
         elif key in (ord("G"), curses.KEY_END):
             self.cursor = last
-        elif key == ord(" "):
-            self.selected.symmetric_difference_update({self.cursor})
-            self._advance()
         elif key == curses.KEY_LEFT:
             self.xoff = max(0, self.xoff - 8)
         elif key == curses.KEY_RIGHT:
             self.xoff += 8
+        elif self.no_action or self.single:
+            # space is handled as a confirm in single mode, and every
+            # selection key is inert with --no-action.
+            return
+        elif key == ord(" "):
+            self.selected.symmetric_difference_update({self.cursor})
+            self._advance()
         elif key == ord("a"):
             if len(self.selected) == len(self.matches):
                 self.selected.clear()
@@ -268,6 +344,7 @@ class Picker:
     def _draw(self, stdscr):
         height, width = stdscr.getmaxyx()
         body = max(1, height - 1)
+        self.body = body
         self._scroll_to_cursor(height, width)
         stdscr.erase()
 
@@ -312,13 +389,20 @@ class Picker:
             pass
 
     def _draw_status(self, stdscr, height, width):
-        left = " [%d/%d]  %d selected  %s" % (
-            self.cursor + 1,
-            len(self.matches),
-            len(self.selected),
-            self.label,
-        )
-        right = "SPACE select  ENTER confirm  a all  c clear  q quit "
+        if self.no_action:
+            left = " [%d/%d]  %s" % (self.cursor + 1, len(self.matches), self.label)
+            right = "PgUp/PgDn scroll  q quit "
+        elif self.single:
+            left = " [%d/%d]  %s" % (self.cursor + 1, len(self.matches), self.label)
+            right = "SPACE/ENTER pick  PgUp/PgDn scroll  q quit "
+        else:
+            left = " [%d/%d]  %d selected  %s" % (
+                self.cursor + 1,
+                len(self.matches),
+                len(self.selected),
+                self.label,
+            )
+            right = "SPACE select  ENTER confirm  a all  c clear  q quit "
         pad = width - 1 - len(left) - len(right)
         status = left + " " * pad + right if pad > 0 else left[: width - 1]
         # Reverse video on the terminal's own colours rather than a fixed
@@ -443,12 +527,41 @@ def main(argv):
         help="start on the bottom-most match; space then moves upward",
     )
     parser.add_argument(
+        "--single-selection",
+        action="store_true",
+        help="pick exactly one match; space confirms immediately",
+    )
+    parser.add_argument(
+        "--no-action",
+        action="store_true",
+        help="browse only; disable selecting and confirming",
+    )
+    parser.add_argument(
+        "--url-format",
+        metavar="FMT",
+        help="str.format template rendered with {match} and {type}; the "
+        "printed match is wrapped in an OSC 8 hyperlink to it",
+    )
+    parser.add_argument(
         "--json", action="store_true", help="emit one JSON object per line"
     )
     args = parser.parse_args(argv)
 
     if sys.stdin.isatty():
         parser.error("no piped input; usage: <command> | %s PATTERN" % parser.prog)
+
+    if args.no_action and args.single_selection:
+        parser.error("--no-action and --single-selection are mutually exclusive")
+    if args.url_format:
+        # Fail on a bad template now rather than after the user has picked.
+        probe = Match(0, 0, 1, "x", "x")
+        try:
+            render_url(args.url_format, probe)
+        except (KeyError, IndexError, ValueError) as exc:
+            parser.error(
+                "bad --url-format %r: %s (only {match} and {type} are available)"
+                % (args.url_format, exc)
+            )
 
     flags = re.IGNORECASE if args.ignore_case else 0
     specs, label = build_specs(args, parser, flags)
@@ -474,25 +587,55 @@ def main(argv):
     os.close(tty_in)
     os.close(tty_out)
 
-    picker = Picker(lines, matches, label, from_bottom=args.from_bottom)
+    picker = Picker(
+        lines,
+        matches,
+        label,
+        from_bottom=args.from_bottom,
+        single=args.single_selection,
+        no_action=args.no_action,
+    )
     try:
         picked = curses.wrapper(picker.run)
     except KeyboardInterrupt:
         picked = None
 
+    # Browsing is not an abort: leaving --no-action mode is the normal way out,
+    # so it exits clean even though there is nothing to print.
+    if args.no_action:
+        return 0
     if not picked:
         return 1
-    os.write(result_fd, format_output(picked, args.json).encode("utf-8"))
+    out = format_output(picked, args.json, args.url_format)
+    os.write(result_fd, out.encode("utf-8"))
     return 0
 
-def format_output(picked, as_json):
+OSC8 = "\x1b]8;;%s\x1b\\%s\x1b]8;;\x1b\\"
+
+def render_url(fmt, match):
+    """Render the --url-format template for one match.
+
+    Values are percent-encoded so a template can drop them straight into a
+    query string without the caller having to escape anything.
+    """
+    return fmt.format(
+        match=urllib.parse.quote(match.text, safe=""),
+        type=urllib.parse.quote(match.type or "", safe=""),
+    )
+
+def format_output(picked, as_json, url_format=None):
     out = []
     for m in picked:
+        url = render_url(url_format, m) if url_format else None
         if as_json:
             obj = {"match": m.text}
             if m.type is not None:
                 obj["type"] = m.type
+            if url is not None:
+                obj["url"] = url
             out.append(json.dumps(obj, ensure_ascii=False))
+        elif url is not None:
+            out.append(OSC8 % (url, m.text))
         else:
             out.append(m.text)
     return "\n".join(out) + "\n"
