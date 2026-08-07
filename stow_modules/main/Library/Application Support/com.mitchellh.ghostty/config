@@ -42,6 +42,10 @@
 # # Just for example:
 # resize-overlay-duration = 4s 200ms
 theme = Catppuccin Frappe
+# Frappe's 16 ANSI colours are all pastel, so apps that assume the VGA
+# palette (white-on-blue status bars and the like) render near-invisible.
+# Lift only the pairs that fall below the WCAG readability threshold.
+minimum-contrast = 1.1
 quick-terminal-position = bottom
 quick-terminal-animation-duration = 0
 copy-on-select = clipboard
