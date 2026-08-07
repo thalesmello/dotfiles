@@ -29,11 +29,12 @@ USAGE
     --no-action     Browse only. Space and enter do nothing, nothing is ever
                     selected, and quitting prints nothing and exits 0.
     --url-format FMT
-                    Render FMT with str.format(match=..., type=...) for every
-                    selected match and wrap the printed text in an OSC 8
-                    hyperlink pointing at it. Values are percent-encoded, so
-                    FMT can drop them straight into a query string. With
-                    --json the rendered URL is added as a "url" field instead.
+                    Render FMT with str.format(match=..., type=...) and make
+                    every visible match a clickable OSC 8 hyperlink to it in
+                    the picker. Display only: printed output stays plain text.
+                    Values are percent-encoded, so FMT can drop them straight
+                    into a query string. Under --json the rendered URL is also
+                    returned as a "url" field.
     --json          Emit one JSON object per line instead of raw text.
     -h              This help.
 
@@ -54,12 +55,14 @@ KEYS
     on screen, so long match-free stretches can be skimmed past.
 
 OUTPUT
-    Without --json, one selected match per line (types are dropped).
+    Always plain text: one selected match per line (types are dropped). No
+    escape sequences are ever printed, so the output is safe to pipe, capture
+    or put on a clipboard.
+
     With --json, one object per line:
       unnamed:  {"match": "abc123"}
       named:    {"match": "http://meta.com", "type": "url"}
-    With --url-format, plain output is wrapped in OSC 8 and the JSON form
-    grows a "url" key:
+    and --url-format adds the rendered URL as a field:
       {"match": "http://meta.com", "type": "url", "url": "hammerspoon://..."}
 
     NOTE: OSC 8 only makes text clickable; no terminal, Ghostty included, has
@@ -81,6 +84,10 @@ EXAMPLES
     tail -n 500 app.log | rxpick -b url -b file --single-selection \\
         --url-format 'hammerspoon://open-selection?type={type}&match={match}'
 
+    # pure overlay: every match clickable, nothing ever printed
+    tail -n 500 app.log | rxpick -b url -b file --no-action \\
+        --url-format 'hammerspoon://open-selection?type={type}&match={match}'
+
 NOTES
     * Selections are printed in the order they appear in the input, one per line.
     * Confirming with nothing selected prints the match under the cursor.
@@ -89,6 +96,10 @@ NOTES
       never have to account for escape sequences (the overlay supplies its own
       colours). Tabs are expanded to 8 spaces.
     * Matching is per line; a pattern cannot span a newline.
+    * On-screen hyperlinks are painted over the curses frame with raw escapes,
+      because curses itself has no OSC 8 support. The picker therefore forces
+      a full repaint every frame while --url-format is active, which keeps
+      stale links from lingering on cells that scrolled away.
 """
 
 import argparse
@@ -181,6 +192,7 @@ class Picker:
         from_bottom=False,
         single=False,
         no_action=False,
+        url_format=None,
     ):
         self.lines = lines
         self.matches = matches
@@ -188,6 +200,7 @@ class Picker:
         self.from_bottom = from_bottom
         self.single = single
         self.no_action = no_action
+        self.url_format = url_format
         self.selected = set()
         self.cursor = len(matches) - 1 if from_bottom else 0
         self.top = 0
@@ -365,7 +378,56 @@ class Picker:
                 self._highlight(stdscr, row, width, idx)
 
         self._draw_status(stdscr, height, width)
+        if self.url_format:
+            stdscr.redrawwin()
         stdscr.refresh()
+        if self.url_format:
+            self._emit_hyperlinks(by_line, width)
+
+    # curses has no notion of OSC 8, so hyperlinks cannot go through addstr.
+    # Instead, once curses has painted the frame, every visible match is
+    # overwritten in place with a byte-identical copy of its own text wrapped
+    # in the hyperlink escape. Nothing moves on screen, but the terminal now
+    # associates those cells with a URL. _draw() invalidates the whole window
+    # first so curses repaints every cell each frame; that clears stale links
+    # (a cell written with no hyperlink open loses the one it had) and keeps
+    # curses' screen model in step with what the terminal actually holds.
+    def _clip(self, m, width):
+        x = m.start - self.xoff
+        text = m.text
+        if x < 0:
+            text = text[-x:]
+            x = 0
+        return x, text[: max(0, width - 1 - x)]
+
+    def _sgr(self, idx):
+        if not curses.has_colors():
+            if idx == self.cursor:
+                return "\x1b[7;1m"
+            return "\x1b[7m" if idx in self.selected else "\x1b[4;1m"
+        if idx == self.cursor:
+            return "\x1b[30;43;1m"  # black on yellow
+        if idx in self.selected:
+            return "\x1b[30;42m"  # black on green
+        return "\x1b[33;1m"  # yellow
+
+    def _emit_hyperlinks(self, by_line, width):
+        chunks = []
+        for row in range(self.body):
+            for idx in by_line.get(self.top + row, ()):
+                x, text = self._clip(self.matches[idx], width)
+                if not text:
+                    continue
+                url = render_url(self.url_format, self.matches[idx])
+                chunks.append(
+                    "\x1b[%d;%dH%s%s\x1b[0m"
+                    % (row + 1, x + 1, self._sgr(idx), OSC8 % (url, text))
+                )
+        if chunks:
+            try:
+                os.write(1, ("".join(chunks)).encode("utf-8"))
+            except OSError:
+                pass
 
     def _highlight(self, stdscr, row, width, idx):
         m = self.matches[idx]
@@ -594,6 +656,7 @@ def main(argv):
         from_bottom=args.from_bottom,
         single=args.single_selection,
         no_action=args.no_action,
+        url_format=args.url_format,
     )
     try:
         picked = curses.wrapper(picker.run)
@@ -624,18 +687,22 @@ def render_url(fmt, match):
     )
 
 def format_output(picked, as_json, url_format=None):
+    """Plain output is always plain text.
+
+    --url-format drives the on-screen hyperlinks only; escape sequences have no
+    business in a pipe or a clipboard, where nothing interprets them. The
+    rendered URL is still reachable as a "url" field under --json, which is a
+    data channel rather than a display one.
+    """
     out = []
     for m in picked:
-        url = render_url(url_format, m) if url_format else None
         if as_json:
             obj = {"match": m.text}
             if m.type is not None:
                 obj["type"] = m.type
-            if url is not None:
-                obj["url"] = url
+            if url_format:
+                obj["url"] = render_url(url_format, m)
             out.append(json.dumps(obj, ensure_ascii=False))
-        elif url is not None:
-            out.append(OSC8 % (url, m.text))
         else:
             out.append(m.text)
     return "\n".join(out) + "\n"
