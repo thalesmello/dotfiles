@@ -97,7 +97,13 @@ case "selector"
         # Two commands by design: new-split makes the terminal split, and the
         # command it runs drives nvim into the right pane (remoting to a sibling
         # nvim if one exists, else opening nvim in the split).
-        if test "$_flag_app" = "Ghostty"
+        if set -q HERDR_PANE_ID; or set -q HERDR_ACTIVE_PANE_ID
+            # Already inside herdr (e.g. the pick-selection split): talk to it
+            # directly. Going through ghostty-preset would take the long way
+            # round -- hammerspoon synthesising the run-command chord to reach
+            # the same herdr-preset call from a popup.
+            herdr-preset open-file-with-fallback "$selection"
+        else if test "$_flag_app" = "Ghostty"
             # ghostty-preset decides: herdr surface -> open in a herdr pane
             # (reuse an existing nvim or make a herdr split); otherwise a native
             # Ghostty split driving nvim-open-in-tab.
