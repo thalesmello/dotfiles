@@ -40,7 +40,7 @@ case "get-page-id"
     end
 
 case "selector"
-    argparse 'fallback-alfred' 'app=' -- $argv
+    argparse 'fallback-alfred' 'content-only' 'app=' -- $argv
     or return 1
 
     if set -q argv[1]
@@ -54,7 +54,14 @@ case "selector"
     set -q _flag_app; or set _flag_app (hs-preset get-active-app)
 
     # Determine action
-    if test "$_flag_app" = "iTerm2" -o "$_flag_app" = "Ghostty" -o "$_flag_app" = "Code"
+    #
+    # --content-only routes purely on what the text looks like. The app check
+    # below exists to read the CURRENT app's context (what is selected, which
+    # page Chrome is on), which is meaningless once the text was picked
+    # deliberately -- e.g. a hammerspoon:// link, where the frontmost app by the
+    # time this runs is Hammerspoon or whatever the link was clicked in.
+    if set -q _flag_content_only
+        or test "$_flag_app" = "iTerm2" -o "$_flag_app" = "Ghostty" -o "$_flag_app" = "Code"
         or iterm-preset is-floating-window-active
 
         # Claude Code wraps long URLs/paths across lines; join to check if it's a valid URL or filename
@@ -95,8 +102,15 @@ case "selector"
             # (reuse an existing nvim or make a herdr split); otherwise a native
             # Ghostty split driving nvim-open-in-tab.
             ghostty-preset open-file-with-fallback "$selection"
-        else
+        else if test "$_flag_app" = "iTerm2" -o "$_flag_app" = "Code"
             iterm-preset new-split --vertical -c "$(printf 'iterm-preset nvim-open-in-tab "%s"' $selection)"
+        else
+            # --content-only from something that is not a terminal (a clicked
+            # hammerspoon:// link, say). open-file-with-fallback drives the
+            # focused surface, so Ghostty has to be in front first.
+            open -a Ghostty
+            sleep 0.3
+            ghostty-preset open-file-with-fallback "$selection"
         end
     case '*'
         if set -q _flag_fallback_alfred; and not string match -qr '^https?://' "$selection"
@@ -116,10 +130,12 @@ case "open-selection"
     set active_app "$(hs-preset get-focused-window-app | string match -rv '^-- Loading extension:')"
 
     if set -q argv[1]
-        # Explicit text (e.g. piped in from `pick-selections`) wins over
-        # whatever is selected/copied right now.
+        # Explicit text (e.g. piped in from `pick-selections`, or handed over by
+        # a hammerspoon:// link) wins over whatever is selected/copied right
+        # now, and routes on the text alone: the frontmost app is no longer the
+        # context the text came from.
         set -l selector_input "$argv[1]"
-        echo "$selector_input" | $self selector --app "$active_app"
+        echo "$selector_input" | $self selector --content-only --app "$active_app"
         or return 1
         return 0
     end
