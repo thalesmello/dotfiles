@@ -11,7 +11,7 @@ USAGE
     <command> | rxpick PATTERN [-i] [-g N]
 
     # named: one or more typed patterns; each match carries the type it matched
-    <command> | rxpick -t TYPE PATTERN [-t TYPE PATTERN ...] [-b TYPE ...]
+    <command> | rxpick -t TYPE PATTERN [-f URL] [-t TYPE PATTERN ...] [-b TYPE ...]
 
     PATTERN         Python regex, applied to each line of the input.
     -t, --type      TYPE PATTERN pair; the matched text is tagged with TYPE.
@@ -28,13 +28,21 @@ USAGE
                     the multi-select keys (a, c) are disabled.
     --no-action     Browse only. Space and enter do nothing, nothing is ever
                     selected, and quitting prints nothing and exits 0.
-    --url-format FMT
-                    Render FMT with str.format(match=..., type=...) and make
-                    every visible match a clickable OSC 8 hyperlink to it in
-                    the picker. Display only: printed output stays plain text.
-                    Values are percent-encoded, so FMT can drop them straight
-                    into a query string. Under --json the rendered URL is also
-                    returned as a "url" field.
+    -f, --url-format FMT
+                    URL template for the -t/-b immediately before it, so each
+                    type can route somewhere different. Rendered with
+                    str.format(match=..., type=...); values are
+                    percent-encoded, so FMT can drop them straight into a
+                    query string.
+    --default-url-format FMT
+                    Same template, used for every type that has no -f of its
+                    own (and for unnamed usage, which has no types to attach
+                    one to).
+
+                    Either way this is DISPLAY ONLY: matches carrying a URL
+                    become clickable OSC 8 hyperlinks in the picker, while
+                    printed output stays plain text. Under --json the rendered
+                    URL comes back as a "url" field.
     --json          Emit one JSON object per line instead of raw text.
     -h              This help.
 
@@ -62,7 +70,7 @@ OUTPUT
     With --json, one object per line:
       unnamed:  {"match": "abc123"}
       named:    {"match": "http://meta.com", "type": "url"}
-    and --url-format adds the rendered URL as a field:
+    and a URL template adds the rendered URL as a field:
       {"match": "http://meta.com", "type": "url", "url": "hammerspoon://..."}
 
     NOTE: OSC 8 only makes text clickable; no terminal, Ghostty included, has
@@ -82,11 +90,14 @@ EXAMPLES
 
     # hand a single pick to hammerspoon as a clickable link
     tail -n 500 app.log | rxpick -b url -b file --single-selection \\
-        --url-format 'hammerspoon://open-selection?type={type}&match={match}'
+        --default-url-format 'hammerspoon://open-selection?type={type}&match={match}'
 
-    # pure overlay: every match clickable, nothing ever printed
-    tail -n 500 app.log | rxpick -b url -b file --no-action \\
-        --url-format 'hammerspoon://open-selection?type={type}&match={match}'
+    # per-type routing: files go to hammerspoon, diffs straight to the web,
+    # and urls fall through to the default
+    tail -n 500 app.log | rxpick --no-action \\
+        --default-url-format 'hammerspoon://open-selection?type={type}&match={match}' \\
+        -b file -b url \\
+        -t diff '\\bD\\d+\\b' -f 'https://www.internalfb.com/diff/{match}'
 
 NOTES
     * Selections are printed in the order they appear in the input, one per line.
@@ -98,7 +109,7 @@ NOTES
     * Matching is per line; a pattern cannot span a newline.
     * On-screen hyperlinks are painted over the curses frame with raw escapes,
       because curses itself has no OSC 8 support. The picker therefore forces
-      a full repaint every frame while --url-format is active, which keeps
+      a full repaint every frame while any match carries a URL, which keeps
       stale links from lingering on cells that scrolled away.
 """
 
@@ -146,29 +157,31 @@ BUILTINS = {
 }
 
 class Match:
-    __slots__ = ("line", "start", "end", "text", "type")
+    __slots__ = ("line", "start", "end", "text", "type", "url_fmt")
 
-    def __init__(self, line, start, end, text, type=None):
+    def __init__(self, line, start, end, text, type=None, url_fmt=None):
         self.line = line
         self.start = start
         self.end = end
         self.text = text
         self.type = type
+        self.url_fmt = url_fmt  # template this match's type resolved to, if any
 
 def clean(line):
     return ANSI.sub("", line).expandtabs(8).rstrip("\n")
 
 def find_matches(lines, specs, group):
-    """Collect matches across every (type, regex, predicate) spec.
+    """Collect matches across every (type, regex, predicate, url_fmt) spec.
 
     Within a line, patterns are tried in the order given. A candidate that
     overlaps a span already accepted on that line is dropped, so a word matched
-    by more than one pattern is only counted once (first pattern wins).
+    by more than one pattern is only counted once (first pattern wins). Each
+    match carries the URL template its own type resolved to.
     """
     matches = []
     for i, line in enumerate(lines):
         taken = []
-        for name, regex, pred in specs:
+        for name, regex, pred, url_fmt in specs:
             for m in regex.finditer(line):
                 start, end = m.span(group)
                 if start < 0 or start == end:
@@ -179,7 +192,7 @@ def find_matches(lines, specs, group):
                 if any(start < e and s < end for s, e in taken):
                     continue
                 taken.append((start, end))
-                matches.append(Match(i, start, end, text, name))
+                matches.append(Match(i, start, end, text, name, url_fmt))
     matches.sort(key=lambda m: (m.line, m.start))
     return matches
 
@@ -192,7 +205,7 @@ class Picker:
         from_bottom=False,
         single=False,
         no_action=False,
-        url_format=None,
+        links=False,
     ):
         self.lines = lines
         self.matches = matches
@@ -200,7 +213,9 @@ class Picker:
         self.from_bottom = from_bottom
         self.single = single
         self.no_action = no_action
-        self.url_format = url_format
+        # True when at least one match resolved a URL template, which is what
+        # turns on the OSC 8 overlay pass.
+        self.links = links
         self.selected = set()
         self.cursor = len(matches) - 1 if from_bottom else 0
         self.top = 0
@@ -378,10 +393,10 @@ class Picker:
                 self._highlight(stdscr, row, width, idx)
 
         self._draw_status(stdscr, height, width)
-        if self.url_format:
+        if self.links:
             stdscr.redrawwin()
         stdscr.refresh()
-        if self.url_format:
+        if self.links:
             self._emit_hyperlinks(by_line, width)
 
     # curses has no notion of OSC 8, so hyperlinks cannot go through addstr.
@@ -415,10 +430,13 @@ class Picker:
         chunks = []
         for row in range(self.body):
             for idx in by_line.get(self.top + row, ()):
-                x, text = self._clip(self.matches[idx], width)
+                m = self.matches[idx]
+                if not m.url_fmt:
+                    continue
+                x, text = self._clip(m, width)
                 if not text:
                     continue
-                url = render_url(self.url_format, self.matches[idx])
+                url = render_url(m.url_fmt, m)
                 chunks.append(
                     "\x1b[%d;%dH%s%s\x1b[0m"
                     % (row + 1, x + 1, self._sgr(idx), OSC8 % (url, text))
@@ -483,7 +501,7 @@ class Picker:
             pass
 
 def build_specs(args, parser, flags):
-    """Turn parsed arguments into a list of (type, regex, predicate) specs."""
+    """Turn parsed arguments into (type, regex, predicate, url_fmt) specs."""
     typed = getattr(args, "typed_specs", None) or []
     if typed and args.pattern is not None:
         parser.error("cannot mix an unnamed PATTERN with -t/--type or -b/--builtin-type")
@@ -491,6 +509,7 @@ def build_specs(args, parser, flags):
         parser.error("need a PATTERN, or at least one -t/--type or -b/--builtin-type")
 
     always = lambda text: True
+    default_url = args.default_url_format
     specs = []
 
     def compile_re(source, label):
@@ -506,15 +525,28 @@ def build_specs(args, parser, flags):
                 % (label, regex.groups, args.group)
             )
 
+    def check_url(fmt, label):
+        if fmt is None:
+            return None
+        try:
+            render_url(fmt, Match(0, 0, 1, "x", "x"))
+        except (KeyError, IndexError, ValueError) as exc:
+            parser.error(
+                "bad URL template %r for %s: %s (only {match} and {type} are "
+                "available)" % (fmt, label, exc)
+            )
+        return fmt
+
     if not typed:
         regex = compile_re(args.pattern, args.pattern)
         check_group(regex, "pattern")
-        return [(None, regex, always)], "/%s/" % args.pattern
+        url = check_url(default_url, "--default-url-format")
+        return [(None, regex, always, url)], "/%s/" % args.pattern
 
     labels = []
-    for kind, value in typed:
-        if kind == "builtin":
-            name = value
+    for spec in typed:
+        name = _spec_name(spec)
+        if spec["kind"] == "builtin":
             if name not in BUILTINS:
                 parser.error(
                     "unknown builtin type %r; choose from %s"
@@ -523,27 +555,62 @@ def build_specs(args, parser, flags):
             source, pred = BUILTINS[name]
             regex = compile_re(source, "builtin:" + name)
         else:
-            name, source = value
+            source = spec["value"][1]
             regex = compile_re(source, source)
             pred = always
         check_group(regex, "type %r" % name)
-        specs.append((name, regex, pred))
+        # A type's own -f wins; --default-url-format fills in the rest.
+        own = spec["url"]
+        url = check_url(
+            own if own is not None else default_url,
+            "type %r" % name if own is not None else "--default-url-format",
+        )
+        specs.append((name, regex, pred, url))
         labels.append(name)
     return specs, "types: " + ", ".join(labels)
+
+def _typed_specs(namespace):
+    specs = getattr(namespace, "typed_specs", None)
+    if specs is None:
+        specs = []
+        setattr(namespace, "typed_specs", specs)
+    return specs
 
 class TypeAction(argparse.Action):
     """Append typed patterns to a single ordered list, preserving the order in
     which -t and -b appear so the first-match-wins dedup is deterministic."""
 
     def __call__(self, parser, namespace, values, option_string=None):
-        specs = getattr(namespace, "typed_specs", None)
-        if specs is None:
-            specs = []
-            setattr(namespace, "typed_specs", specs)
+        specs = _typed_specs(namespace)
         if option_string in ("-b", "--builtin-type"):
-            specs.append(("builtin", values))
+            specs.append({"kind": "builtin", "value": values, "url": None})
         else:
-            specs.append(("custom", tuple(values)))
+            specs.append({"kind": "custom", "value": tuple(values), "url": None})
+
+class UrlAction(argparse.Action):
+    """Attach a URL template to the -t/-b that came immediately before it.
+
+    Position is the whole point: -f binds to the preceding type rather than
+    applying globally, which is what lets each type route somewhere different.
+    Use --default-url-format for the catch-all.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        specs = _typed_specs(namespace)
+        if not specs:
+            parser.error(
+                "%s must follow a -t/--type or -b/--builtin-type; use "
+                "--default-url-format to set one for every type" % option_string
+            )
+        if specs[-1]["url"] is not None:
+            parser.error(
+                "%s given twice for type %r"
+                % (option_string, _spec_name(specs[-1]))
+            )
+        specs[-1]["url"] = values
+
+def _spec_name(spec):
+    return spec["value"] if spec["kind"] == "builtin" else spec["value"][0]
 
 def main(argv):
     parser = argparse.ArgumentParser(
@@ -599,10 +666,17 @@ def main(argv):
         help="browse only; disable selecting and confirming",
     )
     parser.add_argument(
+        "-f",
         "--url-format",
+        action=UrlAction,
         metavar="FMT",
-        help="str.format template rendered with {match} and {type}; the "
-        "printed match is wrapped in an OSC 8 hyperlink to it",
+        help="URL template for the -t/-b immediately before it (repeatable, "
+        "once per type)",
+    )
+    parser.add_argument(
+        "--default-url-format",
+        metavar="FMT",
+        help="URL template for every type without its own -f/--url-format",
     )
     parser.add_argument(
         "--json", action="store_true", help="emit one JSON object per line"
@@ -614,17 +688,6 @@ def main(argv):
 
     if args.no_action and args.single_selection:
         parser.error("--no-action and --single-selection are mutually exclusive")
-    if args.url_format:
-        # Fail on a bad template now rather than after the user has picked.
-        probe = Match(0, 0, 1, "x", "x")
-        try:
-            render_url(args.url_format, probe)
-        except (KeyError, IndexError, ValueError) as exc:
-            parser.error(
-                "bad --url-format %r: %s (only {match} and {type} are available)"
-                % (args.url_format, exc)
-            )
-
     flags = re.IGNORECASE if args.ignore_case else 0
     specs, label = build_specs(args, parser, flags)
 
@@ -656,7 +719,7 @@ def main(argv):
         from_bottom=args.from_bottom,
         single=args.single_selection,
         no_action=args.no_action,
-        url_format=args.url_format,
+        links=any(m.url_fmt for m in matches),
     )
     try:
         picked = curses.wrapper(picker.run)
@@ -669,7 +732,7 @@ def main(argv):
         return 0
     if not picked:
         return 1
-    out = format_output(picked, args.json, args.url_format)
+    out = format_output(picked, args.json)
     os.write(result_fd, out.encode("utf-8"))
     return 0
 
@@ -686,7 +749,7 @@ def render_url(fmt, match):
         type=urllib.parse.quote(match.type or "", safe=""),
     )
 
-def format_output(picked, as_json, url_format=None):
+def format_output(picked, as_json):
     """Plain output is always plain text.
 
     --url-format drives the on-screen hyperlinks only; escape sequences have no
@@ -700,8 +763,8 @@ def format_output(picked, as_json, url_format=None):
             obj = {"match": m.text}
             if m.type is not None:
                 obj["type"] = m.type
-            if url_format:
-                obj["url"] = render_url(url_format, m)
+            if m.url_fmt:
+                obj["url"] = render_url(m.url_fmt, m)
             out.append(json.dumps(obj, ensure_ascii=False))
         else:
             out.append(m.text)
