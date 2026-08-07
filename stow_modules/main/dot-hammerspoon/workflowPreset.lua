@@ -1,7 +1,7 @@
 -- Handler for the hammerspoon:// URLs that rxpick renders.
 --
--- `workflow-preset pick-selections --url-format` (see the herdr prefix+o/prefix+y
--- bindings) turns every picked match into
+-- `workflow-preset pick-selections --default-url-format` (see the herdr
+-- prefix+o/prefix+y bindings) turns every picked match into
 --
 --     hammerspoon://workflow-preset/open-selection?type=<type>&match=<match>
 --

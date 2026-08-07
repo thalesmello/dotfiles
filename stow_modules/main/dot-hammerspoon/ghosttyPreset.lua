@@ -350,6 +350,24 @@ function M.toggleSidebarWithFallback()
   return true
 end
 
+-- Toggle herdr's pane zoom (prefix+ctrl+enter) when herdr owns the visible
+-- surface. Returns false otherwise so the caller can let cmd+shift+enter through
+-- untouched (it stays the hyper-shift window layout binding elsewhere).
+function M.zoomWithFallback()
+  if not M.isHerdrZoomedOrSingleSurface() then
+    log("zoomWithFallback -> route: not herdr, passing through")
+    return false
+  end
+  if isMoshMode() then
+    log("zoomWithFallback -> route: herdr (mosh prefix)")
+    sendPrefixThen({"ctrl", "return"})
+  else
+    log("zoomWithFallback -> route: herdr (direct ctrl+alt)")
+    sendKeyToTerminal({"ctrl", "alt", "shift", "return"})
+  end
+  return true
+end
+
 function M.closePaneWithFallback()
   log("closePaneWithFallback")
   if M.isMultiplexerAppZoomedOrSingleSurface() then

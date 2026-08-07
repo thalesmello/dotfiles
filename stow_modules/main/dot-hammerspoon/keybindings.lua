@@ -280,8 +280,8 @@ function M.setup()
   service:bindOnce(hyper, "/", "Toggle iTerm Floating Termianl", function()
     hs.eventtap.keyStroke({}, "f20")
   end)
-  -- cmd+d / cmd+shift+d / cmd+t / cmd+n / cmd+w / cmd+shift+[ / cmd+shift+] in
-  -- Ghostty -> herdr-aware split/tab/close fallbacks.
+  -- cmd+d / cmd+shift+d / cmd+t / cmd+n / cmd+w / cmd+shift+[ / cmd+shift+] /
+  -- cmd+shift+enter in Ghostty -> herdr-aware split/tab/close/zoom fallbacks.
   -- Ghostty keybinds can't run a shell command, so we intercept here. An eventtap
   -- (not a hotkey) so it only fires when Ghostty is frontmost and passes through
   -- everywhere else (cmd+d still bookmarks in browsers, etc.). cmd+ctrl+* (ctrl
@@ -310,6 +310,9 @@ function M.setup()
     -- cmd+w -> close pane (herdr/nvim: ctrl+space > backspace). cmd+shift+w is
     -- left to pass through so the config's super+shift+w=close_window stands.
     local isW = code == hs.keycodes.map["w"] and not flags.shift
+    -- cmd+shift+enter -> toggle herdr pane zoom (herdr: ctrl+space > ctrl+enter).
+    -- Only claimed on a herdr surface; elsewhere it passes through.
+    local isZoom = code == hs.keycodes.map["return"] and flags.shift
     -- cmd+1..9 -> focus tab/workspace N (herdr: ctrl+alt+N, nvim: Ngt). Only
     -- claimed on a multiplexer surface; elsewhere it falls through to Ghostty's
     -- own goto_tab (super+physical:N) or to whatever app is frontmost.
@@ -319,19 +322,22 @@ function M.setup()
         if code == hs.keycodes.map[tostring(n)] then digit = n break end
       end
     end
-    if not (isD or isT or isN or isPrevTab or isNextTab or isW or isB or digit) then return false end
+    if not (isD or isT or isN or isPrevTab or isNextTab or isW or isB or isZoom or digit) then return false end
     local focused = hs.window.focusedWindow()
     local isGhosttyWindow = focused and focused:application() and focused:application():name() == "Ghostty"
     -- close-pane-with-fallback drives keybinds only (no `front window`
     -- AppleScript), so unlike the split/tab fallbacks it works in the quick
     -- terminal too -- accept it there as well.
-    if not (isGhosttyWindow or ((isW or isB or digit) and Preset.isGhosttyQuickTerminalActive())) then return false end
+    if not (isGhosttyWindow or ((isW or isB or isZoom or digit) and Preset.isGhosttyQuickTerminalActive())) then return false end
     if digit then
       -- Returns false when the surface isn't a multiplexer: pass cmd+N through.
       return GhosttyPreset.focusTabIndexWithFallback(digit)
     elseif isB then
       -- Returns false when herdr doesn't own the surface: pass cmd+b through.
       return GhosttyPreset.toggleSidebarWithFallback()
+    elseif isZoom then
+      -- Returns false when herdr doesn't own the surface: pass cmd+shift+enter through.
+      return GhosttyPreset.zoomWithFallback()
     elseif isD then
       GhosttyPreset.newSplitWithFallback(flags.shift)
     elseif isT then
