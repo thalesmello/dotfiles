@@ -1,9 +1,10 @@
 #!/bin/sh
 # Pick something out of the focused pane's recent output and act on it.
 #
-#   pick-selection.sh open   -> pick exactly one match and open it (file in nvim,
+#   pick-selection.sh open   -> pick exactly one match and hand it to
+#                               `workflow-preset open-selection` (file in nvim,
 #                               url in Chrome, plus the work-specific id shapes
-#                               on a Meta box), by way of Hammerspoon
+#                               on a Meta box)
 #   pick-selection.sh copy   -> copy every pick to the clipboard as plain text
 #
 # Two roles in one file, like run-command.sh:
@@ -84,9 +85,9 @@ if [ ! -x "$workflow_preset" ]; then
 fi
 
 # Every pick is a clickable hammerspoon:// link inside the picker (see
-# workflowPreset.lua), and the open path reads the same URL back out of --json.
-# rxpick percent-encodes {match} and {type}, so the template can splice them
-# straight into the query string.
+# workflowPreset.lua). That is purely for the mouse -- both modes below act on
+# the match text itself. rxpick percent-encodes {match} and {type}, so the
+# template can splice them straight into the query string.
 url_format='hammerspoon://workflow-preset/open-selection?type={type}&match={match}'
 
 # The picker reads the source pane through the herdr CLI, so a failure there is
@@ -124,7 +125,8 @@ run_picker() {
         "could not create a temp file for the picker's stderr"
 
     _out=$(printf '%s\n' "$_text" \
-        | "$workflow_preset" pick-selections "$@" --url-format "$url_format" \
+        | "$workflow_preset" pick-selections "$@" \
+            --default-url-format "$url_format" \
             2>"$_err")
     _status=$?
     _msg=$(cat "$_err" 2>/dev/null)
@@ -140,9 +142,9 @@ run_picker() {
 
 case "$mode" in
 open)
-    # --json keeps the OSC 8 escapes out of the captured text; the URL comes
-    # back as a plain field instead. --single-selection makes space confirm, so
-    # opening something is one keystroke.
+    # --json keeps the OSC 8 escapes the URL template adds out of the captured
+    # text, leaving the bare match in a field. --single-selection makes space
+    # confirm, so opening something is one keystroke.
     text=$(read_pane) || exit 1
     pick=$(run_picker "$text" --single-selection --json) || exit 1
     pick=${pick%%
@@ -150,26 +152,21 @@ open)
     [ -n "$pick" ] || exit 0
 
     # python3 is already a hard dependency here: rxpick is a python3 script.
-    url=$(printf '%s\n' "$pick" | python3 -c \
-        'import json,sys; print(json.loads(sys.stdin.readline()).get("url",""))')
     match=$(printf '%s\n' "$pick" | python3 -c \
         'import json,sys; print(json.loads(sys.stdin.readline()).get("match",""))')
+    [ -n "$match" ] || exit 0
 
-    # Prefer the URL: `open` hands it to Hammerspoon on this Mac, which is the
-    # same path a clicked OSC 8 link takes. On a remote (Linux) herdr server
-    # there is no `open` and no Hammerspoon, so fall back to acting locally.
-    if [ -n "$url" ] && command -v open >/dev/null 2>&1; then
-        open "$url"
-    else
-        [ -n "$match" ] || exit 0
-        "$workflow_preset" open-selection "$match" \
-            || herdr_die "pick-selection" "open-selection failed for: $match"
-    fi
+    # Act directly rather than going out through the pick's hammerspoon:// URL:
+    # those exist for clicking with the mouse, and routing a keyboard pick
+    # through the URL would need `open` (and Hammerspoon) on whatever host the
+    # herdr server runs on.
+    "$workflow_preset" open-selection "$match" \
+        || herdr_die "pick-selection" "open-selection failed for: $match"
     ;;
 copy)
-    # --url-format only makes the matches clickable inside the picker; rxpick's
-    # printed output is plain text, so what reaches the clipboard is the bare
-    # matches, one per line.
+    # The URL template only makes the matches clickable inside the picker;
+    # rxpick's printed output is plain text, so what reaches the clipboard is
+    # the bare matches, one per line.
     text=$(read_pane) || exit 1
     picks=$(run_picker "$text") || exit 1
     [ -n "$picks" ] || exit 0
