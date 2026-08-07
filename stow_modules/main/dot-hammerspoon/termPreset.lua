@@ -24,12 +24,12 @@
 --
 -- That subprocess is `yabai-preset list-windows`, which already applies the
 -- visible/non-sticky filter every window-cycling caller wants and emits the
--- windows in yabai's query order -- front-to-back stacking order, since yabai
--- builds its table from CGWindowList. So one call answers membership, focus and
--- z-order. An earlier version shelled out to a second process (`osascript -l
--- JavaScript` over CGWindowListCopyWindowInfo) purely to learn the z-order for
--- the "raise the frontmost terminal" fallback: ~65ms of osascript startup for
--- an ordering the window list already carried.
+-- windows in yabai's query order -- most-recently-used order. So one call
+-- answers membership, focus and recency. An earlier version shelled out to a
+-- second process (`osascript -l JavaScript` over CGWindowListCopyWindowInfo)
+-- purely to learn an ordering for the "raise the most recent terminal"
+-- fallback: ~65ms of osascript startup for an ordering the window list already
+-- carried.
 
 local Preset = require("preset")
 local GhosttyPreset = require("ghosttyPreset")
@@ -93,10 +93,6 @@ local function focusWindowId(id)
   task({"wm-preset", "focus-window-id", tostring(id)})
 end
 
--- Per-press counter. Each press is an async task, so two fast presses interleave
--- their callbacks in the console; the `#N` tag keeps one press's lines together.
-local pressSeq = 0
-
 -- Iterate iTerm + Ghostty windows as if they were a single app -- the
 -- cross-terminal counterpart to ghosttyPreset.iterateWindows, which can only see
 -- its own app's windows. Windows from both apps are merged and ordered by id.
@@ -115,10 +111,7 @@ function M.iterateWindows(opts)
   local exceptId = tonumber(opts.exceptId)
   local prev = opts.prev and true or false
 
-  pressSeq = pressSeq + 1
-  local seq = pressSeq
-  local tag = "#" .. seq .. " "
-  log(tag .. "press: exceptId=" .. tostring(exceptId)
+  log("press: exceptId=" .. tostring(exceptId)
     .. " (raw " .. tostring(opts.exceptId) .. ", " .. type(opts.exceptId) .. ")"
     .. " direction=" .. (prev and "prev" or "next"))
 
@@ -138,7 +131,7 @@ function M.iterateWindows(opts)
     -- the only one. Nothing to iterate: no-op and let the caller's next rule
     -- (launch Ghostty) decide.
     if not ok or not output or output == "" then
-      log(tag .. "list-windows returned nothing (ok=" .. tostring(ok)
+      log("list-windows returned nothing (ok=" .. tostring(ok)
         .. ") -- no visible terminal, or the devserver was the only one."
         .. " Nothing to iterate.")
       return
@@ -166,11 +159,11 @@ function M.iterateWindows(opts)
     end
 
     if skipped > 0 then
-      log(tag .. "WARNING " .. skipped .. " list-windows line(s) failed to decode")
+      log("WARNING " .. skipped .. " list-windows line(s) failed to decode")
     end
 
     if #stacked == 0 then
-      log(tag .. "no windows survived decode -- nothing to iterate")
+      log("no windows survived decode -- nothing to iterate")
       return
     end
 
@@ -188,9 +181,9 @@ function M.iterateWindows(opts)
     -- The three things needed to explain any iteration decision: what the
     -- rotation contains, in both orders, and where the focused window sits in
     -- it. A rotation of one is the signature of a cycle that cannot advance.
-    log(tag .. "list (mru order)  " .. describe(stacked, titles, focusedId))
-    log(tag .. "cycle (by id)     " .. describe(windows, nil, focusedId))
-    log(tag .. "current=" .. tostring(focusedId)
+    log("list (mru order)  " .. describe(stacked, titles, focusedId))
+    log("cycle (by id)     " .. describe(windows, nil, focusedId))
+    log("current=" .. tostring(focusedId)
       .. " pos=" .. tostring(pos) .. " of " .. #windows
       .. (focusedId == nil
         and "  <- focused window is NOT in the list (excluded devserver, not a"
@@ -206,7 +199,7 @@ function M.iterateWindows(opts)
         or windows[(pos % #windows) + 1]
       local targetPos = prev and ((pos - 2) % #windows) + 1
         or (pos % #windows) + 1
-      log(tag .. "cycle branch: pos " .. pos .. (prev and " -1 -> " or " +1 -> ")
+      log("cycle branch: pos " .. pos .. (prev and " -1 -> " or " +1 -> ")
         .. targetPos .. " -> target " .. tostring(target)
         .. " (" .. tostring(titles[target]) .. ")"
         .. (target == focusedId and "  <- SAME AS CURRENT, focus will not move" or ""))
@@ -220,7 +213,7 @@ function M.iterateWindows(opts)
     -- visible, so there is always one -- the old lowest-id fallback only existed
     -- for the case where the stacking query saw the current space and the
     -- window list didn't.
-    log(tag .. "fallback branch: most recent of list -> target "
+    log("fallback branch: most recent of list -> target "
       .. tostring(stacked[1]) .. " (" .. tostring(titles[stacked[1]]) .. ")")
     log("raise frontmost " .. tostring(stacked[1]))
     focusWindowId(stacked[1])
