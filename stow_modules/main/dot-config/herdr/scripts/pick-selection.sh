@@ -1,9 +1,10 @@
 #!/bin/sh
 # Pick something out of the focused pane's recent output and act on it.
 #
-#   pick-selection.sh open   -> open the FIRST pick (file in nvim, url in Chrome,
-#                               plus the work-specific id shapes on a Meta box)
-#   pick-selection.sh copy   -> copy ALL picks to the clipboard
+#   pick-selection.sh open   -> pick exactly one match and open it (file in nvim,
+#                               url in Chrome, plus the work-specific id shapes
+#                               on a Meta box), by way of Hammerspoon
+#   pick-selection.sh copy   -> copy every pick to the clipboard as plain text
 #
 # The picker (`workflow-preset pick-selections`, a wrapper around rxpick) is a
 # curses UI, so the matching keybindings in config.toml run this as a full-screen
@@ -34,17 +35,46 @@ pane="${HERDR_ACTIVE_PANE_ID}"
 workflow_preset="$HOME/.local_dotfiles/bin/workflow-preset"
 [ -x "$workflow_preset" ] || workflow_preset=$(command -v workflow-preset) || exit 1
 
-picks=$("$herdr" pane read "$pane" --source recent-unwrapped 2>/dev/null \
-    | "$workflow_preset" pick-selections) || exit 0
-[ -n "$picks" ] || exit 0
+# Every pick is a clickable hammerspoon:// link inside the picker (see
+# workflowPreset.lua), and the open path reads the same URL back out of --json.
+# rxpick percent-encodes {match} and {type}, so the template can splice them
+# straight into the query string.
+url_format='hammerspoon://workflow-preset/open-selection?type={type}&match={match}'
 
 case "$mode" in
 open)
-    first=$(printf '%s\n' "$picks" | head -1)
-    [ -n "$first" ] || exit 0
-    "$workflow_preset" open-selection "$first"
+    # --json keeps the OSC 8 escapes out of the captured text; the URL comes
+    # back as a plain field instead. --single-selection makes space confirm, so
+    # opening something is one keystroke.
+    pick=$("$herdr" pane read "$pane" --source recent-unwrapped 2>/dev/null \
+        | "$workflow_preset" pick-selections --single-selection --json \
+            --url-format "$url_format" | head -1) || exit 0
+    [ -n "$pick" ] || exit 0
+
+    # python3 is already a hard dependency here: rxpick is a python3 script.
+    url=$(printf '%s\n' "$pick" | python3 -c \
+        'import json,sys; print(json.loads(sys.stdin.readline()).get("url",""))')
+    match=$(printf '%s\n' "$pick" | python3 -c \
+        'import json,sys; print(json.loads(sys.stdin.readline()).get("match",""))')
+
+    # Prefer the URL: `open` hands it to Hammerspoon on this Mac, which is the
+    # same path a clicked OSC 8 link takes. On a remote (Linux) herdr server
+    # there is no `open` and no Hammerspoon, so fall back to acting locally.
+    if [ -n "$url" ] && command -v open >/dev/null 2>&1; then
+        open "$url"
+    else
+        [ -n "$match" ] || exit 0
+        "$workflow_preset" open-selection "$match"
+    fi
     ;;
 copy)
+    # --url-format only makes the matches clickable inside the picker; rxpick's
+    # printed output is plain text, so what reaches the clipboard is the bare
+    # matches, one per line.
+    picks=$("$herdr" pane read "$pane" --source recent-unwrapped 2>/dev/null \
+        | "$workflow_preset" pick-selections --url-format "$url_format") || exit 0
+    [ -n "$picks" ] || exit 0
+
     b64=$(printf '%s' "$picks" | base64 | tr -d '\r\n')
     printf '\033]52;c;%s\007' "$b64"
     ;;
