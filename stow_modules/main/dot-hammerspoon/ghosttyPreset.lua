@@ -350,11 +350,13 @@ function M.toggleSidebarWithFallback()
   return true
 end
 
--- Toggle herdr's pane zoom (prefix+ctrl+enter) when herdr owns the visible
--- surface. Returns false otherwise so the caller can let cmd+shift+enter through
--- untouched (it stays the hyper-shift window layout binding elsewhere).
+-- Toggle herdr's pane zoom (prefix+ctrl+enter) when the front window is a herdr
+-- session. Deliberately isHerdrWindow (not the zoomed-or-single-surface variant):
+-- zoom has to stay reachable to *un*zoom, and it's equally valid with several
+-- visible splits. Returns false otherwise so the caller can let cmd+shift+enter
+-- through untouched.
 function M.zoomWithFallback()
-  if not M.isHerdrZoomedOrSingleSurface() then
+  if not M.isHerdrWindow() then
     log("zoomWithFallback -> route: not herdr, passing through")
     return false
   end

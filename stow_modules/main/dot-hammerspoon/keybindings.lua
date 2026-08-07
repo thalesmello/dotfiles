@@ -328,7 +328,7 @@ function M.setup()
     -- close-pane-with-fallback drives keybinds only (no `front window`
     -- AppleScript), so unlike the split/tab fallbacks it works in the quick
     -- terminal too -- accept it there as well.
-    if not (isGhosttyWindow or ((isW or isB or isZoom or digit) and Preset.isGhosttyQuickTerminalActive())) then return false end
+    if not (isGhosttyWindow or ((isW or isB or digit) and Preset.isGhosttyQuickTerminalActive())) then return false end
     if digit then
       -- Returns false when the surface isn't a multiplexer: pass cmd+N through.
       return GhosttyPreset.focusTabIndexWithFallback(digit)
