@@ -67,7 +67,7 @@ keybind = shift+up=adjust_selection:up
 keybind = super+down=jump_to_prompt:1
 keybind = super+enter=toggle_fullscreen
 keybind = super+t=new_tab
-keybind = super+c=copy_to_clipboard
+keybind = super+c=text:\x1bw
 keybind = super+shift+right_bracket=next_tab
 keybind = super+physical:one=goto_tab:1
 keybind = shift+left=adjust_selection:left
