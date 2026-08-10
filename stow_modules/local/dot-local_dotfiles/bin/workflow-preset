@@ -15,7 +15,210 @@ function __workflow_preset_default
     return 1
 end
 
-set self (status filename)
+# The one dictionary of selection types, shared by `pick-selections`,
+# `get-selection-type` and `open-selection-type`. One record per line, tab
+# separated:
+#
+#   <type>  <pattern>
+#
+#   type      the name every preset routes on. It is what rxpick tags a pick
+#             with, what the hammerspoon:// links carry, and what
+#             open-selection-type switches on. It may repeat: two ways of
+#             writing a url are still a url.
+#   pattern   a regex matching the thing and nothing more, with no anchors of
+#             its own.
+#
+# Both callers wrap the pattern the same way -- (?<!\w)(?:...)(?!\w) -- and
+# both look for it ANYWHERE in their input, so a selection does not have to be
+# nothing but the thing: `see notes.md for details` is a file. Whatever the
+# pattern matched is what gets acted on, never the surrounding text. The
+# delimiters are what keep a token from being found inside a longer one; they
+# are exactly \b...\b for a pattern bounded by word characters, but unlike \b
+# they also work for the ones that start with `/` or `~`.
+#
+# The two differ only in what they do with more than one hit. `pick-selections`
+# offers every one of them as a menu over a whole pane; `get-selection-type`
+# has a single string and must choose, so it takes the LEFTMOST match and uses
+# the order below only to break ties at the same offset. Leftmost is what makes
+# `docs/README.md` a path rather than the file `README.md` hiding inside it.
+#
+# Order therefore matters at equal offsets: url before path so `example.com/a`
+# is a host and not a relative path; file after both because .md and .sh are
+# TLDs too. The work-specific types live in meta-preset.
+function __workflow_preset_selection_types
+    # Trailing delimiters a url must not swallow, borrowed from rxpick's own
+    # builtin so a pick and a selection agree on where a url ends.
+    set -l url_tail '[^\s<>"|)\]}]'
+
+    printf '%s\t%s\n' \
+        url "https?://$url_tail+" \
+        url "[a-zA-Z0-9_.-]+\.[a-zA-Z]{2,}/$url_tail*" \
+        path '~?/?[\w.~+@%-]+(?:/[\w.~+@%-]*)+' \
+        file '[a-zA-Z0-9_.-]+\.(py|js|jsx|mjs|cjs|ts|tsx|rb|php|html|htm|css|scss|c|cc|cpp|h|hpp|java|go|rs|lua|sh|fish|pl|r|swift|kt|scala|sql|vim|hs|md|txt|toml|json|yaml|yml|xml|csv|ini|cfg|conf)'
+end
+
+# Name a selection: prints "<type>\t<match>", where match is the text the
+# action should run against, with line-wraps joined back up. Returns 1 when
+# nothing in the dictionary claims it.
+function __workflow_preset_get_selection_type
+    argparse 'content-only' 'app=' -- $argv
+    or return 1
+
+    set -l selection
+    if set -q argv[1]
+        set selection $argv[1]
+    else
+        read -z selection
+    end
+
+    set selection "$(string trim -- $selection | string trim --left --chars='(' | string trim --right --chars='),.:')"
+
+    set -q _flag_app; or set _flag_app (hs-preset get-active-app)
+
+    # --content-only routes purely on what the text looks like. The app check
+    # below exists to read the CURRENT app's context (what is selected, which
+    # page Chrome is on), which is meaningless once the text was picked
+    # deliberately -- e.g. a hammerspoon:// link, where the frontmost app by the
+    # time this runs is Hammerspoon or whatever the link was clicked in.
+    if set -q _flag_content_only
+        or test "$_flag_app" = "iTerm2" -o "$_flag_app" = "Ghostty" -o "$_flag_app" = "Code"
+        or iterm-preset is-floating-window-active
+
+        # Claude Code wraps long URLs/paths across lines; join them back up so a
+        # wrapped path still reads as one path.
+        set -l joined (string replace -ra '\n\s*' '' -- "$selection")
+
+        # Leftmost hit wins, dictionary order breaks ties. The lazy prefix is
+        # how the offset is recovered -- fish has no match-position output, so
+        # the length of what the pattern had to skip stands in for it.
+        set -l best_type
+        set -l best_hit
+        set -l best_at
+
+        for record in (__workflow_preset_selection_types)
+            set -l fields (string split \t -- $record)
+            set -l re (string join '' '^(?<pre>[\s\S]*?)(?<hit>(?<!\w)(?:' $fields[2] ')(?!\w))')
+
+            set -l pre
+            set -l hit
+            string match -rq -- $re "$joined"; or continue
+
+            set -l at (string length -- "$pre")
+            if not set -q best_at[1]; or test $at -lt $best_at
+                set best_type "$fields[1]"
+                set best_hit "$hit"
+                set best_at $at
+            end
+
+            test $best_at -eq 0; and break
+        end
+
+        if set -q best_type[1]
+            printf '%s\t%s\n' "$best_type" "$best_hit"
+            return 0
+        end
+    else if test "$_flag_app" = "Google Chrome"
+        # In Chrome only an explicit link is worth acting on -- everything else
+        # is already where it belongs.
+        if string match -qr '^https?://' -- "$selection"
+            printf '%s\t%s\n' url "$selection"
+            return 0
+        end
+    end
+
+    return 1
+end
+
+# Run the action for a named type against the text get-selection-type (or
+# rxpick, through a hammerspoon:// link) produced.
+function __workflow_preset_open_selection_type
+    argparse 'app=' -- $argv
+    or return 1
+
+    set -l type "$argv[1]"; set -e argv[1]
+    set -l match "$argv[1]"
+
+    set -q _flag_app; or set _flag_app (hs-preset get-active-app)
+
+    switch "$type"
+    case url
+        # The scheme-less dictionary entry ("example.com/x") gets one here
+        # rather than in get-selection-type, so the type stays a pure name.
+        string match -qr '^https?://' -- "$match"; or set match "https://$match"
+        chrome-preset open-url --profile "Default" "$match" --newtabright
+    case path file directory
+        # `directory` is no longer in the dictionary -- a pattern alone cannot
+        # tell a directory from a file -- but old hammerspoon:// links still
+        # carry it, and it opens the same way.
+        __workflow_preset_open_in_nvim "$_flag_app" "$match"
+    case '*'
+        return 1
+    end
+end
+
+function __workflow_preset_open_in_nvim --argument-names app path
+    # Two commands by design: new-split makes the terminal split, and the
+    # command it runs drives nvim into the right pane (remoting to a sibling
+    # nvim if one exists, else opening nvim in the split).
+    if set -q HERDR_PANE_ID; or set -q HERDR_ACTIVE_PANE_ID
+        # Already inside herdr (e.g. the pick-selection split): talk to it
+        # directly. Going through ghostty-preset would take the long way
+        # round -- hammerspoon synthesising the run-command chord to reach
+        # the same herdr-preset call from a popup.
+        herdr-preset open-file-with-fallback "$path"
+    else if test "$app" = "Ghostty"
+        # ghostty-preset decides: herdr surface -> open in a herdr pane
+        # (reuse an existing nvim or make a herdr split); otherwise a native
+        # Ghostty split driving nvim-open-in-tab.
+        ghostty-preset open-file-with-fallback "$path"
+    else if test "$app" = "iTerm2" -o "$app" = "Code"
+        iterm-preset new-split --vertical -c "$(printf 'iterm-preset nvim-open-in-tab "%s"' $path)"
+    else
+        # The text came from something that is not a terminal (a clicked
+        # hammerspoon:// link, say). open-file-with-fallback drives the
+        # focused surface, so Ghostty has to be in front first.
+        open -a Ghostty
+        sleep 0.3
+        ghostty-preset open-file-with-fallback "$path"
+    end
+end
+
+# Name a selection and act on it in one go.
+function __workflow_preset_selector
+    argparse 'fallback-alfred' 'content-only' 'app=' -- $argv
+    or return 1
+
+    set -l selection
+    if set -q argv[1]
+        set selection $argv[1]
+    else
+        read -z selection
+    end
+
+    set selection "$(string trim -- $selection | string trim --left --chars='(' | string trim --right --chars='),.:')"
+
+    set -q _flag_app; or set _flag_app (hs-preset get-active-app)
+
+    set -l type_args --app "$_flag_app"
+    set -q _flag_content_only; and set -a type_args --content-only
+
+    set -l named (__workflow_preset_get_selection_type $type_args -- $selection)
+
+    if test -n "$named"
+        set -l fields (string split \t -- $named)
+        set -l match ""
+        set -q fields[2]; and set match "$fields[2]"
+
+        __workflow_preset_open_selection_type --app "$_flag_app" -- "$fields[1]" "$match"
+        and return 0
+    end
+
+    if set -q _flag_fallback_alfred; and not string match -qr '^https?://' -- "$selection"
+        echo "$selection" | ua
+    else
+        return 1
+    end
+end
 
 set preset $argv[1]; set -e argv[1]
 
@@ -40,97 +243,26 @@ case "get-page-id"
     end
 
 case "selector"
-    argparse 'fallback-alfred' 'content-only' 'app=' -- $argv
-    or return 1
+    __workflow_preset_selector $argv
 
-    if set -q argv[1]
-        set selection $argv[1]
-    else
-        read -z selection
-    end
+case "get-selection-type"
+    __workflow_preset_get_selection_type $argv
 
-    set selection "$(string trim -- $selection | string trim --left --chars='(' | string trim --right --chars='),.:')"
-
-    set -q _flag_app; or set _flag_app (hs-preset get-active-app)
-
-    # Determine action
-    #
-    # --content-only routes purely on what the text looks like. The app check
-    # below exists to read the CURRENT app's context (what is selected, which
-    # page Chrome is on), which is meaningless once the text was picked
-    # deliberately -- e.g. a hammerspoon:// link, where the frontmost app by the
-    # time this runs is Hammerspoon or whatever the link was clicked in.
-    if set -q _flag_content_only
-        or test "$_flag_app" = "iTerm2" -o "$_flag_app" = "Ghostty" -o "$_flag_app" = "Code"
-        or iterm-preset is-floating-window-active
-
-        # Claude Code wraps long URLs/paths across lines; join to check if it's a valid URL or filename
-        set -l old_selection "$selection"
-        set selection (string replace -ra '\n\s*' '' "$selection")
-
-        if string match -qr '^[a-zA-Z0-9_.-]+\.(py|js|jsx|mjs|cjs|ts|tsx|rb|php|html|htm|css|scss|c|cc|cpp|h|hpp|java|go|rs|lua|sh|fish|pl|r|swift|kt|scala|sql|vim|hs|md|txt|toml|json|yaml|yml|xml|csv|ini|cfg|conf)$' "$selection"
-            # A bare filename with a known code/text extension (e.g. myfile.md) is a
-            # file to open, not a URL — must win over the domain heuristic below since
-            # extensions like .md/.sh are also TLDs.
-            set action nvim_open
-        else if string match -qr '^https?://' "$selection"
-            set action open_url
-        else if string match -qr '^[a-zA-Z0-9_.-]+\.[a-zA-Z]{2,}/' "$selection"
-            set selection "https://$selection"
-            set action open_url
-        else if string match -qr '^(~/|/)?[a-zA-Z0-9_.~][a-zA-Z0-9_.-]*/' "$selection"
-            set action nvim_open
-        else
-            set selection "$old_selection"
-        end
-    else if test "$_flag_app" = "Google Chrome"
-        if string match -qr '^https?://' "$selection"
-            set action open_url
-        end
-    end
-
-    # Execute action
-    switch "$action"
-    case open_url
-        chrome-preset open-url --profile "Default" "$selection" --newtabright
-    case nvim_open
-        # Two commands by design: new-split makes the terminal split, and the
-        # command it runs drives nvim into the right pane (remoting to a sibling
-        # nvim if one exists, else opening nvim in the split).
-        if set -q HERDR_PANE_ID; or set -q HERDR_ACTIVE_PANE_ID
-            # Already inside herdr (e.g. the pick-selection split): talk to it
-            # directly. Going through ghostty-preset would take the long way
-            # round -- hammerspoon synthesising the run-command chord to reach
-            # the same herdr-preset call from a popup.
-            herdr-preset open-file-with-fallback "$selection"
-        else if test "$_flag_app" = "Ghostty"
-            # ghostty-preset decides: herdr surface -> open in a herdr pane
-            # (reuse an existing nvim or make a herdr split); otherwise a native
-            # Ghostty split driving nvim-open-in-tab.
-            ghostty-preset open-file-with-fallback "$selection"
-        else if test "$_flag_app" = "iTerm2" -o "$_flag_app" = "Code"
-            iterm-preset new-split --vertical -c "$(printf 'iterm-preset nvim-open-in-tab "%s"' $selection)"
-        else
-            # --content-only from something that is not a terminal (a clicked
-            # hammerspoon:// link, say). open-file-with-fallback drives the
-            # focused surface, so Ghostty has to be in front first.
-            open -a Ghostty
-            sleep 0.3
-            ghostty-preset open-file-with-fallback "$selection"
-        end
-    case '*'
-        if set -q _flag_fallback_alfred; and not string match -qr '^https?://' "$selection"
-            echo "$selection" | ua
-        else
-            return 1
-        end
-    end
+case "open-selection-type"
+    __workflow_preset_open_selection_type $argv
 
 case "pick-selections"
     # Interactively pick matches out of piped terminal output (stdin) and print
-    # the chosen ones, one per line. Only the generic types here — a Meta
-    # machine gets the work-specific patterns from meta-preset instead.
-    rxpick -B -b file -b directory -b url $argv
+    # the chosen ones, one per line. The types come straight out of the shared
+    # dictionary, so a pick and a selection are always named the same thing and
+    # the hammerspoon:// link a pick renders feeds open-selection-type directly.
+    set -l rxpick_args
+    for record in (__workflow_preset_selection_types)
+        set -l fields (string split \t -- $record)
+        set -a rxpick_args -t "$fields[1]" (string join '' '(?<!\w)(?:' $fields[2] ')(?!\w)')
+    end
+
+    rxpick -B $rxpick_args $argv
 
 case "open-selection"
     set active_app "$(hs-preset get-focused-window-app | string match -rv '^-- Loading extension:')"
@@ -140,8 +272,7 @@ case "open-selection"
         # a hammerspoon:// link) wins over whatever is selected/copied right
         # now, and routes on the text alone: the frontmost app is no longer the
         # context the text came from.
-        set -l selector_input "$argv[1]"
-        echo "$selector_input" | $self selector --content-only --app "$active_app"
+        __workflow_preset_selector --content-only --app "$active_app" -- "$argv[1]"
         or return 1
         return 0
     end
@@ -150,7 +281,7 @@ case "open-selection"
     set selection "$(hs-preset get-selected-text | string match -rv '^-- Loading extension:')"
 
     set -l selector_input "$(test -n "$selection"; and echo "$selection"; or echo "$clipboard")"
-    echo "$selector_input" | $self selector --app "$active_app"
+    __workflow_preset_selector --app "$active_app" -- "$selector_input"
     or return 1
 
 case "*"

@@ -527,9 +527,9 @@ function M.setup()
     end},
   })
 
-  default:bindOnce(hyperShift, "f", "Focus Finder", function() launchOrFocus("Finder") end)
+  default:bindOnce(hyper, "f", "Focus Finder", function() launchOrFocus("Finder") end)
   default:bindOnce(hyperShift, "d", "Focus WhatsApp (shift)", function() launchOrFocus("WhatsApp") end)
-  default:bindOnce(hyperShift, "g", "Focus Messages", function() launchOrFocus("Messages") end)
+  default:bindOnce(hyperShift, "f", "Focus Messages", function() launchOrFocus("Messages") end)
   default:bindOnce(hyperShift, "q", "Focus Activity Monitor", function() launchOrFocus("Activity Monitor") end)
 
   default:bindOnce(hyper, "y", "Focus Calendar", function() task({"chrome-preset", "focus-or-open-url", "calendar.google.com", "--label", "Calendar"}) end)
