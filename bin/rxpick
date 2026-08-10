@@ -31,9 +31,11 @@ USAGE
     -f, --url-format FMT
                     URL template for the -t/-b immediately before it, so each
                     type can route somewhere different. Rendered with
-                    str.format(match=..., type=...); values are
-                    percent-encoded, so FMT can drop them straight into a
-                    query string.
+                    str.format(); {match} and {type} are percent-encoded, so
+                    FMT can drop them straight into a query string, while
+                    {match_raw} and {type_raw} are substituted verbatim for
+                    the templates where the match IS the url rather than a
+                    parameter inside one.
     --default-url-format FMT
                     Same template, used for every type that has no -f of its
                     own (and for unnamed usage, which has no types to attach
@@ -93,10 +95,11 @@ EXAMPLES
         --default-url-format 'hammerspoon://open-selection?type={type}&match={match}'
 
     # per-type routing: files go to hammerspoon, diffs straight to the web,
-    # and urls fall through to the default
+    # and a url is already a url, so it links to itself unencoded
     tail -n 500 app.log | rxpick --no-action \\
         --default-url-format 'hammerspoon://open-selection?type={type}&match={match}' \\
-        -b file -b url \\
+        -b file \\
+        -b url -f '{match_raw}' \\
         -t diff '\\bD\\d+\\b' -f 'https://www.internalfb.com/diff/{match}'
 
 NOTES
@@ -532,8 +535,8 @@ def build_specs(args, parser, flags):
             render_url(fmt, Match(0, 0, 1, "x", "x"))
         except (KeyError, IndexError, ValueError) as exc:
             parser.error(
-                "bad URL template %r for %s: %s (only {match} and {type} are "
-                "available)" % (fmt, label, exc)
+                "bad URL template %r for %s: %s (only {match}, {type}, "
+                "{match_raw} and {type_raw} are available)" % (fmt, label, exc)
             )
         return fmt
 
@@ -741,12 +744,17 @@ OSC8 = "\x1b]8;;%s\x1b\\%s\x1b]8;;\x1b\\"
 def render_url(fmt, match):
     """Render the --url-format template for one match.
 
-    Values are percent-encoded so a template can drop them straight into a
-    query string without the caller having to escape anything.
+    {match}/{type} are percent-encoded so a template can drop them straight
+    into a query string without the caller having to escape anything.
+    {match_raw}/{type_raw} are not, for the templates where the value IS the
+    url rather than a parameter inside one -- encoding a whole url turns it
+    into https%3A%2F%2F..., which no browser will follow.
     """
     return fmt.format(
         match=urllib.parse.quote(match.text, safe=""),
         type=urllib.parse.quote(match.type or "", safe=""),
+        match_raw=match.text,
+        type_raw=match.type or "",
     )
 
 def format_output(picked, as_json):
