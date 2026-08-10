@@ -19,7 +19,7 @@ end
 # `get-selection-type` and `open-selection-type`. One record per line, tab
 # separated:
 #
-#   <type>  <pattern>
+#   <type>  <pattern>  <url>
 #
 #   type      the name every preset routes on. It is what rxpick tags a pick
 #             with, what the hammerspoon:// links carry, and what
@@ -27,6 +27,12 @@ end
 #             writing a url are still a url.
 #   pattern   a regex matching the thing and nothing more, with no anchors of
 #             its own.
+#   url       where the type opens, with `{match}` standing in for the text,
+#             or `-` when the action is not a url at all (path/file go to
+#             nvim). This is the same `{match}` template rxpick renders, so
+#             `pick-selections` hands the string straight to `-f` and
+#             open-selection-type fills it in itself -- one destination per
+#             type, written once.
 #
 # Both callers wrap the pattern the same way -- (?<!\w)(?:...)(?!\w) -- and
 # both look for it ANYWHERE in their input, so a selection does not have to be
@@ -50,11 +56,36 @@ function __workflow_preset_selection_types
     # builtin so a pick and a selection agree on where a url ends.
     set -l url_tail '[^\s<>"|)\]}]'
 
-    printf '%s\t%s\n' \
-        url "https?://$url_tail+" \
-        url "[a-zA-Z0-9_.-]+\.[a-zA-Z]{2,}/$url_tail*" \
-        path '~?/?[\w.~+@%-]+(?:/[\w.~+@%-]*)+' \
-        file '[a-zA-Z0-9_.-]+\.(py|js|jsx|mjs|cjs|ts|tsx|rb|php|html|htm|css|scss|c|cc|cpp|h|hpp|java|go|rs|lua|sh|fish|pl|r|swift|kt|scala|sql|vim|hs|md|txt|toml|json|yaml|yml|xml|csv|ini|cfg|conf)'
+    printf '%s\t%s\t%s\n' \
+        url "https?://$url_tail+" '{match_raw}' \
+        url "[a-zA-Z0-9_.-]+\.[a-zA-Z]{2,}/$url_tail*" 'https://{match_raw}' \
+        path '~?/?[\w.~+@%-]+(?:/[\w.~+@%-]*)+' - \
+        file '[a-zA-Z0-9_.-]+\.(py|js|jsx|mjs|cjs|ts|tsx|rb|php|html|htm|css|scss|c|cc|cpp|h|hpp|java|go|rs|lua|sh|fish|pl|r|swift|kt|scala|sql|vim|hs|md|txt|toml|json|yaml|yml|xml|csv|ini|cfg|conf)' -
+end
+
+# The url a type opens, with {match} filled in, or nothing when the type does
+# not open one. A type can have several records (a url written with and
+# without a scheme, which is exactly the difference between `{match}` and
+# `https://{match}`), so pick the record whose pattern describes THIS match.
+function __workflow_preset_selection_url --argument-names type match
+    for record in (__workflow_preset_selection_types)
+        set -l fields (string split \t -- $record)
+        test "$fields[1]" = "$type"; or continue
+        test "$fields[3]" = -; and return 1
+
+        if test "$fields[2]" != -
+            string match -qr -- (string join '' '^(?:' $fields[2] ')$') "$match"; or continue
+        end
+
+        # {match} and {match_raw} differ only for rxpick, which percent-encodes
+        # the first. Nothing is being spliced into a query string here that did
+        # not arrive in one, so both are just the text.
+        string replace --all '{match_raw}' "$match" -- "$fields[3]" \
+            | string replace --all '{match}' "$match"
+        return 0
+    end
+
+    return 1
 end
 
 # Name a selection: prints "<type>\t<match>", where match is the text the
@@ -97,6 +128,8 @@ function __workflow_preset_get_selection_type
 
         for record in (__workflow_preset_selection_types)
             set -l fields (string split \t -- $record)
+            test "$fields[2]" = -; and continue
+
             set -l re (string join '' '^(?<pre>[\s\S]*?)(?<hit>(?<!\w)(?:' $fields[2] ')(?!\w))')
 
             set -l pre
@@ -138,24 +171,29 @@ function __workflow_preset_open_selection_type
     set -l type "$argv[1]"; set -e argv[1]
     set -l match "$argv[1]"
 
-    set -q _flag_app; or set _flag_app (hs-preset get-active-app)
+    # Anything with a url in the dictionary opens the same way; the dictionary
+    # is the only place a destination is written down.
+    set -l url (__workflow_preset_selection_url "$type" "$match")
+    if test -n "$url"
+        chrome-preset open-url --profile "Default" "$url" --newtabright --label "$type"
+        return
+    end
 
     switch "$type"
-    case url
-        # The scheme-less dictionary entry ("example.com/x") gets one here
-        # rather than in get-selection-type, so the type stays a pure name.
-        string match -qr '^https?://' -- "$match"; or set match "https://$match"
-        chrome-preset open-url --profile "Default" "$match" --newtabright
     case path file directory
-        # `directory` is no longer in the dictionary -- a pattern alone cannot
-        # tell a directory from a file -- but old hammerspoon:// links still
-        # carry it, and it opens the same way.
+        # `directory` is not in the dictionary -- a pattern alone cannot tell a
+        # directory from a file -- but old hammerspoon:// links still carry it,
+        # and it opens the same way.
         __workflow_preset_open_in_nvim "$_flag_app" "$match"
     case '*'
         return 1
     end
 end
 
+# Empty <app> means "work it out". Which surface nvim lands in is the only
+# thing the app is for, so it is resolved here, as late as possible: the herdr
+# branch below never needs it, and that is the branch the picker takes -- on a
+# herdr server there may be no `hs` to ask.
 function __workflow_preset_open_in_nvim --argument-names app path
     # Two commands by design: new-split makes the terminal split, and the
     # command it runs drives nvim into the right pane (remoting to a sibling
@@ -166,7 +204,14 @@ function __workflow_preset_open_in_nvim --argument-names app path
         # round -- hammerspoon synthesising the run-command chord to reach
         # the same herdr-preset call from a popup.
         herdr-preset open-file-with-fallback "$path"
-    else if test "$app" = "Ghostty"
+        return
+    end
+
+    # The focused window rather than get-active-app: this picks the
+    # DESTINATION, not the context the text came from.
+    test -n "$app"; or set app (hs-preset get-focused-window-app)
+
+    if test "$app" = "Ghostty"
         # ghostty-preset decides: herdr surface -> open in a herdr pane
         # (reuse an existing nvim or make a herdr split); otherwise a native
         # Ghostty split driving nvim-open-in-tab.
@@ -259,13 +304,26 @@ case "pick-selections"
     set -l rxpick_args
     for record in (__workflow_preset_selection_types)
         set -l fields (string split \t -- $record)
+        test "$fields[2]" = -; and continue
+
         set -a rxpick_args -t "$fields[1]" (string join '' '(?<!\w)(?:' $fields[2] ')(?!\w)')
+
+        # A type that knows where it opens gets a direct clickable link, as
+        # long as the template survives rxpick's rendering: it percent-encodes
+        # {match} (right inside a query string, fatal when the match IS the
+        # url) and leaves {match_raw} alone. Either of those is safe to hand
+        # over; anything else falls through to whatever --default-url-format
+        # the caller passed -- the hammerspoon:// round trip, which is the
+        # only way to reach the types whose action is local (nvim).
+        if string match -qr '\{match_raw\}|\?[^?]*\{match\}' -- "$fields[3]"
+            set -a rxpick_args -f "$fields[3]"
+        end
     end
 
     rxpick -B $rxpick_args $argv
 
 case "open-selection"
-    set active_app "$(hs-preset get-focused-window-app | string match -rv '^-- Loading extension:')"
+    set active_app "$(hs-preset get-focused-window-app)"
 
     if set -q argv[1]
         # Explicit text (e.g. piped in from `pick-selections`, or handed over by
@@ -278,7 +336,7 @@ case "open-selection"
     end
 
     set clipboard "$(pbpaste)"
-    set selection "$(hs-preset get-selected-text | string match -rv '^-- Loading extension:')"
+    set selection "$(hs-preset get-selected-text)"
 
     set -l selector_input "$(test -n "$selection"; and echo "$selection"; or echo "$clipboard")"
     __workflow_preset_selector --app "$active_app" -- "$selector_input"

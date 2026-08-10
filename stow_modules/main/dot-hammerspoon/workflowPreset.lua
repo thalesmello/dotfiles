@@ -39,8 +39,19 @@ end
 
 -- action name (URL path) -> handler(match, type)
 M.actions = {
-  ["open-selection"] = function(match)
-    shell.task({ WORKFLOW_PRESET, "open-selection", match }, function(ok)
+  -- rxpick already named the match when it rendered this link, so go straight
+  -- to the action for that type instead of handing the text back to
+  -- open-selection and making it work the name out a second time (which also
+  -- means re-reading the frontmost app for context the pick no longer has).
+  -- A link with no type -- hand-written, or from before the types existed --
+  -- still falls back to naming it.
+  ["open-selection"] = function(match, matchType)
+    local cmd = { WORKFLOW_PRESET, "open-selection", match }
+    if matchType and matchType ~= "" then
+      cmd = { WORKFLOW_PRESET, "open-selection-type", "--", matchType, match }
+    end
+
+    shell.task(cmd, function(ok)
       if not ok then util.notify("Could not open: " .. match) end
     end)
   end,
