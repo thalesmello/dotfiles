@@ -32,13 +32,21 @@ function hs-preset
         hs -c "require('preset').getActiveApp()"
 
     case "get-focused-window-app"
-        hs -c "require('preset').getFocusedWindowApp()"
+        # `hs -c` hands back everything the Hammerspoon console printed, not
+        # just the value. The first call in a Hammerspoon session that touches
+        # hs.window makes it announce `-- Loading extension: window` on the
+        # line above the app name, which is enough to break every
+        # `test "$app" = "Ghostty"` downstream. Strip it here so no caller has
+        # to know.
+        hs -c "require('preset').getFocusedWindowApp()" | string match -rv '^-- Loading extension:'
 
     case "get-floatingterm-or-focused-window-id"
         hs -c "require('preset').getFloatingTermOrFocusedWindowId()"
 
     case "get-selected-text"
-        hs -c "require('preset').getSelectedText()"
+        # Same console noise as get-focused-window-app above: this one reaches
+        # for hs.axuielement/hs.eventtap/hs.pasteboard.
+        hs -c "require('preset').getSelectedText()" | string match -rv '^-- Loading extension:'
 
     case "show-or-hide-app"
         argparse only-show only-hide -- $argv
