@@ -536,12 +536,14 @@ function M.setup()
   default:bindOnce(hyper, "u", "Perform Default UI", function() task({"workflow-preset", "perform-default-ui"}) end)
 
   -- Universal Actions (per-app)
-  default:conditionalBindOnce(hyper, "o", "Universal Actions", {
-    {app = "iTerm2", function() fish("ua --clipboard") end},
-    {app = "Ghostty", function() fish("ua --clipboard") end},
-    {function() fish("ua") end},
-  })
-  default:bindOnce(hyperShift, "o", "Universal Actions (force)", function() fish("ua") end)
+  for _, key in ipairs({"o", "g"}) do
+    default:conditionalBindOnce(hyper, key, "Universal Actions", {
+      {app = "iTerm2", function() fish("ua --clipboard") end},
+      {app = "Ghostty", function() fish("ua --clipboard") end},
+      {function() fish("ua") end},
+    })
+    default:bindOnce(hyperShift, key, "Universal Actions (force)", function() fish("ua") end)
+  end
 
   -- kindaVim toggle
   default:conditionalBindOnce(hyperShift, "v", "Toggle kindaVim", {
