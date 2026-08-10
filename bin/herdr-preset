@@ -112,6 +112,91 @@ function herdr-preset
             end
         end
 
+    case "pane-visible-unwrap"
+        # Print the VISIBLE screen of a pane (default: this one) with words the
+        # pane broke across rows joined back up. This is what the rxpick picker
+        # matches against: `--source recent-unwrapped` rejoins wrapped lines but
+        # only exists for `recent`, and recent scrollback is not what you were
+        # looking at when you asked.
+        #
+        # A row that fills the text width was soft-wrapped, so its last word
+        # continues on the next row -- but only up to that row's first space.
+        # That part is appended and the remainder stays behind as its own line
+        # (shifted left; per-line matching does not care about columns).
+        # Requiring the continuation to start with a path/url character is what
+        # stops an ordinary full-width sentence from swallowing the next line. A
+        # row consumed whole keeps the join going, so a path spanning three rows
+        # comes back in one piece.
+        #
+        # The wrap column is taken as the longest row on screen rather than
+        # computed from the layout: `pane layout` reports the pane's OUTER rect,
+        # whose borders and scrollbar eat three columns (rect 104/52/31 -> text
+        # 101/49/28), and a soft-wrapped row fills the text area by definition.
+        # It is only believed when it lands near the rect -- a screen whose
+        # longest row falls well short has nothing wrapped on it, and joining
+        # rows at that length would splice unrelated lines together.
+        set -l tag "herdr-preset pane-visible-unwrap"
+
+        set -l pane "$argv[1]"
+        test -n "$pane"; or set pane "$HERDR_ACTIVE_PANE_ID"
+        test -n "$pane"; or set pane "$HERDR_PANE_ID"
+        test -n "$pane"; or begin
+            echo "$tag: no pane given, and neither HERDR_ACTIVE_PANE_ID nor HERDR_PANE_ID is set" >&2
+            return 1
+        end
+
+        set -l rect (herdr pane layout --pane "$pane" 2>/dev/null \
+            | jq -r --arg p "$pane" '.result.layout.panes[]? | select(.pane_id == $p) | .rect.width' 2>/dev/null)
+        test -n "$rect"; or set rect 0
+
+        # `string collect` so blank rows survive: a bare command substitution
+        # would split the screen into a list and drop them.
+        set -l text (herdr pane read "$pane" --source visible 2>&1 | string collect)
+        if string match -q '*"error"*' -- "$text"
+            echo "$tag: pane read failed for '$pane'" >&2
+            echo "  herdr pane read output: $text" >&2
+            return 1
+        end
+
+        printf '%s\n' "$text" | python3 -c '
+import re, sys
+
+rect = int(sys.argv[1])
+rows = sys.stdin.read().split("\n")
+if rows and rows[-1] == "":
+    rows.pop()
+
+# Trailing blanks would make a short row look full-width; herdr trims them
+# already, but a padded row must not turn into a false join.
+rows = [row.rstrip() for row in rows]
+
+width = max((len(row) for row in rows), default=0)
+if rect <= 0 or width < rect - 4:
+    sys.stdout.write("\n".join(rows) + ("\n" if rows else ""))
+    sys.exit(0)
+
+CONTINUES = re.compile(r"[\w./~+@%:#?=&,-]")
+
+out = []
+n = len(rows)
+i = 0
+while i < n:
+    line = rows[i]
+    filled = len(line)          # length of the row just consumed
+    i += 1
+    while filled == width and i < n and rows[i] and CONTINUES.match(rows[i][0]):
+        head, space, rest = rows[i].partition(" ")
+        line += head
+        if space:
+            rows[i] = rest      # remainder keeps its own line
+            break
+        filled = len(head)      # whole row was one word; may wrap again
+        i += 1
+    out.append(line)
+
+sys.stdout.write("\n".join(out) + "\n")
+' "$rect"
+
     case "*"
         echo "herdr-preset: unknown subcommand '$preset'" >&2
         return 1
