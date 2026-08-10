@@ -248,10 +248,13 @@ height = 1
 # prefix+o / prefix+y: interactively pick files, urls (and, on a Meta machine,
 # diff/task/table ids) out of the focused pane's recent output. prefix+o opens
 # the first pick, prefix+y copies every pick to the clipboard.
-# type = "shell": the script splits off the active pane itself and runs the
-# picker there, zoomed. That pane is a herdr-rendered PTY, which the curses UI
-# needs and which also lets the copy variant's OSC 52 reach the attached client
-# over `herdr --remote`. The split closes when the picker exits.
+# type = "shell": the script captures the pane's screen FIRST (zooming it to
+# read it at full width), and only then splits off a zoomed pane to run the
+# picker in -- a split resizes and reflows the pane it comes from, so the order
+# is what keeps the picker matching the screen you were looking at. That pane is
+# a herdr-rendered PTY, which the curses UI needs and which also lets the copy
+# variant's OSC 52 reach the attached client over `herdr --remote`. The split
+# closes when the picker exits.
 [[keys.command]]
 key = "prefix+o"
 type = "shell"

@@ -320,7 +320,15 @@ case "pick-selections"
         end
     end
 
-    rxpick -B $rxpick_args $argv
+    # The catch-all for types with no url of their own: bounce off hammerspoon,
+    # which runs open-selection-type back here (see workflowPreset.lua). It is
+    # the only way to reach an action that is not a url -- nvim cannot be driven
+    # by a link -- and it belongs next to the dictionary rather than in each
+    # caller. First wins in rxpick's parser is LAST wins, so a caller passing
+    # its own --default-url-format still overrides this.
+    set -l default_url 'hammerspoon://workflow-preset/open-selection?type={type}&match={match}'
+
+    rxpick -B --default-url-format $default_url $rxpick_args $argv
 
 case "open-selection"
     set active_app "$(hs-preset get-focused-window-app)"

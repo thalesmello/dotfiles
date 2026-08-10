@@ -132,7 +132,7 @@ function herdr-preset
         # computed from the layout: `pane layout` reports the pane's OUTER rect,
         # whose borders and scrollbar eat three columns (rect 104/52/31 -> text
         # 101/49/28), and a soft-wrapped row fills the text area by definition.
-        # It is only believed when it lands near the rect -- a screen whose
+        # It is only believed when it lands near that bound -- a screen whose
         # longest row falls well short has nothing wrapped on it, and joining
         # rows at that length would splice unrelated lines together.
         set -l tag "herdr-preset pane-visible-unwrap"
@@ -145,14 +145,57 @@ function herdr-preset
             return 1
         end
 
-        set -l rect (herdr pane layout --pane "$pane" 2>/dev/null \
+        set -l layout (herdr pane layout --pane "$pane" 2>/dev/null | string collect)
+        set -l rect (printf '%s' "$layout" \
             | jq -r --arg p "$pane" '.result.layout.panes[]? | select(.pane_id == $p) | .rect.width' 2>/dev/null)
+        set -l area (printf '%s' "$layout" | jq -r '.result.layout.area.width // empty' 2>/dev/null)
+        set -l was_zoomed (printf '%s' "$layout" | jq -r '.result.layout.zoomed // false' 2>/dev/null)
         test -n "$rect"; or set rect 0
 
+        # Zoom the pane for the duration of the read. Its program redraws at the
+        # full tab width, so paths that were broken over half a dozen rows come
+        # back whole (7 rows -> 1 in a half-width pane here) and everything left
+        # for the unwrap below is a genuine wrap rather than an artifact of a
+        # narrow pane. Restored afterwards unless the tab was already zoomed.
+        #
+        # While zoomed the layout still reports the pane's UNZOOMED rect, so the
+        # sanity bound handed to the unwrap becomes the tab area instead.
+        set -l bound $rect
+        set -l zoomed_here false
+        if test "$was_zoomed" != true
+            if herdr pane zoom "$pane" --on >/dev/null 2>&1
+                set zoomed_here true
+            end
+        end
+        if test "$zoomed_here" = true -o "$was_zoomed" = true
+            test -n "$area"; and set bound $area
+        end
+
+        # Read until two reads agree: the program in the pane repaints on the
+        # resize, and how long that takes is up to it.
+        #
         # `string collect` so blank rows survive: a bare command substitution
         # would split the screen into a list and drop them.
-        set -l text (herdr pane read "$pane" --source visible 2>&1 | string collect)
-        if string match -q '*"error"*' -- "$text"
+        set -l text
+        set -l read_status 0
+        set -l previous
+        for attempt in (seq 8)
+            test "$zoomed_here" = true; and sleep 0.12
+            set text (herdr pane read "$pane" --source visible 2>&1 | string collect)
+            # $pipestatus[1] is the read's own status. Do NOT go looking for
+            # `"error"` in the output: this reads whatever is ON the screen, and
+            # a pane showing code that mentions an error field would fail every
+            # time.
+            set read_status $pipestatus[1]
+            test $read_status -eq 0; or break
+            test "$zoomed_here" = true; or break
+            test "$text" = "$previous"; and break
+            set previous "$text"
+        end
+
+        test "$zoomed_here" = true; and herdr pane zoom "$pane" --off >/dev/null 2>&1
+
+        if test $read_status -ne 0
             echo "$tag: pane read failed for '$pane'" >&2
             echo "  herdr pane read output: $text" >&2
             return 1
@@ -161,7 +204,7 @@ function herdr-preset
         printf '%s\n' "$text" | python3 -c '
 import re, sys
 
-rect = int(sys.argv[1])
+bound = int(sys.argv[1])   # pane rect, or the tab area when zoomed
 rows = sys.stdin.read().split("\n")
 if rows and rows[-1] == "":
     rows.pop()
@@ -171,7 +214,7 @@ if rows and rows[-1] == "":
 rows = [row.rstrip() for row in rows]
 
 width = max((len(row) for row in rows), default=0)
-if rect <= 0 or width < rect - 4:
+if bound <= 0 or width < bound - 4:
     sys.stdout.write("\n".join(rows) + ("\n" if rows else ""))
     sys.exit(0)
 
@@ -195,7 +238,7 @@ while i < n:
     out.append(line)
 
 sys.stdout.write("\n".join(out) + "\n")
-' "$rect"
+' "$bound"
 
     case "*"
         echo "herdr-preset: unknown subcommand '$preset'" >&2
