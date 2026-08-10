@@ -147,9 +147,9 @@ split_vertical = ["prefix+v", "ctrl+alt+d"]
 split_horizontal = ["prefix+minus", "prefix+\"", "ctrl+alt+shift+d"]
 # prefix+backspace is repurposed as smart-close (see [[keys.command]] below);
 # plain pane close lives on prefix+shift+backspace.
-# ctrl+alt+shift+enter is a direct chord forwarded by Hammerspoon for
-# cmd+shift+enter: same zoom toggle, no prefix-timeout delay.
-zoom = ["prefix+z", "prefix+ctrl+enter", "ctrl+alt+shift+enter"]
+# prefix+ctrl+enter is also what Hammerspoon sends for cmd+shift+enter in a
+# herdr window (see zoomWithFallback in dot-hammerspoon/ghosttyPreset.lua).
+zoom = ["prefix+z", "prefix+ctrl+enter"]
 resize_mode = [ "prefix+r"]
 # ctrl+alt+b is the direct (prefix-less) chord, same toggle as prefix+b without
 # the prefix-timeout delay.

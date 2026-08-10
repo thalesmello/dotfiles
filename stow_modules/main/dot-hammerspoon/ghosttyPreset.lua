@@ -360,13 +360,9 @@ function M.zoomWithFallback()
     log("zoomWithFallback -> route: not herdr, passing through")
     return false
   end
-  if isMoshMode() then
-    log("zoomWithFallback -> route: herdr (mosh prefix)")
-    sendPrefixThen({"ctrl", "return"})
-  else
-    log("zoomWithFallback -> route: herdr (direct ctrl+alt)")
-    sendKeyToTerminal({"ctrl", "alt", "shift", "return"})
-  end
+  -- Always the prefix sequence, local or over mosh: zoom has no direct chord.
+  log("zoomWithFallback -> route: herdr (prefix+ctrl+enter)")
+  sendPrefixThen({"ctrl", "return"})
   return true
 end
 
