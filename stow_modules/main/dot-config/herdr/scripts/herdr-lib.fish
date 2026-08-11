@@ -125,7 +125,20 @@ function herdr_focus_history_running
     test -n "$pid"; or return 1
     kill -0 $pid 2>/dev/null; or return 1
     # Guard against pid reuse: the pid must still be our daemon.
-    ps -p $pid -o command= 2>/dev/null | string match -q '*focus-history-daemon*'
+    ps -p $pid -o command= 2>/dev/null | string match -q '*focus-history-daemon*'; or return 1
+    # A daemon whose subscription died is worse than none -- it holds the lock
+    # while recording nothing -- so the nc carrying that subscription has to
+    # still be one of its children.
+    pgrep -P $pid nc >/dev/null 2>&1
+end
+
+# herdr_kill_tree <pid> -- kill a process and everything below it.
+function herdr_kill_tree --argument-names pid
+    for child in (pgrep -P $pid 2>/dev/null)
+        herdr_kill_tree $child
+    end
+    kill $pid 2>/dev/null
+    return 0
 end
 
 # herdr_ensure_focus_history -- start the focus-history daemon if it is not up.
@@ -134,6 +147,18 @@ end
 #   time either key is pressed rather than needing a separate autostart.
 function herdr_ensure_focus_history
     herdr_focus_history_running; and return 0
+
+    # Not running -- but the lock may still be held by a daemon that is up and
+    # deaf (subscription gone, or wedged waiting on a pipeline that will never
+    # finish). A new daemon would lose the lock race to that corpse and exit, so
+    # clear it out first.
+    set -l dir (herdr_focus_history_dir)
+    set -l stale (cat $dir/daemon.lock/pid 2>/dev/null)
+    if test -n "$stale"; and kill -0 $stale 2>/dev/null
+        and ps -p $stale -o command= 2>/dev/null | string match -q '*focus-history-daemon*'
+        herdr_kill_tree $stale
+    end
+    rm -rf $dir/daemon.lock
 
     set -l daemon (status dirname)/focus-history-daemon.fish
     test -x $daemon; or return 1

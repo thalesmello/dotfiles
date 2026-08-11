@@ -18,13 +18,14 @@
 #   starts streaming live ones, and it does so at a leisurely few events per
 #   second. So a freshly started daemon spends ~15s writing OLD history into the
 #   journal, during which the tail is not "where you just were".
-#   focus-jumplist.fish refuses to jump while `started` is younger than its
-#   warm-up window.
+#   focus-jumplist.fish will not jump until the journal goes quiet.
 #
-# * The connection is held open by a ping heartbeat rather than an idle sleep.
-#   nc keeps the subscription only as long as its stdin is open, and a writer
-#   that only sleeps would linger forever after nc dies; a writer that sends
-#   something gets EPIPE and exits with it.
+# * The subscription must be held open by a writer that NEVER WRITES. nc keeps
+#   the connection only as long as its stdin is open, but a second request on a
+#   subscribed connection -- even a ping -- makes herdr stop delivering events
+#   on it, silently: the socket stays open, the stream just stops. So stdin is a
+#   fifo held open by an idle `sleep`, and the daemon kills that sleep once nc
+#   is gone (a keepalive here would kill the daemon roughly every minute).
 #
 # * The reader is a second copy of this script (`--record`) rather than a
 #   `while read` block at the end of the pipeline: fish does not start a
@@ -80,7 +81,10 @@ end
 
 echo $fish_pid >$lock/pid
 
+set -g keeper ""
+
 function __herdr_focus_history_cleanup --on-event fish_exit
+    test -n "$keeper"; and kill $keeper 2>/dev/null
     rm -rf $lock
 end
 
@@ -92,13 +96,35 @@ end
 
 date +%s >$dir/started
 
-set -l subscribe '{"id":"focus-history","method":"events.subscribe","params":{"subscriptions":[{"type":"pane.focused"}]}}'
-set -l heartbeat '{"id":"focus-history-ping","method":"ping","params":{}}'
-set -l self (status filename)
+# Every start costs a warm-up, so leave a trail: if these lines pile up, the
+# subscription is dying for some reason and this file says how often.
+date '+%Y-%m-%d %H:%M:%S start' >>$dir/restarts.log
 
-begin
-    echo $subscribe
-    while sleep 60
-        echo $heartbeat; or break
-    end
-end | nc -U $sock | $self --record
+set -l subscribe '{"id":"focus-history","method":"events.subscribe","params":{"subscriptions":[{"type":"pane.focused"}]}}'
+set -l self (status filename)
+set -l fifo $dir/subscribe.fifo
+
+rm -f $fifo
+mkfifo $fifo; or exit 1
+
+# The idle sleep is what keeps nc's stdin open, and writing nothing is what
+# keeps the subscription alive (see the note at the top). It is not part of the
+# pipeline, so fish does not wait on it -- the daemon exits the moment nc does,
+# which is what makes a dead subscription turn into a restart on the next
+# keypress rather than a daemon that is up but deaf.
+#
+# Both fifo writers go through `sh -c` because fish opens a job's redirections
+# in the parent, even for a background job: `sleep ... >$fifo &` would hang the
+# daemon in open() waiting for the reader it is about to start. Handing the
+# redirection to sh means sh does the blocking open, and it unblocks when nc
+# opens the read end below. `exec` keeps the sleep on sh's pid so $keeper is the
+# process we later kill.
+sh -c "exec sleep 2147483647 >$fifo" &
+set keeper $last_pid
+
+sh -c "printf '%s\n' '$subscribe' >$fifo" &
+
+nc -U $sock <$fifo | $self --record
+
+kill $keeper 2>/dev/null
+rm -f $fifo

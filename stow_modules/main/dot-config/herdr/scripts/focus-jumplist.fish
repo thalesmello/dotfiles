@@ -30,8 +30,13 @@
 source (status dirname)/herdr-lib.fish
 
 # Warm-up: a daemon that has just started is still receiving herdr's replay of
-# past events, so the end of the journal is not yet "where you just were".
-set -l WARMUP_SECONDS 20
+# past events, so the end of the journal is not yet "where you just were". The
+# replay arrives back-to-back at a few entries per second, so a journal that has
+# been quiet for a moment is a journal that has drained -- which is usually true
+# a couple of seconds in, rather than the whole REPLAY_MAX_SECONDS. That bound
+# is only the fallback for a replay that keeps trickling.
+set -l REPLAY_MAX_SECONDS 20
+set -l QUIET_SECONDS 2
 
 set -l direction $argv[1]
 if test "$direction" != back -a "$direction" != forward
@@ -52,7 +57,15 @@ if test -z "$started"
     exit 0
 end
 
-if test (math (date +%s) - $started) -lt $WARMUP_SECONDS
+set -l now (date +%s)
+set -l mtime (begin
+    stat -f %m $journal
+    or stat -c %Y $journal
+end 2>/dev/null | string trim)
+
+if test (math $now - $started) -lt $REPLAY_MAX_SECONDS
+    and test -n "$mtime"
+    and test (math $now - $mtime) -lt $QUIET_SECONDS
     herdr_notify "Focus history warming up" "Try again in a few seconds"
     exit 0
 end
