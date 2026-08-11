@@ -96,8 +96,12 @@ open_notification_target = "prefix+shift+o"
 # remove_worktree = ""  # optional, unset by default; opens confirmation
 # rename_workspace = "prefix+shift+w"
 # close_workspace = "prefix+shift+d"
-previous_workspace = "prefix+shift+tab"
-next_workspace = "prefix+tab"
+# prefix+tab / prefix+shift+tab are taken over by attention-jump.fish and
+# focus-back.fish (see [[keys.command]] below), so workspace nav is unbound here.
+# It still lives on prefix+alt+1..9 / ctrl+alt+1..9 (switch_workspace) and on
+# prefix+ctrl+n/p, which spill into the neighbouring workspace at either end.
+previous_workspace = ""
+next_workspace = ""
 previous_agent = "prefix+ctrl+comma"
 next_agent = "prefix+ctrl+period"
 focus_agent = "prefix+shift+1..9"   # focus agent 1-9
@@ -330,6 +334,43 @@ key = ["prefix+backspace", "ctrl+alt+w"]
 type = "shell"
 command = "~/.config/herdr/scripts/smart-close.sh"
 description = "close: forward to nvim or close tab"
+
+# prefix+tab: jump to the next agent that needs attention -- blocked (waiting on
+# you) before done (finished work to review), skipping the agent you are already
+# in, so repeated presses cycle through the queue. A fish port of the
+# herdr-attention plugin (github.com/milkyskies/herdr-attention), kept as a
+# script so it needs no plugin install and no node.
+# When nothing needs attention it falls through to the forward half of the focus
+# jumplist below -- prefix+tab IS ctrl+i, so back/forward land on the same pair
+# of keys vim uses.
+[[keys.command]]
+key = "prefix+tab"
+type = "shell"
+command = "~/.config/herdr/scripts/attention-jump.fish"
+description = "next agent needing attention (else forward in focus history)"
+
+# prefix+shift+tab / prefix+ctrl+o: go back to the terminal focused before this
+# one; repeat to keep walking back. herdr has no last-pane API, so the trail is
+# recorded by focus-history-daemon.fish, which these bindings start on demand
+# (it subscribes to pane.focused on the API socket and appends to
+# ~/.local/state/herdr/focus-history/journal).
+[[keys.command]]
+key = ["prefix+shift+tab", "prefix+ctrl+o"]
+type = "shell"
+command = "~/.config/herdr/scripts/focus-jumplist.fish back"
+description = "back to previous terminal (repeat: further back)"
+
+# prefix+ctrl+i: forward only, never the attention jump. Whether this is its own
+# key depends on the outer terminal: ctrl+i and tab are the same byte (0x09)
+# unless the terminal speaks the kitty keyboard protocol's disambiguation mode
+# (Ghostty does). Where they are indistinguishable this entry is simply dead and
+# prefix+ctrl+i keeps doing what prefix+tab does, which is the same thing minus
+# the attention jump.
+[[keys.command]]
+key = "prefix+ctrl+i"
+type = "shell"
+command = "~/.config/herdr/scripts/focus-jumplist.fish forward"
+description = "forward in focus history"
 
 # Legacy indexed shortcut config is still parsed for compatibility.
 # Prefer switch_tab, switch_workspace, and focus_agent for new configs.
