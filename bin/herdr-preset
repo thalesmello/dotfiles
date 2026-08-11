@@ -119,6 +119,8 @@ function herdr-preset
         # only exists for `recent`, and recent scrollback is not what you were
         # looking at when you asked.
         #
+        #   pane-visible-unwrap [<pane>] [--zoom] [--profile <name>]
+        #
         # A row that fills the text width was soft-wrapped, so its last word
         # continues on the next row -- but only up to that row's first space.
         # That part is appended and the remainder stays behind as its own line
@@ -135,9 +137,52 @@ function herdr-preset
         # It is only believed when it lands near that bound -- a screen whose
         # longest row falls well short has nothing wrapped on it, and joining
         # rows at that length would splice unrelated lines together.
+        #
+        # What the program in the pane paints around its text is discounted
+        # first: the foreground process name picks a MARGIN PROFILE (see
+        # PROFILES in the python below), which is how Claude's right margin and
+        # indented continuations, and nvim's `showbreak` arrow, stop defeating
+        # the join.
+        # `--profile <name>` forces one, for panes where the process cannot be
+        # named (an ssh session) or to check a profile by hand.
+        #
+        # `--zoom` reads the pane at the full tab width instead of as it sits,
+        # which unwraps more but repaints the pane under you; off by default.
         set -l tag "herdr-preset pane-visible-unwrap"
 
-        set -l pane "$argv[1]"
+        set -l pane
+        set -l zoom false
+        set -l profile
+        set -l want_profile false
+        for arg in $argv
+            if test "$want_profile" = true
+                set profile "$arg"
+                set want_profile false
+                continue
+            end
+            switch "$arg"
+            case --zoom
+                set zoom true
+            case --profile
+                set want_profile true
+            case '--profile=*'
+                set profile (string replace -- '--profile=' '' "$arg")
+            case '--*'
+                echo "$tag: unknown option '$arg'" >&2
+                return 1
+            case '*'
+                test -z "$pane"; or begin
+                    echo "$tag: unexpected extra argument '$arg' (pane is already '$pane')" >&2
+                    return 1
+                end
+                set pane "$arg"
+            end
+        end
+        test "$want_profile" = false; or begin
+            echo "$tag: --profile needs a value" >&2
+            return 1
+        end
+
         test -n "$pane"; or set pane "$HERDR_ACTIVE_PANE_ID"
         test -n "$pane"; or set pane "$HERDR_PANE_ID"
         test -n "$pane"; or begin
@@ -152,17 +197,32 @@ function herdr-preset
         set -l was_zoomed (printf '%s' "$layout" | jq -r '.result.layout.zoomed // false' 2>/dev/null)
         test -n "$rect"; or set rect 0
 
-        # Zoom the pane for the duration of the read. Its program redraws at the
-        # full tab width, so paths that were broken over half a dozen rows come
-        # back whole (7 rows -> 1 in a half-width pane here) and everything left
-        # for the unwrap below is a genuine wrap rather than an artifact of a
-        # narrow pane. Restored afterwards unless the tab was already zoomed.
+        # Which app is painting the pane, so its margins can be discounted. All
+        # foreground names are handed over and the python picks the first it
+        # knows; an explicit --profile wins outright.
+        set -l procs
+        if test -z "$profile"
+            set procs (herdr pane process-info --pane "$pane" 2>/dev/null \
+                | jq -r '.result.process_info.foreground_processes[]?.name // empty' 2>/dev/null)
+        end
+
+        # With --zoom, zoom the pane for the duration of the read. Its program
+        # redraws at the full tab width, so paths that were broken over half a
+        # dozen rows come back whole (7 rows -> 1 in a half-width pane here) and
+        # everything left for the unwrap below is a genuine wrap rather than an
+        # artifact of a narrow pane. Restored afterwards unless the tab was
+        # already zoomed.
+        #
+        # It is opt-in because the zoom is VISIBLE: the pane's program repaints
+        # at another width and reflows under whoever was reading it, and a
+        # program that reflows badly (or slowly) leaves the screen worse than
+        # the wrapping it was meant to undo.
         #
         # While zoomed the layout still reports the pane's UNZOOMED rect, so the
         # sanity bound handed to the unwrap becomes the tab area instead.
         set -l bound $rect
         set -l zoomed_here false
-        if test "$was_zoomed" != true
+        if test "$zoom" = true -a "$was_zoomed" != true
             if herdr pane zoom "$pane" --on >/dev/null 2>&1
                 set zoomed_here true
             end
@@ -172,7 +232,8 @@ function herdr-preset
         end
 
         # Read until two reads agree: the program in the pane repaints on the
-        # resize, and how long that takes is up to it.
+        # resize, and how long that takes is up to it. Nothing was resized
+        # without --zoom, so there one read is the answer.
         #
         # `string collect` so blank rows survive: a bare command substitution
         # would split the screen into a list and drop them.
@@ -205,6 +266,55 @@ function herdr-preset
 import re, sys
 
 bound = int(sys.argv[1])   # pane rect, or the tab area when zoomed
+forced = sys.argv[2]       # --profile, or "" to go by the process names
+names = [n for n in sys.argv[3:] if n]
+
+# Margin profiles: what an app paints AROUND its text, which the unwrap has to
+# discount. Add an entry to teach it a new one.
+#
+#   indent      how far an app may push a row that CONTINUES the one above,
+#               skipped when looking for the continuation (which otherwise
+#               starts with a space, and the join refuses that). Claude has no
+#               single figure: its bullets continue two columns in, a tool
+#               header wraps aligned under its own name
+#
+#                   ⏺ Update(stow_modules/main/dot-config/herdr/scripts/pick-sele
+#                           ction.sh)
+#
+#               and a result line under its ⎿ -- so this is a CEILING, wide
+#               enough for those and still narrow enough that an indented block
+#               of code under a full-width line is left alone. Only the leading
+#               whitespace is skipped; where a row ENDS is read off the row as
+#               painted, so an aligned indent and a whole-pane gutter both come
+#               out right, and the rows keep their columns in the output.
+#   right       columns kept clear on the right, which is how far short of the
+#               pane a full row stops. herdr trims them away with the trailing
+#               blanks, so they only move the sanity bound.
+#   cont        marker an app prints at the START of a row continuing the one
+#               above (nvim showbreak). Unambiguous, unlike a length guess, so
+#               a row matching it is joined whatever its length.
+PROFILES = {
+    "claude": {"indent": 12, "right": 2, "cont": None},
+    "nvim":   {"indent": 0, "right": 0, "cont": r"[ \t]*↪[ \t]?"},
+}
+ALIASES = {"vim": "nvim", "vi": "nvim"}
+NONE = {"indent": 0, "right": 0, "cont": None}
+
+def lookup(name):
+    return PROFILES.get(ALIASES.get(name, name))
+
+if forced:
+    prof = lookup(forced)
+    if prof is None:
+        sys.stderr.write("unknown --profile %r (known: %s)\n"
+                         % (forced, ", ".join(sorted(PROFILES))))
+        sys.exit(1)
+else:
+    prof = next((p for p in map(lookup, names) if p), NONE)
+
+indent, right = prof["indent"], prof["right"]
+cont = re.compile("^(?:%s)" % prof["cont"]) if prof["cont"] else None
+
 rows = sys.stdin.read().split("\n")
 if rows and rows[-1] == "":
     rows.pop()
@@ -213,32 +323,70 @@ if rows and rows[-1] == "":
 # already, but a padded row must not turn into a false join.
 rows = [row.rstrip() for row in rows]
 
-width = max((len(row) for row in rows), default=0)
-if bound <= 0 or width < bound - 4:
+# How far right each row was painted. That is what says a row was soft-wrapped,
+# and it is a column on screen rather than a length of text: an indented
+# continuation holds fewer characters than the row above and is just as full.
+paint = [len(row) for row in rows]
+width = max(paint, default=0)
+text_bound = bound - right
+
+# No wrap column to trust: a screen whose longest row falls well short of the
+# bound has nothing wrapped on it, and joining rows at that length would splice
+# unrelated lines together. A showbreak marker still says so outright, so a
+# profile that has one keeps going.
+wrapped = text_bound > 0 and width >= text_bound - 4
+if not wrapped and cont is None:
     sys.stdout.write("\n".join(rows) + ("\n" if rows else ""))
     sys.exit(0)
 
 CONTINUES = re.compile(r"[\w./~+@%:#?=&,-]")
+
+# Whether a marked continuation needs a space put back in front of it: with
+# nvim linebreak the row above was broken AT a space, which is painted nowhere
+# and would glue two words together ("dolor in" + "reprehenderit"); without it
+# the break is mid-character and a space would split a path in half. Neither is
+# on screen, but a break that left its row short of the wrap column can only
+# have been a linebreak, and the setting is per window -- one such row settles
+# it for the whole screen.
+softbreak = cont is not None and any(
+    cont.match(rows[i]) and paint[i - 1] < width for i in range(1, len(rows)))
 
 out = []
 n = len(rows)
 i = 0
 while i < n:
     line = rows[i]
-    filled = len(line)          # length of the row just consumed
+    filled = paint[i]           # right edge of the row just consumed
     i += 1
-    while filled == width and i < n and rows[i] and CONTINUES.match(rows[i][0]):
-        head, space, rest = rows[i].partition(" ")
-        line += head
-        if space:
-            rows[i] = rest      # remainder keeps its own line
-            break
-        filled = len(head)      # whole row was one word; may wrap again
-        i += 1
+    while i < n:
+        marker = cont.match(rows[i]) if cont else None
+        if marker:
+            # Marked continuation: the whole row belongs to the line above,
+            # plus the space the wrap ate if this screen wraps that way.
+            line += (" " if softbreak else "") + rows[i][marker.end():]
+            filled = paint[i]
+            i += 1
+            continue
+        # Step over the columns the app may have indented a continuation by;
+        # what is left has to start where a wrapped word would.
+        body = rows[i].lstrip(" \t") if indent else rows[i]
+        if (wrapped and filled == width and body
+                and len(rows[i]) - len(body) <= indent
+                and CONTINUES.match(body[0])):
+            head, space, rest = body.partition(" ")
+            line += head
+            if space:
+                rows[i] = rest          # remainder keeps its own line,
+                paint[i] = len(rest)    # and no longer reaches the edge
+                break
+            filled = paint[i]           # whole row was one word; may wrap again
+            i += 1
+            continue
+        break
     out.append(line)
 
-sys.stdout.write("\n".join(out) + "\n")
-' "$bound"
+sys.stdout.write("\n".join(out) + ("\n" if out else ""))
+' "$bound" "$profile" $procs
 
     case "*"
         echo "herdr-preset: unknown subcommand '$preset'" >&2

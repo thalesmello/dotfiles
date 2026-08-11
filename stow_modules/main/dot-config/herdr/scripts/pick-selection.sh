@@ -30,10 +30,11 @@
 # The split is made with `exec`, so quitting the picker closes it.
 #
 # ORDER MATTERS: the screen is captured BEFORE the split exists. Splitting
-# halves the source pane and reflows it, and the capture zooms that pane to read
-# it at full width (see `herdr-preset pane-visible-unwrap`) -- do it the other
-# way round and the picker would be matching a screen neither you nor the pane
-# ever looked like.
+# halves the source pane and reflows it -- do it the other way round and the
+# picker would be matching a screen neither you nor the pane ever looked like.
+# The capture is deliberately taken at the pane's own width: pane-visible-unwrap
+# can zoom the pane to read it wider (`--zoom`), but that repaints the pane you
+# are picking from, so it is not used here.
 #
 # What gets picked over is the VISIBLE pane, not recent scrollback.
 # `--source recent-unwrapped` would rejoin soft-wrapped lines but only exists
@@ -138,6 +139,10 @@ except Exception: pass')
     [ -n "$new" ] || { rm -f "$snap"; herdr_die "pick-selection" \
         "pane split failed: $split_out"; }
 
+    # Zoom the PICKER, which is safe: the screen was captured before this split
+    # existed, so giving it the whole tab cannot change what is being picked
+    # over. (Zooming the SOURCE pane to read it wider is what
+    # pane-visible-unwrap --zoom would do, and that is not used here.)
     "$herdr" pane zoom "$new" --on >/dev/null 2>&1
 
     # exec so quitting the picker closes the split instead of leaving a shell.
