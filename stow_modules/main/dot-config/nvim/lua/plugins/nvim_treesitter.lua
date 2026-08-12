@@ -20,18 +20,115 @@ return {
             local nts = require('nvim-treesitter')
             nts.setup()
 
+            -- Each parser echoes four lines while installing (Downloading /
+            -- Compiling / Installing / Language installed), so a cold start is
+            -- ~56 messages and a stack of hit-enter prompts. Divert them into a
+            -- floating window instead, which can redraw freely without ever
+            -- prompting. Warnings and errors keep going to the message area.
+            --
+            -- Reaches into nvim-treesitter internals: `log.Logger` is exported
+            -- and instances look methods up through it at call time, so this
+            -- also covers loggers created before the patch.
+            local progress = require('ts_install_progress')
+            do
+                local ts_log = require('nvim-treesitter.log')
+                local base_info = ts_log.Logger.info
+                function ts_log.Logger:info(m, ...)
+                    local lang = self.ctx and self.ctx:match('^install/(.+)$')
+                    if not lang then
+                        return base_info(self, m, ...)
+                    end
+                    if m:match('^Downloading') then
+                        progress.phase(lang, 'downloading')
+                    elseif m:match('^Compiling') then
+                        progress.phase(lang, 'compiling')
+                    elseif m:match('^Installing') then
+                        progress.phase(lang, 'installing')
+                    elseif m:match('^Language installed') then
+                        progress.complete(lang)
+                    end
+                end
+            end
+
+            -- `nts.install()` is async, but `install_lang()` blocks the UI with a
+            -- 60s `vim.wait()` when a language is requested while an install for
+            -- it is already in flight (nvim-treesitter/install.lua). On a cold
+            -- start the `ensure_installed` batch below and the `auto_install`
+            -- FileType handler race for the same languages and trigger exactly
+            -- that. So track requests ourselves and never ask twice.
+            local install_tasks = {} ---@type table<string, any> lang -> async task
+            local in_flight = 0 -- outstanding batches, for the closing summary
+            local installed_count = 0
+
+            --- Request `langs` in the background; `on_done` runs once every
+            --- language involved has settled (installed or failed).
+            local function install_async(langs, on_done)
+                local tasks = {}
+                local fresh = {}
+                for _, lang in ipairs(langs) do
+                    if install_tasks[lang] then
+                        tasks[#tasks + 1] = install_tasks[lang]
+                    else
+                        fresh[#fresh + 1] = lang
+                    end
+                end
+
+                if #fresh > 0 then
+                    -- max_jobs caps concurrent download+compile jobs; the default
+                    -- (100) fans out every parser at once and pins the CPU while
+                    -- you are trying to edit.
+                    local task = nts.install(fresh, { max_jobs = 4 })
+                    for _, lang in ipairs(fresh) do
+                        install_tasks[lang] = task
+                    end
+                    tasks[#tasks + 1] = task
+
+                    progress.add(#fresh)
+                    installed_count = installed_count + #fresh
+                    in_flight = in_flight + 1
+                    task:await(function()
+                        in_flight = in_flight - 1
+                        if in_flight == 0 then
+                            progress.finish(
+                                string.format('treesitter: installed %d parsers', installed_count)
+                            )
+                            installed_count = 0
+                        end
+                    end)
+                end
+
+                if not on_done then
+                    return
+                end
+
+                local left = #tasks
+                if left == 0 then
+                    return vim.schedule(on_done)
+                end
+                for _, task in ipairs(tasks) do
+                    task:await(function()
+                        left = left - 1
+                        if left == 0 then
+                            vim.schedule(on_done)
+                        end
+                    end)
+                end
+            end
+
             -- Install any parsers from `ensure_installed` that are missing.
             -- (main branch: no `ensure_installed`/`auto_install` config keys;
             -- installation is an explicit async call.)
-            do
+            -- Deferred so the parsers for the buffer actually on screen, which
+            -- the FileType handler below requests first, get the head start.
+            vim.schedule(function()
                 local installed = nts.get_installed()
                 local missing = vim.tbl_filter(function(lang)
                     return not vim.tbl_contains(installed, lang)
                 end, ensure_installed)
                 if #missing > 0 then
-                    nts.install(missing)
+                    install_async(missing)
                 end
-            end
+            end)
 
             local group = vim.api.nvim_create_augroup("TreesitterAutogroup", {
                 clear = true
@@ -48,19 +145,29 @@ return {
                     local ft = vim.bo[buf].filetype
                     local lang = vim.treesitter.language.get_lang(ft) or ft
 
-                    -- auto_install: fetch parser if available but not installed
+                    local function attach()
+                        if not vim.api.nvim_buf_is_valid(buf) then
+                            return
+                        end
+                        -- highlight (returns false / errors when no parser: guard it)
+                        local started = pcall(vim.treesitter.start, buf)
+
+                        -- indent (only when a parser is actually active)
+                        if started then
+                            vim.bo[buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+                        end
+                    end
+
+                    -- auto_install: fetch parser if available but not installed,
+                    -- then attach once it is there. Never blocks: if the parser
+                    -- is still building, the buffer just stays unhighlighted
+                    -- until `attach` is called back.
                     if vim.tbl_contains(nts.get_available(), lang)
                         and not vim.tbl_contains(nts.get_installed(), lang) then
-                        nts.install({ lang })
+                        install_async({ lang }, attach)
                     end
 
-                    -- highlight (returns false / errors when no parser: guard it)
-                    local started = pcall(vim.treesitter.start, buf)
-
-                    -- indent (only when a parser is actually active)
-                    if started then
-                        vim.bo[buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
-                    end
+                    attach()
                 end,
             })
 
