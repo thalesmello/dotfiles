@@ -127,6 +127,7 @@ next_tab = ["prefix+ctrl+]"]
 # forwards for cmd+1..9 (mirrors nvim's Ngt on the same chord).
 switch_workspace = ["prefix+alt+1..9", "ctrl+alt+1..9"]
 close_tab = "prefix+shift+backspace"
+close_pane = "prefix+ctrl+backspace"
 # rename_pane = "prefix+shift+p"
 edit_scrollback = ["prefix+shift+v", "prefix+e"]
 # tmux parity: `bind Space copy-mode` (herdr default is prefix+[)
@@ -150,7 +151,7 @@ split_vertical = ["prefix+v", "ctrl+alt+d"]
 # ctrl+alt+shift+d is a direct chord forwarded by Ghostty for cmd+shift+d.
 split_horizontal = ["prefix+minus", "prefix+\"", "ctrl+alt+shift+d"]
 # prefix+backspace is repurposed as smart-close (see [[keys.command]] below);
-# plain pane close lives on prefix+shift+backspace.
+# plain tab close lives on prefix+shift+backspace, pane close on prefix+ctrl+backspace.
 # prefix+ctrl+enter is also what Hammerspoon sends for cmd+shift+enter in a
 # herdr window (see zoomWithFallback in dot-hammerspoon/ghosttyPreset.lua).
 zoom = ["prefix+z", "prefix+ctrl+enter"]
