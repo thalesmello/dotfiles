@@ -90,6 +90,9 @@ function ghostty-preset
     case "focus-pane-with-fallback"
         hs -c "require('ghosttyPreset').focusPaneWithFallback('$argv[1]')"
 
+    case "resize-pane-with-fallback"
+        hs -c "require('ghosttyPreset').resizePaneWithFallback('$argv[1]')"
+
     case "reveal-floating-terminal"
         hs -c "require('ghosttyPreset').revealFloatingTerminal()"
 

@@ -432,28 +432,31 @@ function M.setup()
   })
 
   -- Shift+Ctrl+Cmd HJKL (per-app). Ghostty maps ctrl+cmd+arrow to resize_split
-  -- in its config, so send the same keys the iTerm branch does.
+  -- in its config, so send the same keys the iTerm branch does -- except on a
+  -- herdr surface, where a Ghostty resize_split would move a divider herdr does
+  -- not own: GhosttyPreset.resizePaneWithFallback drives herdr's resize mode
+  -- (prefix+r, direction, esc) there and falls back to ctrl+cmd+arrow elsewhere.
   default:conditionalBind({"shift", "ctrl", "cmd"}, "h", {
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "left") end},
-    {cond = isGhostty, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "left") end},
+    {cond = isGhostty, function() GhosttyPreset.resizePaneWithFallback("left") end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "pageup") end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "left") end},
   })
   default:conditionalBind({"shift", "ctrl", "cmd"}, "j", {
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "down") end},
-    {cond = isGhostty, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "down") end},
+    {cond = isGhostty, function() GhosttyPreset.resizePaneWithFallback("down") end},
     {app = "Google Chrome", function() task({"osascript-preset", "send-keys", "ctrl", "shift", "j"}) end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "down") end},
   })
   default:conditionalBind({"shift", "ctrl", "cmd"}, "k", {
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "up") end},
-    {cond = isGhostty, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "up") end},
+    {cond = isGhostty, function() GhosttyPreset.resizePaneWithFallback("up") end},
     {app = "Google Chrome", function() task({"osascript-preset", "send-keys", "ctrl", "shift", "k"}) end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "up") end},
   })
   default:conditionalBind({"shift", "ctrl", "cmd"}, "l", {
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "right") end},
-    {cond = isGhostty, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "right") end},
+    {cond = isGhostty, function() GhosttyPreset.resizePaneWithFallback("right") end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "pagedown") end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "right") end},
   })

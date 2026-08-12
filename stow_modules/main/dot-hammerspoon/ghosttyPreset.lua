@@ -366,6 +366,38 @@ function M.zoomWithFallback()
   return true
 end
 
+-- Resize the focused herdr split one step in `direction` ("left"/"right"/"up"/
+-- "down"). herdr has no one-shot resize binding, only a resize MODE (prefix+r,
+-- then h/l for width and j/k for height, esc to leave), so one press is the
+-- whole round trip: prefix+r, the direction key, esc. Staying in the mode isn't
+-- an option here -- the caller is a plain macOS chord, and leaving herdr in
+-- resize mode would swallow the next keystrokes typed into the pane.
+--
+-- Same isHerdrWindow predicate as zoomWithFallback, and for the same reason:
+-- resizing is only meaningful with several visible splits, which the
+-- zoomed-or-single-surface variants exclude.
+--
+-- Anywhere else in Ghostty, fall through to ctrl+cmd+<arrow>, which its config
+-- maps to resize_split.
+function M.resizePaneWithFallback(direction)
+  local key = ({ left = "h", right = "l", down = "j", up = "k" })[direction]
+  if not key then return false end
+  log("resizePaneWithFallback " .. direction)
+
+  if M.isHerdrWindow() then
+    -- Always the prefix sequence, local or over mosh: resize mode has no direct
+    -- chord.
+    log("  -> route: herdr (prefix+r, " .. key .. ", esc)")
+    sendPrefixThen({"r"})
+    sendKeyToTerminal({key})
+    sendKeyToTerminal({"escape"})
+  else
+    log("  -> route: focused window (ctrl+cmd+" .. direction .. ")")
+    sendToFocused({"ctrl", "cmd", direction})
+  end
+  return true
+end
+
 function M.closePaneWithFallback()
   log("closePaneWithFallback")
   if M.isMultiplexerAppZoomedOrSingleSurface() then
