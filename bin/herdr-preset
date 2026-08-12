@@ -9,6 +9,71 @@ set -x PATH /opt/homebrew/bin (status dirname) $PATH
 # When invoked from herdr's run-command popup, run-command.sh keeps the popup on
 # screen (until a keypress) whenever the command exits non-zero, so these
 # messages are actually visible -- don't silence them.
+
+# The `herdr` CLI to use. A bare `herdr` resolves for the subcommands below
+# because they run from a pane's shell, but the run-command popup evals with the
+# herdr SERVER's environment, where ~/.local/bin is often absent from PATH. herdr
+# injects HERDR_BIN_PATH into custom-command environments when it knows its own
+# path; fall back to PATH and then the usual install locations. (Same reasoning
+# as herdr-lib.fish's herdr_bin, which this file can't source -- it runs with
+# --no-config and lives in another stow module.)
+function __herdr_bin
+    if set -q HERDR_BIN_PATH; and test -x "$HERDR_BIN_PATH"
+        echo "$HERDR_BIN_PATH"
+        return 0
+    end
+
+    set -l resolved (command -v herdr)
+    if test -n "$resolved"
+        echo "$resolved"
+        return 0
+    end
+
+    for candidate in $HOME/.local/bin/herdr /opt/homebrew/bin/herdr /usr/local/bin/herdr
+        if test -x "$candidate"
+            echo "$candidate"
+            return 0
+        end
+    end
+
+    return 1
+end
+
+# The API socket, for the requests the CLI does not expose (pane.focus by id).
+function __herdr_socket
+    if set -q HERDR_SOCKET_PATH; and test -S "$HERDR_SOCKET_PATH"
+        echo "$HERDR_SOCKET_PATH"
+        return 0
+    end
+
+    for candidate in $HOME/.config/herdr/herdr.sock $HOME/.local/state/herdr/herdr.sock
+        if test -S "$candidate"
+            echo "$candidate"
+            return 0
+        end
+    end
+
+    return 1
+end
+
+# Name of the session this herdr is: the default session's socket sits directly
+# in the herdr state dir, a named one under `sessions/<name>/` (see
+# `herdr session list`). There is no env var carrying it, so it is read off the
+# socket path.
+function __herdr_session_name
+    set -l sock (__herdr_socket); or begin
+        echo default
+        return 0
+    end
+
+    set -l dir (dirname -- "$sock")
+    if test (basename -- (dirname -- "$dir")) = sessions
+        basename -- "$dir"
+    else
+        echo default
+    end
+end
+
 function herdr-preset
     set preset $argv[1]
     set -e argv[1]
@@ -387,6 +452,141 @@ while i < n:
 
 sys.stdout.write("\n".join(out) + ("\n" if out else ""))
 ' "$bound" "$profile" $procs
+
+    case "get-pin-json"
+        # Print a yabai-harpoon `herdr_pane` pin for a pane: its identity within
+        # herdr (session, pane, tab, workspace) plus a human-readable name for
+        # the pin list.
+        #
+        #   get-pin-json [<pane>]
+        #
+        # Defaults to the pane that was focused when the caller was invoked
+        # (HERDR_ACTIVE_PANE_ID in a custom command, HERDR_PANE_ID in a pane
+        # shell). Only the herdr-side identity is filled in: which WINDOW the
+        # session is displayed in is a local fact the caller knows and herdr does
+        # not, so yabai-harpoon adds the yabai window id and title to this.
+        #
+        # `yabai-harpoon add` reaches this through `ghostty-preset
+        # execute-herdr-command`, which is what carries it across the ssh
+        # boundary when the session is a remote one.
+        set -l tag "herdr-preset get-pin-json"
+
+        set -l bin (__herdr_bin); or begin
+            echo "$tag: herdr CLI not found (HERDR_BIN_PATH unset and no herdr on PATH)" >&2
+            return 1
+        end
+
+        set -l pane $argv[1]
+        test -n "$pane"; or set pane "$HERDR_ACTIVE_PANE_ID"
+        test -n "$pane"; or set pane "$HERDR_PANE_ID"
+        test -n "$pane"; or begin
+            echo "$tag: no pane given, and neither HERDR_ACTIVE_PANE_ID nor HERDR_PANE_ID is set" >&2
+            return 1
+        end
+
+        set -l panes ($bin pane list 2>&1 | string collect)
+        set -l tabs ($bin tab list 2>&1 | string collect)
+        set -l workspaces ($bin workspace list 2>&1 | string collect)
+
+        # A failed query prints a plain-text error, which would blow up --argjson
+        # with a jq parse error instead of something readable.
+        for payload in "$panes" "$tabs" "$workspaces"
+            printf '%s' "$payload" | jq -e . >/dev/null 2>&1; or begin
+                echo "$tag: a herdr query failed" >&2
+                echo "  output: $payload" >&2
+                return 1
+            end
+        end
+
+        jq -c -n \
+            --arg pane "$pane" \
+            --arg session (__herdr_session_name) \
+            --argjson panes "$panes" \
+            --argjson tabs "$tabs" \
+            --argjson workspaces "$workspaces" '
+            (first($panes.result.panes[]? | select(.pane_id == $pane))
+                // error("pane \($pane) not found in this herdr session")) as $p
+            | (first($tabs.result.tabs[]? | select(.tab_id == $p.tab_id)) // {}) as $t
+            | (first($workspaces.result.workspaces[]? | select(.workspace_id == $p.workspace_id)) // {}) as $w
+            | ($w.label // "") as $workspace_label
+            | ($t.label // "") as $tab_label
+            | ($p.terminal_title_stripped // $p.terminal_title // "") as $pane_title
+            # Key order is deliberate: what a human reads to recognise the pin
+            # comes first, since these end up in the file `yabai-harpoon edit`
+            # opens. The ids that actually resolve it follow.
+            | {
+                workspace_label: $workspace_label,
+                pane_title: $pane_title,
+                name: ([$workspace_label, $tab_label, $pane_title]
+                       | map(select(. != "" and . != null)) | join(" / ")),
+                type: "herdr_pane",
+                session: $session,
+                pane_id: $p.pane_id,
+                tab_id: $p.tab_id,
+                tab_label: $tab_label,
+                tab_number: ($t.number // null),
+                workspace_id: $p.workspace_id,
+                workspace_number: ($w.number // null),
+              }
+            '
+        return $status
+
+    case "focus-pane"
+        # Focus <pane_id>, switching workspace and tab as needed. The other half
+        # of get-pin-json: `yabai-harpoon focus` raises the window this session
+        # is displayed in, then runs this in it to land on the pinned pane.
+        #
+        #   focus-pane <pane_id> [--session <name>]
+        #
+        # --session guards against the window having been re-pointed at a
+        # different herdr since the pin was taken, where the same pane id would
+        # name an unrelated pane.
+        set -l tag "herdr-preset focus-pane"
+
+        argparse 'session=' -- $argv
+        or return 1
+
+        set -l pane $argv[1]
+        test -n "$pane"; or begin
+            echo "$tag: no pane id given" >&2
+            return 1
+        end
+
+        set -l bin (__herdr_bin); or begin
+            echo "$tag: herdr CLI not found (HERDR_BIN_PATH unset and no herdr on PATH)" >&2
+            return 1
+        end
+
+        if set -q _flag_session; and test -n "$_flag_session"
+            set -l current (__herdr_session_name)
+            test "$current" = "$_flag_session"; or begin
+                echo "$tag: this is herdr session '$current', not '$_flag_session'" >&2
+                return 1
+            end
+        end
+
+        set -l panes ($bin pane list 2>&1 | string collect)
+        printf '%s' "$panes" | jq -e --arg p "$pane" 'any(.result.panes[]?; .pane_id == $p)' >/dev/null 2>&1
+        or begin
+            echo "$tag: pane '$pane' is gone from this herdr session" >&2
+            return 1
+        end
+
+        # pane.focus over the socket rather than the CLI: `herdr pane focus` only
+        # moves to a NEIGHBOUR, and `herdr agent focus` refuses panes it does not
+        # know as agents. Same call herdr-lib.fish's herdr_focus_pane makes.
+        set -l sock (__herdr_socket); or begin
+            echo "$tag: no herdr API socket found" >&2
+            return 1
+        end
+
+        set -l resp (printf '{"id":"herdr-preset","method":"pane.focus","params":{"pane_id":"%s"}}\n' "$pane" | nc -U "$sock")
+        printf '%s' "$resp" | jq -e '.error | not' >/dev/null 2>&1
+        or begin
+            echo "$tag: pane.focus failed for '$pane'" >&2
+            echo "  response: $resp" >&2
+            return 1
+        end
 
     case "*"
         echo "herdr-preset: unknown subcommand '$preset'" >&2

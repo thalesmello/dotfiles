@@ -525,6 +525,55 @@ function M.iterateWindows(opts)
 end
 
 ---------------------------------------------------------------
+-- herdr run-command popup
+---------------------------------------------------------------
+
+-- Run <cmd> in herdr's run-command prompt (ctrl+alt+shift+semicolon ->
+-- run-command.sh popup) and return without waiting for it: open the popup,
+-- paste, Enter. run-command.sh evals in the popup, which carries the HERDR_* env
+-- of the pane that was focused, so the command targets the right pane/tab. The
+-- popup closes on a zero exit and stays up showing the output otherwise.
+--
+-- The command travels via the clipboard, pasted rather than typed out: synthesizing
+-- a chord per character made the keyboard klack on every letter. The clipboard is
+-- saved and put back here, so callers never see it move.
+--
+-- Both delays are about that clipboard, not about the popup. The write has to be
+-- visible before cmd+v, or the prompt gets the PREVIOUS clipboard; and posting
+-- the paste is not the same as Ghostty having read the pasteboard, so restoring
+-- on the next line is the same race in reverse -- that one is what puts a stray
+-- "Command: <some path you copied earlier>" in the popup. If a slow popup ever
+-- starts swallowing the chords themselves, this is where those delays go too.
+-- Returns nothing on purpose: `hs -c` prints whatever the chunk evaluates to, so
+-- a `true` here would show up on the shim's stdout and end up mixed into the
+-- output execute-herdr-command hands back to its caller.
+function M.executeAndForgetHerdrCommand(cmd)
+  if not cmd or cmd == "" then return end
+
+  local saved = hs.pasteboard.getContents()
+  hs.pasteboard.setContents(cmd)
+
+  Preset.sendKeys({"ctrl", "alt", "shift", "semicolon"})
+  hs.timer.doAfter(0.05, function()
+    Preset.sendKeys({"cmd", "v"})
+    Preset.sendKeys({"return"})
+    hs.timer.doAfter(0.15, function()
+      -- Only put it back if it is still ours to put back. By now the command may
+      -- have answered on the clipboard (execute-herdr-command's replies come in
+      -- that way), or another run may have staged its own command there -- and
+      -- restoring over either loses it.
+      if hs.pasteboard.getContents() ~= cmd then return end
+
+      if saved ~= nil then
+        hs.pasteboard.setContents(saved)
+      else
+        hs.pasteboard.clearContents()
+      end
+    end)
+  end)
+end
+
+---------------------------------------------------------------
 -- Open file (herdr-aware)
 ---------------------------------------------------------------
 
@@ -540,27 +589,9 @@ function M.openFileWithFallback(file)
   log("openFileWithFallback " .. file)
   if M.isHerdrZoomedOrSingleSurface() then
     log("  -> route: herdr run-command popup")
-    -- Put the command on the clipboard and paste it in one shot rather than
-    -- typing it: per-character keystroke synthesis was triggering a keyboard
-    -- sound (klack) on every letter. Single-quote the path for the popup's bash
-    -- `eval`. Restore the previous clipboard once the paste has been consumed.
-    local cmd = "herdr-preset open-file-with-fallback '" .. file:gsub("'", "'\\''") .. "'"
-    local saved = hs.pasteboard.getContents()
-    hs.pasteboard.setContents(cmd)
-    Preset.sendKeys({"ctrl", "alt", "shift", "semicolon"})
-    hs.timer.doAfter(0.25, function()
-      Preset.sendKeys({"cmd", "v"})
-      hs.timer.doAfter(0.08, function()
-        Preset.sendKeys({"return"})
-        hs.timer.doAfter(0.15, function()
-          if saved ~= nil then
-            hs.pasteboard.setContents(saved)
-          else
-            hs.pasteboard.clearContents()
-          end
-        end)
-      end)
-    end)
+    -- Single-quote the path for the popup's bash `eval`.
+    M.executeAndForgetHerdrCommand(
+      "herdr-preset open-file-with-fallback '" .. file:gsub("'", "'\\''") .. "'")
   else
     log("  -> route: native Ghostty split (nvim-open-in-tab)")
     M.newSplit({ vertical = true, cmd = 'ghostty-preset nvim-open-in-tab "' .. file .. '"' })

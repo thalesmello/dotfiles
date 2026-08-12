@@ -2,13 +2,37 @@ set FILE "$HOME/.yabai-harpoon.json"
 set STATE "$HOME/.yabai-harpoon-current"
 set PINFILE_DIR "$HOME/.local_dotfiles/yabai-harpoon/pinfiles"
 
+# Where dev-preset persists the id of the window holding the devserver session.
+# A herdr pin taken in that window records that it WAS the devserver rather than
+# the window id alone: the devserver window is recreated (new id) whenever the
+# connection is restarted, and this file is the memo of where it went.
+set DEVSERVER_WINDOW_ID_FILE "/tmp/dev-preset/session.windowid"
+
 function yabai-harpoon
     set mode $argv[1]
     set -e argv[1]
 
     switch "$mode"
     case "add"
+        # Bail rather than rewrite the pin file with nothing to add: an empty pin
+        # only reaches jq below as "invalid JSON text passed to --argjson".
         set pin (yabai-harpoon get-focused-pin-json)
+        or begin
+            display-message "yabai-harpoon: Could not read focused window"
+            return 1
+        end
+
+        # write-pins-to-file dedupes by uuid, so re-adding something already
+        # pinned is a silent no-op that still reports "Add ... to pin <count>".
+        # Say where it already is instead.
+        yabai-harpoon get-pins-from-file | jq -rs --argjson pin "$pin" \
+            'first(to_entries[] | select(.value.uuid == $pin.uuid) | .key + 1) // "", length' \
+            | read --line existing total
+
+        if test -n "$existing"
+            display-message "yabai-harpoon: Already exists as pin $existing of $total"
+            return 0
+        end
 
         begin
             yabai-harpoon get-pins-from-file
@@ -93,8 +117,7 @@ function yabai-harpoon
                 # ($current/$STATE), snap back to it instead of advancing. This
                 # reintroduces the (expensive) focused-window query, but only for
                 # next/prev and only when we have a $current to compare against.
-                if test -n "$current"
-                    and test (yabai-harpoon get-focused-pin-json | jq -r '.uuid') != (yabai-harpoon get-pin "$current" | jq -r '.uuid')
+                if test -n "$current"; and not yabai-harpoon focused-matches-pin "$current"
                     set position "$current"
                 else if test "$target" = "next"
                     test -n "$current"; and set position (math "$current % $count + 1"); or set position 1
@@ -190,6 +213,9 @@ function yabai-harpoon
         case window
             yabai-preset focus-window-id (jq -nr --argjson json "$json" '$json.window_id')
             or set has_failed 1
+        case herdr_pane
+            echo "$json" | yabai-harpoon focus-herdr-pin
+            or set has_failed 1
         case '*'
             set has_failed 1
         end
@@ -209,11 +235,139 @@ function yabai-harpoon
             else
                 set json (jq -n --argjson chrome_tab "$chrome_tab" --argjson window "$window" '{app: $window.app, title: $chrome_tab.title, type: "chrome_tab", uuid: ({chrome_tab: $chrome_tab.id} | @base64), tab_id: $chrome_tab.id, tab_window_id: $chrome_tab.windowId, url: $chrome_tab.url}')
             end
+        else if test "$window_app" = "Ghostty"; and ghostty-preset is-herdr-zoomed-or-single-surface
+            # herdr multiplexes many panes into one window, so a plain `window`
+            # pin here would only ever return to "wherever herdr happens to be
+            # showing". Pin the PANE instead.
+            set -l herdr (yabai-harpoon capture-herdr-pin)
+            or return 1
+
+            set -l devserver (yabai-harpoon devserver-window-id)
+
+            set json (jq -n --argjson herdr "$herdr" --argjson window "$window" --arg devserver "$devserver" '
+                $herdr + {
+                    app: $window.app,
+                    title: $herdr.name,
+                    window_id: $window.id,
+                    window_title: $window.title,
+                    # The pane id is only unique within its session.
+                    uuid: ({herdr_pane: "\($herdr.session):\($herdr.pane_id)"} | @base64),
+                    is_devserver: ($devserver != "" and ($devserver | tonumber) == $window.id),
+                }')
         else
             set json (jq -n --argjson window "$window" '{app: $window.app,  title: $window.title, type: "window", uuid: ({window: $window.id} | @base64), window_id: $window.id}')
         end
 
         echo "$json"
+    case "focused-matches-pin"
+        # Is the focused window the pin at <position>? Used by next/prev to tell
+        # "advance" from "snap back to where we thought we were".
+        set -l pin (yabai-harpoon get-pin $argv[1])
+        or return 1
+
+        jq -nr --argjson json "$pin" '$json.type, ($json.window_id // ""), ($json.is_devserver // false)' \
+            | read --line type pin_window is_devserver
+
+        if test "$type" = herdr_pane
+            # Identifying the focused PANE would mean another run-command round
+            # trip -- a popup flashing open on every next/prev -- so settle for
+            # the window. Being on the wrong pane of the right window still
+            # counts as being on the pin, which is the answer next/prev needs.
+            if test "$is_devserver" = true
+                set -l current (yabai-harpoon devserver-window-id)
+                test -n "$current"; and set pin_window "$current"
+            end
+
+            test -n "$pin_window"; or return 1
+            test "$(yabai-preset get-focused-window-id)" = "$pin_window"
+            return
+        end
+
+        test "$(yabai-harpoon get-focused-pin-json | jq -r '.uuid')" = "$(jq -nr --argjson json "$pin" '$json.uuid')"
+    case "devserver-window-id"
+        # The window id dev-preset last recorded for the devserver session, or
+        # nothing. Empty rather than an error when there is no devserver on this
+        # machine at all -- the file only exists where dev-preset runs.
+        test -e "$DEVSERVER_WINDOW_ID_FILE"; or return 0
+
+        string match -r '\d+' -- (cat "$DEVSERVER_WINDOW_ID_FILE" 2>/dev/null)
+        return 0
+    case "capture-herdr-pin"
+        # Ask the herdr session displayed in the focused window to describe its
+        # focused pane, and print that JSON.
+        #
+        # The session may be running on a devserver over ssh (`herdr --remote`),
+        # where its socket is unreachable from here -- so this cannot just call
+        # the herdr CLI. execute-herdr-command runs it wherever the SERVER is,
+        # over herdr's run-command popup and the clipboard.
+        set -l pin (ghostty-preset execute-herdr-command "herdr-preset get-pin-json")
+        or begin
+            echo "yabai-harpoon: could not read the herdr pin ($pin)" >&2
+            return 1
+        end
+
+        # Guard against a reply that came back for something else entirely.
+        printf '%s' "$pin" | jq -ec 'select(.type == "herdr_pane")'
+        or begin
+            echo "yabai-harpoon: not a herdr pin: $pin" >&2
+            return 1
+        end
+    case "focus-herdr-pin"
+        read json
+
+        jq -nr --argjson json "$json" '
+            $json.window_id, $json.window_title, $json.app,
+            $json.pane_id, $json.session, ($json.is_devserver // false)
+            ' | read --line window_id window_title app pane_id session is_devserver
+
+        # A restarted devserver connection comes back in a NEW window, so the id
+        # recorded with the pin is stale by design. dev-preset's memo of where
+        # the devserver went is the current answer.
+        if test "$is_devserver" = true
+            set -l current (yabai-harpoon devserver-window-id)
+            test -n "$current"; and set window_id "$current"
+        end
+
+        # Window gone? Fall back to another window of the same app showing the
+        # same title -- herdr titles itself after the session it is running, so
+        # a session reattached in a fresh window is still recognisable.
+        set -l windows (yabai-preset query-windows | string collect)
+        if not printf '%s' "$windows" | jq -e --argjson id "$window_id" 'any(.[]; .id == $id)' >/dev/null
+            set window_id (printf '%s' "$windows" | jq -r --arg app "$app" --arg title "$window_title" \
+                'first(.[] | select(.app == $app and .title == $title) | .id) // empty')
+        end
+
+        test -n "$window_id"; or begin
+            echo "yabai-harpoon: no window left for herdr pane $pane_id" >&2
+            return 1
+        end
+
+        # --wait-focus: the popup below is driven by synthetic keystrokes, which
+        # go to whatever is focused at the time.
+        yabai-preset focus-window-id --wait-focus "$window_id"
+        or return 1
+
+        # Confirm herdr really is what that window is showing before typing into
+        # it. A failure here returns non-zero, which makes `focus` refresh the
+        # pins and retry rather than paste a command at some unrelated app.
+        ghostty-preset is-herdr-zoomed-or-single-surface
+        or begin
+            echo "yabai-harpoon: window $window_id is not showing herdr" >&2
+            return 1
+        end
+
+        # Same round trip as capture-herdr-pin. --session makes herdr-preset
+        # refuse if the window has since been pointed at a different session,
+        # where this pane id would name something else entirely. @sh because
+        # execute-herdr-command hands what it is given to bash.
+        set -l focus_cmd (jq -nrj --arg pane "$pane_id" --arg session "$session" \
+            '"herdr-preset focus-pane \($pane|@sh) --session \($session|@sh)"')
+
+        set -l out (ghostty-preset execute-herdr-command "$focus_cmd")
+        or begin
+            echo "yabai-harpoon: could not focus herdr pane $pane_id ($out)" >&2
+            return 1
+        end
     case "get-pins-from-file"
         if test ! -e "$FILE"
             yabai-harpoon reset-file
@@ -224,7 +378,10 @@ function yabai-harpoon
         jq -s '{ pins: [. | to_entries | unique_by(.value.uuid) | sort_by(.key) | .[] | .value] }' > "$FILE"
     case "normalize-pins"
         # Read the incoming pins once so we can decide which (slow) data sources
-        # we actually need before paying for them. A command substitution like
+        # we actually need before paying for them. herdr pins are passed through
+        # untouched: re-reading one means another run-command round trip, with a
+        # popup flashing open, and the pin already carries its own fallbacks (see
+        # focus-herdr-pin). A command substitution like
         # `(cat)` does NOT inherit a piped function's stdin in fish, so slurp the
         # lines explicitly with `read`.
         set -l pins

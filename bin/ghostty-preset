@@ -105,6 +105,149 @@ function ghostty-preset
         set -l enc (printf '%s' "$argv[1]" | base64 | tr -d '\n')
         hs -c "require('ghosttyPreset').openFileWithFallback(hs.base64.decode('$enc'))"
 
+    case "execute-and-forget-herdr-command"
+        # Run <cmd> in the herdr session showing in the focused window without
+        # waiting for it (see ghosttyPreset.executeAndForgetHerdrCommand).
+        # Returns as soon as the keystrokes are scheduled and says nothing about
+        # whether the command ran, let alone what it printed --
+        # execute-herdr-command below is the version that waits and answers.
+        set -l cmd $argv[1]
+        test -n "$cmd"; or begin
+            echo "ghostty-preset execute-and-forget-herdr-command: no command given" >&2
+            return 1
+        end
+
+        # base64 so the command survives fish -> hs -c shell arg -> Lua without
+        # quoting, same as open-file-with-fallback above.
+        set -l enc (printf '%s' "$cmd" | base64 | tr -d '\n')
+        hs -c "require('ghosttyPreset').executeAndForgetHerdrCommand(hs.base64.decode('$enc'))"
+
+    case "execute-herdr-command"
+        # Run <cmd> in the herdr session showing in the focused window, wait for
+        # it, print its output and exit with its status -- as if it had been run
+        # locally.
+        #
+        #   execute-herdr-command [--timeout <seconds>] <cmd>
+        #
+        # The session may be a remote one (`herdr --remote <host>`), where its
+        # socket is unreachable from this machine. What does reach it is herdr's
+        # own run-command popup (ctrl+alt+shift+semicolon), and what comes back
+        # is OSC 52: herdr intercepts the escape from a pane it renders and puts
+        # the payload on the ATTACHED CLIENT's clipboard, i.e. ours. So the
+        # clipboard carries the command in (pasting beats synthesizing a chord
+        # per character, which made the keyboard klack on every letter) and the
+        # answer out.
+        #
+        # <cmd> is wrapped so it reports itself: stdout+stderr and exit status
+        # come back in one OSC 52 payload. The wrapper always exits 0 even when
+        # <cmd> did not, so the popup always CLOSES -- run-command.sh holds a
+        # popup open until a keypress on a non-zero exit, and a popup left
+        # standing swallows the chords of every later run (herdr's popups are
+        # session-modal), so one failure would otherwise poison the next.
+        # Nothing is lost by that: the real status and output come back here.
+        #
+        # Getting the command there is execute-and-forget-herdr-command's job,
+        # clipboard and all. Only the reply is ours -- and it lands ON the
+        # clipboard, after that function has already put the old contents back,
+        # so this saves and restores around the whole exchange as well.
+        argparse 'timeout=' -- $argv
+        or return 1
+
+        set -l cmd $argv[1]
+        test -n "$cmd"; or begin
+            echo "ghostty-preset execute-herdr-command: no command given" >&2
+            return 1
+        end
+
+        set -l timeout 5
+        set -q _flag_timeout; and set timeout "$_flag_timeout"
+
+        # A run owns the clipboard AND the popup from the first chord until its
+        # reply lands, and neither can be shared: a second run overwrites the
+        # wrapper the first one is about to paste, and its restore puts the old
+        # clipboard back under the first one's feet. Two harpoon adds in quick
+        # succession did exactly that. So they queue.
+        set -l lock /tmp/ghostty-preset-herdr-exec.lock
+        set -l acquired 0
+        for i in (seq (math "round(($timeout + 10) * 20)"))
+            if mkdir "$lock" 2>/dev/null
+                set acquired 1
+                echo $fish_pid > "$lock/pid"
+                break
+            end
+
+            # Clear a lock whose owner is gone -- killed mid-run, say.
+            set -l owner (cat "$lock/pid" 2>/dev/null)
+            if test -n "$owner"; and not kill -0 "$owner" 2>/dev/null
+                rm -rf "$lock"
+            end
+
+            sleep 0.05
+        end
+        test $acquired -eq 1; or begin
+            echo "ghostty-preset execute-herdr-command: gave up waiting for another herdr command to finish" >&2
+            return 1
+        end
+
+        # First line of the reply, so a clipboard that merely changed under us is
+        # not mistaken for an answer. Per-run, so a reply that arrives after its
+        # run gave up cannot be read as the next run's.
+        set -l token "ghostty-preset:herdr-exec:$fish_pid-"(random)
+
+        # bash: run-command.sh evals what it is handed. <cmd> is expected to be
+        # bash-quoted already (jq's @sh is the easy way).
+        set -l wrapper (string join '; ' \
+            "__out=\$( { $cmd ; } 2>&1 )" \
+            "__s=\$?" \
+            "printf '\\033]52;c;%s\\007' \"\$(printf '%s\\n%s\\n%s' '$token' \"\$__s\" \"\$__out\" | base64 | tr -d '\\r\\n')\"" \
+            "[ -n \"\$__out\" ] && printf '%s\\n' \"\$__out\"" \
+            "true")
+
+        set -l saved (pbpaste 2>/dev/null | string collect)
+
+        # stdout discarded: everything this prints belongs to <cmd>, and `hs -c`
+        # is free to echo whatever the Lua chunk evaluated to. stderr is kept.
+        set -l drove 0
+        ghostty-preset execute-and-forget-herdr-command "$wrapper" >/dev/null; or set drove 1
+
+        # 50ms ticks. Nothing arrives at all if the popup never opened, hence the
+        # cap -- leaving our own wrapper on the clipboard is worse than giving up.
+        set -l reply
+        if test $drove -eq 0
+            for i in (seq (math "round($timeout * 20)"))
+                sleep 0.05
+
+                set -l parts (string split -m 2 \n -- (pbpaste 2>/dev/null | string collect))
+                if test (count $parts) -ge 2; and test "$parts[1]" = "$token"
+                    set reply $parts
+                    break
+                end
+            end
+        end
+
+        if test -n "$saved"
+            printf '%s' "$saved" | pbcopy
+        else
+            printf '' | pbcopy
+        end
+
+        rm -rf "$lock"
+
+        if test $drove -ne 0
+            echo "ghostty-preset execute-herdr-command: could not drive the herdr run-command popup" >&2
+            return 1
+        end
+
+        test (count $reply) -ge 2; or begin
+            echo "ghostty-preset execute-herdr-command: no reply within {$timeout}s -- is the focused window running herdr?" >&2
+            return 1
+        end
+
+        test (count $reply) -ge 3; and printf '%s\n' "$reply[3]"
+
+        string match -qr '^\d+$' -- "$reply[2]"; or return 1
+        return "$reply[2]"
+
     case "iterate-windows"
         argparse 'except-window-id=' 'prev' -- $argv
         or return 1
