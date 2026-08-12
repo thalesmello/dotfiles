@@ -193,6 +193,16 @@ type = "shell"
 command = "\"${HERDR_BIN_PATH:-herdr}\" pane send-keys \"$HERDR_ACTIVE_PANE_ID\" ctrl+l"
 description = "clear screen (ctrl+l)"
 
+# prefix+=: even out every split in the tab, so all panes end up the same size
+# (tmux parity: `select-layout even-horizontal` / `even-vertical`, on the key
+# tmux uses for `select-layout -E`). herdr has no balance action or CLI command
+# for this, so the script drives the layout.set_split_ratio API directly.
+[[keys.command]]
+key = "prefix+="
+type = "shell"
+command = "~/.config/herdr/scripts/even-layout.sh"
+description = "even out all pane sizes"
+
 # prefix+c: open a new vertical split (40% of width) running Claude Code.
 [[keys.command]]
 key = "prefix+c"

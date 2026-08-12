@@ -17,6 +17,18 @@
 #   (`pane split --env HERDR_BIN_PATH=...`): a pane shell does not inherit the
 #   launcher's environment, and may not have herdr on PATH either.
 #
+# herdr_socket -- print the API socket path, or fail.
+#
+#   Needed for the requests the CLI does not expose (layout.export,
+#   layout.set_split_ratio). Same reasoning as herdr_bin: the injected env var
+#   first, then the default locations. Mirrors herdr_socket in herdr-lib.fish.
+#
+# herdr_request <method> <json-params> -- one-shot API call, prints the response.
+#
+#   One request per connection: herdr answers the first request on a connection
+#   and silently ignores anything written after it, so a caller with several
+#   requests to make has to reconnect for each one.
+#
 # herdr_die -- report a fatal error as a herdr notification, then exit 1.
 #
 #   Neither a detached command nor an exec'd pane that closes on exit has
@@ -52,6 +64,28 @@ herdr_bin() {
     done
 
     return 1
+}
+
+herdr_socket() {
+    if [ -n "$HERDR_SOCKET_PATH" ] && [ -S "$HERDR_SOCKET_PATH" ]; then
+        printf '%s\n' "$HERDR_SOCKET_PATH"
+        return 0
+    fi
+
+    for _candidate in "$HOME/.config/herdr/herdr.sock" \
+        "$HOME/.local/state/herdr/herdr.sock"; do
+        if [ -S "$_candidate" ]; then
+            printf '%s\n' "$_candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+herdr_request() {
+    _sock=$(herdr_socket) || return 1
+    printf '{"id":"sh","method":"%s","params":%s}\n' "$1" "$2" | nc -U "$_sock"
 }
 
 HERDR_DIE_HOLD_CHARS=${HERDR_DIE_HOLD_CHARS:-100}
