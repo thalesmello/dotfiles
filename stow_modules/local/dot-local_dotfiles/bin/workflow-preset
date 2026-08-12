@@ -23,8 +23,9 @@ end
 #
 #   type      the name every preset routes on. It is what rxpick tags a pick
 #             with, what the hammerspoon:// links carry, and what
-#             open-selection-type switches on. It may repeat: two ways of
-#             writing a url are still a url.
+#             open-selection-type switches on. A url written with a scheme and
+#             one written without are separate types (`url` and
+#             `implicit_url`) because they open through different templates.
 #   pattern   a regex matching the thing and nothing more, with no anchors of
 #             its own.
 #   url       where the type opens, with `{match}` standing in for the text,
@@ -48,9 +49,9 @@ end
 # the order below only to break ties at the same offset. Leftmost is what makes
 # `docs/README.md` a path rather than the file `README.md` hiding inside it.
 #
-# Order therefore matters at equal offsets: url before path so `example.com/a`
-# is a host and not a relative path; file after both because .md and .sh are
-# TLDs too. The work-specific types live in meta-preset.
+# Order therefore matters at equal offsets: implicit_url before path so
+# `example.com/a` is a host and not a relative path; file after both because
+# .md and .sh are TLDs too. The work-specific types live in meta-preset.
 function __workflow_preset_selection_types
     # Trailing delimiters a url must not swallow, borrowed from rxpick's own
     # builtin so a pick and a selection agree on where a url ends.
@@ -58,15 +59,14 @@ function __workflow_preset_selection_types
 
     printf '%s\t%s\t%s\n' \
         url "https?://$url_tail+" '{match_raw}' \
-        url "[a-zA-Z0-9_.-]+\.[a-zA-Z]{2,}/$url_tail*" 'https://{match_raw}' \
+        implicit_url "[a-zA-Z0-9_.-]+\.[a-zA-Z]{2,}/$url_tail*" 'https://{match_raw}' \
         path '~?/?[\w.~+@%-]+(?:/[\w.~+@%-]*)+' - \
         file '[a-zA-Z0-9_.-]+\.(py|js|jsx|mjs|cjs|ts|tsx|rb|php|html|htm|css|scss|c|cc|cpp|h|hpp|java|go|rs|lua|sh|fish|pl|r|swift|kt|scala|sql|vim|hs|md|txt|toml|json|yaml|yml|xml|csv|ini|cfg|conf)' -
 end
 
 # The url a type opens, with {match} filled in, or nothing when the type does
-# not open one. A type can have several records (a url written with and
-# without a scheme, which is exactly the difference between `{match}` and
-# `https://{match}`), so pick the record whose pattern describes THIS match.
+# not open one. A type may still have several records, so pick the record whose
+# pattern describes THIS match rather than the first one bearing the name.
 function __workflow_preset_selection_url --argument-names type match
     for record in (__workflow_preset_selection_types)
         set -l fields (string split \t -- $record)
@@ -301,12 +301,30 @@ case "pick-selections"
     # the chosen ones, one per line. The types come straight out of the shared
     # dictionary, so a pick and a selection are always named the same thing and
     # the hammerspoon:// link a pick renders feeds open-selection-type directly.
+    #
+    # Where rxpick has a builtin for a type, the builtin is used instead of the
+    # dictionary's pattern: it asks the filesystem, which a regex cannot, so it
+    # only offers paths that are really there and knows which of them is a file
+    # and which a directory. `path` therefore becomes those two builtins, and
+    # the dictionary's `file` needs no line of its own -- a builtin file is
+    # anything that exists and looks like a path (a slash or an extension), so
+    # it catches the extensionless `~/bashrc` that no list of suffixes would.
+    # The types with no builtin are still passed as their pattern.
     set -l rxpick_args
     for record in (__workflow_preset_selection_types)
         set -l fields (string split \t -- $record)
         test "$fields[2]" = -; and continue
 
-        set -a rxpick_args -t "$fields[1]" (string join '' '(?<!\w)(?:' $fields[2] ')(?!\w)')
+        switch "$fields[1]"
+        case url
+            set -a rxpick_args -b url
+        case path
+            set -a rxpick_args -b file -b directory
+        case file
+            continue
+        case '*'
+            set -a rxpick_args -t "$fields[1]" (string join '' '(?<!\w)(?:' $fields[2] ')(?!\w)')
+        end
 
         # A type that knows where it opens gets a direct clickable link, as
         # long as the template survives rxpick's rendering: it percent-encodes

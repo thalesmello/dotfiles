@@ -144,8 +144,19 @@ PAIR_MATCH, PAIR_CURRENT, PAIR_SELECTED = 1, 2, 3
 BUILTIN_URL_RE = r"\b(?:https?|ftp|file)://[^\s<>\"'`|)\]}]+"
 BUILTIN_PATH_RE = r"[~./]?[\w./+@%\-]*[\w]"
 
+# Existing is not enough to be worth offering: an ordinary word in a sentence
+# (`test`, `build`, `docs`) names a directory often enough that matching every
+# one of them buries the picks that were meant. So a path candidate must also
+# LOOK like a path -- carry a slash, or end in an extension -- while existence
+# stays the thing that decides. The extension is any short suffix rather than a
+# list of known ones, since existence has already ruled out the false ones, and
+# a slash covers the extensionless files that a list never could (`~/bashrc`).
+BUILTIN_PATHISH = re.compile(r"/|\.[A-Za-z0-9]{1,10}$")
+
 def _fs_pred(check):
     def pred(text):
+        if not BUILTIN_PATHISH.search(text):
+            return False
         try:
             return check(os.path.expanduser(text))
         except OSError:
