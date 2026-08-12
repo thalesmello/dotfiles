@@ -174,7 +174,7 @@ function M.setup()
   require("smartcmdtab").setup(hyper)
 
   ---------------------------------------------------------------
-  -- Fallback hyper key (Caps Lock) when Karabiner is not running
+  -- Hyper key (Caps Lock)
   ---------------------------------------------------------------
 
   require("caps_hyper").setup()
@@ -185,6 +185,41 @@ function M.setup()
 
   -- Command palette
   default:bindOnce(hyperShift, ";", "Command Palette", showCommandPalette)
+
+  ---------------------------------------------------------------
+  -- Palette-only commands
+  --
+  -- Registered straight with the palette instead of through Mode:bindOnce, so
+  -- they consume no chord: passing no shortcut makes registerBinding file them
+  -- under a unique anonymous key, and showCommandPalette renders the bare name
+  -- with no "(...)" suffix. For things run rarely enough that a key would be
+  -- wasted on them.
+  ---------------------------------------------------------------
+
+  local function command(name, fn) registerBinding(name, fn) end
+
+  -- Install the `hs` command-line tool. Deliberately NOT done at startup: the
+  -- cliStatus+cliInstall pair cost ~116ms of a ~210ms config load, and with the
+  -- default /usr/local prefix (root-owned, and not where Homebrew lives on
+  -- Apple Silicon) the install failed silently and re-ran on every reload.
+  command("Install Hammerspoon CLI", function()
+    local ipc = require("hs.ipc")
+    -- Prefer the Homebrew prefix that actually exists on this machine; fall
+    -- back to hs.ipc's own default.
+    local prefix = hs.fs.attributes("/opt/homebrew/bin", "mode") and "/opt/homebrew" or "/usr/local"
+
+    if ipc.cliStatus(prefix, true) then
+      Preset.displayMessage("hs CLI already installed: " .. prefix .. "/bin/hs", 2)
+      return
+    end
+
+    ipc.cliInstall(prefix)
+    if ipc.cliStatus(prefix, true) then
+      Preset.displayMessage("Installed hs CLI: " .. prefix .. "/bin/hs", 2)
+    else
+      Preset.displayMessage("Failed to install hs CLI to " .. prefix .. "/bin (not writable?)", 3)
+    end
+  end)
 
   -- Utility
   default:bindOnce(hyperShift, "m", "Deminimize Last", function() task({"wm-preset", "deminimize-last"}) end)

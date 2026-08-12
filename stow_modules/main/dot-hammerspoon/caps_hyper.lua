@@ -1,8 +1,8 @@
--- Fallback hyper key.
+-- Hyper key.
 --
--- When Karabiner is NOT running, make Caps Lock behave as Control+Command+Option
--- while held, and Escape when tapped (released within the threshold without
--- pressing another key). This mirrors the Karabiner rule in karabiner.edn:
+-- Makes Caps Lock behave as Control+Command+Option while held, and Escape when
+-- tapped (released within the threshold without pressing another key). This
+-- mirrors the Karabiner rule in karabiner.edn:
 --   [:##caps_lock {:key :!CTleft_option ...} nil {:alone {:key :escape} :params {:alone 150}}]
 --
 -- macOS Caps Lock is a locking key, so it can't be observed as a momentary key
@@ -17,8 +17,11 @@
 -- flags carried by the following key event, so Carbon hotkeys (used by
 -- hs.hotkey and app global shortcuts) never see the modifiers.
 --
--- Note: the Karabiner check runs once, at setup. If Karabiner stops later, reload
--- Hammerspoon to pick up the fallback.
+-- This is set up unconditionally -- Hammerspoon owns Caps Lock whether or not
+-- Karabiner is running. (It used to probe for karabiner_grabber first and only
+-- arm itself as a fallback.) With Karabiner also running, the hidutil remap
+-- means Karabiner's own ##caps_lock rule never matches, since by the time it
+-- sees the key it is already F19.
 
 local util = require("util")
 
@@ -29,8 +32,16 @@ local CAPS_LOCK_HID = 0x700000039
 local F19_HID = 0x70000006E
 
 -- Replace the system key map with a single src->dst remap, or clear it entirely
--- when called with no arguments.
-local function setMapping(srcHid, dstHid)
+-- when called with nil HIDs.
+--
+-- Async by default, so the hidutil call stays off the config load path. `sync`
+-- is for the shutdown path only: Hammerspoon tears down before an hs.task
+-- completion callback would ever run, so restoring Caps Lock has to block.
+--
+-- hs.task takes an argv list, so the JSON payload goes through as a single
+-- argument -- no shell, and no quoting to get wrong (the previous hs.execute
+-- wrapped it in single quotes and forked /bin/sh for it).
+local function setMapping(srcHid, dstHid, sync)
   local payload
   if srcHid and dstHid then
     payload = string.format(
@@ -39,25 +50,25 @@ local function setMapping(srcHid, dstHid)
   else
     payload = '{"UserKeyMapping":[]}'
   end
-  hs.execute(string.format("/usr/bin/hidutil property --set '%s'", payload))
-end
 
-local function karabinerRunning()
-  -- pgrep exits 0 (status == true) when a matching process is found.
-  local _, ok = hs.execute("/usr/bin/pgrep -x karabiner_grabber")
-  return ok == true
-end
-
-function M.setup(opts)
-  opts = opts or {}
-  local threshold = opts.threshold or 0.15 -- seconds; matches Karabiner :alone 150
-
-  if karabinerRunning() then
-    util.log("caps_hyper: Karabiner running, skipping fallback hyper key")
-    return
+  local task = hs.task.new("/usr/bin/hidutil", nil, {"property", "--set", payload})
+  if sync then
+    task:start():waitUntilExit()
+  else
+    task:start()
   end
+end
 
-  util.log("caps_hyper: Karabiner not running, enabling fallback hyper key")
+-- Arm the remap and the F19 eventtap.
+local function enable(threshold)
+  -- Restore Caps Lock when Hammerspoon reloads/quits so it isn't left as a dead
+  -- key. Registered *before* the remap so there is no window in which the
+  -- mapping is live without a matching teardown. Synchronous by necessity.
+  local prevShutdown = hs.shutdownCallback
+  hs.shutdownCallback = function()
+    setMapping(nil, nil, true)
+    if prevShutdown then prevShutdown() end
+  end
 
   -- Remap physical Caps Lock to F19 so we can observe it as a momentary key.
   setMapping(CAPS_LOCK_HID, F19_HID)
@@ -106,13 +117,18 @@ function M.setup(opts)
     return false
   end)
   _G._CapsHyperTap:start()
+end
 
-  -- Restore Caps Lock when Hammerspoon reloads/quits so it isn't left as a dead key.
-  local prevShutdown = hs.shutdownCallback
-  hs.shutdownCallback = function()
-    setMapping(nil, nil)
-    if prevShutdown then prevShutdown() end
-  end
+function M.setup(opts)
+  opts = opts or {}
+  local threshold = opts.threshold or 0.15 -- seconds; matches Karabiner :alone 150
+
+  util.log("caps_hyper: enabling hyper key")
+  -- Nothing blocking here: enable() only registers a shutdown hook and an
+  -- eventtap, and its hidutil call is a fire-and-forget hs.task. This used to
+  -- shell out twice synchronously (pgrep, then hidutil) for ~31-40ms of a ~90ms
+  -- config load.
+  enable(threshold)
 end
 
 return M

@@ -173,14 +173,32 @@ end
 
 function M.createAppModal(appName)
   local modal = hs.hotkey.modal.new()
+
+  -- Enter/exit on the *frontmost application*, observed via hs.application.watcher
+  -- (an NSWorkspace notification). This previously subscribed to
+  -- hs.window.filter.new(nil), which AX-sweeps every window of every running app
+  -- at construction and then keeps per-app and per-window AX observers alive for
+  -- the life of the process: that one call was ~6.3s of a ~6.4s config load.
+  --
+  -- Both approaches go stale identically when a floating terminal panel is focused
+  -- on top of this app (the panel leaves the app frontmost), which is exactly what
+  -- the predicates below exist to handle.
+  local entered = false
   local function sync()
-    if M.focusedWindowAppName() == appName then modal:enter() else modal:exit() end
+    local app = hs.application.frontmostApplication()
+    local want = (app and app:name() or "") == appName
+    if want == entered then return end
+    entered = want
+    if want then modal:enter() else modal:exit() end
   end
-  local watcher = hs.window.filter.new(nil)
-  watcher:subscribe({
-    hs.window.filter.windowFocused,
-    hs.window.filter.windowUnfocused,
-  }, sync)
+
+  local watcher = hs.application.watcher.new(function(_, event)
+    if event == hs.application.watcher.activated
+      or event == hs.application.watcher.deactivated then
+      sync()
+    end
+  end)
+  watcher:start()
   modal._appWatcher = watcher
 
   -- Predicates gate every binding on this modal: a bound callback runs only when
