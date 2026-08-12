@@ -141,7 +141,11 @@ PAIR_MATCH, PAIR_CURRENT, PAIR_SELECTED = 1, 2, 3
 # the predicate is applied to the matched text and must return True for the
 # match to be kept. Paths are checked against the filesystem so "file" and
 # "directory" only surface things that actually exist and are of that kind.
-BUILTIN_URL_RE = r"\b(?:https?|ftp|file)://[^\s<>\"'`|)\]}]+"
+# Braces are excluded along with the quotes and brackets a url is wrapped in:
+# they cannot appear in one unescaped (RFC 3986), so a url-shaped TEMPLATE like
+# 'https://{match_raw}' -- the very thing this tool renders -- stops being a
+# match rather than becoming a truncated one.
+BUILTIN_URL_RE = r"\b(?:https?|ftp|file)://[^\s<>\"'`|)\]{}]+"
 BUILTIN_PATH_RE = r"[~./]?[\w./+@%\-]*[\w]"
 
 # Existing is not enough to be worth offering: an ordinary word in a sentence

@@ -53,9 +53,13 @@ end
 # `example.com/a` is a host and not a relative path; file after both because
 # .md and .sh are TLDs too. The work-specific types live in meta-preset.
 function __workflow_preset_selection_types
-    # Trailing delimiters a url must not swallow, borrowed from rxpick's own
-    # builtin so a pick and a selection agree on where a url ends.
-    set -l url_tail '[^\s<>"|)\]}]'
+    # Trailing delimiters a url must not swallow, kept identical to rxpick's
+    # own builtin so a pick and a selection agree on where a url ends. Quotes
+    # and brackets are what a url is WRAPPED in far more often than what it
+    # contains -- true even of `'`, which RFC 3986 does allow -- and braces
+    # cannot appear unescaped at all, so `'https://{match_raw}'` is a template
+    # rather than a url however much it looks like one.
+    set -l url_tail '[^\s<>"'"'"'`|)\]{}]'
 
     printf '%s\t%s\t%s\n' \
         url "https?://$url_tail+" '{match_raw}' \
