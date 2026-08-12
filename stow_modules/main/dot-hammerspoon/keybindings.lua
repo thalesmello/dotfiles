@@ -388,6 +388,29 @@ function M.setup()
   end)
   _G._GhosttyNewSplitTabTap:start()
 
+  -- cmd+alt+v in Ghostty -> flatten the clipboard (all newlines/indentation
+  -- collapsed to single spaces) and paste it as one line. Useful for pasting
+  -- multi-line snippets into a shell prompt. An eventtap rather than a hotkey so
+  -- cmd+alt+v passes through untouched in every other app.
+  _G._GhosttyPasteFlattenedTap = hs.eventtap.new({hs.eventtap.event.types.keyDown}, function(event)
+    local flags = event:getFlags()
+    if not (flags.cmd and flags.alt) or flags.ctrl or flags.shift then return false end
+    if event:getKeyCode() ~= hs.keycodes.map["v"] then return false end
+    if not isGhostty() then return false end
+
+    local text = hs.pasteboard.getContents()
+    if not text then return true end
+    -- Collapse every run of whitespace containing a newline into one space, then
+    -- trim the ends.
+    local flat = text:gsub("%s*\r?\n%s*", " "):gsub("^%s+", ""):gsub("%s+$", "")
+    hs.pasteboard.setContents(flat)
+    -- Delay so the physically-held cmd+alt has time to lift before the synthetic
+    -- cmd+v goes out (an alt still down turns it into a different chord).
+    hs.timer.doAfter(0.15, function() hs.eventtap.keyStroke({"cmd"}, "v") end)
+    return true
+  end)
+  _G._GhosttyPasteFlattenedTap:start()
+
   -- Cycle iTerm + Ghostty windows as if they were a single app. Windows from
   -- both apps are merged and ordered by (Hammerspoon/CG) window id for stable
   -- cycling. When a terminal window is focused, step to the next merged window
