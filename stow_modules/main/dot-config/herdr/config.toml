@@ -293,6 +293,16 @@ description = "copy pane id"
 width = 20
 height = 1
 
+# prefix+shift+m: break the focused pane out of its split and into a new tab of
+# the same workspace (tmux parity: `break-pane`). herdr has no native action for
+# this, so it drives the `pane move --new-tab` CLI. No-op-ish when the pane is
+# already alone in its tab (it just lands in a fresh tab).
+[[keys.command]]
+key = "prefix+shift+m"
+type = "shell"
+command = "\"${HERDR_BIN_PATH:-herdr}\" pane move \"$HERDR_ACTIVE_PANE_ID\" --new-tab --focus"
+description = "move pane to a new tab"
+
 # Smart pane navigation: focus the pane in that direction, but forward ctrl+hjkl
 # to (n)vim when the pane is zoomed or is the only pane in the tab.
 # ctrl+alt+h/j/k/l are the direct (prefix-less) chords forwarded by Ghostty for
