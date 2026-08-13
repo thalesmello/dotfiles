@@ -69,6 +69,7 @@ vim.api.nvim_create_autocmd("User", {
         require('config/mappings')
         require('config/clipboard')
         require('config/neovide')
+        require('config/ghost')
 
         local local_dotfiles = vim.fn.expand("$HOME/.local_dotfiles")
         if vim.loop.fs_stat(local_dotfiles) then

@@ -323,7 +323,6 @@ function M.focus_or_new_tab(filepath)
     end
 
     vim.cmd.tabedit(abs_path)
-    M.tcd_project_root()
 end
 
 return M
