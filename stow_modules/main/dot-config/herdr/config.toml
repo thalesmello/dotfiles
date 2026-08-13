@@ -303,6 +303,17 @@ type = "shell"
 command = "\"${HERDR_BIN_PATH:-herdr}\" pane move \"$HERDR_ACTIVE_PANE_ID\" --new-tab --focus"
 description = "move pane to a new tab"
 
+# Copy the focused tab's id to the clipboard and show a notification.
+# Popup for the same reason as copy-pane-id.sh: OSC 52 needs a herdr-rendered PTY
+# so the copy reaches the attached client over `herdr --remote`.
+[[keys.command]]
+key = "prefix+ctrl+y"
+type = "popup"
+command = "~/.config/herdr/scripts/copy-tab-id.sh"
+description = "copy tab id"
+width = 20
+height = 1
+
 # Smart pane navigation: focus the pane in that direction, but forward ctrl+hjkl
 # to (n)vim when the pane is zoomed or is the only pane in the tab.
 # ctrl+alt+h/j/k/l are the direct (prefix-less) chords forwarded by Ghostty for
