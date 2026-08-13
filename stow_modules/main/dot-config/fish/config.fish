@@ -16,6 +16,12 @@ set -g theme_display_virtualenv no
 set -g theme_color_scheme zenburn
 set -g fish_prompt_pwd_dir_length 2
 
+# Keep the prompt short: hide the user@host segment for the default user.
+# A prompt as wide as the pane forces fish to truncate it and repaint the whole
+# prompt on every keystroke, which renders as one prompt line per character in
+# narrow herdr splits.
+set -g default_user thalesmello
+
 # Environment variables
 set -gx EDITOR lvim
 set -gx VISUAL lvim
