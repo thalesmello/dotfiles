@@ -280,6 +280,35 @@ function M.visual_reference()
     return string.format("@%s#L%d-%d", path, line1, line2)
 end
 
+--- Project root of the current buffer, according to projectionist heuristics.
+--- Falls back to the cwd when it contains the file, otherwise to the file's own
+--- directory, so that useless roots like `/` or `~` are never returned.
+function M.project_root()
+    local path = vim.fn["projectionist#path"]()
+
+    if path == nil or vim.list_contains({'/', '', vim.fn.expand('~')}, path) then
+        local cwd = vim.fn.getcwd()
+        local file_path = vim.fn.expand('%:p')
+
+        if vim.startswith(file_path, cwd .. '/') then
+            path = cwd
+        else
+            path = vim.fn.expand('%:p:h')
+        end
+    end
+
+    return path
+end
+
+--- `:tcd` the current tab into the current buffer's project root.
+function M.tcd_project_root()
+    local path = M.project_root()
+
+    if path ~= nil and path ~= '' and vim.fn.isdirectory(path) == 1 then
+        vim.cmd.tcd(path)
+    end
+end
+
 function M.focus_or_new_tab(filepath)
     local abs_path = vim.fn.fnamemodify(filepath, ':p')
     local bufnr = vim.fn.bufnr(abs_path)
@@ -294,6 +323,7 @@ function M.focus_or_new_tab(filepath)
     end
 
     vim.cmd.tabedit(abs_path)
+    M.tcd_project_root()
 end
 
 return M

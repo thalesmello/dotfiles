@@ -110,6 +110,11 @@ function neovim-ghost
             set bufhidden_args
         end
 
+        # Anchor the new tab to the project root of the file being opened, so
+        # that tab-local tools (fzf, terminals, dispatch) operate on the project
+        # instead of the scratch cwd the instance was started from.
+        set -l tcd_args +"lua require'vim_utils'.tcd_project_root()"
+
         set -l close_map_args
         if set -q _flag_close_minimize_on_cmd_enter
             # Minimize the neovide window (pid read from the file at keypress time
@@ -120,7 +125,7 @@ function neovim-ghost
             set close_map_args +"nnoremap <buffer> <D-CR> ZZ" +"inoremap <buffer> <D-CR> <Esc>ZZ"
         end
 
-        nvr --nostart --servername "$TMPDIR/nvim_ghost.socket" $remote_arg $bufhidden_args $close_map_args $argv &
+        nvr --nostart --servername "$TMPDIR/nvim_ghost.socket" $remote_arg $bufhidden_args $tcd_args $close_map_args $argv &
 
         set nvr_pid $last_pid
         # A freshly spawned neovide is already focused; only focus an already

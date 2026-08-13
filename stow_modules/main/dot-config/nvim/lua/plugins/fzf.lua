@@ -28,21 +28,7 @@ return {
                 return vim.fn.expand('%')
             end
 
-            local path = vim.fn["projectionist#path"]()
-
-
-            if path == nil or vim.list_contains({'/', '', vim.fn.expand('~')}, path) then
-                local cwd = vim.fn.getcwd()
-                local file_path = vim.fn.expand('%:p')
-
-                if vim.startswith(file_path, cwd .. '/') then
-                    path = cwd
-                else
-                    path = vim.fn.expand('%:p:h')
-                end
-            end
-
-            return path
+            return vim_utils.project_root()
         end
 
         local function cwd_files ()

@@ -25,14 +25,57 @@ return {
             return { vim.fn.getline(".") }
         end
 
-        -- Run a command synchronously via :!, so it's shown and its output
-        -- appears in the cmdline. `cmd` is a list: program then arguments.
+        -- Run a command and report it on the cmdline. `cmd` is a list: program
+        -- then arguments.
+        --
+        -- Not `:!`, which always ends in a hit-enter prompt and blocks the
+        -- editor for as long as the program runs -- for Quick Look that is the
+        -- whole time its window is open. vim.system runs it in the background
+        -- and we echo a single collapsed line when it finishes, which is short
+        -- enough that nvim never needs to ask you to press enter.
         local function run(cmd)
-            local parts = {}
-            for _, arg in ipairs(cmd) do
-                table.insert(parts, vim.fn.shellescape(arg))
+            local function echo(message, level)
+                -- One line, and comfortably narrower than the screen: both are
+                -- what keep this out of the hit-enter prompt.
+                message = message:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+                if message == "" then
+                    return
+                end
+
+                local width = math.max(20, vim.o.columns - 20)
+                if vim.fn.strdisplaywidth(message) > width then
+                    message = vim.fn.strcharpart(message, 0, width - 1) .. "…"
+                end
+
+                if level then
+                    vim.notify(message, level)
+                else
+                    vim.api.nvim_echo({ { message } }, false, {})
+                end
             end
-            vim.cmd("!" .. table.concat(parts, " "))
+
+            -- Show the command that ran, the way :! used to. These commands are
+            -- mostly silent on success -- preview hides qlmanage's chatter
+            -- entirely -- so without this there is no feedback at all.
+            -- Paths go through :~:. so the line stays readable: relative to the
+            -- cwd when they are under it, ~-relative otherwise.
+            local parts = { cmd[1] }
+            for i = 2, #cmd do
+                table.insert(parts, vim.fn.fnamemodify(cmd[i], ":~:."))
+            end
+            echo("!" .. table.concat(parts, " "))
+
+            vim.system(cmd, { text = true }, function(result)
+                vim.schedule(function()
+                    local output = (result.stdout or "") .. " " .. (result.stderr or "")
+
+                    if result.code ~= 0 then
+                        echo(cmd[1] .. ": " .. output .. " (exit " .. result.code .. ")", vim.log.levels.ERROR)
+                    elseif output:match("%S") then
+                        echo(output)
+                    end
+                end)
+            end)
         end
 
         vim.api.nvim_create_autocmd({ 'FileType' }, {
