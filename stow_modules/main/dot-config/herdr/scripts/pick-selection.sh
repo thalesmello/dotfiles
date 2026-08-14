@@ -261,11 +261,15 @@ open)
     # the name from the text.
     case "$pick_type" in
     url|implicit_url)
-        if ! "$workflow_preset" open-selection-type -- "$pick_type" "$match"; then
-            relay_url=$match
-            [ "$pick_type" = implicit_url ] && relay_url="https://$match"
+        relay_url=$match
+        [ "$pick_type" = implicit_url ] && relay_url="https://$match"
+        # Over SSH the system opener is a Mac desktop the SERVER host has not
+        # got, so it cannot be anything but a screenful of "command not found"
+        # on the way to the relay: go straight there instead.
+        if [ -n "$SSH_CONNECTION" ] \
+            || ! "$workflow_preset" open-selection-type -- "$pick_type" "$match"; then
             "$herdr_preset" open-url "$relay_url" \
-                || herdr_die "pick-selection" "system opener and Herdr relay both failed for: $match"
+                || herdr_die "pick-selection" "could not open: $match"
         fi
         ;;
     ?*)
