@@ -25,3 +25,4 @@ stow_modules/main/dot-config/nvim/tmp/
 stow_modules/main/dot-hammerspoon/Spoons/EmmyLua.spoon/annotations/
 .claude/internet-*
 default.profraw
+**/__pycache__/**

@@ -61,9 +61,36 @@ function __workflow_preset_selection_types
     # rather than a url however much it looks like one.
     set -l url_tail '[^\s<>"'"'"'`|)\]{}]'
 
+    # A bare host -- `google.com`, no scheme and no path -- cannot be spotted
+    # the way the record below spots `google.com/`: what makes that one safe is
+    # the SLASH, not the dot, because the suffix slot in it is [a-zA-Z]{2,},
+    # which is also every file extension there is. So a bare host is recognised
+    # from a LIST of suffixes instead, and the list is the whole design:
+    #
+    #   gtld/cctld  suffixes that may end a bare host. Every ccTLD that is also
+    #               a common file extension is LEFT OUT -- .py .rs .sh .pl .md
+    #               .cc .so .ml .tf .as .pm .ps .in .am .ac are all real
+    #               countries, and with them in, `main.py`, `Makefile.in` and
+    #               `configure.ac` all become urls. They are still reachable
+    #               with a slash (`example.sh/x`), which the record below has.
+    #   sld         the second level of a two-part suffix: com.br, co.uk, ne.jp.
+    #               Anything here may be followed by ANY country, including the
+    #               ones held back above -- `co.in` is a host, `config.h.in` is
+    #               not, and the `co.` is what tells them apart.
+    #
+    # Bare hosts come AFTER the slash record so that the slash record claims
+    # `google.com/foo` whole: both start at the same offset, and a tie goes to
+    # whichever is written first (rxpick drops the overlap, get-selection-type
+    # breaks the tie by order -- see the header).
+    set -l gtld 'com|org|net|edu|gov|mil|int|info|biz|io|dev|app|ai|me|tv|xyz|tech|cloud|online|site|store|blog|page|wiki|fyi|gg|ly|to'
+    set -l cctld 'br|mx|ar|cl|pe|uy|ca|us|uk|ie|fr|de|es|pt|it|nl|be|ch|at|se|no|dk|fi|cz|gr|tr|ru|ua|il|ae|za|ng|ke|sg|hk|jp|kr|cn|tw|th|vn|ph|my|id|au|nz|is|co'
+    set -l sld 'com|co|net|org|edu|gov|ac|or|ne|gob|govt'
+    set -l bare_host "[\w-]+(?:\.[\w-]+)*\.(?:(?:$sld)\.[a-z]{2}|$gtld|$cctld)"
+
     printf '%s\t%s\t%s\n' \
         url "https?://$url_tail+" '{match_raw}' \
         implicit_url "[a-zA-Z0-9_.-]+\.[a-zA-Z]{2,}/$url_tail*" 'https://{match_raw}' \
+        implicit_url "$bare_host" 'https://{match_raw}' \
         path '~?/?[\w.~+@%-]+(?:/[\w.~+@%-]*)+' - \
         file '[a-zA-Z0-9_.-]+\.(py|js|jsx|mjs|cjs|ts|tsx|rb|php|html|htm|css|scss|c|cc|cpp|h|hpp|java|go|rs|lua|sh|fish|pl|r|swift|kt|scala|sql|vim|hs|md|txt|toml|json|yaml|yml|xml|csv|ini|cfg|conf)' -
 end
