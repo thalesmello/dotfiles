@@ -1,0 +1,31 @@
+#!/bin/sh
+
+# Ask the machine attached to this Herdr session to open a URL. Herdr forwards
+# OSC 52 writes produced by the caller's pane to the attached client's
+# clipboard, including when the server and pane are reached over SSH.
+# Hammerspoon recognizes the namespaced payload, confirms it with the user, and
+# restores the clipboard after consuming it.
+
+set -eu
+
+if [ "$#" -ne 1 ] || [ -z "$1" ]; then
+    printf 'usage: herdr-open <url>\n' >&2
+    exit 2
+fi
+
+url=$1
+case "$url" in
+    http://*|https://*) ;;
+    *)
+        printf 'herdr-open: only http:// and https:// URLs are supported\n' >&2
+        exit 2
+        ;;
+esac
+
+# RS/US make this a framed record rather than text a user might ordinarily
+# copy. The fixed 128-bit namespace token and version must match keybindings.lua.
+url_b64=$(printf '%s' "$url" | base64 | tr -d '\r\n')
+request=$(printf '\036HERDR_OPEN_URL_V1:8f26c7a14d9346b8a01e57bc649b2e3d:%s\037' "$url_b64")
+request_b64=$(printf '%s' "$request" | base64 | tr -d '\r\n')
+
+printf '\033]52;c;%s\007' "$request_b64"

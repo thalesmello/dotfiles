@@ -79,6 +79,20 @@ function herdr-preset
     set -e argv[1]
 
     switch "$preset"
+    case "open-url"
+        # Relay the URL through an OSC 52 clipboard request. Unlike `open` (or
+        # chrome-preset), this runs inside the Herdr-rendered pane and therefore
+        # reaches the attached Mac even when this Herdr session is remote.
+        set -l opener (command -v herdr-open)
+        if test -z "$opener"
+            set opener (status dirname)/herdr-open
+        end
+        test -x "$opener"; or begin
+            echo "herdr-preset open-url: herdr-open not found" >&2
+            return 1
+        end
+        exec "$opener" $argv
+
     case "open-file-with-fallback"
         # Open <file> in nvim within the current herdr tab. If an nvim is already
         # running in another pane of this tab, drop the file into it over its RPC

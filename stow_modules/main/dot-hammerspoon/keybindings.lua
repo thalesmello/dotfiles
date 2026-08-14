@@ -115,7 +115,105 @@ end
 
 local M = {}
 
+---------------------------------------------------------------
+-- Herdr remote URL requests
+---------------------------------------------------------------
+
+-- herdr-open writes this framed record through OSC 52. Herdr forwards the
+-- decoded text to the attached client's clipboard, so a command in a remote
+-- pane can ask this Mac to open a URL without needing a browser on the server.
+-- RS/US plus a versioned 128-bit namespace make an accidental match vanishingly
+-- unlikely. The URL itself is base64 so delimiters and non-ASCII bytes survive.
+local HERDR_OPEN_PREFIX = "\30HERDR_OPEN_URL_V1:8f26c7a14d9346b8a01e57bc649b2e3d:"
+local HERDR_OPEN_SUFFIX = "\31"
+
+local function decodeHerdrOpenRequest(contents)
+  if type(contents) ~= "string" then return nil end
+  if contents:sub(1, #HERDR_OPEN_PREFIX) ~= HERDR_OPEN_PREFIX then return nil end
+  if contents:sub(-#HERDR_OPEN_SUFFIX) ~= HERDR_OPEN_SUFFIX then return nil end
+
+  local encoded = contents:sub(#HERDR_OPEN_PREFIX + 1, -#HERDR_OPEN_SUFFIX - 1)
+  if #encoded == 0 or #encoded > 16384 then return nil end
+  if not encoded:match("^[A-Za-z0-9+/]*=?=?$") then return nil end
+
+  local ok, url = pcall(hs.base64.decode, encoded)
+  if not ok or type(url) ~= "string" or #url == 0 or #url > 8192 then return nil end
+  -- Herdr's pane URL detector only produces web URLs. Keep the relay just as
+  -- narrow: confirmation should not turn arbitrary application URL schemes
+  -- into a remote code-execution primitive.
+  if not url:match("^https?://") or url:find("[%z\1-\31\127]") then return nil end
+  return url
+end
+
+local function showHerdrOpenDialog(url)
+  local previousApp = hs.application.frontmostApplication()
+
+  -- blockAlert is backed directly by NSAlert rather than by the hidden webview
+  -- used by hs.dialog.alert. Focus Hammerspoon first so the native modal is the
+  -- foreground key window. NSAlert makes its first button the default, so both
+  -- Return and Enter choose Open; Escape chooses Cancel.
+  hs.focus()
+  local button = hs.dialog.blockAlert(
+    "Open URL from Herdr?",
+    url,
+    "Open",
+    "Cancel",
+    "informational"
+  )
+
+  if button == "Open" then
+    if not hs.urlevent.openURL(url) and previousApp then previousApp:activate(true) end
+  elseif previousApp then
+    previousApp:activate(true)
+  end
+end
+
+local function setupHerdrOpenClipboardWatcher()
+  if _G._HerdrOpenClipboardWatcher then
+    _G._HerdrOpenClipboardWatcher:stop()
+  end
+
+  -- The request overwrites the pasteboard before the watcher runs, so retain a
+  -- full UTI snapshot after every ordinary change. readAllData/writeAllData
+  -- preserve rich text and other representations instead of restoring only the
+  -- plain string flavor.
+  local previousClipboard = hs.pasteboard.readAllData()
+  local ignoredChangeCount
+
+  _G._HerdrOpenClipboardWatcher = hs.pasteboard.watcher.new(function(contents)
+    -- Ignore precisely the pasteboard mutation made by our restore. Comparing
+    -- change counts instead of using a boolean means a second request (or a
+    -- normal copy) that arrives before the watcher's next 500ms tick is still
+    -- processed rather than mistaken for that restore.
+    local changeCount = hs.pasteboard.changeCount()
+    if changeCount == ignoredChangeCount then
+      ignoredChangeCount = nil
+      previousClipboard = hs.pasteboard.readAllData()
+      return
+    end
+
+    local url = decodeHerdrOpenRequest(contents)
+    if not url then
+      previousClipboard = hs.pasteboard.readAllData()
+      return
+    end
+
+    -- Consume the request before showing the dialog so the sentinel never
+    -- remains available to paste into another app.
+    if next(previousClipboard) then
+      hs.pasteboard.writeAllData(previousClipboard)
+    else
+      hs.pasteboard.clearContents()
+    end
+    ignoredChangeCount = hs.pasteboard.changeCount()
+
+    showHerdrOpenDialog(url)
+  end)
+end
+
 function M.setup()
+
+  setupHerdrOpenClipboardWatcher()
 
   ---------------------------------------------------------------
   -- Create modes

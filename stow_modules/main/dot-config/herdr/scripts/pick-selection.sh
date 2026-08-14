@@ -1,11 +1,13 @@
 #!/bin/sh
 # Pick something out of the focused pane's recent output and act on it.
 #
-#   pick-selection.sh open   -> pick exactly one match and hand it, with the
-#                               type rxpick tagged it with, to
+#   pick-selection.sh open   -> pick exactly one match and hand it to
 #                               `workflow-preset open-selection-type` (file in
-#                               nvim, url in Chrome, plus the work-specific id
-#                               shapes on a Meta box)
+#                               nvim, url in the system browser, plus the
+#                               configured custom id shapes). When its URL
+#                               opener is unavailable, fall back to
+#                               `herdr-preset open-url`, whose OSC 52 request is
+#                               handled on the attached Mac even over SSH.
 #   pick-selection.sh copy   -> copy every pick to the clipboard as plain text
 #
 # Two roles in one file, like run-command.sh:
@@ -170,8 +172,8 @@ focus_source() {
 }
 trap focus_source EXIT
 
-# ~/.local_dotfiles/bin is the stow'd machine-local overlay: it holds either the
-# generic workflow-preset or a symlink to meta-preset, depending on the machine.
+# ~/.local_dotfiles/bin is the stow'd machine-local overlay: it provides the
+# workflow preset appropriate for this machine.
 workflow_preset="$HOME/.local_dotfiles/bin/workflow-preset"
 if [ ! -x "$workflow_preset" ]; then
     workflow_preset=$(command -v workflow-preset) || herdr_die "pick-selection" \
@@ -251,18 +253,31 @@ open)
     # through the URL would need `open` (and Hammerspoon) on whatever host the
     # herdr server runs on.
     #
-    # open-selection-type runs the action for an already-named match.
+    # Prefer the normal system action for every already-named match. If its URL
+    # opener is unavailable (as it commonly is on a remote Herdr server), fall
+    # back to herdr-preset's OSC 52 relay so the ATTACHED client can open it.
     # open-selection is the fallback for an untyped pick (rxpick only omits
     # the type in unnamed mode, which pick-selections never uses) and re-derives
     # the name from the text.
-    if [ -n "$pick_type" ]; then
+    case "$pick_type" in
+    url|implicit_url)
+        if ! "$workflow_preset" open-selection-type -- "$pick_type" "$match"; then
+            relay_url=$match
+            [ "$pick_type" = implicit_url ] && relay_url="https://$match"
+            "$herdr_preset" open-url "$relay_url" \
+                || herdr_die "pick-selection" "system opener and Herdr relay both failed for: $match"
+        fi
+        ;;
+    ?*)
         "$workflow_preset" open-selection-type -- "$pick_type" "$match" \
             || herdr_die "pick-selection" \
                 "open-selection-type failed for $pick_type: $match"
-    else
+        ;;
+    *)
         "$workflow_preset" open-selection "$match" \
             || herdr_die "pick-selection" "open-selection failed for: $match"
-    fi
+        ;;
+    esac
 
     # If the action parked focus on some other pane (nvim in a fresh split),
     # leave it there; anything else (a url in Chrome) leaves herdr's focus on

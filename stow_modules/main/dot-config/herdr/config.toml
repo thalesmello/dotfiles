@@ -260,9 +260,11 @@ description = "copy last command output"
 width = 20
 height = 1
 
-# prefix+o / prefix+y: interactively pick files, urls (and, on a Meta machine,
-# diff/task/table ids) out of the focused pane's recent output. prefix+o opens
-# the first pick, prefix+y copies every pick to the clipboard.
+# prefix+o / prefix+y: interactively pick files, urls, and configured custom ids
+# out of the focused pane's recent output. prefix+o opens
+# the first pick; when the system URL opener is unavailable, URL picks fall back
+# to herdr-preset's OSC 52 relay so they open on the attached client even over
+# SSH. prefix+y copies every pick to the clipboard.
 # type = "shell": the script captures the pane's screen FIRST (zooming it to
 # read it at full width), and only then splits off a zoomed pane to run the
 # picker in -- a split resizes and reflows the pane it comes from, so the order
