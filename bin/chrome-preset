@@ -379,16 +379,73 @@ function chrome-preset
         argparse right -- $argv
         or return 1
 
+        set url ""
+        if test (count $argv) -ge 1
+            set url $argv[1]
+            set -e argv[1]
+        end
+
+        # Chrome's AppleScript dictionary has no notion of tab groups, so
+        # `make new tab at after tab (active tab index)` always drops the tab
+        # OUTSIDE whatever group the active tab belongs to. Chrome's own
+        # new-tab-to-the-right command does inherit the group, but it is only
+        # reachable through the UI: the Tab menu, labelled "New Tab Below"
+        # under vertical tabs and "New Tab to the Right" otherwise. Drive that
+        # menu item and point the tab it creates at the URL; fall back to the
+        # positional insert below if the menu isn't there (e.g. Chrome isn't
+        # frontmost, so the item is unavailable).
+        if set -q _flag_right
+            set -l set_url ""
+            if test -n "$url"
+                set set_url "set URL of newTab to \"$url\""
+            end
+
+            set -l prev (osascript -e '
+                tell application "Google Chrome"
+                    tell front window
+                        return id of active tab
+                    end tell
+                end tell')
+
+            if test -n "$prev"
+                for item in "New Tab Below" "New Tab to the Right"
+                    chrome-trigger-menu-bar "Tab;$item" >/dev/null 2>&1
+                    or continue
+
+                    # The click returns before Chrome has opened the tab, so
+                    # poll until the active tab is no longer the one we
+                    # started from.
+                    set -l tab_id (osascript -e "
+                        tell application \"Google Chrome\"
+                            repeat 40 times
+                                tell front window
+                                    set newTab to active tab
+                                    if id of newTab is not $prev then
+                                        $set_url
+                                        return id of newTab
+                                    end if
+                                end tell
+                                delay 0.05
+                            end repeat
+                            return \"\"
+                        end tell")
+
+                    test -n "$tab_id"
+                    or continue
+
+                    echo "$tab_id"
+                    return 0
+                end
+            end
+        end
+
         set pos ""
         if set -q _flag_right
             set pos " at after tab (active tab index)"
         end
 
         set props ""
-        if test (count $argv) -ge 1
-            set url $argv[1]
-            set -e argv[1]
-
+        if test -n "$url"
             set props " with properties {URL:\"$url\"}"
         end
 
