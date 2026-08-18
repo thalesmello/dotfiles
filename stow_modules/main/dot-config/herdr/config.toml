@@ -100,8 +100,8 @@ open_notification_target = "prefix+shift+o"
 # focus-back.fish (see [[keys.command]] below), so workspace nav is unbound here.
 # It still lives on prefix+alt+1..9 / ctrl+alt+1..9 (switch_workspace) and on
 # prefix+ctrl+n/p, which spill into the neighbouring workspace at either end.
-previous_workspace = ""
-next_workspace = ""
+previous_workspace = "prefix+ctrl+p"
+next_workspace = "prefix+ctrl+n"
 previous_agent = "prefix+ctrl+comma"
 next_agent = "prefix+ctrl+period"
 focus_agent = "prefix+shift+1..9"   # focus agent 1-9
@@ -131,7 +131,7 @@ close_pane = "prefix+ctrl+backspace"
 # rename_pane = "prefix+shift+p"
 edit_scrollback = ["prefix+shift+v", "prefix+e"]
 # tmux parity: `bind Space copy-mode` (herdr default is prefix+[)
-copy_mode = ["prefix+[", "prefix+space"]
+copy_mode = ["prefix+space"]
 # plain prefix+h/j/k/l = herdr's native pane focus.
 # prefix+ctrl+h/j/k/l is handled by smart-pane-nav.sh (see [[keys.command]] below):
 # it focuses panes too, but forwards ctrl+hjkl to (n)vim when zoomed / single pane.
@@ -349,13 +349,13 @@ description = "focus/forward pane right"
 # ctrl+alt+shift+] / ctrl+alt+shift+[ are the direct chords forwarded by Ghostty
 # for cmd+shift+] / cmd+shift+[: same command, no prefix-timeout delay.
 [[keys.command]]
-key = ["prefix+ctrl+n", "ctrl+alt+shift+]"]
+key = ["prefix+]", "ctrl+alt+shift+]"]
 type = "shell"
 command = "~/.config/herdr/scripts/smart-tab-nav.sh next"
 description = "next tab (spills into next workspace)"
 
 [[keys.command]]
-key = ["prefix+ctrl+p", "ctrl+alt+shift+["]
+key = ["prefix+[", "ctrl+alt+shift+["]
 type = "shell"
 command = "~/.config/herdr/scripts/smart-tab-nav.sh prev"
 description = "previous tab (spills into previous workspace)"

@@ -281,13 +281,11 @@ end
 
 -- direction: "prev"/"previous" or "next".
 function M.focusTabWithFallback(direction)
-  local fallbackKey, moshKey
+  local fallbackKey
   if direction == "prev" or direction == "previous" then
     fallbackKey = "leftbracket"
-    moshKey = "p"
   elseif direction == "next" then
     fallbackKey = "rightbracket"
-    moshKey = "n"
   else
     return false
   end
@@ -295,9 +293,9 @@ function M.focusTabWithFallback(direction)
 
   if M.isMultiplexerWindow() then
     if isMoshMode() then
-      -- Old prefix sequence: prefix, then ctrl+p (prev) / ctrl+n (next).
+      -- Prefix sequence: prefix, then [ (prev) / ] (next).
       log("  -> route: multiplexer (mosh prefix)")
-      sendPrefixThen({"ctrl", moshKey})
+      sendPrefixThen({fallbackKey})
     else
       log("  -> route: multiplexer (direct ctrl+alt)")
       sendKeyToTerminal({"ctrl", "alt", "shift", fallbackKey})
