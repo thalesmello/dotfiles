@@ -7,6 +7,7 @@ local GhosttyPreset = require("ghosttyPreset")
 local a = require("async")
 local ArgList = require("arglist")
 local PreviewHud = require("preview_hud")
+local FocusHistory = require("focushistory")
 
 local task = shell.task
 local taskAsync = shell.taskAsync
@@ -180,6 +181,12 @@ function M.setup()
   require("caps_hyper").setup()
 
   ---------------------------------------------------------------
+  -- Focus history (window + Chrome tab jumplist)
+  ---------------------------------------------------------------
+
+  FocusHistory.setup()
+
+  ---------------------------------------------------------------
   -- DEFAULT MODE bindings
   ---------------------------------------------------------------
 
@@ -220,6 +227,9 @@ function M.setup()
       Preset.displayMessage("Failed to install hs CLI to " .. prefix .. "/bin (not writable?)", 3)
     end
   end)
+
+  command("Focus History: Show", function() FocusHistory.showList() end)
+  command("Focus History: Clear", function() FocusHistory.clear() end)
 
   -- Utility
   default:bindOnce(hyperShift, "m", "Deminimize Last", function() task({"wm-preset", "deminimize-last"}) end)
@@ -532,6 +542,11 @@ function M.setup()
   -- Window cycling
   default:bindOnce(hyper, "n", "Focus Next Window", function() fish("wm-preset focus-window-in-space next") end)
   default:bindOnce(hyper, "p", "Focus Prev Window", function() fish("wm-preset focus-window-in-space prev") end)
+
+  -- Focus history: back/forward through windows and Chrome tabs (vim jumplist
+  -- order -- o goes back, i goes forward).
+  default:bindOnce(hyper, "o", "Focus History Back", function() FocusHistory.back() end)
+  default:bindOnce(hyper, "i", "Focus History Forward", function() FocusHistory.forward() end)
   -- ArgList navigation: focus next/prev marked window, or error if none marked.
   default:conditionalBindOnce(hyperShift, "n", "ArgList Navigate Next", {
     {cond = function() return not ArgList.isEmpty() end, function() navigateArgList(1) end},

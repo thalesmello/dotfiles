@@ -101,6 +101,56 @@ function chrome-preset
             }
             JSON.stringify({tabs: tabs});
         '
+    case "active-tab-json"
+        # The active tab of Chrome's frontmost window, in ONE osascript call:
+        # {id, url, title, windowId}. Used by hammerspoon's focushistory to turn
+        # a window-title change into a tab identity (see focushistory.lua).
+        #
+        # Same bulk-JXA trick as list-tabs-json above: `w.tabs.id()` is one Apple
+        # Event for the whole window, where per-tab `.id()` costs ~500ms on a
+        # busy window.
+        #
+        # Overlaps `env OUTPUT_FORMAT=json chrome-cli info` (what yabai-harpoon
+        # uses to capture a chrome_tab pin, yabai-harpoon.fish:231) -- same four
+        # fields. Kept separate deliberately: this one never touches
+        # `chrome.activeTab`, which is what makes `chrome-cli info` die with
+        # "-[SBProxyByCode activeTab]: object has not been added to a container
+        # yet" (a hard ObjC crash, not an error exit) when it can't reach a front
+        # window. Indexing windows/tabs explicitly degrades to `{}` instead,
+        # which matters here because focushistory probes on every tab switch.
+        #
+        # Guarded on the process because a JXA `Application("Google Chrome")`
+        # reference LAUNCHES Chrome if it isn't running, and a focus-history
+        # probe must never do that. Exit 1 = no Chrome; exit 0 with `{}` = Chrome
+        # is up but has no scriptable window.
+        test -n "$(get-main-chrome-pid)"
+        or return 1
+
+        osascript -l JavaScript -e '
+            const chrome = Application("Google Chrome");
+            let out = {};
+            try {
+                const wins = chrome.windows;
+                const wids = wins.id();
+                if (wids.length > 0) {
+                    // Window index 1 is the frontmost Chrome window.
+                    const w = wins[0];
+                    const idx = w.activeTabIndex();
+                    const ids = w.tabs.id();
+                    const urls = w.tabs.url();
+                    const titles = w.tabs.title();
+                    if (idx >= 1 && idx <= ids.length) {
+                        out = {
+                            id: ids[idx - 1],
+                            url: urls[idx - 1] || "",
+                            title: titles[idx - 1] || "",
+                            windowId: wids[0],
+                        };
+                    }
+                }
+            } catch (e) { out = {}; }
+            JSON.stringify(out);
+        '
     case "focus-tab"
         # Activate a Chrome tab and bring its window to front in a single
         # osascript call. Returns non-zero if the tab/window wasn't found
