@@ -1,0 +1,198 @@
+#!/bin/sh
+
+# Copy text to the clipboard of the machine attached to this Herdr session,
+# including payloads too big for a single OSC 52 write.
+#
+#   herdr-copy [--label <text>] [<file>]     (reads stdin when no file is given)
+#
+# Herdr forwards OSC 52 clipboard writes produced by a pane it renders to the
+# ATTACHED CLIENT's clipboard, which is what makes copying work over
+# `herdr --remote`. pbcopy would write to the herdr SERVER's clipboard instead.
+# See copy-last-output.sh for the longer version of that story.
+#
+# The catch is that an OSC 52 write is capped at 12282 bytes on the wire, escape
+# sequence and all -- a limit the terminal enforces by dropping the write, not
+# by truncating it, so a long file simply never arrives. Anything over that is
+# therefore split into a framed multi-record transfer that Hammerspoon on the
+# Mac stitches back together (herdrRelay.lua). Three sizes, three behaviours:
+#
+#   <= 9204 B     one ordinary OSC 52 write. 9204 is what fits: base64 costs a
+#                 third on top (12272 chars) and the `\033]52;c;` + BEL wrapper
+#                 another 9 bytes, landing just inside 12282. No Hammerspoon
+#                 involved -- this is the plain path any terminal understands.
+#   <= 128 KiB    a BEGIN record announcing how many DATA records to expect,
+#                 the numbered DATA records themselves, then an END record.
+#                 Needs Hammerspoon running on the attached Mac.
+#   >  128 KiB    refused, with the `ssh <host> 'cat <file>' | pbcopy` command
+#                 to run instead. Relaying that much through the clipboard one
+#                 12 KB record at a time takes longer than the ssh round trip
+#                 and is far more fragile.
+#
+# WHY IT IS PACED. Hammerspoon cannot be signalled; it POLLS the pasteboard
+# (hs.pasteboard.watcher, 100ms here) and only ever sees the latest contents.
+# Two records landing inside one poll interval means the first is gone for good,
+# so the records are spaced further apart than the poll. That is also why the
+# DATA records are numbered: a lost one shows up as a gap, and the receiver
+# fails the whole transfer and puts the old clipboard back rather than pasting a
+# file with a hole in it.
+#
+# There is no back channel -- the sender never learns whether the transfer
+# landed. Success and failure are both reported by Hammerspoon on the Mac.
+
+set -eu
+
+# Byte-oriented `cut -c` and `${#var}`: the base64 stream is ASCII, but a
+# multibyte locale can still make either of them count something else.
+LC_ALL=C
+export LC_ALL
+
+tag=herdr-copy
+
+# Wire format. The fixed 128-bit namespace token and version must match
+# herdrRelay.lua. RS/US frame each record so it reads as a framed record rather
+# than text a user might plausibly have copied by hand.
+version=HERDR_COPY_V1
+ns=834556b044b8c4e66da30e4c210094d2
+rs=$(printf '\036')
+us=$(printf '\037')
+
+# Sizes, all derived from the 12282-byte OSC 52 write budget (9 of which go to
+# `\033]52;c;` and the terminating BEL, leaving 12273 base64 characters).
+single_max=9204     # raw bytes that still fit one plain write: 12272/4*3
+chunk_b64=8192      # base64 chars per DATA record (6144 raw bytes)
+total_max=131072    # 128 KiB
+
+# A DATA record is 73 bytes of framing plus chunk_b64, and the whole record is
+# base64'd again to become the OSC 52 payload: (8265+2)/3*4 = 11020 <= 12273.
+# Raising chunk_b64 past 9088 would silently blow the budget.
+
+# Longer than the receiver's 100ms poll, with room for a scheduling hiccup.
+delay=${HERDR_COPY_CHUNK_DELAY:-0.2}
+
+die() {
+    printf '%s: %s\n' "$tag" "$1" >&2
+    exit 1
+}
+
+usage() {
+    printf 'usage: %s [--label <text>] [<file>]\n' "$tag" >&2
+}
+
+# One OSC 52 write. base64 output is de-wrapped: GNU base64 folds at 76 columns
+# and some terminals reject a payload with newlines in it.
+emit() {
+    printf '\033]52;c;%s\007' "$(printf '%s' "$1" | base64 | tr -d '\r\n')"
+}
+
+label=
+src=
+while [ "$#" -gt 0 ]; do
+    case $1 in
+        --label)
+            [ "$#" -ge 2 ] || die "--label needs a value"
+            label=$2
+            shift
+            ;;
+        --label=*) label=${1#--label=} ;;
+        -h|--help) usage; exit 0 ;;
+        --) shift; break ;;
+        -*) usage; die "unknown option '$1'" ;;
+        *)
+            [ -z "$src" ] || die "unexpected extra argument '$1'"
+            src=$1
+            ;;
+    esac
+    shift
+done
+if [ "$#" -gt 0 ]; then
+    [ -z "$src" ] || die "unexpected extra argument '$1'"
+    src=$1
+    shift
+    [ "$#" -eq 0 ] || die "unexpected extra argument '$1'"
+fi
+
+# stdin is spilled to a file so its size is known before anything is sent, and
+# so the too-big path has a path to hand to `ssh ... | pbcopy`.
+tmp=
+keep_tmp=0
+cleanup() {
+    [ -n "$tmp" ] && [ "$keep_tmp" -eq 0 ] && rm -f "$tmp"
+    return 0
+}
+trap cleanup EXIT INT TERM
+
+if [ -n "$src" ]; then
+    [ -r "$src" ] || die "cannot read '$src'"
+    [ -f "$src" ] || die "'$src' is not a regular file"
+    file=$src
+    [ -n "$label" ] || label=$(basename -- "$src")
+else
+    tmp=$(mktemp "${TMPDIR:-/tmp}/herdr-copy.XXXXXX") || die "could not create a temp file"
+    cat > "$tmp"
+    file=$tmp
+fi
+
+size=$(wc -c < "$file" | tr -d ' ')
+[ "$size" -gt 0 ] || die "nothing to copy (empty input)"
+
+if [ "$size" -gt "$total_max" ]; then
+    keep_tmp=1
+    abs=$(cd -- "$(dirname -- "$file")" && printf '%s/%s' "$(pwd)" "$(basename -- "$file")")
+    host=$(hostname -s 2>/dev/null || hostname)
+    {
+        printf '%s: %s bytes is over the %s byte clipboard relay limit.\n' \
+            "$tag" "$size" "$total_max"
+        printf 'Pull it across the ssh connection instead:\n\n'
+        printf "    ssh %s 'cat %s' | pbcopy\n\n" "$host" "$abs"
+    } >&2
+    exit 1
+fi
+
+if [ "$size" -le "$single_max" ]; then
+    # Not through emit(): the small path is a PLAIN OSC 52 write of the file's
+    # own base64, with no framing and nothing for Hammerspoon to do.
+    printf '\033]52;c;%s\007' "$(base64 < "$file" | tr -d '\r\n')"
+    exit 0
+fi
+
+b64=$(base64 < "$file" | tr -d '\r\n')
+b64len=${#b64}
+total=$(( (b64len + chunk_b64 - 1) / chunk_b64 ))
+
+# Whole-payload digest, so a transfer that loses nothing visible (a record
+# mangled in transit rather than dropped) is still rejected. "-" when the host
+# has neither tool, which the receiver takes as "length check only".
+if command -v shasum >/dev/null 2>&1; then
+    digest=$(shasum -a 256 < "$file" | cut -d' ' -f1)
+elif command -v sha256sum >/dev/null 2>&1; then
+    digest=$(sha256sum < "$file" | cut -d' ' -f1)
+else
+    digest=-
+fi
+
+id=$(od -An -tx1 -N8 /dev/urandom 2>/dev/null | tr -d ' \n')
+[ -n "$id" ] || id=$$$(date +%s)
+
+label_b64=-
+if [ -n "$label" ]; then
+    label_b64=$(printf '%s' "$label" | base64 | tr -d '\r\n')
+fi
+
+printf '%s: relaying %s bytes as %s records...\n' "$tag" "$size" "$total" >&2
+
+emit "$rs$version:$ns:B:$id:$total:$size:$b64len:$digest:$label_b64$us"
+sleep "$delay"
+
+seq=1
+off=1
+while [ "$off" -le "$b64len" ]; do
+    chunk=$(printf '%s' "$b64" | cut -c "$off"-"$(( off + chunk_b64 - 1 ))")
+    emit "$rs$version:$ns:D:$id:$seq:$chunk$us"
+    sleep "$delay"
+    seq=$(( seq + 1 ))
+    off=$(( off + chunk_b64 ))
+done
+
+emit "$rs$version:$ns:E:$id:$total$us"
+
+printf '%s: sent; the Mac reports whether it landed.\n' "$tag" >&2

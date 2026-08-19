@@ -93,6 +93,23 @@ function herdr-preset
         end
         exec "$opener" $argv
 
+    case "copy"
+        # Copy a file (or stdin) to the attached Mac's clipboard, splitting the
+        # payload across several OSC 52 writes when it is too large for one.
+        # Same relay as open-url, and the same reason for it: this runs inside
+        # the Herdr-rendered pane, so it reaches the attached Mac even when the
+        # session is remote, where pbcopy would write to the server's clipboard.
+        # See herdr-copy for the size thresholds.
+        set -l copier (command -v herdr-copy)
+        if test -z "$copier"
+            set copier (status dirname)/herdr-copy
+        end
+        test -x "$copier"; or begin
+            echo "herdr-preset copy: herdr-copy not found" >&2
+            return 1
+        end
+        exec "$copier" $argv
+
     case "open-file-with-fallback"
         # Open <file> in nvim within the current herdr tab. If an nvim is already
         # running in another pane of this tab, drop the file into it over its RPC

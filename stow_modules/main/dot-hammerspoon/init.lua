@@ -14,6 +14,7 @@ package.path = local_dotfiles .. "/hammerspoon/?.lua;"
 require("hs.ipc")
 
 require("keybindings").setup()
+require("herdrRelay").setup()
 require("audiodevice").setup()
 require("filewatcher").setup()
 require("downloadwatcher").setup()
