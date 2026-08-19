@@ -19,6 +19,7 @@ stow_modules/main/dot-config/herdr/plugins/config/
 stow_modules/main/dot-config/herdr/*.log
 stow_modules/main/dot-config/herdr/session.json
 stow_modules/main/dot-config/herdr/session-history.json
+stow_modules/main/dot-config/herdr/release-notes.json
 .DS_Store
 stow_modules/main/dot-config/nvim/tmp/
 .watchman-cookie*
