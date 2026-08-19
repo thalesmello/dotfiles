@@ -642,7 +642,7 @@ function M.setup()
 
   -- Mode entries
   default:bindEnter(hyper, "space", "Enter Service Mode", service)
-  default:bindEnter(hyper, "i", "Enter Invoke Mode", invoke)
+  default:bindEnter(hyperShift, "i", "Enter Invoke Mode", invoke)
   default:bindEnter(hyper, "'", "Enter Chrome Mode", chrome)
 
   -- Karabiner Mouse Layer
@@ -695,14 +695,12 @@ function M.setup()
   default:bindOnce(hyper, "u", "Perform Default UI", function() task({"workflow-preset", "perform-default-ui"}) end)
 
   -- Universal Actions (per-app)
-  for _, key in ipairs({"o", "g"}) do
-    default:conditionalBindOnce(hyper, key, "Universal Actions", {
-      {app = "iTerm2", function() fish("ua --clipboard") end},
-      {app = "Ghostty", function() fish("ua --clipboard") end},
-      {function() fish("ua") end},
-    })
-    default:bindOnce(hyperShift, key, "Universal Actions (force)", function() fish("ua") end)
-  end
+  default:conditionalBindOnce(hyper, "g", "Universal Actions", {
+    {app = "iTerm2", function() fish("ua --clipboard") end},
+    {app = "Ghostty", function() fish("ua --clipboard") end},
+    {function() fish("ua") end},
+  })
+  default:bindOnce(hyperShift, "g", "Universal Actions (force)", function() fish("ua") end)
 
   -- kindaVim toggle
   default:conditionalBindOnce(hyperShift, "v", "Toggle kindaVim", {
@@ -1046,7 +1044,8 @@ function M.setup()
   service:bindOnce({}, "l", "Focus Display East", function() task({"wm-preset", "focus-display-with-fallback", "east"}) end)
 
   -- Misc service
-  service:bindOnce({}, "tab", "Harpoon Focus Pin Next", function() fish("yabai-harpoon focus-pin next") end)
+  service:bindOnce(hyper, "]", "Harpoon Focus Pin Next", function() fish("yabai-harpoon focus-pin next") end)
+  service:bindOnce(hyper, "[", "Harpoon Focus Pin Prev", function() fish("yabai-harpoon focus-pin prev") end)
   service:bindOnce({"shift"}, "tab", "Move Window To Next Display", function() task({"wm-preset", "smart-move-window-to-next-display"}) end)
   service:bindOnce(hyperShift, "tab", "Swap Workspaces Between Monitors", function() task({"wm-preset", "swap-workspaces-between-monitors"}) end)
   service:bindOnce({"shift"}, "/", "Trigger Help Menu", function() Preset.triggerMenuBar("Help") end)
