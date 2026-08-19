@@ -38,6 +38,11 @@
 #
 # There is no back channel -- the sender never learns whether the transfer
 # landed. Success and failure are both reported by Hammerspoon on the Mac.
+#
+# The escapes go to the TERMINAL, not to stdout: a caller that pipes us (nvim's
+# clipboard provider does) would swallow them and the copy would silently do
+# nothing. See resolve_tty for how the terminal is found when there is no
+# controlling one.
 
 set -eu
 
@@ -86,10 +91,46 @@ note() {
     [ "$quiet" -eq 1 ] || printf '%s: %s\n' "$tag" "$1" >&2
 }
 
-# One OSC 52 write. base64 output is de-wrapped: GNU base64 folds at 76 columns
-# and some terminals reject a payload with newlines in it.
+# The terminal to write the escapes at, which is NOT stdout: a caller that pipes
+# us (nvim's clipboard provider does) would swallow the sequence, and the copy
+# would silently do nothing.
+#
+# /dev/tty normally is it. But nvim runs its clipboard commands from the
+# `nvim --embed` core, a child spawned with no controlling terminal at all
+# (opening /dev/tty there fails with ENXIO), so when that fails the process tree
+# is walked upwards for an ancestor that does have one -- the nvim TUI, or the
+# pane's shell. Writing to that pty is exactly what printing from the pane does.
+resolve_tty() {
+    # stderr redirected FIRST: redirections are processed left to right, and a
+    # failing `> /dev/tty` complains to whatever stderr is at that moment.
+    if : 2>/dev/null > /dev/tty; then
+        printf '/dev/tty\n'
+        return 0
+    fi
+
+    _pid=$$
+    _hop=0
+    while [ "$_hop" -lt 8 ]; do
+        _hop=$(( _hop + 1 ))
+        _pid=$(ps -o ppid= -p "$_pid" 2>/dev/null | tr -d ' ')
+        [ -n "$_pid" ] && [ "$_pid" -gt 1 ] 2>/dev/null || return 1
+
+        # `??` on macOS, `?` on Linux: no controlling terminal. Otherwise it is
+        # a device name relative to /dev (ttys004, pts/3).
+        _t=$(ps -o tty= -p "$_pid" 2>/dev/null | tr -d ' ')
+        case $_t in
+            ""|"?"|"??"|"-") continue ;;
+            /dev/*) [ -w "$_t" ] && { printf '%s\n' "$_t"; return 0; } ;;
+            *) [ -w "/dev/$_t" ] && { printf '/dev/%s\n' "$_t"; return 0; } ;;
+        esac
+    done
+    return 1
+}
+
+# One OSC 52 write, at the terminal on fd 3. base64 output is de-wrapped: GNU
+# base64 folds at 76 columns and some terminals reject a wrapped payload.
 emit() {
-    printf '\033]52;c;%s\007' "$(printf '%s' "$1" | base64 | tr -d '\r\n')"
+    printf '\033]52;c;%s\007' "$(printf '%s' "$1" | base64 | tr -d '\r\n')" >&3
 }
 
 label=
@@ -142,6 +183,9 @@ else
     file=$tmp
 fi
 
+terminal=$(resolve_tty) || die "no terminal to write the clipboard escape to"
+exec 3>"$terminal"
+
 size=$(wc -c < "$file" | tr -d ' ')
 [ "$size" -gt 0 ] || die "nothing to copy (empty input)"
 
@@ -161,7 +205,7 @@ fi
 if [ "$size" -le "$single_max" ]; then
     # Not through emit(): the small path is a PLAIN OSC 52 write of the file's
     # own base64, with no framing and nothing for Hammerspoon to do.
-    printf '\033]52;c;%s\007' "$(base64 < "$file" | tr -d '\r\n')"
+    printf '\033]52;c;%s\007' "$(base64 < "$file" | tr -d '\r\n')" >&3
     exit 0
 fi
 
