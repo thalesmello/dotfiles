@@ -1,0 +1,309 @@
+#!/usr/bin/env python3
+
+"""Paste the attached Mac's clipboard into this Herdr session.
+
+    herdr-paste [--timeout <seconds>]        prints the clipboard on stdout
+    herdr-paste --receive <socket> --id <id> the popup half; not run by hand
+    herdr-paste --decline <socket>           ditto, when the answer was no
+
+The clipboard relay only goes one way. Herdr forwards OSC 52 clipboard WRITES
+from a pane it renders to the attached client's machine (see herdr-copy), but
+nothing brings the Mac's clipboard back the other way -- OSC 52 reads are
+disabled in every terminal worth using, and on `herdr --remote` pbpaste would
+read the server's clipboard, not yours.
+
+What does come back is a keystroke. So this asks the Mac to TYPE the clipboard
+at us, over the same path a human paste takes, and catches it:
+
+  1. This process binds a unix socket and writes a framed OSC 52 record naming
+     it. Hammerspoon (herdrRelay.lua) picks the record up off the clipboard.
+  2. Hammerspoon asks the user whether to paste, and on yes drives herdr's
+     run-command popup (the same route ghosttyPreset.executeAndForgetHerdrCommand
+     uses for everything else that has to cross the ssh boundary) to run this
+     script again as `--receive`.
+  3. That second copy takes over the popup's tty in raw mode and announces
+     itself with another OSC 52 record -- a READY, which is what replaces
+     guessing how long a popup takes to open.
+  4. Hammerspoon puts the payload on the Mac's clipboard and sends cmd+v.
+     Ghostty pastes it into the popup's pty.
+  5. `--receive` reads the paste, hands it to the socket, and exits, which
+     closes the popup. This process prints what came through and returns.
+
+WHAT IS ACTUALLY PASTED is the clipboard base64'd with a `~` terminator, not the
+text itself. Base64 has no newlines, no control characters and no `~`, which
+buys three things at once: Ghostty's paste protection has nothing to warn about,
+the terminal cannot mangle CR/LF on the way through, and the terminator says
+where the payload ends without depending on bracketed paste being propagated by
+every layer between the Mac and this pty.
+"""
+
+import argparse
+import base64
+import errno
+import os
+import re
+import select
+import socket
+import sys
+import tempfile
+import termios
+import tty
+
+# Wire format. The fixed 128-bit namespace token and version must match
+# herdrRelay.lua; RS/US frame the record so it reads as a framed record rather
+# than text a user might plausibly have copied by hand.
+VERSION = "HERDR_PASTE_V1"
+NAMESPACE = "2c8e4f6b91a74d0c8e3b5a72d1f09c46"
+RS = "\x1e"
+US = "\x1f"
+
+# Terminator Hammerspoon appends to the base64 payload. Outside the base64
+# alphabet, so it cannot occur inside the payload itself.
+TERMINATOR = b"~"
+
+# Bracketed paste markers, which the terminal may or may not wrap the paste in
+# depending on what the layers in between make of DECSET 2004. Either way they
+# are not payload.
+PASTE_MARKERS = (b"\x1b[200~", b"\x1b[201~")
+
+# A record is small (a path and an id), so the OSC 52 write budget that governs
+# herdr-copy is not a concern here.
+OSC52 = "\033]52;c;%s\007"
+
+
+def emit(record, tty_out):
+    """Write one OSC 52 record to the terminal.
+
+    To the TERMINAL, never to stdout: the caller is expected to redirect or
+    pipe stdout (`herdr-paste > file`), and an escape sequence in there would
+    be part of the pasted text as far as they are concerned.
+    """
+    payload = base64.b64encode(record.encode()).decode()
+    tty_out.write(OSC52 % payload)
+    tty_out.flush()
+
+
+def b64(text):
+    return base64.b64encode(text.encode()).decode()
+
+
+# --------------------------------------------------------------------------
+# Requester: the half that runs in the pane and prints the clipboard
+# --------------------------------------------------------------------------
+
+
+def request(timeout):
+    self_path = os.path.realpath(sys.argv[0])
+
+    # Hammerspoon will only run a path that survives its own validation (no
+    # shell metacharacters, basename `herdr-paste`), because what it is being
+    # handed here arrived on a clipboard.
+    if not re.fullmatch(r"[A-Za-z0-9._/-]+/herdr-paste", self_path):
+        die("cannot ask for a paste: %r is not a plain path ending in "
+            "/herdr-paste" % self_path)
+
+    try:
+        tty_out = open("/dev/tty", "w")
+    except OSError as exc:
+        die("no controlling terminal to send the request through (%s)" % exc)
+
+    # 0700 dir rather than a bare socket in /tmp: the paste lands in it, and on
+    # a shared host the socket is the one place it is readable.
+    tmpdir = tempfile.mkdtemp(prefix="herdr-paste.")
+    sock_path = os.path.join(tmpdir, "paste.sock")
+    ident = os.urandom(8).hex()
+
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        server.bind(sock_path)
+        server.listen(1)
+        server.settimeout(timeout)
+
+        emit("%s%s:%s:Q:%s:%s:%s%s"
+             % (RS, VERSION, NAMESPACE, ident, b64(sock_path), b64(self_path), US),
+             tty_out)
+
+        try:
+            conn, _ = server.accept()
+        except socket.timeout:
+            die("no answer within %gs -- is Hammerspoon running on the "
+                "attached Mac?" % timeout)
+
+        with conn:
+            conn.settimeout(timeout)
+            data = read_all(conn)
+    finally:
+        server.close()
+        quietly_remove(sock_path, tmpdir)
+
+    header, _, payload = data.partition(b"\n")
+    header = header.decode(errors="replace")
+    if header.startswith("ERR "):
+        die(header[4:])
+    if not header.startswith("OK "):
+        die("malformed answer from the paste receiver")
+
+    expected = int(header[3:] or -1)
+    if expected != len(payload):
+        die("paste was truncated (%d of %d bytes)" % (len(payload), expected))
+
+    sys.stdout.buffer.write(payload)
+    sys.stdout.buffer.flush()
+
+
+def read_all(conn):
+    chunks = []
+    while True:
+        chunk = conn.recv(65536)
+        if not chunk:
+            return b"".join(chunks)
+        chunks.append(chunk)
+
+
+# --------------------------------------------------------------------------
+# Receiver: the half that runs in the herdr popup and catches the paste
+# --------------------------------------------------------------------------
+
+
+def decline(sock_path):
+    """Tell the requester the Mac said no, so it stops waiting.
+
+    Driven through the popup exactly like the receiver is -- it is the only way
+    back to the server -- because the alternative is leaving the pane blocked
+    until its timeout, and the pane may be nvim's clipboard provider, which
+    freezes the editor for as long as it waits.
+    """
+    report(sock_path, error="the request was declined on the Mac")
+
+
+def receive(sock_path, ident, timeout):
+    # Exits 0 whatever happens, so the popup always closes: run-command.sh
+    # holds a popup open until a keypress on a non-zero exit, and herdr's
+    # popups are session-modal, so one left standing swallows the chords of
+    # every later run. The failure travels to the requester instead.
+    try:
+        payload = catch_paste(ident, timeout)
+    except Exception as exc:  # noqa: BLE001 -- the requester reports it
+        report(sock_path, error=str(exc))
+        return
+    report(sock_path, payload=payload)
+
+
+def catch_paste(ident, timeout):
+    fd = os.open("/dev/tty", os.O_RDWR)
+    saved = termios.tcgetattr(fd)
+    out = os.fdopen(os.dup(fd), "w")
+    try:
+        # Raw and unechoed: the payload is not meant to be seen, and line
+        # discipline would eat and translate parts of it.
+        tty.setraw(fd)
+        # Ask for bracketed paste. The markers are stripped below if they do
+        # arrive; this is only about telling the layers upstream that a paste
+        # is expected, so none of them decides to be helpful about newlines.
+        out.write("\033[?2004h")
+        out.flush()
+
+        # Only now is the tty ready to catch anything -- which is exactly what
+        # this says. Hammerspoon waits for it before sending cmd+v.
+        emit("%s%s:%s:R:%s%s" % (RS, VERSION, NAMESPACE, ident, US), out)
+
+        buf = b""
+        while True:
+            if not select.select([fd], [], [], timeout)[0]:
+                raise RuntimeError("nothing was pasted within %gs" % timeout)
+            chunk = os.read(fd, 65536)
+            if not chunk:
+                raise RuntimeError("the terminal closed mid-paste")
+            buf += chunk
+
+            # Markers are removed from the WHOLE buffer every pass, so one
+            # split across two reads still goes. A partial marker leaves only
+            # `\x1b[20` behind, which cannot be mistaken for the terminator.
+            cleaned = buf
+            for marker in PASTE_MARKERS:
+                cleaned = cleaned.replace(marker, b"")
+
+            end = cleaned.find(TERMINATOR)
+            if end >= 0:
+                encoded = cleaned[:end]
+                break
+
+        try:
+            return base64.b64decode(encoded, validate=True)
+        except Exception:
+            raise RuntimeError("the paste did not arrive intact")
+    finally:
+        try:
+            out.write("\033[?2004l")
+            out.flush()
+        except OSError:
+            pass
+        # TCSAFLUSH, not TCSADRAIN: nothing here is worth waiting on the
+        # terminal to drain for, and the discard throws away whatever trailed
+        # the payload (the closing bracketed-paste marker) instead of leaving it
+        # in the queue to be echoed once the tty is cooked again.
+        termios.tcsetattr(fd, termios.TCSAFLUSH, saved)
+        out.close()
+        os.close(fd)
+
+
+def report(sock_path, payload=None, error=None):
+    try:
+        conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        conn.settimeout(5)
+        conn.connect(sock_path)
+    except OSError as exc:
+        # The requester is gone (interrupted, timed out). Nothing to report to,
+        # and nothing worth leaving on the popup's screen.
+        sys.stderr.write("herdr-paste: cannot reach %s (%s)\n" % (sock_path, exc))
+        return
+    with conn:
+        if error is not None:
+            conn.sendall(b"ERR " + error.encode() + b"\n")
+        else:
+            conn.sendall(b"OK %d\n" % len(payload))
+            conn.sendall(payload)
+
+
+# --------------------------------------------------------------------------
+
+
+def quietly_remove(sock_path, tmpdir):
+    for remove, path in ((os.remove, sock_path), (os.rmdir, tmpdir)):
+        try:
+            remove(path)
+        except OSError as exc:
+            if exc.errno != errno.ENOENT:
+                sys.stderr.write("herdr-paste: could not clean up %s (%s)\n"
+                                 % (path, exc))
+
+
+def die(message):
+    sys.stderr.write("herdr-paste: %s\n" % message)
+    raise SystemExit(1)
+
+
+def main():
+    parser = argparse.ArgumentParser(add_help=True, description=__doc__)
+    parser.add_argument("--receive", metavar="SOCKET",
+                        help="internal: catch the paste in a herdr popup")
+    parser.add_argument("--decline", metavar="SOCKET",
+                        help="internal: report that the Mac said no")
+    parser.add_argument("--id", metavar="ID", default="",
+                        help="internal: the request this receiver answers")
+    parser.add_argument("--timeout", type=float, default=60,
+                        help="seconds to wait for the paste (default: 60)")
+    args = parser.parse_args()
+
+    if args.decline:
+        decline(args.decline)
+    elif args.receive:
+        # Shorter than the requester's: by the time this runs the user has
+        # already said yes, and everything left is machine-paced.
+        receive(args.receive, args.id, min(args.timeout, 30))
+    else:
+        request(args.timeout)
+
+
+if __name__ == "__main__":
+    main()

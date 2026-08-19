@@ -3,7 +3,7 @@
 # Copy text to the clipboard of the machine attached to this Herdr session,
 # including payloads too big for a single OSC 52 write.
 #
-#   herdr-copy [--label <text>] [<file>]     (reads stdin when no file is given)
+#   herdr-copy [--label <text>] [--quiet] [<file>]   (stdin when no file given)
 #
 # Herdr forwards OSC 52 clipboard writes produced by a pane it renders to the
 # ATTACHED CLIENT's clipboard, which is what makes copying work over
@@ -77,7 +77,13 @@ die() {
 }
 
 usage() {
-    printf 'usage: %s [--label <text>] [<file>]\n' "$tag" >&2
+    printf 'usage: %s [--label <text>] [--quiet] [<file>]\n' "$tag" >&2
+}
+
+# Progress goes to stderr, which a caller that is not a terminal (nvim's
+# clipboard provider) reports as an error. --quiet is for those.
+note() {
+    [ "$quiet" -eq 1 ] || printf '%s: %s\n' "$tag" "$1" >&2
 }
 
 # One OSC 52 write. base64 output is de-wrapped: GNU base64 folds at 76 columns
@@ -88,6 +94,7 @@ emit() {
 
 label=
 src=
+quiet=0
 while [ "$#" -gt 0 ]; do
     case $1 in
         --label)
@@ -96,6 +103,7 @@ while [ "$#" -gt 0 ]; do
             shift
             ;;
         --label=*) label=${1#--label=} ;;
+        -q|--quiet) quiet=1 ;;
         -h|--help) usage; exit 0 ;;
         --) shift; break ;;
         -*) usage; die "unknown option '$1'" ;;
@@ -180,7 +188,7 @@ if [ -n "$label" ]; then
     label_b64=$(printf '%s' "$label" | base64 | tr -d '\r\n')
 fi
 
-printf '%s: relaying %s bytes as %s records...\n' "$tag" "$size" "$total" >&2
+note "relaying $size bytes as $total records..."
 
 emit "$rs$version:$ns:B:$id:$total:$size:$b64len:$digest:$label_b64$us"
 sleep "$delay"
@@ -197,4 +205,5 @@ done
 
 emit "$rs$version:$ns:E:$id:$total$us"
 
-printf '%s: sent; the Mac reports whether it landed.\n' "$tag" >&2
+note "sent; the Mac reports whether it landed."
+

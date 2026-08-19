@@ -110,6 +110,20 @@ function herdr-preset
         end
         exec "$copier" $argv
 
+    case "paste"
+        # Print the attached Mac's clipboard. The relay only carries clipboard
+        # WRITES outward, so this asks Hammerspoon to paste it back at us
+        # through a popup -- see herdr-paste, which does all of the work.
+        set -l paster (command -v herdr-paste)
+        if test -z "$paster"
+            set paster (status dirname)/herdr-paste
+        end
+        test -x "$paster"; or begin
+            echo "herdr-preset paste: herdr-paste not found" >&2
+            return 1
+        end
+        exec "$paster" $argv
+
     case "open-file-with-fallback"
         # Open <file> in nvim within the current herdr tab. If an nvim is already
         # running in another pane of this tab, drop the file into it over its RPC

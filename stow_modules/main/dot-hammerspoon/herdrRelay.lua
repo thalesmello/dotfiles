@@ -1,5 +1,6 @@
 local util = require("util")
 local Preset = require("preset")
+local GhosttyPreset = require("ghosttyPreset")
 
 -- Requests relayed from a Herdr pane through the clipboard.
 --
@@ -12,18 +13,21 @@ local Preset = require("preset")
 --   herdr-open  a URL to open here (`bin/herdr-open`), confirmed by a dialog
 --   herdr-copy  text to put on the clipboard (`bin/herdr-copy`), split across
 --               several writes when it is too big for one OSC 52 sequence
+--   herdr-paste the clipboard sent the OTHER way (`bin/herdr-paste`), which
+--               the relay cannot do by itself -- see the paste section below
 --
--- Both use RS/US-framed records carrying a versioned 128-bit namespace token,
+-- All three use RS/US-framed records carrying a versioned 128-bit namespace token,
 -- which makes an accidental match on something a user actually copied
 -- vanishingly unlikely. A record is never left on the clipboard: it is consumed
 -- and the previous contents put back (or, for a copy, replaced by the text that
 -- was being sent).
 --
--- ONE WATCHER FOR BOTH is deliberate. The relay has to remember what was on the
--- clipboard BEFORE a request arrived in order to restore it, and two watchers
--- would each snapshot the other's in-flight records as if they were ordinary
--- copies -- so a restore would put a half-finished transfer back on the
--- clipboard.
+-- ONE WATCHER FOR ALL THREE is deliberate. The relay has to remember what was on the
+-- clipboard BEFORE a request arrived in order to restore it, and separate
+-- watchers would each snapshot the others' in-flight records as if they were
+-- ordinary copies -- so a restore would put a half-finished transfer back on
+-- the clipboard. A paste goes further and NEEDS that snapshot: the clipboard as
+-- it stood before the request is the very thing being pasted.
 local M = {}
 
 ---------------------------------------------------------------
@@ -52,6 +56,38 @@ local COPY_MAX_RECORDS = 64
 -- stopped arriving (the pane died, ssh stalled, a write was dropped).
 local COPY_TIMEOUT = 5
 
+-- Must match bin/herdr-paste. Records are
+--   Q:<id>:<socket path b64>:<herdr-paste path b64>   asking to paste
+--   R:<id>                                            receiver ready for cmd+v
+local PASTE_PREFIX = "\30HERDR_PASTE_V1:2c8e4f6b91a74d0c8e3b5a72d1f09c46:"
+local PASTE_SUFFIX = "\31"
+
+-- Ceiling on what will be pushed through a pty as keystrokes. Well past any
+-- clipboard worth pasting into a terminal, and short of the point where the
+-- paste becomes the slow part.
+local PASTE_MAX_BYTES = 1048576
+
+-- How long the popup gets to open, start herdr-paste and announce itself.
+-- Generous: it crosses ssh, and the popup is only driven once.
+local PASTE_READY_TIMEOUT = 12
+
+-- Appended to the base64 payload so the receiver knows where it ends without
+-- depending on bracketed paste surviving every layer. Outside the base64
+-- alphabet by construction.
+local PASTE_TERMINATOR = "~"
+
+-- Long enough for a clipboard write to be visible to Ghostty before the chord
+-- that reads it, and for the chord to have been read before the clipboard is
+-- put back. Same race (in both directions) that ghosttyPreset's
+-- executeAndForgetHerdrCommand documents at length.
+local PASTE_SETTLE = 0.15
+local PASTE_RELEASE = 0.5
+
+-- Longer, and about a different thing: the confirmation dialog took the focus
+-- off the terminal, and the chords that drive the popup go to whatever is
+-- frontmost. Activating an app is not instant.
+local PASTE_REFOCUS = 0.4
+
 -- Pasteboard polling. hs.pasteboard.watcher polls rather than subscribing, and
 -- the callback only ever sees the LATEST contents -- two records landing inside
 -- one interval means the first is gone. 0.1s (down from the 0.25s default) is
@@ -67,6 +103,7 @@ local POLL_INTERVAL = 0.1
 -- handled. A full UTI snapshot rather than the plain string, so restoring an
 -- image or rich text does not flatten it.
 local previousClipboard
+local previousText
 -- The changeCount of the mutation WE made, so the watcher does not treat its
 -- own restore as a fresh copy. A count rather than a boolean: a request that
 -- arrives before the next tick then still gets processed instead of being
@@ -77,9 +114,14 @@ local transfer
 -- Id of a transfer that has been written off, whose remaining records are
 -- still on their way and get swept off the clipboard as they land.
 local discarding
+-- Paste being negotiated with a pane, or nil.
+local pasteRequest
 
 local function snapshotClipboard()
   previousClipboard = hs.pasteboard.readAllData()
+  -- Kept alongside the UTI snapshot because a paste needs the TEXT, and by the
+  -- time a paste request is read the clipboard no longer holds it.
+  previousText = hs.pasteboard.readString()
 end
 
 local function restoreClipboard()
@@ -145,15 +187,15 @@ end
 -- herdr-copy: stitch a chunked clipboard transfer back together
 ---------------------------------------------------------------
 
--- Split a framed copy record into its ':'-separated fields, or nil when this
--- is not one of ours. The last field (a base64 slice) never contains ':', so a
--- plain split is unambiguous.
-local function parseCopyRecord(contents)
+-- Split a framed record into its ':'-separated fields, or nil when it is not
+-- one of ours. Every field is either a token or base64, neither of which can
+-- contain ':', so a plain split is unambiguous.
+local function parseFramedRecord(contents, prefix, suffix)
   if type(contents) ~= "string" then return nil end
-  if contents:sub(1, #COPY_PREFIX) ~= COPY_PREFIX then return nil end
-  if contents:sub(-#COPY_SUFFIX) ~= COPY_SUFFIX then return nil end
+  if contents:sub(1, #prefix) ~= prefix then return nil end
+  if contents:sub(-#suffix) ~= suffix then return nil end
 
-  local body = contents:sub(#COPY_PREFIX + 1, -#COPY_SUFFIX - 1)
+  local body = contents:sub(#prefix + 1, -#suffix - 1)
   local fields = {}
   for field in (body .. ":"):gmatch("([^:]*):") do
     fields[#fields + 1] = field
@@ -341,6 +383,170 @@ local function handleCopyRecord(fields)
 end
 
 ---------------------------------------------------------------
+-- herdr-paste: send this Mac's clipboard the other way
+---------------------------------------------------------------
+
+-- The relay is one-directional: a pane can WRITE our clipboard over OSC 52, but
+-- nothing lets it read one. So a paste is done as a paste -- the pane opens a
+-- program that takes over a tty, and this side sends it cmd+v, which is the one
+-- path from the Mac's clipboard into a remote pty that always works.
+--
+-- The pane asks (Q), the user is asked, herdr's run-command popup is driven to
+-- start the receiver, the receiver says it has the tty (R), and only then does
+-- the payload go on the clipboard and the chord get sent. Waiting for R rather
+-- than guessing at a delay is what makes this survive a slow ssh link.
+--
+-- What is pasted is BASE64 plus a terminator, never the text itself: no
+-- newlines for Ghostty's paste protection to object to, no CR/LF for a layer in
+-- between to translate, and an unambiguous end marker.
+
+-- Paths arrive base64'd from a clipboard record, and one of them is about to be
+-- run as a command on the other side. Nothing is trusted: the decoded path must
+-- be plain and absolute, with no shell metacharacter, no whitespace and no
+-- `..`, so that single-quoting it for the popup's `eval` cannot be escaped.
+local function decodeRelayPath(field)
+  if type(field) ~= "string" or field == "" or #field > 512 then return nil end
+  if not field:match("^[A-Za-z0-9+/]*=?=?$") then return nil end
+  local ok, path = pcall(hs.base64.decode, field)
+  if not ok or type(path) ~= "string" then return nil end
+  if not path:match("^/[A-Za-z0-9._/-]+$") or path:find("%.%.") then return nil end
+  return path
+end
+
+local function endPaste()
+  if pasteRequest and pasteRequest.timer then pasteRequest.timer:stop() end
+  pasteRequest = nil
+end
+
+local function failPaste(reason)
+  util.log("herdrRelay: paste failed:", reason)
+  endPaste()
+  hs.alert.show("Herdr paste failed\n" .. reason, 4)
+end
+
+-- Put the user's own clipboard back after the payload has been handed over.
+-- From the request's own copy rather than the module snapshot, which by now has
+-- been through the popup command's clipboard round trip.
+local function restorePasteClipboard(request)
+  if request.snapshot and next(request.snapshot) then
+    hs.pasteboard.writeAllData(request.snapshot)
+  else
+    hs.pasteboard.setContents(request.text)
+  end
+  ignoredChangeCount = hs.pasteboard.changeCount()
+  previousClipboard = hs.pasteboard.readAllData()
+  previousText = request.text
+end
+
+-- Drive herdr's run-command popup, which is the only way back to a session
+-- that may be remote. Delayed: a dialog may have just taken the focus off the
+-- terminal, and the chords go to whatever is frontmost.
+--
+-- Single quotes throughout are safe -- decodeRelayPath has already refused
+-- anything a quote could be broken out of.
+local function drivePastePopup(command)
+  hs.timer.doAfter(PASTE_REFOCUS, function()
+    GhosttyPreset.executeAndForgetHerdrCommand(command)
+  end)
+end
+
+-- Say no back to the pane instead of just dropping the request. The pane is
+-- BLOCKED waiting -- it may be nvim's clipboard provider, with the editor
+-- frozen behind it -- and its own timeout is a minute away.
+local function declinePaste(bin, sock)
+  drivePastePopup(string.format("'%s' --decline '%s'", bin, sock))
+end
+
+local function beginPaste(fields)
+  -- The request record overwrote the clipboard, so what is being asked for is
+  -- the snapshot from the previous tick. Putting it back is also how the record
+  -- gets consumed -- FIRST, before any reason to refuse, since a rejected
+  -- request left on the clipboard is a frame the next paste would produce.
+  local snapshot, text = previousClipboard, previousText
+  restoreClipboard()
+
+  local id = fields[2]
+  local sock = decodeRelayPath(fields[3])
+  local bin = decodeRelayPath(fields[4])
+
+  if not (id and id:match("^%x+$") and sock and bin) or not bin:match("/herdr%-paste$") then
+    util.log("herdrRelay: ignoring malformed paste request")
+    return
+  end
+
+  if pasteRequest then
+    util.log("herdrRelay: a paste is already in flight; ignoring", id)
+    return
+  end
+
+  if not text or text == "" then
+    hs.alert.show("Herdr paste: the clipboard holds no text", 3)
+    return declinePaste(bin, sock)
+  end
+  if #text > PASTE_MAX_BYTES then
+    hs.alert.show(string.format("Herdr paste: %s is too much to type through a pty",
+      humanSize(#text)), 4)
+    return declinePaste(bin, sock)
+  end
+
+  -- blockAlert is backed by NSAlert, which needs Hammerspoon frontmost to be
+  -- the key window -- and the terminal has to have the focus BACK before any
+  -- chord is sent, hence the activate below and the settle before the popup is
+  -- driven.
+  local previousApp = hs.application.frontmostApplication()
+  hs.focus()
+  local button = hs.dialog.blockAlert(
+    "Paste clipboard into Herdr?",
+    string.format("%s\n\n%s", humanSize(#text),
+      (text:gsub("%s+", " "):sub(1, 160))),
+    "Paste",
+    "Cancel",
+    "informational"
+  )
+  if previousApp then previousApp:activate(true) end
+  if button ~= "Paste" then return declinePaste(bin, sock) end
+
+  pasteRequest = {
+    id = id,
+    text = text,
+    snapshot = snapshot,
+    timer = hs.timer.doAfter(PASTE_READY_TIMEOUT, function()
+      failPaste("the paste receiver never opened")
+    end),
+  }
+
+  drivePastePopup(string.format("'%s' --receive '%s' --id %s", bin, sock, id))
+end
+
+local function readyPaste(fields)
+  if not pasteRequest or fields[2] ~= pasteRequest.id then return end
+  local request = pasteRequest
+  if request.timer then request.timer:stop(); request.timer = nil end
+
+  -- Overwrites the READY record, which is the receiver's own OSC 52 write.
+  hs.pasteboard.setContents(hs.base64.encode(request.text) .. PASTE_TERMINATOR)
+  ignoredChangeCount = hs.pasteboard.changeCount()
+
+  hs.timer.doAfter(PASTE_SETTLE, function()
+    if pasteRequest ~= request then return end
+    Preset.sendKeys({"cmd", "v"})
+    hs.timer.doAfter(PASTE_RELEASE, function()
+      if pasteRequest ~= request then return end
+      restorePasteClipboard(request)
+      endPaste()
+      Preset.displayMessage("Pasted " .. humanSize(#request.text) .. " into Herdr", 1.5)
+    end)
+  end)
+end
+
+local function handlePasteRecord(fields)
+  local kind = fields[1]
+  if kind == "Q" then return beginPaste(fields) end
+  if kind == "R" then return readyPaste(fields) end
+  util.log("herdrRelay: unknown paste record", tostring(kind))
+end
+
+---------------------------------------------------------------
 -- Watcher
 ---------------------------------------------------------------
 
@@ -352,9 +558,15 @@ local function onPasteboardChange(contents)
     return
   end
 
-  local record = parseCopyRecord(contents)
+  local record = parseFramedRecord(contents, COPY_PREFIX, COPY_SUFFIX)
   if record then
     handleCopyRecord(record)
+    return
+  end
+
+  record = parseFramedRecord(contents, PASTE_PREFIX, PASTE_SUFFIX)
+  if record then
+    handlePasteRecord(record)
     return
   end
 
@@ -402,6 +614,7 @@ function M.setup()
   ignoredChangeCount = nil
   transfer = nil
   discarding = nil
+  pasteRequest = nil
 
   hs.pasteboard.watcher.interval(POLL_INTERVAL)
   _G._HerdrRelayWatcher = hs.pasteboard.watcher.new(onPasteboardChange)
