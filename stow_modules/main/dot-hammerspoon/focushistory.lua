@@ -1,6 +1,8 @@
 -- Back/forward history across focused windows AND Chrome tabs -- a jumplist for
 -- the desktop. hyper+o walks back, hyper+i walks forward; focusing something new
--- truncates the forward branch, exactly like browser history.
+-- truncates the forward branch, exactly like browser history. Entries are unique:
+-- re-focusing a window/tab already in the history moves it to the top rather than
+-- adding a second copy.
 --
 -- Detection is fully event-driven. Deliberately NOT hs.window.filter: it
 -- AX-sweeps every window of every app at construction (~6.3s of a ~6.4s config
@@ -147,15 +149,18 @@ end
 
 -- The whole history policy lives here: refresh-in-place when we are already on
 -- this thing (which is what makes in-tab Chrome navigation a no-op), otherwise
--- drop the forward branch, append, and trim to MAX from the front.
+-- drop the forward branch, move-to-top any earlier sighting of the same place,
+-- append, and trim to MAX from the front.
 --
 -- The comparison is against live state at call time, which is why the async
 -- Chrome lookup below cannot corrupt it.
 local function record(entry)
   if not entry then return "ignored" end
 
+  local key = entryKey(entry)
+
   local cur = st.stack[st.cursor]
-  if cur and entryKey(cur) == entryKey(entry) then
+  if cur and entryKey(cur) == key then
     cur.title = entry.title or cur.title
     cur.url = entry.url or cur.url
     cur.app = entry.app or cur.app
@@ -164,11 +169,29 @@ local function record(entry)
   end
 
   for i = #st.stack, st.cursor + 1, -1 do st.stack[i] = nil end
+
+  -- The same window/tab focused again is the same place, not a new one: pull the
+  -- old sighting out and let it re-enter at the top. Leaving both would spend
+  -- two of the 20 slots on one window and make a back/forward walk pass through
+  -- it twice. Note this only ever fires on an organic focus change -- landing on
+  -- an entry via back/forward matches stack[cursor] and returns above, so
+  -- navigating never reorders the history under itself.
+  local moved = false
+  for i = #st.stack, 1, -1 do
+    if entryKey(st.stack[i]) == key then
+      -- Keep whatever the fresh observation couldn't supply.
+      entry.title = entry.title or st.stack[i].title
+      entry.url = entry.url or st.stack[i].url
+      table.remove(st.stack, i)
+      moved = true
+    end
+  end
+
   st.stack[#st.stack + 1] = entry
   while #st.stack > MAX do table.remove(st.stack, 1) end
   st.cursor = #st.stack
   save()
-  return "pushed"
+  return moved and "moved" or "pushed"
 end
 
 local function isChromeBrowserTitle(title)
@@ -236,11 +259,19 @@ end
 -- Chrome tab resolution
 ---------------------------------------------------------------
 
--- `fallback` is the plain-window entry for the same Chrome window, used whenever
--- we can't get a trustworthy tab out of Chrome.
+-- `fallback` is the plain-window entry for the same Chrome window, carried only
+-- so we can label the tab if Chrome hands back an empty title.
+--
+-- Recording NOTHING is the correct outcome for every failure here, and the
+-- reason is not obvious. A Chrome browser window is represented in the history
+-- as a chrome_tab entry; a `window` entry for the very same window is a
+-- different key. So substituting the fallback on a bad lookup doesn't degrade
+-- gracefully -- it pushes a second, competing entry for a place already at the
+-- cursor, and a push truncates the forward branch. Leaving the history untouched
+-- costs at most a missed update; the next title change re-queries anyway.
 local function handleChromeResult(ok, out, fallback)
   -- Non-zero means Chrome isn't running (the subcommand guards on the process so
-  -- it can't launch it). Record nothing: whatever we saw is already gone.
+  -- it can't launch it).
   if not ok then return end
 
   local parsed, decoded = pcall(hs.json.decode, out)
@@ -248,27 +279,23 @@ local function handleChromeResult(ok, out, fallback)
   local tabId = type(decoded) == "table" and tonumber(decoded.id) or nil
   local chromeWindowId = type(decoded) == "table" and tonumber(decoded.windowId) or nil
   if not tabId or not chromeWindowId then
-    -- Chrome is up but has no scriptable window (a modal dialog, say). Without
-    -- both ids we could never focus the tab back, so keep the window entry.
-    record(fallback)
+    -- `{}`: --match-title found no window whose active tab matches this one, or
+    -- Chrome has no scriptable window at all.
+    util.log("focushistory: no matching Chrome tab for", fallback.title)
     return
   end
 
-  -- Guard the "windows[0] is Chrome's frontmost window" assumption in the JXA:
-  -- Chrome's AX window title is "<tab title> - Google Chrome - <Profile>", so
-  -- the tab title must prefix it. On a mismatch we'd be recording a tab from
-  -- some other window, so fall back to the window entry instead.
   local tabTitle = decoded.title or ""
-  if tabTitle ~= "" and fallback.title:sub(1, #tabTitle) ~= tabTitle then
-    util.log("focushistory: active tab title does not match focused window, recording window")
-    record(fallback)
-    return
-  end
 
   record({
     kind = "chrome_tab",
     id = string.format("%d", math.floor(tabId)),
     chromeWindowId = string.format("%d", math.floor(chromeWindowId)),
+    -- The CGWindowID of the macOS window hosting the tab. Not used to focus
+    -- (chrome-preset focus-tab needs Chrome's own window id) -- it exists so the
+    -- jump can confirm the tab actually came forward. Goes stale if the tab is
+    -- later dragged to another window, which verifyLanded tolerates.
+    cgWindowId = fallback.id,
     app = "Google Chrome",
     title = tabTitle ~= "" and tabTitle or fallback.title,
     url = decoded.url or "",
@@ -286,7 +313,13 @@ local function queryChromeTab(fallback, done)
   st.chromeInFlight = true
   local mySeq = st.seq
 
-  shell.task({"chrome-preset", "active-tab-json", print_stdout = false}, function(ok, out)
+  -- --match-title pins the lookup to *this* macOS window. Chrome's own window
+  -- order counts app-mode windows, so without it we'd frequently get some other
+  -- window's tab and push a bogus entry.
+  local args = {"chrome-preset", "active-tab-json",
+                "--match-title=" .. (fallback.title or ""), print_stdout = false}
+
+  shell.task(args, function(ok, out)
     st.chromeInFlight = false
     local dirty = st.chromeDirty
     st.chromeDirty = false
@@ -339,14 +372,34 @@ end
 -- Focusing an entry
 ---------------------------------------------------------------
 
--- yabai's fast path returns before the window is actually key, so confirm it
--- landed. Same 20ms/20-try shape as smartcmdtab.lua.
-local function verifyFocus(entry, cb, tries)
+-- Has focus actually arrived at `entry`? Both backends report success before
+-- macOS has made the window key -- yabai returns as soon as it has asked, and
+-- Chrome's `activate()` is asynchronous -- so the caller must not declare the
+-- jump finished until this says so. Getting this wrong is not cosmetic: while
+-- the jump is in flight st.busy suppresses recording, so clearing it early lets
+-- the focus event for the window we are LEAVING land in the history, where it
+-- doesn't match the cursor, gets pushed, and truncates the forward branch.
+--
+-- Same 20ms/20-try shape as smartcmdtab.lua.
+local function verifyLanded(entry, cb, tries)
   tries = tries or 0
   local win = hs.window.focusedWindow()
-  if win and tostring(win:id()) == entry.id then return cb(true) end
+  if win then
+    if entry.kind == "chrome_tab" then
+      -- Prefer the recorded host window, but a tab dragged to another window
+      -- (or restored from settings before cgWindowId existed) still counts as
+      -- landed once Chrome owns the focused window.
+      local app = win:application()
+      if (app and app:name()) == "Google Chrome"
+        and (not entry.cgWindowId or tostring(win:id()) == entry.cgWindowId) then
+        return cb(true)
+      end
+    elseif tostring(win:id()) == entry.id then
+      return cb(true)
+    end
+  end
   if tries >= 20 then return cb(false) end
-  hs.timer.doAfter(0.02, function() verifyFocus(entry, cb, tries + 1) end)
+  hs.timer.doAfter(0.02, function() verifyLanded(entry, cb, tries + 1) end)
 end
 
 local function focusEntry(entry, cb)
@@ -356,13 +409,19 @@ local function focusEntry(entry, cb)
     -- NSRunningApplication lookup -- no AX, ~0.02ms.
     if #hs.application.applicationsForBundleID(CHROME_BUNDLE) == 0 then return cb(false) end
     -- Exits non-zero when the tab has been closed, which is our liveness test.
-    shell.task({"chrome-preset", "focus-tab", entry.id, entry.chromeWindowId}, cb)
+    shell.task({"chrome-preset", "focus-tab", entry.id, entry.chromeWindowId}, function(ok)
+      if not ok then return cb(false) end
+      -- The tab is selected, but Chrome may not be frontmost yet. Treat a
+      -- verification timeout as success anyway: the tab did exist and was
+      -- selected, so dropping the entry as stale would be wrong.
+      verifyLanded(entry, function() cb(true) end)
+    end)
     return
   end
 
   shell.task({"wm-preset", "focus-window-id", entry.id}, function(ok)
     if not ok then return cb(false) end
-    verifyFocus(entry, function(focused)
+    verifyLanded(entry, function(focused)
       if focused then return cb(true) end
       -- Only now pay for the cross-space path: it polls up to ~3s, far too slow
       -- to sit on a hotkey's happy path.
@@ -395,7 +454,7 @@ local function jumpToIndex(index, delta)
 
     local j = (delta == 0) and i or (i + delta)
     if j < 1 or j > #st.stack then
-      hud(delta < 0 and "◀ history start" or "▶ history end")
+      hud(delta < 0 and "history start" or "history end")
       return finish()
     end
 
@@ -408,8 +467,10 @@ local function jumpToIndex(index, delta)
     focusEntry(target, function(ok)
       if ok then
         save()
-        hud(string.format("%s %d/%d\n%s",
-          delta < 0 and "◀" or "▶", st.cursor, #st.stack, label(target)))
+        -- The arrow points the way you travelled, so it leads on the way back
+        -- and trails on the way forward: "◀ 3/7" vs "3/7 ▶".
+        local position = string.format("%d/%d", st.cursor, #st.stack)
+        hud((delta < 0 and ("◀ " .. position) or (position .. " ▶")) .. "\n" .. label(target))
         return finish()
       end
 

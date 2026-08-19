@@ -102,9 +102,19 @@ function chrome-preset
             JSON.stringify({tabs: tabs});
         '
     case "active-tab-json"
-        # The active tab of Chrome's frontmost window, in ONE osascript call:
-        # {id, url, title, windowId}. Used by hammerspoon's focushistory to turn
-        # a window-title change into a tab identity (see focushistory.lua).
+        # The active tab of a Chrome window, as {id, url, title, windowId}. Used
+        # by hammerspoon's focushistory to turn a window-title change into a tab
+        # identity (see focushistory.lua).
+        #
+        # With --match-title <ax window title>, picks the window whose active tab
+        # title prefixes that string, i.e. the macOS window the caller actually
+        # means. Chrome's AX title is "<tab title> - Google Chrome - <profile>",
+        # the same correlation focus-url uses below. WITHOUT the flag we can only
+        # take chrome.windows[0], and Chrome's window order counts app-mode
+        # windows (chrome-preset create-app: Calendar, Keep, Metamate...), so on a
+        # machine with a few of those open windows[0] is usually NOT the browser
+        # window that just got focused. Emitting {} on no match is deliberate:
+        # a caller keying history off the tab id must not be handed the wrong tab.
         #
         # Same bulk-JXA trick as list-tabs-json above: `w.tabs.id()` is one Apple
         # Event for the whole window, where per-tab `.id()` costs ~500ms on a
@@ -123,19 +133,36 @@ function chrome-preset
         # reference LAUNCHES Chrome if it isn't running, and a focus-history
         # probe must never do that. Exit 1 = no Chrome; exit 0 with `{}` = Chrome
         # is up but has no scriptable window.
+        argparse match-title= -- $argv
+        or return 1
+
         test -n "$(get-main-chrome-pid)"
         or return 1
 
-        osascript -l JavaScript -e '
+        # Passed through the environment rather than interpolated: window titles
+        # contain quotes, backslashes and emoji.
+        env CHROME_MATCH_TITLE="$_flag_match_title" osascript -l JavaScript -e '
+            ObjC.import("Foundation");
             const chrome = Application("Google Chrome");
+            const env = $.NSProcessInfo.processInfo.environment;
+            const want = ObjC.unwrap(env.objectForKey("CHROME_MATCH_TITLE")) || "";
             let out = {};
             try {
                 const wins = chrome.windows;
                 const wids = wins.id();
-                if (wids.length > 0) {
-                    // Window index 1 is the frontmost Chrome window.
-                    const w = wins[0];
-                    const idx = w.activeTabIndex();
+                let pick = -1, idx = 0;
+                for (let i = 0; i < wids.length; i++) {
+                    // Without a hint, fall back to Chrome window order.
+                    if (!want) { pick = 0; idx = wins[0].activeTabIndex(); break; }
+                    let t;
+                    try {
+                        const at = wins[i].activeTabIndex();
+                        t = wins[i].tabs.title()[at - 1] || "";
+                        if (t && want.indexOf(t) === 0) { pick = i; idx = at; break; }
+                    } catch (e) { continue; }
+                }
+                if (pick >= 0) {
+                    const w = wins[pick];
                     const ids = w.tabs.id();
                     const urls = w.tabs.url();
                     const titles = w.tabs.title();
@@ -144,7 +171,7 @@ function chrome-preset
                             id: ids[idx - 1],
                             url: urls[idx - 1] || "",
                             title: titles[idx - 1] || "",
-                            windowId: wids[0],
+                            windowId: wids[pick],
                         };
                     }
                 }
