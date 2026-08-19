@@ -168,6 +168,7 @@ local function record(entry)
     return "refreshed"
   end
 
+  local prevCursor, dropped = st.cursor, math.max(0, #st.stack - st.cursor)
   for i = #st.stack, st.cursor + 1, -1 do st.stack[i] = nil end
 
   -- The same window/tab focused again is the same place, not a new one: pull the
@@ -191,6 +192,16 @@ local function record(entry)
   while #st.stack > MAX do table.remove(st.stack, 1) end
   st.cursor = #st.stack
   save()
+
+  -- Every unexpected cursor jump comes through here: a push/move resets the
+  -- cursor to the top and drops the forward branch, so if back/forward seems to
+  -- hit a floor, this is what to watch. Enable with
+  --   hs -c 'require("focushistory").debug = true'
+  if M.debug then
+    print(string.format("[focushistory] %s %s  cursor=%d/%d  (was %d, dropped %d forward)",
+      moved and "moved" or "pushed", key, st.cursor, #st.stack, prevCursor, dropped))
+  end
+
   return moved and "moved" or "pushed"
 end
 
@@ -350,6 +361,15 @@ observe = function(done)
   local entry, win, appName = currentWindowEntry()
   if not entry then return done() end
 
+  -- Still settling from a jump (see finish()): keep the watchers pointed at the
+  -- right window, but don't let this observation touch the history.
+  if st.settleUntil and hs.timer.secondsSinceEpoch() < st.settleUntil then
+    if appName == "Google Chrome" and isChromeBrowserTitle(entry.title) then
+      watchChromeWindow(win)
+    end
+    return done()
+  end
+
   if entry.id ~= st.lastWinId then
     st.seq = st.seq + 1
     st.lastWinId = entry.id
@@ -390,8 +410,18 @@ local function verifyLanded(entry, cb, tries)
       -- (or restored from settings before cgWindowId existed) still counts as
       -- landed once Chrome owns the focused window.
       local app = win:application()
+      local title = win:title() or ""
+      -- Waiting for the TITLE, not just for Chrome to come forward, is the
+      -- whole point. Selecting a tab updates the AX window title asynchronously,
+      -- and observe() feeds that title to --match-title to identify the tab. Act
+      -- on a stale title and the lookup faithfully resolves the window that
+      -- still has the OLD tab active -- a different tab id, so record() pushes
+      -- instead of refreshing, drops the forward branch, and pins the cursor one
+      -- step above wherever we just landed. That is the "can't go back past N"
+      -- floor: cursor oscillates between N and N+1 forever.
       if (app and app:name()) == "Google Chrome"
-        and (not entry.cgWindowId or tostring(win:id()) == entry.cgWindowId) then
+        and (not entry.cgWindowId or tostring(win:id()) == entry.cgWindowId)
+        and (not entry.title or entry.title == "" or title:sub(1, #entry.title) == entry.title) then
         return cb(true)
       end
     elseif tostring(win:id()) == entry.id then
@@ -443,6 +473,12 @@ local function jumpToIndex(index, delta)
 
   local function finish()
     watchdog:stop()
+    -- Belt and braces for the fixed point described in verifyLanded: even with
+    -- verification, an event already queued from the transition can arrive just
+    -- after busy clears and describe the window we left. Ignore observations for
+    -- a beat -- shorter than any deliberate human app switch, and skipping one is
+    -- harmless because the next real focus change records correctly.
+    st.settleUntil = hs.timer.secondsSinceEpoch() + 0.15
     st.busy = false
     local pending = st.pendingDelta
     st.pendingDelta = nil
@@ -475,6 +511,10 @@ local function jumpToIndex(index, delta)
       end
 
       -- Gone. Drop it and keep walking the same direction.
+      if M.debug then
+        print(string.format("[focushistory] stale, dropping %s (%s) at %d/%d",
+          entryKey(target), target.title or "", j, #st.stack))
+      end
       table.remove(st.stack, j)
       -- Going back, the removed slot was below the cursor so everything above
       -- shifted down and the current entry now sits at j. Going forward, the
