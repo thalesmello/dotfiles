@@ -79,21 +79,27 @@ local PASTE_TERMINATOR = "~"
 -- Long enough for a clipboard write to be visible to Ghostty before the chord
 -- that reads it, and for the chord to have been read before the clipboard is
 -- put back. Same race (in both directions) that ghosttyPreset's
--- executeAndForgetHerdrCommand documents at length.
-local PASTE_SETTLE = 0.15
+-- executeAndForgetHerdrCommand documents at length -- and the same 0.05 it has
+-- used for the staging half of it for as long as it has existed.
+local PASTE_SETTLE = 0.05
 local PASTE_RELEASE = 0.5
 
--- Longer, and about a different thing: the confirmation dialog took the focus
--- off the terminal, and the chords that drive the popup go to whatever is
--- frontmost. Activating an app is not instant.
-local PASTE_REFOCUS = 0.4
+-- The confirmation dialog took the focus off the terminal, and the chords that
+-- drive the popup go to whatever is frontmost, so the terminal has to be back
+-- before they are sent. This WATCHES for that rather than allowing a flat delay
+-- long enough to cover the worst case: activation is usually done within a tick
+-- or two, and every millisecond of a fixed wait is one the user spends looking
+-- at a popup that has not been typed into yet.
+local PASTE_REFOCUS_TICK = 0.02
+local PASTE_REFOCUS_CAP = 0.6
 
 -- Pasteboard polling. hs.pasteboard.watcher polls rather than subscribing, and
 -- the callback only ever sees the LATEST contents -- two records landing inside
--- one interval means the first is gone. 0.1s (down from the 0.25s default) is
--- what lets herdr-copy pace at 0.2s and still send 128 KiB in a few seconds.
+-- one interval means the first is gone. 0.05s (down from the 0.25s default)
+-- halves the lag before a paste receiver's READY is noticed, and still leaves
+-- herdr-copy's 0.2s pacing four times clear of it.
 -- Module-wide and only read when a watcher is created, hence set before ours.
-local POLL_INTERVAL = 0.1
+local POLL_INTERVAL = 0.05
 
 ---------------------------------------------------------------
 -- Clipboard bookkeeping
@@ -438,23 +444,42 @@ local function restorePasteClipboard(request)
   previousText = request.text
 end
 
--- Drive herdr's run-command popup, which is the only way back to a session
--- that may be remote. Delayed: a dialog may have just taken the focus off the
--- terminal, and the chords go to whatever is frontmost.
+-- Drive herdr's run-command popup, which is the only way back to a session that
+-- may be remote. Held until `app` is frontmost again (it is the terminal, which
+-- the confirmation dialog may have just taken the focus from), since the chords
+-- go wherever the focus is. Capped, so a window that never comes back still
+-- gets its attempt rather than the paste silently evaporating.
 --
 -- Single quotes throughout are safe -- decodeRelayPath has already refused
 -- anything a quote could be broken out of.
-local function drivePastePopup(command)
-  hs.timer.doAfter(PASTE_REFOCUS, function()
-    GhosttyPreset.executeAndForgetHerdrCommand(command)
+local function drivePastePopup(app, command)
+  local function frontmost()
+    if not app then return true end
+    local ok, front = pcall(hs.application.frontmostApplication)
+    if not ok or not front then return false end
+    local same, equal = pcall(function() return front:pid() == app:pid() end)
+    return same and equal
+  end
+
+  local function go() GhosttyPreset.executeAndForgetHerdrCommand(command) end
+
+  if frontmost() then return go() end
+
+  local deadline = hs.timer.secondsSinceEpoch() + PASTE_REFOCUS_CAP
+  local ticker
+  ticker = hs.timer.doEvery(PASTE_REFOCUS_TICK, function()
+    if frontmost() or hs.timer.secondsSinceEpoch() >= deadline then
+      ticker:stop()
+      go()
+    end
   end)
 end
 
 -- Say no back to the pane instead of just dropping the request. The pane is
 -- BLOCKED waiting -- it may be nvim's clipboard provider, with the editor
 -- frozen behind it -- and its own timeout is a minute away.
-local function declinePaste(bin, sock)
-  drivePastePopup(string.format("'%s' --decline '%s'", bin, sock))
+local function declinePaste(app, bin, sock)
+  drivePastePopup(app, string.format("'%s' --decline '%s'", bin, sock))
 end
 
 local function beginPaste(fields)
@@ -464,6 +489,11 @@ local function beginPaste(fields)
   -- request left on the clipboard is a frame the next paste would produce.
   local snapshot, text = previousClipboard, previousText
   restoreClipboard()
+
+  -- The terminal, captured before any dialog can take the focus off it: it is
+  -- both what the dialog hands the focus back to and what the popup chords have
+  -- to wait for.
+  local terminal = hs.application.frontmostApplication()
 
   local id = fields[2]
   local sock = decodeRelayPath(fields[3])
@@ -481,19 +511,17 @@ local function beginPaste(fields)
 
   if not text or text == "" then
     hs.alert.show("Herdr paste: the clipboard holds no text", 3)
-    return declinePaste(bin, sock)
+    return declinePaste(terminal, bin, sock)
   end
   if #text > PASTE_MAX_BYTES then
     hs.alert.show(string.format("Herdr paste: %s is too much to type through a pty",
       humanSize(#text)), 4)
-    return declinePaste(bin, sock)
+    return declinePaste(terminal, bin, sock)
   end
 
   -- blockAlert is backed by NSAlert, which needs Hammerspoon frontmost to be
   -- the key window -- and the terminal has to have the focus BACK before any
-  -- chord is sent, hence the activate below and the settle before the popup is
-  -- driven.
-  local previousApp = hs.application.frontmostApplication()
+  -- chord is sent, hence the activate below and the wait inside drivePastePopup.
   hs.focus()
   local button = hs.dialog.blockAlert(
     "Paste clipboard into Herdr?",
@@ -503,8 +531,8 @@ local function beginPaste(fields)
     "Cancel",
     "informational"
   )
-  if previousApp then previousApp:activate(true) end
-  if button ~= "Paste" then return declinePaste(bin, sock) end
+  if terminal then terminal:activate(true) end
+  if button ~= "Paste" then return declinePaste(terminal, bin, sock) end
 
   pasteRequest = {
     id = id,
@@ -515,7 +543,7 @@ local function beginPaste(fields)
     end),
   }
 
-  drivePastePopup(string.format("'%s' --receive '%s' --id %s", bin, sock, id))
+  drivePastePopup(terminal, string.format("'%s' --receive '%s' --id %s", bin, sock, id))
 end
 
 local function readyPaste(fields)
