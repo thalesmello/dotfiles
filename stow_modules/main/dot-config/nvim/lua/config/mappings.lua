@@ -295,3 +295,9 @@ end
 
 vim.keymap.set("n", "<leader>gt", function () merge_tab("next") end)
 vim.keymap.set("n", "<leader>gT", function () merge_tab("prev") end)
+
+-- Undo with ctrl+_ (ctrl+/ in terminals that distinguish it) in normal, visual and insert mode
+for _, key in ipairs({ "<C-_>", "<C-/>" }) do
+  vim.keymap.set({ "n", "x" }, key, "<esc><cmd>undo<cr>", { remap = false, desc = "Undo" })
+  vim.keymap.set("i", key, "<cmd>undo<cr>", { remap = false, desc = "Undo" })
+end

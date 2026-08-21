@@ -380,7 +380,7 @@ return {
             -- Replace text with register
             replace = {
                 -- Disable default mappings; set up custom ones without `line`
-                prefix = 'cg',
+                prefix = 'R',
 
                 -- Whether to reindent new text to match previous indent
                 reindent_linewise = true,
