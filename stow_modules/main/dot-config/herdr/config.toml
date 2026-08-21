@@ -297,13 +297,20 @@ height = 1
 
 # prefix+shift+m: break the focused pane out of its split and into a new tab of
 # the same workspace (tmux parity: `break-pane`). herdr has no native action for
-# this, so it drives the `pane move --new-tab` CLI. No-op-ish when the pane is
-# already alone in its tab (it just lands in a fresh tab).
+# this, so the script drives the `pane move` CLI. When the pane is already alone
+# in its tab a new tab would be indistinguishable from what you have, so it
+# moves to a new workspace instead.
+# type = "popup" so the name prompt runs in a herdr-rendered PTY where
+# interactive input works (same as claude-tab.sh). The prompt comes prefilled
+# with the pane's (or, for the workspace case, the tab's) current name, so it is
+# wider than claude-tab.sh's to fit one. Esc cancels without moving.
 [[keys.command]]
 key = "prefix+shift+m"
-type = "shell"
-command = "\"${HERDR_BIN_PATH:-herdr}\" pane move \"$HERDR_ACTIVE_PANE_ID\" --new-tab --focus"
-description = "move pane to a new tab"
+type = "popup"
+command = "~/.config/herdr/scripts/break-pane.sh"
+description = "move pane to a new tab (new workspace if alone; prompts for name)"
+width = "60%"
+height = 3
 
 # Copy the focused tab's id to the clipboard and show a notification.
 # Popup for the same reason as copy-pane-id.sh: OSC 52 needs a herdr-rendered PTY
