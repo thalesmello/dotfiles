@@ -70,6 +70,27 @@
 
 ;; This is where you define the modifications
 :main [
+    ;; Must stay first in :main -- Karabiner applies manipulators in order and
+    ;; the first match wins, so this has to see the chord before anything else
+    ;; can act on the period.
+    {
+        :des "Swallow the macOS sysdiagnose keychord"
+        :rules [
+            ;; Shift-Ctrl-Opt-Cmd-period is Apple's sysdiagnose trigger: a ~4
+            ;; minute, ~400MB system dump that pops open in Finder when it lands
+            ;; (confirmed via "Request source: Keychord" in a captured archive).
+            ;; Caps Lock is hyper (ctrl+opt+cmd), so it is one stray Shift away
+            ;; from firing on hyper+"." -- which is bound to ArgList toggle and
+            ;; gets hit constantly. The leader layer reaches it too, since
+            ;; :#SRperiod keeps an optional shift in its output.
+            ;; Matching the assembled chord covers both paths at once.
+            ;; Spelled out rather than :!TOCSperiod so the modifiers match
+            ;; either side -- the goku letters are all left_*, and the shift
+            ;; here comes from whichever shift key the hand happens to be on.
+            [{:key :period :modi {:mandatory [:command :control :option :shift]}} :vk_none]
+        ]
+    }
+
     {
         :des "Mouseless: Right Shift + Space = Click"
         :rules [

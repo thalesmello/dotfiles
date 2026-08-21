@@ -12,6 +12,20 @@
         "basic.to_if_held_down_threshold_milliseconds" : 250
       },
       "rules" : [ {
+        "description" : "Swallow the macOS sysdiagnose keychord",
+        "manipulators" : [ {
+          "from" : {
+            "modifiers" : {
+              "mandatory" : [ "command", "control", "option", "shift" ]
+            },
+            "key_code" : "period"
+          },
+          "to" : [ {
+            "key_code" : "vk_none"
+          } ],
+          "type" : "basic"
+        } ]
+      }, {
         "description" : "Mouseless: Right Shift + Space = Click",
         "manipulators" : [ {
           "to_after_key_up" : [ {
