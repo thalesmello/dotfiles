@@ -1,0 +1,66 @@
+# Record which conversation each pane's agent is in, so `herdr-preset
+# resume-agent` can put a pane back into it after the agent dies.
+#
+# herdr knows the conversation id -- its official integrations report one, and
+# `session.resume_agents_on_restore` uses it -- but only for a LIVE agent: the
+# id disappears from `pane list` together with the process, which is precisely
+# when it is wanted. This plugin exists to copy it out beforehand. All the work
+# is in `herdr-preset track-agent-sessions`; the manifest only says when to run
+# it.
+#
+# herdr does not scan this directory: plugins are loaded from the registry at
+# ~/.config/herdr/plugins.json, which `herdr plugin link` writes and which is
+# gitignored here (it holds absolute paths, so it is machine-local). Being in
+# this folder therefore installs nothing by itself.
+#
+#   herdr-preset install-local-plugins
+#
+# links this and every other plugin here, and is what to run after stowing a
+# new machine AND after editing this file -- the registry keeps a COPY of the
+# manifest, so edits do not take effect until it is linked again.
+# `herdr-preset resume-agent` also links it if it finds it missing, so a
+# machine that never ran the install command still ends up recording sessions.
+#
+# Check it with `herdr plugin list` and `herdr plugin log`, which keeps each
+# hook's exit code and stderr.
+#
+# The commands are bare names: hooks run with the herdr SERVER's environment,
+# which is the login environment it was started from, so ~/src/dotfiles/bin is
+# on PATH. If herdr is ever started from somewhere without it, every hook fails
+# at once and `herdr plugin log` says so.
+
+id = "agent-sessions"
+name = "agent-sessions"
+version = "0.1.0"
+min_herdr_version = "0.8.0"
+description = "Remember each pane's agent conversation, for herdr-preset resume-agent"
+# Both, because a herdr session reached with `herdr --remote` runs its server
+# (and therefore these hooks) on the far side, which is usually Linux.
+platforms = ["macos", "linux"]
+
+# Every pane in one go, at server start: this picks up the panes herdr has just
+# restored (resume_agents_on_restore) and anything that was already running
+# before the plugin was linked.
+[[startup]]
+command = ["herdr-preset", "track-agent-sessions"]
+
+# An agent appeared in a pane. The conversation id is NOT reported yet at this
+# point -- herdr has recognised the program on screen, while the id comes
+# separately from the agent's own integration a moment later -- and no event
+# announces its arrival, so this hook waits for it rather than recording a
+# session-less pane and hoping something else fires. Twenty seconds is enough
+# for the agents here; an agent that reports no id at all (no integration
+# installed) waits that out once, at start, and is recorded without one.
+[[events]]
+on = "pane.agent_detected"
+command = ["herdr-preset", "track-agent-sessions", "--event", "--wait", "20"]
+
+# Every idle/working transition of every agent. Chatty on purpose: it is the
+# only recurring per-pane event herdr publishes, so it is the standing chance
+# to notice a `/clear` that started a new conversation mid-life, or an id the
+# hook above gave up waiting for. track-agent-sessions keeps this cheap -- one
+# `pane get`, and no write at all unless something changed (see the throttle in
+# __herdr_agent_sweep).
+[[events]]
+on = "pane.agent_status_changed"
+command = ["herdr-preset", "track-agent-sessions", "--event"]

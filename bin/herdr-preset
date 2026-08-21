@@ -74,6 +74,238 @@ function __herdr_session_name
     end
 end
 
+# Guard a subcommand against running in the wrong herdr: ids handed to these
+# subcommands (pane ids above all) are only meaningful within one session, and
+# the same id names an unrelated pane in another one.
+function __herdr_require_session --argument-names tag want
+    test -n "$want"; or return 0
+
+    set -l current (__herdr_session_name)
+    test "$current" = "$want"; and return 0
+
+    echo "$tag: this is herdr session '$current', not '$want'" >&2
+    return 1
+end
+
+# A pid and its ancestors, youngest first, stopping below init. Used to relate
+# an arbitrary process to the pane it was (transitively) spawned from: herdr
+# only reports a pane's shell and foreground processes, so anything deeper --
+# an agent's MCP server, a helper it forked -- has to be walked back up.
+function __herdr_pid_ancestry --argument-names pid
+    set -l seen
+
+    while test -n "$pid"; and test "$pid" -gt 1 2>/dev/null
+        contains -- "$pid" $seen; and break
+        set -a seen "$pid"
+        echo "$pid"
+        set pid (ps -o ppid= -p "$pid" 2>/dev/null | string trim)
+    end
+end
+
+# --- pane -> agent session map -------------------------------------------
+#
+# herdr's official integrations report the agent's own conversation id back to
+# it (`agent_session` in `herdr api snapshot`), which is how
+# `session.resume_agents_on_restore` puts panes back into their conversations
+# after a server restart. That record lives and dies WITH THE AGENT: once the
+# process is gone the pane drops out of the agents list and the session id with
+# it -- exactly when you want it, because that is the moment you are trying to
+# get the conversation back.
+#
+# So it gets copied out while the agent is still alive, into
+#
+#   ${XDG_STATE_HOME:-~/.local/state}/herdr/agent-sessions/<session>.json
+#
+#   {"panes": {"w24:p3": {agent, cwd, session: {kind, value, source},
+#                         argv: [...launch command...], updated: <unix>}}}
+#
+# `resume-agent` reads it back; `track-agent-sessions` keeps it fresh.
+
+# --- local herdr plugins ---------------------------------------------------
+#
+# herdr does not scan for plugins: it loads them from a registry
+# (~/.config/herdr/plugins.json, written by `herdr plugin link`), which stores
+# each manifest's absolute path. Dropping a plugin into the config directory
+# therefore does nothing on its own, and the registry is deliberately not in
+# this repo (.gitignore), being machine-local. `install-local-plugins` is what
+# links the ones that live here, and __herdr_plugin_ensure is the cheap check
+# resume-agent makes so a machine that never ran it still records sessions.
+
+function __herdr_plugin_dir
+    set -l base $HOME/.config
+    if set -q XDG_CONFIG_HOME; and test -n "$XDG_CONFIG_HOME"
+        set base $XDG_CONFIG_HOME
+    end
+    echo $base/herdr/plugins
+end
+
+# Link <id> from <dir> unless the registry already has it.
+#
+#   0  already linked
+#   2  linked just now
+#   1  not linked and could not be (no manifest, link refused, no server)
+#
+# Deliberately does NOT re-link an entry that is already there: the registry
+# holds a COPY of the manifest, so picking up an edited manifest means
+# unlink+link, and doing that behind someone's back -- on every resume-agent,
+# racing the hooks it is about to rely on -- is not worth the freshness.
+# install-local-plugins is the place that re-links.
+function __herdr_plugin_ensure --argument-names bin id dir
+    $bin plugin list --json 2>/dev/null \
+        | jq -e --arg id "$id" 'any(.result.plugins[]?; .plugin_id == $id)' >/dev/null 2>&1
+    and return 0
+
+    test -f "$dir/herdr-plugin.toml"; or return 1
+    $bin plugin link "$dir" 2>/dev/null | jq -e '.result.plugin' >/dev/null 2>&1; or return 1
+    return 2
+end
+
+function __herdr_agent_state_dir
+    set -l base $HOME/.local/state
+    if set -q XDG_STATE_HOME; and test -n "$XDG_STATE_HOME"
+        set base $XDG_STATE_HOME
+    end
+    set -l dir $base/herdr/agent-sessions
+    mkdir -p $dir 2>/dev/null
+    echo $dir
+end
+
+# One store per herdr session: pane ids only mean something within one.
+function __herdr_agent_store
+    echo (__herdr_agent_state_dir)/(__herdr_session_name).json
+end
+
+# The command a pane's agent was LAUNCHED with, as a JSON array (or `null`).
+#
+# Taken from the foreground process group LEADER, which is what was typed at
+# the prompt -- `codex resume <id>`, not the `dotslash` + `codex.real` wrappers
+# it execs, whose argv is full of generated `-c` overrides that would be stale
+# on the next run. Replaying that leader argv is what keeps launch flags
+# (--internet, --model, ...) across a resume.
+function __herdr_agent_launch_argv --argument-names bin pane
+    set -l info ($bin pane process-info --pane "$pane" 2>/dev/null | string collect)
+    set -l argv_json (printf '%s' "$info" | jq -c '
+        .result.process_info as $pi
+        | ($pi.foreground_processes // []) as $fg
+        | ((first($fg[] | select(.pid == $pi.foreground_process_group_id)) // $fg[-1] // {}).argv // null)
+        ' 2>/dev/null)
+    test -n "$argv_json"; or set argv_json null
+    echo $argv_json
+end
+
+# Copy live agents' sessions (and launch commands) into the store.
+#
+#   __herdr_agent_sweep <bin> [<pane>]
+#
+# With a pane, only that one is looked at -- one `pane get`, which is what the
+# plugin's per-event hooks run and why they are cheap enough to fire on every
+# agent status change. Without one, every pane in the session is swept, which
+# is what the plugin's startup hook and resume-agent do.
+#
+# Entries are only ever added or refreshed -- a pane dropping out of the list
+# is the case this whole thing exists for, so it must not delete anything.
+# Records nobody could still want (STALE_DAYS without an update) are dropped,
+# but only by a full sweep: a single-pane run has not looked at the others and
+# has no business judging them.
+function __herdr_agent_sweep --argument-names bin pane
+    test -n "$bin"; or set bin (__herdr_bin); or return 1
+
+    # Missing or unreadable (killed mid-write on an older run, hand-edited)
+    # starts over rather than wedging every sweep from here on.
+    set -l store (__herdr_agent_store)
+    jq -e . "$store" >/dev/null 2>&1; or echo '{"panes":{}}' >"$store"
+
+    # `pane list`/`pane get` rather than `api snapshot`: they carry the same
+    # agent and agent_session fields, and are the calls resume-agent needs
+    # anyway.
+    set -l reply
+    set -l select
+    if test -n "$pane"
+        set reply ($bin pane get "$pane" 2>/dev/null | string collect)
+        set select '[.result.pane]'
+    else
+        set reply ($bin pane list 2>/dev/null | string collect)
+        set select '.result.panes'
+    end
+    printf '%s' "$reply" | jq -e . >/dev/null 2>&1; or return 1
+
+    set -l now (date +%s)
+    # Template spelled out: BSD mktemp fills in a bare -t prefix, GNU's does not.
+    set -l updates (mktemp -t herdr-agent-sweep.XXXXXX)
+
+    # Every pane herdr sees an agent in, session or no session. An agent whose
+    # integration is not installed (pi's is opt-in) reports no conversation id
+    # at all, and a record with only the agent and its launch command is still
+    # worth something: it is the difference between "resume this pane's agent
+    # the best way it can be resumed" and "no idea what was running here".
+    for entry in (printf '%s' "$reply" | jq -c "$select"' []?
+            | select(.agent != null)
+            | {pane_id, agent, cwd,
+               session: (if .agent_session
+                         then {kind: .agent_session.kind,
+                               value: .agent_session.value,
+                               source: .agent_session.source}
+                         else null end)}')
+
+        set -l id (printf '%s' "$entry" | jq -r '.pane_id')
+        set -l value (printf '%s' "$entry" | jq -r '.session.value // ""')
+
+        # Nothing new to say about this pane? Then say nothing. The status-
+        # change hook fires several times a minute per busy agent, and rewriting
+        # an identical record each time is all cost and no information. The
+        # timestamp is still refreshed once a minute, because it doubles as
+        # "when was this agent last seen alive" for the staleness sweep.
+        set -l known (jq -r --arg p "$id" --arg v "$value" --argjson now $now '
+            if ((.panes[$p].session.value? // "") == $v
+                and ((.panes[$p].argv? // []) | length) > 0
+                and (.panes[$p].updated? // 0) > ($now - 60))
+            then "yes" else "no" end' "$store" 2>/dev/null)
+        test "$known" = yes; and continue
+
+        # Re-read the launch command only when this pane's conversation is one
+        # the store has not seen (new agent, or /clear'd into a new session).
+        set -l seen (jq -r --arg p "$id" --arg v "$value" '
+            if ((.panes[$p].session.value? // "") == $v
+                and ((.panes[$p].argv? // []) | length) > 0)
+            then "yes" else "no" end' "$store" 2>/dev/null)
+
+        set -l launch null
+        test "$seen" = yes; or set launch (__herdr_agent_launch_argv "$bin" "$id")
+
+        printf '%s' "$entry" \
+            | jq -c --argjson launch "$launch" --argjson now $now \
+                '. + {updated: $now} + (if $launch == null then {} else {argv: $launch} end)' \
+            >>$updates
+    end
+
+    # Nothing changed and no pruning to do: leave the file alone.
+    if not test -s $updates; and test -n "$pane"
+        rm -f $updates
+        return 0
+    end
+
+    # A unique temp beside the store, not a fixed `.tmp`: hooks fire
+    # concurrently, and two writers sharing one temp name would rename each
+    # other's half-written file (or delete it on the way out). Racing renames
+    # are harmless -- both wrote what they knew, last one wins, and the next
+    # event re-records anything a loser dropped.
+    set -l STALE_DAYS 30
+    set -l staged (mktemp (__herdr_agent_state_dir)/.store.XXXXXX)
+    jq -c --slurpfile up $updates --argjson now $now --argjson stale $STALE_DAYS \
+        --argjson prune (test -n "$pane"; and echo false; or echo true) '
+        reduce $up[] as $u (.;
+            .panes[$u.pane_id] = ((.panes[$u.pane_id] // {}) + ($u | del(.pane_id))))
+        | if $prune
+          then .panes |= with_entries(select((.value.updated // 0) > ($now - $stale * 86400)))
+          else . end
+        ' "$store" >$staged
+    and mv $staged "$store"
+    set -l ok $status
+
+    rm -f $updates $staged
+    return $ok
+end
+
 function herdr-preset
     set preset $argv[1]
     set -e argv[1]
@@ -602,12 +834,8 @@ sys.stdout.write("\n".join(out) + ("\n" if out else ""))
             return 1
         end
 
-        if set -q _flag_session; and test -n "$_flag_session"
-            set -l current (__herdr_session_name)
-            test "$current" = "$_flag_session"; or begin
-                echo "$tag: this is herdr session '$current', not '$_flag_session'" >&2
-                return 1
-            end
+        if set -q _flag_session
+            __herdr_require_session "$tag" "$_flag_session"; or return 1
         end
 
         set -l panes ($bin pane list 2>&1 | string collect)
@@ -632,6 +860,583 @@ sys.stdout.write("\n".join(out) + ("\n" if out else ""))
             echo "  response: $resp" >&2
             return 1
         end
+
+    case "focus-pid"
+        # Focus the pane a process is running in, given its pid. Answers the
+        # "which of these twenty panes owns this runaway process?" question that
+        # `ps` alone cannot: a pid found in Activity Monitor or in some daemon's
+        # log gets you straight to the agent responsible for it.
+        #
+        #   focus-pid <pid> [--session <name>] [--print]
+        #
+        # The pid does not have to be a pane's foreground process -- the
+        # ancestry is walked upward, so an MCP server, a `srconveyor`, or any
+        # other grandchild of an agent resolves to that agent's pane. Processes
+        # that have been reparented to init (their pane's shell is gone) have no
+        # pane left to focus and are reported as such.
+        #
+        # --print writes the resolved pane id and does not focus, which is what
+        # the scripted uses want (pinning it, reading it back, killing it).
+        set -l tag "herdr-preset focus-pid"
+
+        argparse 'session=' 'print' -- $argv
+        or return 1
+
+        set -l pid $argv[1]
+        test -n "$pid"; or begin
+            echo "$tag: no pid given" >&2
+            return 1
+        end
+        string match -qr '^[0-9]+$' -- "$pid"; or begin
+            echo "$tag: '$pid' is not a pid" >&2
+            return 1
+        end
+        ps -p "$pid" >/dev/null 2>&1; or begin
+            echo "$tag: no such process: $pid" >&2
+            return 1
+        end
+
+        set -l bin (__herdr_bin); or begin
+            echo "$tag: herdr CLI not found (HERDR_BIN_PATH unset and no herdr on PATH)" >&2
+            return 1
+        end
+
+        if set -q _flag_session
+            __herdr_require_session "$tag" "$_flag_session"; or return 1
+        end
+
+        set -l chain (__herdr_pid_ancestry "$pid")
+        test -n "$chain"; or begin
+            echo "$tag: $pid has no ancestry below init" >&2
+            return 1
+        end
+
+        set -l panes ($bin pane list 2>&1 | string collect)
+        printf '%s' "$panes" | jq -e . >/dev/null 2>&1; or begin
+            echo "$tag: could not list panes" >&2
+            echo "  output: $panes" >&2
+            return 1
+        end
+
+        # One process-info call per pane: the API reports processes per pane and
+        # has no reverse lookup, so the panes are what gets iterated. A pane's
+        # shell_pid is the interesting one for the common case (the process was
+        # started from that shell); the foreground processes cover a pid that is
+        # a pane's current job but whose shell has been re-execed.
+        set -l match
+        for candidate in (printf '%s' "$panes" | jq -r '.result.panes[]?.pane_id')
+            set -l info ($bin pane process-info --pane "$candidate" 2>/dev/null | string collect)
+            printf '%s' "$info" | jq -e . >/dev/null 2>&1; or continue
+
+            set -l pane_pids (printf '%s' "$info" | jq -r '
+                .result.process_info
+                | [.shell_pid?, .foreground_process_group_id?, (.foreground_processes[]?.pid)]
+                | map(select(. != null)) | .[] | tostring' 2>/dev/null)
+
+            for pane_pid in $pane_pids
+                if contains -- "$pane_pid" $chain
+                    set match "$candidate"
+                    break
+                end
+            end
+
+            test -n "$match"; and break
+        end
+
+        test -n "$match"; or begin
+            echo "$tag: $pid does not belong to any pane in this herdr session" >&2
+            echo "  (it may have been reparented to init, or started outside herdr)" >&2
+            return 1
+        end
+
+        if set -q _flag_print
+            echo "$match"
+            return 0
+        end
+
+        herdr-preset focus-pane "$match"
+        or return 1
+        echo "$match"
+
+    case "install-local-plugins"
+        # Link every plugin that lives in this repo's herdr config into the
+        # running herdr.
+        #
+        #   install-local-plugins [--dir <path>] [--quiet]
+        #
+        # Run it once per machine after stowing, and again after editing a
+        # manifest: `herdr plugin link` copies the manifest INTO the registry,
+        # so a manifest change is invisible until the plugin is linked again.
+        # That is what this does -- every plugin under <dir> (default
+        # ~/.config/herdr/plugins) is unlinked and re-linked, so the registry
+        # ends up matching the files on disk whatever state it was in.
+        # Re-running it is harmless.
+        #
+        # A plugin that was DISABLED by hand stays disabled: the enabled flag
+        # is read off the registry first and handed back to `plugin link`.
+        set -l tag "herdr-preset install-local-plugins"
+
+        argparse 'dir=' 'quiet' -- $argv
+        or return 1
+
+        set -l bin (__herdr_bin); or begin
+            echo "$tag: herdr CLI not found (HERDR_BIN_PATH unset and no herdr on PATH)" >&2
+            return 1
+        end
+
+        set -l dir $_flag_dir
+        test -n "$dir"; or set dir (__herdr_plugin_dir)
+        test -d "$dir"; or begin
+            echo "$tag: no plugin directory at '$dir'" >&2
+            return 1
+        end
+
+        set -l installed ($bin plugin list --json 2>&1 | string collect)
+        printf '%s' "$installed" | jq -e . >/dev/null 2>&1; or begin
+            echo "$tag: could not list plugins (is the herdr server running?)" >&2
+            echo "  output: $installed" >&2
+            return 1
+        end
+
+        set -l failed 0
+        set -l found 0
+        for manifest in $dir/*/herdr-plugin.toml
+            set found (math $found + 1)
+            set -l root (path dirname -- "$manifest")
+
+            # The id, read off the manifest the same way herdr will: it is what
+            # `plugin unlink` takes, and it need not match the directory name.
+            set -l id (string match -rg '^\s*id\s*=\s*"([^"]+)"' <$manifest | head -n1)
+            test -n "$id"; or begin
+                echo "$tag: $manifest declares no id; skipping" >&2
+                set failed (math $failed + 1)
+                continue
+            end
+
+            set -l was (printf '%s' "$installed" \
+                | jq -r --arg id "$id" 'first(.result.plugins[]? | select(.plugin_id == $id)) // empty')
+
+            # Linking over an existing entry replaces it (no duplicate, no
+            # error), so there is no unlink step -- which also means a failed
+            # link cannot leave a working plugin unlinked.
+            set -l flag --enabled
+            set -l verb linked
+            if test -n "$was"
+                set verb relinked
+                test (printf '%s' "$was" | jq -r '.enabled') = true; or set flag --disabled
+            end
+
+            # Flags after the path: `plugin link --enabled <path>` is rejected
+            # ("unknown option: <path>"), whatever the usage line says.
+            set -l out ($bin plugin link "$root" $flag 2>&1 | string collect)
+            if printf '%s' "$out" | jq -e '.result.plugin' >/dev/null 2>&1
+                set -q _flag_quiet; or echo "$tag: $verb $id ($root)"
+                set -l warn (printf '%s' "$out" | jq -r '(.result.plugin.warnings // [])[]' 2>/dev/null)
+                for w in $warn
+                    echo "  warning: $w" >&2
+                end
+            else
+                echo "$tag: failed to link $id from $root" >&2
+                echo "  herdr plugin link output: $out" >&2
+                set failed (math $failed + 1)
+            end
+        end
+
+        if test $found -eq 0
+            set -q _flag_quiet; or echo "$tag: no herdr-plugin.toml under $dir"
+        end
+        test $failed -eq 0; or return 1
+
+    case "resume-agent"
+        # Put a pane back into the conversation its agent was last in.
+        #
+        #   resume-agent [<pane>] [--print] [--force] [--no-exec]
+        #                [--no-track] [--session <name>]
+        #
+        # When an agent dies in a pane -- crash, OOM, a `claude` that exits on
+        # its own -- the pane is left at a shell prompt and the conversation is
+        # only reachable by its id. `claude --continue` picks the most RECENT
+        # conversation for the cwd, which is the wrong one as soon as a second
+        # agent has been running in that directory (the usual case here: several
+        # panes in the same repo), and no help at all for codex, whose picker
+        # has the same problem.
+        #
+        # This resolves the conversation by PANE instead: whichever session was
+        # last seen attached to this pane, from the store described above. The
+        # agent's own launch command is replayed with its session flag swapped
+        # in, so the resumed agent comes back with the flags it was started with
+        # rather than a bare `claude`.
+        #
+        # Defaults to the pane that was focused when the caller ran
+        # (HERDR_ACTIVE_PANE_ID in a herdr command, HERDR_PANE_ID in a pane
+        # shell). If nothing was ever recorded for that pane -- herdr renumbers
+        # panes, and a pane that closed with its agent comes back as a new id --
+        # the newest record for the SAME CWD is used instead, which is what you
+        # want when the split you lost has been recreated. Conversations that
+        # are open in some other pane are never candidates: two agents on one
+        # transcript overwrite each other.
+        #
+        # When the record has no conversation id -- an agent whose herdr
+        # integration is not installed never reports one -- the agent's own
+        # "most recent one here" is used instead (`claude --continue`,
+        # `codex resume --last`, `pi --continue`).
+        #
+        #   --print     print the resume command instead of running it
+        #   --force     resume even though an agent is live in the pane
+        #   --no-exec   run the agent as a child of the pane's shell, so the
+        #               pane survives it (default `exec`s, matching how
+        #               claude-split.sh starts them)
+        #   --no-track  skip the opening sweep of the store
+        set -l tag "herdr-preset resume-agent"
+
+        argparse 'session=' 'print' 'force' 'no-exec' 'no-track' -- $argv
+        or return 1
+
+        set -l bin (__herdr_bin); or begin
+            echo "$tag: herdr CLI not found (HERDR_BIN_PATH unset and no herdr on PATH)" >&2
+            return 1
+        end
+
+        if set -q _flag_session
+            __herdr_require_session "$tag" "$_flag_session"; or return 1
+        end
+
+        set -l pane $argv[1]
+        test -n "$pane"; or set pane "$HERDR_ACTIVE_PANE_ID"
+        test -n "$pane"; or set pane "$HERDR_PANE_ID"
+        test -n "$pane"; or begin
+            echo "$tag: no pane given, and neither HERDR_ACTIVE_PANE_ID nor HERDR_PANE_ID is set" >&2
+            return 1
+        end
+
+        # Sweep first, even though the plugin's hooks normally keep the store
+        # current: it costs one `pane list`, and it is what makes resume-agent
+        # work on a pane that was never recorded (plugin not linked, hook that
+        # failed) as long as the agent is still alive to be asked about once.
+        #
+        # And make sure the hooks are actually in place while we are here. The
+        # plugin registry is machine-local and not in this repo, so a freshly
+        # stowed machine has the plugin on disk and unlinked -- which fails
+        # silently, in the worst possible way: nothing records anything until
+        # the first agent dies and this says it never heard of the pane. One
+        # `plugin list` per resume buys that back.
+        if not set -q _flag_no_track
+            __herdr_agent_sweep "$bin"
+
+            __herdr_plugin_ensure "$bin" agent-sessions (__herdr_plugin_dir)/agent-sessions
+            set -l linked $status
+            switch $linked
+            case 2
+                # stderr, like the warning below: --print's stdout is a command
+                # line somebody may be capturing.
+                echo "$tag: linked the agent-sessions plugin -- sessions are recorded from now on" >&2
+            case 1
+                echo "$tag: warning: the agent-sessions plugin is not linked, so nothing is" >&2
+                echo "  recording sessions; herdr-preset install-local-plugins links it" >&2
+            end
+        end
+
+        set -l panes ($bin pane list 2>&1 | string collect)
+        printf '%s' "$panes" | jq -e . >/dev/null 2>&1; or begin
+            echo "$tag: could not list panes" >&2
+            echo "  output: $panes" >&2
+            return 1
+        end
+
+        set -l pane_json (printf '%s' "$panes" | jq -c --arg p "$pane" 'first(.result.panes[]? | select(.pane_id == $p)) // empty')
+        test -n "$pane_json"; or begin
+            echo "$tag: pane '$pane' is not in this herdr session" >&2
+            return 1
+        end
+
+        # An agent that is still running would just receive the command as
+        # typed input, which at best does nothing and at worst sends a prompt.
+        # (--print types nothing, so it is allowed either way.)
+        set -l live (printf '%s' "$pane_json" | jq -r '.agent // empty')
+        if test -n "$live"; and not set -q _flag_force; and not set -q _flag_print
+            echo "$tag: '$live' is still running in pane $pane -- pass --force to resume anyway" >&2
+            return 1
+        end
+
+        set -l store (__herdr_agent_store)
+        set -l cwd (printf '%s' "$pane_json" | jq -r '.cwd // empty')
+
+        # Conversations that are open RIGHT NOW, in any pane. Two agents in one
+        # conversation write over each other, so these are off limits: the pane
+        # you are trying to recover is by definition not among them.
+        set -l open (printf '%s' "$panes" | jq -c '[.result.panes[]?.agent_session.value | select(. != null)]')
+
+        # Panes with an agent in them right now, for the same reason: their
+        # record describes a conversation that is not lost.
+        set -l busy (printf '%s' "$panes" | jq -c '[.result.panes[]? | select(.agent != null) | .pane_id]')
+
+        # This pane's record, or -- for a pane that is new to the store -- the
+        # newest one from the same directory. herdr renumbers panes, and a pane
+        # that closed together with its agent (started with `exec`, as
+        # claude-split.sh does) comes back as a different id, so the cwd is
+        # often all that is left to go on. Records whose conversation is open
+        # elsewhere are skipped there: a LIVE agent's record keeps being
+        # refreshed, so by plain recency a healthy neighbour in the same repo
+        # would always outrank the agent you just lost.
+        set -l record (jq -c --arg p "$pane" --arg cwd "$cwd" --argjson open "$open" --argjson busy "$busy" '
+            (.panes[$p] | select(. != null) | . + {via: "pane"})
+            // ([.panes | to_entries[]
+                 | select(.value.cwd == $cwd and $cwd != "")
+                 | select($busy | index(.key) | not)
+                 | select((.value.session.value // "") as $v | $open | index($v) | not)
+                 | .value + {via: ("pane " + .key)}]
+                | sort_by(.updated // 0) | last)
+            // empty' "$store" 2>/dev/null)
+
+        test -n "$record"; or begin
+            echo "$tag: nothing recorded for pane $pane (cwd $cwd)" >&2
+            echo "  the store only knows a conversation it saw while the agent was alive --" >&2
+            echo "  track-agent-sessions --status lists it, herdr plugin log says whether the" >&2
+            echo "  agent-sessions hooks have been running." >&2
+            echo "  an agent whose herdr integration is not installed never reports one at all;" >&2
+            echo "  herdr integration status lists them (pi's, notably, is opt-in)." >&2
+            return 1
+        end
+
+        # Same rule for the pane's own record: if that conversation has already
+        # been resumed somewhere else, opening it a second time is how you end
+        # up with two agents writing the same transcript.
+        set -l value (printf '%s' "$record" | jq -r '.session.value // empty')
+        if test -n "$value"; and not set -q _flag_force; and not set -q _flag_print
+            set -l elsewhere (printf '%s' "$panes" \
+                | jq -r --arg v "$value" 'first(.result.panes[]? | select(.agent_session.value == $v) | .pane_id) // empty')
+            test -z "$elsewhere"; or begin
+                echo "$tag: that conversation is already open in pane $elsewhere -- pass --force to open it twice" >&2
+                return 1
+            end
+        end
+
+        set -l command (python3 -c '
+import json, shlex, sys
+
+rec = json.loads(sys.argv[1])
+agent = rec.get("agent") or ""
+value = (rec.get("session") or {}).get("value")
+launch = rec.get("argv") or []
+
+# What each agent CLI wants, and what has to come off its old command line
+# first so the replay does not carry two conflicting session selections.
+#
+#   resume        args that select a conversation by id
+#   fallback      args for "the most recent one here", when no id was recorded
+#   drop_value    session flags to remove along with their value
+#   drop_opt      session flags whose value is optional (a bare `claude
+#                 --resume` opens the picker), so the token after them is only
+#                 removed when it is not itself a flag
+#   drop_bool     session flags that take no value
+#   keep_value    flags that are KEPT but whose value must be stepped over, so
+#                 that a value which happens to read like a flag (or like the
+#                 `resume` subcommand) is not mistaken for one
+#   subcommand    a leading verb selecting a conversation (codex): it and
+#                 everything after it belong to the old selection
+SPEC = {
+    "claude": {
+        "bin": "claude",
+        "resume": lambda v: ["--resume", v],
+        "fallback": ["--continue"],
+        "drop_value": {"--session-id"},
+        "drop_opt": {"--resume", "-r"},
+        "drop_bool": {"--continue", "-c", "--fork-session"},
+        "keep_value": {"--model", "--agents", "--append-system-prompt", "--settings",
+                       "--permission-mode", "--add-dir", "--mcp-config", "-p", "--print"},
+        "subcommand": None,
+    },
+    "codex": {
+        "bin": "codex",
+        "resume": lambda v: ["resume", v],
+        "fallback": ["resume", "--last"],
+        "drop_value": set(),
+        "drop_opt": set(),
+        "drop_bool": set(),
+        "keep_value": {"-c", "--config", "-m", "--model", "-p", "--profile",
+                       "-s", "--sandbox", "-a", "--ask-for-approval", "-i",
+                       "--image", "-C", "--cd", "--add-dir"},
+        "subcommand": "resume",
+    },
+    "pi": {
+        "bin": "pi",
+        # --session takes a path OR an id, which covers both session kinds.
+        "resume": lambda v: ["--session", v],
+        "fallback": ["--continue"],
+        "drop_value": {"--session", "--session-id", "--fork"},
+        "drop_opt": {"--resume", "-r"},
+        "drop_bool": {"--continue", "-c", "--no-session"},
+        # --session-dir is WHERE sessions are stored, not which one to open, so
+        # it is kept: without it an id would be looked up in the wrong place.
+        "keep_value": {"--model", "-m", "--name", "-n", "--system", "--tools",
+                       "--session-dir", "--meta-agent-role", "--startup-context-mode"},
+        "subcommand": None,
+    },
+}
+
+spec = SPEC.get(agent)
+if spec is None:
+    sys.stderr.write("no resume command known for agent %r (known: %s)\n"
+                     % (agent, ", ".join(sorted(SPEC))))
+    sys.exit(1)
+
+def flag(tok):
+    return tok.split("=", 1)[0]
+
+kept = []
+rest = launch[1:] if launch else []
+i = 0
+while i < len(rest):
+    tok, f = rest[i], flag(rest[i])
+    inline = "=" in tok and tok.startswith("-")
+    if f in spec["drop_value"]:
+        i += 1 if inline else 2
+    elif f in spec["drop_opt"]:
+        i += 1
+        if not inline and i < len(rest) and not rest[i].startswith("-"):
+            i += 1
+    elif f in spec["drop_bool"]:
+        i += 1
+    elif spec["subcommand"] and tok == spec["subcommand"]:
+        break                      # the old selection, and any prompt after it
+    elif f in spec["keep_value"] and not inline:
+        kept += rest[i:i + 2]
+        i += 2
+    else:
+        kept.append(tok)
+        i += 1
+
+# Which executable to run. The recorded argv0 can be the binary a LAUNCHER
+# exec-ed rather than the launcher itself -- `claude` here is a bash script
+# that sets the environment up and then execs
+# /usr/local/bin/claude_code/claude, replacing its own argv, so by the time ps
+# sees it the wrapper is gone from the command line. Re-running that inner
+# binary directly would skip the setup, so an argv0 whose basename is the
+# agent (or its `.real` twin) is put back to the plain name, letting PATH
+# find the launcher again. Anything else -- a fork, a checkout, a wrapper of
+# your own -- is kept exactly as it was.
+argv0 = launch[0] if launch else spec["bin"]
+base = argv0.rsplit("/", 1)[-1]
+if base in (agent, agent + ".real", spec["bin"], spec["bin"] + ".real"):
+    argv0 = spec["bin"]
+tail = spec["resume"](value) if value else spec["fallback"]
+print(shlex.join([argv0] + kept + tail))
+' "$record")
+        or return 1
+
+        set -l via (printf '%s' "$record" | jq -r '.via // "pane"')
+        set -l when (printf '%s' "$record" | jq -r '.updated // 0')
+
+        if set -q _flag_print
+            echo $command
+            return 0
+        end
+
+        if not set -q _flag_no_exec
+            set command "exec $command"
+        end
+
+        set -l run_out ($bin pane run "$pane" "$command" 2>&1)
+        or begin
+            echo "$tag: pane run failed in '$pane'" >&2
+            echo "  herdr pane run output: $run_out" >&2
+            return 1
+        end
+
+        # Say which record was used: when it came from another pane's history
+        # (same cwd), that is the difference between the conversation you meant
+        # and its neighbour.
+        # Both spellings of "format this unix time": -r is BSD date, -d @ is
+        # GNU's, and which one `date` is depends on whether coreutils is ahead
+        # of /bin on PATH.
+        set -l seen (date -r $when '+%Y-%m-%d %H:%M' 2>/dev/null
+                     or date -d "@$when" '+%Y-%m-%d %H:%M' 2>/dev/null)
+        echo "$tag: resumed from $via, last seen $seen"
+        echo "  $command"
+
+    case "track-agent-sessions"
+        # Keep the pane -> agent-session store fresh, so resume-agent has
+        # something to resume from after an agent dies.
+        #
+        #   track-agent-sessions [--pane <id>] [--event] [--wait <seconds>]
+        #                        [--status]
+        #
+        # This is the recording half, and it is driven by herdr itself: the
+        # agent-sessions plugin (dot-config/herdr/plugins/agent-sessions) hooks
+        # it to `pane.agent_detected` and `pane.agent_status_changed` for the
+        # pane the event is about, and to plugin startup for a full sweep. See
+        # that manifest for why both events are needed. Nothing polls, nothing
+        # is daemonised, and nothing has to be started by hand.
+        #
+        # With no arguments it sweeps every pane, which is what the startup hook
+        # and resume-agent want. `--event` takes the pane out of the plugin
+        # environment (HERDR_PANE_ID, or the pane_id in HERDR_PLUGIN_EVENT_JSON)
+        # and is what the per-event hooks run. `--status` prints what is on
+        # record, newest first, and is only for looking.
+        #
+        # `--wait <seconds>` keeps re-reading the pane until its conversation id
+        # turns up. An agent is DETECTED before it has one -- herdr spots the
+        # program on screen, while the id arrives separately from the agent's
+        # own integration a moment later -- and nothing herdr publishes says
+        # "the id is here now". Without the wait, a pane recorded at detection
+        # keeps a session-less record until the agent next changes state, which
+        # for an agent started and then left alone can be a long time, and if it
+        # dies in the meantime the conversation is unrecoverable. So the
+        # detection hook waits it out.
+        #
+        # Failures go to stderr and nowhere else: these run unattended, several
+        # times a minute, with no terminal to complain to. herdr keeps each
+        # hook's exit code and stderr, so `herdr plugin log` is where to look
+        # when a pane turns out not to have been recorded.
+        set -l tag "herdr-preset track-agent-sessions"
+
+        argparse 'pane=' 'event' 'status' 'wait=' -- $argv
+        or return 1
+
+        if set -q _flag_status
+            set -l store (__herdr_agent_store)
+            echo "store: $store"
+            jq -r '.panes | to_entries | sort_by(.value.updated // 0) | reverse | .[]
+                   | "  \(.key)  \(.value.agent)  \(.value.session.value // "-")  \(.value.cwd)"' \
+                "$store" 2>/dev/null
+            return 0
+        end
+
+        set -l pane $_flag_pane
+        if set -q _flag_event; and test -z "$pane"
+            # HERDR_PANE_ID is the EVENT's pane in a plugin hook (it is the
+            # caller's own pane in a pane shell, which is why --event has to be
+            # asked for rather than assumed). The event payload carries the same
+            # id and is the more explicit of the two, so it goes first.
+            set pane (printf '%s' "$HERDR_PLUGIN_EVENT_JSON" \
+                | jq -r '.data.pane_id // empty' 2>/dev/null)
+            test -n "$pane"; or set pane "$HERDR_PANE_ID"
+            test -n "$pane"; or begin
+                echo "$tag: --event but no pane in the environment (HERDR_PLUGIN_EVENT_JSON, HERDR_PANE_ID)" >&2
+                return 1
+            end
+        end
+
+        __herdr_agent_sweep "" "$pane"; or begin
+            echo "$tag: sweep failed for '$pane' (is the herdr server reachable?)" >&2
+            return 1
+        end
+
+        # Sweeping again costs a `pane get` and writes nothing until the id
+        # actually shows up (the throttle in __herdr_agent_sweep sees an
+        # unchanged record and stops there), so once a second is cheap enough
+        # to just keep asking. An agent that never reports one -- no herdr
+        # integration installed -- simply waits out the deadline once, at start.
+        if set -q _flag_wait; and test -n "$pane"
+            set -l store (__herdr_agent_store)
+            set -l deadline (math (date +%s) + $_flag_wait)
+            while test -z (jq -r --arg p "$pane" '.panes[$p].session.value // ""' "$store" 2>/dev/null)
+                test (date +%s) -lt $deadline; or break
+                sleep 1
+                __herdr_agent_sweep "" "$pane"; or break
+            end
+        end
+        return 0
 
     case "*"
         echo "herdr-preset: unknown subcommand '$preset'" >&2
