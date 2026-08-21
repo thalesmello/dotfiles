@@ -1,56 +1,52 @@
--- Back/forward history across focused windows AND Chrome tabs -- a jumplist for
--- the desktop. hyper+o walks back, hyper+i walks forward; focusing something new
--- truncates the forward branch, exactly like browser history. Entries are unique:
--- re-focusing a window/tab already in the history moves it to the top rather than
--- adding a second copy.
+-- Back/forward history across focused windows -- a jumplist for the desktop.
+-- hyper+o walks back, hyper+i walks forward; focusing something new truncates the
+-- forward branch, exactly like browser history. Entries are unique: re-focusing a
+-- window already in the history moves it to the top rather than adding a copy.
 --
--- Detection is fully event-driven. Deliberately NOT hs.window.filter: it
--- AX-sweeps every window of every app at construction (~6.3s of a ~6.4s config
--- load, see mode.lua) and keeps per-window observers alive forever. We use the
--- same underlying primitive it does -- an AXObserver on the *application*
--- element (window_filter.lua:1434) -- minus the enumeration:
+-- Detection is event-driven. Deliberately NOT hs.window.filter: it AX-sweeps every
+-- window of every app at construction (~6.3s of a ~6.4s config load, see mode.lua)
+-- and keeps per-window observers alive forever. We use the same underlying
+-- primitive it does -- an AXObserver on the *application* element
+-- (window_filter.lua:1434) -- minus the enumeration:
 --
 --   * hs.application.watcher (an NSWorkspace notification, free) for app
 --     activation, which also lazily attaches...
 --   * ...one hs.uielement.watcher per app for focusedWindowChanged /
---     windowCreated, giving window-to-window switches inside an app;
---   * one hs.uielement.watcher on the focused *Chrome* window for titleChanged.
---     titleChanged only fires on the window element, not the app element
---     (window_filter.lua:1411 vs :1434), so this one is re-pointed as the
---     focused Chrome window changes. Exactly one exists at a time -- other apps
---     get none, since a terminal retitles constantly and its window identity
---     never depends on its title.
+--     windowCreated, giving window-to-window switches inside an app.
 --
--- A Chrome title change means "maybe a different tab", not "definitely": we
--- resolve the actual tab id through `chrome-preset active-tab-json` and only
--- push when the id differs, so navigating within a tab refreshes the existing
--- entry instead of appending.
+-- CHROME TABS ARE OUT OF SCOPE HERE, deliberately. An earlier version tracked
+-- individual tabs by inferring tab identity from the window title and correlating
+-- it back through `chrome-preset active-tab-json`. Every layer of that inference
+-- turned out to be wrong in some real situation -- titles that lag a tab switch,
+-- Chrome's window order not matching macOS's, pages that retitle continuously --
+-- and each misidentification pushed a competing entry, which truncated the
+-- forward branch. Tab granularity is coming back via a Chrome extension that
+-- reports chrome.tabs.onActivated over a local socket, i.e. the real event with
+-- the real tab id, instead of guessing. Until then a Chrome window is just a
+-- window, which is boring and correct.
 
 local shell = require("shell")
-local util = require("util")
 local Preset = require("preset")
 
 local uiwatcher = hs.uielement.watcher
 
 local M = {}
 
+-- kind -> function(entry, cb). Lets another module own a kind of entry without
+-- either module requiring the other: chromebridge.lua registers "chrome_tab"
+-- here and in return calls M.record() when the extension reports a tab. Anything
+-- with no handler is focused as a plain macOS window.
+M.focusHandlers = {}
+
 local MAX = 20
 local SETTINGS_KEY = "focushistory"
-local CHROME_BUNDLE = "com.google.Chrome"
--- Chrome browser windows carry "- Google Chrome -" in their AX title; app-mode
--- windows (chrome-preset create-app: gchat, metamate, Calendar...) don't. Same
--- heuristic as `is-browser-window` in bin/chrome-preset. App-mode windows hold a
--- single tab, so they are recorded as plain windows -- no Chrome query needed.
-local CHROME_BROWSER_MARK = "- Google Chrome -"
--- Re-query delay after a coalesced burst of title changes. A page load retitles
--- several times a second; without this each frame would spawn an osascript.
-local CHROME_REQUERY_DELAY = 0.12
--- How long a hotkey press will wait for an in-flight Chrome query before acting
--- on the history as it stands. Keeps the keypress responsive.
+-- How long a hotkey press will wait before acting on the history as it stands.
 local SETTLE_TIMEOUT = 0.3
 -- Position readout duration. Shorter than Preset.displayMessage's 0.75s default:
 -- this is glanced at mid-navigation, not read.
 local HUD_DURATION = 0.4
+-- How long a window must hold focus before it earns a history slot. See observe().
+local DWELL = 0.4
 
 -- Apps whose windows must never enter the history. Hammerspoon matters most:
 -- the command palette and the herdr confirmation dialog both call hs.focus(),
@@ -68,23 +64,14 @@ local IGNORED_APPS = {
 ---------------------------------------------------------------
 
 -- stack is oldest -> newest; cursor indexes the entry we are currently "on".
--- Entries are:
---   {kind = "window",     id = <CGWindowID>, app, title}
---   {kind = "chrome_tab", id = <tab id>, chromeWindowId = <Chrome window id>,
---    app, title, url}
--- Ids are strings, like arglist.lua. Note chromeWindowId is Chrome's own window
--- id, NOT a CGWindowID -- the two id spaces are unrelated. We never need to map
--- between them because `chrome-preset focus-tab <tab> <chromeWindow>` selects
--- the tab and raises its window in one call.
+-- Entries are {kind = "window", id = <CGWindowID>, app, title}; ids are strings,
+-- like arglist.lua. `kind` is retained so the extension can add "chrome_tab"
+-- entries alongside these without a migration.
 local st = _G._FocusHistory
 if not st then
   st = {
     stack = {}, cursor = 0,
     busy = false, pendingDelta = nil,
-    seq = 0,              -- bumped when the focused window changes; discards
-                          -- Chrome results that arrive after we moved on
-    lastWinId = nil,
-    chromeInFlight = false, chromeDirty = false,
   }
   _G._FocusHistory = st
 end
@@ -135,7 +122,12 @@ local function restore()
   local saved = hs.settings.get(SETTINGS_KEY)
   if type(saved) ~= "table" or type(saved.stack) ~= "table" then return end
   for _, e in ipairs(saved.stack) do
-    if type(e) == "table" and e.kind and e.id then
+    -- A kind with no focus handler can't be jumped to, so it would only be dead
+    -- weight for back/forward to skip past. chrome_tab entries survive only when
+    -- chromebridge has registered itself (i.e. the extension route is wired up);
+    -- ones left behind by the old title-inference code are dropped.
+    if type(e) == "table" and e.id
+      and (e.kind == "window" or M.focusHandlers[e.kind]) then
       st.stack[#st.stack + 1] = e
     end
   end
@@ -148,12 +140,8 @@ end
 ---------------------------------------------------------------
 
 -- The whole history policy lives here: refresh-in-place when we are already on
--- this thing (which is what makes in-tab Chrome navigation a no-op), otherwise
--- drop the forward branch, move-to-top any earlier sighting of the same place,
--- append, and trim to MAX from the front.
---
--- The comparison is against live state at call time, which is why the async
--- Chrome lookup below cannot corrupt it.
+-- this thing, otherwise drop the forward branch, move-to-top any earlier sighting
+-- of the same place, append, and trim to MAX from the front.
 local function record(entry)
   if not entry then return "ignored" end
 
@@ -162,7 +150,6 @@ local function record(entry)
   local cur = st.stack[st.cursor]
   if cur and entryKey(cur) == key then
     cur.title = entry.title or cur.title
-    cur.url = entry.url or cur.url
     cur.app = entry.app or cur.app
     save()
     return "refreshed"
@@ -171,18 +158,16 @@ local function record(entry)
   local prevCursor, dropped = st.cursor, math.max(0, #st.stack - st.cursor)
   for i = #st.stack, st.cursor + 1, -1 do st.stack[i] = nil end
 
-  -- The same window/tab focused again is the same place, not a new one: pull the
-  -- old sighting out and let it re-enter at the top. Leaving both would spend
-  -- two of the 20 slots on one window and make a back/forward walk pass through
-  -- it twice. Note this only ever fires on an organic focus change -- landing on
-  -- an entry via back/forward matches stack[cursor] and returns above, so
-  -- navigating never reorders the history under itself.
+  -- The same window focused again is the same place, not a new one: pull the old
+  -- sighting out and let it re-enter at the top. Leaving both would spend two of
+  -- the 20 slots on one window and make a back/forward walk pass through it
+  -- twice. Note this only ever fires on an organic focus change -- landing on an
+  -- entry via back/forward matches stack[cursor] and returns above, so navigating
+  -- never reorders the history under itself.
   local moved = false
   for i = #st.stack, 1, -1 do
     if entryKey(st.stack[i]) == key then
-      -- Keep whatever the fresh observation couldn't supply.
       entry.title = entry.title or st.stack[i].title
-      entry.url = entry.url or st.stack[i].url
       table.remove(st.stack, i)
       moved = true
     end
@@ -205,12 +190,7 @@ local function record(entry)
   return moved and "moved" or "pushed"
 end
 
-local function isChromeBrowserTitle(title)
-  return (title or ""):find(CHROME_BROWSER_MARK, 1, true) ~= nil
-end
-
--- What is focused right now, as a plain window entry -- or nil when it must not
--- be recorded at all. Returns entry, win, appName.
+-- What is focused right now, or nil when it must not be recorded at all.
 local function currentWindowEntry()
   -- The iTerm hotkey window and the Ghostty quick terminal run manage=off, so
   -- yabai refuses to focus them by id (preset.lua) and an entry for them would
@@ -222,232 +202,135 @@ local function currentWindowEntry()
   local id = win:id()
   if not id then return nil end
 
+  -- Only real, user-facing windows (AXStandardWindow). Sheets, alerts, panels
+  -- and toolbars take focus constantly -- a fido2macos key prompt, Zoom's
+  -- floating meeting controls -- and each one landing in the history is not
+  -- merely clutter: recording is an organic focus change, so it truncates the
+  -- forward branch. A prompt flashing past mid-navigation would wipe everything
+  -- ahead of the cursor. Same test cycleTerminalWindows uses in keybindings.lua.
+  if not win:isStandard() then return nil end
+
   local app = win:application()
   local appName = app and app:name() or ""
   if IGNORED_APPS[appName] then return nil end
+
+  -- One macOS window must never be represented under two keys. A Chrome window
+  -- the extension has reported lives in the stack as chrome_tab:<tabId>; the same
+  -- window seen from here would be window:<cgWindowId>. Those are different keys,
+  -- so recording this would push a second entry for one place -- and a push
+  -- truncates the forward branch.
+  --
+  -- This scans the whole stack rather than just the cursor, because the collision
+  -- shows up precisely when the two sources disagree about a window that is NOT
+  -- where the cursor is: the extension goes quiet (service worker asleep,
+  -- Hammerspoon reloaded and the socket dropped), you navigate back onto a window
+  -- recorded as a tab, and the AX observer records it afresh as a plain window.
+  -- That is what wiped a whole forward branch on switching to the Metamate window.
+  --
+  -- Note what this does NOT require: knowing whether the extension is alive. No
+  -- chrome_tab entries means nothing to collide with, so Chrome degrades to
+  -- window-level tracking on its own.
+  local idStr = tostring(id)
+  for _, e in ipairs(st.stack) do
+    if e.cgWindowId == idStr then return nil end
+  end
 
   return {
     kind = "window",
     id = tostring(id),
     app = appName,
     title = win:title() or "",
-  }, win, appName
-end
-
----------------------------------------------------------------
--- Chrome window watcher (titleChanged)
----------------------------------------------------------------
-
-local observe   -- forward declaration; the watchers call back into it
-
-local function unwatchChromeWindow()
-  local w = _G._FocusHistoryChromeWatcher
-  if w then pcall(function() w:stop() end) end
-  _G._FocusHistoryChromeWatcher = nil
-  _G._FocusHistoryChromeWinId = nil
-end
-
-local function watchChromeWindow(win)
-  local id = win:id()
-  if _G._FocusHistoryChromeWinId == id then return end
-  unwatchChromeWindow()
-
-  local ok, w = pcall(function() return win:newWatcher(function(_, event)
-    if event == uiwatcher.elementDestroyed then
-      unwatchChromeWindow()
-      return
-    end
-    observe()
-  end) end)
-  if not ok or not w then return end
-
-  w:start({uiwatcher.titleChanged, uiwatcher.elementDestroyed})
-  _G._FocusHistoryChromeWatcher = w
-  _G._FocusHistoryChromeWinId = id
-end
-
----------------------------------------------------------------
--- Chrome tab resolution
----------------------------------------------------------------
-
--- `fallback` is the plain-window entry for the same Chrome window, carried only
--- so we can label the tab if Chrome hands back an empty title.
---
--- Recording NOTHING is the correct outcome for every failure here, and the
--- reason is not obvious. A Chrome browser window is represented in the history
--- as a chrome_tab entry; a `window` entry for the very same window is a
--- different key. So substituting the fallback on a bad lookup doesn't degrade
--- gracefully -- it pushes a second, competing entry for a place already at the
--- cursor, and a push truncates the forward branch. Leaving the history untouched
--- costs at most a missed update; the next title change re-queries anyway.
-local function handleChromeResult(ok, out, fallback)
-  -- Non-zero means Chrome isn't running (the subcommand guards on the process so
-  -- it can't launch it).
-  if not ok then return end
-
-  local parsed, decoded = pcall(hs.json.decode, out)
-  if not parsed then decoded = nil end
-  local tabId = type(decoded) == "table" and tonumber(decoded.id) or nil
-  local chromeWindowId = type(decoded) == "table" and tonumber(decoded.windowId) or nil
-  if not tabId or not chromeWindowId then
-    -- `{}`: --match-title found no window whose active tab matches this one, or
-    -- Chrome has no scriptable window at all.
-    util.log("focushistory: no matching Chrome tab for", fallback.title)
-    return
-  end
-
-  local tabTitle = decoded.title or ""
-
-  record({
-    kind = "chrome_tab",
-    id = string.format("%d", math.floor(tabId)),
-    chromeWindowId = string.format("%d", math.floor(chromeWindowId)),
-    -- The CGWindowID of the macOS window hosting the tab. Not used to focus
-    -- (chrome-preset focus-tab needs Chrome's own window id) -- it exists so the
-    -- jump can confirm the tab actually came forward. Goes stale if the tab is
-    -- later dragged to another window, which verifyLanded tolerates.
-    cgWindowId = fallback.id,
-    app = "Google Chrome",
-    title = tabTitle ~= "" and tabTitle or fallback.title,
-    url = decoded.url or "",
-  })
-end
-
--- At most one query in flight. A trigger arriving during one sets chromeDirty,
--- which schedules exactly one re-observation when it lands (not a queue).
-local function queryChromeTab(fallback, done)
-  if st.chromeInFlight then
-    st.chromeDirty = true
-    return done()
-  end
-
-  st.chromeInFlight = true
-  local mySeq = st.seq
-
-  -- --match-title pins the lookup to *this* macOS window. Chrome's own window
-  -- order counts app-mode windows, so without it we'd frequently get some other
-  -- window's tab and push a bogus entry.
-  local args = {"chrome-preset", "active-tab-json",
-                "--match-title=" .. (fallback.title or ""), print_stdout = false}
-
-  shell.task(args, function(ok, out)
-    st.chromeInFlight = false
-    local dirty = st.chromeDirty
-    st.chromeDirty = false
-
-    -- Focus moved to a different window while we were asking: the answer is
-    -- about a window we already left.
-    if st.seq == mySeq and not st.busy then
-      handleChromeResult(ok, out, fallback)
-    end
-
-    if dirty then hs.timer.doAfter(CHROME_REQUERY_DELAY, function() observe() end) end
-    done()
-  end)
+  }
 end
 
 ---------------------------------------------------------------
 -- Observation
 ---------------------------------------------------------------
 
--- Record whatever is focused now. `done` (optional) fires once the entry has
--- actually been recorded, which for Chrome is after the async tab lookup.
-observe = function(done)
+local function commit(done)
   done = done or function() end
   -- While navigating, the cursor is already where it needs to be; an event for
   -- the window we are leaving would push a bogus entry and truncate the branch.
   if st.busy then return done() end
 
-  local entry, win, appName = currentWindowEntry()
-  if not entry then return done() end
-
-  -- Still settling from a jump (see finish()): keep the watchers pointed at the
-  -- right window, but don't let this observation touch the history.
+  -- Still settling from a jump (see finish()).
   if st.settleUntil and hs.timer.secondsSinceEpoch() < st.settleUntil then
-    if appName == "Google Chrome" and isChromeBrowserTitle(entry.title) then
-      watchChromeWindow(win)
-    end
     return done()
   end
 
-  if entry.id ~= st.lastWinId then
-    st.seq = st.seq + 1
-    st.lastWinId = entry.id
-  end
-
-  if appName == "Google Chrome" and isChromeBrowserTitle(entry.title) then
-    watchChromeWindow(win)
-    -- The query owns the record for this window: pushing a plain window entry
-    -- here too would leave a duplicate the tab entry can't dedupe against.
-    queryChromeTab(entry, done)
-    return
-  end
-
-  unwatchChromeWindow()
-  record(entry)
+  record(currentWindowEntry())
   done()
+end
+
+-- A window has to HOLD focus to earn a history slot.
+--
+-- AX notifications fire the instant focus moves, so without this every momentary
+-- window lands in the history -- Zoom's meeting controls, a fido2macos key
+-- prompt, an app's startup splash. That is worse than clutter: recording is an
+-- organic focus change, so each one truncates the forward branch. A prompt
+-- flashing past mid-navigation wipes everything ahead of the cursor.
+--
+-- The debounce is keyed on the focused WINDOW, not on event arrival. Restarting
+-- the clock on every event can starve: an app that retitles continuously (some
+-- web apps rotate a notification counter through the title several times a
+-- second) would postpone the deadline forever and the window would never be
+-- recorded. Keying on the window means a pending timer for the window you are
+-- already on is left to expire; the clock only restarts when focus genuinely
+-- moves elsewhere, which is the case the dwell exists for.
+--
+-- isStandard() in currentWindowEntry catches the structurally-transient windows;
+-- this catches the ones that are ordinary windows but merely passing through.
+--
+-- `immediate` is for the hotkey path, which needs the cursor accurate right now
+-- and where the current window has by definition been focused long enough to
+-- press a key.
+local function observe(done, immediate)
+  if immediate then return commit(done) end
+
+  local win = hs.window.focusedWindow()
+  local winId = win and win:id()
+
+  if _G._FocusHistoryDwellTimer then
+    -- Same window still pending: let the existing deadline stand.
+    if _G._FocusHistoryDwellWinId == winId then
+      if done then done() end
+      return
+    end
+    _G._FocusHistoryDwellTimer:stop()
+  end
+
+  _G._FocusHistoryDwellWinId = winId
+  _G._FocusHistoryDwellTimer = hs.timer.doAfter(DWELL, function()
+    _G._FocusHistoryDwellTimer = nil
+    _G._FocusHistoryDwellWinId = nil
+    commit()
+  end)
+  if done then done() end
 end
 
 ---------------------------------------------------------------
 -- Focusing an entry
 ---------------------------------------------------------------
 
--- Has focus actually arrived at `entry`? Both backends report success before
--- macOS has made the window key -- yabai returns as soon as it has asked, and
--- Chrome's `activate()` is asynchronous -- so the caller must not declare the
--- jump finished until this says so. Getting this wrong is not cosmetic: while
--- the jump is in flight st.busy suppresses recording, so clearing it early lets
--- the focus event for the window we are LEAVING land in the history, where it
--- doesn't match the cursor, gets pushed, and truncates the forward branch.
+-- Has focus actually arrived at `entry`? yabai reports success as soon as it has
+-- asked, before macOS has made the window key. Declaring the jump finished early
+-- is not cosmetic: st.busy is what suppresses recording mid-jump, so clearing it
+-- too soon lets the focus event for the window we are LEAVING land in the
+-- history, where it doesn't match the cursor, gets pushed, and truncates the
+-- forward branch.
 --
 -- Same 20ms/20-try shape as smartcmdtab.lua.
 local function verifyLanded(entry, cb, tries)
   tries = tries or 0
   local win = hs.window.focusedWindow()
-  if win then
-    if entry.kind == "chrome_tab" then
-      -- Prefer the recorded host window, but a tab dragged to another window
-      -- (or restored from settings before cgWindowId existed) still counts as
-      -- landed once Chrome owns the focused window.
-      local app = win:application()
-      local title = win:title() or ""
-      -- Waiting for the TITLE, not just for Chrome to come forward, is the
-      -- whole point. Selecting a tab updates the AX window title asynchronously,
-      -- and observe() feeds that title to --match-title to identify the tab. Act
-      -- on a stale title and the lookup faithfully resolves the window that
-      -- still has the OLD tab active -- a different tab id, so record() pushes
-      -- instead of refreshing, drops the forward branch, and pins the cursor one
-      -- step above wherever we just landed. That is the "can't go back past N"
-      -- floor: cursor oscillates between N and N+1 forever.
-      if (app and app:name()) == "Google Chrome"
-        and (not entry.cgWindowId or tostring(win:id()) == entry.cgWindowId)
-        and (not entry.title or entry.title == "" or title:sub(1, #entry.title) == entry.title) then
-        return cb(true)
-      end
-    elseif tostring(win:id()) == entry.id then
-      return cb(true)
-    end
-  end
+  if win and tostring(win:id()) == entry.id then return cb(true) end
   if tries >= 20 then return cb(false) end
   hs.timer.doAfter(0.02, function() verifyLanded(entry, cb, tries + 1) end)
 end
 
 local function focusEntry(entry, cb)
-  if entry.kind == "chrome_tab" then
-    -- A JXA `Application("Google Chrome")` reference LAUNCHES Chrome, so never
-    -- reach for a tab when Chrome is gone. applicationsForBundleID is a plain
-    -- NSRunningApplication lookup -- no AX, ~0.02ms.
-    if #hs.application.applicationsForBundleID(CHROME_BUNDLE) == 0 then return cb(false) end
-    -- Exits non-zero when the tab has been closed, which is our liveness test.
-    shell.task({"chrome-preset", "focus-tab", entry.id, entry.chromeWindowId}, function(ok)
-      if not ok then return cb(false) end
-      -- The tab is selected, but Chrome may not be frontmost yet. Treat a
-      -- verification timeout as success anyway: the tab did exist and was
-      -- selected, so dropping the entry as stale would be wrong.
-      verifyLanded(entry, function() cb(true) end)
-    end)
-    return
-  end
+  local handler = M.focusHandlers[entry.kind]
+  if handler then return handler(entry, cb) end
 
   shell.task({"wm-preset", "focus-window-id", entry.id}, function(ok)
     if not ok then return cb(false) end
@@ -473,11 +356,11 @@ local function jumpToIndex(index, delta)
 
   local function finish()
     watchdog:stop()
-    -- Belt and braces for the fixed point described in verifyLanded: even with
-    -- verification, an event already queued from the transition can arrive just
-    -- after busy clears and describe the window we left. Ignore observations for
-    -- a beat -- shorter than any deliberate human app switch, and skipping one is
-    -- harmless because the next real focus change records correctly.
+    -- Even with verification, an event already queued from the transition can
+    -- arrive just after busy clears and describe the window we left. Ignore
+    -- observations for a beat -- shorter than any deliberate human app switch,
+    -- and skipping one is harmless because the next real focus change records
+    -- correctly.
     st.settleUntil = hs.timer.secondsSinceEpoch() + 0.15
     st.busy = false
     local pending = st.pendingDelta
@@ -542,22 +425,31 @@ jump = function(delta)
     return
   end
 
-  -- Bring the history up to date first. Focus may have moved via an app that
-  -- posts no AX notification, or a Chrome tab lookup may still be pending; this
-  -- makes the hotkey self-healing rather than dependent on perfect event
-  -- coverage.
+  -- Bring the history up to date first, so a focus change that arrived through an
+  -- app posting no AX notification is still accounted for. This is what makes the
+  -- hotkey self-healing rather than dependent on perfect event coverage.
   local started = false
   local function go()
     if started then return end
     started = true
     jumpToIndex(st.cursor, delta)
   end
-  observe(go)
+  observe(go, true)
   hs.timer.doAfter(SETTLE_TIMEOUT, go)
 end
 
 function M.back() jump(-1) end
 function M.forward() jump(1) end
+
+-- Contribute an entry from outside (chromebridge). Gated exactly like an AX
+-- observation: during a jump the cursor is already where it belongs, so an
+-- inbound report about the window we are landing on -- or leaving -- must not
+-- rewrite the stack.
+function M.record(entry)
+  if st.busy then return end
+  if st.settleUntil and hs.timer.secondsSinceEpoch() < st.settleUntil then return end
+  return record(entry)
+end
 
 ---------------------------------------------------------------
 -- Palette helpers
@@ -577,7 +469,7 @@ function M.showList()
     local e = st.stack[i]
     choices[#choices + 1] = {
       text = (i == st.cursor and "▸ " or "  ") .. label(e),
-      subText = e.url and e.url ~= "" and e.url or shortApp(e.app),
+      subText = shortApp(e.app),
       index = i,
     }
   end
@@ -616,8 +508,7 @@ local function attachAppWatcher(app)
 end
 
 function M.setup()
-  -- Reloads must not leave the old observers running (see the same pattern for
-  -- the herdr pasteboard watcher in keybindings.lua).
+  -- Reloads must not leave the old observers running.
   if _G._FocusHistoryAppWatcher then
     pcall(function() _G._FocusHistoryAppWatcher:stop() end)
   end
@@ -625,7 +516,11 @@ function M.setup()
     pcall(function() w:stop() end)
   end
   _G._FocusHistoryAppWatchers = {}
-  unwatchChromeWindow()
+  if _G._FocusHistoryDwellTimer then
+    pcall(function() _G._FocusHistoryDwellTimer:stop() end)
+    _G._FocusHistoryDwellTimer = nil
+  end
+  _G._FocusHistoryDwellWinId = nil
 
   restore()
 
@@ -649,7 +544,7 @@ function M.setup()
 
   -- Seed from whatever is focused at load time.
   attachAppWatcher(hs.application.frontmostApplication())
-  observe()
+  observe(nil, true)
 end
 
 return M

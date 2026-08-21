@@ -1,0 +1,114 @@
+#!/usr/bin/env -S fish --no-config
+# Set up (or check) the Focus History Chrome extension
+# (dotfiles chrome-extensions/focus-history), which feeds Chrome tab focus events
+# to Hammerspoon's focushistory for hyper+o / hyper+i.
+#
+# Chrome removed --load-extension from stable, and this machine's Chrome is
+# MDM-managed, so force-installing via policy would mean duplicating corporate
+# policy machinery for a personal jumplist. That leaves one manual step: Load
+# unpacked. Everything around it is automated, and the manifest carries a fixed
+# public key so the extension id is identical on every machine and profile.
+#
+# PROFILES: Chrome profiles share one browser process but extensions are
+# per-profile -- chrome.tabs in one profile cannot see another's tabs. So the
+# extension has to be loaded once in EACH profile you want tab history for
+# (Meta, Personal, ...). All the copies connect to the same Hammerspoon socket
+# and sort out between themselves which one owns a given tab.
+
+set -g EXT_DIR (path resolve (status dirname)/../chrome-extensions/focus-history)
+set -g EXT_ID fiibcgpignkkhmpbjffdcibeiacheajl
+set -g BRIDGE_PORT 27123
+
+function bridge-up
+    curl -s --max-time 1 "http://127.0.0.1:$BRIDGE_PORT/" >/dev/null 2>&1
+end
+
+# `hs` talks to Hammerspoon over a mach port and can block indefinitely when that
+# handshake can't complete (a sandboxed shell, Hammerspoon mid-reload). Status
+# should degrade to "unknown", never hang.
+function hs-run --argument-names lua
+    if type -q timeout
+        timeout 3 hs -c "$lua" 2>/dev/null
+    else
+        hs -c "$lua" 2>/dev/null
+    end
+end
+
+switch "$argv[1]"
+case status ''
+    echo "extension dir : $EXT_DIR"
+    echo "extension id  : $EXT_ID"
+    if test -f "$EXT_DIR/manifest.json"
+        echo "manifest      : present"
+    else
+        echo "manifest      : MISSING at $EXT_DIR"
+    end
+    if not bridge-up
+        echo "bridge server : NOT listening (Hammerspoon running? chromebridge.setup() called?)"
+        exit 1
+    end
+    echo "bridge server : listening on 127.0.0.1:$BRIDGE_PORT"
+
+    if not type -q hs
+        echo 'clients       : unknown (no hs CLI -- "Install Hammerspoon CLI" in the palette)'
+        exit 0
+    end
+
+    # The roster is built from inbound reports -- there is no way to ask, since
+    # hs.httpserver:send() reaches only one client (see chromebridge.lua). So a
+    # profile shows up once you have switched a tab in it since Hammerspoon last
+    # loaded.
+    set -l roster (hs-run 'local s = require("chromebridge").status()
+        if s.clientCount == 0 then
+            print("none connected")
+        else
+            for _, c in ipairs(s.clients) do
+                print(string.format("%-18s %-12s last report %ds ago",
+                    c.name or "unnamed", c.clientId, c.secondsAgo))
+            end
+        end')
+
+    if test -z "$roster"
+        echo "clients       : unknown (hs CLI did not respond)"
+    else if test "$roster[1]" = "none connected"
+        echo "clients       : none connected"
+    else
+        echo "clients       : "(count $roster)
+        for line in $roster
+            echo "  $line"
+        end
+    end
+
+    echo
+    echo "One client per Chrome profile; the name is read from Chrome's window"
+    echo "title, or set it explicitly in that profile's service worker console"
+    echo "(chrome://extensions -> Focus History -> service worker):"
+    echo "  chrome.storage.local.set({label: \"Personal\"})"
+    echo
+    echo "A profile missing here has not loaded the extension: switch to one of"
+    echo "its windows, open chrome://extensions, and Load unpacked from"
+    echo "  $EXT_DIR"
+
+case install
+    if not test -f "$EXT_DIR/manifest.json"
+        echo "No manifest at $EXT_DIR" >&2
+        exit 1
+    end
+    # On the clipboard so the file picker can jump straight there with Cmd+Shift+G.
+    printf '%s' "$EXT_DIR" | pbcopy
+    echo "Extension path copied to clipboard:"
+    echo "  $EXT_DIR"
+    echo
+    echo "For EACH Chrome profile you use (Meta, Personal, ...):"
+    echo "  1. Switch to that profile's window"
+    echo "  2. Open chrome://extensions"
+    echo "  3. Toggle 'Developer mode' (top right)"
+    echo "  4. 'Load unpacked' -> Cmd+Shift+G -> paste -> Enter -> Select"
+    echo
+    echo "Expected extension id (same in every profile): $EXT_ID"
+    open -a "Google Chrome" "chrome://extensions/"
+
+case '*'
+    echo "usage: focus-history-extension [status|install]" >&2
+    exit 1
+end

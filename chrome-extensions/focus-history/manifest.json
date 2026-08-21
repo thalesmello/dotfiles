@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "Focus History",
+  "version": "1.0.0",
+  "description": "Reports tab focus changes to Hammerspoon so hyper+o / hyper+i can navigate back and forward through tabs and windows, and activates tabs on request.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwffh7GT0pC5C4mYtppnj/XQZoHoY17vepxoQeuOfF2f0JgkobNCl12Wgem8rOSiHwP4Wjpzog4aA9gf3w+d0EQCPNZy91dOf7q7FDNtsfZxPvZSXHpr2yq6Onu89nHZLaBjsL7mqgZYpO/KH34q6/d1WYXtB0lngSTnV6AfbAOrLRpdAEg03KCWjICDXOe5N0MOxeubT7+HzLJbNy9RW40C/ByksImVZol3EBmB1w+fieK1JW1qTje/yLNt+UiQqaG04aE0JrsG6sm2a7Y5Wom6kHIvvf0WJeApMtjFe7KcdCh4lP942aL5QU6SjppmQX2FhfUslZGxqcx0EJJrYIQIDAQAB",
+  "permissions": ["tabs", "storage"],
+  "background": { "service_worker": "background.js" }
+}

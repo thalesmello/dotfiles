@@ -185,6 +185,9 @@ function M.setup()
   ---------------------------------------------------------------
 
   FocusHistory.setup()
+  -- Loopback websocket the Chrome extension connects to for tab-level history.
+  -- Harmless if the extension isn't installed: Chrome just stays window-level.
+  require("chromebridge").setup()
 
   ---------------------------------------------------------------
   -- DEFAULT MODE bindings
