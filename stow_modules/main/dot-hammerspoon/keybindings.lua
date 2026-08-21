@@ -228,6 +228,8 @@ function M.setup()
     end
   end)
 
+  command("Quit Zoom", function() require("zoomwatcher").quitZoom() end)
+
   command("Focus History: Show", function() FocusHistory.showList() end)
   command("Focus History: Clear", function() FocusHistory.clear() end)
 
