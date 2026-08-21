@@ -8,10 +8,14 @@
 # is in `herdr-preset track-agent-sessions`; the manifest only says when to run
 # it.
 #
-# herdr does not scan this directory: plugins are loaded from the registry at
-# ~/.config/herdr/plugins.json, which `herdr plugin link` writes and which is
-# gitignored here (it holds absolute paths, so it is machine-local). Being in
-# this folder therefore installs nothing by itself.
+# This directory is ours, not herdr's: herdr keeps its own generated
+# `plugins/config/<id>/` tree next door, and hand-written sources are easier to
+# find when they are not mixed in with it.
+#
+# herdr does not scan this directory either. Plugins are loaded from the
+# registry at ~/.config/herdr/plugins.json, which `herdr plugin link` writes
+# and which is gitignored here (it holds absolute paths, so it is
+# machine-local). Being in this folder therefore installs nothing by itself.
 #
 #   herdr-preset install-local-plugins
 #

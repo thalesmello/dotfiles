@@ -130,13 +130,18 @@ end
 # this repo (.gitignore), being machine-local. `install-local-plugins` is what
 # links the ones that live here, and __herdr_plugin_ensure is the cheap check
 # resume-agent makes so a machine that never ran it still records sessions.
-
+#
+# They live in herdr/local-plugins/ rather than herdr/plugins/, which is
+# herdr's own: it keeps a `config/<plugin-id>/` directory per plugin under
+# there (HERDR_PLUGIN_CONFIG_DIR), including for plugins that were unlinked
+# long ago, so hand-written sources sitting next to it read as more of the same
+# generated clutter.
 function __herdr_plugin_dir
     set -l base $HOME/.config
     if set -q XDG_CONFIG_HOME; and test -n "$XDG_CONFIG_HOME"
         set base $XDG_CONFIG_HOME
     end
-    echo $base/herdr/plugins
+    echo $base/herdr/local-plugins
 end
 
 # Link <id> from <dir> unless the registry already has it.
@@ -191,6 +196,59 @@ function __herdr_agent_launch_argv --argument-names bin pane
         ' 2>/dev/null)
     test -n "$argv_json"; or set argv_json null
     echo $argv_json
+end
+
+# The conversation a pane's agent has OPEN, asked of the OS: {kind, value,
+# source}, or nothing.
+#
+# For the panes herdr reports no `agent_session` for. That happens more than it
+# sounds: a codex started as `codex resume <id>` is often not reported at all,
+# and an agent whose integration is not installed (pi) never is. But an agent
+# that streams its transcript to disk is holding that file open, and the file
+# is named after the conversation:
+#
+#   ~/.codex/sessions/2026/08/21/rollout-2026-08-21T14-57-23-<uuid>.jsonl
+#
+# so lsof answers exactly, for the session running RIGHT NOW -- better than the
+# id mined from the command line, which is only the one the agent was asked to
+# resume. (Claude is not in this list on purpose: it appends and closes, so it
+# holds nothing open. It has an integration that reports, which is why.)
+#
+# The uuid in the name is what claude and codex want back; a path is what pi
+# takes, so a file whose name carries no uuid is recorded as a path instead.
+function __herdr_agent_open_session --argument-names bin pane agent
+    set -l pattern
+    switch "$agent"
+    case codex
+        set pattern '/\.codex/sessions/.*\.jsonl$'
+    case pi
+        set pattern '/\.pi/(agent/)?sessions/.*\.jsonl$'
+    case '*'
+        return 1
+    end
+
+    set -l leader (
+        $bin pane process-info --pane "$pane" 2>/dev/null \
+        | jq -r '.result.process_info.foreground_process_group_id // empty' 2>/dev/null)
+    test -n "$leader"; or return 1
+
+    # The agent may keep the transcript open from a child (a wrapper that did
+    # not exec, a helper process), so the whole group is asked about at once --
+    # lsof is slow enough that one call is worth arranging.
+    set -l pids $leader (pgrep -P $leader 2>/dev/null)
+    set -l files (lsof -p (string join , $pids) 2>/dev/null \
+        | string match -r '/\S+\.jsonl$' \
+        | string match -rv 'trace' \
+        | string match -r -- "$pattern")
+    test -n "$files[1]"; or return 1
+
+    set -l file $files[1]
+    set -l uuid (string match -rg '([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})' -- (basename -- "$file"))
+    if test -n "$uuid"
+        jq -n -c --arg v "$uuid" --arg a "$agent" '{kind: "id", value: $v, source: ("lsof:" + $a)}'
+    else
+        jq -n -c --arg v "$file" --arg a "$agent" '{kind: "path", value: $v, source: ("lsof:" + $a)}'
+    end
 end
 
 # Copy live agents' sessions (and launch commands) into the store.
@@ -255,26 +313,45 @@ function __herdr_agent_sweep --argument-names bin pane
         # an identical record each time is all cost and no information. The
         # timestamp is still refreshed once a minute, because it doubles as
         # "when was this agent last seen alive" for the staleness sweep.
+        #
+        # A pane herdr reports NO id for counts as unchanged too: the record
+        # keeps whatever id it already had (see the merge below), so there is
+        # nothing to write on that account either.
         set -l known (jq -r --arg p "$id" --arg v "$value" --argjson now $now '
-            if ((.panes[$p].session.value? // "") == $v
+            if (((.panes[$p].session.value? // "") == $v or $v == "")
                 and ((.panes[$p].argv? // []) | length) > 0
                 and (.panes[$p].updated? // 0) > ($now - 60))
             then "yes" else "no" end' "$store" 2>/dev/null)
         test "$known" = yes; and continue
 
         # Re-read the launch command only when this pane's conversation is one
-        # the store has not seen (new agent, or /clear'd into a new session).
+        # the store has not seen (new agent, or /clear'd into a new session) --
+        # or when there is no reported conversation at all, because then the
+        # command line is the only place an id can still be found (`codex
+        # resume <id>`), and a stale one names the wrong conversation.
         set -l seen (jq -r --arg p "$id" --arg v "$value" '
-            if ((.panes[$p].session.value? // "") == $v
+            if ($v != ""
+                and (.panes[$p].session.value? // "") == $v
                 and ((.panes[$p].argv? // []) | length) > 0)
             then "yes" else "no" end' "$store" 2>/dev/null)
 
         set -l launch null
         test "$seen" = yes; or set launch (__herdr_agent_launch_argv "$bin" "$id")
 
+        # herdr has no id for this pane: ask the OS what the agent has open.
+        # Only in this branch -- lsof is the slowest thing here, and a reported
+        # id is the better answer anyway.
+        set -l open null
+        if test -z "$value"
+            set -l agent (printf '%s' "$entry" | jq -r '.agent // ""')
+            set open (__herdr_agent_open_session "$bin" "$id" "$agent"); or set open null
+        end
+
         printf '%s' "$entry" \
-            | jq -c --argjson launch "$launch" --argjson now $now \
-                '. + {updated: $now} + (if $launch == null then {} else {argv: $launch} end)' \
+            | jq -c --argjson launch "$launch" --argjson open "$open" --argjson now $now \
+                '. + {updated: $now}
+                 + (if $launch == null then {} else {argv: $launch} end)
+                 + (if $open == null then {} else {session: $open} end)' \
             >>$updates
     end
 
@@ -293,8 +370,16 @@ function __herdr_agent_sweep --argument-names bin pane
     set -l staged (mktemp (__herdr_agent_state_dir)/.store.XXXXXX)
     jq -c --slurpfile up $updates --argjson now $now --argjson stale $STALE_DAYS \
         --argjson prune (test -n "$pane"; and echo false; or echo true) '
+        # A pane that reports no conversation KEEPS the one already on record.
+        # herdr stops reporting an id in cases the agent is still very much in
+        # that conversation -- a resumed codex is the one seen here -- and
+        # forgetting it because a later look came back empty would throw away
+        # the only copy.
         reduce $up[] as $u (.;
-            .panes[$u.pane_id] = ((.panes[$u.pane_id] // {}) + ($u | del(.pane_id))))
+            (.panes[$u.pane_id] // {}) as $old
+            | .panes[$u.pane_id] = ($old + ($u | del(.pane_id))
+                + (if $u.session == null and $old.session != null
+                   then {session: $old.session} else {} end)))
         | if $prune
           then .panes |= with_entries(select((.value.updated // 0) > ($now - $stale * 86400)))
           else . end
@@ -968,7 +1053,7 @@ sys.stdout.write("\n".join(out) + ("\n" if out else ""))
         # manifest: `herdr plugin link` copies the manifest INTO the registry,
         # so a manifest change is invisible until the plugin is linked again.
         # That is what this does -- every plugin under <dir> (default
-        # ~/.config/herdr/plugins) is unlinked and re-linked, so the registry
+        # ~/.config/herdr/local-plugins) is re-linked, so the registry
         # ends up matching the files on disk whatever state it was in.
         # Re-running it is harmless.
         #
@@ -1083,13 +1168,22 @@ sys.stdout.write("\n".join(out) + ("\n" if out else ""))
         #
         #   --print     print the resume command instead of running it
         #   --force     resume even though an agent is live in the pane
-        #   --no-exec   run the agent as a child of the pane's shell, so the
-        #               pane survives it (default `exec`s, matching how
-        #               claude-split.sh starts them)
+        #   --exec      replace the pane's shell with the agent, so quitting it
+        #               closes the pane (how claude-split.sh starts one; NOT
+        #               the default here -- see below)
         #   --no-track  skip the opening sweep of the store
+        #
+        # The agent is started as a CHILD of the pane's shell. `exec` is the
+        # usual way to start one -- it makes quitting the agent close the pane,
+        # which is what you want for a pane that exists only to hold it -- but
+        # it is the wrong choice for a resume: an agent that dies takes the pane
+        # with it, and with the pane goes the id this looks conversations up by,
+        # leaving only the cwd fallback. Keeping the shell underneath means a
+        # second crash lands back at a prompt in the SAME pane, where
+        # resume-agent works again, exactly.
         set -l tag "herdr-preset resume-agent"
 
-        argparse 'session=' 'print' 'force' 'no-exec' 'no-track' -- $argv
+        argparse 'session=' 'print' 'force' 'exec' 'no-track' -- $argv
         or return 1
 
         set -l bin (__herdr_bin); or begin
@@ -1283,22 +1377,39 @@ if spec is None:
 def flag(tok):
     return tok.split("=", 1)[0]
 
+def selected(tok):
+    # The conversation an old session flag was pointing at: `--resume=<id>`
+    # carries it inline, a bare flag has it in the next token, and a token that
+    # is itself a flag (`--last`) selects something other than an id.
+    if tok is None or tok.startswith("-"):
+        return None
+    return tok
+
 kept = []
+prior = None                 # conversation the recorded command line resumed
 rest = launch[1:] if launch else []
 i = 0
 while i < len(rest):
     tok, f = rest[i], flag(rest[i])
     inline = "=" in tok and tok.startswith("-")
-    if f in spec["drop_value"]:
-        i += 1 if inline else 2
-    elif f in spec["drop_opt"]:
-        i += 1
-        if not inline and i < len(rest) and not rest[i].startswith("-"):
+    if f in spec["drop_value"] or f in spec["drop_opt"]:
+        if inline:
+            prior = selected(tok.split("=", 1)[1]) or prior
             i += 1
+        elif i + 1 < len(rest) and (f in spec["drop_value"]
+                                    or not rest[i + 1].startswith("-")):
+            prior = selected(rest[i + 1]) or prior
+            i += 2
+        else:
+            i += 1               # optional value, and none was given
     elif f in spec["drop_bool"]:
         i += 1
     elif spec["subcommand"] and tok == spec["subcommand"]:
-        break                      # the old selection, and any prompt after it
+        # The old selection, and any prompt after it. `codex resume <id>` is
+        # where the id lives for a codex pane herdr reports none for.
+        if i + 1 < len(rest):
+            prior = selected(rest[i + 1]) or prior
+        break
     elif f in spec["keep_value"] and not inline:
         kept += rest[i:i + 2]
         i += 2
@@ -1319,7 +1430,14 @@ argv0 = launch[0] if launch else spec["bin"]
 base = argv0.rsplit("/", 1)[-1]
 if base in (agent, agent + ".real", spec["bin"], spec["bin"] + ".real"):
     argv0 = spec["bin"]
-tail = spec["resume"](value) if value else spec["fallback"]
+# What to resume: the conversation herdr was told about, else the one this
+# pane was already resuming when it was last seen, else "whatever was most
+# recent here". The middle case is not a nicety -- herdr reports no id for a
+# codex pane started as `codex resume <id>`, so without it every resume of a
+# resumed pane degrades to `--last`, which is the wrong conversation as soon as
+# another agent has run in the same directory. Codex reports the same id across
+# a resume when it reports one at all, so replaying it lands in the same place.
+tail = spec["resume"](value or prior) if (value or prior) else spec["fallback"]
 print(shlex.join([argv0] + kept + tail))
 ' "$record")
         or return 1
@@ -1332,7 +1450,7 @@ print(shlex.join([argv0] + kept + tail))
             return 0
         end
 
-        if not set -q _flag_no_exec
+        if set -q _flag_exec
             set command "exec $command"
         end
 
@@ -1362,7 +1480,7 @@ print(shlex.join([argv0] + kept + tail))
         #                        [--status]
         #
         # This is the recording half, and it is driven by herdr itself: the
-        # agent-sessions plugin (dot-config/herdr/plugins/agent-sessions) hooks
+        # agent-sessions plugin (dot-config/herdr/local-plugins/agent-sessions) hooks
         # it to `pane.agent_detected` and `pane.agent_status_changed` for the
         # pane the event is about, and to plugin startup for a full sweep. See
         # that manifest for why both events are needed. Nothing polls, nothing

@@ -1,0 +1,74 @@
+#!/bin/sh
+
+# Put the focused pane back into the conversation its agent was in. A thin
+# wrapper around `herdr-preset resume-agent`, meant for the keybinding
+# (prefix+a) and for typing at a prompt.
+#
+#   resume-agent [<pane>] [--print] [--force] [--exec] ...
+#
+# Every argument is handed straight to `herdr-preset resume-agent`; see that
+# subcommand for what they do and for how a pane's conversation is resolved.
+#
+# The wrapper exists for one reason: a herdr `type = "shell"` keybinding runs
+# DETACHED, with no terminal. Anything the command prints goes to the server
+# log and nowhere a person will look, so the interesting failures --  "an agent
+# is still running in this pane", "nothing recorded for this pane" -- would be
+# a keypress that silently does nothing. So when there is no terminal to print
+# to, a failure also becomes a herdr notification.
+#
+# Run from a shell it behaves like any other command: stdout and stderr as
+# usual, no toast.
+
+set -u
+
+# herdr-preset is a sibling of this script; prefer that copy when $0 says where
+# we are, so a second checkout on PATH does not answer for this one. Invoked as
+# a bare name (a keybinding, or PATH from a shell) there is nothing to go on and
+# PATH decides, which is the same file in the normal setup.
+preset=$(dirname -- "$0")/herdr-preset
+[ -x "$preset" ] || preset=herdr-preset
+
+# The herdr CLI, for the notification. Same order as herdr-preset's
+# __herdr_bin: the variable herdr injects into its own child processes, then
+# PATH, then the usual install locations.
+herdr_bin() {
+    if [ -n "${HERDR_BIN_PATH:-}" ] && [ -x "$HERDR_BIN_PATH" ]; then
+        printf '%s\n' "$HERDR_BIN_PATH"
+        return 0
+    fi
+    if command -v herdr >/dev/null 2>&1; then
+        command -v herdr
+        return 0
+    fi
+    for candidate in "$HOME/.local/bin/herdr" /opt/homebrew/bin/herdr /usr/local/bin/herdr; do
+        [ -x "$candidate" ] && { printf '%s\n' "$candidate"; return 0; }
+    done
+    return 1
+}
+
+# Only stderr is captured, and it is passed straight back out: stdout stays
+# untouched so `--print | ...` keeps working, wherever this runs.
+err=$(mktemp -t resume-agent.XXXXXX) || err=""
+if [ -n "$err" ]; then
+    "$preset" resume-agent "$@" 2>"$err"
+    status=$?
+    cat -- "$err" >&2
+    message=$(head -n 1 -- "$err")
+    rm -f -- "$err"
+else
+    "$preset" resume-agent "$@"
+    status=$?
+    message=""
+fi
+
+# Detached and it failed: nobody saw that stderr. The pane restarting its agent
+# is feedback enough for the success case, so only failures raise a toast.
+if [ "$status" -ne 0 ] && [ -n "$message" ] && ! [ -t 1 ] && ! [ -t 2 ]; then
+    bin=$(herdr_bin) || exit $status
+    # The tag is what the message is already labelled with in the toast title.
+    body=${message#herdr-preset resume-agent: }
+    "$bin" notification show "Resume agent failed" --body "$body" \
+        --position top-right --sound none >/dev/null 2>&1
+fi
+
+exit $status

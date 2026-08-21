@@ -189,10 +189,24 @@ navigate_pane_right = ""
 # (tmux also ran `clear-history`; herdr has no scrollback-clear CLI, so this
 #  only sends ctrl+l, same as pressing it directly in the shell.)
 [[keys.command]]
-key = "prefix+ctrl+r"
+key = "prefix+ctrl+c"
 type = "shell"
 command = "\"${HERDR_BIN_PATH:-herdr}\" pane send-keys \"$HERDR_ACTIVE_PANE_ID\" ctrl+l"
 description = "clear screen (ctrl+l)"
+
+# prefix+ctrl+r: put THIS pane back into the conversation its agent was in,
+# after the agent died in it. Resolves the conversation by pane (see
+# `herdr-preset resume-agent`, and the agent-sessions plugin in local-plugins
+# that records them), so it picks the right one where `claude --continue` --
+# most recent for the cwd -- does not. The `resume-agent` shim is what turns a
+# failure into a notification: a detached type = "shell" command has no
+# terminal, so "an agent is still running here" would otherwise be a keypress
+# that appears to do nothing.
+[[keys.command]]
+key = "prefix+ctrl+r"
+type = "shell"
+command = "resume-agent"
+description = "resume this pane's dead agent"
 
 # prefix+=: even out every split in the tab, so all panes end up the same size
 # (tmux parity: `select-layout even-horizontal` / `even-vertical`, on the key
