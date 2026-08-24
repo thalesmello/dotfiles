@@ -166,7 +166,9 @@ local function recordTab(msg, retried)
   client.lastTabAt = hs.timer.secondsSinceEpoch()
   st.clients[id] = client
 
-  FocusHistory.record({
+  -- recordDwelled, not record: a tab has to be held as long as a window does
+  -- before it earns a slot, so flicking through tabs leaves no trace.
+  FocusHistory.recordDwelled({
     kind = "chrome_tab",
     id = tostring(math.floor(tonumber(msg.tabId))),
     chromeWindowId = tostring(math.floor(tonumber(msg.windowId))),
@@ -182,7 +184,17 @@ local function handleMessage(raw)
   if not ok or type(msg) ~= "table" then return "" end
 
   if msg.type == "tab" then
-    if tonumber(msg.tabId) and tonumber(msg.windowId) then recordTab(msg) end
+    if not (tonumber(msg.tabId) and tonumber(msg.windowId)) then return "" end
+
+    -- Is this a focus change at all? The extension reports every tab event it
+    -- sees along with the facts, and the judgement happens here: a background tab
+    -- retitling, or the active tab of a window that isn't Chrome's focused one,
+    -- is not somewhere you went. Deliberately on this side so the whole policy --
+    -- this, the dwell, the window/tab collision rules -- lives in one file and
+    -- can be changed without reloading an extension in every Chrome profile.
+    if msg.active == false or msg.windowFocused == false then return "" end
+
+    recordTab(msg)
 
   elseif msg.type == "hello" then
     -- One record per profile. The copies share an extension id, so clientId (a

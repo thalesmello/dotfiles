@@ -64,15 +64,22 @@ function send(payload) {
   connect();
 }
 
-// A window hosting a chrome-preset --app window reports type "app"; Hammerspoon
-// records those as plain macOS windows, so tell it which kind this is rather than
-// making it guess from the title (the guess that caused all the trouble before).
+// Report, don't judge. This extension's whole job is to say what Chrome just did
+// and hand over the facts Chrome knows and Hammerspoon cannot see -- the tab id,
+// the window type, whether the tab is active, whether its window is focused.
+// Whether any of that is worth putting in the history (is it a real focus change?
+// has it been held long enough? does it collide with a window entry?) is decided
+// in chromebridge.lua, so the policy lives in one place and can be changed
+// without reloading an extension in every Chrome profile.
+//
+// windowType is included for the same reason: a chrome-preset --app window
+// reports "app", which beats making Hammerspoon guess from the title -- that
+// guess is what caused all the trouble before.
 async function report(tabId, reason) {
   try {
     const tab = await chrome.tabs.get(tabId);
-    if (!tab || !tab.active) return;
+    if (!tab) return;
     const win = await chrome.windows.get(tab.windowId);
-    if (!win.focused) return;   // background window retitling: not a focus change
     send({
       type: "tab",
       reason,
@@ -84,6 +91,9 @@ async function report(tabId, reason) {
       tabId: tab.id,
       windowId: tab.windowId,
       windowType: win.type,     // "normal" | "popup" | "app" | "devtools"
+      // Reported, not acted on: chromebridge decides what these mean.
+      active: tab.active === true,
+      windowFocused: win.focused === true,
       url: tab.url || "",
       title: tab.title || "",
     });
@@ -146,9 +156,11 @@ identity();
 chrome.tabs.onActivated.addListener(info => report(info.tabId, "activated"));
 
 chrome.tabs.onUpdated.addListener((tabId, change) => {
-  // Only title/url matter; ignore favicon, audible, discarded and friends. This
-  // is the in-tab navigation case: Hammerspoon refreshes the existing entry
-  // rather than adding one, because the tab id hasn't changed.
+  // Narrowed to title/url purely to keep the socket quiet -- onUpdated also fires
+  // for favicons, audible, discarded and so on, none of which can describe a tab
+  // change. This is about which Chrome events are even worth transmitting, not
+  // about what they mean: the in-tab navigation case (same tab id, new title) is
+  // reported like any other and chromebridge decides it is a refresh.
   if (change.title !== undefined || change.url !== undefined) report(tabId, "updated");
 });
 

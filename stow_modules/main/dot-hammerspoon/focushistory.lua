@@ -14,16 +14,19 @@
 --   * ...one hs.uielement.watcher per app for focusedWindowChanged /
 --     windowCreated, giving window-to-window switches inside an app.
 --
--- CHROME TABS ARE OUT OF SCOPE HERE, deliberately. An earlier version tracked
--- individual tabs by inferring tab identity from the window title and correlating
--- it back through `chrome-preset active-tab-json`. Every layer of that inference
--- turned out to be wrong in some real situation -- titles that lag a tab switch,
--- Chrome's window order not matching macOS's, pages that retitle continuously --
--- and each misidentification pushed a competing entry, which truncated the
--- forward branch. Tab granularity is coming back via a Chrome extension that
--- reports chrome.tabs.onActivated over a local socket, i.e. the real event with
--- the real tab id, instead of guessing. Until then a Chrome window is just a
--- window, which is boring and correct.
+-- Chrome tabs arrive from a second source: chromebridge.lua feeds in
+-- chrome.tabs.onActivated events from a Chrome extension, so a tab is a place in
+-- its own right. It calls M.recordDwelled(), which puts tabs behind the same
+-- dwell as windows -- flicking through tabs hunting for one should leave no more
+-- trace than flicking through windows.
+--
+-- An earlier version tried to do this without an extension, inferring tab
+-- identity from the window title and correlating it back through
+-- `chrome-preset active-tab-json`. Every layer of that inference turned out to be
+-- wrong in some real situation -- titles that lag a tab switch, Chrome's window
+-- order not matching macOS's, pages that retitle continuously -- and each
+-- misidentification pushed a competing entry, which truncated the forward branch.
+-- Hence the extension: the tab id now arrives with the event that caused it.
 
 local shell = require("shell")
 local Preset = require("preset")
@@ -34,8 +37,8 @@ local M = {}
 
 -- kind -> function(entry, cb). Lets another module own a kind of entry without
 -- either module requiring the other: chromebridge.lua registers "chrome_tab"
--- here and in return calls M.record() when the extension reports a tab. Anything
--- with no handler is focused as a plain macOS window.
+-- here and in return calls M.recordDwelled() when the extension reports a tab.
+-- Anything with no handler is focused as a plain macOS window.
 M.focusHandlers = {}
 
 local MAX = 20
@@ -50,7 +53,7 @@ local HUD_DURATION = 0.4
 -- in the history -- only wherever you come to rest. Exposed on M so it can be
 -- tuned live while calibrating:
 --   hs -c 'require("focushistory").dwell = 1.5'
-M.dwell = 2.0
+M.dwell = 5.0
 
 -- Apps whose windows must never enter the history. Hammerspoon matters most:
 -- the command palette and the herdr confirmation dialog both call hs.focus(),
@@ -266,7 +269,7 @@ local function commit(done)
   done()
 end
 
--- A window has to HOLD focus (M.dwell, 2s) to earn a history slot. Flick through
+-- A window has to HOLD focus (M.dwell, 5s) to earn a history slot. Flick through
 -- five windows hunting for the right one and none of them are recorded -- only
 -- wherever you come to rest.
 --
@@ -276,17 +279,51 @@ end
 -- organic focus change, so each one truncates the forward branch. A prompt
 -- flashing past mid-navigation wipes everything ahead of the cursor.
 --
--- The debounce is keyed on the focused WINDOW, not on event arrival. Restarting
--- the clock on every event can starve: an app that retitles continuously (some
--- web apps rotate a notification counter through the title several times a
--- second) would postpone the deadline forever and the window would never be
--- recorded. Keying on the window means a pending timer for the window you are
--- already on is left to expire; the clock only restarts when focus genuinely
--- moves elsewhere, which is the case the dwell exists for.
+-- The debounce is keyed on the PLACE, not on event arrival. Restarting the clock
+-- on every event can starve: an app that retitles continuously (some web apps
+-- rotate a notification counter through the title several times a second) would
+-- postpone the deadline forever and the place would never be recorded. Keying on
+-- the place means a pending timer for where you already are is left to expire;
+-- the clock only restarts when you genuinely move, which is the case the dwell
+-- exists for.
+--
+-- Both sources feed this one timer. The AX observer schedules "window:<cgid>"
+-- with no payload, meaning "re-read the focused window when the timer fires". The
+-- Chrome extension schedules "chrome_tab:<tabId>" WITH a payload, because that
+-- entry can only come from the extension. A Chrome window is therefore covered
+-- exactly once, and switching tabs inside one window restarts the clock -- a
+-- different place, even though the macOS window hasn't changed.
 --
 -- isStandard() in currentWindowEntry catches the structurally-transient windows;
--- this catches the ones that are ordinary windows but merely passing through.
---
+-- this catches the ones that are ordinary places but merely passed through.
+local function scheduleDwell(key, entry)
+  if _G._FocusHistoryDwellTimer then
+    if _G._FocusHistoryDwellKey == key then
+      -- Same place: keep the deadline, but take the fresher payload (a title may
+      -- have changed since).
+      if entry then _G._FocusHistoryDwellEntry = entry end
+      return
+    end
+    _G._FocusHistoryDwellTimer:stop()
+  end
+
+  _G._FocusHistoryDwellKey = key
+  _G._FocusHistoryDwellEntry = entry
+  _G._FocusHistoryDwellTimer = hs.timer.doAfter(M.dwell, function()
+    local pending = _G._FocusHistoryDwellEntry
+    _G._FocusHistoryDwellTimer = nil
+    _G._FocusHistoryDwellKey = nil
+    _G._FocusHistoryDwellEntry = nil
+
+    -- Re-check the jump gates here, not just at schedule time: a jump can start
+    -- during the dwell, and recording then would push the window we are leaving.
+    if st.busy then return end
+    if st.settleUntil and hs.timer.secondsSinceEpoch() < st.settleUntil then return end
+
+    if pending then record(pending) else commit() end
+  end)
+end
+
 -- `immediate` deliberately bypasses the dwell, and that is not a loophole. It is
 -- the hotkey path: pressing hyper+o is not flicking past a window, it is acting
 -- from one, so that window is a real position and the cursor has to reflect it.
@@ -298,22 +335,28 @@ local function observe(done, immediate)
   local win = hs.window.focusedWindow()
   local winId = win and win:id()
 
-  if _G._FocusHistoryDwellTimer then
-    -- Same window still pending: let the existing deadline stand.
-    if _G._FocusHistoryDwellWinId == winId then
-      if done then done() end
-      return
-    end
-    _G._FocusHistoryDwellTimer:stop()
+  -- The extension has a tab pending for this very window, and its entry is the
+  -- better one -- richer, and keyed as a tab. Scheduling ours would replace it
+  -- with a plain window entry for the same place, which is the dual-key
+  -- collision that truncates branches.
+  local pending = _G._FocusHistoryDwellEntry
+  if pending and winId and pending.cgWindowId == tostring(winId) then
+    if done then done() end
+    return
   end
 
-  _G._FocusHistoryDwellWinId = winId
-  _G._FocusHistoryDwellTimer = hs.timer.doAfter(M.dwell, function()
-    _G._FocusHistoryDwellTimer = nil
-    _G._FocusHistoryDwellWinId = nil
-    commit()
-  end)
+  scheduleDwell("window:" .. tostring(winId), nil)
   if done then done() end
+end
+
+-- Contribute a place from outside (the Chrome extension, via chromebridge).
+-- Subject to the same dwell as anything else: flicking through tabs looking for
+-- the right one should leave no more trace than flicking through windows.
+function M.recordDwelled(entry)
+  if not entry then return end
+  if st.busy then return end
+  if st.settleUntil and hs.timer.secondsSinceEpoch() < st.settleUntil then return end
+  scheduleDwell(entryKey(entry), entry)
 end
 
 ---------------------------------------------------------------
@@ -453,12 +496,6 @@ function M.forward() jump(1) end
 -- observation: during a jump the cursor is already where it belongs, so an
 -- inbound report about the window we are landing on -- or leaving -- must not
 -- rewrite the stack.
-function M.record(entry)
-  if st.busy then return end
-  if st.settleUntil and hs.timer.secondsSinceEpoch() < st.settleUntil then return end
-  return record(entry)
-end
-
 ---------------------------------------------------------------
 -- Palette helpers
 ---------------------------------------------------------------
@@ -528,7 +565,8 @@ function M.setup()
     pcall(function() _G._FocusHistoryDwellTimer:stop() end)
     _G._FocusHistoryDwellTimer = nil
   end
-  _G._FocusHistoryDwellWinId = nil
+  _G._FocusHistoryDwellKey = nil
+  _G._FocusHistoryDwellEntry = nil
 
   restore()
 
