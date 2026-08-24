@@ -46,7 +46,11 @@ local SETTLE_TIMEOUT = 0.3
 -- this is glanced at mid-navigation, not read.
 local HUD_DURATION = 0.4
 -- How long a window must hold focus before it earns a history slot. See observe().
-local DWELL = 0.4
+-- Hunting for a window means flicking through several, and none of those belong
+-- in the history -- only wherever you come to rest. Exposed on M so it can be
+-- tuned live while calibrating:
+--   hs -c 'require("focushistory").dwell = 1.5'
+M.dwell = 2.0
 
 -- Apps whose windows must never enter the history. Hammerspoon matters most:
 -- the command palette and the herdr confirmation dialog both call hs.focus(),
@@ -262,7 +266,9 @@ local function commit(done)
   done()
 end
 
--- A window has to HOLD focus to earn a history slot.
+-- A window has to HOLD focus (M.dwell, 2s) to earn a history slot. Flick through
+-- five windows hunting for the right one and none of them are recorded -- only
+-- wherever you come to rest.
 --
 -- AX notifications fire the instant focus moves, so without this every momentary
 -- window lands in the history -- Zoom's meeting controls, a fido2macos key
@@ -281,9 +287,11 @@ end
 -- isStandard() in currentWindowEntry catches the structurally-transient windows;
 -- this catches the ones that are ordinary windows but merely passing through.
 --
--- `immediate` is for the hotkey path, which needs the cursor accurate right now
--- and where the current window has by definition been focused long enough to
--- press a key.
+-- `immediate` deliberately bypasses the dwell, and that is not a loophole. It is
+-- the hotkey path: pressing hyper+o is not flicking past a window, it is acting
+-- from one, so that window is a real position and the cursor has to reflect it.
+-- Skip it and "back" would step from wherever you last came to rest, silently
+-- passing over the window you are actually looking at.
 local function observe(done, immediate)
   if immediate then return commit(done) end
 
@@ -300,7 +308,7 @@ local function observe(done, immediate)
   end
 
   _G._FocusHistoryDwellWinId = winId
-  _G._FocusHistoryDwellTimer = hs.timer.doAfter(DWELL, function()
+  _G._FocusHistoryDwellTimer = hs.timer.doAfter(M.dwell, function()
     _G._FocusHistoryDwellTimer = nil
     _G._FocusHistoryDwellWinId = nil
     commit()
