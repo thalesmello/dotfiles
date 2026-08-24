@@ -336,7 +336,8 @@ function M.setup()
   -- (not a hotkey) so it only fires when Ghostty is frontmost and passes through
   -- everywhere else (cmd+d still bookmarks in browsers, etc.). cmd+ctrl+* (ctrl
   -- held) is excluded and left to Ghostty's own default new_split/new_tab binds,
-  -- the one exception being cmd+ctrl+b, which toggles the herdr sidebar like cmd+b.
+  -- the exceptions being cmd+ctrl+b (toggles the herdr sidebar like cmd+b) and
+  -- cmd+ctrl+1..9 (herdr workspace switching).
   -- Gated on the focused window's app (not isGhostty) so the quick terminal keeps
   -- Ghostty's native split rather than the AppleScript fallback (targets front window).
   _G._GhosttyNewSplitTabTap = hs.eventtap.new({hs.eventtap.event.types.keyDown}, function(event)
@@ -346,8 +347,18 @@ function M.setup()
     -- cmd+b / cmd+ctrl+b -> herdr's sidebar toggle (prefix+b), only when herdr
     -- owns the visible surface; otherwise it passes through.
     local isB = code == hs.keycodes.map["b"] and not flags.shift
+    -- cmd+1..9 -> focus tab N (herdr/nvim: prefix+N); cmd+ctrl+1..9 -> focus
+    -- workspace N (herdr/nvim: prefix+w+N). Only claimed on a multiplexer
+    -- surface; elsewhere cmd+N falls through to Ghostty's own goto_tab
+    -- (super+physical:N) or to whatever app is frontmost.
+    local digit = nil
+    if not flags.shift then
+      for n = 1, 9 do
+        if code == hs.keycodes.map[tostring(n)] then digit = n break end
+      end
+    end
     -- Every other cmd+ctrl+* chord stays with Ghostty's own new_split/new_tab binds.
-    if flags.ctrl and not isB then return false end
+    if flags.ctrl and not (isB or digit) then return false end
     local isD = code == hs.keycodes.map["d"]
     -- cmd+t -> new tab; cmd+n -> new window/workspace (herdr: ctrl+space > shift+n).
     -- cmd+shift+n is left to pass through so the config's super+shift+n=new_window
@@ -363,15 +374,6 @@ function M.setup()
     -- cmd+shift+enter -> toggle herdr pane zoom (herdr: ctrl+space > ctrl+enter).
     -- Only claimed on a herdr surface; elsewhere it passes through.
     local isZoom = code == hs.keycodes.map["return"] and flags.shift
-    -- cmd+1..9 -> focus tab/workspace N (herdr: ctrl+alt+N, nvim: Ngt). Only
-    -- claimed on a multiplexer surface; elsewhere it falls through to Ghostty's
-    -- own goto_tab (super+physical:N) or to whatever app is frontmost.
-    local digit = nil
-    if not flags.shift then
-      for n = 1, 9 do
-        if code == hs.keycodes.map[tostring(n)] then digit = n break end
-      end
-    end
     if not (isD or isT or isN or isPrevTab or isNextTab or isW or isB or isZoom or digit) then return false end
     local focused = hs.window.focusedWindow()
     local isGhosttyWindow = focused and focused:application() and focused:application():name() == "Ghostty"
@@ -381,6 +383,9 @@ function M.setup()
     if not (isGhosttyWindow or ((isW or isB or digit) and Preset.isGhosttyQuickTerminalActive())) then return false end
     if digit then
       -- Returns false when the surface isn't a multiplexer: pass cmd+N through.
+      if flags.ctrl then
+        return GhosttyPreset.focusWorkspaceIndexWithFallback(digit)
+      end
       return GhosttyPreset.focusTabIndexWithFallback(digit)
     elseif isB then
       -- Returns false when herdr doesn't own the surface: pass cmd+b through.

@@ -310,11 +310,11 @@ function M.focusTabWithFallback(direction)
   return true
 end
 
--- Focus tab/workspace `index` (1-9) inside a multiplexer surface: the direct
--- ctrl+alt+N chord is `Ngt` in nvim and focus-workspace in herdr. Over mosh only
--- the prefix sequences are bound remotely, so send prefix, then w, then N --
--- herdr's workspace picker, mirrored by nvim's <c-space>wN tab mapping, so the
--- same sequence works in either multiplexer.
+-- Focus TAB `index` (1-9) inside a multiplexer surface via the prefix sequence:
+-- prefix, then N. That's herdr's focus-tab binding, mirrored by nvim's
+-- <c-space>N tab mapping, so the same sequence works in either multiplexer and
+-- both locally and over mosh (where only the prefix sequences are bound
+-- remotely).
 -- Returns false when this isn't a multiplexer surface, so the caller can let
 -- cmd+N fall through to Ghostty's own goto_tab / to the frontmost app.
 function M.focusTabIndexWithFallback(index)
@@ -323,16 +323,25 @@ function M.focusTabIndexWithFallback(index)
     log("focusTabIndexWithFallback " .. index .. " -> route: not a multiplexer, passing through")
     return false
   end
-  log("focusTabIndexWithFallback " .. index)
-  local key = tostring(index)
-  if isMoshMode() then
-    log("  -> route: multiplexer (mosh prefix + w)")
-    sendPrefixThen({"w"})
-    sendKeyToTerminal({key})
-  else
-    log("  -> route: multiplexer (direct ctrl+alt)")
-    sendKeyToTerminal({"ctrl", "alt", key})
+  log("focusTabIndexWithFallback " .. index .. " -> route: multiplexer (prefix + " .. index .. ")")
+  sendPrefixThen({tostring(index)})
+  return true
+end
+
+-- Focus WORKSPACE `index` (1-9) inside a multiplexer surface: prefix, then w,
+-- then N -- herdr's workspace picker, mirrored by nvim's <c-space>wN mapping.
+-- Always the prefix sequence, local or over mosh.
+-- Returns false when this isn't a multiplexer surface, so the caller can let
+-- cmd+ctrl+N fall through to Ghostty / the frontmost app.
+function M.focusWorkspaceIndexWithFallback(index)
+  if type(index) ~= "number" or index < 1 or index > 9 then return false end
+  if not M.isMultiplexerWindow() then
+    log("focusWorkspaceIndexWithFallback " .. index .. " -> route: not a multiplexer, passing through")
+    return false
   end
+  log("focusWorkspaceIndexWithFallback " .. index .. " -> route: multiplexer (prefix + w + " .. index .. ")")
+  sendPrefixThen({"w"})
+  sendKeyToTerminal({tostring(index)})
   return true
 end
 
