@@ -79,10 +79,11 @@ local function escapeAS(s)
   return (s:gsub("\\", "\\\\"):gsub('"', '\\"'))
 end
 
--- mosh prepends "[mosh] " to the terminal title while connected; strip it before
--- matching the program name. Mirrors the fish/preset.lua title logic.
-local function withoutMoshPrefix(title)
-  return (title:gsub("^%[mosh%] ", ""))
+-- Transport markers lead the terminal title: mosh prepends "[mosh] " while
+-- connected, and dev-preset writes "[et] " for its Eternal Terminal mode. Strip
+-- either before matching the program name. Mirrors the preset.lua title logic.
+local function withoutTransportPrefix(title)
+  return (title:gsub("^%[mosh%] ", ""):gsub("^%[et%] ", ""))
 end
 
 -- The program doesn't always own the title: mosh may prefix it ("[mosh] ..."),
@@ -90,7 +91,7 @@ end
 -- shows up as "dev connect --mosh - ...", etc. Rather than anchor to the start
 -- or a word boundary, accept the program name appearing anywhere in the title.
 local function titleRuns(title, program)
-  title = withoutMoshPrefix(title or "")
+  title = withoutTransportPrefix(title or "")
   return title:find(program, 1, true) ~= nil
 end
 

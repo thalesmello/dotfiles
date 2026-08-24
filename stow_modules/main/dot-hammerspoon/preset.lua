@@ -263,10 +263,11 @@ function M.isGhosttyZoomedOrSingleSurface()
   return count == 1
 end
 
--- mosh prepends "[mosh] " to the terminal title while connected, so strip that
--- prefix before matching the underlying program name (e.g. "[mosh] herdr ~").
-local function withoutMoshPrefix(title)
-  return (title:gsub("^%[mosh%] ", ""))
+-- Transport markers lead the terminal title: mosh prepends "[mosh] " itself and
+-- dev-preset writes "[et] " for its Eternal Terminal mode. Strip either before
+-- matching the underlying program name (e.g. "[mosh] herdr ~", "[et] herdr x").
+local function withoutTransportPrefix(title)
+  return (title:gsub("^%[mosh%] ", ""):gsub("^%[et%] ", ""))
 end
 
 -- The program doesn't always own the title: in dev-preset's --herdr-server mode
@@ -275,14 +276,14 @@ end
 -- command shows as "dev connect --mosh - ...". Rather than anchor to the start
 -- or a word boundary, accept the program name appearing anywhere in the title.
 local function titleRuns(title, program)
-  title = withoutMoshPrefix(title)
+  title = withoutTransportPrefix(title)
   return title:find(program, 1, true) ~= nil
 end
 
 -- True when the focused Ghostty window shows a single surface (a zoomed split or
 -- a lone pane) whose program is herdr. The window title reflects the focused
--- surface's title, which herdr sets to "herdr ..." (or "[mosh] herdr ..." over
--- mosh).
+-- surface's title, which herdr sets to "herdr ..." (prefixed with the transport
+-- marker over a remote transport: "[mosh] herdr ...", "[et] herdr ...").
 function M.isGhosttyHerdrZoomedOrSingleSurface()
   if not M.isGhosttyZoomedOrSingleSurface() then return false end
   local win = hs.window.focusedWindow()
