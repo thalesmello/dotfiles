@@ -66,6 +66,24 @@ local IGNORED_APPS = {
   ["Window Server"] = true,
 }
 
+-- Individual windows to ignore, matched on app plus a Lua pattern against the
+-- title. For windows that pass isStandard() but are not places you navigate to.
+--
+-- Chrome's Picture in Picture is the motivating case, and it is invisible to
+-- every structural test available in-process: it reports subrole
+-- AXStandardWindow, so isStandard() waves it through. What actually marks it out
+-- is only visible to yabai -- level 3, layer "above", is-sticky true -- and
+-- hs.window exposes no window level or sticky flag, so there is nothing cheaper
+-- to key on than the title. It is a floating companion to a tab, not a
+-- destination, and being sticky it follows you across Spaces and can hold focus
+-- indefinitely, which with a 5s dwell is more than enough to earn a slot.
+--
+-- Caveat worth knowing: Chrome localises this title, so this stops matching if
+-- you ever run Chrome in another language.
+local IGNORED_WINDOWS = {
+  {app = "Google Chrome", title = "^Picture in Picture$"},
+}
+
 ---------------------------------------------------------------
 -- State
 ---------------------------------------------------------------
@@ -221,6 +239,11 @@ local function currentWindowEntry()
   local appName = app and app:name() or ""
   if IGNORED_APPS[appName] then return nil end
 
+  local title = win:title() or ""
+  for _, rule in ipairs(IGNORED_WINDOWS) do
+    if rule.app == appName and title:match(rule.title) then return nil end
+  end
+
   -- One macOS window must never be represented under two keys. A Chrome window
   -- the extension has reported lives in the stack as chrome_tab:<tabId>; the same
   -- window seen from here would be window:<cgWindowId>. Those are different keys,
@@ -246,7 +269,7 @@ local function currentWindowEntry()
     kind = "window",
     id = tostring(id),
     app = appName,
-    title = win:title() or "",
+    title = title,
   }
 end
 
