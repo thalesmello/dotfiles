@@ -347,13 +347,46 @@ local function scheduleDwell(key, entry)
   end)
 end
 
+-- Settle whatever is mid-dwell right now and record it. Returns true if it did.
+--
+-- This is what makes forward navigation work when you jump before the dwell has
+-- elapsed. It has to use the PENDING entry rather than re-reading the focused
+-- window, because for a Chrome tab those differ: the pending entry is
+-- chrome_tab:<tabId>, while currentWindowEntry() would look at the same macOS
+-- window, find an older chrome_tab for it already in the stack, and correctly
+-- refuse to record a colliding window entry -- returning nil. So the tab you were
+-- on never got recorded, the jump ran from a stale cursor, and there was nothing
+-- to go forward to.
+local function flushDwell()
+  if not _G._FocusHistoryDwellTimer then return false end
+  -- Don't tear down the pending dwell if we aren't allowed to record it.
+  if st.busy then return false end
+  if st.settleUntil and hs.timer.secondsSinceEpoch() < st.settleUntil then return false end
+
+  local pending = _G._FocusHistoryDwellEntry
+  _G._FocusHistoryDwellTimer:stop()
+  _G._FocusHistoryDwellTimer = nil
+  _G._FocusHistoryDwellKey = nil
+  _G._FocusHistoryDwellEntry = nil
+
+  -- No payload means the AX path scheduled it: read the window now, as the timer
+  -- would have.
+  record(pending or currentWindowEntry())
+  return true
+end
+
 -- `immediate` deliberately bypasses the dwell, and that is not a loophole. It is
 -- the hotkey path: pressing hyper+o is not flicking past a window, it is acting
 -- from one, so that window is a real position and the cursor has to reflect it.
 -- Skip it and "back" would step from wherever you last came to rest, silently
--- passing over the window you are actually looking at.
+-- passing over the window you are actually looking at -- and you would have
+-- nothing to go forward to afterwards.
 local function observe(done, immediate)
-  if immediate then return commit(done) end
+  if immediate then
+    if not flushDwell() then commit() end
+    if done then done() end
+    return
+  end
 
   local win = hs.window.focusedWindow()
   local winId = win and win:id()
