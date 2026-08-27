@@ -1564,6 +1564,203 @@ print(shlex.join([argv0] + kept + tail))
         end
         return 0
 
+    case "install"
+        # Install the latest STABLE herdr for this machine, into the local bin
+        # directory.
+        #
+        #   install [--dir <path>] [--force] [--print]
+        #
+        # Same source as the official installer (and as `herdr update`): the
+        # release manifest at https://herdr.dev/latest.json, which names one
+        # binary and one SHA-256 per platform. Going through the manifest
+        # rather than the GitHub releases API is what makes "latest" mean the
+        # published STABLE release -- the API's `latest` includes whatever tag
+        # was pushed last, previews included -- and it is what keeps an install
+        # here and a later `herdr update` agreeing about which build is current.
+        #
+        # The platform key is <os>-<arch> as the manifest spells it, derived
+        # from `uname` the same way website/install.sh does, so an Apple Silicon
+        # Mac gets macos-aarch64 and an amd64 Linux box gets linux-x86_64.
+        # Windows is published as a .zip with its own installer and is not
+        # handled here.
+        #
+        #   --dir <path>  where to install (default: $HERDR_INSTALL_DIR, else
+        #                 ~/.local/bin -- the directory __herdr_bin looks in,
+        #                 so a herdr installed here is the one these
+        #                 subcommands find)
+        #   --force       reinstall even when that version is already there
+        #   --print       report what would be installed and stop
+        #
+        # The download is checksum-verified before anything is moved into
+        # place, and it lands via a rename within the target directory: an
+        # interrupted or corrupt download leaves the existing herdr untouched,
+        # and a running one keeps its open binary (unlink+rename, not a write
+        # through the old inode).
+        set -l tag "herdr-preset install"
+
+        argparse 'dir=' 'force' 'print' -- $argv
+        or return 1
+
+        for tool in curl jq
+            command -v $tool >/dev/null 2>&1; or begin
+                echo "$tag: '$tool' is required and not on PATH" >&2
+                return 1
+            end
+        end
+
+        set -l os
+        switch (uname -s)
+        case Linux
+            set os linux
+        case Darwin
+            set os macos
+        case '*'
+            echo "$tag: unsupported OS '"(uname -s)"' (this installs the linux and macos builds; Windows ships a .zip installer)" >&2
+            return 1
+        end
+
+        set -l arch
+        switch (uname -m)
+        case x86_64 amd64
+            set arch x86_64
+        case aarch64 arm64
+            set arch aarch64
+        case '*'
+            echo "$tag: unsupported architecture '"(uname -m)"'" >&2
+            return 1
+        end
+        set -l target "$os-$arch"
+
+        set -l dir $_flag_dir
+        test -n "$dir"; or set dir "$HERDR_INSTALL_DIR"
+        test -n "$dir"; or set dir $HOME/.local/bin
+        # A relative --dir would otherwise be resolved against wherever this was
+        # invoked from, which for the run-command popup is the server's cwd.
+        set dir (path resolve -- "$dir")
+
+        set -l manifest (curl -fsSL --retry 3 --connect-timeout 10 --max-time 20 \
+            https://herdr.dev/latest.json 2>&1 | string collect)
+        printf '%s' "$manifest" | jq -e . >/dev/null 2>&1; or begin
+            echo "$tag: could not fetch the release manifest from https://herdr.dev/latest.json" >&2
+            echo "  output: $manifest" >&2
+            return 1
+        end
+
+        set -l latest (printf '%s' "$manifest" | jq -r '.version // empty')
+        set -l url (printf '%s' "$manifest" | jq -r --arg t "$target" '.assets[$t] // empty')
+        set -l want (printf '%s' "$manifest" | jq -r --arg t "$target" '.sha256[$t] // empty' | string lower)
+        test -n "$url"; or begin
+            echo "$tag: the release manifest publishes no binary for '$target'" >&2
+            return 1
+        end
+        string match -qr '^[0-9a-f]{64}$' -- "$want"; or begin
+            echo "$tag: the release manifest has no valid SHA-256 for '$target'" >&2
+            return 1
+        end
+
+        # What is already installed AT THE TARGET PATH -- not whatever `herdr`
+        # resolves to, which may be a different install (homebrew, a nix
+        # profile) that this is not about to replace.
+        set -l dest $dir/herdr
+        set -l have
+        if test -x "$dest"
+            set have ("$dest" --version 2>/dev/null | string match -rg '([0-9]+\.[0-9]+\.[0-9]+\S*)' | head -n1)
+        end
+
+        if set -q _flag_print
+            echo "target:    $target"
+            echo "latest:    $latest"
+            echo "installed: "(test -n "$have"; and echo $have; or echo none)" ($dest)"
+            echo "url:       $url"
+            echo "sha256:    $want"
+            return 0
+        end
+
+        if test -n "$have"; and test "$have" = "$latest"; and not set -q _flag_force
+            echo "$tag: herdr $latest is already installed at $dest (--force to reinstall)"
+            return 0
+        end
+
+        mkdir -p "$dir"; or begin
+            echo "$tag: could not create '$dir'" >&2
+            return 1
+        end
+        test -w "$dir"; or begin
+            echo "$tag: '$dir' is not writable" >&2
+            return 1
+        end
+
+        # Staged INSIDE the target directory: a rename is only atomic within a
+        # filesystem, and /tmp is often a different one.
+        set -l staged (mktemp "$dir/.herdr-install.XXXXXX"); or begin
+            echo "$tag: could not create a temporary file in '$dir'" >&2
+            return 1
+        end
+
+        echo "$tag: downloading herdr $latest for $target"
+        if not curl -fSL --progress-bar --retry 3 --connect-timeout 10 --max-time 300 "$url" -o "$staged"</dev/null
+            rm -f "$staged"
+            echo "$tag: download failed from $url" >&2
+            return 1
+        end
+
+        # shasum is BSD/macOS, sha256sum is coreutils; which one exists depends
+        # on the machine, and on whether coreutils is ahead of /usr/bin on PATH.
+        set -l got
+        if command -v shasum >/dev/null 2>&1
+            set got (shasum -a 256 <"$staged" | string split ' ')[1]
+        else if command -v sha256sum >/dev/null 2>&1
+            set got (sha256sum <"$staged" | string split ' ')[1]
+        else if command -v openssl >/dev/null 2>&1
+            set got (openssl dgst -sha256 <"$staged" | string match -rg '([0-9a-fA-F]{64})')
+        else
+            rm -f "$staged"
+            echo "$tag: no SHA-256 tool found (shasum, sha256sum, or openssl)" >&2
+            return 1
+        end
+
+        if test (string lower -- "$got") != "$want"
+            rm -f "$staged"
+            echo "$tag: checksum mismatch for $url" >&2
+            echo "  expected $want" >&2
+            echo "  got      $got" >&2
+            return 1
+        end
+
+        chmod 755 "$staged"
+        mv -f "$staged" "$dest"; or begin
+            rm -f "$staged"
+            echo "$tag: could not install to '$dest'" >&2
+            return 1
+        end
+
+        # macOS quarantines curl downloads, which makes Gatekeeper refuse the
+        # binary on first run. Nothing to do on Linux, and a missing xattr is
+        # not an error.
+        if test "$os" = macos; and command -v xattr >/dev/null 2>&1
+            xattr -d com.apple.quarantine "$dest" 2>/dev/null
+        end
+
+        if test -n "$have"
+            echo "$tag: installed herdr $latest to $dest (was $have)"
+        else
+            echo "$tag: installed herdr $latest to $dest"
+        end
+
+        # A herdr that is not on PATH is a herdr nothing here can call -- these
+        # subcommands fall back to the usual install locations, but the shell
+        # will not.
+        contains -- "$dir" $PATH; or begin
+            echo "  warning: $dir is not on PATH" >&2
+        end
+
+        # A running server keeps the OLD binary (its inode survives the
+        # rename), so say so rather than let the version surprise someone.
+        # -x, not -f: `pgrep -f herdr` would match this very script.
+        if pgrep -x herdr >/dev/null 2>&1
+            echo "  note: a herdr is already running and keeps the previous binary until it restarts"
+        end
+
     case "*"
         echo "herdr-preset: unknown subcommand '$preset'" >&2
         return 1
