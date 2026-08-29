@@ -45,6 +45,18 @@ platforms = ["macos", "linux"]
 # Every pane in one go, at server start: this picks up the panes herdr has just
 # restored (resume_agents_on_restore) and anything that was already running
 # before the plugin was linked.
+#
+# It is also the sweep that RE-KEYS the store onto the restored panes. herdr
+# persists its layout across a restart but mints new pane ids for it, so every
+# record is suddenly filed under a pane that no longer exists -- including the
+# records for the agents that did NOT come back up, which are the ones anybody
+# wants. Each record is matched to the pane that took its place by where it sat
+# (workspace and tab, which herdr does persist); see "surviving a server
+# restart" in bin/herdr-preset.
+#
+# If this hook happens to run before the layout is back, it finds no panes to
+# match and does nothing -- `herdr-preset resume-agent` sweeps again before it
+# looks anything up, so the re-keying still happens in time to be used.
 [[startup]]
 command = ["herdr-preset", "track-agent-sessions"]
 

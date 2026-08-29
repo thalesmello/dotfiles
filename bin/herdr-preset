@@ -117,9 +117,44 @@ end
 #   ${XDG_STATE_HOME:-~/.local/state}/herdr/agent-sessions/<session>.json
 #
 #   {"panes": {"w24:p3": {agent, cwd, session: {kind, value, source},
-#                         argv: [...launch command...], updated: <unix>}}}
+#                         argv: [...launch command...],
+#                         identity: {workspace_id, workspace_label,
+#                                    tab_id, tab_label, tab_number, pane_index},
+#                         updated: <unix>}}}
 #
 # `resume-agent` reads it back; `track-agent-sessions` keeps it fresh.
+#
+# --- surviving a server restart ---
+#
+# A herdr SERVER restart is the case this has to survive, and PANE IDS DO NOT.
+# herdr persists its layout -- workspaces, tabs, each pane's cwd, and even each
+# pane's agent_session, which is what `session.resume_agents_on_restore`
+# replays -- but the pane ids in it are minted fresh when that state is
+# restored. So after a restart the store's keys name panes that no longer
+# exist, and, worse, a pane that came back can be handed an id some unrelated
+# record already sits under.
+#
+# Which is precisely the moment the store is wanted: an agent that does not
+# come back on restore -- a launcher that needs configuration this machine no
+# longer has, an agent that exits on start -- leaves the pane at a shell
+# prompt, with nothing but this file remembering what was in it.
+#
+# So every record also carries the pane's IDENTITY: the workspace and tab it
+# sits in, which herdr DOES persist across a restart, plus its position within
+# the tab. Two things use it:
+#
+#   * the full sweep (the plugin's startup hook, which runs after restore)
+#     RE-KEYS records onto the panes that came back, matching identity first
+#     and cwd second; `rekeyed_from` on the record remembers where it came from
+#   * resume-agent matches on identity as well, so a record found under a
+#     REUSED pane id whose identity disagrees is distrusted instead of being
+#     replayed into an unrelated pane, and a record whose pane id is gone is
+#     still found from the pane that took its place
+#
+# One record per pane, always the newest: a new agent starting in a pane
+# overwrites whatever was recorded there before (see the merge in
+# __herdr_agent_sweep, which only carries the old conversation forward while
+# the identity still agrees).
 
 # --- local herdr plugins ---------------------------------------------------
 #
@@ -259,20 +294,106 @@ function __herdr_agent_open_session --argument-names bin pane agent
     end
 end
 
+# --- restart-stable pane identity ------------------------------------------
+#
+# jq definitions shared by the sweep and resume-agent, so both agree on what
+# "the same pane" means across a server restart.
+#
+#   identity_of($tabs; $workspaces)
+#     a pane's identity: the workspace and tab it sits in, and where in the tab
+#     it sits. Everything in here is state herdr PERSISTS and restores (labels,
+#     workspace and tab numbers, layout order); the pane id, which is all the
+#     store used to have, is not.
+#
+#   same_place($a; $b)
+#     whether two identities name the same spot. Deliberately loose on both
+#     halves, because either half can be renamed or renumbered by hand while
+#     the other still pins it down: the workspace matches by id OR label, the
+#     tab by label OR number. pane_index is recorded but not compared -- a
+#     split or a closed neighbour shifts it, and it is only there to tell two
+#     panes of one tab apart when something has to guess.
+function __herdr_agent_jq_defs
+    echo '
+def identity_of($tabs; $workspaces):
+  . as $p
+  | (first($tabs[]? | select(.tab_id == $p.tab_id)) // {}) as $t
+  | (first($workspaces[]? | select(.workspace_id == $p.workspace_id)) // {}) as $w
+  | {workspace_id: ($p.workspace_id // ""),
+     workspace_label: ($w.label // ""),
+     tab_id: ($p.tab_id // ""),
+     tab_label: ($t.label // ""),
+     tab_number: ($t.number // null),
+     pane_index: ($p.pane_index // null)};
+
+def same_place($a; $b):
+  ($a != null and $b != null)
+  and ((($a.workspace_id // "") != "" and ($a.workspace_id // "") == ($b.workspace_id // ""))
+       or (($a.workspace_label // "") != "" and ($a.workspace_label // "") == ($b.workspace_label // "")))
+  and ((($a.tab_label // "") != "" and ($a.tab_label // "") == ($b.tab_label // ""))
+       or (($a.tab_number // null) != null and ($a.tab_number // null) == ($b.tab_number // null)));
+'
+end
+
+# Every pane in this herdr session as
+#
+#   [{pane_id, agent, cwd, session: {kind, value, source}|null, identity}]
+#
+# One `pane list` plus the tab and workspace lists the identity is made of.
+# (`pane get` would answer for a single pane in one call, but it cannot say
+# where in its tab the pane sits, and the whole list is what the re-keying and
+# the "is this conversation open somewhere else" checks need anyway.)
+function __herdr_agent_live_panes --argument-names bin
+    test -n "$bin"; or set bin (__herdr_bin); or return 1
+
+    set -l panes ($bin pane list 2>/dev/null | string collect)
+    printf '%s' "$panes" | jq -e . >/dev/null 2>&1; or return 1
+
+    # A tab or workspace list that fails degrades to an identity of ids only,
+    # which still survives a restart (herdr persists workspace ids) -- better
+    # than refusing to record anything.
+    set -l tabs ($bin tab list 2>/dev/null | jq -c '.result.tabs // []' 2>/dev/null)
+    test -n "$tabs"; or set tabs '[]'
+    set -l workspaces ($bin workspace list 2>/dev/null | jq -c '.result.workspaces // []' 2>/dev/null)
+    test -n "$workspaces"; or set workspaces '[]'
+
+    # `string collect` on the whole program: a bare command substitution would
+    # split the multi-line jq source into one argument per line.
+    set -l prog (string join \n (__herdr_agent_jq_defs | string collect) '
+        [.result.panes[]?]
+        | group_by(.tab_id)
+        | map(to_entries | map(.value + {pane_index: .key}))
+        | (add // [])
+        | map({pane_id, agent, cwd,
+               session: (if .agent_session
+                         then {kind: .agent_session.kind,
+                               value: .agent_session.value,
+                               source: .agent_session.source}
+                         else null end),
+               identity: identity_of($tabs; $workspaces)})' | string collect)
+
+    printf '%s' "$panes" \
+        | jq -c --argjson tabs "$tabs" --argjson workspaces "$workspaces" "$prog"
+end
+
 # Copy live agents' sessions (and launch commands) into the store.
 #
 #   __herdr_agent_sweep <bin> [<pane>]
 #
-# With a pane, only that one is looked at -- one `pane get`, which is what the
-# plugin's per-event hooks run and why they are cheap enough to fire on every
-# agent status change. Without one, every pane in the session is swept, which
-# is what the plugin's startup hook and resume-agent do.
+# With a pane, only that one is RECORDED, which is what the plugin's per-event
+# hooks run and why they are cheap enough to fire on every agent status change.
+# Without one, every pane in the session is swept, which is what the plugin's
+# startup hook and resume-agent do.
 #
 # Entries are only ever added or refreshed -- a pane dropping out of the list
 # is the case this whole thing exists for, so it must not delete anything.
-# Records nobody could still want (STALE_DAYS without an update) are dropped,
-# but only by a full sweep: a single-pane run has not looked at the others and
-# has no business judging them.
+# The two things a FULL sweep does on top of recording, both of which need to
+# have looked at every pane and so are none of a single-pane run's business:
+#
+#   * drop records nobody could still want (STALE_DAYS without an update)
+#   * re-key records onto the panes that came back from a server restart (see
+#     "surviving a server restart" above). The plugin's startup hook is the
+#     full sweep that matters here: it runs once the layout has been restored,
+#     which is the first moment the new pane ids exist to be matched up.
 function __herdr_agent_sweep --argument-names bin pane
     test -n "$bin"; or set bin (__herdr_bin); or return 1
 
@@ -281,19 +402,11 @@ function __herdr_agent_sweep --argument-names bin pane
     set -l store (__herdr_agent_store)
     jq -e . "$store" >/dev/null 2>&1; or echo '{"panes":{}}' >"$store"
 
-    # `pane list`/`pane get` rather than `api snapshot`: they carry the same
-    # agent and agent_session fields, and are the calls resume-agent needs
-    # anyway.
-    set -l reply
-    set -l select
-    if test -n "$pane"
-        set reply ($bin pane get "$pane" 2>/dev/null | string collect)
-        set select '[.result.pane]'
-    else
-        set reply ($bin pane list 2>/dev/null | string collect)
-        set select '.result.panes'
-    end
-    printf '%s' "$reply" | jq -e . >/dev/null 2>&1; or return 1
+    # `pane list` (through __herdr_agent_live_panes) rather than `api
+    # snapshot`: it carries the same agent and agent_session fields, and is the
+    # call resume-agent needs anyway.
+    set -l live (__herdr_agent_live_panes "$bin"); or return 1
+    test -n "$live"; or set live '[]'
 
     set -l now (date +%s)
     # Template spelled out: BSD mktemp fills in a bare -t prefix, GNU's does not.
@@ -304,17 +417,13 @@ function __herdr_agent_sweep --argument-names bin pane
     # at all, and a record with only the agent and its launch command is still
     # worth something: it is the difference between "resume this pane's agent
     # the best way it can be resumed" and "no idea what was running here".
-    for entry in (printf '%s' "$reply" | jq -c "$select"' []?
+    for entry in (printf '%s' "$live" | jq -c --arg only "$pane" '.[]
             | select(.agent != null)
-            | {pane_id, agent, cwd,
-               session: (if .agent_session
-                         then {kind: .agent_session.kind,
-                               value: .agent_session.value,
-                               source: .agent_session.source}
-                         else null end)}')
+            | select($only == "" or .pane_id == $only)')
 
         set -l id (printf '%s' "$entry" | jq -r '.pane_id')
         set -l value (printf '%s' "$entry" | jq -r '.session.value // ""')
+        set -l identity (printf '%s' "$entry" | jq -c '.identity // null')
 
         # Nothing new to say about this pane? Then say nothing. The status-
         # change hook fires several times a minute per busy agent, and rewriting
@@ -325,9 +434,16 @@ function __herdr_agent_sweep --argument-names bin pane
         # A pane herdr reports NO id for counts as unchanged too: the record
         # keeps whatever id it already had (see the merge below), so there is
         # nothing to write on that account either.
-        set -l known (jq -r --arg p "$id" --arg v "$value" --argjson now $now '
+        #
+        # A record whose identity is missing or has moved on is never
+        # "unchanged", whatever its timestamp says: it either predates
+        # identities being recorded at all, or it describes a pane that has
+        # since been renamed or moved between tabs -- and a WRONG identity is
+        # worse than none, because the re-keying and resume-agent both trust it.
+        set -l known (jq -r --arg p "$id" --arg v "$value" --argjson ident "$identity" --argjson now $now '
             if (((.panes[$p].session.value? // "") == $v or $v == "")
                 and ((.panes[$p].argv? // []) | length) > 0
+                and (.panes[$p].identity? // null) == $ident
                 and (.panes[$p].updated? // 0) > ($now - 60))
             then "yes" else "no" end' "$store" 2>/dev/null)
         test "$known" = yes; and continue
@@ -376,22 +492,76 @@ function __herdr_agent_sweep --argument-names bin pane
     # event re-records anything a loser dropped.
     set -l STALE_DAYS 30
     set -l staged (mktemp (__herdr_agent_state_dir)/.store.XXXXXX)
-    jq -c --slurpfile up $updates --argjson now $now --argjson stale $STALE_DAYS \
-        --argjson prune (test -n "$pane"; and echo false; or echo true) '
+    set -l merge (string join \n (__herdr_agent_jq_defs | string collect) '
+        # Re-key records onto the panes that came back from a server restart.
+        # herdr mints new pane ids when it restores its layout, so every record
+        # is suddenly filed under a pane that does not exist -- and the panes
+        # that DO exist, agent dead or alive, have no record. Each such pane
+        # adopts the best record left over from a pane id that is gone: same
+        # place first (that is what identities are for), same cwd as the
+        # tie-break, newest last. `rekeyed_from` keeps the old key, so a wrong
+        # guess can be seen for what it is.
+        #
+        # Records for pane ids that are STILL live are never touched: those
+        # panes are accounted for, and stealing from them is how two panes end
+        # up pointed at one conversation.
+        def rekey($live):
+          ([$live[]? | .pane_id]) as $livekeys
+          | reduce ($live[]? | select(.identity != null)) as $p (.;
+              if (.panes | has($p.pane_id)) then .
+              else
+                ([.panes | to_entries[]
+                  # `.key as $k` first: index(f) evaluates f against its OWN
+                  # input (the array), so a bare index(.key) asks the array for
+                  # a field and dies.
+                  | .key as $k
+                  | select(($livekeys | index($k)) == null)
+                  | select(same_place(.value.identity; $p.identity))
+                  | {key: .key, value: .value,
+                     score: (if ($p.cwd // "") != "" and (.value.cwd // "") == ($p.cwd // "")
+                             then 1 else 0 end)}]
+                 | sort_by([.score, (.value.updated // 0)]) | last) as $m
+                | if $m == null then .
+                  else # The identity is refreshed to the pane that adopted the
+                       # record: everything in it that a restart renumbers (tab
+                       # ids above all) would otherwise keep naming things that
+                       # are gone.
+                       .panes[$p.pane_id] = ($m.value + {identity: $p.identity,
+                                                        rekeyed_from: $m.key})
+                       | del(.panes[$m.key])
+                  end
+              end);
+
         # A pane that reports no conversation KEEPS the one already on record.
         # herdr stops reporting an id in cases the agent is still very much in
         # that conversation -- a resumed codex is the one seen here -- and
         # forgetting it because a later look came back empty would throw away
         # the only copy.
+        #
+        # Unless the record under that pane id describes some OTHER pane, which
+        # after a restart is a live possibility: ids are reused, so a fresh
+        # agent can land on the id of an unrelated record. An identity that
+        # disagrees means the record belongs to some other pane, so nothing of
+        # it is carried forward -- the new agent simply overwrites it, which is
+        # also what happens to a record when a second agent starts in the pane
+        # it does belong to.
         reduce $up[] as $u (.;
-            (.panes[$u.pane_id] // {}) as $old
+            (.panes[$u.pane_id] // {}) as $found
+            | (if ($found.identity // null) == null or ($u.identity // null) == null
+                  or same_place($found.identity; $u.identity)
+               then $found else {} end) as $old
             | .panes[$u.pane_id] = ($old + ($u | del(.pane_id))
                 + (if $u.session == null and $old.session != null
                    then {session: $old.session} else {} end)))
-        | if $prune
-          then .panes |= with_entries(select((.value.updated // 0) > ($now - $stale * 86400)))
+        | if $full
+          then (.panes |= with_entries(select((.value.updated // 0) > ($now - $stale * 86400))))
+               | rekey($live)
           else . end
-        ' "$store" >$staged
+        ' | string collect)
+    jq -c --slurpfile up $updates --argjson now $now --argjson stale $STALE_DAYS \
+        --argjson live "$live" \
+        --argjson full (test -n "$pane"; and echo false; or echo true) \
+        "$merge" "$store" >$staged
     and mv $staged "$store"
     set -l ok $status
 
@@ -1162,12 +1332,16 @@ sys.stdout.write("\n".join(out) + ("\n" if out else ""))
         #
         # Defaults to the pane that was focused when the caller ran
         # (HERDR_ACTIVE_PANE_ID in a herdr command, HERDR_PANE_ID in a pane
-        # shell). If nothing was ever recorded for that pane -- herdr renumbers
-        # panes, and a pane that closed with its agent comes back as a new id --
-        # the newest record for the SAME CWD is used instead, which is what you
-        # want when the split you lost has been recreated. Conversations that
-        # are open in some other pane are never candidates: two agents on one
-        # transcript overwrite each other.
+        # shell). If nothing was recorded under that pane id -- herdr renumbers
+        # panes whenever it restores its layout after a SERVER restart, and a
+        # pane that closed with its agent comes back as a new id -- the best
+        # leftover record is used instead: one from the same workspace and tab
+        # first (the identity every record carries for exactly this reason),
+        # then one from the same directory, newest of equals. That is what puts
+        # a pane back into its conversation after a herdr restart in which the
+        # agent did not come back up. Conversations that are open in some other
+        # pane are never candidates: two agents on one transcript overwrite each
+        # other.
         #
         # When the record has no conversation id -- an agent whose herdr
         # integration is not installed never reports one -- the agent's own
@@ -1238,14 +1412,12 @@ sys.stdout.write("\n".join(out) + ("\n" if out else ""))
             end
         end
 
-        set -l panes ($bin pane list 2>&1 | string collect)
-        printf '%s' "$panes" | jq -e . >/dev/null 2>&1; or begin
-            echo "$tag: could not list panes" >&2
-            echo "  output: $panes" >&2
+        set -l panes (__herdr_agent_live_panes "$bin"); or begin
+            echo "$tag: could not list panes (is the herdr server reachable?)" >&2
             return 1
         end
 
-        set -l pane_json (printf '%s' "$panes" | jq -c --arg p "$pane" 'first(.result.panes[]? | select(.pane_id == $p)) // empty')
+        set -l pane_json (printf '%s' "$panes" | jq -c --arg p "$pane" 'first(.[] | select(.pane_id == $p)) // empty')
         test -n "$pane_json"; or begin
             echo "$tag: pane '$pane' is not in this herdr session" >&2
             return 1
@@ -1254,41 +1426,79 @@ sys.stdout.write("\n".join(out) + ("\n" if out else ""))
         # An agent that is still running would just receive the command as
         # typed input, which at best does nothing and at worst sends a prompt.
         # (--print types nothing, so it is allowed either way.)
-        set -l live (printf '%s' "$pane_json" | jq -r '.agent // empty')
-        if test -n "$live"; and not set -q _flag_force; and not set -q _flag_print
-            echo "$tag: '$live' is still running in pane $pane -- pass --force to resume anyway" >&2
+        set -l running (printf '%s' "$pane_json" | jq -r '.agent // empty')
+        if test -n "$running"; and not set -q _flag_force; and not set -q _flag_print
+            echo "$tag: '$running' is still running in pane $pane -- pass --force to resume anyway" >&2
             return 1
         end
 
         set -l store (__herdr_agent_store)
         set -l cwd (printf '%s' "$pane_json" | jq -r '.cwd // empty')
 
+        # Where this pane SITS -- workspace and tab -- which unlike its id is
+        # something herdr persists across a server restart. This is what makes
+        # a record findable after one, whether or not the startup sweep already
+        # re-keyed it onto the new pane id.
+        set -l identity (printf '%s' "$pane_json" | jq -c '.identity // null')
+
         # Conversations that are open RIGHT NOW, in any pane. Two agents in one
         # conversation write over each other, so these are off limits: the pane
         # you are trying to recover is by definition not among them.
-        set -l open (printf '%s' "$panes" | jq -c '[.result.panes[]?.agent_session.value | select(. != null)]')
+        set -l open (printf '%s' "$panes" | jq -c '[.[].session.value | select(. != null)]')
 
         # Panes with an agent in them right now, for the same reason: their
         # record describes a conversation that is not lost.
-        set -l busy (printf '%s' "$panes" | jq -c '[.result.panes[]? | select(.agent != null) | .pane_id]')
+        set -l busy (printf '%s' "$panes" | jq -c '[.[] | select(.agent != null) | .pane_id]')
 
-        # This pane's record, or -- for a pane that is new to the store -- the
-        # newest one from the same directory. herdr renumbers panes, and a pane
-        # that closed together with its agent (started with `exec`, as
-        # claude-split.sh does) comes back as a different id, so the cwd is
-        # often all that is left to go on. Records whose conversation is open
-        # elsewhere are skipped there: a LIVE agent's record keeps being
-        # refreshed, so by plain recency a healthy neighbour in the same repo
-        # would always outrank the agent you just lost.
-        set -l record (jq -c --arg p "$pane" --arg cwd "$cwd" --argjson open "$open" --argjson busy "$busy" '
-            (.panes[$p] | select(. != null) | . + {via: "pane"})
+        # This pane's own record, else the best record left over from a pane id
+        # that no longer exists. Pane ids do not survive: herdr renumbers them
+        # when it restores its layout after a server restart, and a pane that
+        # closed together with its agent (started with `exec`, as
+        # claude-split.sh does) comes back as a different id too. So the
+        # leftovers are scored by where they were -- the same tab beats merely
+        # the same directory, and among equals the newest wins.
+        #
+        # The pane's own record is only believed while its identity still
+        # agrees: after a restart a fresh pane can be handed an id an unrelated
+        # record sits under, and replaying that would drop another pane's
+        # conversation into this one. A record whose identity disagrees is not a
+        # candidate at all.
+        #
+        # Records whose conversation is open elsewhere, and records of panes
+        # that have a live agent, are skipped throughout: a LIVE agent's record
+        # keeps being refreshed, so by plain recency a healthy neighbour in the
+        # same repo would always outrank the agent you just lost.
+        set -l select_record (string join \n (__herdr_agent_jq_defs | string collect) '
+            (.panes[$p] // null) as $own
+            | (if $own != null
+                  and (($own.identity // null) == null
+                       or ($identity // null) == null
+                       or same_place($own.identity; $identity))
+               then $own + {via: "pane"}
+               else null end)
             // ([.panes | to_entries[]
-                 | select(.value.cwd == $cwd and $cwd != "")
-                 | select($busy | index(.key) | not)
+                 | select(.key != $p)
+                 # `.key as $k` first: index(f) evaluates f against its OWN
+                 # input (the array), so a bare index(.key) asks the array for
+                 # a field and dies -- and the whole selection is caught and
+                 # reported as "nothing recorded", so it dies quietly.
+                 | .key as $k
+                 | select(($busy | index($k)) == null)
                  | select((.value.session.value // "") as $v | $open | index($v) | not)
-                 | .value + {via: ("pane " + .key)}]
-                | sort_by(.updated // 0) | last)
-            // empty' "$store" 2>/dev/null)
+                 | {key: .key, value: .value,
+                    score: ((if same_place(.value.identity; $identity) then 2 else 0 end)
+                            + (if $cwd != "" and (.value.cwd // "") == $cwd then 1 else 0 end))}
+                 | select(.score > 0)]
+                | sort_by([.score, (.value.updated // 0)]) | last
+                | if . == null then null
+                  else .value + {via: ("pane " + .key
+                                       + (if .score >= 2 then " (same tab)" else " (same cwd)" end))}
+                  end)
+            // empty' | string collect)
+
+        set -l record (jq -c --arg p "$pane" --arg cwd "$cwd" --argjson open "$open" \
+            --argjson busy "$busy" --argjson identity "$identity" \
+            "$select_record" "$store" 2>/dev/null)
 
         test -n "$record"; or begin
             echo "$tag: nothing recorded for pane $pane (cwd $cwd)" >&2
@@ -1297,6 +1507,9 @@ sys.stdout.write("\n".join(out) + ("\n" if out else ""))
             echo "  agent-sessions hooks have been running." >&2
             echo "  an agent whose herdr integration is not installed never reports one at all;" >&2
             echo "  herdr integration status lists them (pi's, notably, is opt-in)." >&2
+            echo "  after a server restart a record is found by WHERE the pane sits, so a pane" >&2
+            echo "  that has since moved workspace or tab, or a workspace that was closed and" >&2
+            echo "  made again, can lose the trail; --status prints both halves." >&2
             return 1
         end
 
@@ -1306,7 +1519,7 @@ sys.stdout.write("\n".join(out) + ("\n" if out else ""))
         set -l value (printf '%s' "$record" | jq -r '.session.value // empty')
         if test -n "$value"; and not set -q _flag_force; and not set -q _flag_print
             set -l elsewhere (printf '%s' "$panes" \
-                | jq -r --arg v "$value" 'first(.result.panes[]? | select(.agent_session.value == $v) | .pane_id) // empty')
+                | jq -r --arg v "$value" 'first(.[] | select(.session.value == $v) | .pane_id) // empty')
             test -z "$elsewhere"; or begin
                 echo "$tag: that conversation is already open in pane $elsewhere -- pass --force to open it twice" >&2
                 return 1
@@ -1522,8 +1735,13 @@ print(shlex.join([argv0] + kept + tail))
         if set -q _flag_status
             set -l store (__herdr_agent_store)
             echo "store: $store"
+            # The place comes second, because it is what a record is found by
+            # once its pane id has been renumbered out from under it by a server
+            # restart; `<-` marks a record that was re-keyed onto its pane.
             jq -r '.panes | to_entries | sort_by(.value.updated // 0) | reverse | .[]
-                   | "  \(.key)  \(.value.agent)  \(.value.session.value // "-")  \(.value.cwd)"' \
+                   | "  \(.key)\(if .value.rekeyed_from then " <- " + .value.rekeyed_from else "" end)"
+                     + "  [\(.value.identity.workspace_label // "?")/\(.value.identity.tab_label // "?")]"
+                     + "  \(.value.agent)  \(.value.session.value // "-")  \(.value.cwd)"' \
                 "$store" 2>/dev/null
             return 0
         end

@@ -626,6 +626,11 @@ position = "bottom-center"
 [session]
 # Resume supported AI-agent panes into their native conversation sessions after
 # a Herdr server restart. Requires official integrations that report session refs.
+# When an agent does NOT come back this way (it exits on start, or its launcher
+# needs something this machine no longer provides), prefix+ctrl+r puts the pane
+# back into its conversation from the agent-sessions store -- see the
+# agent-sessions plugin and `herdr-preset resume-agent`, which key their records
+# by where the pane sits precisely because pane ids do not survive a restart.
 # closest analog to tmux-resurrect/tmux-continuum session restore
 resume_agents_on_restore = true
 
