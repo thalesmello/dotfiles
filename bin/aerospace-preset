@@ -634,6 +634,35 @@ function aerospace-preset
         else
             open -a "$app_name"
         end
+    case "get-window-id-by-title"
+        # Resolve a window id from a title regex. Prefer yabai's lookup (it
+        # sorts by non-minimized); fall back to aerospace. Both share macOS
+        # window ids.
+        set title_re $argv[1]
+        set -e argv[1]
+
+        set window ""
+        if pgrep -xq yabai
+            set window (yabai -m query --windows | jq -re --arg title_re "$title_re" '
+                [.[] | select(.title | test($title_re))]
+                | sort_by(if ."is-minimized" then 1 else 0 end)
+                | first | .id')
+        end
+        if test -z "$window"
+            set window (aerospace list-windows --all --json \
+                | jq -re --arg title_re "$title_re" '
+                    [.[] | select(."window-title" | test($title_re))]
+                    | first | ."window-id"')
+            or return 1
+        end
+
+        echo $window
+    case "focus-window-title"
+        # Focus (never minimize) the window matching a title regex.
+        set window (aerospace-preset get-window-id-by-title $argv[1])
+        or return 1
+
+        aerospace-preset focus-window-id "$window"
     case "alternate-window"
         # Toggle a single window: minimize it when it's already focused,
         # otherwise focus it (restoring if minimized). Identify the window by
@@ -649,21 +678,8 @@ function aerospace-preset
                 return 1
             end
 
-            # Prefer yabai's lookup (minimize is yabai-based anyway); fall back
-            # to aerospace. Both share macOS window ids.
-            if pgrep -xq yabai
-                set window (yabai -m query --windows | jq -re --arg title_re "$_flag_title" '
-                    [.[] | select(.title | test($title_re))]
-                    | sort_by(if ."is-minimized" then 1 else 0 end)
-                    | first | .id')
-            end
-            if test -z "$window"
-                set window (aerospace list-windows --all --json \
-                    | jq -re --arg title_re "$_flag_title" '
-                        [.[] | select(."window-title" | test($title_re))]
-                        | first | ."window-id"')
-                or return 1
-            end
+            set window (aerospace-preset get-window-id-by-title "$_flag_title")
+            or return 1
         end
 
         set focused (aerospace list-windows --focused --format '%{window-id}')

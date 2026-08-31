@@ -1653,6 +1653,34 @@ function yabai-preset
         end
 
         yabai -m window "$window" --focus
+    case "get-window-id-by-title"
+        # Resolve a window id from a title regex, preferring non-minimized
+        # windows and windows on the current space when several match.
+        set title_re $argv[1]
+        set -e argv[1]
+
+        set current_space (yabai -m query --spaces --space | jq '.index')
+        yabai -m query --windows \
+        | jq -re --arg title_re "$title_re" --argjson cs "$current_space" '
+            [.[] | select(.title | test($title_re))]
+            | if length == 0 then error("no windows") else . end
+            | sort_by([
+                (if ."is-minimized" then 1 else 0 end),
+                (if .space == $cs then 0 else 1 end)
+            ])
+            | first
+            | .id'
+    case "focus-window-title"
+        # Focus (never minimize) the window matching a title regex, using the
+        # same window selection as alternate-window.
+        set window (yabai-preset get-window-id-by-title $argv[1])
+        or return 1
+
+        # Collapse the floating terminal in the background so it doesn't hover
+        # in front of the window we focus next.
+        term-preset hide-floating-terminal &
+        yabai-preset focus-window-id "$window"
+        wait
     case "alternate-window"
         # Toggle a single window: minimize it when it's already focused,
         # otherwise focus it (restoring if minimized). Identify the window by
@@ -1669,17 +1697,7 @@ function yabai-preset
                 return 1
             end
 
-            set current_space (yabai -m query --spaces --space | jq '.index')
-            set window (yabai -m query --windows \
-                | jq -re --arg title_re "$_flag_title" --argjson cs "$current_space" '
-                    [.[] | select(.title | test($title_re))]
-                    | if length == 0 then error("no windows") else . end
-                    | sort_by([
-                        (if ."is-minimized" then 1 else 0 end),
-                        (if .space == $cs then 0 else 1 end)
-                    ])
-                    | first
-                    | .id')
+            set window (yabai-preset get-window-id-by-title "$_flag_title")
             or return 1
         end
 

@@ -603,7 +603,9 @@ function M.setup()
   default:conditionalBindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", {
     {cond = function() return isProcessRunning("zoom.us") end, function()
       Preset.displayMessage("Toggle Mute")
-      launchOrFocus("zoom.us")
+      -- Focus the meeting window specifically (same target as hyperShift+w),
+      -- so we don't land on another Zoom window when Zoom is already active.
+      task({"wm-preset", "focus-window-title", "Zoom Meeting"})
       hs.timer.doAfter(0.5, function() hs.eventtap.keyStroke({"cmd", "shift"}, "a") end)
     end},
     {function()
