@@ -256,6 +256,11 @@ open)
     # Prefer the normal system action for every already-named match. If its URL
     # opener is unavailable (as it commonly is on a remote Herdr server), fall
     # back to herdr-preset's OSC 52 relay so the ATTACHED client can open it.
+    # Only a `url` pick can be relayed from HERE, because only that one carries
+    # its destination in the match. Every other type is an id whose destination
+    # only the workflow preset knows, so relaying those is the preset's job, on
+    # the same terms: prefer the local opener, relay when there is no desktop to
+    # open on.
     # open-selection is the fallback for an untyped pick (rxpick only omits
     # the type in unnamed mode, which pick-selections never uses) and re-derives
     # the name from the text.
