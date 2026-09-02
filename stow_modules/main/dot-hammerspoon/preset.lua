@@ -133,11 +133,32 @@ function M.sendKeys(args, app)
   return ok
 end
 
+-- Messages replace each other instead of stacking. hs.alert draws every live
+-- alert in a column, each living out its own duration, so a burst of presses --
+-- hyper+z stepping through devserver windows, harpoon focus, a held repeat --
+-- builds a tower of near-identical toasts. Dismissing the one on screen first
+-- makes a burst read as a single HUD updating in place.
+--
+-- Only alerts posted through here are tracked; the callers that keep their own
+-- uuid (mode.lua's mode indicator, preview_hud) are untouched, since those are
+-- meant to sit on screen alongside a message.
+local currentAlert = nil
+
 function M.displayMessage(message, duration)
+  local seconds = tonumber(duration) or 0.5
+
+  if currentAlert then hs.alert.closeSpecific(currentAlert, 0) end
   -- Center the text so multi-line messages line up under each other.
-  hs.alert.show(message, {
+  currentAlert = hs.alert.show(message, {
     textStyle = { paragraphStyle = { alignment = "center" } },
-  }, duration or 0.75)
+  }, seconds)
+
+  -- Drop the handle once the alert has expired on its own, so the next message
+  -- isn't closing a uuid hs.alert has already retired.
+  local shown = currentAlert
+  hs.timer.doAfter(seconds + 0.05, function()
+    if currentAlert == shown then currentAlert = nil end
+  end)
 end
 
 -- Helper: build AppleScript to click a menu path

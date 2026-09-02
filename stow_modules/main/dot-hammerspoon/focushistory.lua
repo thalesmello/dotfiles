@@ -122,17 +122,12 @@ local function label(e)
   return shortApp(e.app) .. " — " .. truncate(e.title, 48)
 end
 
--- Deliberately not Preset.displayMessage: this HUD fires on every step of a
--- rapid back/forward walk, and hs.alert stacks concurrent alerts vertically,
--- each living out its own duration. Dismissing the previous one keeps a burst of
--- presses looking like a single HUD that updates in place.
+-- This HUD fires on every step of a rapid back/forward walk. Dismissing the
+-- previous alert -- so a burst of presses looks like one HUD updating in place
+-- rather than a stack -- is now what Preset.displayMessage does for every
+-- message, so it is no longer worth a private copy of that logic.
 local function hud(message)
-  if _G._FocusHistoryAlert then
-    hs.alert.closeSpecific(_G._FocusHistoryAlert, 0)
-  end
-  _G._FocusHistoryAlert = hs.alert.show(message, {
-    textStyle = { paragraphStyle = { alignment = "center" } },
-  }, HUD_DURATION)
+  Preset.displayMessage(message, HUD_DURATION)
 end
 
 -- hs.reload() rebuilds the Lua state, and filewatcher.lua reloads on every

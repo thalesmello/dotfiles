@@ -104,15 +104,23 @@ end
 -- The cycle covers the visible windows -- `list-windows` filters to those, so a
 -- terminal parked on another space is not part of the rotation.
 --
--- opts.exceptId (number, or string as passed by the shim; "" means none) is the
--- window to skip -- the devserver. opts.prev (bool) walks backwards.
+-- opts.exceptId (number, or string as passed by the shim; "" means none) and
+-- opts.exceptIds (a list of the same) are the windows to skip -- the devservers,
+-- of which there can be several: the main one plus a window per on-demand host.
+-- opts.prev (bool) walks backwards.
 function M.iterateWindows(opts)
   opts = opts or {}
-  local exceptId = tonumber(opts.exceptId)
   local prev = opts.prev and true or false
 
-  log("press: exceptId=" .. tostring(exceptId)
-    .. " (raw " .. tostring(opts.exceptId) .. ", " .. type(opts.exceptId) .. ")"
+  local except = {}
+  for _, raw in ipairs(opts.exceptIds or {}) do
+    local id = tonumber(raw)
+    if id then except[#except + 1] = id end
+  end
+  local exceptId = tonumber(opts.exceptId)
+  if exceptId then except[#except + 1] = exceptId end
+
+  log("press: except=" .. (#except > 0 and table.concat(except, ",") or "(none)")
     .. " direction=" .. (prev and "prev" or "next"))
 
   local args = {"yabai-preset", "list-windows", "--app", TERMINAL_APP_REGEX,
@@ -120,19 +128,19 @@ function M.iterateWindows(opts)
     -- are whole yabai window objects -- kilobytes of JSON in the Hammerspoon
     -- console on each keypress. The trace line and stderr are still logged.
     print_stdout = false}
-  if exceptId then
+  for _, id in ipairs(except) do
     table.insert(args, "--except-id")
-    table.insert(args, tostring(exceptId))
+    table.insert(args, tostring(id))
   end
 
   task(args, function (ok, output)
     -- `list-windows` pipes through `jq -e`, so "nothing left after filtering"
-    -- arrives as a non-zero exit -- no terminal visible, or the devserver was
-    -- the only one. Nothing to iterate: no-op and let the caller's next rule
+    -- arrives as a non-zero exit -- no terminal visible, or the devservers were
+    -- the only ones. Nothing to iterate: no-op and let the caller's next rule
     -- (launch Ghostty) decide.
     if not ok or not output or output == "" then
       log("list-windows returned nothing (ok=" .. tostring(ok)
-        .. ") -- no visible terminal, or the devserver was the only one."
+        .. ") -- no visible terminal, or the devservers were the only ones."
         .. " Nothing to iterate.")
       return
     end
@@ -186,7 +194,8 @@ function M.iterateWindows(opts)
     log("current=" .. tostring(focusedId)
       .. " pos=" .. tostring(pos) .. " of " .. #windows
       .. (focusedId == nil
-        and "  <- focused window is NOT in the list (excluded devserver, not a"
+        and "  <- focused window is NOT in the list (excluded devserver window,"
+            .. " not a"
             .. " terminal, or filtered out as not visible)"
         or (#windows == 1
           and "  <- rotation has ONE window; next/prev can only return itself"

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-duration_s=0.75
+duration_s=0.5
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -30,4 +30,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-hs -c "hs.alert.show([=[$1]=], $duration_s)" >/dev/null
+# Through Preset.displayMessage rather than hs.alert.show directly, so a message
+# from the shell replaces whatever is on screen instead of stacking under it --
+# and gets the same centered style as the ones posted from Hammerspoon.
+hs -c "require('preset').displayMessage([=[$1]=], $duration_s)" >/dev/null

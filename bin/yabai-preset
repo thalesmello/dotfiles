@@ -1721,17 +1721,26 @@ function yabai-preset
         #   --regex     RE  only windows whose title matches RE
         #   --app       RE  only windows whose app name matches RE
         #   --except-id ID  drop this window id (repeatable)
+        #   --all           also list windows that aren't currently on screen
         # The regexes default to matching everything, so omitting them keeps the
         # unfiltered listing.
-        argparse 'regex=' 'app=' 'except-id=+' -- $argv
+        #
+        # Windows are restricted to the visible, non-sticky ones by default,
+        # which is what the window-cycling callers want: a terminal parked on
+        # another space isn't part of their rotation. --all lifts that for
+        # callers tracking specific windows by id (e.g. the devserver registry),
+        # where "not on the current space" must not read as "closed".
+        argparse 'regex=' 'app=' 'except-id=+' 'all' -- $argv
         or return 1
 
         # jq wants the exclusions as a JSON array; no flag means an empty one.
         set -l except (printf '%s\n' $_flag_except_id | jq -R . | jq -sc 'map(select(. != ""))')
+        set -l onscreen_only true
+        set -q _flag_all; and set onscreen_only false
 
         yabai -m query --windows | jq -cer --arg regex "$_flag_regex" --arg app "$_flag_app" \
-            --argjson except "$except" '
-            .[] | select(."is-visible" and (."is-sticky" | not)
+            --argjson except "$except" --argjson onscreen_only $onscreen_only '
+            .[] | select((($onscreen_only | not) or (."is-visible" and (."is-sticky" | not)))
                          and (.title | test($regex)) and (.app | test($app))
                          and ((.id | tostring) as $id | $except | index($id) | not))'
     case "list-visible-windows"
