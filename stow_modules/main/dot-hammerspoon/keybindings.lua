@@ -231,6 +231,48 @@ function M.setup()
     end
   end)
 
+  -- Own http/https, so hs.urlevent.httpCallback gets to route every link (see
+  -- local/finicky.lua for the routing rules).
+  --
+  -- hs.urlevent.setDefaultHandler goes through LSSetDefaultHandlerForURLScheme,
+  -- which macOS ignores for http/https since the default-browser lockdown --
+  -- no error, no prompt, LaunchServices simply never records the change (on
+  -- macOS 26.6 the secure plist keeps no trace of the attempt). It still works
+  -- on older systems, so try it first, then read the handler back and fall back
+  -- to the one path macOS does honour: the user picking the browser in System
+  -- Settings > Desktop & Dock > Default web browser.
+  local HAMMERSPOON_BUNDLE = "org.hammerspoon.Hammerspoon"
+  local CHROME_BUNDLE = "com.google.Chrome"
+  local DESKTOP_SETTINGS = "x-apple.systempreferences:com.apple.Desktop-Settings.extension"
+
+  local function setDefaultBrowser(bundleID, label)
+    if hs.urlevent.getDefaultHandler("http") == bundleID then
+      Preset.displayMessage(label .. " is already the default browser", 2)
+      return
+    end
+
+    hs.urlevent.setDefaultHandler("http", bundleID)
+
+    -- Deliberately generous: on a system where the call does work it may put up
+    -- a confirmation prompt, and answering it takes longer than the call.
+    hs.timer.doAfter(3, function()
+      if hs.urlevent.getDefaultHandler("http") == bundleID then
+        Preset.displayMessage("Default browser: " .. label, 2)
+        return
+      end
+      Preset.displayMessage("Pick " .. label .. " under 'Default web browser'", 4)
+      task({"open", DESKTOP_SETTINGS})
+    end)
+  end
+
+  command("Install Hammerspoon as Default Browser", function()
+    setDefaultBrowser(HAMMERSPOON_BUNDLE, "Hammerspoon")
+  end)
+
+  command("Restore Chrome as Default Browser", function()
+    setDefaultBrowser(CHROME_BUNDLE, "Google Chrome")
+  end)
+
   command("Quit Zoom", function() require("zoomwatcher").quitZoom() end)
 
   command("Focus History: Show", function() FocusHistory.showList() end)
@@ -1073,7 +1115,7 @@ function M.setup()
   invoke:bindOnce({}, "t", "Alfred Top Search", function() hs.applescript([[tell application "Alfred" to search "top "]]) end)
   invoke:bindOnce({}, "y", "YouTube Search", function() task({"open", "raycast://extensions/tonka3000/youtube/search-videos?arguments=%7B%22query%22%3A%22%22%7D"}) end)
   invoke:bindOnce({}, "return", "New Ghostty Window", function() GhosttyPreset.newWindow() end)
-  invoke:bindOnce(hyper, "i", "AI Input Mode", function() Preset.displayMessage("AI Input Mode"); fish('osascript -e "set volume input volume 100"; display-message "$(set-preferred-input-device)"') end)
+  invoke:bindOnce(hyperShift, "i", "AI Input Mode", function() Preset.displayMessage("AI Input Mode"); fish('osascript -e "set volume input volume 100"; display-message "$(set-preferred-input-device)"') end)
   invoke:bindOnce(hyper, "r", "Reinitialize Displays", function() Preset.displayMessage("Reinitialize Displays"); fish("betterdisplaycli perform --reinitialize") end)
   ---------------------------------------------------------------
   -- Apply local overrides
