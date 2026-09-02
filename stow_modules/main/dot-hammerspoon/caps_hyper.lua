@@ -31,6 +31,49 @@ local M = {}
 local CAPS_LOCK_HID = 0x700000039
 local F19_HID = 0x70000006E
 
+---------------------------------------------------------------
+-- Hyper key state
+--
+-- Both of these exist because hyper is not a real modifier here: it is F19 with
+-- Ctrl/Cmd/Opt stamped onto OTHER key events. Nothing sees it through
+-- hs.eventtap.checkKeyboardModifiers, and letting go of it produces no
+-- flagsChanged event for a watcher to catch -- the flags were never really
+-- down. So anything whose lifetime is "while hyper is held" (preview_hud's
+-- HyperReleasePreviewHUD, and through it the window-cycling HUDs) has to ask
+-- here instead of asking the modifier state.
+---------------------------------------------------------------
+
+local held = false
+local releaseListeners = {}
+
+-- Keycode of the last key pressed (the hyper key itself excluded). Lets a
+-- hyper-held HUD tell "another step in the same rotation" from "a different
+-- chord, so what I am showing is stale" -- see preview_hud's HyperCycleHUD. It
+-- lives here because this tap is the one that is always running.
+local lastKeyCode = nil
+
+function M.isHeld() return held end
+function M.lastKeyCode() return lastKeyCode end
+
+-- Run `fn` when the hyper key is released. Returns a function that unregisters
+-- it again.
+function M.onRelease(fn)
+  releaseListeners[fn] = true
+  return function() releaseListeners[fn] = nil end
+end
+
+-- Snapshot before calling: a listener typically unregisters itself (the HUD
+-- tears its exit binding down as it exits), and mutating the table mid-pairs is
+-- only safe for removals.
+local function notifyRelease()
+  local listeners = {}
+  for fn in pairs(releaseListeners) do listeners[#listeners + 1] = fn end
+  for _, fn in ipairs(listeners) do
+    local ok, err = pcall(fn)
+    if not ok then util.log("caps_hyper: release listener failed:", err) end
+  end
+end
+
 -- Replace the system key map with a single src->dst remap, or clear it entirely
 -- when called with nil HIDs.
 --
@@ -75,7 +118,7 @@ local function enable(threshold)
 
   local f19 = hs.keycodes.map.f19
 
-  local held = false
+  -- `held` is the module-level state above, so onRelease/isHeld observers see it.
   local used = false
   local downAt = 0
 
@@ -93,12 +136,15 @@ local function enable(threshold)
         end
       else -- keyUp
         held = false
+        notifyRelease()
         if not used and (hs.timer.secondsSinceEpoch() - downAt) < threshold then
           hs.eventtap.keyStroke({}, "escape", 0)
         end
       end
       return true -- F19 itself never reaches apps
     end
+
+    if event:getType() == types.keyDown then lastKeyCode = code end
 
     -- While held, stamp Ctrl/Cmd/Opt onto this key's flags (merging with any
     -- real modifiers like Shift) so app and system hotkeys see the hyper combo.

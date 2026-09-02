@@ -17,6 +17,11 @@
 -- The render() dispatch is table-driven (see `renderers` below) so new preview
 -- types can be added without touching the class methods.
 
+-- For the hyper-release flavor below: the Caps Lock hyper key is not a real
+-- modifier, so its release has to be observed at the source. caps_hyper pulls
+-- in nothing but util, so this is cycle-free.
+local CapsHyper = require("caps_hyper")
+
 local M = {}
 
 ---------------------------------------------------------------
@@ -132,7 +137,16 @@ local HyperReleasePreviewHUD = setmetatable({}, { __index = PreviewHud })
 HyperReleasePreviewHUD.__index = HyperReleasePreviewHUD
 M.HyperReleasePreviewHUD = HyperReleasePreviewHUD
 
--- Watch modifier changes; the moment ctrl+alt+cmd are no longer all held, exit.
+-- Exit when hyper goes up, which has to be watched two ways.
+--
+-- Real modifiers (an external keyboard's ctrl+alt+cmd, or Karabiner's hyper)
+-- announce themselves through flagsChanged: the moment the three are no longer
+-- all held, we are done.
+--
+-- Caps Lock hyper does not. caps_hyper stamps ctrl/alt/cmd onto other key
+-- events rather than holding them, so releasing it changes no flags at all --
+-- a HUD raised by a plain hyper+key chord (no shift whose release would show
+-- up) would sit there forever. caps_hyper reports its own release instead.
 function HyperReleasePreviewHUD:bindExit()
   self._tap = hs.eventtap.new({ hs.eventtap.event.types.flagsChanged }, function(event)
     local flags = event:getFlags()
@@ -142,12 +156,71 @@ function HyperReleasePreviewHUD:bindExit()
     return false
   end)
   self._tap:start()
+
+  self._unsubscribeHyper = CapsHyper.onRelease(function() self:exit() end)
 end
 
 function HyperReleasePreviewHUD:unbindExit()
   if self._tap then
     self._tap:stop()
     self._tap = nil
+  end
+  if self._unsubscribeHyper then
+    self._unsubscribeHyper()
+    self._unsubscribeHyper = nil
+  end
+end
+
+---------------------------------------------------------------
+-- HyperCycleHUD: hyper-release, and also gone the moment a DIFFERENT key is
+-- pressed
+--
+-- For the window-rotation HUDs (hyper+x, hyper+z, hyper+e/r), which label
+-- "where the last press landed you". Repeating the same chord is another step
+-- in the same rotation, so the HUD updates in place; any other key means the
+-- answer on screen is now stale -- hyper+e twice then hyper+r switches to a
+-- Personal window while the HUD still names the Meta one -- so it comes down,
+-- whether or not that key goes on to raise a HUD of its own.
+--
+-- Waiting for the release alone isn't enough precisely because the next chord
+-- may not raise anything: hyper+r off a Meta window switches profile through
+-- the menu bar and never enters a HUD to overwrite this one.
+--
+-- This flavor applies nothing, so dismissing early costs nothing. That is why
+-- the layout previews can't work this way: there, each press iterates on the
+-- previous action (hud.action feeds the next stop) and applies it on release,
+-- both of which an early exit would throw away.
+---------------------------------------------------------------
+
+local HyperCycleHUD = setmetatable({}, { __index = HyperReleasePreviewHUD })
+HyperCycleHUD.__index = HyperCycleHUD
+M.HyperCycleHUD = HyperCycleHUD
+
+-- The key that raised this HUD is simply the last one pressed: the binding runs
+-- from that keypress, even when it only gets here a subprocess later.
+function HyperCycleHUD:enter(action)
+  self._ownerKey = CapsHyper.lastKeyCode()
+  HyperReleasePreviewHUD.enter(self, action)
+end
+
+function HyperCycleHUD:bindExit()
+  HyperReleasePreviewHUD.bindExit(self)
+
+  -- Runs before the hotkey it belongs to, so a repeat of the owning chord exits
+  -- nothing and the binding's own enter() re-renders in place -- no flicker --
+  -- while any other key tears the HUD down first.
+  self._keyTap = hs.eventtap.new({ hs.eventtap.event.types.keyDown }, function(event)
+    if event:getKeyCode() ~= self._ownerKey then self:exit() end
+    return false
+  end)
+  self._keyTap:start()
+end
+
+function HyperCycleHUD:unbindExit()
+  HyperReleasePreviewHUD.unbindExit(self)
+  if self._keyTap then
+    self._keyTap:stop()
+    self._keyTap = nil
   end
 end
 
@@ -166,6 +239,7 @@ M.ManualPreviewHUD = ManualPreviewHUD
 ---------------------------------------------------------------
 
 M.HYPER_RELEASE = setmetatable({}, HyperReleasePreviewHUD)
+M.HYPER_CYCLE = setmetatable({}, HyperCycleHUD)
 M.MANUAL = setmetatable({}, ManualPreviewHUD)
 
 return M

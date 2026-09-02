@@ -1,5 +1,11 @@
 local a = require("async")
 local shell = require("shell")
+-- Both only for the cycle HUD's lifetime (see displayCycleMessage). Cycle-free:
+-- preview_hud pulls in caps_hyper, caps_hyper pulls in util, and neither comes
+-- back here. Creating preview_hud's singletons binds no eventtap until
+-- something enters them.
+local PreviewHud = require("preview_hud")
+local CapsHyper = require("caps_hyper")
 
 local M = {}
 
@@ -164,8 +170,16 @@ end
 -- HUD for one step through a rotation of windows: the window just landed on,
 -- and where it sits in the cycle -- "Calendar  (2/3)". Shared by every
 -- alternating binding (devserver windows, terminal windows, Chrome profile
--- windows) so a step looks the same wherever it happens, and successive steps
--- replace each other in place (see displayMessage).
+-- windows) so a step looks the same wherever it happens.
+--
+-- It lives for as long as the walk does, not for a fixed duration -- the same
+-- PreviewHud machinery the layout previews on hyperShift+return use, in its
+-- HYPER_CYCLE flavor: up while hyper is held, down as soon as hyper is released
+-- or a key other than the one stepping the rotation is pressed. Walking a
+-- rotation is one gesture: hold hyper, tap the key until you land somewhere,
+-- let go. A duration would either expire mid-walk or linger after it, and each
+-- step re-rendering in place is what makes the HUD read as one indicator rather
+-- than a series of toasts.
 --
 -- The position is dropped for a rotation of one, where it says nothing. Titles
 -- are collapsed to one line and truncated: this is a glanceable "where am I",
@@ -189,7 +203,25 @@ function M.displayCycleMessage(label, pos, count, duration)
   if count and count > 1 and pos then
     text = text .. "  (" .. pos .. "/" .. count .. ")"
   end
-  M.displayMessage(text, duration)
+
+  -- Only hand it to the hyper-release HUD while hyper is actually down.
+  -- Several of these callers only learn where they landed from a subprocess, so
+  -- the message can arrive after a quick tap-and-release -- and a HUD with no
+  -- release left to wait for would sit on screen until the next hyper press.
+  -- Falling back to a timed message keeps that case self-clearing.
+  --
+  -- Two ways to be down, for the same reason bindExit watches two: Caps Lock
+  -- hyper holds no real modifiers, so only caps_hyper knows about it, while a
+  -- keyboard chord (or Karabiner's hyper) shows up in the modifier state.
+  local mods = hs.eventtap.checkKeyboardModifiers()
+  if CapsHyper.isHeld() or (mods.ctrl and mods.alt and mods.cmd) then
+    PreviewHud.HYPER_CYCLE:enter({
+      preview_type = "display_message",
+      preview = text,
+    })
+  else
+    M.displayMessage(text, duration)
+  end
 end
 
 -- Helper: build AppleScript to click a menu path
