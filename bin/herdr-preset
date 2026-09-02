@@ -1666,16 +1666,36 @@ print(shlex.join([argv0] + kept + tail))
         set -l via (printf '%s' "$record" | jq -r '.via // "pane"')
         set -l when (printf '%s' "$record" | jq -r '.updated // 0')
 
+        # Resume WHERE THE CONVERSATION LIVES, not wherever the pane's shell
+        # has wandered off to. A conversation belongs to a directory: claude
+        # keeps transcripts under ~/.claude/projects/<cwd-with-slashes-as->/,
+        # and `--resume <id>` only looks in the one for the CURRENT directory,
+        # so the same id that resumes fine in ~/src answers
+        #
+        #   No conversation found with session ID: <id>
+        #
+        # one directory over. codex filters its picker by cwd the same way, and
+        # for any of them an agent resumed somewhere else is working on the
+        # wrong tree even if it does open. The pane's cwd drifts for ordinary
+        # reasons -- you cd'd, or the pane outlived the agent and got reused --
+        # so the recorded cwd wins whenever the two disagree.
+        set -l home (printf '%s' "$record" | jq -r '.cwd // ""')
+
+        # `exec` goes on the agent, the `cd` in front of it: `cd X && exec cmd`
+        # replaces the shell only once it is in the right directory, whereas
+        # `exec cd X && ...` would replace it with the cd.
+        set -l line $command
+        set -q _flag_exec; and set line "exec $line"
+        if test -n "$home"; and test "$home" != "$cwd"
+            set line "cd "(string escape -- "$home")" && $line"
+        end
+
         if set -q _flag_print
-            echo $command
+            echo $line
             return 0
         end
 
-        if set -q _flag_exec
-            set command "exec $command"
-        end
-
-        set -l run_out ($bin pane run "$pane" "$command" 2>&1)
+        set -l run_out ($bin pane run "$pane" "$line" 2>&1)
         or begin
             echo "$tag: pane run failed in '$pane'" >&2
             echo "  herdr pane run output: $run_out" >&2
@@ -1691,7 +1711,7 @@ print(shlex.join([argv0] + kept + tail))
         set -l seen (date -r $when '+%Y-%m-%d %H:%M' 2>/dev/null
                      or date -d "@$when" '+%Y-%m-%d %H:%M' 2>/dev/null)
         echo "$tag: resumed from $via, last seen $seen"
-        echo "  $command"
+        echo "  $line"
 
     case "track-agent-sessions"
         # Keep the pane -> agent-session store fresh, so resume-agent has
