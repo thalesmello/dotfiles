@@ -510,19 +510,37 @@ function M.setup()
       end
     end
 
+    -- Name the window each step lands on, and where it sits in the rotation --
+    -- the same HUD every other alternating binding shows. `index` is its
+    -- position in the id-sorted cycle, so the number means the same thing in
+    -- both branches below.
+    local function raise(w, index)
+      w:focus()
+      Preset.displayCycleMessage(w:title(), index, #wins)
+    end
+
     if pos then
-      -- On an eligible terminal window: advance to the next (wrapping).
-      wins[(pos % #wins) + 1]:focus()
+      -- On an eligible terminal window: advance to the next (wrapping). A
+      -- rotation of one lands back on the focused window, which is no step to
+      -- announce.
+      local targetPos = (pos % #wins) + 1
+      if #wins > 1 then raise(wins[targetPos], targetPos) else wins[targetPos]:focus() end
     else
       -- Elsewhere (or on an excluded window): most recently used eligible window.
       for _, w in ipairs(hs.window.orderedWindows()) do
         local id = w:id()
         if id and eligible[id] then
-          w:focus()
+          for i, candidate in ipairs(wins) do
+            if candidate:id() == id then
+              raise(w, i)
+              return
+            end
+          end
+          raise(w, nil)
           return
         end
       end
-      wins[1]:focus()
+      raise(wins[1], 1)
     end
   end
 

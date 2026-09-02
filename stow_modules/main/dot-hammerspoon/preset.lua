@@ -161,6 +161,37 @@ function M.displayMessage(message, duration)
   end)
 end
 
+-- HUD for one step through a rotation of windows: the window just landed on,
+-- and where it sits in the cycle -- "Calendar  (2/3)". Shared by every
+-- alternating binding (devserver windows, terminal windows, Chrome profile
+-- windows) so a step looks the same wherever it happens, and successive steps
+-- replace each other in place (see displayMessage).
+--
+-- The position is dropped for a rotation of one, where it says nothing. Titles
+-- are collapsed to one line and truncated: this is a glanceable "where am I",
+-- not a window list.
+local CYCLE_LABEL_MAX = 48
+
+local function truncate(s, max)
+  local len = utf8.len(s)
+  -- utf8.len is nil on invalid UTF-8; fall back to a byte cut, which is only
+  -- reachable for a title macOS itself mangled.
+  if not len then return #s > max and (s:sub(1, max) .. "…") or s end
+  if len <= max then return s end
+  return s:sub(1, (utf8.offset(s, max + 1) or (max + 1)) - 1) .. "…"
+end
+
+function M.displayCycleMessage(label, pos, count, duration)
+  label = tostring(label or ""):gsub("%s+", " "):match("^%s*(.-)%s*$")
+  if label == "" then label = "Untitled" end
+
+  local text = truncate(label, CYCLE_LABEL_MAX)
+  if count and count > 1 and pos then
+    text = text .. "  (" .. pos .. "/" .. count .. ")"
+  end
+  M.displayMessage(text, duration)
+end
+
 -- Helper: build AppleScript to click a menu path
 local function buildMenuBarScript(processName, items)
   local function esc(s) return s:gsub('"', '\\"') end

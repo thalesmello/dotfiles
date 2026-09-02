@@ -214,6 +214,12 @@ function M.iterateWindows(opts)
         .. (target == focusedId and "  <- SAME AS CURRENT, focus will not move" or ""))
       log("iterate to " .. tostring(target))
       focusWindowId(target)
+      -- HUD naming the window landed on, unless the rotation couldn't move
+      -- (one window, which the log above calls out) -- announcing a step that
+      -- didn't happen is worse than saying nothing.
+      if target ~= focusedId then
+        Preset.displayCycleMessage(titles[target], targetPos, #windows)
+      end
       return
     end
 
@@ -226,6 +232,17 @@ function M.iterateWindows(opts)
       .. tostring(stacked[1]) .. " (" .. tostring(titles[stacked[1]]) .. ")")
     log("raise frontmost " .. tostring(stacked[1]))
     focusWindowId(stacked[1])
+    -- Focus does move here (we came from outside the rotation), so always name
+    -- the window. Its position is looked up in the cycle order, not the MRU
+    -- order, so the number means the same thing as it does above.
+    local raisedPos
+    for i, id in ipairs(windows) do
+      if id == stacked[1] then
+        raisedPos = i
+        break
+      end
+    end
+    Preset.displayCycleMessage(titles[stacked[1]], raisedPos, #windows)
   end)
 end
 

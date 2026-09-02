@@ -732,7 +732,23 @@ function chrome-preset
             set target_pos (math "($pos - 2 + $count) % $count + 1")
         end
 
-        yabai-preset focus-window-id "$windows[$target_pos]"
+        set target_id $windows[$target_pos]
+        yabai-preset focus-window-id "$target_id"
+
+        # Report where the cycle landed -- {"pos","count","title"} on stdout --
+        # so a caller can name it in a HUD (the Hammerspoon binding does, the
+        # same way the terminal and devserver rotations announce a step).
+        # Silent when focus didn't actually move, i.e. a rotation of one.
+        #
+        # The title is trimmed down to the page: every browser window ends with
+        # " - Google Chrome - <profile>", which is the one part of it the user
+        # already knows -- they just asked for this profile by name.
+        if test "$target_id" != "$current_id"
+            yabai-preset query-windows --window "$target_id" \
+                | jq -c --argjson pos "$target_pos" --argjson count "$count" \
+                    --arg profile "$profile_name" \
+                    '{$pos, $count, title: (.title | rtrimstr(" - " + $profile) | rtrimstr(" - Google Chrome"))}'
+        end
     case "toggle-tabbar"
         # Clicks the vertical-tabs Expand/Collapse button (button 1 of group 1
         # of the tab strip's AXTabGroup). The button sits at a fixed relative
