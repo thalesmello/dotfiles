@@ -242,6 +242,25 @@ description = "claude in new tab (prompts for name)"
 width = "40%"
 height = 3
 
+# prefix+a: "ask" -- type a question, get an agent working on it in its own
+# throwaway directory. The script (scripts/ask-agent.sh) picks the agent from
+# the question itself (the first of claude / pi / codex in it, default claude),
+# has `pi -p` on a cheap OpenAI model turn the question into a slug, makes
+# ~/src/tries/<date>-<slug> with `try new --print-path` (the non-interactive
+# mode added to dotfiles/bin/try for this), and opens a tab named after the
+# slug in the "qq" workspace -- created on the first ask -- cwd'd there and
+# running the agent with the question as its opening prompt.
+# type = "popup" so the question prompt runs in a herdr-rendered PTY where
+# interactive input works (same as claude-tab.sh); wider and 3 rows tall
+# because a question is longer than a tab name.
+[[keys.command]]
+key = "prefix+a"
+type = "popup"
+command = "~/.config/herdr/scripts/ask-agent.sh"
+description = "ask an agent in a new try dir + qq tab"
+width = "70%"
+height = 3
+
 # ctrl+alt+shift+semicolon (ctrl+meta+shift+:): prompt for a shell command in a
 # popup, then eval it there. type = "popup" so the prompt runs in a herdr-rendered
 # PTY where interactive line editing works, and so command output can stay on

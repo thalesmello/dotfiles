@@ -237,6 +237,16 @@ class TrySelector
     restore_terminal
   end
 
+  # The try this selector would put at the TOP of its list for the query it was
+  # built with -- the same fuzzy score, and the same recency bonus, which is
+  # what settles ambiguity in favour of the most recently touched (so, for the
+  # date-prefixed names, the most recent date). No UI, no TTY: nothing here
+  # renders, so this is the entry point for `try cd <pattern>` and for scripts.
+  # nil when nothing matches at all.
+  def best_match
+    get_tries.first
+  end
+
   private
 
   def setup_terminal
@@ -1081,18 +1091,33 @@ if __FILE__ == $0
 
       {h2}Usage:{reset}
         try [query]           Interactive directory selector
+        try cd <pattern>      Non-interactive: cd into the best match
+        try new <name>        Non-interactive: create dated dir and cd into it
         try clone <url>       Clone repo into dated directory
         try worktree <name>   Create worktree from current git repo
         try --help            Show this help
 
       {h2}Commands:{reset}
         init [path]           Output shell function definition
+        cd <pattern>          cd into the try that best matches the pattern,
+                              most recent one when ambiguous; no UI, and it
+                              never creates anything (--print-path prints the
+                              directory instead of cd'ing). Bare `try cd`
+                              still opens the selector.
+        new <name>            Create date-prefixed directory without any UI
+                              (--print-path creates it and prints the path
+                               instead of emitting a shell script, for
+                               scripts that need the directory, not a cd)
         clone <url> [name]    Clone git repo into date-prefixed directory
         worktree <name>       Create worktree in dated directory
 
       {h2}Examples:{reset}
         try                   Open interactive selector
         try project           Selector with initial filter
+        try new fix-flaky-spec
+        try new --print-path fix-flaky-spec
+        try cd flaky
+        try cd --print-path flaky
         try clone https://github.com/user/repo
         try worktree feature-branch
 
@@ -1289,6 +1314,84 @@ if __FILE__ == $0
     end
 
     script_clone(File.join(tries_path, dir_name), git_uri)
+  end
+
+  # try new [--print-path] <name>
+  #
+  # The non-interactive counterpart of picking "Create new" in the selector:
+  # no TTY, no fuzzy list, no prompt -- just today's date, the name given, and
+  # the same -2/-3 (or trailing-number bump) uniqueness the rest of try uses.
+  #
+  # Two output modes, because there are two kinds of caller:
+  #   * default -- emit the mkdir+cd shell script, so the `try` shell function
+  #     eval's it and the calling shell ends up in the new directory.
+  #   * --print-path -- create the directory and print it. A script that is not
+  #     the shell it wants to move (e.g. herdr's ask-agent.sh, which hands the
+  #     path to `herdr tab create --cwd`) cannot use a `cd` it would only run in
+  #     its own process.
+  def cmd_new!(args, tries_path)
+    print_path = !!args.delete('--print-path')
+
+    base = args.join(' ').strip.gsub(/\s+/, '-')
+    if base.empty?
+      warn "Error: name required for new command"
+      warn "Usage: try new [--print-path] <name>"
+      exit 1
+    end
+
+    if base.include?('/')
+      warn "Error: name cannot contain /"
+      exit 1
+    end
+
+    date_prefix = Time.now.strftime("%Y-%m-%d")
+    base = resolve_unique_name_with_versioning(tries_path, date_prefix, base)
+    full_path = File.join(tries_path, "#{date_prefix}-#{base}")
+
+    if print_path
+      FileUtils.mkdir_p(full_path)
+      # STDOUT is the machine-readable channel here: exactly the path, no
+      # SCRIPT_WARNING banner, so callers can use "$(try new --print-path x)".
+      puts full_path
+      exit 0
+    end
+
+    script_mkdir_cd(full_path)
+  end
+
+  # try cd [--print-path] <pattern>
+  #
+  # Non-interactive counterpart of picking the first row of the selector: fuzzy
+  # match the pattern against existing tries and go to the best one, most
+  # recent when the match is ambiguous (TrySelector#best_match, i.e. the same
+  # scoring the list is sorted by -- recency is part of the score).
+  #
+  # Unlike `try new`, this never creates anything: an unmatched pattern is an
+  # error, because silently making a directory named after a typo'd search is
+  # the opposite of what "cd" asks for.
+  #
+  # Returns nil for an empty pattern so the caller can fall back to the
+  # interactive selector -- bare `try cd` is still the picker it always was.
+  # --print-path prints the directory instead of emitting a cd script, for
+  # callers that are not the shell they want to move.
+  def cmd_best_match!(args, tries_path)
+    print_path = !!args.delete('--print-path')
+
+    query = args.join(' ').strip
+    return nil if query.empty?
+
+    match = TrySelector.new(query, base_path: tries_path).best_match
+    unless match
+      warn "Error: no try matches #{query.inspect}"
+      exit 1
+    end
+
+    if print_path
+      puts match[:path]
+      exit 0
+    end
+
+    script_cd(match[:path])
   end
 
   def cmd_init!(args, tries_path)
@@ -1521,6 +1624,19 @@ if __FILE__ == $0
   when 'clone'
     emit_script(cmd_clone!(ARGV, tries_path))
     exit 0
+  when 'new'
+    emit_script(cmd_new!(ARGV, tries_path))
+    exit 0
+  when 'cd'
+    script = cmd_best_match!(ARGV, tries_path) \
+      || cmd_cd!(ARGV, tries_path, and_type, and_exit, and_keys, and_confirm)
+    if script
+      emit_script(script)
+      exit 0
+    else
+      puts "Cancelled."
+      exit 1
+    end
   when 'init'
     cmd_init!(ARGV, tries_path)
     exit 0
@@ -1530,6 +1646,9 @@ if __FILE__ == $0
     when 'clone'
       ARGV.shift
       emit_script(cmd_clone!(ARGV, tries_path))
+    when 'new'
+      ARGV.shift
+      emit_script(cmd_new!(ARGV, tries_path))
     when 'worktree'
       ARGV.shift
       repo = ARGV.shift
@@ -1538,7 +1657,8 @@ if __FILE__ == $0
       emit_script(script_worktree(full_path, repo_dir == Dir.pwd ? nil : repo_dir))
     when 'cd'
       ARGV.shift
-      script = cmd_cd!(ARGV, tries_path, and_type, and_exit, and_keys, and_confirm)
+      script = cmd_best_match!(ARGV, tries_path) \
+        || cmd_cd!(ARGV, tries_path, and_type, and_exit, and_keys, and_confirm)
       if script
         emit_script(script)
         exit 0
