@@ -132,6 +132,61 @@ function herdr_focus_history_running
     pgrep -P $pid nc >/dev/null 2>&1
 end
 
+# herdr_agent_inbox_dir -- print the agent-inbox daemon's state dir.
+#
+#   Asked of the daemon rather than recomputed here: the path rule (session
+#   socket -> $XDG_STATE_HOME/herdr/agent-inbox[@session]) lives in exactly one
+#   place, agent-inbox-daemon.py, so the control socket can never be looked for
+#   somewhere the daemon isn't. Cached in a global: every caller below wants it
+#   and it costs a python start.
+function herdr_agent_inbox_dir
+    if set -q __herdr_agent_inbox_dir; and test -n "$__herdr_agent_inbox_dir"
+        echo $__herdr_agent_inbox_dir
+        return 0
+    end
+
+    set -g __herdr_agent_inbox_dir (python3 (status dirname)/agent-inbox-daemon.py --state-dir 2>/dev/null)
+    test -n "$__herdr_agent_inbox_dir"; or return 1
+    echo $__herdr_agent_inbox_dir
+end
+
+# herdr_ensure_agent_inbox -- start the agent-inbox daemon if it is not up.
+#
+#   Unconditional and detached, unlike herdr_ensure_focus_history: the daemon
+#   holds its own flock and a second copy exits immediately, so "is it running"
+#   costs the same python start as just launching it. Nothing waits on the
+#   result -- the caller's own request is what needs the daemon, and it retries.
+function herdr_ensure_agent_inbox
+    set -l daemon (status dirname)/agent-inbox-daemon.py
+    test -x $daemon; or return 1
+    fish -c "python3 $daemon >/dev/null 2>&1 &" >/dev/null 2>&1
+    return 0
+end
+
+# herdr_restart_agent_inbox -- reload the daemon after editing it.
+function herdr_restart_agent_inbox
+    set -l daemon (status dirname)/agent-inbox-daemon.py
+    test -x $daemon; or return 1
+    fish -c "python3 $daemon --restart >/dev/null 2>&1 &" >/dev/null 2>&1
+    return 0
+end
+
+# herdr_inbox_send <op> [pane] [workspace] -- one control-socket request.
+#
+#   The daemon answers one line of JSON and closes the connection, so nc -U is
+#   a whole client. Prints nothing when the daemon is not listening, which is
+#   how callers tell "not running" from "said no".
+function herdr_inbox_send --argument-names op pane workspace
+    set -l dir (herdr_agent_inbox_dir); or return 1
+    set -l sock $dir/control.sock
+    test -S $sock; or return 1
+
+    set -l req (jq -nc --arg cmd "$op" --arg pane "$pane" --arg ws "$workspace" \
+        '{cmd: $cmd, pane_id: (if $pane == "" then null else $pane end),
+          workspace_id: (if $ws == "" then null else $ws end)}')
+    printf '%s\n' $req | nc -U $sock 2>/dev/null
+end
+
 # herdr_kill_tree <pid> -- kill a process and everything below it.
 function herdr_kill_tree --argument-names pid
     for child in (pgrep -P $pid 2>/dev/null)
