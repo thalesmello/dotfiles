@@ -26,6 +26,8 @@
 # Esc cancels and moves nothing. Emptying the prompt and pressing Enter keeps
 # herdr's generated name.
 
+. "$(cd "$(dirname "$0")" && pwd)/prompt-lib.sh"
+
 herdr="${HERDR_BIN_PATH:-herdr}"
 
 pane="$HERDR_ACTIVE_PANE_ID"
@@ -71,70 +73,13 @@ except Exception:
 ')
 fi
 
-# Read the name in raw mode so we can act on each keystroke. Editing keys:
-#
-#   backspace           delete a character
-#   ctrl+w / opt+bs     delete a word (opt+backspace arrives as Esc DEL)
-#   ctrl+u              clear the line
-#   ctrl+c              clear the line; on an already-empty line, cancel
-#   Esc                 cancel
-#   Enter               accept
-#
-# Bytes come in through `dd`, not bash's `read`: ctrl+c has to arrive as data
-# (0x03) rather than as SIGINT, and while `stty -isig` arranges exactly that,
-# bash's `read` builtin puts ISIG back for the duration of each read, so ctrl+c
-# would kill the prompt no matter what the terminal is set to. dd leaves the
-# terminal settings alone.
-#
-# A lone Esc and an escape sequence (arrow keys, opt+backspace) both start with
-# 0x1b, so after an Esc we peek with `min 0 time 1` -- a 0.1s read that returns
-# empty when nothing follows -- to tell them apart.
-printf '%s%s' "$prompt" "$name"
-
-old=$(stty -g); stty -echo -icanon -isig min 1 time 0
-trap 'stty "$old" 2>/dev/null || stty sane' EXIT
-
-# Read one byte and print its decimal value; empty if the read timed out.
-read_byte() { dd bs=1 count=1 2>/dev/null | od -An -tu1 | tr -dc '0-9'; }
-peek_byte() {                         # same, but gives up after ~$1 tenths of a
-  stty min 0 time "${1:-0}"           # second (0 = whatever is already buffered)
-  read_byte
-  stty min 1 time 0
-}
-
-erase_char() { [ -n "$name" ] && { name=${name%?}; printf '\b \b'; }; }
-erase_line() { while [ -n "$name" ]; do erase_char; done; }
-erase_word() {                        # trailing spaces, then the word itself
-  while [ -n "$name" ] && [ "${name: -1}" = ' ' ]; do erase_char; done
-  while [ -n "$name" ] && [ "${name: -1}" != ' ' ]; do erase_char; done
-}
-
-cancel() { printf '\n'; exit 0; }     # leave without moving anything
-
-while b=$(read_byte); [ -n "$b" ]; do
-  case $b in
-    27)                               # Esc: is another byte waiting?
-      nxt=$(peek_byte 1)
-      case $nxt in
-        '') cancel ;;                 # lone Esc
-        127) erase_word ;;            # opt+backspace
-        # arrow key etc: drain the rest of the sequence. A terminal sends it as
-        # one burst, so the remaining bytes are already buffered -- drain with no
-        # wait, or the next real keystroke gets eaten as part of the sequence.
-        *) while [ -n "$(peek_byte)" ]; do :; done ;;
-      esac ;;
-    10|13) break ;;                   # Enter -> done
-    127) erase_char ;;                # Backspace
-    23) erase_word ;;                 # ctrl+w
-    21) erase_line ;;                 # ctrl+u
-    3)                                # ctrl+c: clear, or cancel when empty
-      [ -n "$name" ] && erase_line || cancel ;;
-    *)
-      c=$(printf "\\$(printf '%03o' "$b")")
-      name+=$c; printf '%s' "$c" ;;
-  esac
-done
-printf '\n'
+# The name comes from the shared popup prompt (prompt-lib.sh) -- this script is
+# where that reader started, so the behaviour is unchanged: raw-mode line
+# editing (backspace, ctrl+w, opt+backspace, ctrl+u), Esc to cancel, and now
+# bracketed paste. Emptying the prompt and pressing Enter keeps herdr's
+# generated name.
+prompt_line "$prompt" "$name" || exit 0   # Esc -> leave without moving anything
+name=$PROMPT_LINE
 
 if [ "$count" -gt 1 ]; then
   set -- --new-tab

@@ -20,39 +20,17 @@
 #   * The eval runs in that pane's cwd, so a relative path typed at the prompt
 #     resolves the way it would if you had typed it in the pane.
 #
-# The prompt reads in raw mode so a lone Esc cancels immediately. Escape
-# sequences (arrow keys, etc.) also start with 0x1b, so we peek for a follow-up
-# byte with a tiny timeout to tell them apart. An empty command (just Enter)
-# also cancels.
+# The command line comes from the shared popup prompt (prompt-lib.sh): raw-mode
+# line editing, Esc to cancel, and bracketed paste -- pasting a long command in
+# here used to submit at its first newline and leave the tail behind. An empty
+# command (just Enter) cancels too.
+
+. "$(cd "$(dirname "$0")" && pwd)/prompt-lib.sh"
 
 herdr="${HERDR_BIN_PATH:-herdr}"
 
-prompt='Command: '
-cmd=''
-printf '%s' "$prompt"
-
-old=$(stty -g); stty -echo -icanon min 1 time 0
-trap 'stty "$old" 2>/dev/null || stty sane' EXIT
-
-while IFS= read -rsn1 c; do
-  case $c in
-    $'\x1b')                          # Esc: is another byte waiting?
-      if read -rsn1 -t 0.001 _; then
-        # an escape sequence (arrow key, etc.) -- drain and ignore it
-        while read -rsn1 -t 0.001 _; do :; done
-      else
-        printf '\n'; exit 0           # lone Esc -> cancel, run nothing
-      fi ;;
-    ''|$'\n'|$'\r') break ;;          # Enter -> done
-    $'\x7f')                          # Backspace
-      [ -n "$cmd" ] && { cmd=${cmd%?}; printf '\b \b'; } ;;
-    *) cmd+=$c; printf '%s' "$c" ;;
-  esac
-done
-
-stty "$old" 2>/dev/null || stty sane
-trap - EXIT
-printf '\n'
+prompt_line 'Command: ' || exit 0
+cmd=$PROMPT_LINE
 [ -n "$cmd" ] || exit 0
 
 # Hand the invoking pane, not the popup, to whatever gets run.
@@ -69,5 +47,4 @@ status=$?
 # Success -> close immediately. Error -> keep output on screen until a keypress.
 [ "$status" -eq 0 ] && exit 0
 
-printf '\n[exit %d] press any key to close ' "$status"
-read -rsn1 _
+prompt_any_key "$(printf '\n[exit %d] press any key to close ' "$status")"
