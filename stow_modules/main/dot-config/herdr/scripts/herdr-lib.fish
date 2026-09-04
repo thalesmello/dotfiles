@@ -156,10 +156,16 @@ end
 #   holds its own flock and a second copy exits immediately, so "is it running"
 #   costs the same python start as just launching it. Nothing waits on the
 #   result -- the caller's own request is what needs the daemon, and it retries.
+#
+#   nohup with stdin closed: from a keybinding the caller is already a detached
+#   process that exits at once, but started from a PANE (a shell, an
+#   `agent-inbox.fish restart` typed by hand) the daemon lands in that pane's
+#   process group and dies with it -- closing the pane would silently take the
+#   inbox down.
 function herdr_ensure_agent_inbox
     set -l daemon (status dirname)/agent-inbox-daemon.py
     test -x $daemon; or return 1
-    fish -c "python3 $daemon >/dev/null 2>&1 &" >/dev/null 2>&1
+    fish -c "nohup python3 $daemon </dev/null >/dev/null 2>&1 &" >/dev/null 2>&1
     return 0
 end
 
@@ -167,7 +173,7 @@ end
 function herdr_restart_agent_inbox
     set -l daemon (status dirname)/agent-inbox-daemon.py
     test -x $daemon; or return 1
-    fish -c "python3 $daemon --restart >/dev/null 2>&1 &" >/dev/null 2>&1
+    fish -c "nohup python3 $daemon --restart </dev/null >/dev/null 2>&1 &" >/dev/null 2>&1
     return 0
 end
 

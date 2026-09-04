@@ -146,12 +146,22 @@ CONFIG = {
     # "first" (the opening request, like a ChatGPT/Claude chat title) or
     # "last" (the most recent request, re-derived when a turn finishes).
     "title_source": "first",
-    # Use the name the AGENT ITSELF gives the session (claude's generated
-    # name, codex's thread title, a pi session you named) in preference to a
-    # summary. OFF: codex's "title" is its verbatim first prompt, and claude's
-    # is generated from the opening turn too, so they have the same problem
-    # summaries were introduced to fix. Turn it on to trust the agents.
-    "prefer_agent_title": False,
+    # Prefer the name the AGENT ITSELF gives the session over a summary of
+    # ours. ON, but only for the agents in native_title_agents below.
+    "prefer_agent_title": True,
+    # Whose native name is actually worth having:
+    #
+    #   pi      -- named by the session-title extension in
+    #              ~/.pi/agent/extensions/, which summarizes the thread from
+    #              inside pi. Better there than here: one model call per
+    #              session instead of one per session per daemon restart, and
+    #              the name also lands in pi's own session picker.
+    #   claude  -- its own generated name (an "ai-title" transcript record).
+    #   hermes / grok / cursor -- generated titles too.
+    #
+    # NOT codex: `threads.title` in its sqlite is the verbatim first prompt,
+    # which is the thing summaries exist to avoid. Codex gets summarized here.
+    "native_title_agents": ("pi", "claude", "hermes", "grok", "cursor"),
     # Fall back to a title scraped from the transcript (the first prompt,
     # truncated) when summarizing is off or has not produced anything yet.
     # OFF: that is the "copy of my first prompt" title. With it off, panes
@@ -159,21 +169,29 @@ CONFIG = {
     "prompt_titles": False,
     # Summarize the thread with an LLM and use that as the title. ON: it is
     # the only thing that answers "what is this pane doing" in four words.
-    # The command gets a digest of the conversation's user turns on stdin
-    # (thread_excerpt) and must print one line.
+    # The digest of the conversation (thread_excerpt) arrives on stdin.
     #
-    # `pi -p` because it starts fastest here, on a cheap OpenAI model. The
-    # digest arrives through "$(cat)" rather than plain stdin so this does not
-    # depend on how the CLI treats a pipe.
+    # Shape: the instruction goes in --system-prompt and the transcript is the
+    # user message. Passing both as messages makes the models answer the
+    # conversation instead of naming it ("Once you provide these details, I
+    # can help you...").
+    #
+    # `pi -p` because it starts fastest here. Model: gpt-5.4 -- on this
+    # gateway the cheap OpenAI tier is not deployed at all (gpt-4.1-mini,
+    # gpt-5-mini, gpt-5-nano, gpt-4o-mini, o4-mini all 404 with
+    # DeploymentNotFound), and `pi --list-models` offers only gpt-5.4/5.5/
+    # 5.6-sol from openai. Measured on one thread: gpt-5.4 8s "Cheap Thread
+    # Summaries for Dotfiles", gemini-3-flash-preview 7s (good, cheaper),
+    # claude-haiku-4-5 8s (ignores the instruction and chats).
     #
     # PRIVACY: this ships excerpts of your prompts to that model on every
     # summary. Everything else in this daemon is local.
     "summarize": True,
     "summarize_cmd": (
-        "pi -p --provider openai --model gpt-4.1-mini "
-        "'Write a 3-7 word title (max 48 chars) naming what this coding-agent "
-        "thread is doing. Prefer the current work over the opening request. "
-        "Output ONLY the title: no quotes, no punctuation at the end.' "
+        "pi -p --model gpt-5.4 --system-prompt "
+        "'You name coding-agent sessions. Reply with ONLY a 3-7 word title, "
+        "max 48 chars, no quotes, no trailing punctuation. Name the work, "
+        "preferring the most recent turns over the opening request.' "
         '"$(cat)"'
     ),
     "summarize_timeout_secs": 60,
@@ -212,6 +230,19 @@ def _summary_line(out):
     if not lines:
         return ""
     return lines[-1].strip().strip('"\u201c\u201d\'`').strip()
+
+
+def notify(title, body=None):
+    """Best-effort toast. The daemon has no terminal; this is its only voice."""
+    bin_path = os.environ.get("HERDR_BIN_PATH") or "herdr"
+    argv = [bin_path, "notification", "show", title,
+            "--position", "top-right", "--sound", "none"]
+    if body:
+        argv += ["--body", body]
+    try:
+        subprocess.run(argv, check=False, capture_output=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        pass
 
 
 def _sandbox_hint(err):
@@ -752,6 +783,63 @@ def _munge_claude_cwd(cwd):
     return re.sub(r"[/.]", "-", cwd)
 
 
+def _pi_munged_cwd(cwd):
+    """pi's directory name for a cwd: /Users/me/src -> --Users-me-src--"""
+    return "--%s--" % (cwd or "").strip("/").replace("/", "-")
+
+
+def pi_session_for_cwd(cwd):
+    """Newest pi transcript for a directory, when herdr reports no ref.
+
+    `pi --session <file>` (or a resume from pi's own picker) started outside
+    herdr's integration leaves the pane with no session ref, so there is no
+    transcript to summarize and the row falls back to the terminal title.
+
+    Two lookups, cheapest first: pi's own per-cwd directory, then a scan of
+    the newest transcripts anywhere, matching the `cwd` in each one's opening
+    `session` record -- pi also files sessions under profile directories
+    (e.g. sessions/devmate/), where the directory name says nothing about the
+    working directory.
+    """
+    if not cwd:
+        return None
+    root = os.path.expanduser("~/.pi/agent/sessions")
+    if not os.path.isdir(root):
+        return None
+
+    def newest(paths):
+        best, best_mtime = None, -1
+        for p in paths:
+            try:
+                m = os.path.getmtime(p)
+            except OSError:
+                continue
+            if m > best_mtime:
+                best, best_mtime = p, m
+        return best
+
+    hit = newest(glob.glob(os.path.join(root, _pi_munged_cwd(cwd), "*.jsonl")))
+    if hit:
+        return hit
+
+    candidates = glob.glob(os.path.join(root, "*", "*.jsonl"))
+    try:
+        candidates.sort(key=os.path.getmtime, reverse=True)
+    except OSError:
+        return None
+    for path in candidates[:40]:   # newest only; older ones are not "this pane"
+        try:
+            with open(path) as f:
+                head = f.readline()
+            obj = json.loads(head)
+        except (OSError, ValueError):
+            continue
+        if isinstance(obj, dict) and obj.get("type") in ("session", "session_info") \
+                and obj.get("cwd") == cwd:
+            return path
+    return None
+
+
 def codex_rollout_for_cwd(cwd):
     """Newest codex rollout transcript for a directory, from codex's own index.
 
@@ -795,8 +883,12 @@ def resolve_transcript(agent_rec, cwd_fallback=False):
         sess = {}
     kind, value = sess.get("kind"), sess.get("value")
     if not value:
-        if cwd_fallback and agent_rec.get("agent") == "codex":
-            return codex_rollout_for_cwd(agent_rec.get("cwd"))
+        if cwd_fallback:
+            agent = agent_rec.get("agent")
+            if agent == "codex":
+                return codex_rollout_for_cwd(agent_rec.get("cwd"))
+            if agent == "pi":
+                return pi_session_for_cwd(agent_rec.get("cwd"))
         return None
     if kind == "path":
         return value if os.path.exists(value) else None
@@ -848,6 +940,9 @@ class InboxDaemon:
         self.sum_inflight = set()  # (tid, hash) queued or running
         self.sum_failed = set()    # hashes that failed this run; don't retry
         self.closed_panes = set()  # panes herdr reported closed (see _prune)
+        # Set when summarizing cannot work in this process at all (sandbox);
+        # stops the queue from retrying every few minutes forever.
+        self.summarize_broken = False
         self._load()
 
     # -- persistence --
@@ -975,12 +1070,13 @@ class InboxDaemon:
         # Every knob that changes what a title IS belongs in this key: when it
         # changes the cached title is not "fresh" any more and gets re-derived
         # instead of lingering in state.json from a previous configuration.
-        sess_key = "%s:%s:%s:%s:%s:%s:%s" % (sess.get("kind"), sess.get("value"),
-                                             self.cfg["title_source"],
-                                             self.cfg["prefer_agent_title"],
-                                             self.cfg["prompt_titles"],
-                                             self.cfg["summarize"],
-                                             TITLE_ALGO)
+        sess_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (sess.get("kind"), sess.get("value"),
+                                                self.cfg["title_source"],
+                                                self.cfg["prefer_agent_title"],
+                                                ",".join(self.cfg["native_title_agents"]),
+                                                self.cfg["prompt_titles"],
+                                                self.cfg["summarize"],
+                                                TITLE_ALGO)
         fresh = st.get("title_sess") == sess_key
         if st.get("title_manual") and st.get("title"):
             if fresh:
@@ -1000,6 +1096,7 @@ class InboxDaemon:
         # directory are fine.
         cwd_keyed = rec.get("agent") in CWD_KEYED_AGENTS
         if self.cfg["prefer_agent_title"] \
+                and rec.get("agent") in self.cfg["native_title_agents"] \
                 and not (cwd_keyed
                          and (rec.get("agent"), rec.get("cwd")) in self.ambiguous):
             native = native_title_for(rec, path)
@@ -1090,7 +1187,7 @@ class InboxDaemon:
         own title rather than a first-prompt copy that then changes.
         """
         excerpt = thread_excerpt(path)
-        if not excerpt:
+        if not excerpt or self.summarize_broken:
             return
         h = hashlib.sha1(excerpt.encode()).hexdigest()[:12]
         if st.get("sum_hash") == h and st.get("title"):
@@ -1123,9 +1220,18 @@ class InboxDaemon:
                 if r.returncode == 0:
                     title = _clean_title(_summary_line(r.stdout))
                 else:
+                    err = r.stderr or r.stdout or ""
                     self.log("summarize_cmd rc=%d: %s%s" % (
-                        r.returncode, (r.stderr or r.stdout or "")[:200],
-                        _sandbox_hint(r.stderr or r.stdout or "")))
+                        r.returncode, err[:200], _sandbox_hint(err)))
+                    if "sandbox_apply" in err:
+                        # Not a transient failure: this daemon inherited a
+                        # sandbox at startup and every future call will die the
+                        # same way. Stop trying (one log line beats hundreds)
+                        # and say so where it will actually be seen.
+                        self.summarize_broken = True
+                        notify("agent inbox: summaries disabled",
+                               "daemon is inside another agent's sandbox — "
+                               "run: agent-inbox.fish restart")
             except (OSError, subprocess.TimeoutExpired) as e:
                 self.log("summarize failed: %s" % e)
             with self.lock:
@@ -1813,6 +1919,38 @@ def _stop_running():
         time.sleep(0.2)
 
 
+def _daemonize():
+    """Detach into our own session, so the daemon outlives its launcher.
+
+    Whoever starts this must not own it: a keybinding's process exits
+    immediately, and a pane's shell gets its whole process GROUP killed when
+    the pane closes -- which silently took the inbox down with any pane it was
+    ever started from. `nohup` does not help (that is SIGHUP only) and macOS
+    ships no setsid(1), so the double fork lives here instead of in the fish
+    helpers, where every caller would have to remember it.
+
+    Standard two-fork: fork so we are not a process-group leader, setsid to
+    leave the launcher's session and terminal behind, fork again so the
+    session leader is gone and no controlling terminal can be acquired.
+    """
+    if os.getpid() == os.getsid(0):
+        return                      # already detached (a re-exec, or a retry)
+    if os.fork() > 0:
+        os._exit(0)
+    os.setsid()
+    if os.fork() > 0:
+        os._exit(0)
+    # The launcher's stdio may be a pane that is about to disappear.
+    fd = os.open(os.devnull, os.O_RDWR)
+    for target in (0, 1, 2):
+        try:
+            os.dup2(fd, target)
+        except OSError:
+            pass
+    if fd > 2:
+        os.close(fd)
+
+
 def main():
     # Everything this daemon writes derives from the user's private prompts;
     # nothing it creates should be group/world-readable.
@@ -1826,6 +1964,8 @@ def main():
         return _check_summarize()
     if "--restart" in argv:
         _stop_running()
+    if "--foreground" not in argv:
+        _daemonize()
     d = InboxDaemon()
     for name in ("state.json", "history.jsonl", "daemon.log", "daemon.log.1",
                  "daemon.lock", "tui_prefs.json"):
