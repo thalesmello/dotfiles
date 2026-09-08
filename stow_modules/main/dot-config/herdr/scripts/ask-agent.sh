@@ -4,8 +4,8 @@
 #
 #   1. prompt for the question in this popup (prompt-lib.sh)
 #   2. pick the agent: the first of the words claude / pi / codex that appears
-#      in the question, defaulting to claude
-#   3. name the try: `pi -p` on a cheap OpenAI model TITLES the work the
+#      in the question, defaulting to pi -- name claude or codex to route there
+#   3. name the try: `pi -p` on a cheap haiku model TITLES the work the
 #      session is about (see SLUG_MODEL), and that title is slugified -- a
 #      title, not a slug of the question, because slugifying the question
 #      verbatim gives names like why-are-people-in-https-chat-google-com-u-0
@@ -40,11 +40,17 @@ here=$(cd "$(dirname "$0")" && pwd)
 PATH="$HOME/.local/bin:$HOME/src/dotfiles/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 export PATH
 
-# Cheap and fast: the same model and CLI the agent-inbox daemon uses to title
-# threads. `pi -p` starts fastest here, and the slug is not worth a frontier
-# model.
-SLUG_PROVIDER=openai
-SLUG_MODEL=gpt-4.1-mini
+# Cheap and fast, and ALWAYS pi regardless of which agent the question is
+# routed to: measured on this gateway, `pi -p` has the lowest fixed startup cost
+# of the three CLIs (claude pays several seconds more before the model even
+# runs), and the title is not worth a frontier model.
+#
+# haiku via the anthropic provider, not gpt-4.1-mini via openai: the openai
+# deployment 404s ("DeploymentNotFound") on the AI Gateway, so that model
+# returned nothing at all and every title silently fell back to the slugified
+# question. haiku answers in ~5s.
+SLUG_PROVIDER=anthropic
+SLUG_MODEL=claude-haiku-4-5
 SLUG_INSTRUCTION='Give a short title naming the WORK a coding-agent session
 started from the prompt below is about -- the subject and the kind of work, not
 a restatement of the question. 2-5 words. Drop URLs, quotes, file paths, and
@@ -70,11 +76,12 @@ question=$PROMPT_LINE
 # Word-wise, first match wins: "ask codex to explain pi" is a codex question.
 # tr splits on anything that is not a letter or digit, so "codex," and "(pi)"
 # still count, but "pineapple" and "claudette" do not.
+# Nothing named: pi, the default -- claude and codex have to be asked for.
 agent=$(printf '%s\n' "$question" \
   | tr '[:upper:]' '[:lower:]' \
   | tr -cs 'a-z0-9' '\n' \
   | awk '/^(claude|pi|codex)$/ { print; exit }')
-[ -n "$agent" ] || agent=claude
+[ -n "$agent" ] || agent=pi
 
 # --- 3. the name -----------------------------------------------------------
 

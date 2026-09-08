@@ -244,8 +244,8 @@ height = 3
 
 # prefix+a: "ask" -- type a question, get an agent working on it in its own
 # throwaway directory. The script (scripts/ask-agent.sh) picks the agent from
-# the question itself (the first of claude / pi / codex in it, default claude),
-# has `pi -p` on a cheap OpenAI model turn the question into a slug, makes
+# the question itself (the first of claude / pi / codex in it, default pi),
+# has `pi -p` on a cheap haiku model turn the question into a slug, makes
 # ~/src/tries/<date>-<slug> with `try new --print-path` (the non-interactive
 # mode added to dotfiles/bin/try for this), and opens a tab named after the
 # slug in the "qq" workspace -- created on the first ask -- cwd'd there and
