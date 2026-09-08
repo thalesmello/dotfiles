@@ -19,7 +19,8 @@ Keys:
   S             settle every finished (done/idle) agent
   r             regenerate title
   g             toggle group-by-workspace
-  q / esc       quit
+  /             search/filter inbox
+  q, esc        quit
 
 Mouse:
   left click    select        double left click   focus agent
@@ -27,6 +28,7 @@ Mouse:
 """
 
 import curses
+import glob
 import json
 import os
 import shlex
@@ -78,6 +80,19 @@ def herdr_socket_path():
     )
 
 
+def _session_name_from_socket():
+    parent = os.path.dirname(herdr_socket_path())
+    if os.path.basename(os.path.dirname(parent)) == "sessions":
+        return os.path.basename(parent)
+    return ""
+
+
+def _default_state_dir():
+    base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+    name = _session_name_from_socket()
+    return os.path.join(base, "herdr", "agent-inbox" + ("@" + name if name else ""))
+
+
 def state_dir():
     """The daemon's state dir -- asked of the daemon, never recomputed.
 
@@ -95,13 +110,46 @@ def state_dir():
         except (OSError, subprocess.SubprocessError):
             _STATE_DIR = ""
         if not _STATE_DIR:
-            base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser(
-                "~/.local/state")
-            _STATE_DIR = os.path.join(base, "herdr", "agent-inbox")
+            _STATE_DIR = _default_state_dir()
     return _STATE_DIR
 
 
 _STATE_DIR = None
+
+
+def ensure_daemon():
+    """Best-effort start so the popup also enables live inbox persistence.
+
+    The action keys already start the daemon, but opening the popup used to not:
+    you could browse stale rows without the live agent sessions ever being
+    tracked, which is exactly how archived pi chats ended up without resumable
+    session refs. Start it here too; the daemon's own flock makes duplicates
+    harmless.
+    """
+    if DEMO:
+        return
+    sock = os.path.join(state_dir(), "control.sock")
+    if os.path.exists(sock):
+        probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        probe.settimeout(0.2)
+        try:
+            probe.connect(sock)
+            return
+        except OSError:
+            pass
+        finally:
+            probe.close()
+    try:
+        subprocess.Popen(
+            [sys.executable, os.path.join(_HERE, "agent-inbox-daemon.py")],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            start_new_session=True,
+        )
+    except OSError:
+        pass
 
 
 def _demo_rows():
@@ -212,8 +260,9 @@ def load_agents():
             "agent": rec.get("agent") or "?",
             "status": rec.get("agent_status") or "unknown",
             "seq": rec.get("state_change_seq") or 0,
-            "title": rec.get("title") or tokens.get("title")
-                     or rec.get("terminal_title_stripped") or rec.get("agent") or "",
+            "title": rec.get("title") or rec.get("display_agent") or tokens.get("title")
+                     or rec.get("terminal_title_stripped") or rec.get("name")
+                     or rec.get("agent") or "",
             "rank": tokens.get("rank") or "4",
             "age": tokens.get("age") or "",
             "since": tokens.get("since") or "",
@@ -283,10 +332,80 @@ def load_hist_entries():
     return uniq
 
 
+def _pi_munged_cwd(cwd):
+    return "--%s--" % (cwd or "").strip("/").replace("/", "-")
+
+
+_PI_INFER_CACHE = {}
+
+
+def infer_pi_session(entry):
+    """Best-effort transcript for archived pi chats that predate sess_value.
+
+    Older history rows can lack the resumable ref entirely. Recover the path
+    from pi's own transcript store by cwd and close time so those rows still
+    get the ↩ marker and can be reopened from the popup.
+    """
+    cwd = entry.get("cwd")
+    if not cwd:
+        return None
+    when = entry.get("closed")
+    cache_key = (cwd, round(when or 0, 3))
+    if cache_key in _PI_INFER_CACHE:
+        return _PI_INFER_CACHE[cache_key]
+    root = os.path.expanduser("~/.pi/agent/sessions")
+    if not os.path.isdir(root):
+        _PI_INFER_CACHE[cache_key] = None
+        return None
+
+    def best(paths):
+        best_path, best_key = None, None
+        for p in paths:
+            try:
+                m = os.path.getmtime(p)
+            except OSError:
+                continue
+            if when is None:
+                key = (m,)
+            else:
+                key = (1 if m <= when + 120 else 0, -abs(m - when), m)
+            if best_key is None or key > best_key:
+                best_path, best_key = p, key
+        return best_path
+
+    direct = glob.glob(os.path.join(root, _pi_munged_cwd(cwd), "*.jsonl"))
+    hit = best(direct)
+    if hit:
+        _PI_INFER_CACHE[cache_key] = hit
+        return hit
+
+    matches = []
+    candidates = glob.glob(os.path.join(root, "*", "*.jsonl"))
+    try:
+        candidates.sort(key=os.path.getmtime, reverse=True)
+    except OSError:
+        return None
+    for path in candidates[:200]:
+        try:
+            with open(path) as f:
+                head = json.loads(f.readline())
+        except (OSError, ValueError):
+            continue
+        if isinstance(head, dict) and head.get("type") in ("session", "session_info") \
+                and head.get("cwd") == cwd:
+            matches.append(path)
+    hit = best(matches)
+    _PI_INFER_CACHE[cache_key] = hit
+    return hit
+
+
 def resume_cmd(entry):
     """Command that reopens this chat in its native CLI, or None."""
     agent = entry.get("agent")
     kind, val = entry.get("sess_kind"), entry.get("sess_value")
+    if agent == "pi" and not val:
+        val = infer_pi_session(entry)
+        kind = "path" if val else kind
     if not val:
         return None
     if agent == "claude" and kind == "id":
@@ -653,6 +772,112 @@ def counts_line(rows):
     return "%(attention)d need attention · %(working)d working · %(idle)d idle · %(settled)d settled" % c
 
 
+def _search_text(kind, item):
+    bits = []
+    if kind == "row":
+        bits = [item.get("title"), item.get("agent"), item.get("workspace"),
+                item.get("workspace_id"), item.get("tab_id"), item.get("cwd"),
+                item.get("status"), item.get("flag"), item.get("age"),
+                item.get("since")]
+    elif kind in ("hist", "closed"):
+        bits = [item.get("title"), item.get("agent"), item.get("workspace"),
+                item.get("workspace_id"), item.get("cwd"), item.get("sess_value")]
+    return " ".join(str(b) for b in bits if b).casefold()
+
+
+def _ctx_sig(line):
+    kind, item = line
+    if kind == "ws":
+        return (kind, item.get("workspace"))
+    if kind == "tab":
+        return (kind, item.get("label"))
+    if kind == "pane":
+        return (kind, item.get("cwd"), item.get("x"))
+    if kind == "header":
+        return (kind, item.get("workspace"), item.get("flag"), item.get("count"))
+    return (kind,)
+
+
+def filter_lines(lines, query):
+    query = (query or "").strip().casefold()
+    if not query:
+        return list(lines)
+    out = []
+    last_ctx = []
+    ctx = {"header": None, "ws": None, "tab": None, "pane": None}
+    for line in lines:
+        kind, item = line
+        if kind == "header":
+            ctx["header"] = line
+            ctx["ws"] = ctx["tab"] = ctx["pane"] = None
+            continue
+        if kind == "ws":
+            ctx["ws"] = line
+            ctx["tab"] = ctx["pane"] = None
+            ctx["header"] = None
+            continue
+        if kind == "tab":
+            ctx["tab"] = line
+            ctx["pane"] = None
+            continue
+        if kind == "pane":
+            ctx["pane"] = line
+            continue
+        if kind not in ("row", "hist", "closed") or query not in _search_text(kind, item):
+            continue
+        active = ([ctx["header"]] if ctx["header"]
+                  else [ctx["ws"], ctx["tab"], ctx["pane"]])
+        active = [c for c in active if c is not None]
+        sigs = [_ctx_sig(c) for c in active]
+        common = 0
+        while common < len(sigs) and common < len(last_ctx) and sigs[common] == last_ctx[common]:
+            common += 1
+        out.extend(active[common:])
+        out.append(line)
+        last_ctx = sigs
+    return out
+
+
+def prompt_search(stdscr, initial=""):
+    query = initial
+    stdscr.timeout(-1)
+    try:
+        curses.curs_set(1)
+    except curses.error:
+        pass
+    try:
+        while True:
+            h, w = stdscr.getmaxyx()
+            prompt = "/%s" % query
+            try:
+                stdscr.move(h - 1, 0)
+                stdscr.clrtoeol()
+                stdscr.addnstr(h - 1, 0, _wtrunc(prompt, w - 1), 2 * w, curses.A_BOLD)
+                stdscr.move(h - 1, min(_wwidth(prompt), max(0, w - 2)))
+                stdscr.refresh()
+            except curses.error:
+                pass
+            ch = stdscr.get_wch()
+            if ch in ("\n", "\r"):
+                return query.strip()
+            if ch == "\x1b":
+                return None
+            if ch in (curses.KEY_BACKSPACE, "\b", "\x7f"):
+                query = query[:-1]
+                continue
+            if ch == "\x15":
+                query = ""
+                continue
+            if isinstance(ch, str) and ch.isprintable():
+                query += ch
+    finally:
+        stdscr.timeout(2000)
+        try:
+            curses.curs_set(0)
+        except curses.error:
+            pass
+
+
 def run(stdscr):
     try:
         curses.curs_set(0)
@@ -702,11 +927,13 @@ def run(stdscr):
     curses.mousemask(curses.ALL_MOUSE_EVENTS)
     stdscr.timeout(2000)  # refresh every 2s when idle
 
+    ensure_daemon()
     prefs = load_prefs()
     mode = prefs.get("view")
     if mode not in VIEW_MODES:
         mode = "tree"
     hist_mode = False
+    search_query = ""
     sel = 0
     sel_key = None
     status_msg = ""
@@ -719,11 +946,12 @@ def run(stdscr):
         except (OSError, RuntimeError, ValueError) as e:
             err = str(e)
         if hist_mode:
-            lines = [("hist", e) for e in load_hist_entries()]
+            base_lines = [("hist", e) for e in load_hist_entries()]
         elif mode == "tree":
-            lines = build_tree(rows, load_hist_entries())
+            base_lines = build_tree(rows, load_hist_entries())
         else:
-            lines = build_lines(rows, mode)
+            base_lines = build_lines(rows, mode)
+        lines = filter_lines(base_lines, search_query)
         row_idx = [i for i, (kind, _) in enumerate(lines)
                    if kind in ("row", "hist", "closed")]
         if row_idx:
@@ -739,12 +967,16 @@ def run(stdscr):
         h, w = stdscr.getmaxyx()
         stdscr.erase()
         if hist_mode:
-            header = " Chat history — %d archived (newest first)" % len(lines)
-            help_line = " enter/dbl-click:reopen chat (↩ = resumable)  h:back  q:quit"
+            header = " Chat history — %d archived (newest first)" % len(base_lines)
+            help_line = " enter/dbl-click:reopen chat (↩ = resumable)  /:search  h:back  q:quit"
         else:
             header = " Agent Inbox — %s" % counts_line(rows)
             help_line = (" enter:focus  s:settle  u:unread  c:clear  S:settle-finished"
-                         "  r:retitle  g:view  h:history  q:quit  |  right-click: settle")
+                         "  r:retitle  g:view  /:search  h:history  q:quit  |"
+                         "  right-click: settle")
+        if search_query:
+            header += "  · /%s (%d match%s)" % (search_query, len(row_idx),
+                                                "" if len(row_idx) == 1 else "es")
         if err:
             header += "  (herdr unreachable — showing stale data)"
         try:
@@ -887,6 +1119,15 @@ def run(stdscr):
         ch = stdscr.getch()
         if ch in (ord("q"), 27):
             return
+        if ch == ord("/"):
+            query = prompt_search(stdscr, search_query)
+            if query is not None:
+                search_query = query
+                sel = 0
+                sel_key = None
+                status_msg = " search cleared" if not search_query \
+                    else " search: /%s" % search_query
+            continue
         if ch == -1:
             continue  # timeout -> refresh
         if ch == ord("h"):

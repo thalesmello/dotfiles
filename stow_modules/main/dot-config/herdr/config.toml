@@ -677,28 +677,30 @@ agent_panel_sort = "priority"
 
 [ui.sidebar.agents]
 # First line:  <state_icon> <workspace> <tab>
-# Second line: <flag> <terminal title> <age>
+# Second line: <terminal title>
+# Third line:  <flag> <derived title / agent> <age>
 # herdr joins row tokens with a space (sidebar rows can't contain literal text,
 # only builtin tokens and `$name` metadata tokens).
 #
-# $title is herdr's own terminal_title_stripped first -- exactly what this row
-# showed before the agent inbox went in ("π - src") -- then, only for agents
-# herdr has no title for, the name the AGENT ITSELF gave the session: codex's
-# thread title from its own db, claude's generated name, a pi session you
-# named. codex sets no terminal title at all, so that fallback is the
-# difference between its own title and an empty row.
-# What it never uses is a title of the daemon's own invention scraped from the
-# transcript -- that is just the first prompt copied out (daemon CONFIG:
-# prefer_terminal_title = true, prompt_titles = false). With
-# prefer_terminal_title on it also stops overriding herdr's pane title.
+# The built-in `terminal_title_stripped` on line 2 keeps the panel's shape and
+# information stable before agent-inbox-daemon.py starts: after a restart the
+# priority view still shows the same workspace/tab row and the agent's own
+# title row immediately, instead of collapsing to a different layout until the
+# daemon wakes up.
 #
-# $flag and $age are the parts worth having, and they come from the daemon:
-# $flag is ⚑ settled / ● unread, $age is how long the session has been alive.
-# Both simply render empty while the daemon is not running -- any inbox key
-# starts it -- so this row degrades to the plain title it always was.
+# The derived chat title rides on the BUILTIN `agent` token, not a `$title` of
+# our own. herdr resolves `agent` as the reported display_agent falling back to
+# the agent's own name (workspace/aggregate.rs: effective_display_agent()
+# .unwrap_or(agent_name)), so line 3 still renders either way: the thread
+# summary while the daemon runs, a plain "pi" / "codex" when it does not.
+#
+# $flag (⚑ settled / ● unread) and $age do come from the daemon and do go quiet
+# with it -- but they decorate a row that still stands, while the actual agent
+# title remains visible on line 2 regardless.
 rows = [
     ["state_icon", "workspace", "tab"],
-    [{ token = "$flag", fg = "#e5c890", bold = true }, "$title", { token = "$age", dim = true }]
+    ["terminal_title_stripped"],
+    [{ token = "$flag", fg = "#e5c890", bold = true }, "agent", { token = "$age", dim = true }]
 ]
 
 [ui.sidebar.spaces]

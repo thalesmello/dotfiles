@@ -202,10 +202,16 @@ CONFIG = {
     # summaries: "π - src" says less than "Port agent-inbox into dotfiles".
     # Still the fallback whenever no summary exists yet (see _display_title).
     "prefer_terminal_title": False,
-    # Overwrite herdr's pane title with ours. OFF: the sidebar reads $title
-    # from our tokens, and leaving herdr's own title alone keeps pane borders,
-    # `agent list` and the window title showing what the AGENT says it is.
+    # Overwrite herdr's pane title with ours. OFF: the sidebar reads the title
+    # from display_agent (below), and leaving herdr's own title alone keeps
+    # pane borders, `agent list` and the window title showing what the AGENT
+    # says it is.
     "set_pane_title": False,
+    # Publish the title as the pane's display_agent, which is what the sidebar
+    # renders for the builtin `agent` token. ON: it is the only reported field
+    # with a built-in fallback, so the Agents panel keeps its shape when this
+    # daemon is not running (see _pane_report_item).
+    "report_display_agent": True,
     # Rename tabs after their agent's title. OFF: prompt_new_tab_name = true
     # means tabs here already have names that were chosen on purpose.
     "tab_rename": False,
@@ -783,17 +789,54 @@ def _munge_claude_cwd(cwd):
     return re.sub(r"[/.]", "-", cwd)
 
 
+_UUID_RE = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
+
+
+def ref_from_transcript(agent, path):
+    """A resumable (kind, value) for a transcript herdr told us nothing about.
+
+    Panes that were resumed by hand (`pi --session ...`, `codex resume`, a
+    pick from an agent's own picker) get no session ref from herdr, so the
+    chat used to be archived with nothing to reopen it -- the history browser
+    showed the row without the resumable mark and enter did nothing.
+    resolve_transcript()'s cwd fallback already finds the file; this turns it
+    into the same (kind, value) pair herdr would have reported.
+
+    Shapes, matching resume_cmd() in the TUI:
+      pi      path       `pi --session <path>` takes a path or an id
+      claude  id         the transcript is <uuid>.jsonl
+      codex   id         the id is embedded in rollout-<ts>-<uuid>.jsonl
+    """
+    if not path:
+        return None, None
+    if agent == "pi":
+        return "path", path
+    name = os.path.basename(path)
+    if agent == "claude":
+        stem = name[:-6] if name.endswith(".jsonl") else name
+        return ("id", stem) if _UUID_RE.fullmatch(stem) else (None, None)
+    if agent == "codex":
+        # rollout-2026-08-18T13-10-54-01a0167f-....jsonl -- the LAST uuid in
+        # the name, since the timestamp can look uuid-ish in parts.
+        hits = _UUID_RE.findall(name)
+        return ("id", hits[-1]) if hits else (None, None)
+    return None, None
+
+
 def _pi_munged_cwd(cwd):
     """pi's directory name for a cwd: /Users/me/src -> --Users-me-src--"""
     return "--%s--" % (cwd or "").strip("/").replace("/", "-")
 
 
-def pi_session_for_cwd(cwd):
-    """Newest pi transcript for a directory, when herdr reports no ref.
+def pi_session_for_cwd(cwd, when=None):
+    """Best pi transcript for a directory, when herdr reports no ref.
 
-    `pi --session <file>` (or a resume from pi's own picker) started outside
-    herdr's integration leaves the pane with no session ref, so there is no
-    transcript to summarize and the row falls back to the terminal title.
+    Live panes want the newest matching transcript. A pane that is already
+    closing wants the transcript whose mtime is closest to that close time, so
+    the archived chat keeps a resumable ref even if the live pane never had
+    one. This is still only a heuristic for multiple same-cwd pi panes, but it
+    is far better than dropping the ref entirely.
 
     Two lookups, cheapest first: pi's own per-cwd directory, then a scan of
     the newest transcripts anywhere, matching the `cwd` in each one's opening
@@ -807,18 +850,24 @@ def pi_session_for_cwd(cwd):
     if not os.path.isdir(root):
         return None
 
-    def newest(paths):
-        best, best_mtime = None, -1
+    def best(paths):
+        best_path, best_key = None, None
         for p in paths:
             try:
                 m = os.path.getmtime(p)
             except OSError:
                 continue
-            if m > best_mtime:
-                best, best_mtime = p, m
-        return best
+            if when is None:
+                key = (m,)
+            else:
+                # Prefer transcripts last touched at or just before close; if
+                # nothing lands there, fall back to the nearest timestamp.
+                key = (1 if m <= when + 120 else 0, -abs(m - when), m)
+            if best_key is None or key > best_key:
+                best_path, best_key = p, key
+        return best_path
 
-    hit = newest(glob.glob(os.path.join(root, _pi_munged_cwd(cwd), "*.jsonl")))
+    hit = best(glob.glob(os.path.join(root, _pi_munged_cwd(cwd), "*.jsonl")))
     if hit:
         return hit
 
@@ -827,7 +876,9 @@ def pi_session_for_cwd(cwd):
         candidates.sort(key=os.path.getmtime, reverse=True)
     except OSError:
         return None
-    for path in candidates[:40]:   # newest only; older ones are not "this pane"
+    matches = []
+    limit = 40 if when is None else 200
+    for path in candidates[:limit]:
         try:
             with open(path) as f:
                 head = f.readline()
@@ -836,8 +887,10 @@ def pi_session_for_cwd(cwd):
             continue
         if isinstance(obj, dict) and obj.get("type") in ("session", "session_info") \
                 and obj.get("cwd") == cwd:
-            return path
-    return None
+            matches.append(path)
+            if when is None:
+                break
+    return best(matches)
 
 
 def codex_rollout_for_cwd(cwd):
@@ -913,6 +966,32 @@ def resolve_transcript(agent_rec, cwd_fallback=False):
                 recursive=True,
             )
             return hits[0] if hits else None
+    return None
+
+
+def resolve_resume_session(agent_rec, path=None, cwd_fallback=False):
+    """The best resumable session ref for a live pane, if any.
+
+    Prefer the ref herdr already knows. When a pane was started/resumed
+    outside the integration, herdr can have no reported session ref even
+    though we found the transcript ourselves; derive the same resumable
+    (kind, value) from that transcript so archived chats stay reopenable.
+    """
+    sess = agent_rec.get("agent_session")
+    if not isinstance(sess, dict):
+        sess = {}
+    kind, value = sess.get("kind"), sess.get("value")
+    if value:
+        if kind == "path":
+            return {"kind": kind, "value": value}
+        if kind == "id" and not re.search(r"[/\\*?\[\]]|\.\.", value):
+            return {"kind": kind, "value": value}
+        return None
+    if path is None:
+        path = resolve_transcript(agent_rec, cwd_fallback=cwd_fallback)
+    kind, value = ref_from_transcript(agent_rec.get("agent"), path)
+    if value:
+        return {"kind": kind, "value": value}
     return None
 
 
@@ -1017,6 +1096,25 @@ class InboxDaemon:
         # agent at all while prefer_terminal_title is on and no transcript was
         # ever found -- would vanish on close instead of landing in history.
         title = st.get("title") or st.get("term_title")
+        # A pane can die before a refresh managed to pin down its native session
+        # ref (most visibly pi after a restart, before the inbox daemon had
+        # fully caught up). One last by-cwd lookup at archive time keeps the
+        # closed row resumable instead of throwing away the context forever.
+        if not st.get("sess_value"):
+            path = None
+            agent = st.get("agent")
+            cwd = st.get("cwd")
+            if agent == "pi":
+                path = pi_session_for_cwd(cwd, when=now)
+            elif agent == "codex":
+                path = codex_rollout_for_cwd(cwd)
+            kind, value = ref_from_transcript(agent, path)
+            if value:
+                st["sess_kind"] = kind
+                st["sess_value"] = value
+                st["sess_ref"] = "%s:%s" % (kind, value)
+        sess_kind = st.get("sess_kind")
+        sess_value = st.get("sess_value")
         # A pane archived on "gone" that reappears and closes for real would
         # archive the same chat twice — skip unchanged re-archives.
         fingerprint = (st.get("sess_ref"), title)
@@ -1033,11 +1131,17 @@ class InboxDaemon:
                 "workspace": st.get("ws_label"),
                 "pane_id": st.get("pane_id"),
                 "cwd": st.get("cwd"),
-                "sess_kind": st.get("sess_kind"),
-                "sess_value": st.get("sess_value"),
+                "sess_kind": sess_kind,
+                "sess_value": sess_value,
             }
-            hist.append({"agent": entry["agent"], "title": title,
-                         "closed": now})
+            hist.append({
+                "agent": entry["agent"],
+                "title": title,
+                "closed": now,
+                "sess_kind": sess_kind,
+                "sess_value": sess_value,
+                "cwd": entry["cwd"],
+            })
             self._append_history(entry)
         return hist[-10:]
 
@@ -1058,19 +1162,28 @@ class InboxDaemon:
 
     def _ensure_title(self, rec, st, now):
         """Generate/refresh the session title for one agent record."""
-        sess = rec.get("agent_session") or {}
-        sess_ref = "%s:%s" % (sess.get("kind"), sess.get("value"))
-        if sess.get("value") and st.get("sess_ref") not in (None, sess_ref):
-            # The pane started a NEW native session — archive the old chat.
-            st["history"] = self._archive_chat(st, now)
-        if sess.get("value"):
+        # The cwd fallback needs the ambiguity guard: it finds the newest
+        # conversation for a directory, which is the wrong answer when two
+        # panes of the same agent sit in one.
+        cwd_ok = (rec.get("agent"), rec.get("cwd")) not in self.ambiguous
+        path = resolve_transcript(rec, cwd_fallback=cwd_ok)
+        sess = resolve_resume_session(rec, path=path, cwd_fallback=cwd_ok) or {}
+        sess_kind, sess_value = sess.get("kind"), sess.get("value")
+        sess_ref = "%s:%s" % (sess_kind, sess_value) if sess_value else None
+        if sess_ref:
+            if st.get("sess_ref") not in (None, sess_ref):
+                # The pane started a NEW native session — archive the old chat.
+                # This matters for pi sessions resumed outside herdr too: they
+                # often have no reported session id, so the transcript path is
+                # the only stable identity we can compare and persist.
+                st["history"] = self._archive_chat(st, now)
             st["sess_ref"] = sess_ref
-            st["sess_kind"] = sess.get("kind")
-            st["sess_value"] = sess.get("value")
+            st["sess_kind"] = sess_kind
+            st["sess_value"] = sess_value
         # Every knob that changes what a title IS belongs in this key: when it
         # changes the cached title is not "fresh" any more and gets re-derived
         # instead of lingering in state.json from a previous configuration.
-        sess_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (sess.get("kind"), sess.get("value"),
+        sess_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (sess_kind, sess_value,
                                                 self.cfg["title_source"],
                                                 self.cfg["prefer_agent_title"],
                                                 ",".join(self.cfg["native_title_agents"]),
@@ -1082,11 +1195,6 @@ class InboxDaemon:
             if fresh:
                 return
             st["title_manual"] = False  # new session ref supersedes manual title
-        # The cwd fallback needs the ambiguity guard: it finds the newest
-        # conversation for a directory, which is the wrong answer when two
-        # panes of the same agent sit in one.
-        cwd_ok = (rec.get("agent"), rec.get("cwd")) not in self.ambiguous
-        path = resolve_transcript(rec, cwd_fallback=cwd_ok)
 
         # The agent's own name for the session is checked EVERY tick, before
         # any cached-title shortcut: an agent renames its session as work
@@ -1460,7 +1568,19 @@ class InboxDaemon:
         # not what the sidebar wants, and reporting it would replace herdr's
         # `title` for the pane everywhere else too (agent list, pane borders).
         meta_title = st.get("title") if self.cfg["set_pane_title"] else None
-        want = {"title": meta_title, "tokens": tokens}
+        # The title ALSO goes out as display_agent, which is what makes the
+        # sidebar survive this daemon being down.
+        #
+        # herdr resolves the builtin `agent` token as display_agent, falling
+        # back to the agent's own name (workspace/aggregate.rs: agent_label =
+        # effective_display_agent().unwrap_or(agent_name)). Custom `$tokens`
+        # have no such fallback -- they simply vanish, and a row of nothing
+        # but vanished tokens is dropped entirely, which is why the second
+        # sidebar row disappeared until the daemon came up. Reported through
+        # `agent`, the row always renders: the title when we are running, the
+        # plain agent name when we are not.
+        display_agent = st.get("title") if self.cfg["report_display_agent"] else None
+        want = {"title": meta_title, "display": display_agent, "tokens": tokens}
         if self.last_report.get(tid) == want:
             return None
         params = {"pane_id": pane_id, "source": SOURCE, "tokens": tokens}
@@ -1472,6 +1592,10 @@ class InboxDaemon:
             # daemon that stops overriding titles (prefer_terminal_title, or a
             # title that went away) would strand a stale one on the pane.
             params["clear_title"] = True
+        if display_agent:
+            params["display_agent"] = display_agent
+        else:
+            params["clear_display_agent"] = True
         return (pane_id, tid, params, want)
 
     def _send_pane_report(self, pane_id, tid, params, want):
