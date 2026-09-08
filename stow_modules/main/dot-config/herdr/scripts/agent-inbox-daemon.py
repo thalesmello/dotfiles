@@ -321,17 +321,43 @@ def herdr_request(method, params, timeout=10.0):
     return resp.get("result") or {}
 
 
+_EIGHTHS = {
+    0: "",
+    1: "⅛",
+    2: "¼",
+    3: "⅜",
+    4: "½",
+    5: "⅝",
+    6: "¾",
+    7: "⅞",
+}
+
+
+def _fmt_fractional_unit(value, unit):
+    """Compact hours/days with unicode eighths, capped to 3 columns.
+
+    Single-digit values may use a fractional glyph: 1½h, 3⅛D. Two-digit
+    values fall back to whole units so the result stays 3 chars wide.
+    """
+    whole = int(value)
+    if whole >= 10:
+        return "%d%s" % (min(99, whole), unit)
+    eighths = int(round((value - whole) * 8))
+    if eighths >= 8:
+        whole += 1
+        eighths = 0
+    if whole >= 10:
+        return "%d%s" % (whole, unit)
+    return "%d%s%s" % (whole, _EIGHTHS.get(eighths, ""), unit)
+
+
 def fmt_dur(secs):
     secs = max(0, int(secs))
-    if secs < 60:
-        return "%ds" % secs
     if secs < 3600:
-        return "%dm" % (secs // 60)
+        return ("%dm" % max(1, secs // 60))[:3].ljust(3)
     if secs < 86400:
-        h, m = divmod(secs // 60, 60)
-        return "%dh%02dm" % (h, m) if m else "%dh" % h
-    d, h = divmod(secs // 3600, 24)
-    return "%dd%dh" % (d, h) if h else "%dd" % d
+        return _fmt_fractional_unit(secs / 3600.0, "h")[:3].ljust(3)
+    return _fmt_fractional_unit(secs / 86400.0, "D")[:3].ljust(3)
 
 
 # ---------------------------------------------------------------- titles ----
@@ -1363,9 +1389,19 @@ class InboxDaemon:
             self.log("agent.list failed: %s" % e)
             return
         ws_labels = {}
+        tab_labels = {}
         try:
-            for wsr in herdr_request("workspace.list", {}).get("workspaces", []):
-                ws_labels[wsr.get("workspace_id")] = wsr.get("label")
+            workspaces = herdr_request("workspace.list", {}).get("workspaces", [])
+            for wsr in workspaces:
+                ws_id = wsr.get("workspace_id")
+                ws_labels[ws_id] = wsr.get("label")
+                if not ws_id:
+                    continue
+                try:
+                    for tr in herdr_request("tab.list", {"workspace_id": ws_id}).get("tabs", []):
+                        tab_labels[tr.get("tab_id")] = tr.get("label") or str(tr.get("number") or "")
+                except (OSError, RuntimeError, ValueError):
+                    pass
         except (OSError, RuntimeError, ValueError):
             pass
         pending = []
@@ -1441,12 +1477,21 @@ class InboxDaemon:
                 title = self._display_title(rec, st)
                 rank = self.rank_for(status, st["settled"], st["unread"])
                 flag = FLAG_SETTLED if st["settled"] else (FLAG_UNREAD if st["unread"] else "")
+                tab_label = tab_labels.get(rec.get("tab_id"))
+                ws_label = ws_labels.get(rec.get("workspace_id"))
+                place = None
+                if tab_label and ws_label:
+                    place = "%s▸%s" % (tab_label, ws_label)
+                else:
+                    place = tab_label or ws_label
+                age = fmt_dur(now - st["first_seen"])
                 tokens = {
                     "title": title,
                     "rank": rank,
-                    "age": fmt_dur(now - st["first_seen"]),
+                    "age": age,
                     "since": fmt_dur(now - st["last_change"]),
                     "flag": flag,
+                    "place": place,
                 }
                 pending.append(self._pane_report_item(pane_id, tid, st, tokens))
 
@@ -1568,18 +1613,15 @@ class InboxDaemon:
         # not what the sidebar wants, and reporting it would replace herdr's
         # `title` for the pane everywhere else too (agent list, pane borders).
         meta_title = st.get("title") if self.cfg["set_pane_title"] else None
-        # The title ALSO goes out as display_agent, which is what makes the
-        # sidebar survive this daemon being down.
+        # The sidebar's builtin `agent` token resolves to display_agent first,
+        # then falls back inside herdr. Publish the SAME value we compute for
+        # the inbox title token: derived session title when we have one, else
+        # the stripped terminal title, else the agent name.
         #
-        # herdr resolves the builtin `agent` token as display_agent, falling
-        # back to the agent's own name (workspace/aggregate.rs: agent_label =
-        # effective_display_agent().unwrap_or(agent_name)). Custom `$tokens`
-        # have no such fallback -- they simply vanish, and a row of nothing
-        # but vanished tokens is dropped entirely, which is why the second
-        # sidebar row disappeared until the daemon came up. Reported through
-        # `agent`, the row always renders: the title when we are running, the
-        # plain agent name when we are not.
-        display_agent = st.get("title") if self.cfg["report_display_agent"] else None
+        # This is what makes the 2-line layout read as
+        #   <flag> <session title or window title> <age>
+        # while the daemon runs.
+        display_agent = tokens.get("title") if self.cfg["report_display_agent"] else None
         want = {"title": meta_title, "display": display_agent, "tokens": tokens}
         if self.last_report.get(tid) == want:
             return None

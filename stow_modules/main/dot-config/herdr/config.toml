@@ -550,7 +550,7 @@ description = "sidebar narrower"
 # (scripts/sidebar-resize.py) rewrite these very lines in place, and the script
 # refuses to append keys it cannot find -- appending would risk a second
 # definition in the wrong section.
-sidebar_width = 33
+sidebar_width = 30
 
 # Minimum sidebar width when expanded (columns)
 sidebar_min_width = 18
@@ -676,31 +676,29 @@ window_title = "[herdr] {hostname}: {workspace}"
 agent_panel_sort = "priority"
 
 [ui.sidebar.agents]
-# First line:  <state_icon> <workspace> <tab>
-# Second line: <terminal title>
-# Third line:  <flag> <derived title / agent> <age>
+# First line:  <status> <flag> <session title, else stripped window title>
+# Second line: <tab▸workspace> <age>
 # herdr joins row tokens with a space (sidebar rows can't contain literal text,
 # only builtin tokens and `$name` metadata tokens).
 #
-# The built-in `terminal_title_stripped` on line 2 keeps the panel's shape and
-# information stable before agent-inbox-daemon.py starts: after a restart the
-# priority view still shows the same workspace/tab row and the agent's own
-# title row immediately, instead of collapsing to a different layout until the
-# daemon wakes up.
+# The tab/workspace component is a single daemon-reported token ($place), so it
+# renders with no spaces around the separator.
 #
-# The derived chat title rides on the BUILTIN `agent` token, not a `$title` of
-# our own. herdr resolves `agent` as the reported display_agent falling back to
-# the agent's own name (workspace/aggregate.rs: effective_display_agent()
-# .unwrap_or(agent_name)), so line 3 still renders either way: the thread
-# summary while the daemon runs, a plain "pi" / "codex" when it does not.
-#
-# $flag (⚑ settled / ● unread) and $age do come from the daemon and do go quiet
-# with it -- but they decorate a row that still stands, while the actual agent
-# title remains visible on line 2 regardless.
+# The daemon publishes that "session title, else stripped window title" value
+# through the BUILTIN `agent` token by setting display_agent to the same value
+# it computes for its own $title token: derived session title when available,
+# else herdr's stripped terminal title, else the plain agent name as a last
+# resort.
 rows = [
-    ["state_icon", "workspace", "tab"],
-    ["terminal_title_stripped"],
-    [{ token = "$flag", fg = "#e5c890", bold = true }, "agent", { token = "$age", dim = true }]
+    [
+        "state_icon",
+        { token = "$flag", fg = "#e5c890", bold = true },
+        { token = "agent", fg = "#c6d0f5", bold = false, dim = false },
+    ],
+    [
+        { token = "$place", fg = "#a5adce", bold = false, dim = true },
+        { token = "$age", dim = true }
+    ]
 ]
 
 [ui.sidebar.spaces]
