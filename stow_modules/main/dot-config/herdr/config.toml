@@ -245,12 +245,15 @@ height = 3
 # prefix+a: "ask" -- type a question, get an agent working on it in its own
 # throwaway directory. The script (scripts/ask-agent.sh) picks the agent from
 # the question itself (the first of claude / pi / codex in it, default pi),
-# has `pi -p` on a cheap haiku model turn the question into a slug, makes
+# immediately opens a new tab in the "qq" workspace labelled "asking...", then
+# drops a short runner script into /tmp and starts it in that new tab through a
+# fixed command plus env var, so the actual temp-script path does not need to
+# land in shell history. The runner uses `pi -p` on a cheap haiku model to
+# title the work, slugifies that title, renames the tab async, makes
 # ~/src/tries/<date>-<slug> with `try new --print-path` (the non-interactive
-# mode added to dotfiles/bin/try for this), and opens a tab named after the
-# slug in the "qq" workspace -- created on the first ask -- cwd'd there and
-# running the agent with the question as its opening prompt.
-# type = "popup" so the question prompt runs in a herdr-rendered PTY where
+# mode added to dotfiles/bin/try for this), cd's there, and starts the chosen
+# agent with the question as its opening prompt.
+# type = "popup" so only the question prompt runs in a herdr-rendered PTY where
 # interactive input works (same as claude-tab.sh); wider and 3 rows tall
 # because a question is longer than a tab name.
 [[keys.command]]
