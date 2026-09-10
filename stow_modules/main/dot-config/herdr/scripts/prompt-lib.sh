@@ -44,6 +44,7 @@
 #   ctrl+y                             yank back the last kill
 #   ctrl+t                             transpose the two chars at the cursor
 #   alt+u / alt+l / alt+c              upcase / downcase / capitalize word
+#   ctrl+shift+_ / ctrl+_              undo last edit
 #   ctrl+l                             redraw the line
 #   enter                              accept
 #   esc, ctrl+g                        cancel
@@ -51,7 +52,9 @@
 #   paste                              inserted at the cursor, however long
 #
 # Kills go to a one-slot kill ring, so ctrl+w/ctrl+u/ctrl+k then ctrl+y is the
-# usual "move this text elsewhere" move.
+# usual "move this text elsewhere" move. Edits go onto a simple undo stack;
+# ctrl+shift+_ walks back through it, whether the terminal collapses that to
+# ctrl+_ or spells it out via modifyOtherKeys / CSI-u.
 #
 # BYTES, NOT `read`. ctrl+c has to arrive as data (0x03) rather than as SIGINT,
 # and while `stty -isig` arranges exactly that, bash's `read` builtin puts ISIG
@@ -139,9 +142,26 @@ _prompt_csi_tail() {
 # it. Globals, so the operations below can be one-liners that any of the key
 # handlers can call.
 
+_prompt_save_undo() {                  # remember the state before an edit
+  _prompt_undo_lines+=("$PROMPT_LINE")
+  _prompt_undo_pos+=("$_prompt_pos")
+}
+
+_prompt_undo() {                       # restore the previous edited state
+  local _n=${#_prompt_undo_lines[@]}
+  [ "$_n" -gt 0 ] || return 0
+
+  _n=$((_n - 1))
+  PROMPT_LINE=${_prompt_undo_lines[$_n]}
+  _prompt_pos=${_prompt_undo_pos[$_n]}
+  _prompt_undo_lines=("${_prompt_undo_lines[@]:0:_n}")
+  _prompt_undo_pos=("${_prompt_undo_pos[@]:0:_n}")
+}
+
 _prompt_insert() {                     # insert text at the cursor
   local _t=$1
   [ -n "$_t" ] || return 0
+  _prompt_save_undo
   PROMPT_LINE="${PROMPT_LINE:0:_prompt_pos}$_t${PROMPT_LINE:_prompt_pos}"
   _prompt_pos=$((_prompt_pos + ${#_t}))
 }
@@ -151,9 +171,13 @@ _prompt_insert() {                     # insert text at the cursor
 # readline -- otherwise a stray backspace would clobber the text you were
 # about to yank.
 _prompt_delete() {
-  local _at=$1 _len=$2 _ring=${3-}
+  local _at=$1 _len=$2 _ring=${3-} _n=${#PROMPT_LINE}
   [ "$_len" -gt 0 ] || return 0
+  [ "$_at" -ge 0 ] || return 0
+  [ "$_at" -lt "$_n" ] || return 0
+  [ $((_at + _len)) -gt "$_n" ] && _len=$((_n - _at))
   [ -n "$_ring" ] && _prompt_kill=${PROMPT_LINE:_at:_len}
+  _prompt_save_undo
   PROMPT_LINE="${PROMPT_LINE:0:_at}${PROMPT_LINE:_at + _len}"
   [ "$_prompt_pos" -gt "$_at" ] && _prompt_pos=$_at
 }
@@ -177,10 +201,11 @@ _prompt_word_fwd() {                   # index of the end of the word right of $
 # alt+u / alt+l / alt+c: recase from the cursor to the end of the word, and
 # leave the cursor there, like readline.
 _prompt_case_word() {
-  local _mode=$1 _end _word
+  local _mode=$1 _end _word _old_word
   _end=$(_prompt_word_fwd "$_prompt_pos")
   [ "$_end" -gt "$_prompt_pos" ] || return 0
-  _word=${PROMPT_LINE:_prompt_pos:_end - _prompt_pos}
+  _old_word=${PROMPT_LINE:_prompt_pos:_end - _prompt_pos}
+  _word=$_old_word
 
   case $_mode in
     up)   _word=${_word^^} ;;
@@ -192,7 +217,10 @@ _prompt_case_word() {
           _word="$_lead${_rest^}" ;;
   esac
 
-  PROMPT_LINE="${PROMPT_LINE:0:_prompt_pos}$_word${PROMPT_LINE:_end}"
+  if [ "$_word" != "$_old_word" ]; then
+    _prompt_save_undo
+    PROMPT_LINE="${PROMPT_LINE:0:_prompt_pos}$_word${PROMPT_LINE:_end}"
+  fi
   _prompt_pos=$_end
 }
 
@@ -203,6 +231,7 @@ _prompt_transpose() {                  # ctrl+t: swap the chars around the curso
   [ "$_at" -ge 1 ] || return 0
   _a=${PROMPT_LINE:_at-1:1}
   _b=${PROMPT_LINE:_at:1}
+  [ "$_a" != "$_b" ] && _prompt_save_undo
   PROMPT_LINE="${PROMPT_LINE:0:_at-1}$_b$_a${PROMPT_LINE:_at+1}"
   _prompt_pos=$((_at + 1))
 }
@@ -271,6 +300,7 @@ _prompt_escape() {
       _tail=$(_prompt_csi_tail)
       case $_tail in
         200~) _prompt_paste ;;
+        95\;[56]u|47\;[56]u|27\;[56]\;95~|27\;[56]\;47~) _prompt_undo ;;  # CSI-u / modifyOtherKeys ctrl+_ / ctrl+shift+_
         C|1\;*C)                       # right / ctrl+right / alt+right
           case $_tail in
             C) [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1)) ;;
@@ -329,6 +359,8 @@ prompt_line() {
   _prompt_pos=${#PROMPT_LINE}
   _prompt_start=0
   _prompt_kill=''
+  _prompt_undo_lines=()
+  _prompt_undo_pos=()
   _prompt_cols=$(stty size 2>/dev/null | awk '{ print $2 }')
   [ -n "$_prompt_cols" ] && [ "$_prompt_cols" -gt 0 ] 2>/dev/null || _prompt_cols=${COLUMNS:-80}
 
@@ -357,10 +389,12 @@ prompt_line() {
         _prompt_delete "$_prompt_pos" $((${#PROMPT_LINE} - _prompt_pos)) kill ;;
       25) _prompt_insert "$_prompt_kill" ;;            # ctrl+y
       20) _prompt_transpose ;;                         # ctrl+t
+      31) _prompt_undo ;;                              # ctrl+shift+_ / ctrl+_
       12) : ;;                                         # ctrl+l: the render below
       7) _cancelled=1; break ;;                        # ctrl+g: abort
       3)                                               # ctrl+c: clear, else cancel
         if [ -n "$PROMPT_LINE" ]; then
+          _prompt_save_undo
           PROMPT_LINE=''; _prompt_pos=0; _prompt_start=0
         else
           _cancelled=1; break
