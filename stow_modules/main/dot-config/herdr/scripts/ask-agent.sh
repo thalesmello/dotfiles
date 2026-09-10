@@ -92,23 +92,6 @@ export PATH
 #   as the user turn, with the question quoted after "Request:", works.
 SLUG_MODEL=google/gemini-2.5-flash
 SLUG_PI_ARGS="--no-tools --no-extensions --no-session --thinking off"
-# THE SANDBOX FLAG, and why every pi launch here needs it.
-#
-# The 3pai launcher sandboxes pi with writable roots derived from the launch
-# directory. A try directory is brand new and belongs to no repository, so that
-# set comes out narrow -- narrow enough to exclude pi's OWN state directory, and
-# pi dies on startup:
-#
-#   EPERM: operation not permitted, mkdir
-#   '~/.pi/agent/sessions/--Users-me-src-tries-2026-09-10-some-slug--'
-#
-# It is specifically ~/.pi/agent that is missing: the try directory itself is
-# writable (the agent can create files in it just fine), and claude is not
-# affected. `--meta-add-writable-dir` grants exactly the path given, so handing
-# it ~/.pi/agent -- pi's own sessions, settings and auth locks -- is the whole
-# fix. `git init` in the try dir does NOT help, and neither does pre-creating
-# the session directory.
-PI_SANDBOX_ARGS="--meta-add-writable-dir $HOME/.pi/agent"
 # The title is a LABEL, not a sentence: it becomes a tab name and a directory
 # name, so what is wanted is the topic named as a thing -- "GitHub access
 # investigation", not "Troubleshooting why people cannot see the repo". Left to
@@ -249,7 +232,6 @@ tab=$(printf '%s' "$created" | json_field tab_id)
   printf 'QUESTION=%q\n' "$question"
   printf 'SLUG_MODEL=%q\n' "$SLUG_MODEL"
   printf 'SLUG_PI_ARGS=%q\n' "$SLUG_PI_ARGS"
-  printf 'PI_SANDBOX_ARGS=%q\n' "$PI_SANDBOX_ARGS"
   printf 'SLUG_INSTRUCTION=%q\n' "$SLUG_INSTRUCTION"
   cat <<'RUNNER'
 
@@ -317,14 +299,12 @@ Request: \"$QUESTION\"" </dev/null 2>/dev/null | last_line)
     if label_ok "$got"; then title=$got; else printf ' no label;'; fi
   fi
 
-  # $PI_SANDBOX_ARGS for the reason documented where it is set (this call runs
-  # before the cd, but it is the same launcher and the same state directory).
   # $SLUG_PI_ARGS is what makes it fast, --no-session also keeping the titling
   # exchange out of ~/.pi/agent/sessions, out of `pi --resume` and out of the
   # agent inbox's history.
   if [ -z "$title" ]; then
     printf 'naming (%s)...' "$SLUG_MODEL"
-    got=$(pi $PI_SANDBOX_ARGS -p $SLUG_PI_ARGS \
+    got=$(pi -p $SLUG_PI_ARGS \
       --model "$SLUG_MODEL" --system-prompt "$SLUG_INSTRUCTION" \
       "$QUESTION" </dev/null 2>/dev/null | last_line)
     label_ok "$got" && title=$got
@@ -368,27 +348,17 @@ Request: \"$QUESTION\"" </dev/null 2>/dev/null | last_line)
   # interactive afterwards, which is the whole point: the answer starts arriving
   # on its own and the session is there to keep talking to.
   #
-  # Launcher flags per agent, in the positional parameters rather than an array:
-  # "$@" is safe when empty under `set -u`, `"${arr[@]}"` is not in the bash 3.2
-  # that /usr/bin/env bash still finds on a stock macOS.
-  case $AGENT in
-    pi) set -- $PI_SANDBOX_ARGS ;;
-    *)  set -- ;;
-  esac
+  # No launcher flags per agent right now. Clear positional parameters so the
+  # final launch below receives only the opening question.
+  set --
 
   unset "$RUNNER_ENV"
   rm -f -- "$SELF"
 
-  # NOT exec: an exec'd agent that dies at startup takes the tab down with it,
-  # and the traceback with the tab -- which is exactly how the sandbox EPERM
-  # above hid for a whole round of debugging ("it created the new window but it
-  # didn't persist"). Run it instead, and only let the tab close on a clean
-  # exit, which is the ordinary way out of all three agents.
-  "$AGENT" "$@" "$QUESTION"
-  rc=$?
-  [ "$rc" -eq 0 ] && exit 0
-  printf '\nask: %s exited with status %d\n\n' "$AGENT" "$rc" >&2
-  exec "${SHELL:-/bin/sh}" -l
+  # exec so the selected agent, not this runner bash script, owns the pane.
+  # Herdr's process-based agent detector only recognizes the foreground pane
+  # owner; leaving bash as the parent makes the pane show as agent_status=unknown.
+  exec "$AGENT" "$@" "$QUESTION"
 }
 
 main "$@"
