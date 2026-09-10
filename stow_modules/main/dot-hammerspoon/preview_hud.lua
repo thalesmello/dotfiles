@@ -137,6 +137,42 @@ local HyperReleasePreviewHUD = setmetatable({}, { __index = PreviewHud })
 HyperReleasePreviewHUD.__index = HyperReleasePreviewHUD
 M.HyperReleasePreviewHUD = HyperReleasePreviewHUD
 
+-- Is hyper down right now? Two sources, mirroring bindExit's two watchers:
+-- Caps Lock hyper is not a real modifier and only caps_hyper knows about it,
+-- while an external keyboard's / Karabiner's hyper shows up as real flags.
+local function hyperHeld()
+  if CapsHyper.isHeld() then return true end
+  local mods = hs.eventtap.checkKeyboardModifiers()
+  return (mods.ctrl and mods.alt and mods.cmd) and true or false
+end
+
+-- Bindings often reach enter() a subprocess or two after the keypress (see
+-- keybindings' previewLayout), by which point hyper may already be up. There is
+-- nothing to preview then -- and worse, a HUD raised after the release would
+-- never see one, so it used to sit on screen until some unrelated modifier
+-- press happened to fire the flagsChanged tap. Skip the drawing entirely and
+-- commit the action right away.
+--
+-- Any earlier action from the same hyper session is deliberately dropped rather
+-- than applied: each press supersedes the previous preview (hud.action feeds the
+-- next stop), so only the newest one should land.
+function HyperReleasePreviewHUD:enter(action)
+  if hyperHeld() then
+    PreviewHud.enter(self, action)
+    -- The release may have landed between the check above and the exit
+    -- watchers going live; nothing reports it retroactively, so re-check once
+    -- now that everything is bound and drawn.
+    if not hyperHeld() then self:exit() end
+    return
+  end
+
+  self:clear()
+  self:unbindExit()
+  self._initialized = false
+  self.action = nil
+  if action and action.apply then action.apply() end
+end
+
 -- Exit when hyper goes up, which has to be watched two ways.
 --
 -- Real modifiers (an external keyboard's ctrl+alt+cmd, or Karabiner's hyper)

@@ -105,12 +105,23 @@ local function previewLayout(previewArgs, family)
     local x, y, w, h = abs:match("abs:(%-?%d+):(%-?%d+):(%-?%d+):(%-?%d+)")
     if not x then return end
 
-    hud:enter({
+    local action = {
       preview_type = "rectangle",
       preview = {x = tonumber(x), y = tonumber(y), w = tonumber(w), h = tonumber(h)},
       layout = layout,
       apply = function() task({"yabai-preset", applyCmd, abs}) end,
-    })
+    }
+
+    -- The preview pipeline is async, so by the time we get the rectangle back
+    -- hyper may already be up. In that case there is nothing left to preview:
+    -- apply immediately and skip drawing a HUD that would otherwise wait for a
+    -- release that already happened.
+    if PreviewHud.hyperHeld and not PreviewHud.hyperHeld() then
+      action.apply()
+      return
+    end
+
+    hud:enter(action)
   end)()
 end
 
