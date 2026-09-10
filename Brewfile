@@ -72,6 +72,7 @@ brew "oven-sh/bun/bun", trusted: true
 brew "pomdtr/tap/ray", trusted: true
 brew "waydabber/betterdisplay/betterdisplaycli", trusted: true
 brew "yqrashawn/goku/goku", trusted: true
+tap "crmne/tap"
 cask "nikitabobko/tap/aerospace", trusted: true
 cask "crmne/tap/fastpotify", trusted: true
 cask "1password"
