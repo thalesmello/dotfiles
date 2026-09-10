@@ -54,7 +54,7 @@
 # Kills go to a one-slot kill ring, so ctrl+w/ctrl+u/ctrl+k then ctrl+y is the
 # usual "move this text elsewhere" move. Edits go onto a simple undo stack;
 # ctrl+shift+_ walks back through it, whether the terminal collapses that to
-# ctrl+_ or spells it out via modifyOtherKeys / CSI-u.
+# ctrl+_ or spells it out as c-s-_ via modifyOtherKeys / CSI-u.
 #
 # BYTES, NOT `read`. ctrl+c has to arrive as data (0x03) rather than as SIGINT,
 # and while `stty -isig` arranges exactly that, bash's `read` builtin puts ISIG
@@ -289,6 +289,45 @@ _prompt_paste() {
 
 # --- escape sequences -------------------------------------------------------
 
+# Printable ctrl chords can arrive as kitty CSI-u (95;6u, 45:95;6u) or xterm's
+# modifyOtherKeys (27;6;95~). For undo accept the common spellings terminals use
+# for ctrl+_ / ctrl+shift+_: _, -, / and ?.
+_prompt_csi_undo() {
+  local _tail=$1 _body _mods _key _code
+
+  case $_tail in
+    *u)
+      _body=${_tail%u}
+      [ "$_body" != "$_tail" ] || return 1
+      [ "$_body" != "${_body#*;}" ] || return 1
+      _key=${_body%%;*}
+      _body=${_body#*;}
+      _mods=${_body%%[;:]*} ;;
+    27\;*\;*~)
+      _body=${_tail%\~}
+      _body=${_body#27;}
+      _mods=${_body%%;*}
+      _key=${_body#*;}
+      _key=${_key%%;*} ;;
+    *) return 1 ;;
+  esac
+
+  case $_mods in
+    5|6) ;;
+    *) return 1 ;;
+  esac
+
+  for _code in ${_key//:/ }; do
+    case $_code in
+      31|45|47|63|95)
+        _prompt_undo
+        return 0 ;;
+    esac
+  done
+
+  return 1
+}
+
 # Esc has already been read. Returns 1 to cancel the prompt (a lone Esc).
 _prompt_escape() {
   local _nxt _tail _at
@@ -300,7 +339,7 @@ _prompt_escape() {
       _tail=$(_prompt_csi_tail)
       case $_tail in
         200~) _prompt_paste ;;
-        95\;[56]u|47\;[56]u|27\;[56]\;95~|27\;[56]\;47~) _prompt_undo ;;  # CSI-u / modifyOtherKeys ctrl+_ / ctrl+shift+_
+        *u|27\;*\;*~) _prompt_csi_undo "$_tail" || : ;;
         C|1\;*C)                       # right / ctrl+right / alt+right
           case $_tail in
             C) [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1)) ;;
