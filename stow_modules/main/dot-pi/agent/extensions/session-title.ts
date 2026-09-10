@@ -37,13 +37,13 @@ import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 /**
- * Cheap and fast. Must be a model `pi --list-models` offers: on a gateway
- * without a given id the call fails with DeploymentNotFound (the cheap OpenAI
- * tier -- gpt-4.1-mini, gpt-5-mini, gpt-5-nano, gpt-4o-mini -- is not
- * available here). gemini-3-flash-preview is a cheaper alternative;
- * claude-haiku-4-5 answers the conversation instead of naming it.
+ * Cheap and fast. Must be a fully-qualified model `pi --list-models` offers.
+ * Keep the child pi invocation as bare as ask-agent.sh does: no tools, no
+ * extensions, no session, no thinking. If the explicit model call fails, fall
+ * back to the current default model, still without creating a session.
  */
-const MODEL = "gpt-5.4";
+const MODEL = "google/gemini-3-flash-preview";
+const PI_PRINT_ARGS = ["-p", "--no-tools", "--no-extensions", "--no-session", "--thinking", "off"];
 
 const SYSTEM_PROMPT =
 	"You name coding-agent sessions. Reply with ONLY a 3-7 word title, " +
@@ -136,24 +136,21 @@ function piInvocation(args: string[]): { command: string; args: string[] } {
 	return { command: "pi", args };
 }
 
-function summarize(text: string): Promise<string | undefined> {
-	const { command, args } = piInvocation([
-		"-p",
-		// Ephemeral: without this every title generation leaves a 2-message
-		// session file in the SAME session dir as the conversation it names --
-		// and since the digest opens with your first prompt, the row in
-		// `pi --resume` is character-identical to the real session.
-		"--no-session",
-		"--model",
-		MODEL,
-		"--system-prompt",
-		SYSTEM_PROMPT,
-		text,
-	]);
+function summaryArgs(text: string, model?: string): string[] {
+	// Ephemeral: --no-session keeps title generation out of ~/.pi/agent/sessions,
+	// out of `pi --resume`, and out of the agent inbox's history.
+	const args = [...PI_PRINT_ARGS];
+	if (model) args.push("--model", model);
+	args.push("--system-prompt", SYSTEM_PROMPT, text);
+	return args;
+}
+
+function runSummary(args: string[]): Promise<string | undefined> {
+	const { command, args: invocationArgs } = piInvocation(args);
 	return new Promise((resolve) => {
 		let child: ReturnType<typeof spawn>;
 		try {
-			child = spawn(command, args, {
+			child = spawn(command, invocationArgs, {
 				stdio: ["ignore", "pipe", "pipe"],
 				env: { ...process.env, [CHILD_MARKER]: "1" },
 			});
@@ -176,6 +173,10 @@ function summarize(text: string): Promise<string | undefined> {
 		child.on("error", () => finish(undefined));
 		child.on("close", (code) => finish(code === 0 ? tidyTitle(out) : undefined));
 	});
+}
+
+async function summarize(text: string): Promise<string | undefined> {
+	return (await runSummary(summaryArgs(text, MODEL))) ?? runSummary(summaryArgs(text));
 }
 
 export default function (pi: ExtensionAPI) {
