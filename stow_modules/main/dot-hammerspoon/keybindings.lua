@@ -306,7 +306,8 @@ function M.setup()
 
   -- Neovide
   default:bindOnce(hyper, "v", "Neovide Toggle", function() Preset.alternateApp("Neovide", {hide = true, cmd = "neovim-ghost trigger"}) end)
-  default:bindOnce(hyper, "t", "Chrome: New Tab and Focus", function() fish('chrome-cli open -t; open -a "Google Chrome"') end)
+  -- Old keybinding, I'm disabling it because it's no longer used
+  -- default:bindOnce(hyper, "t", "Chrome: New Tab and Focus", function() fish('chrome-cli open -t; open -a "Google Chrome"') end)
 
   -- Space navigation
   default:bindOnce(hyper, "[", "Focus Space Prev", function() task({"wm-preset", "focus-space", "prev"}) end)
@@ -942,7 +943,7 @@ function M.setup()
   service:bindOnce({"shift"}, "'", "Insert Direction South", function() task({"wm-preset", "insert-direction", "south"}) end)
   -- ArgList empty: toggle the focused window. Populated: if any marked window is
   -- floating, tile them all; otherwise float them all.
-  service:conditionalBindOnce({}, "t", "Toggle Float", {
+  default:conditionalBindOnce(hyper, "t", "Toggle Float", {
     {cond = function() return not ArgList.isEmpty() end, function()
       local ids = {}
       for _, id in ipairs(ArgList.items()) do ids[#ids + 1] = id end
