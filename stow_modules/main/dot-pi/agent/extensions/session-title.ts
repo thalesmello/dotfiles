@@ -10,8 +10,8 @@
  * The name lands in three places at once:
  *
  *   - pi's own session selector (that is what setSessionName is for);
- *   - the transcript, as a {"type":"session_info","name":...} record, which is
- *     what resume pickers and outside readers see;
+ *   - the transcript, as a {"type":"session_info","name":...} record, plus
+ *     a custom ownership marker used after /reload and /resume;
  *   - the terminal title, via ctx.ui.setTitle -- which is what a multiplexer
  *     reads. In herdr it arrives as terminal_title_stripped, so the Agents
  *     sidebar shows it with no daemon involved at all.
@@ -43,7 +43,16 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
  * back to the current default model, still without creating a session.
  */
 const MODEL = "google/gemini-3-flash-preview";
-const PI_PRINT_ARGS = ["-p", "--no-tools", "--no-extensions", "--no-session", "--thinking", "off"];
+const PI_PRINT_ARGS = [
+	"-p",
+	"--no-tools",
+	"--no-extensions",
+	"--no-context-files",
+	"--no-skills",
+	"--no-session",
+	"--thinking",
+	"off",
+];
 
 const SYSTEM_PROMPT =
 	"You name coding-agent sessions. Reply with ONLY a 3-7 word title, " +
@@ -52,12 +61,13 @@ const SYSTEM_PROMPT =
 
 /** Set in the child, checked at load: the recursion guard. */
 const CHILD_MARKER = "PI_SESSION_TITLE_CHILD";
+const STATE_ENTRY = "session-title";
 
 const TITLE_MAX = 48;
 const CALL_TIMEOUT_MS = 30_000;
 /** Digest budget: enough for the shape of a thread, cheap to send. */
-const EXCERPT_MAX = 3000;
-const PER_TURN_MAX = 600;
+const EXCERPT_MAX = 6000;
+const PER_TURN_MAX = 1000;
 const KEEP_FIRST = 2;
 const KEEP_LAST = 4;
 /** Re-title after this many further turns, so a long thread stays honest. */
@@ -68,7 +78,9 @@ function textOf(content: unknown): string {
 	if (!Array.isArray(content)) return "";
 	const parts: string[] = [];
 	for (const part of content) {
-		if (part && typeof part === "object" && (part as { type?: string }).type === "text") {
+		if (typeof part === "string") {
+			parts.push(part);
+		} else if (part && typeof part === "object" && (part as { type?: string }).type === "text") {
 			const text = (part as { text?: unknown }).text;
 			if (typeof text === "string") parts.push(text);
 		}
@@ -83,11 +95,16 @@ function clean(text: string): string {
 			// biome-ignore lint/suspicious/noControlCharactersInRegex: removing them is the point
 			.replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, " ")
 			.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, " ")
-			.replace(/<\/?[a-z][a-z0-9-]*>/gi, " ")
 			.replace(/\(?\bhttps?:\/\/\S+\)?/g, " ")
+			.replace(/[*_`]+/g, "")
 			.replace(/\s+/g, " ")
 			.trim()
 	);
+}
+
+/** More aggressive cleaning for the input digest to stay under token budget. */
+function cleanDigest(text: string): string {
+	return clean(text).replace(/<\/?[a-z][a-z0-9-]*>/gi, " ");
 }
 
 /**
@@ -101,7 +118,10 @@ function digest(turns: string[]): string {
 		turns.length > KEEP_FIRST + KEEP_LAST
 			? [...turns.slice(0, KEEP_FIRST), "[…]", ...turns.slice(-KEEP_LAST)]
 			: turns;
-	return kept.join("\n\n").slice(0, EXCERPT_MAX);
+	const joined = kept.join("\n\n");
+	if (joined.length <= EXCERPT_MAX) return joined;
+	// Prefer the recent end if it still exceeds the total budget.
+	return `…${joined.slice(-EXCERPT_MAX)}`;
 }
 
 function tidyTitle(raw: string): string | undefined {
@@ -109,9 +129,13 @@ function tidyTitle(raw: string): string | undefined {
 	const lines = raw
 		.split("\n")
 		.map((line) => line.trim())
-		.filter(Boolean);
+		.filter((line) => line && !line.startsWith("(") && !line.endsWith(")"));
 	let title = clean(lines.at(-1) ?? "");
-	title = title.replace(/^["'`“”]+|["'`“”]+$/g, "").replace(/[.!,;:]+$/, "").trim();
+	title = title
+		.replace(/^.*?(title|session\s*name|session\s*title):\s*/i, "")
+		.replace(/^["'`“”]+|["'`“”]+$/g, "")
+		.replace(/[.!,;:]+$/, "")
+		.trim();
 	if (title.length > TITLE_MAX) {
 		const cut = title.slice(0, TITLE_MAX);
 		const space = cut.lastIndexOf(" ");
@@ -141,7 +165,7 @@ function summaryArgs(text: string, model?: string): string[] {
 	// out of `pi --resume`, and out of the agent inbox's history.
 	const args = [...PI_PRINT_ARGS];
 	if (model) args.push("--model", model);
-	args.push("--system-prompt", SYSTEM_PROMPT, text);
+	args.push("--system-prompt", SYSTEM_PROMPT, "--", text);
 	return args;
 }
 
@@ -179,38 +203,86 @@ async function summarize(text: string): Promise<string | undefined> {
 	return (await runSummary(summaryArgs(text, MODEL))) ?? runSummary(summaryArgs(text));
 }
 
+type BranchEntry = {
+	type?: string;
+	customType?: string;
+	data?: unknown;
+	timestamp?: string;
+	message?: { role?: string; content?: unknown };
+};
+
+type TitleState = {
+	name?: string;
+	userTurnCount?: number;
+};
+
+function titleState(data: unknown): TitleState | undefined {
+	if (!data || typeof data !== "object") return undefined;
+	const state = data as { name?: unknown; userTurnCount?: unknown };
+	return {
+		name: typeof state.name === "string" ? state.name : undefined,
+		userTurnCount: typeof state.userTurnCount === "number" ? state.userTurnCount : undefined,
+	};
+}
+
 export default function (pi: ExtensionAPI) {
 	// Inside our own summarizer: register nothing at all.
 	if (process.env[CHILD_MARKER]) return;
 
-	const userTurns: string[] = [];
+	let userTurns: string[] = [];
 	let ourName: string | undefined; // the last name WE set
-	let titledAtTurn = -1;
+	let titledAtUserTurnCount = -1;
 	let running = false;
 
-	const mayTitle = (turnIndex: number): boolean => {
+	const rememberUserTurn = (content: unknown) => {
+		const text = cleanDigest(textOf(content));
+		if (text) userTurns.push(text.slice(0, PER_TURN_MAX));
+	};
+
+	const hydrateFromBranch = (entries: BranchEntry[]) => {
+		userTurns = [];
+		let lastState: TitleState | undefined;
+		const chronological = [...entries].sort(
+			(a, b) => Date.parse(a.timestamp ?? "") - Date.parse(b.timestamp ?? ""),
+		);
+		for (const entry of chronological) {
+			if (entry.type === "message" && entry.message?.role === "user") {
+				rememberUserTurn(entry.message.content);
+			} else if (entry.type === "custom" && entry.customType === STATE_ENTRY) {
+				lastState = titleState(entry.data);
+			}
+		}
+
+		const existing = pi.getSessionName();
+		ourName = existing && lastState?.name === existing ? existing : undefined;
+		titledAtUserTurnCount = ourName ? lastState?.userTurnCount ?? -1 : -1;
+	};
+
+	const mayTitle = (): boolean => {
 		if (running || userTurns.length === 0) return false;
 		const current = pi.getSessionName();
 		// Named by someone else: theirs wins, for good.
 		if (current && current !== ourName) return false;
-		if (titledAtTurn < 0) return true;
-		return turnIndex - titledAtTurn >= RETITLE_EVERY;
+		if (titledAtUserTurnCount < 0) return true;
+		return userTurns.length - titledAtUserTurnCount >= RETITLE_EVERY;
 	};
 
 	const retitle = async (
-		turnIndex: number,
 		ctx: { hasUI?: boolean; ui?: { setTitle(title: string): void } },
 	): Promise<string | undefined> => {
 		running = true;
+		const startingName = pi.getSessionName();
 		try {
 			const title = await summarize(digest(userTurns));
 			if (!title) return undefined;
-			// Re-check: /name may have been typed while we waited.
+			// Re-check: /name may have been typed or cleared while we waited.
 			const current = pi.getSessionName();
+			if (current !== startingName) return undefined;
 			if (current && current !== ourName) return undefined;
 			pi.setSessionName(title);
 			ourName = title;
-			titledAtTurn = turnIndex;
+			titledAtUserTurnCount = userTurns.length;
+			pi.appendEntry(STATE_ENTRY, { name: title, userTurnCount: titledAtUserTurnCount });
 			// pi does not put the session name in the terminal title, and the
 			// terminal title is what a multiplexer reads.
 			if (ctx.hasUI) ctx.ui?.setTitle(title);
@@ -221,29 +293,26 @@ export default function (pi: ExtensionAPI) {
 	};
 
 	pi.on("session_start", async (_event, ctx) => {
-		// Adopt an existing name: a resumed session keeps the name it had, and
-		// a name set in an earlier run still counts as yours.
+		// Rebuild state after /reload, /resume, and /new. Without this, /retitle
+		// has no history after a reload and auto-refresh treats our own previous
+		// title as manual.
+		hydrateFromBranch(ctx.sessionManager.getBranch() as BranchEntry[]);
 		const existing = pi.getSessionName();
-		if (existing) {
-			ourName = undefined; // not ours -> never overwrite
-			if (ctx.hasUI) ctx.ui?.setTitle(existing);
-		}
+		if (existing && ctx.hasUI) ctx.ui?.setTitle(existing);
 	});
 
 	pi.on("message_end", async (event) => {
 		const message = (event as { message?: { role?: string; content?: unknown } }).message;
 		if (message?.role !== "user") return;
-		const text = clean(textOf(message.content));
-		if (text) userTurns.push(text.slice(0, PER_TURN_MAX));
+		rememberUserTurn(message.content);
 	});
 
-	pi.on("turn_end", async (event, ctx) => {
+	pi.on("turn_end", async (_event, ctx) => {
 		if (!ctx.hasUI) return; // print/json mode: where the summarizer runs
-		const turnIndex = (event as { turnIndex?: number }).turnIndex ?? 0;
-		if (!mayTitle(turnIndex)) return;
+		if (!mayTitle()) return;
 		// Deliberately not awaited: the turn is over, and a ~7s model call
 		// must not delay the next prompt.
-		void retitle(turnIndex, ctx);
+		void retitle(ctx);
 	});
 
 	pi.registerCommand("retitle", {
@@ -257,7 +326,7 @@ export default function (pi: ExtensionAPI) {
 			// by hand.
 			ourName = pi.getSessionName();
 			ctx.ui.notify("Naming session…", "info");
-			const title = await retitle(titledAtTurn < 0 ? 0 : titledAtTurn, ctx);
+			const title = await retitle(ctx);
 			ctx.ui.notify(
 				title ? `Session named: ${title}` : "Could not name the session",
 				title ? "info" : "warn",
