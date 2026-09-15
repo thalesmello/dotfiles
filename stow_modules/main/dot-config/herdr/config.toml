@@ -251,8 +251,10 @@ height = 3
 # land in shell history. The runner uses `pi -p` on a cheap haiku model to
 # title the work, slugifies that title, renames the tab async, makes
 # ~/src/tries/<date>-<slug> with `try new --print-path` (the non-interactive
-# mode added to dotfiles/bin/try for this), cd's there, and starts the chosen
-# agent with the question as its opening prompt.
+# mode added to dotfiles/bin/try for this), pre-trusts that fresh directory in
+# ~/.claude.json when the chosen agent is Claude, cd's there, and starts the
+# agent through fish -C with the question passed by environment so the start
+# command is visible in the tab but the prompt is not written to shell history.
 # type = "popup" so only the question prompt runs in a herdr-rendered PTY where
 # interactive input works (same as claude-tab.sh); wider and 3 rows tall
 # because a question is longer than a tab name.

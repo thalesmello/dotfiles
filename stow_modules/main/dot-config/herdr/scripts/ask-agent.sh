@@ -26,9 +26,11 @@
 #        point was github-access-investigation
 #     8. rename the tab to that slug
 #     9. `try new --print-path <slug>` makes ~/src/tries/<date>-<slug>
-#    10. cd there and exec the agent with the question as its opening prompt, so
-#        the answer is already coming in and the session is live to keep talking
-#        to
+#    10. if the selected agent is Claude, mark that throwaway directory trusted
+#        in ~/.claude.json before Claude starts, avoiding the trust prompt
+#    11. cd there and start the agent with fish -C and the question in an env var,
+#        so the starting command is visible but the prompt is not saved to shell
+#        history; the answer starts arriving and the session stays live
 #
 # WHY IT MOVED. The titling model call (a second or several, longer when the API
 # is slow) used to run in the popup, which froze the whole terminal on it: no
@@ -336,29 +338,104 @@ Request: \"$QUESTION\"" </dev/null 2>/dev/null | last_line)
   # --- 9. the directory --------------------------------------------------
 
   # `--print-path` creates the dated directory and prints it, instead of the
-  # mkdir+cd script `try` normally emits: the cd happens below, in this shell.
-  # See cmd_new! in dotfiles/bin/try.
+  # mkdir+cd script `try` normally emits: the cd happens below, after any
+  # Claude project trust setup. See cmd_new! in dotfiles/bin/try.
   dir=$(try new --print-path "$slug" 2>&1) || fail "try new failed: $dir"
   [ -d "$dir" ] || fail "try new produced no directory: $dir"
-  cd "$dir" || fail "could not cd into $dir"
 
-  # --- 10. the agent session ---------------------------------------------
+  # --- 10. Claude project trust ------------------------------------------
+
+  # Claude Code prompts once per project directory before it will run there.
+  # This directory was just made by `try new` exclusively for this prompt, so it
+  # is safe to pre-add it to Claude's trusted project list. Do it before cd/exec
+  # so the first Claude frame is the actual session, not the trust dialog.
+  trust_claude_project() {
+    [ "$AGENT" = claude ] || return 0
+
+    python3 - "$dir" <<'PY'
+import json
+import os
+import stat
+import sys
+import tempfile
+
+project = os.path.abspath(sys.argv[1])
+path = os.path.expanduser("~/.claude.json")
+parent = os.path.dirname(path) or "."
+
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    mode = stat.S_IMODE(os.stat(path).st_mode)
+except FileNotFoundError:
+    data = {}
+    mode = 0o600
+
+if not isinstance(data, dict):
+    raise SystemExit(f"{path} is not a JSON object")
+
+projects = data.get("projects")
+if not isinstance(projects, dict):
+    projects = {}
+    data["projects"] = projects
+
+entry = projects.get(project)
+if not isinstance(entry, dict):
+    entry = {}
+    projects[project] = entry
+
+# Match the shape Claude normally writes for a trusted project, while preserving
+# any richer per-project state if the entry already exists.
+entry.setdefault("allowedTools", [])
+entry.setdefault("disabledMcpjsonServers", [])
+entry.setdefault("enabledMcpjsonServers", [])
+entry.setdefault("hasClaudeMdExternalIncludesApproved", False)
+entry.setdefault("hasClaudeMdExternalIncludesWarningShown", False)
+entry["hasTrustDialogAccepted"] = True
+entry.setdefault("mcpContextUris", [])
+entry.setdefault("mcpServers", {})
+
+fd, tmp = tempfile.mkstemp(prefix=".claude.json.", dir=parent, text=True)
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    os.chmod(tmp, mode)
+    os.replace(tmp, path)
+except Exception:
+    try:
+        os.unlink(tmp)
+    except OSError:
+        pass
+    raise
+PY
+  }
+
+  trust_claude_project || fail "could not add $dir to ~/.claude.json trusted projects"
+
+  # --- 11. the agent session ---------------------------------------------
+
+  cd "$dir" || fail "could not cd into $dir"
 
   # All three agents take an opening prompt as a positional argument and stay
   # interactive afterwards, which is the whole point: the answer starts arriving
   # on its own and the session is there to keep talking to.
   #
-  # No launcher flags per agent right now. Clear positional parameters so the
-  # final launch below receives only the opening question.
-  set --
+  # Start through fish -C instead of typing the prompt into an interactive shell:
+  # the active tab shows the session-start command, but the prompt itself lives
+  # in an environment variable and is not written to fish history. Do NOT exec
+  # the agent from fish: when the agent quits, the tab should drop back to the
+  # interactive fish shell rather than closing the terminal.
+  command -v fish >/dev/null 2>&1 || fail 'fish not found; cannot start agent with fish -C'
+
+  fish_start="$AGENT \"\$HERDR_ASK_AGENT_PROMPT\""
+  export HERDR_ASK_AGENT_PROMPT="$QUESTION"
 
   unset "$RUNNER_ENV"
   rm -f -- "$SELF"
 
-  # exec so the selected agent, not this runner bash script, owns the pane.
-  # Herdr's process-based agent detector only recognizes the foreground pane
-  # owner; leaving bash as the parent makes the pane show as agent_status=unknown.
-  exec "$AGENT" "$@" "$QUESTION"
+  printf "starting session: fish -C '%s'\n" "$fish_start"
+  exec fish -C "$fish_start"
 }
 
 main "$@"
