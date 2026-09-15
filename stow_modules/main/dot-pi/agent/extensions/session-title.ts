@@ -124,6 +124,13 @@ function digest(turns: string[]): string {
 	return `…${joined.slice(-EXCERPT_MAX)}`;
 }
 
+function defaultPiTitle(cwd: string): string {
+	// Pi's own startup title before this extension applies a generated session
+	// title. The extension API can set a title, but cannot ask Pi to restore its
+	// built-in one, so keep this in sync with Pi's default `π - <cwd basename>`.
+	return `π - ${path.basename(cwd)}`;
+}
+
 function tidyTitle(raw: string): string | undefined {
 	// Last non-empty line: CLIs print banners first, the answer comes last.
 	const lines = raw
@@ -297,8 +304,12 @@ export default function (pi: ExtensionAPI) {
 		// has no history after a reload and auto-refresh treats our own previous
 		// title as manual.
 		hydrateFromBranch(ctx.sessionManager.getBranch() as BranchEntry[]);
+
+		// A resumed/named session keeps the name it had. A brand-new unnamed
+		// session is reset to Pi's own startup title, so a title left behind by an
+		// older pi run is not shown while the first generated name is computed.
 		const existing = pi.getSessionName();
-		if (existing && ctx.hasUI) ctx.ui?.setTitle(existing);
+		if (ctx.hasUI) ctx.ui?.setTitle(existing ?? defaultPiTitle(ctx.cwd));
 	});
 
 	pi.on("message_end", async (event) => {
