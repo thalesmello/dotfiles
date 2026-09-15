@@ -98,6 +98,7 @@ if not st then
     stack = {}, cursor = 0,
     busy = false, pendingDelta = nil, pendingDone = nil,
     currentKey = nil, currentEntry = nil, focusVersion = 0,
+    lastJumpDelta = nil, lastJumpKey = nil, lastJumpVersion = nil,
   }
   _G._FocusHistory = st
 end
@@ -504,7 +505,13 @@ local function jumpToIndex(index, delta, done)
     st.settleUntil = hs.timer.secondsSinceEpoch() + 0.15
     st.busy = false
     if success and landed then
-      setCurrent(entryKey(landed), landed)
+      local key = entryKey(landed)
+      setCurrent(key, landed)
+      if delta ~= 0 then
+        st.lastJumpDelta = delta
+        st.lastJumpKey = key
+        st.lastJumpVersion = st.focusVersion or 0
+      end
     end
     local pending = st.pendingDelta
     local pendingDone = st.pendingDone
@@ -613,6 +620,14 @@ end
 
 function M.focusVersion()
   return st.focusVersion or 0
+end
+
+function M.lastJump()
+  return {
+    delta = st.lastJumpDelta,
+    key = st.lastJumpKey,
+    version = st.lastJumpVersion,
+  }
 end
 
 -- Contribute an entry from outside (chromebridge). Gated exactly like an AX

@@ -25,13 +25,20 @@ function M.setup(hyper)
 
     local delta = -1
     local currentKey = FocusHistory.currentKey()
+    local currentVersion = FocusHistory.focusVersion()
     if CmdTabHistoryNextDelta == 1
       and CmdTabHistoryExpectedKey
       and currentKey == CmdTabHistoryExpectedKey
-      and FocusHistory.focusVersion() == CmdTabHistoryExpectedVersion then
+      and currentVersion == CmdTabHistoryExpectedVersion then
       delta = 1
     else
       resetHistoryToggle()
+      local lastJump = FocusHistory.lastJump()
+      if lastJump.delta and lastJump.delta ~= 0
+        and currentKey == lastJump.key
+        and currentVersion == lastJump.version then
+        delta = -lastJump.delta
+      end
     end
 
     local navigate = (delta < 0) and FocusHistory.back or FocusHistory.forward
