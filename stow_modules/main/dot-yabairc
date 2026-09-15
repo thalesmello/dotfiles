@@ -53,6 +53,7 @@ yabai -m signal --add event=display_removed label=move_windows_from_secondary ac
 yabai -m rule --add app="iTerm2" title='^floating-terminal$' manage=off
 yabai -m rule --add app="Activity Monitor" manage=off
 yabai -m rule --add app="Shottr" manage=off
+yabai -m rule --add app="Tot" manage=off
 yabai -m rule --add app="System Settings" manage=off
 yabai -m rule --add app="Finder" manage=off
 yabai -m rule --add app="mouseless" manage=off

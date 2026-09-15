@@ -664,11 +664,10 @@ function M.setup()
   default:bindOnce(hyper, "w", "Focus WhatsApp", function()
     task({"chrome-preset", "alternate-app", "--profile", "Default", "--minimize", "--app", "WhatsApp", "https://web.whatsapp.com/"})
   end)
-  default:bindOnce(hyperShift, "z", "Focus Obsidian", function() launchOrFocus("Obsidian") end)
+  default:bindOnce(hyperShift, "z", "Toggle Tot", function() Preset.alternateApp("Tot", {hide = true}) end)
   default:bindOnce(hyper, "s", "Toggle Spotify", function() Preset.alternateApp("Spotify", {hide = true}) end)
   default:bindOnce(hyper, "e", "Focus Chrome", function() launchOrFocus("Google Chrome") end)
   default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() launchOrFocus("Google Chrome") end)
-  default:bindOnce(hyperShift, "z", "Focus Google Keep", function() launchOrFocus("Google Keep") end)
   default:conditionalBindOnce(hyperShift, "w", "Focus Zoom/Meet", {
     {cond = function() return isProcessRunning("zoom.us") end, function() task({"wm-preset", "alternate-window", "--title", "Zoom Meeting"}) end},
     {function() task({"chrome-preset", "focus-or-open-url", "meet.google.com", "--label", "Google Meet"}) end},
