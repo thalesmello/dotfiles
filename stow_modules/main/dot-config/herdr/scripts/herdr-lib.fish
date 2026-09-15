@@ -81,16 +81,21 @@ end
 # herdr_current_pane -- print the focused pane id, or fail.
 #
 #   herdr injects HERDR_ACTIVE_PANE_ID into every keys.command environment, so
-#   the common path needs no CLI call at all.
+#   the common path needs no CLI call at all. HERDR_PANE_ID is the normal pane
+#   context when this helper is run by hand from inside a pane.
 function herdr_current_pane
     if set -q HERDR_ACTIVE_PANE_ID; and test -n "$HERDR_ACTIVE_PANE_ID"
         echo $HERDR_ACTIVE_PANE_ID
         return 0
     end
 
-    # Fallback asks which pane is focused, not `pane current`: that one reports
-    # the pane the command was launched from, which is only the same thing when
-    # the caller happens to be running inside the focused pane.
+    if set -q HERDR_PANE_ID; and test -n "$HERDR_PANE_ID"
+        echo $HERDR_PANE_ID
+        return 0
+    end
+
+    # Last fallback asks which pane is focused, for launches outside a pane/key
+    # context.
     set -l bin (herdr_bin); or return 1
     set -l pane ($bin pane list 2>/dev/null |
         jq -r 'first((.result // .).panes[] | select(.focused) | .pane_id) // empty')

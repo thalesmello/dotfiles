@@ -59,8 +59,10 @@ end
 
 set -l now (date +%s)
 set -l mtime (begin
-    stat -f %m $journal
-    or stat -c %Y $journal
+    # GNU stat accepts -f, but it means "filesystem status" there and exits 0,
+    # producing several non-numeric lines. Try GNU's -c first, then BSD/macOS -f.
+    stat -c %Y $journal
+    or stat -f %m $journal
 end 2>/dev/null | string trim)
 
 if test (math $now - $started) -lt $REPLAY_MAX_SECONDS
