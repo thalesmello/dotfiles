@@ -97,15 +97,21 @@ function Mode:bind(mods, key, fn)
 end
 
 local function _makeRulesEvalFunc(rules)
-  local function eval(i)
+  local function eval(i, app)
     if i == nil then
       i = 1
     elseif i > #rules then
       return
     end
 
-    local app = M.focusedWindowAppName()
     local rule = rules[i]
+    -- Resolve the focused app lazily, and only once per keypress. Many rule
+    -- lists have no app-scoped entries, and when they do, recursive fallback
+    -- should reuse the same app value instead of re-querying the focused window
+    -- for every rule.
+    if rule.app and app == nil then
+      app = M.focusedWindowAppName()
+    end
     local appMatch = not rule.app or rule.app == app
     local condMatch = true
     local operate = function(callback)
@@ -126,7 +132,7 @@ local function _makeRulesEvalFunc(rules)
       if appMatch and condMatch then
         rule[1]()
       else
-        eval(i + 1)
+        eval(i + 1, app)
       end
     end
     )
