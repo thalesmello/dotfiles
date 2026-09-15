@@ -96,7 +96,8 @@ local st = _G._FocusHistory
 if not st then
   st = {
     stack = {}, cursor = 0,
-    busy = false, pendingDelta = nil,
+    busy = false, pendingDelta = nil, pendingDone = nil,
+    currentKey = nil, currentEntry = nil, focusVersion = 0,
   }
   _G._FocusHistory = st
 end
@@ -106,6 +107,12 @@ end
 ---------------------------------------------------------------
 
 local function entryKey(e) return e.kind .. ":" .. e.id end
+
+local function setCurrent(key, entry)
+  if st.currentKey ~= key then st.focusVersion = (st.focusVersion or 0) + 1 end
+  st.currentKey = key
+  st.currentEntry = entry
+end
 
 local function shortApp(name)
   if name == "Google Chrome" then return "Chrome" end
@@ -166,6 +173,7 @@ local function record(entry)
   if not entry then return "ignored" end
 
   local key = entryKey(entry)
+  setCurrent(key, entry)
 
   local cur = st.stack[st.cursor]
   if cur and entryKey(cur) == key then
@@ -283,7 +291,8 @@ local function commit(done)
     return done()
   end
 
-  record(currentWindowEntry())
+  local entry = currentWindowEntry()
+  if entry then record(entry) end
   done()
 end
 
@@ -315,6 +324,8 @@ end
 -- isStandard() in currentWindowEntry catches the structurally-transient windows;
 -- this catches the ones that are ordinary places but merely passed through.
 local function scheduleDwell(key, entry)
+  setCurrent(key, entry)
+
   if _G._FocusHistoryDwellTimer then
     if _G._FocusHistoryDwellKey == key then
       -- Same place: keep the deadline, but take the fresher payload (a title may
@@ -366,7 +377,8 @@ local function flushDwell()
 
   -- No payload means the AX path scheduled it: read the window now, as the timer
   -- would have.
-  record(pending or currentWindowEntry())
+  local entry = pending or currentWindowEntry()
+  if entry then record(entry) end
   return true
 end
 
@@ -390,10 +402,31 @@ local function observe(done, immediate)
   -- better one -- richer, and keyed as a tab. Scheduling ours would replace it
   -- with a plain window entry for the same place, which is the dual-key
   -- collision that truncates branches.
+  local winIdStr = winId and tostring(winId) or nil
   local pending = _G._FocusHistoryDwellEntry
-  if pending and winId and pending.cgWindowId == tostring(winId) then
+  if pending and winIdStr and pending.cgWindowId == winIdStr then
     if done then done() end
     return
+  end
+
+  for _, e in ipairs(st.stack) do
+    if winIdStr and e.cgWindowId == winIdStr then
+      if _G._FocusHistoryDwellTimer then
+        _G._FocusHistoryDwellTimer:stop()
+        _G._FocusHistoryDwellTimer = nil
+        _G._FocusHistoryDwellKey = nil
+        _G._FocusHistoryDwellEntry = nil
+      end
+      local cur = st.currentEntry
+      if not (cur and cur.kind == "chrome_tab" and cur.cgWindowId == winIdStr) then
+        -- We know this macOS window is represented by a Chrome-tab entry, but
+        -- without a fresh extension report we do not know which tab. Mark the
+        -- live place as unknown rather than pretending it is window:<cgid>.
+        setCurrent(nil, nil)
+      end
+      if done then done() end
+      return
+    end
   end
 
   scheduleDwell("window:" .. tostring(winId), nil)
@@ -405,6 +438,10 @@ end
 -- the right one should leave no more trace than flicking through windows.
 function M.recordDwelled(entry)
   if not entry then return end
+  -- Keep the live "where am I?" token current even during windows where we
+  -- intentionally suppress history recording (e.g. just after a jump). Cmd+Tab's
+  -- back/forward toggle uses this to notice organic Chrome tab switches.
+  setCurrent(entryKey(entry), entry)
   if st.busy then return end
   if st.settleUntil and hs.timer.secondsSinceEpoch() < st.settleUntil then return end
   scheduleDwell(entryKey(entry), entry)
@@ -452,11 +489,12 @@ end
 local jump
 
 -- Focus stack[index] directly (used by the chooser as well as by back/forward).
-local function jumpToIndex(index, delta)
+local function jumpToIndex(index, delta, done)
+  done = done or function() end
   st.busy = true
   local watchdog = hs.timer.doAfter(4, function() st.busy = false end)
 
-  local function finish()
+  local function finish(success, landed)
     watchdog:stop()
     -- Even with verification, an event already queued from the transition can
     -- arrive just after busy clears and describe the window we left. Ignore
@@ -465,9 +503,15 @@ local function jumpToIndex(index, delta)
     -- correctly.
     st.settleUntil = hs.timer.secondsSinceEpoch() + 0.15
     st.busy = false
+    if success and landed then
+      setCurrent(entryKey(landed), landed)
+    end
     local pending = st.pendingDelta
+    local pendingDone = st.pendingDone
     st.pendingDelta = nil
-    if pending then jump(pending) end
+    st.pendingDone = nil
+    done(success, landed)
+    if pending then jump(pending, pendingDone) end
   end
 
   local function step(i, tries)
@@ -476,7 +520,7 @@ local function jumpToIndex(index, delta)
     local j = (delta == 0) and i or (i + delta)
     if j < 1 or j > #st.stack then
       hud(delta < 0 and "history start" or "history end")
-      return finish()
+      return finish(false, nil)
     end
 
     local target = st.stack[j]
@@ -492,7 +536,7 @@ local function jumpToIndex(index, delta)
         -- and trails on the way forward: "◀ 3/7" vs "3/7 ▶".
         local position = string.format("%d/%d", st.cursor, #st.stack)
         hud((delta < 0 and ("◀ " .. position) or (position .. " ▶")) .. "\n" .. label(target))
-        return finish()
+        return finish(true, target)
       end
 
       -- Gone. Drop it and keep walking the same direction.
@@ -507,7 +551,7 @@ local function jumpToIndex(index, delta)
       local resumeAt = (delta < 0) and j or (j - 1)
       st.cursor = math.max(0, resumeAt)
       save()
-      if delta == 0 then return finish() end
+      if delta == 0 then return finish(false, nil) end
       step(st.cursor, tries + 1)
     end)
   end
@@ -515,16 +559,18 @@ local function jumpToIndex(index, delta)
   step(index, 1)
 end
 
-jump = function(delta)
+jump = function(delta, done)
+  done = done or function() end
   if st.busy then
     -- Coalesce key-repeat into at most one queued step.
     st.pendingDelta = delta
+    st.pendingDone = done
     return
   end
 
   if #st.stack == 0 then
     hud("Focus history: empty")
-    return
+    return done(false, nil)
   end
 
   -- Bring the history up to date first, so a focus change that arrived through an
@@ -534,14 +580,40 @@ jump = function(delta)
   local function go()
     if started then return end
     started = true
-    jumpToIndex(st.cursor, delta)
+    jumpToIndex(st.cursor, delta, done)
   end
   observe(go, true)
   hs.timer.doAfter(SETTLE_TIMEOUT, go)
 end
 
-function M.back() jump(-1) end
-function M.forward() jump(1) end
+function M.back(done) jump(-1, done) end
+function M.forward(done) jump(1, done) end
+
+function M.currentKey()
+  if _G._FocusHistoryDwellKey then return _G._FocusHistoryDwellKey end
+
+  local win = hs.window.focusedWindow()
+  local winId = win and win:id() and tostring(win:id()) or nil
+  local entry = st.currentEntry
+  if entry then
+    if entry.kind == "window" and entry.id == winId then return entryKey(entry) end
+    if entry.kind == "chrome_tab" and (not entry.cgWindowId or entry.cgWindowId == winId) then return entryKey(entry) end
+  end
+
+  entry = currentWindowEntry()
+  if entry then
+    local key = entryKey(entry)
+    setCurrent(key, entry)
+    return key
+  end
+
+  setCurrent(nil, nil)
+  return nil
+end
+
+function M.focusVersion()
+  return st.focusVersion or 0
+end
 
 -- Contribute an entry from outside (chromebridge). Gated exactly like an AX
 -- observation: during a jump the cursor is already where it belongs, so an
@@ -554,6 +626,7 @@ function M.forward() jump(1) end
 function M.clear()
   st.stack = {}
   st.cursor = 0
+  setCurrent(nil, nil)
   save()
   hud("Focus history cleared")
 end
