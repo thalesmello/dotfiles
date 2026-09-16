@@ -1,0 +1,3 @@
+{
+  "tui.editor.undo": ["ctrl+_", "ctrl+shift+-"]
+}
