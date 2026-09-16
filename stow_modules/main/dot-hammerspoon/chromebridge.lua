@@ -49,6 +49,7 @@ if not st then
   _G._ChromeBridge = st
 end
 st.clients = st.clients or {}
+st.activeTabs = st.activeTabs or {}
 
 ---------------------------------------------------------------
 -- Focusing a tab
@@ -65,7 +66,7 @@ local CHROME_BUNDLE = "com.google.Chrome"
 --
 -- Waiting at all matters for a subtler reason: focushistory suppresses recording
 -- while a jump is in flight, so reporting completion before focus has landed lets
--- the window we are leaving get recorded, which truncates the forward branch.
+-- the window we are leaving get recorded as the most-recent destination.
 local function raiseChrome(entry, cb)
   local function rescue()
     if entry.cgWindowId then
@@ -166,17 +167,30 @@ local function recordTab(msg, retried)
   client.lastTabAt = hs.timer.secondsSinceEpoch()
   st.clients[id] = client
 
-  -- recordDwelled, not record: a tab has to be held as long as a window does
-  -- before it earns a slot, so flicking through tabs leaves no trace.
-  FocusHistory.recordDwelled({
+  local tabId = tostring(math.floor(tonumber(msg.tabId)))
+  local windowId = tostring(math.floor(tonumber(msg.windowId)))
+  local entry = {
     kind = "chrome_tab",
-    id = tostring(math.floor(tonumber(msg.tabId))),
-    chromeWindowId = tostring(math.floor(tonumber(msg.windowId))),
+    id = tabId,
+    chromeWindowId = windowId,
     cgWindowId = cgWindowId,
     app = "Google Chrome",
     title = msg.title or "",
     url = msg.url or "",
-  })
+  }
+
+  local stateKey = id .. ":" .. windowId
+  local previousTabId = st.activeTabs[stateKey]
+  st.activeTabs[stateKey] = tabId
+
+  -- Only tab changes get to enter the dwell/recording pipeline. window-focus,
+  -- hello, and title/url updates describe an already-active tab; they may refresh
+  -- current metadata, but they must not make that tab/window most-recent.
+  if msg.reason == "activated" and previousTabId ~= tabId then
+    FocusHistory.recordDwelled(entry)
+  else
+    FocusHistory.noteCurrent(entry)
+  end
 end
 
 local function handleMessage(raw)

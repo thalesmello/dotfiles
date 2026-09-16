@@ -9,52 +9,11 @@ function M.setup(hyper)
   _G.PendingCmdTabAction = nil          -- per Cmd-hold: nil (no press yet) | callback (deferred)
   _G.QuickTerminalAlternateWindowId = nil -- persists across holds: the window we switched to after hiding
   _G.QuickTerminalKind = nil            -- "iterm" | "ghostty": which floating terminal to restore
-  _G.CmdTabHistoryNextDelta = -1        -- -1 = next normal Cmd+Tab goes back; 1 = forward
-  _G.CmdTabHistoryExpectedKey = nil     -- focused history place that keeps the forward toggle armed
-  _G.CmdTabHistoryExpectedVersion = nil -- invalidated by any intervening focus change
-
-  local function resetHistoryToggle()
-    CmdTabHistoryNextDelta = -1
-    CmdTabHistoryExpectedKey = nil
-    CmdTabHistoryExpectedVersion = nil
-  end
 
   local function runHistoryCmdTab()
     QuickTerminalAlternateWindowId = nil
     QuickTerminalKind = nil
-
-    local delta = -1
-    local currentKey = FocusHistory.currentKey()
-    local currentVersion = FocusHistory.focusVersion()
-    if CmdTabHistoryNextDelta == 1
-      and CmdTabHistoryExpectedKey
-      and currentKey == CmdTabHistoryExpectedKey
-      and currentVersion == CmdTabHistoryExpectedVersion then
-      delta = 1
-    else
-      resetHistoryToggle()
-      local lastJump = FocusHistory.lastJump()
-      if lastJump.delta and lastJump.delta ~= 0
-        and currentKey == lastJump.key
-        and currentVersion == lastJump.version then
-        delta = -lastJump.delta
-      end
-    end
-
-    local navigate = (delta < 0) and FocusHistory.back or FocusHistory.forward
-    navigate(function(ok)
-      if not ok then
-        resetHistoryToggle()
-        return
-      end
-
-      -- A successful Cmd+Tab arms the opposite direction, but only while focus
-      -- stays on the place we just landed. Any outside window/tab focus change
-      -- changes the FocusHistory token/version, so the next Cmd+Tab goes back.
-      CmdTabHistoryNextDelta = -delta
-      CmdTabHistoryExpectedKey = FocusHistory.currentKey()
-      CmdTabHistoryExpectedVersion = FocusHistory.focusVersion()
-    end)
+    FocusHistory.cmdTab()
   end
 
   _G.CmdTabTap = hs.eventtap.new(
@@ -105,7 +64,6 @@ function M.setup(hyper)
           local restore = QuickTerminalKind
           QuickTerminalAlternateWindowId = nil
           QuickTerminalKind = nil
-          resetHistoryToggle()
           if restore == "ghostty" then
             ghosttyPreset.revealFloatingTerminal()
           else
@@ -121,7 +79,6 @@ function M.setup(hyper)
         -- z-order beforehand (both of which mismatched the landed window).
         local floatingId = win and win:id()
         PendingCmdTabAction = function()
-          resetHistoryToggle()
           QuickTerminalKind = kind
           QuickTerminalAlternateWindowId = nil
           shell.task({"term-preset", "hide-floating-terminal"}, function()

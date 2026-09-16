@@ -1,7 +1,9 @@
--- Back/forward history across focused windows -- a jumplist for the desktop.
--- hyper+o walks back, hyper+i walks forward; focusing something new truncates the
--- forward branch, exactly like browser history. Entries are unique: re-focusing a
--- window already in the history moves it to the top rather than adding a copy.
+-- Back/forward history across focused windows -- a phone-style app switcher for
+-- the desktop. hyper+o walks back toward older entries, hyper+i walks forward
+-- toward newer entries. The stack is ordered oldest -> newest, and the newest
+-- entry is the top of the stack. Entries are unique: once a browsed-to window is
+-- used (key press or click), it is popped from wherever it was and moved to the
+-- top rather than creating a browser-style forward branch.
 --
 -- Detection is event-driven. Deliberately NOT hs.window.filter: it AX-sweeps every
 -- window of every app at construction (~6.3s of a ~6.4s config load, see mode.lua)
@@ -25,11 +27,12 @@
 -- `chrome-preset active-tab-json`. Every layer of that inference turned out to be
 -- wrong in some real situation -- titles that lag a tab switch, Chrome's window
 -- order not matching macOS's, pages that retitle continuously -- and each
--- misidentification pushed a competing entry, which truncated the forward branch.
--- Hence the extension: the tab id now arrives with the event that caused it.
+-- misidentification pushed a competing entry, polluting the MRU stack. Hence the
+-- extension: the tab id now arrives with the event that caused it.
 
 local shell = require("shell")
 local Preset = require("preset")
+local capsHyper = require("caps_hyper")
 
 local uiwatcher = hs.uielement.watcher
 
@@ -57,7 +60,7 @@ M.dwell = 5.0
 
 -- Apps whose windows must never enter the history. Hammerspoon matters most:
 -- the command palette and the herdr confirmation dialog both call hs.focus(),
--- and recording them would truncate the forward branch on every palette open.
+-- and recording them would promote UI noise on every palette open.
 local IGNORED_APPS = {
   ["Hammerspoon"] = true,
   ["Alfred"] = true,
@@ -99,6 +102,8 @@ if not st then
     busy = false, pendingDelta = nil, pendingDone = nil,
     currentKey = nil, currentEntry = nil, focusVersion = 0,
     lastJumpDelta = nil, lastJumpKey = nil, lastJumpVersion = nil,
+    navSessionTopKey = nil, navSessionTopEntry = nil,
+    activityArmed = false, activityKey = nil, activityEntry = nil,
   }
   _G._FocusHistory = st
 end
@@ -113,6 +118,31 @@ local function setCurrent(key, entry)
   if st.currentKey ~= key then st.focusVersion = (st.focusVersion or 0) + 1 end
   st.currentKey = key
   st.currentEntry = entry
+end
+
+local function indexOfKey(key)
+  if not key then return nil end
+  for i = #st.stack, 1, -1 do
+    if entryKey(st.stack[i]) == key then return i end
+  end
+  return nil
+end
+
+local function macWindowId(e)
+  if not e then return nil end
+  return e.cgWindowId or (e.kind == "window" and e.id) or nil
+end
+
+local function samePlace(a, b)
+  if not a or not b then return false end
+  if entryKey(a) == entryKey(b) then return true end
+  local aw, bw = macWindowId(a), macWindowId(b)
+  return aw ~= nil and bw ~= nil and aw == bw
+end
+
+local function clearNavigationSession()
+  st.navSessionTopKey = nil
+  st.navSessionTopEntry = nil
 end
 
 local function shortApp(name)
@@ -163,40 +193,64 @@ local function restore()
   st.cursor = math.max(0, math.min(math.floor(cursor), #st.stack))
 end
 
+local function cancelActivityArm()
+  -- Legacy cleanup: older configs used a dwell timer for pending history
+  -- activation. The current policy is explicit only: key press or click.
+  if _G._FocusHistoryActivityTimer then
+    pcall(function() _G._FocusHistoryActivityTimer:stop() end)
+    _G._FocusHistoryActivityTimer = nil
+  end
+  st.activityArmed = false
+  st.activityKey = nil
+  st.activityEntry = nil
+end
+
+local function cancelDwellTimer()
+  if _G._FocusHistoryDwellTimer then
+    pcall(function() _G._FocusHistoryDwellTimer:stop() end)
+    _G._FocusHistoryDwellTimer = nil
+  end
+  _G._FocusHistoryDwellKey = nil
+  _G._FocusHistoryDwellEntry = nil
+end
+
 ---------------------------------------------------------------
 -- Recording
 ---------------------------------------------------------------
 
--- The whole history policy lives here: refresh-in-place when we are already on
--- this thing, otherwise drop the forward branch, move-to-top any earlier sighting
--- of the same place, append, and trim to MAX from the front.
+-- The whole history policy lives here: using a place makes it most-recent. If
+-- it is already the top entry we only refresh its label; otherwise we remove any
+-- earlier copy, append it at the top, and trim to MAX from the front. Unlike a
+-- browser jumplist, there is no forward branch to truncate: browsing history is
+-- separate from making something active.
 local function record(entry)
   if not entry then return "ignored" end
 
   local key = entryKey(entry)
   setCurrent(key, entry)
 
-  local cur = st.stack[st.cursor]
-  if cur and entryKey(cur) == key then
-    cur.title = entry.title or cur.title
-    cur.app = entry.app or cur.app
+  local top = st.stack[#st.stack]
+  if top and entryKey(top) == key then
+    top.title = entry.title or top.title
+    top.app = entry.app or top.app
+    st.cursor = #st.stack
+    clearNavigationSession()
+    cancelActivityArm()
     save()
     return "refreshed"
   end
 
-  local prevCursor, dropped = st.cursor, math.max(0, #st.stack - st.cursor)
-  for i = #st.stack, st.cursor + 1, -1 do st.stack[i] = nil end
+  local prevCursor = st.cursor
 
   -- The same window focused again is the same place, not a new one: pull the old
   -- sighting out and let it re-enter at the top. Leaving both would spend two of
   -- the 20 slots on one window and make a back/forward walk pass through it
-  -- twice. Note this only ever fires on an organic focus change -- landing on an
-  -- entry via back/forward matches stack[cursor] and returns above, so navigating
-  -- never reorders the history under itself.
+  -- twice.
   local moved = false
   for i = #st.stack, 1, -1 do
     if entryKey(st.stack[i]) == key then
       entry.title = entry.title or st.stack[i].title
+      entry.app = entry.app or st.stack[i].app
       table.remove(st.stack, i)
       moved = true
     end
@@ -205,15 +259,17 @@ local function record(entry)
   st.stack[#st.stack + 1] = entry
   while #st.stack > MAX do table.remove(st.stack, 1) end
   st.cursor = #st.stack
+  clearNavigationSession()
+  cancelActivityArm()
   save()
 
-  -- Every unexpected cursor jump comes through here: a push/move resets the
-  -- cursor to the top and drops the forward branch, so if back/forward seems to
-  -- hit a floor, this is what to watch. Enable with
+  -- Every activity-driven cursor jump comes through here: the used entry moves
+  -- to the top, exactly like picking an app from a phone app switcher. Enable
+  -- with:
   --   hs -c 'require("focushistory").debug = true'
   if M.debug then
-    print(string.format("[focushistory] %s %s  cursor=%d/%d  (was %d, dropped %d forward)",
-      moved and "moved" or "pushed", key, st.cursor, #st.stack, prevCursor, dropped))
+    print(string.format("[focushistory] %s %s  cursor=%d/%d  (was %d)",
+      moved and "moved" or "pushed", key, st.cursor, #st.stack, prevCursor))
   end
 
   return moved and "moved" or "pushed"
@@ -234,9 +290,8 @@ local function currentWindowEntry()
   -- Only real, user-facing windows (AXStandardWindow). Sheets, alerts, panels
   -- and toolbars take focus constantly -- a fido2macos key prompt, Zoom's
   -- floating meeting controls -- and each one landing in the history is not
-  -- merely clutter: recording is an organic focus change, so it truncates the
-  -- forward branch. A prompt flashing past mid-navigation would wipe everything
-  -- ahead of the cursor. Same test cycleTerminalWindows uses in keybindings.lua.
+  -- merely clutter: if they dwell long enough, they become false MRU entries.
+  -- Same test cycleTerminalWindows uses in keybindings.lua.
   if not win:isStandard() then return nil end
 
   local app = win:application()
@@ -251,15 +306,14 @@ local function currentWindowEntry()
   -- One macOS window must never be represented under two keys. A Chrome window
   -- the extension has reported lives in the stack as chrome_tab:<tabId>; the same
   -- window seen from here would be window:<cgWindowId>. Those are different keys,
-  -- so recording this would push a second entry for one place -- and a push
-  -- truncates the forward branch.
+  -- so recording this would push a second entry for one place.
   --
   -- This scans the whole stack rather than just the cursor, because the collision
   -- shows up precisely when the two sources disagree about a window that is NOT
   -- where the cursor is: the extension goes quiet (service worker asleep,
   -- Hammerspoon reloaded and the socket dropped), you navigate back onto a window
   -- recorded as a tab, and the AX observer records it afresh as a plain window.
-  -- That is what wiped a whole forward branch on switching to the Metamate window.
+  -- That is what used to create duplicate Chrome destinations in the stack.
   --
   -- Note what this does NOT require: knowing whether the extension is alive. No
   -- chrome_tab entries means nothing to collide with, so Chrome degrades to
@@ -277,6 +331,107 @@ local function currentWindowEntry()
   }
 end
 
+local function currentKeyAndEntry()
+  if _G._FocusHistoryDwellKey then
+    local pending = _G._FocusHistoryDwellEntry
+    if pending then return _G._FocusHistoryDwellKey, pending end
+    local entry = currentWindowEntry()
+    if entry then return entryKey(entry), entry end
+    return _G._FocusHistoryDwellKey, nil
+  end
+
+  local win = hs.window.focusedWindow()
+  local winId = win and win:id() and tostring(win:id()) or nil
+  local entry = st.currentEntry
+  if entry then
+    if entry.kind == "window" and entry.id == winId then return entryKey(entry), entry end
+    if entry.kind == "chrome_tab" and (not entry.cgWindowId or entry.cgWindowId == winId) then
+      return entryKey(entry), entry
+    end
+  end
+
+  entry = currentWindowEntry()
+  if entry then
+    local key = entryKey(entry)
+    setCurrent(key, entry)
+    return key, entry
+  end
+
+  setCurrent(nil, nil)
+  return nil, nil
+end
+
+local function promoteCurrent(reason)
+  if st.busy then return false end
+  local key, entry = currentKeyAndEntry()
+  if not key then
+    cancelActivityArm()
+    return false
+  end
+  if not entry then entry = st.stack[indexOfKey(key)] end
+  if not entry then
+    cancelActivityArm()
+    return false
+  end
+
+  if M.debug then
+    print(string.format("[focushistory] activity (%s) promotes %s", reason or "?", key))
+  end
+  record(entry)
+  return true
+end
+
+local function armActivity(entry)
+  cancelActivityArm()
+  cancelDwellTimer()
+  if not entry or st.cursor == #st.stack then return end
+
+  st.activityArmed = true
+  st.activityKey = entryKey(entry)
+  st.activityEntry = entry
+end
+
+local function activityEvent(event)
+  if not st.activityArmed then return false end
+
+  local t = event:getType()
+  if t == hs.eventtap.event.types.keyDown then
+    local flags = event:getFlags()
+    local code = event:getKeyCode()
+
+    -- A key only counts as activity after hyper is released. This check is
+    -- independent of eventtap ordering: if the caps_hyper tap has not stamped
+    -- ctrl/cmd/opt onto this event yet, the real hyper state still tells us to
+    -- ignore it.
+    if capsHyper.isHeld() then return false end
+
+    -- Navigation itself is not activity. Cmd+Tab has its own history policy, and
+    -- hyper+o/i are how the user keeps browsing the stack before choosing one.
+    if flags.cmd and code == hs.keycodes.map["tab"] then return false end
+    if flags.ctrl and flags.alt and flags.cmd then return false end
+
+    promoteCurrent("key")
+  elseif t == hs.eventtap.event.types.leftMouseDown
+    or t == hs.eventtap.event.types.rightMouseDown
+    or t == hs.eventtap.event.types.otherMouseDown then
+    -- Let click-to-focus settle, then promote whichever window actually
+    -- received focus from the click.
+    hs.timer.doAfter(0.05, function()
+      if st.activityArmed then promoteCurrent("click") end
+    end)
+  end
+
+  return false
+end
+
+local function activityArmMatchesCurrent()
+  if not st.activityArmed then return false end
+  local key = currentKeyAndEntry()
+  if key == st.activityKey then return true end
+  cancelActivityArm()
+  return false
+end
+
 ---------------------------------------------------------------
 -- Observation
 ---------------------------------------------------------------
@@ -284,7 +439,7 @@ end
 local function commit(done)
   done = done or function() end
   -- While navigating, the cursor is already where it needs to be; an event for
-  -- the window we are leaving would push a bogus entry and truncate the branch.
+  -- the window we are leaving would promote a bogus entry.
   if st.busy then return done() end
 
   -- Still settling from a jump (see finish()).
@@ -303,9 +458,8 @@ end
 --
 -- AX notifications fire the instant focus moves, so without this every momentary
 -- window lands in the history -- Zoom's meeting controls, a fido2macos key
--- prompt, an app's startup splash. That is worse than clutter: recording is an
--- organic focus change, so each one truncates the forward branch. A prompt
--- flashing past mid-navigation wipes everything ahead of the cursor.
+-- prompt, an app's startup splash. That is worse than clutter: after enough
+-- dwell, each one would become a false most-recent destination.
 --
 -- The debounce is keyed on the PLACE, not on event arrival. Restarting the clock
 -- on every event can starve: an app that retitles continuously (some web apps
@@ -396,13 +550,21 @@ local function observe(done, immediate)
     return
   end
 
+  -- A history-selected entry is pending an explicit key/click. Plain AX focus
+  -- notifications must not schedule the normal dwell recorder, or a Chrome tab
+  -- report / focus refresh can promote the entry without interaction.
+  if st.activityArmed then
+    if done then done() end
+    return
+  end
+
   local win = hs.window.focusedWindow()
   local winId = win and win:id()
 
   -- The extension has a tab pending for this very window, and its entry is the
   -- better one -- richer, and keyed as a tab. Scheduling ours would replace it
   -- with a plain window entry for the same place, which is the dual-key
-  -- collision that truncates branches.
+  -- collision that creates duplicate destinations.
   local winIdStr = winId and tostring(winId) or nil
   local pending = _G._FocusHistoryDwellEntry
   if pending and winIdStr and pending.cgWindowId == winIdStr then
@@ -412,12 +574,7 @@ local function observe(done, immediate)
 
   for _, e in ipairs(st.stack) do
     if winIdStr and e.cgWindowId == winIdStr then
-      if _G._FocusHistoryDwellTimer then
-        _G._FocusHistoryDwellTimer:stop()
-        _G._FocusHistoryDwellTimer = nil
-        _G._FocusHistoryDwellKey = nil
-        _G._FocusHistoryDwellEntry = nil
-      end
+      cancelDwellTimer()
       local cur = st.currentEntry
       if not (cur and cur.kind == "chrome_tab" and cur.cgWindowId == winIdStr) then
         -- We know this macOS window is represented by a Chrome-tab entry, but
@@ -434,18 +591,75 @@ local function observe(done, immediate)
   if done then done() end
 end
 
+function M.noteCurrent(entry)
+  if not entry then return end
+  local key = entryKey(entry)
+
+  -- While a history-selected entry is waiting for explicit activity, passive
+  -- Chrome reports (hello/window-focus/title update) must not retarget the cursor
+  -- to a duplicate tab identity for the same macOS window.
+  if st.activityArmed then
+    if key == st.activityKey then
+      st.activityEntry = entry
+      setCurrent(key, entry)
+    elseif not samePlace(entry, st.activityEntry) then
+      st.activityKey = key
+      st.activityEntry = entry
+      setCurrent(key, entry)
+    end
+  else
+    setCurrent(key, entry)
+  end
+
+  -- Refresh labels/metadata in place, but never reorder. Reordering is reserved
+  -- for record()/recordDwelled() and explicit key/click activity.
+  local idx = indexOfKey(key)
+  if idx then
+    local cur = st.stack[idx]
+    cur.app = entry.app or cur.app
+    cur.title = entry.title or cur.title
+    cur.url = entry.url or cur.url
+    cur.chromeWindowId = entry.chromeWindowId or cur.chromeWindowId
+    cur.cgWindowId = entry.cgWindowId or cur.cgWindowId
+    save()
+  end
+end
+
 -- Contribute a place from outside (the Chrome extension, via chromebridge).
 -- Subject to the same dwell as anything else: flicking through tabs looking for
 -- the right one should leave no more trace than flicking through windows.
 function M.recordDwelled(entry)
   if not entry then return end
+  local key = entryKey(entry)
+
+  -- Chrome may report the focused tab after a history jump has already landed
+  -- and after the short settle window has expired. That report is not user
+  -- activity; while a history-selected entry is armed, only the activity eventtap
+  -- (key/click) may promote anything. If the report is just Chrome's tab-level
+  -- identity for the same macOS window we selected, leave currentKey alone too;
+  -- otherwise continuing hyper+o/i can start from the tab duplicate rather than
+  -- from the entry visibly selected in the stack.
+  if st.activityArmed then
+    cancelDwellTimer()
+    if key == st.activityKey then
+      st.activityEntry = entry
+      setCurrent(key, entry)
+    elseif not samePlace(entry, st.activityEntry) then
+      st.activityKey = key
+      st.activityEntry = entry
+      setCurrent(key, entry)
+    end
+    return
+  end
+
   -- Keep the live "where am I?" token current even during windows where we
-  -- intentionally suppress history recording (e.g. just after a jump). Cmd+Tab's
-  -- back/forward toggle uses this to notice organic Chrome tab switches.
-  setCurrent(entryKey(entry), entry)
+  -- intentionally suppress history recording (e.g. just after a jump). Cmd+Tab
+  -- uses this to decide whether the focused place is top, second-from-top, or
+  -- deeper in the stack.
+  setCurrent(key, entry)
   if st.busy then return end
   if st.settleUntil and hs.timer.secondsSinceEpoch() < st.settleUntil then return end
-  scheduleDwell(entryKey(entry), entry)
+  scheduleDwell(key, entry)
 end
 
 ---------------------------------------------------------------
@@ -456,8 +670,7 @@ end
 -- asked, before macOS has made the window key. Declaring the jump finished early
 -- is not cosmetic: st.busy is what suppresses recording mid-jump, so clearing it
 -- too soon lets the focus event for the window we are LEAVING land in the
--- history, where it doesn't match the cursor, gets pushed, and truncates the
--- forward branch.
+-- history and become most-recent even though the user is only passing through.
 --
 -- Same 20ms/20-try shape as smartcmdtab.lua.
 local function verifyLanded(entry, cb, tries)
@@ -512,6 +725,16 @@ local function jumpToIndex(index, delta, done)
         st.lastJumpKey = key
         st.lastJumpVersion = st.focusVersion or 0
       end
+
+      -- Landing on an older entry only browses the stack. It becomes most-recent
+      -- only when the user actually uses it: a non-navigation key or a click.
+      -- Landing on the top needs no arm.
+      if st.cursor == #st.stack then
+        clearNavigationSession()
+        cancelActivityArm()
+      else
+        armActivity(landed)
+      end
     end
     local pending = st.pendingDelta
     local pendingDone = st.pendingDone
@@ -531,10 +754,8 @@ local function jumpToIndex(index, delta, done)
     end
 
     local target = st.stack[j]
-    -- Set the cursor BEFORE focusing: when the resulting focus event arrives,
-    -- record() then sees a matching key and refreshes instead of pushing. That
-    -- is the whole suppression mechanism -- no "am I navigating" flag needed on
-    -- the landing event.
+    -- Set the cursor BEFORE focusing so the focused entry is known even while
+    -- the AX/Chrome events caused by the jump are suppressed by st.busy/settle.
     st.cursor = j
     focusEntry(target, function(ok)
       if ok then
@@ -566,6 +787,21 @@ local function jumpToIndex(index, delta, done)
   step(index, 1)
 end
 
+local function alignCursorToCurrent()
+  local key = currentKeyAndEntry()
+  local idx = indexOfKey(key)
+  if idx then st.cursor = idx end
+  return idx or st.cursor
+end
+
+local function rememberNavigationTop()
+  if st.navSessionTopKey then return end
+  local top = st.stack[#st.stack]
+  if not top then return end
+  st.navSessionTopKey = entryKey(top)
+  st.navSessionTopEntry = top
+end
+
 jump = function(delta, done)
   done = done or function() end
   if st.busy then
@@ -580,15 +816,26 @@ jump = function(delta, done)
     return done(false, nil)
   end
 
-  -- Bring the history up to date first, so a focus change that arrived through an
-  -- app posting no AX notification is still accounted for. This is what makes the
-  -- hotkey self-healing rather than dependent on perfect event coverage.
+  -- While browsing a previously landed history entry, hyper+o/i is navigation,
+  -- not activity. Do not flush/record it first, or merely stepping again would
+  -- promote the intermediate entry to the top.
   local started = false
   local function go()
     if started then return end
     started = true
+    alignCursorToCurrent()
+    if delta < 0 and st.cursor > 1 then rememberNavigationTop() end
     jumpToIndex(st.cursor, delta, done)
   end
+
+  if activityArmMatchesCurrent() then
+    go()
+    return
+  end
+
+  -- Bring the history up to date first, so a focus change that arrived through an
+  -- app posting no AX notification is still accounted for. This is what makes the
+  -- hotkey self-healing rather than dependent on perfect event coverage.
   observe(go, true)
   hs.timer.doAfter(SETTLE_TIMEOUT, go)
 end
@@ -596,26 +843,76 @@ end
 function M.back(done) jump(-1, done) end
 function M.forward(done) jump(1, done) end
 
+function M.cmdTab(done)
+  done = done or function() end
+  if st.busy then return done(false, nil) end
+
+  local function run()
+    if #st.stack == 0 then
+      hud("Focus history: empty")
+      return done(false, nil)
+    end
+
+    alignCursorToCurrent()
+
+    -- From the most-recent window, Cmd+Tab means "previous app".
+    if st.cursor >= #st.stack then
+      if st.cursor > 1 then rememberNavigationTop() end
+      return jumpToIndex(st.cursor, -1, done)
+    end
+
+    -- From the window just behind the top, Cmd+Tab toggles forward to the top.
+    if st.cursor == #st.stack - 1 then
+      return jumpToIndex(st.cursor, 1, done)
+    end
+
+    -- From deeper in the stack, make the current window the new "previous app"
+    -- (second from top), then focus the window that was top before this history
+    -- browsing session began. This turns a deep pick into a normal two-app
+    -- Cmd+Tab pair: top <-> picked.
+    local current = st.stack[st.cursor]
+    if not current then return done(false, nil) end
+    local currentKey = entryKey(current)
+    local topKey = st.navSessionTopKey
+    local topIdx = indexOfKey(topKey) or #st.stack
+    local top = st.stack[topIdx]
+    if not top then return done(false, nil) end
+    topKey = entryKey(top)
+    if currentKey == topKey then return jumpToIndex(st.cursor, 0, done) end
+
+    local rebuilt = {}
+    for _, e in ipairs(st.stack) do
+      local key = entryKey(e)
+      if key ~= currentKey and key ~= topKey then rebuilt[#rebuilt + 1] = e end
+    end
+    rebuilt[#rebuilt + 1] = current
+    rebuilt[#rebuilt + 1] = top
+    st.stack = rebuilt
+    st.cursor = #st.stack
+    clearNavigationSession()
+    cancelActivityArm()
+    save()
+
+    jumpToIndex(st.cursor, 0, done)
+  end
+
+  if activityArmMatchesCurrent() then
+    run()
+  else
+    local started = false
+    local function go()
+      if started then return end
+      started = true
+      run()
+    end
+    observe(go, true)
+    hs.timer.doAfter(SETTLE_TIMEOUT, go)
+  end
+end
+
 function M.currentKey()
-  if _G._FocusHistoryDwellKey then return _G._FocusHistoryDwellKey end
-
-  local win = hs.window.focusedWindow()
-  local winId = win and win:id() and tostring(win:id()) or nil
-  local entry = st.currentEntry
-  if entry then
-    if entry.kind == "window" and entry.id == winId then return entryKey(entry) end
-    if entry.kind == "chrome_tab" and (not entry.cgWindowId or entry.cgWindowId == winId) then return entryKey(entry) end
-  end
-
-  entry = currentWindowEntry()
-  if entry then
-    local key = entryKey(entry)
-    setCurrent(key, entry)
-    return key
-  end
-
-  setCurrent(nil, nil)
-  return nil
+  local key = currentKeyAndEntry()
+  return key
 end
 
 function M.focusVersion()
@@ -641,6 +938,8 @@ end
 function M.clear()
   st.stack = {}
   st.cursor = 0
+  clearNavigationSession()
+  cancelActivityArm()
   setCurrent(nil, nil)
   save()
   hud("Focus history cleared")
@@ -648,7 +947,7 @@ end
 
 function M.showList()
   local choices = {}
-  -- Newest first, the way a jumplist reads.
+  -- Newest first, like a phone app switcher.
   for i = #st.stack, 1, -1 do
     local e = st.stack[i]
     choices[#choices + 1] = {
@@ -700,14 +999,27 @@ function M.setup()
     pcall(function() w:stop() end)
   end
   _G._FocusHistoryAppWatchers = {}
-  if _G._FocusHistoryDwellTimer then
-    pcall(function() _G._FocusHistoryDwellTimer:stop() end)
-    _G._FocusHistoryDwellTimer = nil
+  if _G._FocusHistoryActivityTap then
+    pcall(function() _G._FocusHistoryActivityTap:stop() end)
+    _G._FocusHistoryActivityTap = nil
   end
-  _G._FocusHistoryDwellKey = nil
-  _G._FocusHistoryDwellEntry = nil
+  for _, unwatch in ipairs(_G._FocusHistoryHyperUnwatchers or {}) do
+    pcall(unwatch)
+  end
+  _G._FocusHistoryHyperUnwatchers = nil
+  cancelDwellTimer()
+  clearNavigationSession()
+  cancelActivityArm()
 
   restore()
+
+  _G._FocusHistoryActivityTap = hs.eventtap.new({
+    hs.eventtap.event.types.keyDown,
+    hs.eventtap.event.types.leftMouseDown,
+    hs.eventtap.event.types.rightMouseDown,
+    hs.eventtap.event.types.otherMouseDown,
+  }, activityEvent)
+  _G._FocusHistoryActivityTap:start()
 
   _G._FocusHistoryAppWatcher = hs.application.watcher.new(function(_, event, app)
     if event == hs.application.watcher.activated then

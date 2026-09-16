@@ -192,7 +192,7 @@ function M.setup()
   require("caps_hyper").setup()
 
   ---------------------------------------------------------------
-  -- Focus history (window + Chrome tab jumplist)
+  -- Focus history (window + Chrome tab MRU stack)
   ---------------------------------------------------------------
 
   FocusHistory.setup()
@@ -625,8 +625,8 @@ function M.setup()
   default:bindOnce(hyper, "n", "Focus Next Window", function() fish("wm-preset focus-window-in-space next") end)
   default:bindOnce(hyper, "p", "Focus Prev Window", function() fish("wm-preset focus-window-in-space prev") end)
 
-  -- Focus history: back/forward through windows and Chrome tabs (vim jumplist
-  -- order -- o goes back, i goes forward).
+  -- Focus history: phone-style MRU stack through windows and Chrome tabs
+  -- (o goes back toward older entries, i goes forward toward newer entries).
   default:bindOnce(hyper, "o", "Focus History Back", function() FocusHistory.back() end)
   default:bindOnce(hyper, "i", "Focus History Forward", function() FocusHistory.forward() end)
   -- ArgList navigation: focus next/prev marked window, or error if none marked.
