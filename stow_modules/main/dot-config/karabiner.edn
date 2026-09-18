@@ -151,6 +151,7 @@
     {
         :des "Workflow Enhancement Shortcuts"
         :rules [
+            [:!CTOdelete_or_backspace :!Odelete_or_backspace]
             ; App specific shortcuts are applied first
             ; [:##left_option :##left_option [["option-pressed-once" 1] :chrome] {:alone [:!CSa {:key :vk_none :held_down_ms 100} :down_arrow {:key :vk_none :held_down_ms 100} :return_or_enter] :afterup ["option-pressed-once" 0]}]
             [:##left_option :##left_option [["option-pressed-once" 1] :chrome] {:alone [:fish "hs-preset send-keys cmd shift a; hs-preset send-keys return"] :afterup ["option-pressed-once" 0]}]
@@ -288,7 +289,7 @@
             [:#SRquote [:!CTOquote ["hyper-layer" 0] [:noti :hyper-hud]]]
             [:#SRsemicolon [:!CTOsemicolon ["hyper-layer" 0] [:noti :hyper-hud]]]
             [:#SRgrave_accent_and_tilde [:!CTOgrave_accent_and_tilde ["hyper-layer" 0] [:noti :hyper-hud]]]
-            [:#SRdelete_or_backspace [:!CTOdelete_or_backspace ["hyper-layer" 0] [:noti :hyper-hud]]]
+            [:#SRdelete_or_backspace [:!Odelete_or_backspace ["hyper-layer" 0] [:noti :hyper-hud]]]
             [:spacebar [:!CTOspacebar ["hyper-layer" 0] [:noti :hyper-hud]]]
             [:#SRspacebar [:!CTOspacebar ["hyper-layer" 0] [:noti :hyper-hud]]]
         ]
