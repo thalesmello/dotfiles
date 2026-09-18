@@ -183,10 +183,12 @@ local function recordTab(msg, retried)
   local previousTabId = st.activeTabs[stateKey]
   st.activeTabs[stateKey] = tabId
 
-  -- Only tab changes get to enter the dwell/recording pipeline. window-focus,
-  -- hello, and title/url updates describe an already-active tab; they may refresh
-  -- current metadata, but they must not make that tab/window most-recent.
-  if msg.reason == "activated" and previousTabId ~= tabId then
+  -- Only a known active-tab change gets to enter the dwell/recording pipeline.
+  -- window-focus, hello, title/url updates, and the first report we see for a
+  -- Chrome window only establish/refresh the current active tab. That avoids a
+  -- window-focus report for an already-active tab making the tab/window
+  -- most-recent without key/click activity.
+  if msg.reason == "activated" and previousTabId ~= nil and previousTabId ~= tabId then
     FocusHistory.recordDwelled(entry)
   else
     FocusHistory.noteCurrent(entry)

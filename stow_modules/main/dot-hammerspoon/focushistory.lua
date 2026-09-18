@@ -140,6 +140,30 @@ local function samePlace(a, b)
   return aw ~= nil and bw ~= nil and aw == bw
 end
 
+local function isChromeWindowDuplicate(windowEntry, tabEntry)
+  return tabEntry and tabEntry.kind == "chrome_tab" and tabEntry.cgWindowId
+    and windowEntry and windowEntry.kind == "window"
+    and windowEntry.app == "Google Chrome"
+    and windowEntry.id == tabEntry.cgWindowId
+end
+
+local function replaceKeyReferences(oldKey, newKey, newEntry)
+  if not oldKey or not newKey or oldKey == newKey then return end
+  if st.currentKey == oldKey then
+    st.currentKey = newKey
+    st.currentEntry = newEntry
+  end
+  if st.activityKey == oldKey then
+    st.activityKey = newKey
+    st.activityEntry = newEntry
+  end
+  if st.navSessionTopKey == oldKey then
+    st.navSessionTopKey = newKey
+    st.navSessionTopEntry = newEntry
+  end
+  if st.lastJumpKey == oldKey then st.lastJumpKey = newKey end
+end
+
 local function clearNavigationSession()
   st.navSessionTopKey = nil
   st.navSessionTopEntry = nil
@@ -173,6 +197,71 @@ end
 -- backed by the user defaults plist; the payload is at most 20 small tables.
 local function save()
   hs.settings.set(SETTINGS_KEY, {stack = st.stack, cursor = st.cursor})
+end
+
+local function replaceChromeWindowDuplicate(tabEntry)
+  if not (tabEntry and tabEntry.kind == "chrome_tab" and tabEntry.cgWindowId) then return nil end
+
+  local tabKey = entryKey(tabEntry)
+  local tabIdx = indexOfKey(tabKey)
+  local changed = false
+  for i = #st.stack, 1, -1 do
+    local e = st.stack[i]
+    if isChromeWindowDuplicate(e, tabEntry) then
+      local oldKey = entryKey(e)
+      if tabIdx and tabIdx ~= i then
+        table.remove(st.stack, i)
+        if i < tabIdx then tabIdx = tabIdx - 1 end
+        if st.cursor == i then
+          st.cursor = tabIdx
+        elseif i < st.cursor then
+          st.cursor = st.cursor - 1
+        end
+      else
+        st.stack[i] = tabEntry
+        tabIdx = i
+      end
+      replaceKeyReferences(oldKey, tabKey, tabEntry)
+      changed = true
+    end
+  end
+
+  if changed then
+    st.cursor = math.max(0, math.min(st.cursor, #st.stack))
+    save()
+  end
+  return tabIdx
+end
+
+local function removeChromeWindowDuplicates()
+  local changed = false
+  local chromeWindowsToDrop = {}
+  for _, e in ipairs(st.stack) do
+    if e.kind == "chrome_tab" and e.cgWindowId then
+      chromeWindowsToDrop[e.cgWindowId] = e
+    end
+  end
+
+  for i = #st.stack, 1, -1 do
+    local e = st.stack[i]
+    local tabEntry = e.kind == "window" and e.app == "Google Chrome" and chromeWindowsToDrop[e.id] or nil
+    if tabEntry then
+      local oldKey = entryKey(e)
+      table.remove(st.stack, i)
+      if i == st.cursor then
+        st.cursor = indexOfKey(entryKey(tabEntry)) or math.min(i, #st.stack)
+      elseif i < st.cursor then
+        st.cursor = st.cursor - 1
+      end
+      replaceKeyReferences(oldKey, entryKey(tabEntry), tabEntry)
+      changed = true
+    end
+  end
+
+  if changed then
+    st.cursor = math.max(0, math.min(st.cursor, #st.stack))
+    save()
+  end
 end
 
 local function restore()
@@ -248,9 +337,10 @@ local function record(entry)
   -- twice.
   local moved = false
   for i = #st.stack, 1, -1 do
-    if entryKey(st.stack[i]) == key then
-      entry.title = entry.title or st.stack[i].title
-      entry.app = entry.app or st.stack[i].app
+    local existing = st.stack[i]
+    if entryKey(existing) == key or isChromeWindowDuplicate(existing, entry) then
+      entry.title = entry.title or existing.title
+      entry.app = entry.app or existing.app
       table.remove(st.stack, i)
       moved = true
     end
@@ -355,6 +445,22 @@ local function currentKeyAndEntry()
     local key = entryKey(entry)
     setCurrent(key, entry)
     return key, entry
+  end
+
+  -- If the focused macOS window is a Chrome window already represented by tab
+  -- entries, currentWindowEntry() deliberately returns nil to avoid creating a
+  -- duplicate window:<cgid>. Fall back to the newest tab entry for that window;
+  -- chromebridge.noteCurrent() usually keeps st.currentEntry precise, but this
+  -- makes history navigation robust if a window-focus report is late.
+  if winId then
+    for i = #st.stack, 1, -1 do
+      local e = st.stack[i]
+      if e.kind == "chrome_tab" and e.cgWindowId == winId then
+        local key = entryKey(e)
+        setCurrent(key, e)
+        return key, e
+      end
+    end
   end
 
   setCurrent(nil, nil)
@@ -593,6 +699,7 @@ end
 
 function M.noteCurrent(entry)
   if not entry then return end
+  replaceChromeWindowDuplicate(entry)
   local key = entryKey(entry)
 
   -- While a history-selected entry is waiting for explicit activity, passive
@@ -794,6 +901,24 @@ local function alignCursorToCurrent()
   return idx or st.cursor
 end
 
+local function consolidateCurrentAtTop()
+  -- Cmd+Tab from ordinary use should behave like a phone app switcher: whatever
+  -- tab/window is actively in use becomes the top entry first, then Cmd+Tab goes
+  -- to the previous entry. This matters for Chrome tabs that were only reported
+  -- passively via noteCurrent() (e.g. the already-active tab in a focused window)
+  -- and therefore have no pending dwell to flush.
+  if flushDwell() then return true end
+
+  local _, entry = currentKeyAndEntry()
+  if entry then
+    record(entry)
+    return true
+  end
+
+  commit()
+  return false
+end
+
 local function rememberNavigationTop()
   if st.navSessionTopKey then return end
   local top = st.stack[#st.stack]
@@ -834,10 +959,18 @@ jump = function(delta, done)
   end
 
   -- Bring the history up to date first, so a focus change that arrived through an
-  -- app posting no AX notification is still accounted for. This is what makes the
-  -- hotkey self-healing rather than dependent on perfect event coverage.
-  observe(go, true)
-  hs.timer.doAfter(SETTLE_TIMEOUT, go)
+  -- app posting no AX notification is still accounted for. For a fresh back
+  -- navigation (hyper+o), explicitly consolidate the current place at the top
+  -- before stepping back, same as Cmd+Tab from ordinary use: focusing a Chrome
+  -- window can leave the active tab known only via noteCurrent(), with its older
+  -- history slot still buried in the stack.
+  local function goFromCurrent()
+    if started then return end
+    if delta < 0 then consolidateCurrentAtTop() end
+    go()
+  end
+  observe(goFromCurrent, true)
+  hs.timer.doAfter(SETTLE_TIMEOUT, goFromCurrent)
 end
 
 function M.back(done) jump(-1, done) end
@@ -899,14 +1032,8 @@ function M.cmdTab(done)
   if activityArmMatchesCurrent() then
     run()
   else
-    local started = false
-    local function go()
-      if started then return end
-      started = true
-      run()
-    end
-    observe(go, true)
-    hs.timer.doAfter(SETTLE_TIMEOUT, go)
+    consolidateCurrentAtTop()
+    run()
   end
 end
 
@@ -1012,6 +1139,7 @@ function M.setup()
   cancelActivityArm()
 
   restore()
+  removeChromeWindowDuplicates()
 
   _G._FocusHistoryActivityTap = hs.eventtap.new({
     hs.eventtap.event.types.keyDown,
