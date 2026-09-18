@@ -11,7 +11,7 @@
  *
  *   - pi's own session selector (that is what setSessionName is for);
  *   - the transcript, as a {"type":"session_info","name":...} record, plus
- *     a custom ownership marker used after /reload and /resume;
+ *     a custom ownership marker used after /reload, /resume, and Herdr restart;
  *   - the terminal title, via ctx.ui.setTitle -- which is what a multiplexer
  *     reads. In herdr it arrives as terminal_title_stripped, so the Agents
  *     sidebar shows it with no daemon involved at all.
@@ -215,12 +215,24 @@ type BranchEntry = {
 	customType?: string;
 	data?: unknown;
 	timestamp?: string;
+	name?: unknown;
 	message?: { role?: string; content?: unknown };
 };
 
 type TitleState = {
 	name?: string;
 	userTurnCount?: number;
+};
+
+type HydratedTitle = {
+	/** Latest persisted Pi session name, whether ours or manually set. */
+	name?: string;
+	/** The latest persisted name is one this extension set. */
+	ours: boolean;
+	/** Turn count recorded by our ownership marker, when the name is ours. */
+	userTurnCount?: number;
+	/** A session_info entry exists after our latest marker, so automatic titles stop. */
+	manual: boolean;
 };
 
 function titleState(data: unknown): TitleState | undefined {
@@ -239,6 +251,7 @@ export default function (pi: ExtensionAPI) {
 	let userTurns: string[] = [];
 	let ourName: string | undefined; // the last name WE set
 	let titledAtUserTurnCount = -1;
+	let manualTitleLocked = false; // latest transcript name was set by someone else
 	let running = false;
 
 	const rememberUserTurn = (content: unknown) => {
@@ -246,27 +259,83 @@ export default function (pi: ExtensionAPI) {
 		if (text) userTurns.push(text.slice(0, PER_TURN_MAX));
 	};
 
-	const hydrateFromBranch = (entries: BranchEntry[]) => {
+	const hydrateFromBranch = (entries: BranchEntry[]): HydratedTitle => {
 		userTurns = [];
 		let lastState: TitleState | undefined;
-		const chronological = [...entries].sort(
-			(a, b) => Date.parse(a.timestamp ?? "") - Date.parse(b.timestamp ?? ""),
-		);
-		for (const entry of chronological) {
+		let lastStateOrder = -1;
+		let latestSessionName: string | undefined;
+		let latestSessionOrder = -1;
+
+		const chronological = entries
+			.map((entry, index) => ({ entry, index }))
+			.sort((a, b) => {
+				const at = Date.parse(a.entry.timestamp ?? "");
+				const bt = Date.parse(b.entry.timestamp ?? "");
+				const byTime =
+					Number.isFinite(at) && Number.isFinite(bt)
+						? at - bt
+						: Number.isFinite(at)
+							? -1
+							: Number.isFinite(bt)
+								? 1
+								: 0;
+				return byTime || a.index - b.index;
+			});
+
+		let order = 0;
+		for (const { entry } of chronological) {
 			if (entry.type === "message" && entry.message?.role === "user") {
 				rememberUserTurn(entry.message.content);
+			} else if (entry.type === "session_info" && "name" in entry) {
+				// Pi persists both manual names and pi.setSessionName() here. The
+				// latest one is the durable source of truth after Herdr restarts.
+				latestSessionName = typeof entry.name === "string" ? entry.name : undefined;
+				latestSessionOrder = order;
 			} else if (entry.type === "custom" && entry.customType === STATE_ENTRY) {
 				lastState = titleState(entry.data);
+				lastStateOrder = order;
 			}
+			order += 1;
 		}
 
+		// A title is ours only when the latest persisted session_info is followed
+		// by our ownership marker with the same name. If a user later runs /name
+		// (or clears it), that newer session_info is not followed by our marker,
+		// so automatic titling stays off until /retitle explicitly takes over.
+		const owned =
+			latestSessionOrder >= 0 &&
+			lastStateOrder > latestSessionOrder &&
+			!!latestSessionName &&
+			lastState?.name === latestSessionName;
+
 		const existing = pi.getSessionName();
-		ourName = existing && lastState?.name === existing ? existing : undefined;
-		titledAtUserTurnCount = ourName ? lastState?.userTurnCount ?? -1 : -1;
+		if (owned) {
+			ourName = latestSessionName;
+			titledAtUserTurnCount = lastState?.userTurnCount ?? userTurns.length;
+			manualTitleLocked = false;
+		} else if (latestSessionOrder >= 0) {
+			ourName = undefined;
+			titledAtUserTurnCount = -1;
+			manualTitleLocked = true;
+		} else {
+			// Compatibility with in-memory /reload in case the branch API ever omits
+			// session_info entries: keep ownership only when Pi's current name still
+			// equals the marker we wrote earlier.
+			ourName = existing && lastState?.name === existing ? existing : undefined;
+			titledAtUserTurnCount = ourName ? lastState?.userTurnCount ?? -1 : -1;
+			manualTitleLocked = false;
+		}
+
+		return {
+			name: latestSessionName || undefined,
+			ours: owned,
+			userTurnCount: owned ? titledAtUserTurnCount : undefined,
+			manual: latestSessionOrder >= 0 && !owned,
+		};
 	};
 
 	const mayTitle = (): boolean => {
-		if (running || userTurns.length === 0) return false;
+		if (running || manualTitleLocked || userTurns.length === 0) return false;
 		const current = pi.getSessionName();
 		// Named by someone else: theirs wins, for good.
 		if (current && current !== ourName) return false;
@@ -288,6 +357,7 @@ export default function (pi: ExtensionAPI) {
 			if (current && current !== ourName) return undefined;
 			pi.setSessionName(title);
 			ourName = title;
+			manualTitleLocked = false;
 			titledAtUserTurnCount = userTurns.length;
 			pi.appendEntry(STATE_ENTRY, { name: title, userTurnCount: titledAtUserTurnCount });
 			// pi does not put the session name in the terminal title, and the
@@ -303,13 +373,36 @@ export default function (pi: ExtensionAPI) {
 		// Rebuild state after /reload, /resume, and /new. Without this, /retitle
 		// has no history after a reload and auto-refresh treats our own previous
 		// title as manual.
-		hydrateFromBranch(ctx.sessionManager.getBranch() as BranchEntry[]);
+		const hydrated = hydrateFromBranch(ctx.sessionManager.getBranch() as BranchEntry[]);
+
+		let displayTitle = pi.getSessionName() ?? hydrated.name;
+		if (hydrated.ours && hydrated.name) {
+			// Herdr restarts lose the terminal title, and some restore paths do not
+			// leave Pi's in-memory session name populated even though the transcript
+			// has it. Re-publish the title from the durable transcript, then write a
+			// fresh ownership marker after the session_info that setSessionName may
+			// append, so the next restart still knows the name is ours.
+			if (pi.getSessionName() !== hydrated.name) {
+				pi.setSessionName(hydrated.name);
+				ourName = hydrated.name;
+				manualTitleLocked = false;
+				titledAtUserTurnCount = hydrated.userTurnCount ?? userTurns.length;
+				pi.appendEntry(STATE_ENTRY, {
+					name: hydrated.name,
+					userTurnCount: titledAtUserTurnCount,
+				});
+			}
+			displayTitle = hydrated.name;
+		} else if (hydrated.manual) {
+			// A user-set /name wins. If Pi did not hydrate it into memory, still
+			// restore only the terminal title for Herdr and keep auto-retitle locked.
+			displayTitle = hydrated.name ?? displayTitle;
+		}
 
 		// A resumed/named session keeps the name it had. A brand-new unnamed
 		// session is reset to Pi's own startup title, so a title left behind by an
 		// older pi run is not shown while the first generated name is computed.
-		const existing = pi.getSessionName();
-		if (ctx.hasUI) ctx.ui?.setTitle(existing ?? defaultPiTitle(ctx.cwd));
+		if (ctx.hasUI) ctx.ui?.setTitle(displayTitle ?? defaultPiTitle(ctx.cwd));
 	});
 
 	pi.on("message_end", async (event) => {
@@ -336,6 +429,7 @@ export default function (pi: ExtensionAPI) {
 			// An explicit ask hands the name back to us, even if it was set
 			// by hand.
 			ourName = pi.getSessionName();
+			manualTitleLocked = false;
 			ctx.ui.notify("Naming session…", "info");
 			const title = await retitle(ctx);
 			ctx.ui.notify(
