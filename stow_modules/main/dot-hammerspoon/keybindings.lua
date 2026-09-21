@@ -385,7 +385,8 @@ function M.setup()
     hs.eventtap.keyStroke({}, "f20")
   end)
   -- cmd+d / cmd+shift+d / cmd+t / cmd+n / cmd+w / cmd+shift+[ / cmd+shift+] /
-  -- cmd+shift+enter in Ghostty -> herdr-aware split/tab/close/zoom fallbacks.
+  -- cmd+shift+enter in Ghostty, plus ctrl+tab / ctrl+shift+tab in herdr,
+  -- -> herdr-aware split/tab/close/zoom fallbacks.
   -- Ghostty keybinds can't run a shell command, so we intercept here. An eventtap
   -- (not a hotkey) so it only fires when Ghostty is frontmost and passes through
   -- everywhere else (cmd+d still bookmarks in browsers, etc.). cmd+ctrl+* (ctrl
@@ -396,8 +397,22 @@ function M.setup()
   -- Ghostty's native split rather than the AppleScript fallback (targets front window).
   _G._GhosttyNewSplitTabTap = hs.eventtap.new({hs.eventtap.event.types.keyDown}, function(event)
     local flags = event:getFlags()
-    if not flags.cmd or flags.alt then return false end
     local code = event:getKeyCode()
+
+    -- ctrl+tab / ctrl+shift+tab in a herdr window -> prefix+] / prefix+[.
+    -- Otherwise leave Ghostty's native ctrl+tab tab-switching (and every other
+    -- app's handling) untouched.
+    local isCtrlTab = flags.ctrl and not flags.cmd and not flags.alt and code == hs.keycodes.map["tab"]
+    if isCtrlTab then
+      local focused = hs.window.focusedWindow()
+      local isGhosttyWindow = focused and focused:application() and focused:application():name() == "Ghostty"
+      if not isGhosttyWindow or not GhosttyPreset.isHerdrWindow() then return false end
+      Preset.sendKeys({"ctrl", "space"})
+      Preset.sendKeys({flags.shift and "leftbracket" or "rightbracket"})
+      return true
+    end
+
+    if not flags.cmd or flags.alt then return false end
     -- cmd+b / cmd+ctrl+b -> herdr's sidebar toggle (prefix+b), only when herdr
     -- owns the visible surface; otherwise it passes through.
     local isB = code == hs.keycodes.map["b"] and not flags.shift
