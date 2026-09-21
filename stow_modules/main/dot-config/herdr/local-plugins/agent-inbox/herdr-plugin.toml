@@ -1,0 +1,23 @@
+# Start the local agent-inbox daemon with the Herdr server.
+#
+# The inbox itself is intentionally kept as plain scripts under
+# ~/.config/herdr/scripts rather than using the upstream plugin's implementation.
+# This tiny local plugin only supplies Herdr's startup hook, so the Agents panel
+# gets the daemon's priority ordering and metadata as soon as the session starts.
+# The keybinding scripts still call herdr_ensure_agent_inbox as a fallback, and
+# the daemon's flock makes duplicate launches harmless.
+#
+# Like the other local plugins, this must be linked into Herdr's machine-local
+# registry after stowing or editing:
+#
+#   herdr-preset install-local-plugins
+
+id = "agent-inbox"
+name = "agent-inbox"
+version = "0.1.0"
+min_herdr_version = "0.8.0"
+description = "Start the local agent-inbox daemon on Herdr server startup"
+platforms = ["macos", "linux"]
+
+[[startup]]
+command = ["sh", "-lc", "exec python3 \"$HOME/.config/herdr/scripts/agent-inbox-daemon.py\""]

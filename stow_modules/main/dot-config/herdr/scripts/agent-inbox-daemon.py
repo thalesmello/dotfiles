@@ -2,22 +2,21 @@
 """Agent-inbox daemon: turn herdr's Agents panel into an inbox.
 
 Adapted from herdr-agent-inbox (github.com/douglascorrea/herdr-agent-inbox,
-MIT) with the plugin removed. Upstream ships as a herdr plugin; nothing here
-needs one. Everything it does goes through the public CLI/socket API:
-`pane report-metadata` and `workspace report-metadata` take a free-form
-`--source` id, and `agent.view.set` is an ordinary API method -- so this is
-just another script under ~/.config/herdr/scripts, started on demand like
-focus-history-daemon.fish and stowed with the rest of the config. What is
-lost by not installing the plugin is upstream's update path, which is the
-point: no plugins.json entry, nothing to run on a new machine but `stow`.
+MIT) with the upstream plugin implementation removed. Everything it does goes
+through the public CLI/socket API: `pane report-metadata` and
+`workspace report-metadata` take a free-form `--source` id, and
+`agent.view.set` is an ordinary API method -- so this is just another script
+under ~/.config/herdr/scripts, stowed with the rest of the config. A tiny local
+plugin only starts it with the Herdr server; the keybinding helpers also start
+it on demand as a fallback.
 
 Differences from upstream, all of them plumbing:
 
   * state lives in ~/.local/state/herdr/agent-inbox/ (beside focus-history/),
     not in a plugin state dir next to the session socket;
   * no config.toml of its own -- the handful of knobs are CONFIG below;
-  * the actions/hooks are gone: `herdr-preset inbox-*` talks to the same
-    control socket, and the daemon starts from herdr_ensure_agent_inbox.
+  * upstream's action hooks are gone: agent-inbox.fish and agent-inbox-tui.py
+    talk to the same control socket; the local plugin is only a startup hook.
 
 Watches herdr's agent panes and decorates them with inbox metadata:
 
@@ -31,8 +30,8 @@ Watches herdr's agent panes and decorates them with inbox metadata:
 - workspace tokens `agents` (per-status counts, e.g. "!1 ▸2 ✓1 ⚑1") and
   `busy` (longest currently-working stint).
 
-Settle / mark-unread commands arrive on a control socket (see
-`herdr-preset inbox-*`). State persists across herdr server restarts keyed by
+Settle / mark-unread commands arrive on a control socket (see agent-inbox.fish
+and agent-inbox-tui.py). State persists across herdr server restarts keyed by
 terminal_id.
 
 Stdlib only. One herdr request per connection (the server closes the socket
@@ -141,7 +140,7 @@ def state_dir():
 
 # The knobs. Upstream reads these from a generated plugin config.toml that it
 # hot-reloads; here they are constants, because the file they would live in is
-# this one -- edit and restart (`herdr-preset inbox-restart`).
+# this one -- edit and restart (`agent-inbox.fish restart`).
 CONFIG = {
     # "first" (the opening request, like a ChatGPT/Claude chat title) or
     # "last" (the most recent request, re-derived when a turn finishes).

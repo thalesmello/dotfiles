@@ -10,16 +10,17 @@
 #   agent-inbox.fish restart
 #
 # This is upstream's actions.py (github.com/douglascorrea/herdr-agent-inbox,
-# MIT) rewritten as a key script: no plugin means no
-# HERDR_PLUGIN_CONTEXT_JSON, so the pane comes from HERDR_ACTIVE_PANE_ID (which
+# MIT) rewritten as a key script: it is not a plugin action, so there is no
+# HERDR_PLUGIN_CONTEXT_JSON; the pane comes from HERDR_ACTIVE_PANE_ID (which
 # herdr injects into every keys.command environment) and the workspace from a
 # `pane get` on it.
 #
 # Everything goes to the daemon's control socket, which answers one line of
-# JSON per connection and closes -- so `nc -U` is a complete client. The daemon
-# is started on demand the same way focus-history-daemon.fish is: a detached
-# `type = "shell"` binding has no terminal, so the notification below is the
-# only thing that reaches the screen when this fails.
+# JSON per connection and closes -- so `nc -U` is a complete client. A local
+# plugin starts the daemon with the Herdr server; these actions also start it on
+# demand as a fallback. Detached `type = "shell"` bindings have no terminal, so
+# the notification below is the only thing that reaches the screen when this
+# fails.
 
 source (status dirname)/herdr-lib.fish
 

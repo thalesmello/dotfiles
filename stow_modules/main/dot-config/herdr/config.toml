@@ -242,27 +242,20 @@ description = "claude in new tab (prompts for name)"
 width = "40%"
 height = 3
 
-# prefix+a: "ask" -- type a question, get an agent working on it in its own
-# throwaway directory. The script (scripts/ask-agent.sh) picks the agent from
-# the question itself (the first of claude / pi / codex in it, default pi),
-# immediately opens a new tab in the "qq" workspace labelled "asking...", then
-# drops a short runner script into /tmp and starts it in that new tab through a
-# fixed command plus env var, so the actual temp-script path does not need to
-# land in shell history. The runner uses `pi -p` on a cheap haiku model to
-# title the work, slugifies that title, renames the tab async, makes
-# ~/src/tries/<date>-<slug> with `try new --print-path` (the non-interactive
-# mode added to dotfiles/bin/try for this), pre-trusts that fresh directory in
-# ~/.claude.json when the chosen agent is Claude, cd's there, and starts the
-# agent through fish -C with the question passed by environment so the start
-# command is visible in the tab but the prompt is not written to shell history.
-# type = "popup" so only the question prompt runs in a herdr-rendered PTY where
-# interactive input works (same as claude-tab.sh); wider and 3 rows tall
-# because a question is longer than a tab name.
+# prefix+a: "ask" -- type a question, have ask-agent classify it, and drop the
+# chosen agent into the right workspace/directory. Quick questions reuse the qq
+# workspace and log to ~/src/qq/questions.log; config edits reuse the src
+# workspace and start in ~/src; prototypes stage in src, then the runner moves
+# the pane into a fresh slug-named workspace and creates a fresh try directory.
+# The prompt still runs in a popup PTY, while the actual agent session starts
+# from a short runner script in /tmp so the real temp path and prompt do not end
+# up in shell history. Wider and 3 rows tall because a question is longer than a
+# tab name.
 [[keys.command]]
 key = "prefix+a"
 type = "popup"
 command = "~/.config/herdr/scripts/ask-agent.sh"
-description = "ask an agent in a new try dir + qq tab"
+description = "ask an agent in qq/src/prototype workspace"
 width = "70%"
 height = 3
 
@@ -469,11 +462,11 @@ command = "~/.config/herdr/scripts/focus-jumplist.fish forward"
 description = "forward in focus history"
 
 # Agent inbox (scripts/agent-inbox-daemon.py + agent-inbox.fish + agent-inbox-tui.py).
-# A no-plugin port of github.com/douglascorrea/herdr-agent-inbox: the Agents
+# A local-script port of github.com/douglascorrea/herdr-agent-inbox: the Agents
 # panel becomes an attention queue you can triage like a mailbox. Settling an
 # agent sinks it to the bottom until it does something again; marking one unread
-# pins it back on top. The daemon starts on demand from these keys, the same way
-# focus-history-daemon.fish does.
+# pins it back on top. local-plugins/agent-inbox starts the daemon when the Herdr
+# server starts; these keys still ensure it is up as a fallback.
 #
 # prefix+m: settle the focused agent -- "I am done with this thread".
 [[keys.command]]
