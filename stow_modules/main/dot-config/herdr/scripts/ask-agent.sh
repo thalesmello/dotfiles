@@ -1,57 +1,29 @@
 #!/usr/bin/env bash
-# prefix+a: "ask" -- one question, one throwaway workspace directory, one agent
-# session started on it.
+# prefix+a: "ask" -- one question, one agent, and a purpose-appropriate
+# starting directory (quick questions, prototypes, or configuration edits).
 #
-# The popup does as little as possible, because the popup is modal: while it is
-# up, herdr's prefix key belongs to it and the rest of the terminal is out of
-# reach. So everything that can WAIT happens in the new tab instead.
-#
-#   in the popup (fast, no network):
-#     1. prompt for the question (prompt-lib.sh)
-#     2. pick the agent: the first of the words claude / pi / codex that appears
-#        in the question, defaulting to pi -- name claude or codex to route there
-#     3. reserve a private runner path under /tmp
-#     4. open a tab in the "qq" workspace (created on the first ask), labelled
-#        "asking..." for now, with that runner path in its environment
-#     5. write the runner script there: everything below, with the question, the
-#        agent and the tab id baked in
-#     6. start the runner in the new tab
-#
-#   in the new tab (slow, so it is out of the way):
-#     7. a small model LABELS the topic of the work -- apfel (Apple
-#        Intelligence, on-device) where that exists, else `pi -p` on gemini
-#        flash (see "WHO TITLES") -- and that label is slugified. A label and
-#        not a slug of the question, because slugifying the question verbatim
-#        gives names like why-are-people-in-https-chat-google-com-u-0 where the
-#        point was github-access-investigation
-#     8. rename the tab to that slug
-#     9. `try new --print-path <slug>` makes ~/src/tries/<date>-<slug>
-#    10. if the selected agent is Claude, mark that throwaway directory trusted
-#        in ~/.claude.json before Claude starts, avoiding the trust prompt
-#    11. cd there and start the agent with fish -C and the question in an env var,
-#        so the starting command is visible but the prompt is not saved to shell
-#        history; the answer starts arriving and the session stays live
-#
-# WHY IT MOVED. The titling model call (a second or several, longer when the API
-# is slow) used to run in the popup, which froze the whole terminal on it: no
-# other tab, no other key, nothing to do but wait for a cosmetic name. Now the
-# popup returns the instant the tab exists and the waiting is visible in the tab
-# that is doing it.
+# The popup now does just enough classification before opening a tab, because
+# the Herdr workspace itself depends on the prompt purpose:
+#   quick      -> reuse/create the "qq" workspace and start in ~/src/qq
+#   config     -> reuse/create the "src" workspace and start in ~/src
+#   prototype  -> start in the reusable "src" workspace, then the runner moves
+#                 the pane into a fresh slug-named workspace before the agent
+#                 starts and makes a fresh try directory there
 #
 # The runner is a FILE and not a `pane run` one-liner because it is a program by
-# now (a model call, a rename, a mkdir, a cd and an exec, with the question
-# quoted through all of it). The pane only sees a short fixed command that
-# expands $HERDR_ASK_AGENT_RUNNER, so the actual /tmp path never has to appear
-# in shell history. The file deletes itself before exec'ing the agent.
+# now (directory choice, optional logging/trust setup, a cd and an exec, with the
+# question quoted through all of it). The pane only sees a short fixed command
+# that expands $HERDR_ASK_AGENT_RUNNER, so the actual /tmp path never has to
+# appear in shell history. The file deletes itself before exec'ing the agent.
 #
 # Bound as a `type = "popup"` command so the prompt runs in a herdr-rendered PTY
 # where interactive input works -- a detached `type = "shell"` command has no
 # terminal. Esc (or an empty question) cancels and creates nothing.
 #
-# PRIVACY: step 7 shows the question to a titling model. With apfel that model
-# is on-device and the question does not leave the machine at all; only the
-# fallback sends it out. Nothing else leaves except what the agent you picked
-# would send anyway.
+# PRIVACY: naming/classification show the question to small models. With apfel
+# those calls are on-device and the question does not leave the machine at all;
+# only the fallback sends it out. Nothing else leaves except what the agent you
+# picked would send anyway.
 
 set -u
 
@@ -68,8 +40,8 @@ ASK_PATH="$HOME/.local/bin:$HOME/src/dotfiles/bin:/opt/homebrew/bin:/usr/local/b
 PATH=$ASK_PATH
 export PATH
 
-# WHO TITLES. Two titlers, cheapest first, and never the agent the question was
-# routed to -- a title is not worth a frontier model or a second agent startup.
+# WHO TITLES/CLASSIFIES. Two small-model paths, cheapest first -- a title or
+# category is not worth a frontier model or a second full agent startup.
 #
 #   apfel, on a Mac where Apple Intelligence answers: Apple's ON-DEVICE model,
 #   ~0.4-0.6s, and the question never leaves the machine. First choice for both
@@ -117,8 +89,26 @@ Examples:
 "fix the flaky test in the payments service" -> "Payments flaky test".
 Output only the label, in plain words, with no punctuation.'
 
-WORKSPACE_LABEL=qq
-PENDING_LABEL='asking...'
+CATEGORY_INSTRUCTION='Classify the prompt below for where a coding-agent session
+should start. Output exactly one word: quick, prototype, or config.
+
+quick: a small question, explanation, lookup, debugging thought, or request for
+advice where the expected result is an answer in chat, not new files.
+
+prototype: the prompt asks for a custom-built solution, proof of concept,
+script, app, generated artifact, deep analysis, investigation, or report where
+new files/reports/workspace context are likely useful.
+
+config: the prompt suggests editing, changing, fixing, tuning, adding, removing,
+enabling, disabling, or reviewing for edits any configuration/settings/dotfiles
+for shells, editors, terminals, agents, tools, apps, services, package managers,
+linters, formatters, CI, or similar. Config wins over the other categories.
+
+The prompt may start by naming the agent to route to (claude, pi, codex); ignore
+that for classification. Output only quick, prototype, or config.'
+
+QUICK_WORKSPACE_LABEL=qq
+SRC_WORKSPACE_LABEL=src
 RUNNER_ENV=HERDR_ASK_AGENT_RUNNER
 
 herdr=$(herdr_bin) || herdr_die 'ask' 'herdr CLI not found'
@@ -141,7 +131,107 @@ agent=$(printf '%s\n' "$question" \
   | awk '/^(claude|pi|codex)$/ { print; exit }')
 [ -n "$agent" ] || agent=pi
 
-# --- 3. reserve the runner path --------------------------------------------
+# --- 3. name and classify the prompt ---------------------------------------
+
+# This used to happen in the runner tab, but the popup now needs the category to
+# choose qq vs src immediately, and it needs the slug up front for the tab name
+# and any later prototype workspace. So the small model calls happen before the
+# tab exists.
+slugify() {
+  printf '%s' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | tr -c 'a-z0-9' '-' \
+    | sed -e 's/--*/-/g' -e 's/^-//' -e 's/-$//' \
+    | cut -c1-48 \
+    | sed -e 's/-$//'
+}
+
+last_line() { awk 'NF { last = $0 } END { print last }'; }
+
+label_ok() {
+  [ -n "$1" ] || return 1
+  [ "${#1}" -le 60 ] || return 1
+  [ "$(printf '%s\n' "$1" | wc -w | tr -d ' ')" -le 6 ]
+}
+
+normalize_category() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z'
+}
+
+category_ok() {
+  case "$1" in
+    quick|prototype|config) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+fallback_category() {
+  python3 - "$question" <<'PY'
+import re
+import sys
+
+q = re.sub(r"^\s*(claude|pi|codex)\b\s*[:,-]?\s*", "", sys.argv[1].lower())
+
+config_words = r"\b(config|configuration|settings?|preferences?|dotfiles?|rc\s*file|[a-z0-9_.-]*rc\b|gitconfig|npmrc|editorconfig|env|fish|zsh|bash|tmux|vim|nvim|wezterm|kitty|ghostty|alacritty|iterm|vscode|herdr|scripts?|lint(er)?|formatter|ci)\b"
+edit_words = r"\b(edit|change|update|modify|fix|add|remove|delete|set|configure|tweak|enable|disable|turn\s+on|turn\s+off|adjust|migrate|review|broken|wrong|improve|improved|improving|improvement)\b"
+prototype_words = r"\b(prototype|poc|proof\s+of\s+concept|build|create|implement|write|generate|make|scaffold|script|tool|app|dashboard|report|analysis|analyze|investigation|research|benchmark)\b"
+artifact_words = r"\b(file|files|report|markdown|md|csv|json|script|program|tool|app|prototype|folder|directory)\b"
+
+if re.search(config_words, q) and re.search(edit_words, q):
+    print("config")
+elif re.search(prototype_words, q) and (re.search(artifact_words, q) or re.search(r"\b(build|create|implement|write|generate|make|scaffold|prototype|poc)\b", q)):
+    print("prototype")
+else:
+    print("quick")
+PY
+}
+
+title=''
+if [ "$(uname -s)" = Darwin ] && command -v apfel >/dev/null 2>&1; then
+  printf 'naming (apfel)...'
+  got=$(apfel -q "$SLUG_INSTRUCTION
+Request: \"$question\"" </dev/null 2>/dev/null | last_line)
+  if label_ok "$got"; then title=$got; else printf ' no label;'; fi
+fi
+
+if [ -z "$title" ] && command -v pi >/dev/null 2>&1; then
+  printf 'naming (%s)...' "$SLUG_MODEL"
+  got=$(pi -p $SLUG_PI_ARGS \
+    --model "$SLUG_MODEL" --system-prompt "$SLUG_INSTRUCTION" \
+    -- "$question" </dev/null 2>/dev/null | last_line)
+  label_ok "$got" && title=$got
+fi
+
+slug=$(slugify "$title")
+[ -n "$slug" ] || slug=$(slugify "$question")
+stripped=$(printf '%s' "$slug" | sed -E 's/^(claude|pi|codex)-//')
+[ -n "$stripped" ] && slug=$stripped
+[ -n "$slug" ] || slug=ask
+printf ' %s\n' "$slug"
+
+category=''
+if [ "$(uname -s)" = Darwin ] && command -v apfel >/dev/null 2>&1; then
+  printf 'classifying (apfel)...'
+  got=$(apfel -q "$CATEGORY_INSTRUCTION
+Prompt: \"$question\"" </dev/null 2>/dev/null | last_line)
+  got=$(normalize_category "$got")
+  if category_ok "$got"; then category=$got; else printf ' no category;'; fi
+fi
+
+if [ -z "$category" ] && command -v pi >/dev/null 2>&1; then
+  printf 'classifying (%s)...' "$SLUG_MODEL"
+  got=$(pi -p $SLUG_PI_ARGS \
+    --model "$SLUG_MODEL" --system-prompt "$CATEGORY_INSTRUCTION" \
+    -- "$question" </dev/null 2>/dev/null | last_line)
+  got=$(normalize_category "$got")
+  category_ok "$got" && category=$got
+fi
+
+[ -n "$category" ] || category=$(fallback_category)
+category_ok "$category" || category=quick
+printf ' %s\n' "$category"
+
+# --- 4. reserve the runner path --------------------------------------------
 
 # mktemp under /tmp, so two asks at once cannot collide, and 700 so the
 # question -- which is the user's own words, and is baked into this file -- is
@@ -150,7 +240,7 @@ runner=$(mktemp /tmp/ask-agent-run.XXXXXX) \
   || herdr_die 'ask' 'could not create the runner script'
 chmod 700 "$runner"
 
-# --- 4. the tab ------------------------------------------------------------
+# --- 5. the tab ------------------------------------------------------------
 
 # id out of a herdr CLI response, e.g. json_field pane_id / tab_id. The
 # responses here nest the ids (tab_created has root_pane.pane_id), so this walks
@@ -184,7 +274,8 @@ except Exception:
 ' "$1"
 }
 
-workspace=$("$herdr" workspace list 2>/dev/null | python3 -c '
+workspace_with_label() {
+  "$herdr" workspace list 2>/dev/null | python3 -c '
 import json, sys
 
 label = sys.argv[1]
@@ -193,33 +284,63 @@ try:
 except Exception:
     workspaces = []
 print(next((w["workspace_id"] for w in workspaces if w.get("label") == label), ""))
-' "$WORKSPACE_LABEL")
+' "$1"
+}
 
-# --cwd $HOME: the try directory does not exist yet -- step 9, in the tab,
-# creates it, and step 10 cd's into it. A pane cannot be born in a directory that
-# is not there.
+case "$category" in
+  quick)
+    workspace_label=$QUICK_WORKSPACE_LABEL
+    workspace_cwd="$HOME/src/qq"
+    mkdir -p "$workspace_cwd" || herdr_die 'ask' "could not create $workspace_cwd"
+    reuse_workspace=1
+    ;;
+  prototype)
+    # Prototype prompts stage in the shared src workspace so the popup stays
+    # fast and predictable; the runner then promotes the pane into its own
+    # dedicated slug-named workspace before starting the agent.
+    workspace_label=$SRC_WORKSPACE_LABEL
+    workspace_cwd="$HOME/src"
+    [ -d "$workspace_cwd" ] || workspace_cwd="$HOME"
+    reuse_workspace=1
+    ;;
+  config)
+    workspace_label=$SRC_WORKSPACE_LABEL
+    workspace_cwd="$HOME/src"
+    [ -d "$workspace_cwd" ] || herdr_die 'ask' "$workspace_cwd does not exist"
+    reuse_workspace=1
+    ;;
+  *)
+    herdr_die 'ask' "unknown category: $category"
+    ;;
+esac
+
+workspace=''
+if [ "$reuse_workspace" = 1 ]; then
+  workspace=$(workspace_with_label "$workspace_label")
+fi
+
 if [ -n "$workspace" ]; then
-  created=$("$herdr" tab create --workspace "$workspace" --cwd "$HOME" \
-    --label "$PENDING_LABEL" --env "$RUNNER_ENV=$runner" --focus)
+  created=$("$herdr" tab create --workspace "$workspace" --cwd "$workspace_cwd" \
+    --label "$slug" --env "$RUNNER_ENV=$runner" --focus) \
+    || herdr_die 'ask' "could not create tab in the $workspace_label workspace"
 else
-  # First ask of the session: the workspace comes with a tab and a pane already,
-  # so use those rather than creating a second tab in it.
-  created=$("$herdr" workspace create --label "$WORKSPACE_LABEL" --cwd "$HOME" \
-    --env "$RUNNER_ENV=$runner" --focus)
+  # First ask for a reusable workspace creates it and uses its initial tab.
+  created=$("$herdr" workspace create --label "$workspace_label" --cwd "$workspace_cwd" \
+    --env "$RUNNER_ENV=$runner" --focus) \
+    || herdr_die 'ask' "could not create the $workspace_label workspace"
 fi
 
 pane=$(printf '%s' "$created" | json_field pane_id)
 tab=$(printf '%s' "$created" | json_field tab_id)
 
-[ -n "$pane" ] || herdr_die 'ask' "could not open a tab in the $WORKSPACE_LABEL workspace"
-[ -n "$tab" ] && "$herdr" tab rename "$tab" "$PENDING_LABEL" >/dev/null 2>&1
+[ -n "$pane" ] || herdr_die 'ask' "could not open a tab in the $workspace_label workspace"
+[ -n "$tab" ] && "$herdr" tab rename "$tab" "$slug" >/dev/null 2>&1
 
-# --- 5. the runner ---------------------------------------------------------
+# --- 6. the runner ---------------------------------------------------------
 
 # printf %q for every value: this file is bash and so is this shell, so %q's
 # quoting is exactly what bash will read back -- newlines, quotes and $ in the
-# question and in the instruction all survive verbatim, with no escaping rules
-# of our own to get wrong.
+# question all survive verbatim, with no escaping rules of our own to get wrong.
 {
   printf '#!/usr/bin/env bash\n'
   printf '# Generated by ask-agent.sh. Deletes itself; not meant to be kept.\n'
@@ -229,29 +350,19 @@ tab=$(printf '%s' "$created" | json_field tab_id)
   printf 'SELF=%q\n' "$runner"
   printf 'RUNNER_ENV=%q\n' "$RUNNER_ENV"
   printf 'HERDR=%q\n' "$herdr"
+  printf 'PANE=%q\n' "$pane"
   printf 'TAB=%q\n' "$tab"
   printf 'AGENT=%q\n' "$agent"
   printf 'QUESTION=%q\n' "$question"
-  printf 'SLUG_MODEL=%q\n' "$SLUG_MODEL"
-  printf 'SLUG_PI_ARGS=%q\n' "$SLUG_PI_ARGS"
-  printf 'SLUG_INSTRUCTION=%q\n' "$SLUG_INSTRUCTION"
+  printf 'TITLE=%q\n' "$title"
+  printf 'SLUG=%q\n' "$slug"
+  printf 'CATEGORY=%q\n' "$category"
   cat <<'RUNNER'
 
 # Everything lives in main(): bash parses a function whole before running it, so
 # main can delete this very file (see the exec below) without bash losing the
 # rest of the script under itself.
 main() {
-  # Anything -> a safe slug: lowercase, [a-z0-9-] only, no runs of dashes, no
-  # leading/trailing dash, at most 48 chars (a tab label, and a directory name).
-  slugify() {
-    printf '%s' "$1" \
-      | tr '[:upper:]' '[:lower:]' \
-      | tr -c 'a-z0-9' '-' \
-      | sed -e 's/--*/-/g' -e 's/^-//' -e 's/-$//' \
-      | cut -c1-48 \
-      | sed -e 's/-$//'
-  }
-
   # Show the failure and STAY: this pane is the only place the message exists,
   # and exiting would close the tab with it (see the exec at the end).
   fail() {
@@ -260,95 +371,66 @@ main() {
     exec "${SHELL:-/bin/sh}" -l
   }
 
-  # --- 7. the name -------------------------------------------------------
+  # --- 7. precomputed name/category -------------------------------------
 
-  # Both titlers print the answer and little else, but `pi` announces its
-  # gateway on startup, so it is the LAST non-empty line that is the title, not
-  # the first.
-  last_line() { awk 'NF { last = $0 } END { print last }'; }
+  title=$TITLE
+  slug=$SLUG
+  category=$CATEGORY
 
-  # A LABEL, or nothing. Asked to name a topic, a model sometimes answers the
-  # question instead -- apfel turned "how do herdr popups actually work" into a
-  # paragraph about monitoring and alerting -- and a paragraph makes a 48-char
-  # slug of pure noise. Anything past label size is treated as no answer at all,
-  # which is what puts the next titler in the chain to work.
-  label_ok() {
-    [ -n "$1" ] || return 1
-    [ "${#1}" -le 60 ] || return 1
-    [ "$(printf '%s\n' "$1" | wc -w | tr -d ' ')" -le 6 ]
+  new_uuid() {
+    if command -v uuidgen >/dev/null 2>&1; then
+      uuidgen | tr '[:upper:]' '[:lower:]'
+    else
+      python3 - <<'PY'
+import uuid
+print(uuid.uuid4())
+PY
+    fi
   }
 
-  # apfel first, and only on a Mac: Apple Intelligence, on-device, and the
-  # question stays here. Missing, switched off or rambling -> the fallback runs,
-  # so nothing has to probe whether Apple Intelligence is available.
-  #
-  # ONE USER PROMPT, NOT -s. apfel's -s took the instruction and the on-device
-  # model ignored it wholesale: given "how do herdr popups actually work" it
-  # wrote five paragraphs about state management and CSS transitions instead of
-  # a label -- a small model follows the last user turn, and a question in that
-  # turn beats any system prompt telling it not to answer. With the same
-  # instruction moved INTO the user turn and the question quoted after
-  # "Request:", every case above titles correctly in ~0.4s. (pi is the opposite:
-  # it wants --system-prompt, see below.)
-  #
-  # </dev/null on both titlers: neither is meant to read the terminal, and this
-  # runs in a pane the user may already be typing into.
-  title=''
-  if [ "$(uname -s)" = Darwin ] && command -v apfel >/dev/null 2>&1; then
-    printf 'naming (apfel)...'
-    got=$(apfel -q "$SLUG_INSTRUCTION
-Request: \"$QUESTION\"" </dev/null 2>/dev/null | last_line)
-    if label_ok "$got"; then title=$got; else printf ' no label;'; fi
+  shell_quote() { printf '%q' "$1"; }
+
+  clean_log_field() {
+    printf '%s' "$1" | tr '\n\t' '  '
+  }
+
+  printf 'ask: %s (%s)\n' "$slug" "$category"
+
+  if [ "$category" = prototype ]; then
+    move_output=$("$HERDR" pane move "$PANE" --new-workspace --label "$slug" \
+      --tab-label "$slug" --focus 2>&1) \
+      || fail "could not create prototype workspace $slug: $move_output"
+  else
+    [ -n "$TAB" ] && "$HERDR" tab rename "$TAB" "$slug" >/dev/null 2>&1
   fi
 
-  # $SLUG_PI_ARGS is what makes it fast, --no-session also keeping the titling
-  # exchange out of ~/.pi/agent/sessions, out of `pi --resume` and out of the
-  # agent inbox's history.
-  if [ -z "$title" ]; then
-    printf 'naming (%s)...' "$SLUG_MODEL"
-    got=$(pi -p $SLUG_PI_ARGS \
-      --model "$SLUG_MODEL" --system-prompt "$SLUG_INSTRUCTION" \
-      "$QUESTION" </dev/null 2>/dev/null | last_line)
-    label_ok "$got" && title=$got
-  fi
+  # --- 10. the directory -------------------------------------------------
 
-  slug=$(slugify "$title")
-  # No model, no network, no answer: the question's own first words are a worse
-  # name (this is the verbatim-question case the title exists to avoid) but
-  # never a missing one.
-  [ -n "$slug" ] || slug=$(slugify "$QUESTION")
+  case "$category" in
+    quick)
+      dir="$HOME/src/qq"
+      mkdir -p "$dir" || fail "could not create $dir"
+      ;;
+    prototype)
+      # `--print-path` creates the dated directory and prints it, instead of the
+      # mkdir+cd script `try` normally emits: the cd happens below, after any
+      # Claude project trust setup. See cmd_new! in dotfiles/bin/try.
+      dir=$(try new --print-path "$slug" 2>&1) || fail "try new failed: $dir"
+      [ -d "$dir" ] || fail "try new produced no directory: $dir"
+      ;;
+    config)
+      dir="$HOME/src"
+      [ -d "$dir" ] || fail "$dir does not exist"
+      ;;
+  esac
 
-  # "pi: what day is it" is a question about the day, not about pi: the agent
-  # name is how the question was addressed (the popup already consumed it), so
-  # it is not part of what this try is called. Leading only: a trailing "-pi" is
-  # usually a real word of the title ("debug-with-pi"), while a leading one is
-  # the address.
-  stripped=$(printf '%s' "$slug" | sed -E 's/^(claude|pi|codex)-//')
-  # ...unless that was the whole name ("ask pi about pi"), in which case the
-  # agent name is all there is to go on.
-  [ -n "$stripped" ] && slug=$stripped
-  [ -n "$slug" ] || slug=ask
-
-  printf ' %s\n' "$slug"
-
-  # --- 8. the tab name ---------------------------------------------------
-
-  [ -n "$TAB" ] && "$HERDR" tab rename "$TAB" "$slug" >/dev/null 2>&1
-
-  # --- 9. the directory --------------------------------------------------
-
-  # `--print-path` creates the dated directory and prints it, instead of the
-  # mkdir+cd script `try` normally emits: the cd happens below, after any
-  # Claude project trust setup. See cmd_new! in dotfiles/bin/try.
-  dir=$(try new --print-path "$slug" 2>&1) || fail "try new failed: $dir"
-  [ -d "$dir" ] || fail "try new produced no directory: $dir"
-
-  # --- 10. Claude project trust ------------------------------------------
+  # --- 11. Claude project trust ------------------------------------------
 
   # Claude Code prompts once per project directory before it will run there.
-  # This directory was just made by `try new` exclusively for this prompt, so it
-  # is safe to pre-add it to Claude's trusted project list. Do it before cd/exec
-  # so the first Claude frame is the actual session, not the trust dialog.
+  # Ask-agent only starts in the dedicated quick-question folder, a fresh try
+  # directory, or ~/src for configuration edits; pre-trust that chosen project
+  # before cd/exec so the first Claude frame is the actual session, not the
+  # trust dialog.
   trust_claude_project() {
     [ "$AGENT" = claude ] || return 0
 
@@ -413,7 +495,147 @@ PY
 
   trust_claude_project || fail "could not add $dir to ~/.claude.json trusted projects"
 
-  # --- 11. the agent session ---------------------------------------------
+  # --- 12. quick-question log --------------------------------------------
+
+  descriptor=$(clean_log_field "${title:-$slug}")
+  session_id=''
+  case "$AGENT" in
+    pi|claude)
+      session_id=$(new_uuid)
+      [ -n "$session_id" ] || fail 'could not generate a session id'
+      ;;
+  esac
+
+  quick_resume_command() {
+    quoted_dir=$(shell_quote "$dir")
+    case "$AGENT" in
+      pi)
+        quoted_session=$(shell_quote "$session_id")
+        printf 'cd %s && pi --session-id %s' "$quoted_dir" "$quoted_session"
+        ;;
+      claude)
+        quoted_session=$(shell_quote "$session_id")
+        printf 'cd %s && claude --resume %s' "$quoted_dir" "$quoted_session"
+        ;;
+      codex)
+        printf 'cd %s && codex resume --last' "$quoted_dir"
+        ;;
+    esac
+  }
+
+  append_quick_log() {
+    [ "$category" = quick ] || return 0
+    log=$dir/questions.log
+    timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+    resume=$(quick_resume_command)
+    printf '%s\tslug=%s\tdescriptor=%s\tagent=%s\tsession_id=%s\tresume=%s\n' \
+      "$timestamp" "$(clean_log_field "$slug")" "$descriptor" "$AGENT" \
+      "$(clean_log_field "$1")" "$(clean_log_field "$resume")" >>"$log" \
+      || fail "could not append to $log"
+  }
+
+  # Codex does not accept a caller-provided session id for a fresh interactive
+  # session. For quick questions, wait briefly for Codex to persist the thread
+  # that starts with this exact prompt, then append the same log shape with the
+  # actual thread id and a precise resume command. The agent should not be held
+  # hostage by this bookkeeping, so the watcher is best-effort and backgrounded.
+  start_codex_quick_log_watcher() {
+    [ "$category" = quick ] || return 0
+    [ "$AGENT" = codex ] || return 0
+
+    log=$dir/questions.log
+    start_ms=$(python3 - <<'PY'
+import time
+print(int(time.time() * 1000))
+PY
+)
+
+    python3 - "$log" "$slug" "$descriptor" "$dir" "$QUESTION" "$start_ms" <<'PY' >/dev/null 2>&1 &
+import datetime as dt
+import json
+import os
+import shlex
+import sqlite3
+import sys
+import time
+
+log_path, slug, descriptor, cwd, question, start_ms_s = sys.argv[1:]
+start_ms = int(start_ms_s)
+db = os.path.expanduser("~/.codex/thread_history_1.sqlite")
+
+def text_from_item(item_json):
+    try:
+        item = json.loads(item_json)
+    except Exception:
+        return None
+    pieces = []
+    for part in item.get("content") or []:
+        if isinstance(part, dict) and part.get("type") == "text":
+            pieces.append(part.get("text") or "")
+    return "".join(pieces)
+
+def find_thread():
+    if not os.path.exists(db):
+        return None
+    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=1.0)
+    try:
+        rows = conn.execute(
+            """
+            SELECT thread_id, item_json
+            FROM thread_items
+            WHERE item_type = 'userMessage' AND created_at_ms >= ?
+            ORDER BY created_at_ms DESC
+            LIMIT 50
+            """,
+            (start_ms - 5000,),
+        ).fetchall()
+    finally:
+        conn.close()
+    for thread_id, item_json in rows:
+        if text_from_item(item_json) == question:
+            return thread_id
+    return None
+
+thread_id = None
+for _ in range(90):
+    try:
+        thread_id = find_thread()
+    except sqlite3.Error:
+        thread_id = None
+    if thread_id:
+        break
+    time.sleep(1)
+
+if thread_id:
+    session = thread_id
+    resume = f"cd {shlex.quote(cwd)} && codex resume {shlex.quote(thread_id)}"
+else:
+    session = "unknown"
+    resume = f"cd {shlex.quote(cwd)} && codex resume --last"
+
+def clean(value):
+    return str(value).replace("\n", " ").replace("\t", " ")
+
+ts = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+line = (
+    f"{ts}\tslug={clean(slug)}\tdescriptor={clean(descriptor)}"
+    f"\tagent=codex\tsession_id={clean(session)}\tresume={clean(resume)}\n"
+)
+os.makedirs(os.path.dirname(log_path), exist_ok=True)
+with open(log_path, "a", encoding="utf-8") as f:
+    f.write(line)
+PY
+  }
+
+  if [ "$category" = quick ]; then
+    if [ "$AGENT" = codex ]; then
+      start_codex_quick_log_watcher
+    else
+      append_quick_log "$session_id"
+    fi
+  fi
+
+  # --- 13. the agent session ---------------------------------------------
 
   cd "$dir" || fail "could not cd into $dir"
 
@@ -428,13 +650,25 @@ PY
   # interactive fish shell rather than closing the terminal.
   command -v fish >/dev/null 2>&1 || fail 'fish not found; cannot start agent with fish -C'
 
-  fish_start="$AGENT \"\$HERDR_ASK_AGENT_PROMPT\""
+  case "$AGENT" in
+    pi)
+      fish_start='pi --session-id "$HERDR_ASK_AGENT_SESSION_ID" "$HERDR_ASK_AGENT_PROMPT"'
+      ;;
+    claude)
+      fish_start='claude --session-id "$HERDR_ASK_AGENT_SESSION_ID" "$HERDR_ASK_AGENT_PROMPT"'
+      ;;
+    codex)
+      fish_start='codex "$HERDR_ASK_AGENT_PROMPT"'
+      ;;
+  esac
   export HERDR_ASK_AGENT_PROMPT="$QUESTION"
+  [ -z "$session_id" ] || export HERDR_ASK_AGENT_SESSION_ID="$session_id"
 
   unset "$RUNNER_ENV"
   rm -f -- "$SELF"
 
-  printf "starting session: fish -C '%s'\n" "$fish_start"
+  printf "starting %s session in %s (%s): fish -C '%s'\n" \
+    "$AGENT" "$dir" "$category" "$fish_start"
   exec fish -C "$fish_start"
 }
 
