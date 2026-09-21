@@ -124,7 +124,11 @@
             [:right_shift :left_shift]
             [:left_command :left_command]
             [:left_option :left_option]
-            [:left_control :left_control]
+            ; In space mode, double-tap-hold Control/Fn sends Cmd+Option+Space
+            [:##left_control :##left_control ["space-control-pressed-once" 1] {:held :!COspacebar :afterup ["space-control-pressed-once" 0] :params {:held 150}}]
+            [:##left_control [["space-control-pressed-once" 1] :##left_control] nil {:delayed {:invoked ["space-control-pressed-once" 0] :canceled ["space-control-pressed-once" 0]}}]
+            [:fn :fn ["space-fn-pressed-once" 1] {:held :!COspacebar :afterup ["space-fn-pressed-once" 0] :params {:held 150}}]
+            [:fn [["space-fn-pressed-once" 1] :fn] nil {:delayed {:invoked ["space-fn-pressed-once" 0] :canceled ["space-fn-pressed-once" 0]}}]
             [:fn :fn]
             [:##a :!Cleft_arrow]
             [:##0 :!Cleft_arrow]
