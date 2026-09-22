@@ -6,15 +6,8 @@
 # the Herdr workspace itself depends on the prompt purpose:
 #   quick      -> reuse/create the "qq" workspace and start in ~/src/qq
 #   config     -> reuse/create the "src" workspace and start in ~/src
-#   prototype  -> start in the reusable "src" workspace, then the runner moves
-#                 the pane into a fresh slug-named workspace before the agent
-#                 starts and makes a fresh try directory there
-#
-# The runner is a FILE and not a `pane run` one-liner because it is a program by
-# now (directory choice, optional logging/trust setup, a cd and an exec, with the
-# question quoted through all of it). The pane only sees a short fixed command
-# that expands $HERDR_ASK_AGENT_RUNNER, so the actual /tmp path never has to
-# appear in shell history. The file deletes itself before exec'ing the agent.
+#   prototype  -> create a fresh try directory and slug-named workspace, then
+#                 start the agent there
 #
 # Bound as a `type = "popup"` command so the prompt runs in a herdr-rendered PTY
 # where interactive input works -- a detached `type = "shell"` command has no
@@ -33,9 +26,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 
 # A popup inherits the herdr SERVER's environment, not a login shell's, so the
 # tools this script calls are not necessarily on PATH (same reasoning as
-# herdr_bin in herdr-lib.sh). The runner gets the same treatment: it is started
-# by `pane run` in a pane's login shell, which does have a real PATH, but it is
-# cheap to be sure.
+# herdr_bin in herdr-lib.sh). Keep the target agent startup on the same PATH.
 ASK_PATH="$HOME/.local/bin:$HOME/src/dotfiles/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 PATH=$ASK_PATH
 export PATH
@@ -109,8 +100,6 @@ that for classification. Output only quick, prototype, or config.'
 
 QUICK_WORKSPACE_LABEL=qq
 SRC_WORKSPACE_LABEL=src
-RUNNER_ENV=HERDR_ASK_AGENT_RUNNER
-
 herdr=$(herdr_bin) || herdr_die 'ask' 'herdr CLI not found'
 
 # --- 1. the question -------------------------------------------------------
@@ -133,16 +122,15 @@ agent=$(printf '%s\n' "$question" \
 
 # --- 3. name and classify the prompt ---------------------------------------
 
-# This used to happen in the runner tab, but the popup now needs the category to
-# choose qq vs src immediately, and it needs the slug up front for the tab name
-# and any later prototype workspace. So the small model calls happen before the
-# tab exists.
+# The popup needs the category to choose qq/src/prototype placement immediately,
+# and it needs the slug up front for the tab name, prototype workspace, and
+# managed-agent name. So the small model calls happen before the tab exists.
 slugify() {
   printf '%s' "$1" \
     | tr '[:upper:]' '[:lower:]' \
     | tr -c 'a-z0-9' '-' \
     | sed -e 's/--*/-/g' -e 's/^-//' -e 's/-$//' \
-    | cut -c1-48 \
+    | cut -c1-32 \
     | sed -e 's/-$//'
 }
 
@@ -207,6 +195,12 @@ slug=$(slugify "$title")
 stripped=$(printf '%s' "$slug" | sed -E 's/^(claude|pi|codex)-//')
 [ -n "$stripped" ] && slug=$stripped
 [ -n "$slug" ] || slug=ask
+case "$slug" in
+  [a-z]*) ;;
+  *)
+    slug=$(printf 'ask-%s' "$slug" | cut -c1-32 | sed -e 's/-$//')
+    ;;
+esac
 printf ' %s\n' "$slug"
 
 category=''
@@ -231,14 +225,53 @@ fi
 category_ok "$category" || category=quick
 printf ' %s\n' "$category"
 
-# --- 4. reserve the runner path --------------------------------------------
+# --- 4. the target directory ------------------------------------------------
 
-# mktemp under /tmp, so two asks at once cannot collide, and 700 so the
-# question -- which is the user's own words, and is baked into this file -- is
-# not readable by anyone else while it sits there.
-runner=$(mktemp /tmp/ask-agent-run.XXXXXX) \
-  || herdr_die 'ask' 'could not create the runner script'
-chmod 700 "$runner"
+new_uuid() {
+  if command -v uuidgen >/dev/null 2>&1; then
+    uuidgen | tr '[:upper:]' '[:lower:]'
+  else
+    python3 - <<'PYUUID'
+import uuid
+print(uuid.uuid4())
+PYUUID
+  fi
+}
+
+shell_quote() { printf '%q' "$1"; }
+
+clean_log_field() {
+  printf '%s' "$1" | tr '\n\t' '  '
+}
+
+case "$category" in
+  quick)
+    workspace_label=$QUICK_WORKSPACE_LABEL
+    dir="$HOME/src/qq"
+    mkdir -p "$dir" || herdr_die 'ask' "could not create $dir"
+    reuse_workspace=1
+    ;;
+  prototype)
+    # Create the try directory before opening the pane so the pane's login shell
+    # starts in the final working directory. `herdr agent start` requires the
+    # target pane to be sitting at an interactive shell prompt, so we cannot use
+    # an in-pane setup runner to cd before launching the agent.
+    dir=$(try new --print-path "$slug" 2>&1) \
+      || herdr_die 'ask' "try new failed: $dir"
+    [ -d "$dir" ] || herdr_die 'ask' "try new produced no directory: $dir"
+    workspace_label=$slug
+    reuse_workspace=0
+    ;;
+  config)
+    workspace_label=$SRC_WORKSPACE_LABEL
+    dir="$HOME/src"
+    [ -d "$dir" ] || herdr_die 'ask' "$dir does not exist"
+    reuse_workspace=1
+    ;;
+  *)
+    herdr_die 'ask' "unknown category: $category"
+    ;;
+esac
 
 # --- 5. the tab ------------------------------------------------------------
 
@@ -287,46 +320,18 @@ print(next((w["workspace_id"] for w in workspaces if w.get("label") == label), "
 ' "$1"
 }
 
-case "$category" in
-  quick)
-    workspace_label=$QUICK_WORKSPACE_LABEL
-    workspace_cwd="$HOME/src/qq"
-    mkdir -p "$workspace_cwd" || herdr_die 'ask' "could not create $workspace_cwd"
-    reuse_workspace=1
-    ;;
-  prototype)
-    # Prototype prompts stage in the shared src workspace so the popup stays
-    # fast and predictable; the runner then promotes the pane into its own
-    # dedicated slug-named workspace before starting the agent.
-    workspace_label=$SRC_WORKSPACE_LABEL
-    workspace_cwd="$HOME/src"
-    [ -d "$workspace_cwd" ] || workspace_cwd="$HOME"
-    reuse_workspace=1
-    ;;
-  config)
-    workspace_label=$SRC_WORKSPACE_LABEL
-    workspace_cwd="$HOME/src"
-    [ -d "$workspace_cwd" ] || herdr_die 'ask' "$workspace_cwd does not exist"
-    reuse_workspace=1
-    ;;
-  *)
-    herdr_die 'ask' "unknown category: $category"
-    ;;
-esac
-
 workspace=''
 if [ "$reuse_workspace" = 1 ]; then
   workspace=$(workspace_with_label "$workspace_label")
 fi
 
 if [ -n "$workspace" ]; then
-  created=$("$herdr" tab create --workspace "$workspace" --cwd "$workspace_cwd" \
-    --label "$slug" --env "$RUNNER_ENV=$runner" --focus) \
+  created=$("$herdr" tab create --workspace "$workspace" --cwd "$dir" \
+    --label "$slug" --env "PATH=$ASK_PATH" --focus) \
     || herdr_die 'ask' "could not create tab in the $workspace_label workspace"
 else
-  # First ask for a reusable workspace creates it and uses its initial tab.
-  created=$("$herdr" workspace create --label "$workspace_label" --cwd "$workspace_cwd" \
-    --env "$RUNNER_ENV=$runner" --focus) \
+  created=$("$herdr" workspace create --label "$workspace_label" --cwd "$dir" \
+    --env "PATH=$ASK_PATH" --focus) \
     || herdr_die 'ask' "could not create the $workspace_label workspace"
 fi
 
@@ -336,105 +341,17 @@ tab=$(printf '%s' "$created" | json_field tab_id)
 [ -n "$pane" ] || herdr_die 'ask' "could not open a tab in the $workspace_label workspace"
 [ -n "$tab" ] && "$herdr" tab rename "$tab" "$slug" >/dev/null 2>&1
 
-# --- 6. the runner ---------------------------------------------------------
+# --- 6. Claude project trust ----------------------------------------------
 
-# printf %q for every value: this file is bash and so is this shell, so %q's
-# quoting is exactly what bash will read back -- newlines, quotes and $ in the
-# question all survive verbatim, with no escaping rules of our own to get wrong.
-{
-  printf '#!/usr/bin/env bash\n'
-  printf '# Generated by ask-agent.sh. Deletes itself; not meant to be kept.\n'
-  printf 'set -u\n'
-  printf 'PATH=%q\n' "$ASK_PATH"
-  printf 'export PATH\n'
-  printf 'SELF=%q\n' "$runner"
-  printf 'RUNNER_ENV=%q\n' "$RUNNER_ENV"
-  printf 'HERDR=%q\n' "$herdr"
-  printf 'PANE=%q\n' "$pane"
-  printf 'TAB=%q\n' "$tab"
-  printf 'AGENT=%q\n' "$agent"
-  printf 'QUESTION=%q\n' "$question"
-  printf 'TITLE=%q\n' "$title"
-  printf 'SLUG=%q\n' "$slug"
-  printf 'CATEGORY=%q\n' "$category"
-  cat <<'RUNNER'
+# Claude Code prompts once per project directory before it will run there.
+# Ask-agent only starts in the dedicated quick-question folder, a fresh try
+# directory, or ~/src for configuration edits; pre-trust that chosen project
+# before `herdr agent start` so the first Claude frame is the actual session,
+# not the trust dialog.
+trust_claude_project() {
+  [ "$agent" = claude ] || return 0
 
-# Everything lives in main(): bash parses a function whole before running it, so
-# main can delete this very file (see the exec below) without bash losing the
-# rest of the script under itself.
-main() {
-  # Show the failure and STAY: this pane is the only place the message exists,
-  # and exiting would close the tab with it (see the exec at the end).
-  fail() {
-    printf '\nask: %s\n\n' "$1" >&2
-    rm -f -- "$SELF"
-    exec "${SHELL:-/bin/sh}" -l
-  }
-
-  # --- 7. precomputed name/category -------------------------------------
-
-  title=$TITLE
-  slug=$SLUG
-  category=$CATEGORY
-
-  new_uuid() {
-    if command -v uuidgen >/dev/null 2>&1; then
-      uuidgen | tr '[:upper:]' '[:lower:]'
-    else
-      python3 - <<'PY'
-import uuid
-print(uuid.uuid4())
-PY
-    fi
-  }
-
-  shell_quote() { printf '%q' "$1"; }
-
-  clean_log_field() {
-    printf '%s' "$1" | tr '\n\t' '  '
-  }
-
-  printf 'ask: %s (%s)\n' "$slug" "$category"
-
-  if [ "$category" = prototype ]; then
-    move_output=$("$HERDR" pane move "$PANE" --new-workspace --label "$slug" \
-      --tab-label "$slug" --focus 2>&1) \
-      || fail "could not create prototype workspace $slug: $move_output"
-  else
-    [ -n "$TAB" ] && "$HERDR" tab rename "$TAB" "$slug" >/dev/null 2>&1
-  fi
-
-  # --- 10. the directory -------------------------------------------------
-
-  case "$category" in
-    quick)
-      dir="$HOME/src/qq"
-      mkdir -p "$dir" || fail "could not create $dir"
-      ;;
-    prototype)
-      # `--print-path` creates the dated directory and prints it, instead of the
-      # mkdir+cd script `try` normally emits: the cd happens below, after any
-      # Claude project trust setup. See cmd_new! in dotfiles/bin/try.
-      dir=$(try new --print-path "$slug" 2>&1) || fail "try new failed: $dir"
-      [ -d "$dir" ] || fail "try new produced no directory: $dir"
-      ;;
-    config)
-      dir="$HOME/src"
-      [ -d "$dir" ] || fail "$dir does not exist"
-      ;;
-  esac
-
-  # --- 11. Claude project trust ------------------------------------------
-
-  # Claude Code prompts once per project directory before it will run there.
-  # Ask-agent only starts in the dedicated quick-question folder, a fresh try
-  # directory, or ~/src for configuration edits; pre-trust that chosen project
-  # before cd/exec so the first Claude frame is the actual session, not the
-  # trust dialog.
-  trust_claude_project() {
-    [ "$AGENT" = claude ] || return 0
-
-    python3 - "$dir" <<'PY'
+  python3 - "$dir" <<'PY'
 import json
 import os
 import stat
@@ -491,66 +408,71 @@ except Exception:
         pass
     raise
 PY
-  }
+}
 
-  trust_claude_project || fail "could not add $dir to ~/.claude.json trusted projects"
+trust_claude_project || herdr_die 'ask' "could not add $dir to ~/.claude.json trusted projects"
 
-  # --- 12. quick-question log --------------------------------------------
+# --- 7. quick-question log -------------------------------------------------
 
-  descriptor=$(clean_log_field "${title:-$slug}")
-  session_id=''
-  case "$AGENT" in
-    pi|claude)
-      session_id=$(new_uuid)
-      [ -n "$session_id" ] || fail 'could not generate a session id'
+session_id=''
+agent_start_args=()
+case "$agent" in
+  pi|claude)
+    session_id=$(new_uuid)
+    [ -n "$session_id" ] || herdr_die 'ask' 'could not generate a session id'
+    agent_start_args=(--session-id "$session_id")
+    ;;
+  codex)
+    ;;
+esac
+
+descriptor=$(clean_log_field "${title:-$slug}")
+
+quick_resume_command() {
+  quoted_dir=$(shell_quote "$dir")
+  case "$agent" in
+    pi)
+      quoted_session=$(shell_quote "$session_id")
+      printf 'cd %s && pi --session-id %s' "$quoted_dir" "$quoted_session"
+      ;;
+    claude)
+      quoted_session=$(shell_quote "$session_id")
+      printf 'cd %s && claude --resume %s' "$quoted_dir" "$quoted_session"
+      ;;
+    codex)
+      printf 'cd %s && codex resume --last' "$quoted_dir"
       ;;
   esac
+}
 
-  quick_resume_command() {
-    quoted_dir=$(shell_quote "$dir")
-    case "$AGENT" in
-      pi)
-        quoted_session=$(shell_quote "$session_id")
-        printf 'cd %s && pi --session-id %s' "$quoted_dir" "$quoted_session"
-        ;;
-      claude)
-        quoted_session=$(shell_quote "$session_id")
-        printf 'cd %s && claude --resume %s' "$quoted_dir" "$quoted_session"
-        ;;
-      codex)
-        printf 'cd %s && codex resume --last' "$quoted_dir"
-        ;;
-    esac
-  }
+append_quick_log() {
+  [ "$category" = quick ] || return 0
+  log=$dir/questions.log
+  timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+  resume=$(quick_resume_command)
+  printf '%s\tslug=%s\tdescriptor=%s\tagent=%s\tsession_id=%s\tresume=%s\n' \
+    "$timestamp" "$(clean_log_field "$slug")" "$descriptor" "$agent" \
+    "$(clean_log_field "$1")" "$(clean_log_field "$resume")" >>"$log" \
+    || herdr_die 'ask' "could not append to $log"
+}
 
-  append_quick_log() {
-    [ "$category" = quick ] || return 0
-    log=$dir/questions.log
-    timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
-    resume=$(quick_resume_command)
-    printf '%s\tslug=%s\tdescriptor=%s\tagent=%s\tsession_id=%s\tresume=%s\n' \
-      "$timestamp" "$(clean_log_field "$slug")" "$descriptor" "$AGENT" \
-      "$(clean_log_field "$1")" "$(clean_log_field "$resume")" >>"$log" \
-      || fail "could not append to $log"
-  }
+# Codex does not accept a caller-provided session id for a fresh interactive
+# session. For quick questions, wait briefly for Codex to persist the thread
+# that starts with this exact prompt, then append the same log shape with the
+# actual thread id and a precise resume command. The agent should not be held
+# hostage by this bookkeeping, so the watcher is best-effort and backgrounded.
+start_codex_quick_log_watcher() {
+  [ "$category" = quick ] || return 0
+  [ "$agent" = codex ] || return 0
 
-  # Codex does not accept a caller-provided session id for a fresh interactive
-  # session. For quick questions, wait briefly for Codex to persist the thread
-  # that starts with this exact prompt, then append the same log shape with the
-  # actual thread id and a precise resume command. The agent should not be held
-  # hostage by this bookkeeping, so the watcher is best-effort and backgrounded.
-  start_codex_quick_log_watcher() {
-    [ "$category" = quick ] || return 0
-    [ "$AGENT" = codex ] || return 0
-
-    log=$dir/questions.log
-    start_ms=$(python3 - <<'PY'
+  log=$dir/questions.log
+  start_ms=$(python3 - <<'PY'
 import time
 print(int(time.time() * 1000))
 PY
 )
 
-    python3 - "$log" "$slug" "$descriptor" "$dir" "$QUESTION" "$start_ms" <<'PY' >/dev/null 2>&1 &
+  python3 - "$log" "$slug" "$descriptor" "$dir" "$question" "$start_ms" <<'PY' >/dev/null 2>&1 &
 import datetime as dt
 import json
 import os
@@ -625,58 +547,29 @@ os.makedirs(os.path.dirname(log_path), exist_ok=True)
 with open(log_path, "a", encoding="utf-8") as f:
     f.write(line)
 PY
-  }
-
-  if [ "$category" = quick ]; then
-    if [ "$AGENT" = codex ]; then
-      start_codex_quick_log_watcher
-    else
-      append_quick_log "$session_id"
-    fi
-  fi
-
-  # --- 13. the agent session ---------------------------------------------
-
-  cd "$dir" || fail "could not cd into $dir"
-
-  # All three agents take an opening prompt as a positional argument and stay
-  # interactive afterwards, which is the whole point: the answer starts arriving
-  # on its own and the session is there to keep talking to.
-  #
-  # Start through fish -C instead of typing the prompt into an interactive shell:
-  # the active tab shows the session-start command, but the prompt itself lives
-  # in an environment variable and is not written to fish history. Do NOT exec
-  # the agent from fish: when the agent quits, the tab should drop back to the
-  # interactive fish shell rather than closing the terminal.
-  command -v fish >/dev/null 2>&1 || fail 'fish not found; cannot start agent with fish -C'
-
-  case "$AGENT" in
-    pi)
-      fish_start='pi --session-id "$HERDR_ASK_AGENT_SESSION_ID" "$HERDR_ASK_AGENT_PROMPT"'
-      ;;
-    claude)
-      fish_start='claude --session-id "$HERDR_ASK_AGENT_SESSION_ID" "$HERDR_ASK_AGENT_PROMPT"'
-      ;;
-    codex)
-      fish_start='codex "$HERDR_ASK_AGENT_PROMPT"'
-      ;;
-  esac
-  export HERDR_ASK_AGENT_PROMPT="$QUESTION"
-  [ -z "$session_id" ] || export HERDR_ASK_AGENT_SESSION_ID="$session_id"
-
-  unset "$RUNNER_ENV"
-  rm -f -- "$SELF"
-
-  printf "starting %s session in %s (%s): fish -C '%s'\n" \
-    "$AGENT" "$dir" "$category" "$fish_start"
-  exec fish -C "$fish_start"
 }
 
-main "$@"
-RUNNER
-} >"$runner"
+# --- 8. the agent session --------------------------------------------------
 
-# Start the runner through the environment variable we planted on the tab: the
-# pane only sees the fixed command below, not the actual /tmp path. exec so the
-# agent, not a wrapper, owns the pane.
-"$herdr" pane run "$pane" 'exec bash "$HERDR_ASK_AGENT_RUNNER"'
+# Always launch through Herdr's managed-agent command so the pane is named,
+# tracked, and waited for consistently. The first positional argument is the
+# user-facing agent name; use the computed slug there, not a hardcoded
+# placeholder. The opening prompt is sent through `herdr agent prompt` after startup
+# rather than being included in the shell command, so it does not land in shell
+# history and startup waiting is not confused with the first turn's work.
+printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
+start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" -- "${agent_start_args[@]}" 2>&1) \
+  || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
+
+if [ "$category" = quick ] && [ "$agent" = codex ]; then
+  start_codex_quick_log_watcher
+fi
+
+prompt_output=$("$herdr" agent prompt "$slug" "$question" 2>&1) \
+  || herdr_die 'ask' "could not submit prompt to $slug: $prompt_output"
+
+if [ "$category" = quick ] && [ "$agent" != codex ]; then
+  append_quick_log "$session_id"
+fi
+
+printf 'asked %s\n' "$slug"
