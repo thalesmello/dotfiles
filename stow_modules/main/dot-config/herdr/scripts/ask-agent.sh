@@ -13,8 +13,8 @@
 # where interactive input works -- a detached `type = "shell"` command has no
 # terminal. Esc (or an empty question) cancels and creates nothing.
 #
-# PRIVACY: naming/classification show the question to small models. With apfel
-# those calls are on-device and the question does not leave the machine at all;
+# PRIVACY: routing shows the question to small models. With apfel
+# that call is on-device and the question does not leave the machine at all;
 # only the fallback sends it out. Nothing else leaves except what the agent you
 # picked would send anyway.
 
@@ -31,8 +31,8 @@ ASK_PATH="$HOME/.local/bin:$HOME/src/dotfiles/bin:/opt/homebrew/bin:/usr/local/b
 PATH=$ASK_PATH
 export PATH
 
-# WHO TITLES/CLASSIFIES. Two small-model paths, cheapest first -- a title or
-# category is not worth a frontier model or a second full agent startup.
+# WHO ROUTES. Two small-model paths, cheapest first -- a slug/category decision
+# is not worth a frontier model or a second full agent startup.
 #
 #   apfel, on a Mac where Apple Intelligence answers: Apple's ON-DEVICE model,
 #   ~0.4-0.6s, and the question never leaves the machine. First choice for both
@@ -42,47 +42,35 @@ export PATH
 #
 #   pi on gemini flash otherwise: ~1.2s with tools, extensions, sessions and
 #   thinking all off -- the flags matter more than the model here, since almost
-#   all of a titling call is startup. (For scale: the same call on
-#   claude-haiku-4-5 with the defaults took ~5s, and `claude -p` ~10s.)
+#   all of this call is startup. (For scale: the same call on claude-haiku-4-5
+#   with the defaults took ~5s, and `claude -p` ~10s.)
 #
-# HOW THE INSTRUCTION IS DELIVERED differs per titler, and both ways were found
+# HOW THE INSTRUCTION IS DELIVERED differs per router, and both ways were found
 # the hard way:
 #
 #   pi wants --system-prompt. Passed as a second positional (just another
-#   message) flash answers the QUESTION instead of titling it: "The most common
-#   reason, by far, is that the repository is set to private..."
+#   message) flash answers the QUESTION instead of routing it.
 #
 #   apfel wants it in the USER prompt. Its -s is honoured by the CLI but ignored
 #   by the on-device model, which answers the question at length; the same text
-#   as the user turn, with the question quoted after "Request:", works.
-SLUG_MODEL=google/gemini-2.5-flash
-SLUG_PI_ARGS="--no-tools --no-extensions --no-session --thinking off"
-# The title is a LABEL, not a sentence: it becomes a tab name and a directory
-# name, so what is wanted is the topic named as a thing -- "GitHub access
-# investigation", not "Troubleshooting why people cannot see the repo". Left to
-# themselves the models restate the question as a phrase (flash in particular
-# answers with "Explain the herdr sidebar tokens"), hence the noun-phrase rule
-# and the at-most-4-meaningful-words budget spelled out twice.
-SLUG_INSTRUCTION='Name the TOPIC of the work a coding-agent session started from
-the prompt below is about.
-Output a NOUN PHRASE: a thing, named. At most 4 meaningful words (ignore short
-function words like the, of, a, in). Never a sentence, a command, a question or
-a restatement of the prompt -- no leading verb like explain, fix, debug, add or
-investigate, and no question words.
-Drop URLs, quotes, file paths and punctuation.
-The prompt may start by naming the agent to route to (claude, pi, codex) -- that
-is addressing, not subject matter, so never put it in the label: "pi: what day
-is it" is "Current date", not "Pi current date".
-Examples:
-"why are people in https://chat.google.com/u/0/app unable to see my repo" ->
-"GitHub access investigation".
-"codex explain the herdr sidebar tokens" -> "Herdr sidebar tokens".
-"fix the flaky test in the payments service" -> "Payments flaky test".
-Output only the label, in plain words, with no punctuation.'
+#   as the user turn, with the question quoted after "Prompt:", works.
+ROUTING_MODEL=google/gemini-2.5-flash
+ROUTING_PI_ARGS="--no-tools --no-extensions --no-session --thinking off"
+ROUTING_INSTRUCTION='Return a slug and classification for a coding-agent session
+started from the prompt below.
 
-CATEGORY_INSTRUCTION='Classify the prompt below for where a coding-agent session
-should start. Output exactly one word: quick, prototype, or config.
+Output exactly one JSON object, with no markdown, comments, or surrounding text:
+{"slug":"lowercase-hyphen-slug","classification":"quick"}
 
+slug: a filesystem-safe topic label, lowercase words joined by hyphens. At most
+4 meaningful words and 32 characters. Never a sentence, command, question, or
+restatement of the prompt. Drop URLs, quotes, file paths, punctuation, and
+leading verbs like explain, fix, debug, add, or investigate. The prompt may start
+by naming the agent to route to (claude, pi, codex); that is addressing, not
+subject matter, so never put it in the slug: "pi: what day is it" should use a
+slug like "current-date", not "pi-current-date".
+
+classification: exactly one of quick, prototype, or config.
 quick: a small question, explanation, lookup, debugging thought, or request for
 advice where the expected result is an answer in chat, not new files.
 
@@ -95,8 +83,13 @@ enabling, disabling, or reviewing for edits any configuration/settings/dotfiles
 for shells, editors, terminals, agents, tools, apps, services, package managers,
 linters, formatters, CI, or similar. Config wins over the other categories.
 
-The prompt may start by naming the agent to route to (claude, pi, codex); ignore
-that for classification. Output only quick, prototype, or config.'
+Examples:
+"why are people in https://chat.google.com/u/0/app unable to see my repo" ->
+{"slug":"github-access-investigation","classification":"quick"}
+"codex explain the herdr sidebar tokens" ->
+{"slug":"herdr-sidebar-tokens","classification":"quick"}
+"fix the flaky test in the payments service" ->
+{"slug":"payments-flaky-test","classification":"prototype"}'
 
 QUICK_WORKSPACE_LABEL=qq
 SRC_WORKSPACE_LABEL=src
@@ -120,11 +113,11 @@ agent=$(printf '%s\n' "$question" \
   | awk '/^(claude|pi|codex)$/ { print; exit }')
 [ -n "$agent" ] || agent=pi
 
-# --- 3. name and classify the prompt ---------------------------------------
+# --- 3. slug and classify the prompt ---------------------------------------
 
 # The popup needs the category to choose qq/src/prototype placement immediately,
 # and it needs the slug up front for the tab name, prototype workspace, and
-# managed-agent name. So the small model calls happen before the tab exists.
+# managed-agent name. So the small routing call happens before the tab exists.
 slugify() {
   printf '%s' "$1" \
     | tr '[:upper:]' '[:lower:]' \
@@ -132,14 +125,6 @@ slugify() {
     | sed -e 's/--*/-/g' -e 's/^-//' -e 's/-$//' \
     | cut -c1-32 \
     | sed -e 's/-$//'
-}
-
-last_line() { awk 'NF { last = $0 } END { print last }'; }
-
-label_ok() {
-  [ -n "$1" ] || return 1
-  [ "${#1}" -le 60 ] || return 1
-  [ "$(printf '%s\n' "$1" | wc -w | tr -d ' ')" -le 6 ]
 }
 
 normalize_category() {
@@ -151,6 +136,93 @@ category_ok() {
     quick|prototype|config) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+parse_routing_decision() {
+  response=$(cat)
+  python3 - "$response" <<'PY'
+import json
+import re
+import sys
+
+text = sys.argv[1]
+
+
+def balanced_objects(s):
+    for start, ch in enumerate(s):
+        if ch != "{":
+            continue
+        depth = 0
+        in_string = False
+        escape = False
+        for i in range(start, len(s)):
+            c = s[i]
+            if in_string:
+                if escape:
+                    escape = False
+                elif c == "\\":
+                    escape = True
+                elif c == '"':
+                    in_string = False
+            elif c == '"':
+                in_string = True
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    yield s[start : i + 1]
+                    break
+
+
+def pick(d, *keys):
+    for key in keys:
+        value = d.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+candidates = [text.strip()]
+candidates.extend(m.group(1).strip() for m in re.finditer(r"```(?:json)?\s*(.*?)\s*```", text, re.I | re.S))
+candidates.extend(reversed(list(balanced_objects(text))))
+
+for candidate in candidates:
+    if not candidate:
+        continue
+    try:
+        data = json.loads(candidate)
+    except Exception:
+        continue
+    if not isinstance(data, dict):
+        continue
+    slug = pick(data, "slug", "label", "title", "name")
+    classification = pick(data, "classification", "category")
+    if slug and classification:
+        print(slug)
+        print(classification)
+        raise SystemExit(0)
+
+slug_matches = re.findall(r'"(?:slug|label|title|name)"\s*:\s*"([^"]+)"', text, re.I)
+classification_matches = re.findall(r'"(?:classification|category)"\s*:\s*"([^"]+)"', text, re.I)
+if slug_matches and classification_matches:
+    print(slug_matches[-1].strip())
+    print(classification_matches[-1].strip())
+    raise SystemExit(0)
+
+raise SystemExit(1)
+PY
+}
+
+accept_routing_decision() {
+  parsed=$1
+  got_slug=$(printf '%s\n' "$parsed" | sed -n '1p')
+  got_category=$(printf '%s\n' "$parsed" | sed -n '2p')
+  got_slug=$(slugify "$got_slug")
+  got_category=$(normalize_category "$got_category")
+  [ -n "$got_slug" ] || return 1
+  category_ok "$got_category" || return 1
+  slug=$got_slug
+  category=$got_category
 }
 
 fallback_category() {
@@ -174,23 +246,27 @@ else:
 PY
 }
 
-title=''
+slug=''
+category=''
 if [ "$(uname -s)" = Darwin ] && command -v apfel >/dev/null 2>&1; then
-  printf 'naming (apfel)...'
-  got=$(apfel -q "$SLUG_INSTRUCTION
-Request: \"$question\"" </dev/null 2>/dev/null | last_line)
-  if label_ok "$got"; then title=$got; else printf ' no label;'; fi
+  printf 'routing (apfel)...'
+  got=$(apfel -q "$ROUTING_INSTRUCTION
+Prompt: \"$question\"" </dev/null 2>/dev/null)
+  parsed=$(printf '%s\n' "$got" | parse_routing_decision)
+  if ! accept_routing_decision "$parsed"; then printf ' no decision;'; fi
 fi
 
-if [ -z "$title" ] && command -v pi >/dev/null 2>&1; then
-  printf 'naming (%s)...' "$SLUG_MODEL"
-  got=$(pi -p $SLUG_PI_ARGS \
-    --model "$SLUG_MODEL" --system-prompt "$SLUG_INSTRUCTION" \
-    -- "$question" </dev/null 2>/dev/null | last_line)
-  label_ok "$got" && title=$got
+if [ -z "$slug" ] || [ -z "$category" ]; then
+  if command -v pi >/dev/null 2>&1; then
+    printf 'routing (%s)...' "$ROUTING_MODEL"
+    got=$(pi -p $ROUTING_PI_ARGS \
+      --model "$ROUTING_MODEL" --system-prompt "$ROUTING_INSTRUCTION" \
+      -- "$question" </dev/null 2>/dev/null)
+    parsed=$(printf '%s\n' "$got" | parse_routing_decision)
+    if ! accept_routing_decision "$parsed"; then printf ' no decision;'; fi
+  fi
 fi
 
-slug=$(slugify "$title")
 [ -n "$slug" ] || slug=$(slugify "$question")
 stripped=$(printf '%s' "$slug" | sed -E 's/^(claude|pi|codex)-//')
 [ -n "$stripped" ] && slug=$stripped
@@ -201,29 +277,10 @@ case "$slug" in
     slug=$(printf 'ask-%s' "$slug" | cut -c1-32 | sed -e 's/-$//')
     ;;
 esac
-printf ' %s\n' "$slug"
-
-category=''
-if [ "$(uname -s)" = Darwin ] && command -v apfel >/dev/null 2>&1; then
-  printf 'classifying (apfel)...'
-  got=$(apfel -q "$CATEGORY_INSTRUCTION
-Prompt: \"$question\"" </dev/null 2>/dev/null | last_line)
-  got=$(normalize_category "$got")
-  if category_ok "$got"; then category=$got; else printf ' no category;'; fi
-fi
-
-if [ -z "$category" ] && command -v pi >/dev/null 2>&1; then
-  printf 'classifying (%s)...' "$SLUG_MODEL"
-  got=$(pi -p $SLUG_PI_ARGS \
-    --model "$SLUG_MODEL" --system-prompt "$CATEGORY_INSTRUCTION" \
-    -- "$question" </dev/null 2>/dev/null | last_line)
-  got=$(normalize_category "$got")
-  category_ok "$got" && category=$got
-fi
 
 [ -n "$category" ] || category=$(fallback_category)
 category_ok "$category" || category=quick
-printf ' %s\n' "$category"
+printf ' %s %s\n' "$slug" "$category"
 
 # --- 4. the target directory ------------------------------------------------
 
@@ -426,7 +483,7 @@ case "$agent" in
     ;;
 esac
 
-descriptor=$(clean_log_field "${title:-$slug}")
+descriptor=$(clean_log_field "$slug")
 
 quick_resume_command() {
   quoted_dir=$(shell_quote "$dir")
@@ -554,19 +611,24 @@ PY
 # Always launch through Herdr's managed-agent command so the pane is named,
 # tracked, and waited for consistently. The first positional argument is the
 # user-facing agent name; use the computed slug there, not a hardcoded
-# placeholder. The opening prompt is sent through `herdr agent prompt` after startup
-# rather than being included in the shell command, so it does not land in shell
-# history and startup waiting is not confused with the first turn's work.
+# placeholder. For pi, pass the opening prompt as an initial pi message after
+# pi's own `--`, instead of starting pi and then typing through `herdr agent
+# prompt`; this keeps startup to one command and avoids prompt injection races.
 printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
-start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" -- "${agent_start_args[@]}" 2>&1) \
-  || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
+if [ "$agent" = pi ]; then
+  start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" -- "${agent_start_args[@]}" -- "$question" 2>&1) \
+    || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
+else
+  start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" -- "${agent_start_args[@]}" 2>&1) \
+    || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
 
-if [ "$category" = quick ] && [ "$agent" = codex ]; then
-  start_codex_quick_log_watcher
+  if [ "$category" = quick ] && [ "$agent" = codex ]; then
+    start_codex_quick_log_watcher
+  fi
+
+  prompt_output=$("$herdr" agent prompt "$slug" "$question" 2>&1) \
+    || herdr_die 'ask' "could not submit prompt to $slug: $prompt_output"
 fi
-
-prompt_output=$("$herdr" agent prompt "$slug" "$question" 2>&1) \
-  || herdr_die 'ask' "could not submit prompt to $slug: $prompt_output"
 
 if [ "$category" = quick ] && [ "$agent" != codex ]; then
   append_quick_log "$session_id"
