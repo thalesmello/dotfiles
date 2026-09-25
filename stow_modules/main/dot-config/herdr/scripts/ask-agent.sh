@@ -59,8 +59,9 @@ ROUTING_PI_ARGS="--no-tools --no-extensions --no-session --thinking off"
 ROUTING_INSTRUCTION='Return a slug and classification for a coding-agent session
 started from the prompt below.
 
-Output exactly one JSON object, with no markdown, comments, or surrounding text:
-{"slug":"lowercase-hyphen-slug","classification":"quick"}
+Output exactly one JSON object, with no markdown, comments, or surrounding text.
+It must have two string keys: "slug" and "classification".
+Generate the slug from the prompt; do not copy placeholder text.
 
 slug: a filesystem-safe topic label, lowercase words joined by hyphens. At most
 4 meaningful words and 32 characters. Never a sentence, command, question, or
@@ -136,6 +137,22 @@ category_ok() {
     quick|prototype|config) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+deterministic_category() {
+  # Explicit category words in the ask prompt win before model classification.
+  # Precedence is the order below: qq, then prototype, then config/dotfiles.
+  local words
+  words=$(printf '%s\n' "$question" \
+    | tr '[:upper:]' '[:lower:]' \
+    | tr -cs 'a-z0-9' '\n')
+  if printf '%s\n' "$words" | grep -qx qq; then
+    printf quick
+  elif printf '%s\n' "$words" | grep -qx prototype; then
+    printf prototype
+  elif printf '%s\n' "$words" | grep -Eqx 'config|dotfiles?'; then
+    printf config
+  fi
 }
 
 parse_routing_decision() {
@@ -220,6 +237,7 @@ accept_routing_decision() {
   got_slug=$(slugify "$got_slug")
   got_category=$(normalize_category "$got_category")
   [ -n "$got_slug" ] || return 1
+  [ "$got_slug" != lowercase-hyphen-slug ] || return 1
   category_ok "$got_category" || return 1
   slug=$got_slug
   category=$got_category
@@ -248,6 +266,7 @@ PY
 
 slug=''
 category=''
+forced_category=$(deterministic_category)
 if [ "$(uname -s)" = Darwin ] && command -v apfel >/dev/null 2>&1; then
   printf 'routing (apfel)...'
   got=$(apfel -q "$ROUTING_INSTRUCTION
@@ -278,7 +297,11 @@ case "$slug" in
     ;;
 esac
 
-[ -n "$category" ] || category=$(fallback_category)
+if [ -n "$forced_category" ]; then
+  category=$forced_category
+else
+  [ -n "$category" ] || category=$(fallback_category)
+fi
 category_ok "$category" || category=quick
 printf ' %s %s\n' "$slug" "$category"
 
@@ -296,6 +319,23 @@ PYUUID
 }
 
 shell_quote() { printf '%q' "$1"; }
+
+fish_script_escape() {
+  command -v fish >/dev/null 2>&1 || herdr_die 'ask' 'fish is required to escape the pi prompt inline'
+  fish -c 'string escape --style=script -- $argv[1]' -- "$1"
+}
+
+pi_start_command() {
+  escaped_question=$(fish_script_escape "$question")
+  command='exec pi'
+  for arg in "${agent_start_args[@]}"; do
+    escaped_arg=$(fish_script_escape "$arg")
+    command="$command $escaped_arg"
+  done
+  command="$command -- $escaped_question"
+  escaped_command=$(fish_script_escape "$command")
+  printf 'fish -c %s' "$escaped_command"
+}
 
 clean_log_field() {
   printf '%s' "$1" | tr '\n\t' '  '
@@ -483,6 +523,19 @@ case "$agent" in
     ;;
 esac
 
+# THE QUESTION IS A STARTUP ARGUMENT, NOT A SECOND CALL. Claude and codex take
+# an opening prompt as a trailing positional to `herdr agent start`.
+#
+# Pi is launched below with `herdr pane run` and a fish-escaped one-line command:
+# `fish -c 'exec pi --session-id ... -- <escaped prompt>'`. That keeps the
+# prompt inline in the command line, including multiline prompts encoded with
+# fish's script escape syntax, and avoids `agent start` rejecting control
+# characters before it gets a chance to quote them.
+case "$agent" in
+  pi) ;;
+  *)  agent_start_args+=("$question") ;;
+esac
+
 descriptor=$(clean_log_field "$slug")
 
 quick_resume_command() {
@@ -608,26 +661,22 @@ PY
 
 # --- 8. the agent session --------------------------------------------------
 
-# Always launch through Herdr's managed-agent command so the pane is named,
-# tracked, and waited for consistently. The first positional argument is the
-# user-facing agent name; use the computed slug there, not a hardcoded
-# placeholder. For pi, pass the opening prompt as an initial pi message after
-# pi's own `--`, instead of starting pi and then typing through `herdr agent
-# prompt`; this keeps startup to one command and avoids prompt injection races.
+# Start the agent with the opening prompt already on the command line.
 printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
+
 if [ "$agent" = pi ]; then
-  start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" -- "${agent_start_args[@]}" -- "$question" 2>&1) \
-    || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
+  command=$(pi_start_command)
+  start_output=$("$herdr" pane run "$pane" "$command" 2>&1) \
+    || herdr_die 'ask' "could not start pi agent through herdr pane run: $start_output"
 else
-  start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" -- "${agent_start_args[@]}" 2>&1) \
+  # Codex only gets a thread id once it has persisted the opening message, so
+  # the watcher has to be listening before the agent starts. It no-ops for the
+  # other agents and for non-quick categories.
+  start_codex_quick_log_watcher
+
+  start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
+    -- "${agent_start_args[@]}" 2>&1) \
     || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
-
-  if [ "$category" = quick ] && [ "$agent" = codex ]; then
-    start_codex_quick_log_watcher
-  fi
-
-  prompt_output=$("$herdr" agent prompt "$slug" "$question" 2>&1) \
-    || herdr_die 'ask' "could not submit prompt to $slug: $prompt_output"
 fi
 
 if [ "$category" = quick ] && [ "$agent" != codex ]; then

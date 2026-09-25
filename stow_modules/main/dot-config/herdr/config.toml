@@ -249,15 +249,15 @@ height = 3
 # the pane into a fresh slug-named workspace and creates a fresh try directory.
 # The prompt still runs in a popup PTY, while the actual agent session starts
 # from a short runner script in /tmp so the real temp path and prompt do not end
-# up in shell history. Wider and 3 rows tall because a question is longer than a
-# tab name.
+# up in shell history. Wider and sized for 5 prompt rows because a question can
+# span multiple lines.
 [[keys.command]]
 key = "prefix+a"
 type = "popup"
 command = "~/.config/herdr/scripts/ask-agent.sh"
 description = "ask an agent in qq/src/prototype workspace"
 width = "70%"
-height = 3
+height = 7
 
 # ctrl+alt+shift+semicolon (ctrl+meta+shift+:): prompt for a shell command in a
 # popup, then eval it there. type = "popup" so the prompt runs in a herdr-rendered

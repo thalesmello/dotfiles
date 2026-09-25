@@ -46,8 +46,10 @@
 #   alt+u / alt+l / alt+c              upcase / downcase / capitalize word
 #   ctrl+shift+_ / ctrl+_              undo last edit
 #   ctrl+l                             redraw the line
+#   shift+enter, alt+enter             insert a newline
 #   enter                              accept
-#   esc, ctrl+g                        cancel
+#   esc                                clear the line; cancel when empty
+#   ctrl+g                             cancel
 #   ctrl+c                             clear the line; cancel when empty
 #   paste                              inserted at the cursor, however long
 #
@@ -66,16 +68,20 @@
 # 0.1s read that returns empty when nothing follows -- to tell a bare Esc from
 # the start of something longer.
 #
+# MODIFIED ENTER. The prompt asks the terminal for Kitty keyboard reporting
+# while it is open so Shift+Enter / Alt+Enter arrive as distinct CSI-u keypresses
+# where supported. The prompt disables CR-to-LF translation while it is open so
+# plain Enter remains CR (submit), and LF can be used as a Shift+Enter fallback.
+# It also accepts ESC+CR/LF for Alt+Enter.
+#
 # BRACKETED PASTE. Without it a paste is just fast typing, and the first newline
 # in it submits the prompt with half the text -- the rest lands in whatever runs
 # next. So the prompt turns paste mode on (DECSET 2004) for as long as it is
 # open: the terminal then wraps pasted text in ESC[200~ ... ESC[201~, which is
 # what lets this read the whole thing as one insert and never as an Enter. The
 # body is read in 4K chunks rather than byte at a time (one `dd` per byte is a
-# fork per byte -- fine for typing, not for a paragraph), and is flattened:
-# newlines and tabs become spaces and other control bytes are dropped, because
-# this is a one-line buffer and a multi-line paste has to become one line
-# somehow.
+# fork per byte -- fine for typing, not for a paragraph). Newlines are preserved
+# for multiline prompts, tabs become spaces, and other control bytes are dropped.
 #
 # CHARACTERS. Positions and widths are counted with bash's ${#s} and ${s:i:n},
 # which are character-based under a UTF-8 locale and byte-based under C. Typed
@@ -83,9 +89,9 @@
 # way, so the buffer is never left holding half a character; under a C locale a
 # non-ASCII character just counts as its bytes when the cursor moves over it.
 #
-# LONG LINES. The buffer is not limited to the width of the popup: the visible
-# window scrolls horizontally to keep the cursor on screen, so a pasted
-# paragraph is editable in a 3-row popup.
+# LONG INPUT. The buffer is not limited to the width or height of the popup: the
+# visible window scrolls horizontally and vertically to keep the cursor on
+# screen, so a long or multiline prompt stays editable in a small popup.
 
 # --- byte input -------------------------------------------------------------
 
@@ -236,12 +242,75 @@ _prompt_transpose() {                  # ctrl+t: swap the chars around the curso
   _prompt_pos=$((_at + 1))
 }
 
+# Throw the buffer away, keeping it on the undo stack so ctrl+_ brings it back.
+_prompt_clear_buffer() {
+  _prompt_save_undo
+  PROMPT_LINE=''
+  _prompt_pos=0
+  _prompt_start=0
+  _prompt_top_line=0
+}
+
+# Esc, wherever it arrives from (a lone 0x1b or CSI 27u): the first press wipes
+# what was typed, and Esc on an already-empty prompt cancels -- which for a
+# popup binding is what closes the window. Returns 1 when it means cancel.
+_prompt_esc_key() {
+  [ -n "$PROMPT_LINE" ] || return 1
+  _prompt_clear_buffer
+}
+
 # --- rendering --------------------------------------------------------------
 
-# One line, redrawn from scratch after every keystroke, with a window that
-# scrolls to follow the cursor when the buffer is wider than the popup.
-_prompt_render() {
-  local _avail=$((_prompt_cols - ${#_prompt_label} - 1)) _shown _tail
+# Multiline, redrawn from scratch after every keystroke, with a window that
+# scrolls to follow the cursor when the buffer is wider or taller than the
+# popup.
+_prompt_split_lines() {
+  local _s=$1 _line
+  _prompt_render_lines=()
+  while [[ $_s == *$'\n'* ]]; do
+    _line=${_s%%$'\n'*}
+    _prompt_render_lines+=("$_line")
+    _s=${_s#*$'\n'}
+  done
+  _prompt_render_lines+=("$_s")
+}
+
+_prompt_cursor_line_and_col() {
+  local _before _s
+  _before=${PROMPT_LINE:0:_prompt_pos}
+  _s=$_before
+  _prompt_cursor_line=0
+  while [[ $_s == *$'\n'* ]]; do
+    _prompt_cursor_line=$((_prompt_cursor_line + 1))
+    _s=${_s#*$'\n'}
+  done
+  _prompt_cursor_col=${#_s}
+}
+
+_prompt_clear_previous_render() {
+  local _old_rows=${_prompt_render_rows:-0} _old_cursor_row=${_prompt_cursor_screen_row:-0} _i
+  [ "$_old_rows" -gt 0 ] || return 0
+
+  [ "$_old_cursor_row" -gt 0 ] && printf '\e[%dA' "$_old_cursor_row"
+  printf '\r'
+  for ((_i = 0; _i < _old_rows; _i++)); do
+    printf '\e[K'
+    [ "$_i" -lt $((_old_rows - 1)) ] && printf '\n'
+  done
+  [ "$_old_rows" -gt 1 ] && printf '\e[%dA' $((_old_rows - 1))
+  printf '\r'
+}
+
+_prompt_render_single_line() {
+  local _avail _shown _tail
+
+  if [ "${_prompt_render_rows:-0}" -gt 1 ] || [ "${_prompt_cursor_screen_row:-0}" -gt 0 ]; then
+    _prompt_clear_previous_render
+  else
+    printf '\r'
+  fi
+
+  _avail=$((_prompt_cols - ${#_prompt_label} - 1))
   [ "$_avail" -lt 8 ] && _avail=8
 
   [ "$_prompt_pos" -lt "$_prompt_start" ] && _prompt_start=$_prompt_pos
@@ -250,11 +319,147 @@ _prompt_render() {
   [ "$_prompt_start" -lt 0 ] && _prompt_start=0
 
   _shown=${PROMPT_LINE:_prompt_start:_avail}
-  printf '\r%s%s\e[K' "$_prompt_label" "$_shown"
+  printf '%s%s\e[K' "$_prompt_label" "$_shown"
 
   _tail=$((_prompt_start + ${#_shown} - _prompt_pos))
   [ "$_tail" -gt 0 ] && printf '\e[%dD' "$_tail"
+  _prompt_render_rows=1
+  _prompt_cursor_screen_row=0
+}
+
+_prompt_render() {
+  local _visible_rows _line_count _i _line_index _line _prefix _prefix_width
+  local _avail _start _shown _target_row=0 _target_col=0 _up
+
+  if [[ $PROMPT_LINE != *$'\n'* ]]; then
+    _prompt_render_single_line
+    return 0
+  fi
+
+  printf '\e[?25l'
+  _prompt_clear_previous_render
+  _prompt_split_lines "$PROMPT_LINE"
+  _prompt_cursor_line_and_col
+
+  [ -n "$_prompt_rows" ] && [ "$_prompt_rows" -gt 0 ] 2>/dev/null || _prompt_rows=1
+  _visible_rows=$_prompt_rows
+  [ "$_visible_rows" -lt 1 ] && _visible_rows=1
+
+  [ -n "$_prompt_top_line" ] || _prompt_top_line=0
+  [ "$_prompt_cursor_line" -lt "$_prompt_top_line" ] && _prompt_top_line=$_prompt_cursor_line
+  if [ "$_prompt_cursor_line" -ge $((_prompt_top_line + _visible_rows)) ]; then
+    _prompt_top_line=$((_prompt_cursor_line - _visible_rows + 1))
+  fi
+  [ "$_prompt_top_line" -lt 0 ] && _prompt_top_line=0
+
+  _line_count=${#_prompt_render_lines[@]}
+  _prompt_render_rows=$_visible_rows
+  [ "$_line_count" -lt "$_prompt_render_rows" ] && _prompt_render_rows=$_line_count
+
+  for ((_i = 0; _i < _prompt_render_rows; _i++)); do
+    _line_index=$((_prompt_top_line + _i))
+    _line=${_prompt_render_lines[$_line_index]}
+    if [ "$_line_index" -eq 0 ]; then
+      _prefix=$_prompt_label
+    else
+      _prefix=$(printf '%*s' "${#_prompt_label}" '')
+    fi
+    _prefix_width=${#_prefix}
+    _avail=$((_prompt_cols - _prefix_width - 1))
+    [ "$_avail" -lt 8 ] && _avail=8
+
+    if [ "$_line_index" -eq "$_prompt_cursor_line" ]; then
+      [ "$_prompt_cursor_col" -lt "$_prompt_start" ] && _prompt_start=$_prompt_cursor_col
+      [ "$_prompt_cursor_col" -gt $((_prompt_start + _avail)) ] \
+        && _prompt_start=$((_prompt_cursor_col - _avail))
+      [ "$_prompt_start" -lt 0 ] && _prompt_start=0
+      _start=$_prompt_start
+      _target_row=$_i
+      _target_col=$((_prefix_width + _prompt_cursor_col - _start))
+    else
+      _start=0
+    fi
+
+    _shown=${_line:_start:_avail}
+    printf '%s%s\e[K' "$_prefix" "$_shown"
+    [ "$_i" -lt $((_prompt_render_rows - 1)) ] && printf '\n'
+  done
+
+  _up=$((_prompt_render_rows - 1 - _target_row))
+  [ "$_up" -gt 0 ] && printf '\e[%dA' "$_up"
+  printf '\r'
+  [ "$_target_col" -gt 0 ] && printf '\e[%dC' "$_target_col"
+  _prompt_cursor_screen_row=$_target_row
+  printf '\e[?25h'
   return 0
+}
+
+_prompt_finish_render() {
+  local _down
+  printf '\e[?25h'
+  if [ "${_prompt_render_rows:-0}" -gt 0 ]; then
+    _down=$((_prompt_render_rows - 1 - _prompt_cursor_screen_row))
+    [ "$_down" -gt 0 ] && printf '\e[%dB' "$_down"
+  fi
+  printf '\r\n'
+}
+
+_prompt_render_after_edit() {
+  local _old=$1 _old_pos=$2 _inserted _deleted _line_count _col
+  local _label_spaces
+
+  if [ "$_old" = "$PROMPT_LINE" ] && [ "$_old_pos" -eq "$_prompt_pos" ]; then
+    return 0
+  fi
+
+  # Fast path for the common case: appending at the end. This edits the screen
+  # instead of clearing and repainting the prompt on every typed character.
+  if [ "$_old_pos" -eq "${#_old}" ] \
+    && [ "$_prompt_pos" -eq "${#PROMPT_LINE}" ] \
+    && [[ $PROMPT_LINE == "$_old"* ]]; then
+    _inserted=${PROMPT_LINE:${#_old}}
+    _prompt_split_lines "$PROMPT_LINE"
+    _line_count=${#_prompt_render_lines[@]}
+    if [ "$_line_count" -le "$_prompt_rows" ]; then
+      _label_spaces=$(printf '%*s' "${#_prompt_label}" '')
+      while [ -n "$_inserted" ]; do
+        case ${_inserted:0:1} in
+          $'\n')
+            _prompt_cursor_screen_row=$((_prompt_cursor_screen_row + 1))
+            _prompt_render_rows=$((_prompt_render_rows + 1))
+            printf '\n%s' "$_label_spaces" ;;
+          *)
+            printf '%s' "${_inserted:0:1}" ;;
+        esac
+        _inserted=${_inserted:1}
+      done
+      return 0
+    fi
+  fi
+
+  # Fast path for backspace at the end, including deleting an empty line created
+  # by Shift+Enter. This avoids the full redraw path that can make the popup look
+  # like it vanished when deleting blank multiline rows.
+  if [ "$_old_pos" -eq "${#_old}" ] \
+    && [ "$_prompt_pos" -eq "${#PROMPT_LINE}" ] \
+    && [ "${_old:0:${#PROMPT_LINE}}" = "$PROMPT_LINE" ] \
+    && [ $((${#_old} - ${#PROMPT_LINE})) -eq 1 ]; then
+    _deleted=${_old: -1}
+    if [ "$_deleted" = $'\n' ] && [ "$_prompt_cursor_screen_row" -gt 0 ]; then
+      _prompt_cursor_screen_row=$((_prompt_cursor_screen_row - 1))
+      [ "$_prompt_render_rows" -gt 1 ] && _prompt_render_rows=$((_prompt_render_rows - 1))
+      _prompt_cursor_line_and_col
+      _col=$((${#_prompt_label} + _prompt_cursor_col))
+      printf '\r\e[K\e[1A\r'
+      [ "$_col" -gt 0 ] && printf '\e[%dC' "$_col"
+      return 0
+    elif [ "$_deleted" != $'\n' ]; then
+      printf '\b \b'
+      return 0
+    fi
+  fi
+
+  _prompt_render
 }
 
 # --- paste ------------------------------------------------------------------
@@ -281,13 +486,114 @@ _prompt_paste() {
     esac
   done
 
-  # One line: newlines and tabs become spaces, anything else non-printable
-  # (including a stray ESC) goes away.
-  _text=$(printf '%s' "$_text" | tr '\r\n\t' '   ' | tr -d '[:cntrl:]')
+  # Multiline prompts keep pasted line breaks. Normalize CRLF/CR line endings
+  # first so Windows-style pasted text does not create blank lines between every
+  # pasted line. Tabs become spaces and anything else non-printable (including a
+  # stray ESC) goes away.
+  _text=${_text//$'\r\n'/$'\n'}
+  _text=${_text//$'\r'/$'\n'}
+  _text=${_text//$'\t'/ }
+  _text=$(printf '%s' "$_text" | tr -d '\000-\010\013\014\016-\037\177')
   _prompt_insert "$_text"
 }
 
+_prompt_insert_newline() { _prompt_insert $'\n'; }
+
 # --- escape sequences -------------------------------------------------------
+
+# Prompt control keys can arrive as Kitty CSI-u or xterm modifyOtherKeys while
+# modified-key reporting is enabled. Handle the same editing keys as the legacy
+# byte path, plus modified Enter as an in-buffer newline.
+_prompt_csi_prompt_key() {
+  local _tail=$1 _body _mods _key _event=1 _after_mod _mod_bits _code _lower _at
+
+  case $_tail in
+    *u)
+      _body=${_tail%u}
+      _key=${_body%%;*}
+      if [ "$_body" != "${_body#*;}" ]; then
+        _body=${_body#*;}
+        _mods=${_body%%[;:]*}
+        _after_mod=${_body#"$_mods"}
+        case $_after_mod in
+          :*) _event=${_after_mod#:}; _event=${_event%%;*} ;;
+        esac
+      else
+        # No modifier parameter at all. Herdr sends a bare Esc as "CSI 27u",
+        # and the spec's default for an omitted modifier is 1 (none held) --
+        # not "unparseable". Rejecting it here is what made Esc do nothing.
+        _mods=1
+      fi ;;
+    27\;*\;*~)
+      _body=${_tail%\~}
+      _body=${_body#27;}
+      _mods=${_body%%;*}
+      _key=${_body#*;}
+      _key=${_key%%;*} ;;
+    *) return 1 ;;
+  esac
+
+  case $_mods in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  _mod_bits=$((_mods - 1))
+
+  # Consume key releases so a release event cannot repeat an edit.
+  [ "$_event" = 3 ] && return 0
+
+  for _code in ${_key//:/ }; do
+    case $_code in
+      8|127)
+        # alt+backspace / ctrl+backspace kill the word before the cursor, the
+        # same as ctrl+w; unmodified backspace deletes one character.
+        if [ $((_mod_bits & 6)) -ne 0 ]; then
+          _at=$(_prompt_word_back "$_prompt_pos")
+          _prompt_delete "$_at" $((_prompt_pos - _at)) kill
+        else
+          _prompt_delete $((_prompt_pos - 1)) 1
+        fi
+        return 0 ;;
+      13|57414)
+        if [ $((_mod_bits & 3)) -ne 0 ]; then
+          _prompt_insert_newline
+        else
+          _prompt_accept=1
+        fi
+        return 0 ;;
+      27)
+        _prompt_esc_key || _prompt_cancel=1
+        return 0 ;;
+    esac
+
+    # Ctrl-modified ASCII controls. Shift may be present too (e.g. Ctrl+Shift+_).
+    [ $((_mod_bits & 4)) -ne 0 ] || continue
+    _lower=$_code
+    [ "$_lower" -ge 65 ] 2>/dev/null && [ "$_lower" -le 90 ] && _lower=$((_lower + 32))
+    case $_lower in
+      97) _prompt_pos=0; return 0 ;;                                             # ctrl+a
+      98) [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1)); return 0 ;; # ctrl+b
+      99)                                                                        # ctrl+c
+        _prompt_esc_key || _prompt_cancel=1
+        return 0 ;;
+      100)                                                                       # ctrl+d
+        if [ -z "$PROMPT_LINE" ]; then _prompt_cancel=1; else _prompt_delete "$_prompt_pos" 1; fi
+        return 0 ;;
+      101) _prompt_pos=${#PROMPT_LINE}; return 0 ;;                              # ctrl+e
+      102) [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1)); return 0 ;; # ctrl+f
+      103) _prompt_cancel=1; return 0 ;;                                         # ctrl+g
+      104|127) _prompt_delete $((_prompt_pos - 1)) 1; return 0 ;;                # ctrl+h/backspace
+      107) _prompt_delete "$_prompt_pos" $((${#PROMPT_LINE} - _prompt_pos)) kill; return 0 ;; # ctrl+k
+      108) return 0 ;;                                                           # ctrl+l redraw
+      116) _prompt_transpose; return 0 ;;                                        # ctrl+t
+      117) _prompt_delete 0 "$_prompt_pos" kill; return 0 ;;                    # ctrl+u
+      119) _at=$(_prompt_word_back "$_prompt_pos"); _prompt_delete "$_at" $((_prompt_pos - _at)) kill; return 0 ;; # ctrl+w
+      121) _prompt_insert "$_prompt_kill"; return 0 ;;                          # ctrl+y
+      31|45|47|63|95) _prompt_undo; return 0 ;;                                 # ctrl+_
+    esac
+  done
+
+  return 1
+}
 
 # Printable ctrl chords can arrive as kitty CSI-u (95;6u, 45:95;6u) or xterm's
 # modifyOtherKeys (27;6;95~). For undo accept the common spellings terminals use
@@ -330,26 +636,38 @@ _prompt_csi_undo() {
 
 # Esc has already been read. Returns 1 to cancel the prompt (a lone Esc).
 _prompt_escape() {
-  local _nxt _tail _at
+  local _nxt _tail _at _mod _mod_bits
 
   _nxt=$(_prompt_peek_byte 1)
   case $_nxt in
-    '') return 1 ;;                    # lone Esc -> cancel
+    '') _prompt_esc_key || return 1 ;; # lone Esc -> clear, or cancel when empty
+    10|13) _prompt_insert_newline ;;   # alt+enter / alt+shift+enter
     91)                                # CSI: arrows, home/end, delete, paste
       _tail=$(_prompt_csi_tail)
       case $_tail in
         200~) _prompt_paste ;;
-        *u|27\;*\;*~) _prompt_csi_undo "$_tail" || : ;;
-        C|1\;*C)                       # right / ctrl+right / alt+right
-          case $_tail in
-            C) [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1)) ;;
-            *) _prompt_pos=$(_prompt_word_fwd "$_prompt_pos") ;;
-          esac ;;
-        D|1\;*D)                       # left / ctrl+left / alt+left
-          case $_tail in
-            D) [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1)) ;;
-            *) _prompt_pos=$(_prompt_word_back "$_prompt_pos") ;;
-          esac ;;
+        *u|27\;*\;*~) _prompt_csi_prompt_key "$_tail" || _prompt_csi_undo "$_tail" || : ;;
+        C|D|[0-9]*C|[0-9]*D)           # left / right, plain or modified
+          # The modifier is the last parameter: "1;3D" (alt+left), "1;5C"
+          # (ctrl+right), bare "3D" on terminals that drop the leading 1, and a
+          # ":1" event suffix under the kitty protocol. alt or ctrl makes the
+          # arrow a word motion; anything else moves one character.
+          _mod=${_tail%[CD]}
+          _mod=${_mod##*;}
+          _mod=${_mod%%:*}
+          _mod_bits=0
+          [ -n "$_mod" ] && [ "$_mod" -ge 1 ] 2>/dev/null && _mod_bits=$((_mod - 1))
+          if [ $((_mod_bits & 6)) -ne 0 ]; then
+            case $_tail in
+              *C) _prompt_pos=$(_prompt_word_fwd "$_prompt_pos") ;;
+              *)  _prompt_pos=$(_prompt_word_back "$_prompt_pos") ;;
+            esac
+          else
+            case $_tail in
+              *C) [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1)) ;;
+              *)  [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1)) ;;
+            esac
+          fi ;;
         H|1~|1\;*H) _prompt_pos=0 ;;                     # home
         F|4~|1\;*F) _prompt_pos=${#PROMPT_LINE} ;;       # end
         3~) _prompt_delete "$_prompt_pos" 1 ;;           # delete
@@ -373,7 +691,7 @@ _prompt_escape() {
     100)                                                          # alt+d
       _at=$(_prompt_word_fwd "$_prompt_pos")
       _prompt_delete "$_prompt_pos" $((_at - _prompt_pos)) kill ;;
-    127)                                                          # alt+backspace
+    127|8)                                                        # alt+backspace
       _at=$(_prompt_word_back "$_prompt_pos")
       _prompt_delete "$_at" $((_prompt_pos - _at)) kill ;;
     117) _prompt_case_word up ;;                                  # alt+u
@@ -397,21 +715,34 @@ prompt_line() {
   PROMPT_LINE=${2-}
   _prompt_pos=${#PROMPT_LINE}
   _prompt_start=0
+  _prompt_top_line=0
+  _prompt_render_rows=0
+  _prompt_cursor_screen_row=0
+  _prompt_accept=0
+  _prompt_cancel=0
   _prompt_kill=''
   _prompt_undo_lines=()
   _prompt_undo_pos=()
+  _prompt_rows=$(stty size 2>/dev/null | awk '{ print $1 }')
   _prompt_cols=$(stty size 2>/dev/null | awk '{ print $2 }')
+  [ -n "$_prompt_rows" ] && [ "$_prompt_rows" -gt 0 ] 2>/dev/null || _prompt_rows=${LINES:-1}
   [ -n "$_prompt_cols" ] && [ "$_prompt_cols" -gt 0 ] 2>/dev/null || _prompt_cols=${COLUMNS:-80}
 
   _old=$(stty -g)
-  stty -echo -icanon -isig min 1 time 0
-  printf '\e[?2004h'                   # bracketed paste on, for this prompt only
+  stty -echo -icanon -isig -icrnl min 1 time 0
+  printf '\e[?2004h\e[>5u'             # bracketed paste + modified-key reporting for this prompt only
   _prompt_render
 
   while _b=$(_prompt_read_byte); [ -n "$_b" ]; do
+    _prompt_old_line=$PROMPT_LINE
+    _prompt_old_pos=$_prompt_pos
     case $_b in
-      27) _prompt_escape || { _cancelled=1; break; } ;;
-      10|13) break ;;                                  # Enter -> accept
+      27)
+        _prompt_escape || { _cancelled=1; break; }
+        [ "$_prompt_cancel" -eq 1 ] && { _cancelled=1; break; }
+        [ "$_prompt_accept" -eq 1 ] && break ;;
+      10) _prompt_insert_newline ;;                    # Shift+Enter / bare LF -> newline
+      13) break ;;                                     # Enter -> accept
       1) _prompt_pos=0 ;;                              # ctrl+a
       5) _prompt_pos=${#PROMPT_LINE} ;;                # ctrl+e
       2) [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1)) ;;                     # ctrl+b
@@ -432,12 +763,7 @@ prompt_line() {
       12) : ;;                                         # ctrl+l: the render below
       7) _cancelled=1; break ;;                        # ctrl+g: abort
       3)                                               # ctrl+c: clear, else cancel
-        if [ -n "$PROMPT_LINE" ]; then
-          _prompt_save_undo
-          PROMPT_LINE=''; _prompt_pos=0; _prompt_start=0
-        else
-          _cancelled=1; break
-        fi ;;
+        _prompt_esc_key || { _cancelled=1; break; } ;;
       *)
         # Any other control byte is not text; ignore it rather than inserting a
         # character the terminal will not draw.
@@ -449,12 +775,12 @@ prompt_line() {
         fi ;;
     esac
 
-    _prompt_render
+    _prompt_render_after_edit "$_prompt_old_line" "$_prompt_old_pos"
   done
 
-  printf '\e[?2004l'                   # paste mode off before anyone else reads
+  printf '\e[<u\e[?2004l'              # restore keyboard protocol and paste mode before anyone else reads
   stty "$_old" 2>/dev/null || stty sane
-  printf '\n'
+  _prompt_finish_render
 
   [ "$_cancelled" -eq 0 ]
 }
