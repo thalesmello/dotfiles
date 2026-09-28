@@ -1,0 +1,57 @@
+#!/bin/bash
+set -euo pipefail
+
+OUT="$HOME/Library/Logs/karabiner-incident/$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$OUT"
+
+echo "Writing incident snapshot to $OUT"
+
+{
+  echo "== date =="
+  date
+
+  echo
+  echo "== uptime/load =="
+  uptime
+
+  echo
+  echo "== memory_pressure =="
+  memory_pressure || true
+
+  echo
+  echo "== vm_stat =="
+  vm_stat || true
+
+  echo
+  echo "== top CPU processes =="
+  ps -axo pid,ppid,stat,pcpu,pmem,etime,command | sort -k4 -nr | head -50
+
+  echo
+  echo "== Karabiner processes =="
+  ps -axo pid,ppid,stat,pcpu,pmem,etime,command | grep -i '[K]arabiner' || true
+
+  echo
+  echo "== Karabiner system extensions =="
+  systemextensionsctl list 2>/dev/null | grep -i 'karabiner\|pqrs' || true
+
+  echo
+  echo "== key repeat defaults =="
+  printf 'InitialKeyRepeat='
+  defaults read -g InitialKeyRepeat 2>/dev/null || echo '(unset)'
+  printf 'KeyRepeat='
+  defaults read -g KeyRepeat 2>/dev/null || echo '(unset)'
+  printf 'ApplePressAndHoldEnabled='
+  defaults read -g ApplePressAndHoldEnabled 2>/dev/null || echo '(unset)'
+} > "$OUT/snapshot.txt" 2>&1
+
+if [ -d "$HOME/.local/share/karabiner/log" ]; then
+  cp -p "$HOME/.local/share/karabiner/log/"*.log "$OUT/" 2>/dev/null || true
+fi
+
+log show --last 20m --style syslog \
+  --predicate 'process CONTAINS[c] "Karabiner" OR eventMessage CONTAINS[c] "Karabiner" OR eventMessage CONTAINS[c] "org.pqrs" OR eventMessage CONTAINS[c] "VirtualHID" OR eventMessage CONTAINS[c] "IOHID" OR process == "sysextd" OR process == "tccd" OR eventMessage CONTAINS[c] "Input Monitoring" OR eventMessage CONTAINS[c] "Accessibility"' \
+  > "$OUT/unified-karabiner-hid.log" 2>&1 || true
+
+pmset -g log | tail -500 > "$OUT/pmset-tail.log" 2>&1 || true
+
+echo "Done: $OUT"

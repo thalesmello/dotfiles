@@ -10,7 +10,9 @@
 # run-command.sh and break-pane.sh; they all call in here now, so a fix (like
 # bracketed paste or the cursor movement below) lands in every prompt at once.
 # A line is prompt_line, a keypress is prompt_any_key, and no other bash script
-# in this directory touches the terminal.
+# in this directory touches the terminal. The library also installs an EXIT trap
+# for popup scripts: a non-zero exit that was not caused by a prompt-cancel key
+# waits for one keypress so error output is readable before the popup closes.
 #
 # The one deliberate exception is herdr_hold_on_tty in herdr-lib.sh, which waits
 # for a keypress with its own byte read. It cannot call this: herdr-lib.sh is
@@ -31,10 +33,12 @@
 # operation applies at the cursor, not just at the end.
 #
 #   left / right, ctrl+b / ctrl+f      char left / right
-#   up / down                          previous / next line in multiline input
+#   up / down, ctrl+p / ctrl+n         previous / next line in multiline input
+#   alt+p / alt+n                      previous / next line in multiline input
 #   alt+left / alt+right, alt+b / f    word left / right
 #   ctrl+left / ctrl+right             word left / right
 #   home / end, ctrl+a / ctrl+e        start / end of line
+#   alt+< / alt+>                      start / end of line
 #   backspace, ctrl+h                  delete char before cursor
 #   delete, ctrl+d                     delete char under cursor
 #                                      (ctrl+d on an empty line: EOF, cancel)
@@ -44,6 +48,7 @@
 #   ctrl+k                             kill to end of line
 #   ctrl+y                             yank back the last kill
 #   ctrl+t                             transpose the two chars at the cursor
+#   alt+t                              transpose words
 #   alt+u / alt+l / alt+c              upcase / downcase / capitalize word
 #   ctrl+shift+_ / ctrl+_              undo last edit
 #   ctrl+l                             redraw the line
@@ -65,9 +70,11 @@
 # what the terminal is set to. `dd` leaves the terminal settings alone.
 #
 # A lone Esc, an escape sequence (arrows, home/end) and a meta chord (alt+b is
-# ESC b) all start with 0x1b, so after an Esc we peek with `min 0 time 1` -- a
-# 0.1s read that returns empty when nothing follows -- to tell a bare Esc from
-# the start of something longer.
+# ESC b) all start with 0x1b, so after an Esc we peek with `min 0 time 2` -- a
+# 0.2s read that returns empty when nothing follows -- to tell a bare Esc from
+# the start of something longer. The slightly longer grace period keeps
+# Option-arrow remaps that arrive as ESC b / ESC f from being mistaken for a
+# bare Esc by a busy popup/PTY.
 #
 # MODIFIED ENTER. The prompt asks the terminal for Kitty keyboard reporting
 # while it is open so Shift+Enter / Alt+Enter arrive as distinct CSI-u keypresses
@@ -244,6 +251,48 @@ _prompt_transpose() {                  # ctrl+t: swap the chars around the curso
   [ "$_a" != "$_b" ] && _prompt_save_undo
   PROMPT_LINE="${PROMPT_LINE:0:_at-1}$_b$_a${PROMPT_LINE:_at+1}"
   _prompt_pos=$((_at + 1))
+}
+
+_prompt_transpose_words() {            # alt+t: swap adjacent words
+  local _n=${#PROMPT_LINE} _w1_start _w1_end _w2_start _w2_end _mid _w1 _w2 _ch _i
+  [ "$_n" -gt 0 ] || return 0
+
+  _w2_start=$_prompt_pos
+  _ch=${PROMPT_LINE:_w2_start:1}
+  if [[ $_ch == [[:alnum:]] ]]; then
+    _w2_start=$(_prompt_word_back $((_w2_start + 1)))
+  else
+    while [ "$_w2_start" -lt "$_n" ] && [[ ${PROMPT_LINE:_w2_start:1} != [[:alnum:]] ]]; do
+      _w2_start=$((_w2_start + 1))
+    done
+  fi
+
+  if [ "$_w2_start" -lt "$_n" ]; then
+    _w2_end=$(_prompt_word_fwd "$_w2_start")
+    _w1_end=$_w2_start
+  else
+    _w1_end=$_prompt_pos
+    while [ "$_w1_end" -gt 0 ] && [[ ${PROMPT_LINE:_w1_end-1:1} != [[:alnum:]] ]]; do
+      _w1_end=$((_w1_end - 1))
+    done
+    _w2_end=$_w1_end
+    _w2_start=$(_prompt_word_back "$_w2_end")
+    _w1_end=$_w2_start
+  fi
+
+  while [ "$_w1_end" -gt 0 ] && [[ ${PROMPT_LINE:_w1_end-1:1} != [[:alnum:]] ]]; do
+    _w1_end=$((_w1_end - 1))
+  done
+  _w1_start=$(_prompt_word_back "$_w1_end")
+
+  [ "$_w1_start" -lt "$_w1_end" ] || return 0
+  [ "$_w2_start" -lt "$_w2_end" ] || return 0
+  _w1=${PROMPT_LINE:_w1_start:_w1_end - _w1_start}
+  _mid=${PROMPT_LINE:_w1_end:_w2_start - _w1_end}
+  _w2=${PROMPT_LINE:_w2_start:_w2_end - _w2_start}
+  [ "$_w1" != "$_w2" ] && _prompt_save_undo
+  PROMPT_LINE="${PROMPT_LINE:0:_w1_start}$_w2$_mid$_w1${PROMPT_LINE:_w2_end}"
+  _prompt_pos=$_w2_end
 }
 
 # Throw the buffer away, keeping it on the undo stack so ctrl+_ brings it back.
@@ -678,7 +727,7 @@ _prompt_csi_prompt_key() {
       8|127)
         # alt+backspace / ctrl+backspace kill the word before the cursor, the
         # same as ctrl+w; unmodified backspace deletes one character.
-        if [ $((_mod_bits & 14)) -ne 0 ]; then
+        if [ $((_mod_bits & 62)) -ne 0 ]; then
           _at=$(_prompt_word_back "$_prompt_pos")
           _prompt_delete "$_at" $((_prompt_pos - _at)) kill
         else
@@ -693,14 +742,14 @@ _prompt_csi_prompt_key() {
         fi
         return 0 ;;
       57417)                                                                      # kitty left arrow
-        if [ $((_mod_bits & 14)) -ne 0 ]; then
+        if [ $((_mod_bits & 62)) -ne 0 ]; then
           _prompt_pos=$(_prompt_word_back "$_prompt_pos")
         else
           [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1))
         fi
         return 0 ;;
       57418)                                                                      # kitty right arrow
-        if [ $((_mod_bits & 14)) -ne 0 ]; then
+        if [ $((_mod_bits & 62)) -ne 0 ]; then
           _prompt_pos=$(_prompt_word_fwd "$_prompt_pos")
         else
           [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1))
@@ -712,6 +761,28 @@ _prompt_csi_prompt_key() {
         _prompt_esc_key || _prompt_cancel=1
         return 0 ;;
     esac
+
+    # Alt/Meta/Super-modified printable readline bindings. Some terminals remap
+    # Option+Left/Right to Alt+B/F, and modified-key reporting can encode that
+    # as CSI-u instead of the legacy ESC b / ESC f byte pair.
+    if [ $((_mod_bits & 58)) -ne 0 ]; then
+      _lower=$_code
+      [ "$_lower" -ge 65 ] 2>/dev/null && [ "$_lower" -le 90 ] && _lower=$((_lower + 32))
+      case $_lower in
+        98) _prompt_pos=$(_prompt_word_back "$_prompt_pos"); return 0 ;;         # alt+b
+        102) _prompt_pos=$(_prompt_word_fwd "$_prompt_pos"); return 0 ;;         # alt+f
+        110) _prompt_move_vert 1; return 0 ;;                                     # alt+n
+        112) _prompt_move_vert -1; return 0 ;;                                    # alt+p
+        100) _at=$(_prompt_word_fwd "$_prompt_pos"); _prompt_delete "$_prompt_pos" $((_at - _prompt_pos)) kill; return 0 ;; # alt+d
+        104) _at=$(_prompt_word_back "$_prompt_pos"); _prompt_delete "$_at" $((_prompt_pos - _at)) kill; return 0 ;; # alt+ctrl+h
+        116) _prompt_transpose_words; return 0 ;;                                # alt+t
+        117) _prompt_case_word up; return 0 ;;                                   # alt+u
+        108) _prompt_case_word down; return 0 ;;                                 # alt+l
+        99) _prompt_case_word cap; return 0 ;;                                   # alt+c
+        60) _prompt_pos=0; return 0 ;;                                           # alt+<
+        62) _prompt_pos=${#PROMPT_LINE}; return 0 ;;                             # alt+>
+      esac
+    fi
 
     # Ctrl-modified ASCII controls. Shift may be present too (e.g. Ctrl+Shift+_).
     [ $((_mod_bits & 4)) -ne 0 ] || continue
@@ -731,7 +802,9 @@ _prompt_csi_prompt_key() {
       103) _prompt_cancel=1; return 0 ;;                                         # ctrl+g
       104|127) _prompt_delete $((_prompt_pos - 1)) 1; return 0 ;;                # ctrl+h/backspace
       107) _prompt_delete "$_prompt_pos" $((${#PROMPT_LINE} - _prompt_pos)) kill; return 0 ;; # ctrl+k
-      108) return 0 ;;                                                           # ctrl+l redraw
+      108) _prompt_force_full_render=1; return 0 ;;                              # ctrl+l redraw
+      110) _prompt_move_vert 1; return 0 ;;                                      # ctrl+n
+      112) _prompt_move_vert -1; return 0 ;;                                     # ctrl+p
       116) _prompt_transpose; return 0 ;;                                        # ctrl+t
       117) _prompt_delete 0 "$_prompt_pos" kill; return 0 ;;                    # ctrl+u
       119) _at=$(_prompt_word_back "$_prompt_pos"); _prompt_delete "$_at" $((_prompt_pos - _at)) kill; return 0 ;; # ctrl+w
@@ -786,7 +859,7 @@ _prompt_csi_undo() {
 _prompt_escape() {
   local _nxt _tail _at _mod _mod_bits
 
-  _nxt=$(_prompt_peek_byte 1)
+  _nxt=$(_prompt_peek_byte 2)
   case $_nxt in
     '') _prompt_esc_key || return 1 ;; # lone Esc -> clear, or cancel when empty
     10|13) _prompt_insert_newline ;;   # alt+enter / alt+shift+enter
@@ -805,7 +878,7 @@ _prompt_escape() {
           _mod=${_mod%%:*}
           _mod_bits=0
           [ -n "$_mod" ] && [ "$_mod" -ge 1 ] 2>/dev/null && _mod_bits=$((_mod - 1))
-          if [ $((_mod_bits & 14)) -ne 0 ]; then
+          if [ $((_mod_bits & 62)) -ne 0 ]; then
             case $_tail in
               *C) _prompt_pos=$(_prompt_word_fwd "$_prompt_pos") ;;
               *)  _prompt_pos=$(_prompt_word_back "$_prompt_pos") ;;
@@ -827,7 +900,7 @@ _prompt_escape() {
         *) : ;;                        # anything else: consumed and ignored
       esac ;;
     27)                                # alt-arrow from terminals that emit ESC ESC [C/D
-      _nxt=$(_prompt_peek_byte 1)
+      _nxt=$(_prompt_peek_byte 2)
       case $_nxt in
         '') _prompt_esc_key || return 1 ;; # treat a quick double-Esc as Esc
         91)
@@ -860,15 +933,20 @@ _prompt_escape() {
     # meta chords: alt+key arrives as Esc key
     98|66)  _prompt_pos=$(_prompt_word_back "$_prompt_pos") ;;   # alt+b
     102|70) _prompt_pos=$(_prompt_word_fwd "$_prompt_pos") ;;    # alt+f
+    110|78) _prompt_move_vert 1 ;;                                # alt+n
+    112|80) _prompt_move_vert -1 ;;                               # alt+p
     100)                                                          # alt+d
       _at=$(_prompt_word_fwd "$_prompt_pos")
       _prompt_delete "$_prompt_pos" $((_at - _prompt_pos)) kill ;;
     127|8)                                                        # alt+backspace
       _at=$(_prompt_word_back "$_prompt_pos")
       _prompt_delete "$_at" $((_prompt_pos - _at)) kill ;;
+    116) _prompt_transpose_words ;;                               # alt+t
     117) _prompt_case_word up ;;                                  # alt+u
     108) _prompt_case_word down ;;                                # alt+l
     99)  _prompt_case_word cap ;;                                 # alt+c
+    60)  _prompt_pos=0 ;;                                          # alt+<
+    62)  _prompt_pos=${#PROMPT_LINE} ;;                            # alt+>
     *) while [ -n "$(_prompt_peek_byte)" ]; do :; done ;;         # unknown: drain
   esac
 
@@ -883,6 +961,7 @@ _prompt_escape() {
 prompt_line() {
   local _old _b _c _at _cancelled=0
 
+  PROMPT_CANCELLED_BY_KEY=0
   _prompt_label=$1
   PROMPT_LINE=${2-}
   _prompt_pos=${#PROMPT_LINE}
@@ -905,7 +984,7 @@ prompt_line() {
   [ -n "$_prompt_cols" ] && [ "$_prompt_cols" -gt 0 ] 2>/dev/null || _prompt_cols=${COLUMNS:-80}
 
   _old=$(stty -g)
-  stty -echo -icanon -isig -icrnl min 1 time 0
+  stty -echo -icanon -isig -icrnl -ixon min 1 time 0
   printf '\e[?2004h\e[>5u'             # bracketed paste + modified-key reporting for this prompt only
   _prompt_render
 
@@ -935,6 +1014,8 @@ prompt_line() {
       11)                                              # ctrl+k: kill to end
         _prompt_delete "$_prompt_pos" $((${#PROMPT_LINE} - _prompt_pos)) kill ;;
       25) _prompt_insert "$_prompt_kill" ;;            # ctrl+y
+      14) _prompt_move_vert 1 ;;                       # ctrl+n
+      16) _prompt_move_vert -1 ;;                      # ctrl+p
       20) _prompt_transpose ;;                         # ctrl+t
       31) _prompt_undo ;;                              # ctrl+shift+_ / ctrl+_
       12) _prompt_force_full_render=1 ;;               # ctrl+l: redraw
@@ -960,7 +1041,13 @@ prompt_line() {
   stty "$_old" 2>/dev/null || stty sane
   _prompt_finish_render
 
-  [ "$_cancelled" -eq 0 ]
+  if [ "$_cancelled" -eq 0 ]; then
+    PROMPT_CANCELLED_BY_KEY=0
+    return 0
+  fi
+
+  PROMPT_CANCELLED_BY_KEY=1
+  return 1
 }
 
 # prompt_any_key [message]
@@ -975,3 +1062,36 @@ prompt_any_key() {
   _prompt_read_byte >/dev/null
   stty "$_old" 2>/dev/null || stty sane
 }
+
+_prompt_exit_hold_on_error() {
+  local _status=$?
+
+  # Only the shell that sourced prompt-lib should hold. Command substitutions and
+  # subshells may also exit non-zero while parsing prompt state; never pause them.
+  [ "${BASHPID:-$$}" = "${_prompt_exit_hold_pid:-}" ] || return "$_status"
+
+  # A prompt-cancel key is intentional close behaviour, not an error to read.
+  if [ "$_status" -ne 0 ] \
+    && [ "${PROMPT_CANCELLED_BY_KEY:-0}" -ne 1 ] \
+    && [ "${PROMPT_HOLD_ON_ERROR:-1}" != 0 ] \
+    && [ -t 0 ] && [ -t 1 ]; then
+    prompt_any_key "$(printf '\n[exit %d] press any key to close ' "$_status")"
+  fi
+
+  return "$_status"
+}
+
+_prompt_install_exit_hold() {
+  [ "${_prompt_exit_hold_installed:-0}" -eq 1 ] && return 0
+  _prompt_exit_hold_installed=1
+  _prompt_exit_hold_pid=${BASHPID:-$$}
+  PROMPT_CANCELLED_BY_KEY=0
+  trap _prompt_exit_hold_on_error EXIT
+}
+
+# prompt-lib is intended for non-interactive popup scripts. Install the hold by
+# default there, but do not surprise someone who sources this by hand.
+case $- in
+  *i*) ;;
+  *) _prompt_install_exit_hold ;;
+esac

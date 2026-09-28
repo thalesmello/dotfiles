@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # key repeat
-defaults write -g InitialKeyRepeat -int 15 # normal minimum is 15 (225 ms)
+defaults write -g InitialKeyRepeat -int 20 # normal minimum is 15 (225 ms)
 defaults write -g KeyRepeat -int 2
 
 # enable three fingers drag
