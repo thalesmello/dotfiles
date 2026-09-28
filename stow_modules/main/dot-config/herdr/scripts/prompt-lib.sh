@@ -354,6 +354,152 @@ _prompt_move_cursor_to() {
   _prompt_cursor_screen_col=$_col
 }
 
+_prompt_calc_line_col() {
+  local _s=$1 _pos=$2 _before
+  _before=${_s:0:_pos}
+  _prompt_calc_line=0
+  while [[ $_before == *$'\n'* ]]; do
+    _prompt_calc_line=$((_prompt_calc_line + 1))
+    _before=${_before#*$'\n'}
+  done
+  _prompt_calc_col=${#_before}
+}
+
+_prompt_line_at() {
+  local _s=$1 _want=$2 _i=0 _line
+  while [[ $_s == *$'\n'* ]]; do
+    _line=${_s%%$'\n'*}
+    if [ "$_i" -eq "$_want" ]; then
+      _prompt_line_at_result=$_line
+      return 0
+    fi
+    _s=${_s#*$'\n'}
+    _i=$((_i + 1))
+  done
+  if [ "$_i" -eq "$_want" ]; then
+    _prompt_line_at_result=$_s
+    return 0
+  fi
+  _prompt_line_at_result=''
+  return 1
+}
+
+_prompt_count_lines() {
+  local _s=$1 _n=1
+  while [[ $_s == *$'\n'* ]]; do
+    _n=$((_n + 1))
+    _s=${_s#*$'\n'}
+  done
+  _prompt_line_count=$_n
+}
+
+_prompt_line_prefix_width() {
+  if [ "$1" -eq 0 ]; then
+    _prompt_prefix_width=${#_prompt_label}
+  else
+    _prompt_prefix_width=${#_prompt_label}
+  fi
+}
+
+_prompt_render_one_line() {
+  local _line_index=$1 _line=$2 _target_col=$3 _row _prefix _shown _avail
+  [ "$_line_index" -ge "${_prompt_top_line:-0}" ] || return 1
+  [ "$_line_index" -lt $((${_prompt_top_line:-0} + ${_prompt_render_rows:-0})) ] || return 1
+
+  _row=$((_line_index - _prompt_top_line))
+  if [ "$_line_index" -eq 0 ]; then
+    _prefix=$_prompt_label
+  else
+    _prefix=$(printf '%*s' "${#_prompt_label}" '')
+  fi
+  _avail=$((_prompt_cols - ${#_prefix} - 1))
+  [ "$_avail" -lt 8 ] && _avail=8
+  _shown=${_line:_prompt_start:_avail}
+
+  _prompt_move_cursor_to "$_row" 0
+  printf '%s%s\e[K' "$_prefix" "$_shown"
+  _prompt_move_cursor_to "$_row" "$_target_col"
+}
+
+_prompt_render_line_local_edit() {
+  local _old=$1 _old_pos=$2 _old_line _old_col _new_line _new_col _line _old_line_text
+  local _prefix_width _avail _row _target_col _old_target_col _diff _inserted _deleted _at
+  local _old_len=${#_old} _new_len=${#PROMPT_LINE} _old_lines _new_lines
+
+  _prompt_count_lines "$_old"
+  _old_lines=$_prompt_line_count
+  _prompt_count_lines "$PROMPT_LINE"
+  _new_lines=$_prompt_line_count
+  [ "$_old_lines" -eq "$_new_lines" ] || return 1
+
+  _prompt_calc_line_col "$_old" "$_old_pos"
+  _old_line=$_prompt_calc_line
+  _old_col=$_prompt_calc_col
+  _prompt_calc_line_col "$PROMPT_LINE" "$_prompt_pos"
+  _new_line=$_prompt_calc_line
+  _new_col=$_prompt_calc_col
+
+  [ "$_old_line" -eq "$_new_line" ] || return 1
+  [ "$_new_line" -ge "${_prompt_top_line:-0}" ] || return 1
+  [ "$_new_line" -lt $((${_prompt_top_line:-0} + ${_prompt_render_rows:-0})) ] || return 1
+
+  _prompt_line_at "$PROMPT_LINE" "$_new_line" || return 1
+  _line=$_prompt_line_at_result
+  _prompt_line_at "$_old" "$_old_line" || return 1
+  _old_line_text=$_prompt_line_at_result
+
+  _prompt_line_prefix_width "$_new_line"
+  _prefix_width=$_prompt_prefix_width
+  _avail=$((_prompt_cols - _prefix_width - 1))
+  [ "$_avail" -lt 8 ] && _avail=8
+  [ "$_new_col" -lt "$_prompt_start" ] && return 1
+  [ "$_new_col" -gt $((_prompt_start + _avail)) ] && return 1
+  _row=$((_new_line - _prompt_top_line))
+  _target_col=$((_prefix_width + _new_col - _prompt_start))
+
+  # The cheapest path: for visible single-line insertion, ask the terminal to
+  # insert cells at the cursor and print only the new text. This is the common
+  # "typing in the middle" case.
+  if [ "$_new_len" -gt "$_old_len" ] && [ "$_old_pos" -le "$_new_len" ]; then
+    _diff=$((_new_len - _old_len))
+    _inserted=${PROMPT_LINE:_old_pos:_diff}
+    if [[ $_inserted != *$'\n'* ]] \
+      && [ "${PROMPT_LINE:0:_old_pos}" = "${_old:0:_old_pos}" ] \
+      && [ "${PROMPT_LINE:_old_pos + _diff}" = "${_old:_old_pos}" ]; then
+      _old_target_col=$((_prefix_width + _old_col - _prompt_start))
+      if [ "$_old_col" -ge "$_prompt_start" ] \
+        && [ $((_old_target_col + _diff)) -le $((_prefix_width + _avail)) ]; then
+        _prompt_move_cursor_to "$_row" "$_old_target_col"
+        printf '\e[%d@%s' "$_diff" "$_inserted"
+        _prompt_cursor_screen_col=$((_old_target_col + _diff))
+        _prompt_move_cursor_to "$_row" "$_target_col"
+        return 0
+      fi
+    fi
+  fi
+
+  # Likewise for visible deletion, but only when there is no hidden tail that
+  # needs to be revealed from beyond the right edge of the viewport.
+  if [ "$_old_len" -gt "$_new_len" ]; then
+    _diff=$((_old_len - _new_len))
+    _at=$_prompt_pos
+    _deleted=${_old:_at:_diff}
+    if [[ $_deleted != *$'\n'* ]] \
+      && [ "${PROMPT_LINE:0:_at}" = "${_old:0:_at}" ] \
+      && [ "${PROMPT_LINE:_at}" = "${_old:_at + _diff}" ] \
+      && [ "${#_old_line_text}" -le $((_prompt_start + _avail)) ]; then
+      _prompt_move_cursor_to "$_row" "$_target_col"
+      printf '\e[%dP' "$_diff"
+      _prompt_cursor_screen_col=$_target_col
+      return 0
+    fi
+  fi
+
+  # Fallback for replacements and deletes with a hidden tail: repaint only the
+  # affected visual row, not the whole prompt surface.
+  _prompt_render_one_line "$_new_line" "$_line" "$_target_col"
+}
+
 _prompt_render_cursor_only() {
   local _avail _target_row _target_col _prefix_width _line_count
 
@@ -440,6 +586,7 @@ _prompt_render_single_line() {
   [ "$_prompt_pos" -gt $((_prompt_start + _avail)) ] \
     && _prompt_start=$((_prompt_pos - _avail))
   [ "$_prompt_start" -lt 0 ] && _prompt_start=0
+  _prompt_top_line=0
 
   _shown=${PROMPT_LINE:_prompt_start:_avail}
   printf '%s%s\e[K' "$_prompt_label" "$_shown"
@@ -452,7 +599,7 @@ _prompt_render_single_line() {
 }
 
 _prompt_render() {
-  local _visible_rows _line_count _i _line_index _line _prefix _prefix_width
+  local _visible_rows _line_count _max_top _i _line_index _line _prefix _prefix_width
   local _avail _start _shown _target_row=0 _target_col=0 _up
 
   if [[ $PROMPT_LINE != *$'\n'* ]]; then
@@ -480,9 +627,17 @@ _prompt_render() {
   _prompt_render_rows=$_visible_rows
   [ "$_line_count" -lt "$_prompt_render_rows" ] && _prompt_render_rows=$_line_count
 
+  # If the prompt grew while the popup was one row tall, _prompt_top_line may be
+  # non-zero. When the popup later reports more rows (or text shrinks), clamp it
+  # before indexing the split lines. Under `set -u`, an out-of-range array lookup
+  # aborts the entire popup.
+  _max_top=$((_line_count - _prompt_render_rows))
+  [ "$_max_top" -lt 0 ] && _max_top=0
+  [ "$_prompt_top_line" -gt "$_max_top" ] && _prompt_top_line=$_max_top
+
   for ((_i = 0; _i < _prompt_render_rows; _i++)); do
     _line_index=$((_prompt_top_line + _i))
-    _line=${_prompt_render_lines[$_line_index]}
+    _line=${_prompt_render_lines[$_line_index]-}
     if [ "$_line_index" -eq 0 ]; then
       _prefix=$_prompt_label
     else
@@ -598,6 +753,7 @@ _prompt_render_after_edit() {
     fi
   fi
 
+  _prompt_render_line_local_edit "$_old" "$_old_pos" && return 0
   _prompt_render
 }
 
