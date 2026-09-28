@@ -13,6 +13,16 @@ function app-db-init
     "
 end
 
+function app-db-query
+    app-db-init
+    sqlite3 "$CHROME_PRESET_DB" $argv
+end
+
+function app-db-exec
+    app-db-init
+    sqlite3 "$CHROME_PRESET_DB" $argv
+end
+
 function sq-escape
     string replace -a "'" "''" $argv
 end
@@ -557,7 +567,6 @@ function chrome-preset
 
         chrome-cli execute "document.querySelector($(string escape "$selector")).click()"
     case "create-app"
-        app-db-init
         argparse profile= -- $argv
 
         set appname $argv[1]
@@ -582,9 +591,8 @@ function chrome-preset
 
         set window_id "$_flag_window_id"
 
-        app-db-init
         set chrome_info (env OUTPUT_FORMAT=json chrome-cli info | string collect)
-        sqlite3 "$CHROME_PRESET_DB" "INSERT OR REPLACE INTO apps (app_name, window_id, chrome_info) VALUES ('$(sq-escape $appname)', '$window_id', '$(sq-escape $chrome_info)');"
+        app-db-exec "INSERT OR REPLACE INTO apps (app_name, window_id, chrome_info) VALUES ('$(sq-escape $appname)', '$window_id', '$(sq-escape $chrome_info)');"
     case "open-in-app"
         argparse profile= -- $argv
 
@@ -594,10 +602,10 @@ function chrome-preset
         set url $argv[1]
         set -e argv[1]
 
-        set window (sqlite3 "$CHROME_PRESET_DB" "SELECT window_id FROM apps WHERE app_name = '$(sq-escape $appname)';")
+        set window (app-db-query "SELECT window_id FROM apps WHERE app_name = '$(sq-escape $appname)';")
 
         if test -n "$window"; and yabai-preset get-window-info "$window" >/dev/null
-            set chrome_info (sqlite3 "$CHROME_PRESET_DB" "SELECT chrome_info FROM apps WHERE app_name = '$(sq-escape $appname)';")
+            set chrome_info (app-db-query "SELECT chrome_info FROM apps WHERE app_name = '$(sq-escape $appname)';")
 
             chrome-cli open "$url" -t "$(jq -nr --argjson app "$chrome_info" '$app.id')"
             wm-preset focus-window-id "$window"
@@ -608,7 +616,7 @@ function chrome-preset
         set appname $argv[1]
         set -e argv[1]
 
-        set window_id (sqlite3 "$CHROME_PRESET_DB" "SELECT window_id FROM apps WHERE app_name = '$(sq-escape $appname)';")
+        set window_id (app-db-query "SELECT window_id FROM apps WHERE app_name = '$(sq-escape $appname)';")
         test -n "$window_id"; or return 1
         echo "$window_id"
     case "focus-or-create-app"
@@ -622,7 +630,7 @@ function chrome-preset
 
         if set window (chrome-preset get-app-window-id "$appname"); and yabai-preset get-window-info "$window" >/dev/null
             if set -q _flag_enforce_url
-                set chrome_info (sqlite3 "$CHROME_PRESET_DB" "SELECT chrome_info FROM apps WHERE app_name = '$(sq-escape $appname)';")
+                set chrome_info (app-db-query "SELECT chrome_info FROM apps WHERE app_name = '$(sq-escape $appname)';")
                 set tab_id (jq -nr --argjson app "$chrome_info" '$app.id')
                 set current_url (env OUTPUT_FORMAT=json chrome-cli info -t "$tab_id" | jq -r '.url')
                 if test "$current_url" != "$url"
@@ -641,7 +649,7 @@ function chrome-preset
 
         set fallback
 
-        set app_window_id (sqlite3 "$CHROME_PRESET_DB" "SELECT window_id FROM apps WHERE app_name = '$(sq-escape $app)';")
+        set app_window_id (app-db-query "SELECT window_id FROM apps WHERE app_name = '$(sq-escape $app)';")
 
         if test -n "$app_window_id"
 
@@ -674,7 +682,7 @@ function chrome-preset
     case "get-app-name"
         argparse window-id= -- $argv
 
-        set appname (sqlite3 "$CHROME_PRESET_DB" "SELECT app_name FROM apps WHERE window_id = '$_flag_window_id';")
+        set appname (app-db-query "SELECT app_name FROM apps WHERE window_id = '$_flag_window_id';")
         test -n "$appname"; or return 1
         echo "$appname"
     case "focus-profile-window"
@@ -716,7 +724,7 @@ function chrome-preset
         set current_id (yabai-preset query-windows --window | jq -r '.id')
         or return 1
 
-        set app_window_ids (sqlite3 "$CHROME_PRESET_DB" "SELECT window_id FROM apps;")
+        set app_window_ids (app-db-query "SELECT window_id FROM apps;")
 
         if contains -- "$current_id" $app_window_ids
             chrome-trigger-menu-bar "Profiles;$profile_name"

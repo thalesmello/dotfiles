@@ -5,8 +5,14 @@ set PINFILE_DIR "$HOME/.local_dotfiles/yabai-harpoon/pinfiles"
 # Where dev-preset persists the id of the window holding the devserver session.
 # A herdr pin taken in that window records that it WAS the devserver rather than
 # the window id alone: the devserver window is recreated (new id) whenever the
-# connection is restarted, and this file is the memo of where it went.
-set DEVSERVER_WINDOW_ID_FILE "/tmp/dev-preset/session.windowid"
+# connection is restarted, and this file is the memo of where it went. Prefer the
+# persistent state dir; fall back to the old /tmp path for compatibility.
+set DEVSERVER_STATE_BASE "$HOME/.local/state"
+if set -q XDG_STATE_HOME; and test -n "$XDG_STATE_HOME"
+    set DEVSERVER_STATE_BASE "$XDG_STATE_HOME"
+end
+set DEVSERVER_WINDOW_ID_FILE "$DEVSERVER_STATE_BASE/dev-preset/session.windowid"
+set DEVSERVER_LEGACY_WINDOW_ID_FILE "/tmp/dev-preset/session.windowid"
 
 function yabai-harpoon
     set mode $argv[1]
@@ -288,9 +294,11 @@ function yabai-harpoon
         # The window id dev-preset last recorded for the devserver session, or
         # nothing. Empty rather than an error when there is no devserver on this
         # machine at all -- the file only exists where dev-preset runs.
-        test -e "$DEVSERVER_WINDOW_ID_FILE"; or return 0
+        set -l id_file "$DEVSERVER_WINDOW_ID_FILE"
+        test -e "$id_file"; or set id_file "$DEVSERVER_LEGACY_WINDOW_ID_FILE"
+        test -e "$id_file"; or return 0
 
-        string match -r '\d+' -- (cat "$DEVSERVER_WINDOW_ID_FILE" 2>/dev/null)
+        string match -r '\d+' -- (cat "$id_file" 2>/dev/null)
         return 0
     case "capture-herdr-pin"
         # Ask the herdr session displayed in the focused window to describe its

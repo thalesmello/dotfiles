@@ -31,6 +31,7 @@
 # operation applies at the cursor, not just at the end.
 #
 #   left / right, ctrl+b / ctrl+f      char left / right
+#   up / down                          previous / next line in multiline input
 #   alt+left / alt+right, alt+b / f    word left / right
 #   ctrl+left / ctrl+right             word left / right
 #   home / end, ctrl+a / ctrl+e        start / end of line
@@ -79,9 +80,12 @@
 # next. So the prompt turns paste mode on (DECSET 2004) for as long as it is
 # open: the terminal then wraps pasted text in ESC[200~ ... ESC[201~, which is
 # what lets this read the whole thing as one insert and never as an Enter. The
-# body is read in 4K chunks rather than byte at a time (one `dd` per byte is a
-# fork per byte -- fine for typing, not for a paragraph). Newlines are preserved
-# for multiline prompts, tabs become spaces, and other control bytes are dropped.
+# body is read in large chunks by one helper process rather than byte at a time
+# (one `dd` per byte is a fork per byte -- fine for typing, not for a paragraph).
+# After insertion the prompt repaints only the visible window, instead of echoing
+# the whole pasted body back to the terminal, so large pastes feel instant.
+# Newlines are preserved for multiline prompts, tabs become spaces, and other
+# control bytes are dropped.
 #
 # CHARACTERS. Positions and widths are counted with bash's ${#s} and ${s:i:n},
 # which are character-based under a UTF-8 locale and byte-based under C. Typed
@@ -261,9 +265,9 @@ _prompt_esc_key() {
 
 # --- rendering --------------------------------------------------------------
 
-# Multiline, redrawn from scratch after every keystroke, with a window that
-# scrolls to follow the cursor when the buffer is wider or taller than the
-# popup.
+# Multiline, redrawn from scratch only when the text or viewport changes. Pure
+# cursor movement uses CSI cursor moves, with a window that scrolls to follow
+# the cursor when the buffer is wider or taller than the popup.
 _prompt_split_lines() {
   local _s=$1 _line
   _prompt_render_lines=()
@@ -285,6 +289,76 @@ _prompt_cursor_line_and_col() {
     _s=${_s#*$'\n'}
   done
   _prompt_cursor_col=${#_s}
+}
+
+_prompt_move_cursor_to() {
+  local _row=$1 _col=$2 _delta
+  _delta=$((_row - ${_prompt_cursor_screen_row:-0}))
+  if [ "$_delta" -lt 0 ]; then
+    printf '\e[%dA' $((-_delta))
+  elif [ "$_delta" -gt 0 ]; then
+    printf '\e[%dB' "$_delta"
+  fi
+  printf '\r'
+  [ "$_col" -gt 0 ] && printf '\e[%dC' "$_col"
+  _prompt_cursor_screen_row=$_row
+  _prompt_cursor_screen_col=$_col
+}
+
+_prompt_render_cursor_only() {
+  local _avail _target_row _target_col _prefix_width _line_count
+
+  if [[ $PROMPT_LINE != *$'\n'* ]]; then
+    _avail=$((_prompt_cols - ${#_prompt_label} - 1))
+    [ "$_avail" -lt 8 ] && _avail=8
+    [ "$_prompt_pos" -lt "$_prompt_start" ] && return 1
+    [ "$_prompt_pos" -gt $((_prompt_start + _avail)) ] && return 1
+    _target_col=$((${#_prompt_label} + _prompt_pos - _prompt_start))
+    _prompt_move_cursor_to 0 "$_target_col"
+    return 0
+  fi
+
+  _prompt_split_lines "$PROMPT_LINE"
+  _prompt_cursor_line_and_col
+  _line_count=${#_prompt_render_lines[@]}
+  [ "$_line_count" -gt 0 ] || return 1
+  [ "${_prompt_render_rows:-0}" -gt 0 ] || return 1
+  [ "$_prompt_cursor_line" -ge "${_prompt_top_line:-0}" ] || return 1
+  [ "$_prompt_cursor_line" -lt $((${_prompt_top_line:-0} + _prompt_render_rows)) ] || return 1
+
+  _prefix_width=${#_prompt_label}
+  _avail=$((_prompt_cols - _prefix_width - 1))
+  [ "$_avail" -lt 8 ] && _avail=8
+  [ "$_prompt_cursor_col" -lt "$_prompt_start" ] && return 1
+  [ "$_prompt_cursor_col" -gt $((_prompt_start + _avail)) ] && return 1
+
+  _target_row=$((_prompt_cursor_line - _prompt_top_line))
+  _target_col=$((_prefix_width + _prompt_cursor_col - _prompt_start))
+  _prompt_move_cursor_to "$_target_row" "$_target_col"
+}
+
+_prompt_move_vert() {
+  local _delta=$1 _target _line_count _col _target_len _idx=0 _i
+  [[ $PROMPT_LINE == *$'\n'* ]] || return 0
+
+  _prompt_split_lines "$PROMPT_LINE"
+  _prompt_cursor_line_and_col
+  _line_count=${#_prompt_render_lines[@]}
+  _target=$((_prompt_cursor_line + _delta))
+  [ "$_target" -lt 0 ] && _target=0
+  [ "$_target" -ge "$_line_count" ] && _target=$((_line_count - 1))
+  [ "$_target" -ne "$_prompt_cursor_line" ] || return 0
+
+  [ -n "${_prompt_goal_col+x}" ] || _prompt_goal_col=$_prompt_cursor_col
+  _col=$_prompt_goal_col
+  _target_len=${#_prompt_render_lines[$_target]}
+  [ "$_col" -gt "$_target_len" ] && _col=$_target_len
+
+  for ((_i = 0; _i < _target; _i++)); do
+    _idx=$((_idx + ${#_prompt_render_lines[$_i]} + 1))
+  done
+  _prompt_pos=$((_idx + _col))
+  _prompt_vertical_motion=1
 }
 
 _prompt_clear_previous_render() {
@@ -325,6 +399,7 @@ _prompt_render_single_line() {
   [ "$_tail" -gt 0 ] && printf '\e[%dD' "$_tail"
   _prompt_render_rows=1
   _prompt_cursor_screen_row=0
+  _prompt_cursor_screen_col=$((${#_prompt_label} + _prompt_pos - _prompt_start))
 }
 
 _prompt_render() {
@@ -390,6 +465,7 @@ _prompt_render() {
   printf '\r'
   [ "$_target_col" -gt 0 ] && printf '\e[%dC' "$_target_col"
   _prompt_cursor_screen_row=$_target_row
+  _prompt_cursor_screen_col=$_target_col
   printf '\e[?25h'
   return 0
 }
@@ -408,7 +484,16 @@ _prompt_render_after_edit() {
   local _old=$1 _old_pos=$2 _inserted _deleted _line_count _col
   local _label_spaces
 
-  if [ "$_old" = "$PROMPT_LINE" ] && [ "$_old_pos" -eq "$_prompt_pos" ]; then
+  if [ "${_prompt_force_full_render:-0}" -eq 1 ]; then
+    _prompt_force_full_render=0
+    _prompt_render
+    return 0
+  fi
+
+  if [ "$_old" = "$PROMPT_LINE" ]; then
+    [ "$_old_pos" -eq "$_prompt_pos" ] && return 0
+    _prompt_render_cursor_only && return 0
+    _prompt_render
     return 0
   fi
 
@@ -433,6 +518,9 @@ _prompt_render_after_edit() {
         esac
         _inserted=${_inserted:1}
       done
+      _prompt_cursor_line_and_col
+      _prompt_cursor_screen_row=$((_prompt_cursor_line - ${_prompt_top_line:-0}))
+      _prompt_cursor_screen_col=$((${#_prompt_label} + _prompt_cursor_col - _prompt_start))
       return 0
     fi
   fi
@@ -452,9 +540,11 @@ _prompt_render_after_edit() {
       _col=$((${#_prompt_label} + _prompt_cursor_col))
       printf '\r\e[K\e[1A\r'
       [ "$_col" -gt 0 ] && printf '\e[%dC' "$_col"
+      _prompt_cursor_screen_col=$_col
       return 0
     elif [ "$_deleted" != $'\n' ]; then
       printf '\b \b'
+      [ "${_prompt_cursor_screen_col:-0}" -gt 0 ] && _prompt_cursor_screen_col=$((_prompt_cursor_screen_col - 1))
       return 0
     fi
   fi
@@ -464,17 +554,45 @@ _prompt_render_after_edit() {
 
 # --- paste ------------------------------------------------------------------
 
-# Everything up to the ESC[201~ that ends a paste, inserted at the cursor.
-_prompt_paste() {
-  local _term=$'\e[201~' _chunk _text=''
+# Everything up to the ESC[201~ that ends a paste.
+_prompt_read_paste_text() {
+  if command -v perl >/dev/null 2>&1; then
+    # One process reads the whole paste in 64K sysread chunks. That avoids the
+    # one-fork-per-byte path that made big pastes visibly crawl, while still
+    # leaving the terminal in the raw/no-ISIG mode configured by prompt_line.
+    perl -e '
+      binmode STDIN;
+      binmode STDOUT;
+      my $term = "\e[201~";
+      my $buf = "";
+      while (1) {
+        my $rin = "";
+        vec($rin, fileno(STDIN), 1) = 1;
+        my $rout = $rin;
+        my $ready = select($rout, undef, undef, 1.0);
+        last unless $ready;
+        my $chunk = "";
+        my $n = sysread(STDIN, $chunk, 65536);
+        last unless $n;
+        $buf .= $chunk;
+        my $idx = index($buf, $term);
+        if ($idx >= 0) {
+          print substr($buf, 0, $idx);
+          exit 0;
+        }
+      }
+      print $buf;
+    '
+    return
+  fi
 
+  local _term=$'\e[201~' _chunk _text=''
   while :; do
-    # min 1 time 1: block for the first byte of the chunk, then take whatever
-    # else is already there and return within a tenth of a second of the burst
-    # drying up. The X guard keeps the trailing newlines command substitution
-    # would otherwise eat -- they are separators between pasted lines.
+    # Fallback when perl is unavailable: block for the first byte of a chunk,
+    # then take whatever is buffered and return within a tenth of a second of
+    # the burst drying up.
     stty min 1 time 1
-    _chunk=$(dd bs=4096 count=1 2>/dev/null; printf X)
+    _chunk=$(dd bs=65536 count=1 2>/dev/null; printf X)
     stty min 1 time 0
     _chunk=${_chunk%X}
 
@@ -485,6 +603,17 @@ _prompt_paste() {
       *"$_term"*) _text=${_text%%"$_term"*}; break ;;
     esac
   done
+  printf '%s' "$_text"
+}
+
+# Insert a bracketed paste at the cursor.
+_prompt_paste() {
+  local _text
+
+  # The X guard keeps the trailing newlines command substitution would otherwise
+  # eat -- they are separators between pasted lines.
+  _text=$(_prompt_read_paste_text; printf X)
+  _text=${_text%X}
 
   # Multiline prompts keep pasted line breaks. Normalize CRLF/CR line endings
   # first so Windows-style pasted text does not create blank lines between every
@@ -494,7 +623,10 @@ _prompt_paste() {
   _text=${_text//$'\r'/$'\n'}
   _text=${_text//$'\t'/ }
   _text=$(printf '%s' "$_text" | tr -d '\000-\010\013\014\016-\037\177')
-  _prompt_insert "$_text"
+  if [ -n "$_text" ]; then
+    _prompt_force_full_render=1
+    _prompt_insert "$_text"
+  fi
 }
 
 _prompt_insert_newline() { _prompt_insert $'\n'; }
@@ -546,7 +678,7 @@ _prompt_csi_prompt_key() {
       8|127)
         # alt+backspace / ctrl+backspace kill the word before the cursor, the
         # same as ctrl+w; unmodified backspace deletes one character.
-        if [ $((_mod_bits & 6)) -ne 0 ]; then
+        if [ $((_mod_bits & 14)) -ne 0 ]; then
           _at=$(_prompt_word_back "$_prompt_pos")
           _prompt_delete "$_at" $((_prompt_pos - _at)) kill
         else
@@ -560,6 +692,22 @@ _prompt_csi_prompt_key() {
           _prompt_accept=1
         fi
         return 0 ;;
+      57417)                                                                      # kitty left arrow
+        if [ $((_mod_bits & 14)) -ne 0 ]; then
+          _prompt_pos=$(_prompt_word_back "$_prompt_pos")
+        else
+          [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1))
+        fi
+        return 0 ;;
+      57418)                                                                      # kitty right arrow
+        if [ $((_mod_bits & 14)) -ne 0 ]; then
+          _prompt_pos=$(_prompt_word_fwd "$_prompt_pos")
+        else
+          [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1))
+        fi
+        return 0 ;;
+      57419) _prompt_move_vert -1; return 0 ;;                                    # kitty up arrow
+      57420) _prompt_move_vert 1; return 0 ;;                                     # kitty down arrow
       27)
         _prompt_esc_key || _prompt_cancel=1
         return 0 ;;
@@ -650,14 +798,14 @@ _prompt_escape() {
         C|D|[0-9]*C|[0-9]*D)           # left / right, plain or modified
           # The modifier is the last parameter: "1;3D" (alt+left), "1;5C"
           # (ctrl+right), bare "3D" on terminals that drop the leading 1, and a
-          # ":1" event suffix under the kitty protocol. alt or ctrl makes the
-          # arrow a word motion; anything else moves one character.
+          # ":1" event suffix under the kitty protocol. alt/option, meta, or
+          # ctrl makes the arrow a word motion; anything else moves one char.
           _mod=${_tail%[CD]}
           _mod=${_mod##*;}
           _mod=${_mod%%:*}
           _mod_bits=0
           [ -n "$_mod" ] && [ "$_mod" -ge 1 ] 2>/dev/null && _mod_bits=$((_mod - 1))
-          if [ $((_mod_bits & 6)) -ne 0 ]; then
+          if [ $((_mod_bits & 14)) -ne 0 ]; then
             case $_tail in
               *C) _prompt_pos=$(_prompt_word_fwd "$_prompt_pos") ;;
               *)  _prompt_pos=$(_prompt_word_back "$_prompt_pos") ;;
@@ -674,12 +822,36 @@ _prompt_escape() {
         3\;*~)                                           # alt/ctrl+delete
           _at=$(_prompt_word_fwd "$_prompt_pos")
           _prompt_delete "$_prompt_pos" $((_at - _prompt_pos)) kill ;;
-        A|B) : ;;                      # up/down: no history to walk
+        A|[0-9]*A) _prompt_move_vert -1 ;;             # up: previous line
+        B|[0-9]*B) _prompt_move_vert 1 ;;              # down: next line
         *) : ;;                        # anything else: consumed and ignored
+      esac ;;
+    27)                                # alt-arrow from terminals that emit ESC ESC [C/D
+      _nxt=$(_prompt_peek_byte 1)
+      case $_nxt in
+        '') _prompt_esc_key || return 1 ;; # treat a quick double-Esc as Esc
+        91)
+          _tail=$(_prompt_csi_tail)
+          case $_tail in
+            C|[0-9]*C) _prompt_pos=$(_prompt_word_fwd "$_prompt_pos") ;;
+            D|[0-9]*D) _prompt_pos=$(_prompt_word_back "$_prompt_pos") ;;
+            *) : ;;
+          esac ;;
+        79)
+          _nxt=$(_prompt_peek_byte)
+          case $_nxt in
+            65) _prompt_move_vert -1 ;;
+            66) _prompt_move_vert 1 ;;
+            67) _prompt_pos=$(_prompt_word_fwd "$_prompt_pos") ;;
+            68) _prompt_pos=$(_prompt_word_back "$_prompt_pos") ;;
+          esac ;;
+        *) : ;;
       esac ;;
     79)                                # SS3 (application cursor keys)
       _nxt=$(_prompt_peek_byte)
       case $_nxt in
+        65) _prompt_move_vert -1 ;;                                                         # A
+        66) _prompt_move_vert 1 ;;                                                          # B
         67) [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1)) ;;  # C
         68) [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1)) ;;                  # D
         72) _prompt_pos=0 ;;                                                                 # H
@@ -718,8 +890,12 @@ prompt_line() {
   _prompt_top_line=0
   _prompt_render_rows=0
   _prompt_cursor_screen_row=0
+  _prompt_cursor_screen_col=0
   _prompt_accept=0
   _prompt_cancel=0
+  _prompt_force_full_render=0
+  _prompt_vertical_motion=0
+  unset _prompt_goal_col
   _prompt_kill=''
   _prompt_undo_lines=()
   _prompt_undo_pos=()
@@ -736,6 +912,7 @@ prompt_line() {
   while _b=$(_prompt_read_byte); [ -n "$_b" ]; do
     _prompt_old_line=$PROMPT_LINE
     _prompt_old_pos=$_prompt_pos
+    _prompt_vertical_motion=0
     case $_b in
       27)
         _prompt_escape || { _cancelled=1; break; }
@@ -760,7 +937,7 @@ prompt_line() {
       25) _prompt_insert "$_prompt_kill" ;;            # ctrl+y
       20) _prompt_transpose ;;                         # ctrl+t
       31) _prompt_undo ;;                              # ctrl+shift+_ / ctrl+_
-      12) : ;;                                         # ctrl+l: the render below
+      12) _prompt_force_full_render=1 ;;               # ctrl+l: redraw
       7) _cancelled=1; break ;;                        # ctrl+g: abort
       3)                                               # ctrl+c: clear, else cancel
         _prompt_esc_key || { _cancelled=1; break; } ;;
@@ -775,6 +952,7 @@ prompt_line() {
         fi ;;
     esac
 
+    [ "${_prompt_vertical_motion:-0}" -eq 1 ] || unset _prompt_goal_col
     _prompt_render_after_edit "$_prompt_old_line" "$_prompt_old_pos"
   done
 
