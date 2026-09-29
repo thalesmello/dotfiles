@@ -40,8 +40,11 @@ local M = {}
 local PORT = 27123
 local WS_PATH = "/focushistory"
 -- A tab report means Chrome is frontmost, so the focused window is the one
--- hosting it -- unless the report beat the activation. Retry once if so.
-local CGWINDOW_RETRY = 0.1
+-- hosting it -- unless the report beat the activation. Poll briefly before
+-- associating a Chrome tab with a macOS CGWindowID; a wrong CGWindowID is worse
+-- than none because focushistory will later suppress/focus the wrong window.
+local CGWINDOW_RETRY = 0.05
+local CGWINDOW_TRIES = 6
 
 local st = _G._ChromeBridge
 if not st then
@@ -57,17 +60,55 @@ st.activeTabs = st.activeTabs or {}
 
 local CHROME_BUNDLE = "com.google.Chrome"
 
+local function focusedChromeWindow()
+  local win = hs.window.focusedWindow()
+  if not win then return nil end
+  local app = win:application()
+  if not app or app:bundleID() ~= CHROME_BUNDLE then return nil end
+  return win
+end
+
+local function isBrowserWindowTitle(title)
+  -- Same signal chrome-preset uses: browser windows include the Chrome/profile
+  -- suffix; app-mode windows created with --app do not. Keep the no-profile
+  -- form too in case Chrome omits the trailing profile name.
+  title = title or ""
+  return title:match(" %- Google Chrome %- ") ~= nil or title:match(" %- Google Chrome$") ~= nil
+end
+
+local function focusedWindowMatchesReport(win, msg)
+  if not win then return false end
+  local t = msg and msg.windowType or nil
+  if t == "normal" then return isBrowserWindowTitle(win:title()) end
+  if t == "app" then return not isBrowserWindowTitle(win:title()) end
+  -- Popup/devtools/older extension builds: do not guess from title.
+  return true
+end
+
+local function focusedChromeWindowId()
+  local win = focusedChromeWindow()
+  return win and win:id() and tostring(win:id()) or nil
+end
+
 -- Confirm Chrome actually came forward after focus-tab, and rescue it if not.
 --
--- chrome-preset focus-tab ends in chrome.activate(), which is enough whenever the
--- window is on the current Space -- so the common path costs nothing but a couple
--- of cheap frontmost checks. It is NOT enough across Spaces, and only then do we
--- pay for yabai.
+-- chrome-preset focus-tab ends in chrome.activate(), which is enough when Chrome
+-- was not already frontmost. It is not enough when focus stays inside the same
+-- Chrome process (browser window <-> --app window, or two profile windows): the
+-- app can be frontmost while the wrong Chrome window remains key. Verify the
+-- target CGWindowID when we know it, and only then report completion.
 --
 -- Waiting at all matters for a subtler reason: focushistory suppresses recording
 -- while a jump is in flight, so reporting completion before focus has landed lets
 -- the window we are leaving get recorded as the most-recent destination.
 local function raiseChrome(entry, cb)
+  local function landed()
+    local front = hs.application.frontmostApplication()
+    if not front or front:bundleID() ~= CHROME_BUNDLE then return false end
+    if not entry.cgWindowId then return true end
+    return focusedChromeWindowId() == tostring(entry.cgWindowId)
+  end
+
   local function rescue()
     if entry.cgWindowId then
       -- --wait-focus because a Space switch takes time to settle.
@@ -82,14 +123,13 @@ local function raiseChrome(entry, cb)
     cb(true)
   end
 
-  local function waitFrontmost(tries)
-    local front = hs.application.frontmostApplication()
-    if front and front:bundleID() == CHROME_BUNDLE then return cb(true) end
-    if tries >= 10 then return rescue() end   -- ~200ms, then assume another Space
-    hs.timer.doAfter(0.02, function() waitFrontmost(tries + 1) end)
+  local function waitLanded(tries)
+    if landed() then return cb(true) end
+    if tries >= 10 then return rescue() end   -- ~200ms, then assume another Space/window
+    hs.timer.doAfter(0.02, function() waitLanded(tries + 1) end)
   end
 
-  waitFrontmost(0)
+  waitLanded(0)
 end
 
 -- Focus a tab via AppleScript, NOT by asking the extension.
@@ -123,21 +163,33 @@ end
 -- Messages from the extension
 ---------------------------------------------------------------
 
-local function recordTab(msg, retried)
+local function recordTab(msg, tries)
+  tries = tries or 0
+
   -- The CGWindowID of the macOS window hosting this tab. Knowing it is what lets
   -- focushistory suppress the duplicate `window` entry its AX observer would
   -- otherwise record for the same window -- exactly, with no heartbeat and no
   -- "is the extension alive" guesswork.
+  --
+  -- A Chrome tab report can beat macOS focus when a link in an app-mode Chrome
+  -- window opens a normal browser tab. In that gap Chrome is frontmost, but
+  -- hs.window.focusedWindow() can still be the app window (e.g. Google Chat). Do
+  -- not stamp the new browser tab with the app window's CGWindowID; that creates
+  -- a false duplicate and later Cmd+Tab/hyper+o rescues/focuses the wrong Chrome
+  -- window. Use the extension's windowType to wait until the focused macOS
+  -- window has the same app-vs-browser shape as the reported Chrome window.
   local frontmost = hs.application.frontmostApplication()
-  if not frontmost or frontmost:name() ~= "Google Chrome" then
-    -- The report beat Chrome's activation. Once.
-    if not retried then
-      hs.timer.doAfter(CGWINDOW_RETRY, function() recordTab(msg, true) end)
+  local win = focusedChromeWindow()
+  if not frontmost or frontmost:bundleID() ~= CHROME_BUNDLE or not focusedWindowMatchesReport(win, msg) then
+    if tries < CGWINDOW_TRIES then
+      hs.timer.doAfter(CGWINDOW_RETRY, function() recordTab(msg, tries + 1) end)
+      return
     end
-    return
+    -- Better to keep the tab without a CGWindowID than to poison history with a
+    -- definitely wrong one. Future reports/focuses can fill it in.
+    win = nil
   end
 
-  local win = hs.window.focusedWindow()
   local cgWindowId = win and win:id() and tostring(win:id()) or nil
 
   -- Note the profile this report came from, for `focus-history-extension status`.
@@ -174,6 +226,7 @@ local function recordTab(msg, retried)
     id = tabId,
     chromeWindowId = windowId,
     cgWindowId = cgWindowId,
+    windowType = msg.windowType,
     app = "Google Chrome",
     title = msg.title or "",
     url = msg.url or "",

@@ -498,8 +498,6 @@ local function armActivity(entry)
 end
 
 local function activityEvent(event)
-  if not st.activityArmed then return false end
-
   local t = event:getType()
   if t == hs.eventtap.event.types.keyDown then
     local flags = event:getFlags()
@@ -516,15 +514,25 @@ local function activityEvent(event)
     if flags.cmd and code == hs.keycodes.map["tab"] then return false end
     if flags.ctrl and flags.alt and flags.cmd then return false end
 
+    -- Dwell handles passive focus. A real key press is active use; record it now
+    -- so a quick focus -> type/open -> Cmd+Tab sequence does not lose the source
+    -- window before the dwell timer fires.
     promoteCurrent("key")
   elseif t == hs.eventtap.event.types.leftMouseDown
     or t == hs.eventtap.event.types.rightMouseDown
     or t == hs.eventtap.event.types.otherMouseDown then
-    -- Let click-to-focus settle, then promote whichever window actually
-    -- received focus from the click.
-    hs.timer.doAfter(0.05, function()
-      if st.activityArmed then promoteCurrent("click") end
-    end)
+    if st.activityArmed then
+      -- Let click-to-focus settle, then promote whichever window actually
+      -- received focus from the click.
+      hs.timer.doAfter(0.05, function()
+        if st.activityArmed then promoteCurrent("click") end
+      end)
+    else
+      -- For ordinary use, capture the source before the click's side effect can
+      -- move focus (e.g. clicking a Google Chat doc link that opens a browser
+      -- tab). Dwell still filters passive focus-only fly-bys; clicks are use.
+      promoteCurrent("click")
+    end
   end
 
   return false
