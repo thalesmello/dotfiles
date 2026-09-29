@@ -37,8 +37,9 @@
 #   alt+p / alt+n                      previous / next line in multiline input
 #   alt+left / alt+right, alt+b / f    word left / right
 #   ctrl+left / ctrl+right             word left / right
-#   home / end, ctrl+a / ctrl+e        start / end of line
-#   alt+< / alt+>                      start / end of line
+#   home / end, ctrl+a / ctrl+e        start / end of current line;
+#                                      press again for start / end of buffer
+#   alt+< / alt+>                      start / end of buffer
 #   backspace, ctrl+h                  delete char before cursor
 #   delete, ctrl+d                     delete char under cursor
 #                                      (ctrl+d on an empty line: EOF, cancel)
@@ -213,6 +214,38 @@ _prompt_word_fwd() {                   # index of the end of the word right of $
   while [ "$_i" -lt "$_n" ] && [[ ${PROMPT_LINE:_i:1} != [[:alnum:]] ]]; do _i=$((_i + 1)); done
   while [ "$_i" -lt "$_n" ] && [[ ${PROMPT_LINE:_i:1} == [[:alnum:]] ]]; do _i=$((_i + 1)); done
   printf '%s' "$_i"
+}
+
+_prompt_line_start_at() {              # index of the start of the line containing $1
+  local _i=$1
+  while [ "$_i" -gt 0 ] && [ "${PROMPT_LINE:_i-1:1}" != $'\n' ]; do _i=$((_i - 1)); done
+  printf '%s' "$_i"
+}
+
+_prompt_line_end_at() {                # index of the end of the line containing $1
+  local _i=$1 _n=${#PROMPT_LINE}
+  while [ "$_i" -lt "$_n" ] && [ "${PROMPT_LINE:_i:1}" != $'\n' ]; do _i=$((_i + 1)); done
+  printf '%s' "$_i"
+}
+
+_prompt_move_line_start() {            # home / ctrl+a: line start, then buffer start
+  local _at
+  _at=$(_prompt_line_start_at "$_prompt_pos")
+  if [ "$_prompt_pos" -eq "$_at" ] && [ "$_prompt_pos" -gt 0 ]; then
+    _prompt_pos=0
+  else
+    _prompt_pos=$_at
+  fi
+}
+
+_prompt_move_line_end() {              # end / ctrl+e: line end, then buffer end
+  local _at _n=${#PROMPT_LINE}
+  _at=$(_prompt_line_end_at "$_prompt_pos")
+  if [ "$_prompt_pos" -eq "$_at" ] && [ "$_prompt_pos" -lt "$_n" ]; then
+    _prompt_pos=$_n
+  else
+    _prompt_pos=$_at
+  fi
 }
 
 # alt+u / alt+l / alt+c: recase from the cursor to the end of the word, and
@@ -686,7 +719,7 @@ _prompt_finish_render() {
 
 _prompt_render_after_edit() {
   local _old=$1 _old_pos=$2 _inserted _deleted _line_count _col
-  local _label_spaces
+  local _label_spaces _avail _i _fast_append_ok
 
   if [ "${_prompt_force_full_render:-0}" -eq 1 ]; then
     _prompt_force_full_render=0
@@ -709,7 +742,17 @@ _prompt_render_after_edit() {
     _inserted=${PROMPT_LINE:${#_old}}
     _prompt_split_lines "$PROMPT_LINE"
     _line_count=${#_prompt_render_lines[@]}
-    if [ "$_line_count" -le "$_prompt_rows" ]; then
+    _avail=$((_prompt_cols - ${#_prompt_label} - 1))
+    [ "$_avail" -lt 8 ] && _avail=8
+    _fast_append_ok=1
+    [ "${_prompt_start:-0}" -ne 0 ] && _fast_append_ok=0
+    for ((_i = 0; _i < _line_count; _i++)); do
+      if [ "${#_prompt_render_lines[$_i]}" -gt "$_avail" ]; then
+        _fast_append_ok=0
+        break
+      fi
+    done
+    if [ "$_line_count" -le "$_prompt_rows" ] && [ "$_fast_append_ok" -eq 1 ]; then
       _label_spaces=$(printf '%*s' "${#_prompt_label}" '')
       while [ -n "$_inserted" ]; do
         case ${_inserted:0:1} in
@@ -734,6 +777,7 @@ _prompt_render_after_edit() {
   # like it vanished when deleting blank multiline rows.
   if [ "$_old_pos" -eq "${#_old}" ] \
     && [ "$_prompt_pos" -eq "${#PROMPT_LINE}" ] \
+    && [ "${_prompt_start:-0}" -eq 0 ] \
     && [ "${_old:0:${#PROMPT_LINE}}" = "$PROMPT_LINE" ] \
     && [ $((${#_old} - ${#PROMPT_LINE})) -eq 1 ]; then
     _deleted=${_old: -1}
@@ -913,6 +957,8 @@ _prompt_csi_prompt_key() {
         return 0 ;;
       57419) _prompt_move_vert -1; return 0 ;;                                    # kitty up arrow
       57420) _prompt_move_vert 1; return 0 ;;                                     # kitty down arrow
+      57423) _prompt_move_line_start; return 0 ;;                                 # kitty home
+      57424) _prompt_move_line_end; return 0 ;;                                   # kitty end
       27)
         _prompt_esc_key || _prompt_cancel=1
         return 0 ;;
@@ -945,7 +991,7 @@ _prompt_csi_prompt_key() {
     _lower=$_code
     [ "$_lower" -ge 65 ] 2>/dev/null && [ "$_lower" -le 90 ] && _lower=$((_lower + 32))
     case $_lower in
-      97) _prompt_pos=0; return 0 ;;                                             # ctrl+a
+      97) _prompt_move_line_start; return 0 ;;                                   # ctrl+a
       98) [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1)); return 0 ;; # ctrl+b
       99)                                                                        # ctrl+c
         _prompt_esc_key || _prompt_cancel=1
@@ -953,7 +999,7 @@ _prompt_csi_prompt_key() {
       100)                                                                       # ctrl+d
         if [ -z "$PROMPT_LINE" ]; then _prompt_cancel=1; else _prompt_delete "$_prompt_pos" 1; fi
         return 0 ;;
-      101) _prompt_pos=${#PROMPT_LINE}; return 0 ;;                              # ctrl+e
+      101) _prompt_move_line_end; return 0 ;;                                    # ctrl+e
       102) [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1)); return 0 ;; # ctrl+f
       103) _prompt_cancel=1; return 0 ;;                                         # ctrl+g
       104|127) _prompt_delete $((_prompt_pos - 1)) 1; return 0 ;;                # ctrl+h/backspace
@@ -1045,8 +1091,8 @@ _prompt_escape() {
               *)  [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1)) ;;
             esac
           fi ;;
-        H|1~|1\;*H) _prompt_pos=0 ;;                     # home
-        F|4~|1\;*F) _prompt_pos=${#PROMPT_LINE} ;;       # end
+        H|1~|1\;*H) _prompt_move_line_start ;;          # home
+        F|4~|1\;*F) _prompt_move_line_end ;;            # end
         3~) _prompt_delete "$_prompt_pos" 1 ;;           # delete
         3\;*~)                                           # alt/ctrl+delete
           _at=$(_prompt_word_fwd "$_prompt_pos")
@@ -1083,8 +1129,8 @@ _prompt_escape() {
         66) _prompt_move_vert 1 ;;                                                          # B
         67) [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1)) ;;  # C
         68) [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1)) ;;                  # D
-        72) _prompt_pos=0 ;;                                                                 # H
-        70) _prompt_pos=${#PROMPT_LINE} ;;                                                   # F
+        72) _prompt_move_line_start ;;                                                       # H
+        70) _prompt_move_line_end ;;                                                         # F
       esac ;;
     # meta chords: alt+key arrives as Esc key
     98|66)  _prompt_pos=$(_prompt_word_back "$_prompt_pos") ;;   # alt+b
@@ -1155,8 +1201,8 @@ prompt_line() {
         [ "$_prompt_accept" -eq 1 ] && break ;;
       10) _prompt_insert_newline ;;                    # Shift+Enter / bare LF -> newline
       13) break ;;                                     # Enter -> accept
-      1) _prompt_pos=0 ;;                              # ctrl+a
-      5) _prompt_pos=${#PROMPT_LINE} ;;                # ctrl+e
+      1) _prompt_move_line_start ;;                    # ctrl+a
+      5) _prompt_move_line_end ;;                      # ctrl+e
       2) [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1)) ;;                     # ctrl+b
       6) [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1)) ;;     # ctrl+f
       127|8) _prompt_delete $((_prompt_pos - 1)) 1 ;;  # backspace / ctrl+h
