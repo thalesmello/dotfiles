@@ -52,6 +52,9 @@ quick-terminal-position = bottom
 quick-terminal-animation-duration = 0
 copy-on-select = clipboard
 
+# Keep right Option available for macOS accent/dead-key input.
+# Left Option still behaves as terminal Alt for shortcuts such as alt+left/right.
+macos-option-as-alt = left
 
 keybind = super+page_up=scroll_page_up
 keybind = super+ctrl+equal=equalize_splits
