@@ -320,23 +320,6 @@ PYUUID
 
 shell_quote() { printf '%q' "$1"; }
 
-fish_script_escape() {
-  command -v fish >/dev/null 2>&1 || herdr_die 'ask' 'fish is required to escape the pi prompt inline'
-  fish -c 'string escape --style=script -- $argv[1]' -- "$1"
-}
-
-pi_start_command() {
-  escaped_question=$(fish_script_escape "$question")
-  command='exec pi'
-  for arg in "${agent_start_args[@]}"; do
-    escaped_arg=$(fish_script_escape "$arg")
-    command="$command $escaped_arg"
-  done
-  command="$command -- $escaped_question"
-  escaped_command=$(fish_script_escape "$command")
-  printf 'fish -c %s' "$escaped_command"
-}
-
 clean_log_field() {
   printf '%s' "$1" | tr '\n\t' '  '
 }
@@ -517,23 +500,14 @@ case "$agent" in
   pi|claude)
     session_id=$(new_uuid)
     [ -n "$session_id" ] || herdr_die 'ask' 'could not generate a session id'
-    agent_start_args=(--session-id "$session_id")
-    ;;
-  codex)
     ;;
 esac
 
-# THE QUESTION IS A STARTUP ARGUMENT, NOT A SECOND CALL. Claude and codex take
-# an opening prompt as a trailing positional to `herdr agent start`.
-#
-# Pi is launched below with `herdr pane run` and a fish-escaped one-line command:
-# `fish -c 'exec pi --session-id ... -- <escaped prompt>'`. That keeps the
-# prompt inline in the command line, including multiline prompts encoded with
-# fish's script escape syntax, and avoids `agent start` rejecting control
-# characters before it gets a chance to quote them.
+# THE QUESTION IS A STARTUP ARGUMENT, NOT A SECOND CALL. Supported agents take
+# an opening prompt as trailing arguments to `herdr agent start`.
 case "$agent" in
-  pi) ;;
-  *)  agent_start_args+=("$question") ;;
+  claude) agent_start_args=(--session-id "$session_id" "$question") ;;
+  codex)  agent_start_args=("$question") ;;
 esac
 
 descriptor=$(clean_log_field "$slug")
@@ -664,16 +638,16 @@ PY
 # Start the agent with the opening prompt already on the command line.
 printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
 
-if [ "$agent" = pi ]; then
-  command=$(pi_start_command)
-  start_output=$("$herdr" pane run "$pane" "$command" 2>&1) \
-    || herdr_die 'ask' "could not start pi agent through herdr pane run: $start_output"
-else
-  # Codex only gets a thread id once it has persisted the opening message, so
-  # the watcher has to be listening before the agent starts. It no-ops for the
-  # other agents and for non-quick categories.
-  start_codex_quick_log_watcher
+# Codex only gets a thread id once it has persisted the opening message, so
+# the watcher has to be listening before the agent starts. It no-ops for the
+# other agents and for non-quick categories.
+start_codex_quick_log_watcher
 
+if [ "$agent" = pi ]; then
+  start_output=$("$herdr" agent start "$slug" --kind pi --pane "$pane" \
+    -- --session-id "$session_id" -- "$question" 2>&1) \
+    || herdr_die 'ask' "could not start pi agent through herdr agent start: $start_output"
+else
   start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
     -- "${agent_start_args[@]}" 2>&1) \
     || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
