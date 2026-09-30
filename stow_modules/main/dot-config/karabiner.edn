@@ -52,6 +52,7 @@
         "com.todesktop.230313mzl4w4u92" ; Cursor has a weird bundleid
     ]
     :chrome ["com.google.Chrome"]
+    :tot ["com.iconfactory.Tot"]
 }
 
 :layers {}
@@ -88,6 +89,14 @@
             ;; either side -- the goku letters are all left_*, and the shift
             ;; here comes from whichever shift key the hand happens to be on.
             [{:key :period :modi {:mandatory [:command :control :option :shift]}} :vk_none]
+        ]
+    }
+
+    {
+        :des "Tot app-specific shortcuts"
+        :rules [
+            ;; Cmd+L selects the current line: end first, jump to line start, then extend to next line start.
+            [:!Cl [:!Te :!Oup_arrow :!OSdown_arrow] :tot]
         ]
     }
 

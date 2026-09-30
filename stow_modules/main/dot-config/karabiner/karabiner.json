@@ -26,6 +26,31 @@
           "type" : "basic"
         } ]
       }, {
+        "description" : "Tot app-specific shortcuts",
+        "manipulators" : [ {
+          "from" : {
+            "key_code" : "l",
+            "modifiers" : {
+              "mandatory" : [ "left_command" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "e",
+            "modifiers" : [ "left_control" ]
+          }, {
+            "key_code" : "up_arrow",
+            "modifiers" : [ "left_option" ]
+          }, {
+            "key_code" : "down_arrow",
+            "modifiers" : [ "left_option", "left_shift" ]
+          } ],
+          "conditions" : [ {
+            "type" : "frontmost_application_if",
+            "bundle_identifiers" : [ "com.iconfactory.Tot" ]
+          } ],
+          "type" : "basic"
+        } ]
+      }, {
         "description" : "Mouseless: Right Shift + Space = Click",
         "manipulators" : [ {
           "to_after_key_up" : [ {
