@@ -37,7 +37,7 @@
 #   alt+p / alt+n                      previous / next line in multiline input
 #   alt+left / alt+right, alt+b / f    word left / right
 #   ctrl+left / ctrl+right             word left / right
-#   home / end, ctrl+a / ctrl+e        start / end of current line;
+#   home / end, ctrl+a / ctrl+e        start / end of the logical line;
 #                                      press again for start / end of buffer
 #   alt+< / alt+>                      start / end of buffer
 #   backspace, ctrl+h                  delete char before cursor
@@ -101,9 +101,12 @@
 # way, so the buffer is never left holding half a character; under a C locale a
 # non-ASCII character just counts as its bytes when the cursor moves over it.
 #
-# LONG INPUT. The buffer is not limited to the width or height of the popup: the
-# visible window scrolls horizontally and vertically to keep the cursor on
-# screen, so a long or multiline prompt stays editable in a small popup.
+# LONG INPUT. The buffer is not limited to the width or height of the popup:
+# long logical lines are word-wrapped onto visual continuation rows marked with
+# the same showbreak glyph used by the Neovim config (↪). Ctrl+a/e and Home/End
+# still move by logical lines, not by these visual rows. When there are more
+# visual rows than fit, the visible window scrolls vertically to keep the cursor
+# on screen.
 
 # --- byte input -------------------------------------------------------------
 
@@ -347,9 +350,9 @@ _prompt_esc_key() {
 
 # --- rendering --------------------------------------------------------------
 
-# Multiline, redrawn from scratch only when the text or viewport changes. Pure
-# cursor movement uses CSI cursor moves, with a window that scrolls to follow
-# the cursor when the buffer is wider or taller than the popup.
+# Rendering builds visual rows from logical lines. Long logical lines wrap at
+# word boundaries and continuation rows get a showbreak marker; the viewport
+# scrolls vertically when the wrapped buffer is taller than the popup.
 _prompt_split_lines() {
   local _s=$1 _line
   _prompt_render_lines=()
@@ -426,6 +429,148 @@ _prompt_count_lines() {
   _prompt_line_count=$_n
 }
 
+_prompt_visual_prefix_for() {
+  local _logical_line=$1 _continuation=$2 _spaces _marker=${PROMPT_WRAP_MARKER-↪ }
+  _spaces=$(printf '%*s' "${#_prompt_label}" '')
+
+  if [ "$_continuation" -eq 1 ]; then
+    _prompt_visual_prefix="$_spaces$_marker"
+  elif [ "$_logical_line" -eq 0 ]; then
+    _prompt_visual_prefix=$_prompt_label
+  else
+    _prompt_visual_prefix=$_spaces
+  fi
+}
+
+_prompt_visual_avail_for_prefix() {
+  local _prefix=$1
+  # Leave one terminal cell unused, as the previous horizontal-scroll renderer
+  # did, so printing text never trips terminal autowrap behind our back.
+  _prompt_visual_avail=$((_prompt_cols - ${#_prefix} - 1))
+  [ "$_prompt_visual_avail" -lt 1 ] && _prompt_visual_avail=1
+}
+
+_prompt_visual_break_len() {
+  local _text=$1 _avail=$2 _slice _i _ch
+  _slice=${_text:0:_avail}
+  _prompt_visual_break=${#_slice}
+
+  # Prefer Neovim-like word wrapping: break after whitespace or the configured
+  # nvim breakat punctuation. If no break point fits, the word is longer than
+  # the row, so split it at the available width.
+  for ((_i = ${#_slice}; _i > 0; _i--)); do
+    _ch=${_slice:_i-1:1}
+    if [[ $_ch == [[:space:]] || $_ch == '(' || $_ch == ')' || $_ch == ',' ]]; then
+      _prompt_visual_break=$_i
+      return 0
+    fi
+  done
+}
+
+_prompt_visual_append() {
+  _prompt_visual_prefixes+=("$1")
+  _prompt_visual_texts+=("$2")
+  _prompt_visual_starts+=("$3")
+  _prompt_visual_ends+=("$4")
+}
+
+_prompt_wrap_logical_line() {
+  local _line_start=$1 _line=$2 _logical_line=$3
+  local _n=${#_line} _off=0 _first=1 _prefix _avail _remaining _break
+  local _seg_start _seg_end _text _continuation
+
+  if [ "$_n" -eq 0 ]; then
+    _prompt_visual_prefix_for "$_logical_line" 0
+    _prompt_visual_append "$_prompt_visual_prefix" '' "$_line_start" "$_line_start"
+    return 0
+  fi
+
+  while [ "$_off" -lt "$_n" ]; do
+    _continuation=0
+    [ "$_first" -eq 0 ] && _continuation=1
+    _prompt_visual_prefix_for "$_logical_line" "$_continuation"
+    _prefix=$_prompt_visual_prefix
+    _prompt_visual_avail_for_prefix "$_prefix"
+    _avail=$_prompt_visual_avail
+    _remaining=$((_n - _off))
+
+    if [ "$_remaining" -le "$_avail" ]; then
+      _break=$_remaining
+    else
+      _prompt_visual_break_len "${_line:_off}" "$_avail"
+      _break=$_prompt_visual_break
+    fi
+    [ "$_break" -lt 1 ] && _break=1
+
+    _seg_start=$((_line_start + _off))
+    _seg_end=$((_seg_start + _break))
+    _text=${_line:_off:_break}
+    _prompt_visual_append "$_prefix" "$_text" "$_seg_start" "$_seg_end"
+    _off=$((_off + _break))
+    _first=0
+  done
+}
+
+_prompt_rebuild_visual_lines() {
+  local _s=$PROMPT_LINE _line _logical_start=0 _logical_line=0 _len
+  _prompt_visual_prefixes=()
+  _prompt_visual_texts=()
+  _prompt_visual_starts=()
+  _prompt_visual_ends=()
+
+  while [[ $_s == *$'\n'* ]]; do
+    _line=${_s%%$'\n'*}
+    _prompt_wrap_logical_line "$_logical_start" "$_line" "$_logical_line"
+    _len=${#_line}
+    _logical_start=$((_logical_start + _len + 1))
+    _s=${_s#*$'\n'}
+    _logical_line=$((_logical_line + 1))
+  done
+  _prompt_wrap_logical_line "$_logical_start" "$_s" "$_logical_line"
+}
+
+_prompt_visual_cursor() {
+  local _n=${#_prompt_visual_texts[@]} _i _start _end _next_start _text_len _col
+  _prompt_cursor_visual_row=0
+  _prompt_cursor_visual_text_col=0
+  _prompt_cursor_visual_col=${#_prompt_label}
+
+  for ((_i = 0; _i < _n; _i++)); do
+    _start=${_prompt_visual_starts[$_i]}
+    _end=${_prompt_visual_ends[$_i]}
+
+    if [ "$_start" -eq "$_end" ]; then
+      [ "$_prompt_pos" -eq "$_start" ] || continue
+    elif [ "$_prompt_pos" -ge "$_start" ] && [ "$_prompt_pos" -lt "$_end" ]; then
+      :
+    elif [ "$_prompt_pos" -eq "$_end" ]; then
+      if [ "$_i" -lt $((_n - 1)) ]; then
+        _next_start=${_prompt_visual_starts[$((_i + 1))]}
+        [ "$_next_start" -gt "$_prompt_pos" ] || continue
+      fi
+    else
+      continue
+    fi
+
+    _text_len=${#_prompt_visual_texts[$_i]}
+    _col=$((_prompt_pos - _start))
+    [ "$_col" -lt 0 ] && _col=0
+    [ "$_col" -gt "$_text_len" ] && _col=$_text_len
+    _prompt_cursor_visual_row=$_i
+    _prompt_cursor_visual_text_col=$_col
+    _prompt_cursor_visual_col=$((${#_prompt_visual_prefixes[$_i]} + _col))
+    return 0
+  done
+
+  if [ "$_n" -gt 0 ]; then
+    _i=$((_n - 1))
+    _text_len=${#_prompt_visual_texts[$_i]}
+    _prompt_cursor_visual_row=$_i
+    _prompt_cursor_visual_text_col=$_text_len
+    _prompt_cursor_visual_col=$((${#_prompt_visual_prefixes[$_i]} + _text_len))
+  fi
+}
+
 _prompt_line_prefix_width() {
   if [ "$1" -eq 0 ]; then
     _prompt_prefix_width=${#_prompt_label}
@@ -452,6 +597,30 @@ _prompt_render_one_line() {
   _prompt_move_cursor_to "$_row" 0
   printf '%s%s\e[K' "$_prefix" "$_shown"
   _prompt_move_cursor_to "$_row" "$_target_col"
+}
+
+_prompt_render_current_line() {
+  local _line _prefix_width _avail _target_col
+
+  [ "${_prompt_render_rows:-0}" -gt 0 ] || return 1
+  _prompt_cursor_line_and_col
+  [ "$_prompt_cursor_line" -ge "${_prompt_top_line:-0}" ] || return 1
+  [ "$_prompt_cursor_line" -lt $((${_prompt_top_line:-0} + ${_prompt_render_rows:-0})) ] || return 1
+  _prompt_line_at "$PROMPT_LINE" "$_prompt_cursor_line" || return 1
+  _line=$_prompt_line_at_result
+
+  _prompt_line_prefix_width "$_prompt_cursor_line"
+  _prefix_width=$_prompt_prefix_width
+  _avail=$((_prompt_cols - _prefix_width - 1))
+  [ "$_avail" -lt 8 ] && _avail=8
+
+  [ "$_prompt_cursor_col" -lt "$_prompt_start" ] && _prompt_start=$_prompt_cursor_col
+  [ "$_prompt_cursor_col" -gt $((_prompt_start + _avail)) ] \
+    && _prompt_start=$((_prompt_cursor_col - _avail))
+  [ "$_prompt_start" -lt 0 ] && _prompt_start=0
+
+  _target_col=$((_prefix_width + _prompt_cursor_col - _prompt_start))
+  _prompt_render_one_line "$_prompt_cursor_line" "$_line" "$_target_col"
 }
 
 _prompt_render_line_local_edit() {
@@ -534,58 +703,39 @@ _prompt_render_line_local_edit() {
 }
 
 _prompt_render_cursor_only() {
-  local _avail _target_row _target_col _prefix_width _line_count
+  local _target_row
 
-  if [[ $PROMPT_LINE != *$'\n'* ]]; then
-    _avail=$((_prompt_cols - ${#_prompt_label} - 1))
-    [ "$_avail" -lt 8 ] && _avail=8
-    [ "$_prompt_pos" -lt "$_prompt_start" ] && return 1
-    [ "$_prompt_pos" -gt $((_prompt_start + _avail)) ] && return 1
-    _target_col=$((${#_prompt_label} + _prompt_pos - _prompt_start))
-    _prompt_move_cursor_to 0 "$_target_col"
-    return 0
-  fi
-
-  _prompt_split_lines "$PROMPT_LINE"
-  _prompt_cursor_line_and_col
-  _line_count=${#_prompt_render_lines[@]}
-  [ "$_line_count" -gt 0 ] || return 1
   [ "${_prompt_render_rows:-0}" -gt 0 ] || return 1
-  [ "$_prompt_cursor_line" -ge "${_prompt_top_line:-0}" ] || return 1
-  [ "$_prompt_cursor_line" -lt $((${_prompt_top_line:-0} + _prompt_render_rows)) ] || return 1
+  _prompt_rebuild_visual_lines
+  _prompt_visual_cursor
 
-  _prefix_width=${#_prompt_label}
-  _avail=$((_prompt_cols - _prefix_width - 1))
-  [ "$_avail" -lt 8 ] && _avail=8
-  [ "$_prompt_cursor_col" -lt "$_prompt_start" ] && return 1
-  [ "$_prompt_cursor_col" -gt $((_prompt_start + _avail)) ] && return 1
+  [ "$_prompt_cursor_visual_row" -ge "${_prompt_top_line:-0}" ] || return 1
+  [ "$_prompt_cursor_visual_row" -lt $((${_prompt_top_line:-0} + _prompt_render_rows)) ] || return 1
 
-  _target_row=$((_prompt_cursor_line - _prompt_top_line))
-  _target_col=$((_prefix_width + _prompt_cursor_col - _prompt_start))
-  _prompt_move_cursor_to "$_target_row" "$_target_col"
+  _target_row=$((_prompt_cursor_visual_row - _prompt_top_line))
+  _prompt_move_cursor_to "$_target_row" "$_prompt_cursor_visual_col"
 }
 
 _prompt_move_vert() {
-  local _delta=$1 _target _line_count _col _target_len _idx=0 _i
-  [[ $PROMPT_LINE == *$'\n'* ]] || return 0
+  local _delta=$1 _target _line_count _col _target_len _target_start
 
-  _prompt_split_lines "$PROMPT_LINE"
-  _prompt_cursor_line_and_col
-  _line_count=${#_prompt_render_lines[@]}
-  _target=$((_prompt_cursor_line + _delta))
+  _prompt_rebuild_visual_lines
+  _prompt_visual_cursor
+  _line_count=${#_prompt_visual_texts[@]}
+  [ "$_line_count" -gt 0 ] || return 0
+
+  _target=$((_prompt_cursor_visual_row + _delta))
   [ "$_target" -lt 0 ] && _target=0
   [ "$_target" -ge "$_line_count" ] && _target=$((_line_count - 1))
-  [ "$_target" -ne "$_prompt_cursor_line" ] || return 0
+  [ "$_target" -ne "$_prompt_cursor_visual_row" ] || return 0
 
-  [ -n "${_prompt_goal_col+x}" ] || _prompt_goal_col=$_prompt_cursor_col
+  [ -n "${_prompt_goal_col+x}" ] || _prompt_goal_col=$_prompt_cursor_visual_text_col
   _col=$_prompt_goal_col
-  _target_len=${#_prompt_render_lines[$_target]}
+  _target_len=${#_prompt_visual_texts[$_target]}
   [ "$_col" -gt "$_target_len" ] && _col=$_target_len
 
-  for ((_i = 0; _i < _target; _i++)); do
-    _idx=$((_idx + ${#_prompt_render_lines[$_i]} + 1))
-  done
-  _prompt_pos=$((_idx + _col))
+  _target_start=${_prompt_visual_starts[$_target]}
+  _prompt_pos=$((_target_start + _col))
   _prompt_vertical_motion=1
 }
 
@@ -632,68 +782,45 @@ _prompt_render_single_line() {
 }
 
 _prompt_render() {
-  local _visible_rows _line_count _max_top _i _line_index _line _prefix _prefix_width
-  local _avail _start _shown _target_row=0 _target_col=0 _up
-
-  if [[ $PROMPT_LINE != *$'\n'* ]]; then
-    _prompt_render_single_line
-    return 0
-  fi
+  local _visible_rows _line_count _max_top _i _line_index _prefix _text
+  local _target_row=0 _target_col=0 _up
 
   printf '\e[?25l'
   _prompt_clear_previous_render
-  _prompt_split_lines "$PROMPT_LINE"
-  _prompt_cursor_line_and_col
+  _prompt_rebuild_visual_lines
+  _prompt_visual_cursor
 
   [ -n "$_prompt_rows" ] && [ "$_prompt_rows" -gt 0 ] 2>/dev/null || _prompt_rows=1
   _visible_rows=$_prompt_rows
   [ "$_visible_rows" -lt 1 ] && _visible_rows=1
 
   [ -n "$_prompt_top_line" ] || _prompt_top_line=0
-  [ "$_prompt_cursor_line" -lt "$_prompt_top_line" ] && _prompt_top_line=$_prompt_cursor_line
-  if [ "$_prompt_cursor_line" -ge $((_prompt_top_line + _visible_rows)) ]; then
-    _prompt_top_line=$((_prompt_cursor_line - _visible_rows + 1))
+  [ "$_prompt_cursor_visual_row" -lt "$_prompt_top_line" ] && _prompt_top_line=$_prompt_cursor_visual_row
+  if [ "$_prompt_cursor_visual_row" -ge $((_prompt_top_line + _visible_rows)) ]; then
+    _prompt_top_line=$((_prompt_cursor_visual_row - _visible_rows + 1))
   fi
   [ "$_prompt_top_line" -lt 0 ] && _prompt_top_line=0
 
-  _line_count=${#_prompt_render_lines[@]}
+  _line_count=${#_prompt_visual_texts[@]}
   _prompt_render_rows=$_visible_rows
   [ "$_line_count" -lt "$_prompt_render_rows" ] && _prompt_render_rows=$_line_count
+  [ "$_prompt_render_rows" -lt 1 ] && _prompt_render_rows=1
 
-  # If the prompt grew while the popup was one row tall, _prompt_top_line may be
-  # non-zero. When the popup later reports more rows (or text shrinks), clamp it
-  # before indexing the split lines. Under `set -u`, an out-of-range array lookup
-  # aborts the entire popup.
   _max_top=$((_line_count - _prompt_render_rows))
   [ "$_max_top" -lt 0 ] && _max_top=0
   [ "$_prompt_top_line" -gt "$_max_top" ] && _prompt_top_line=$_max_top
 
   for ((_i = 0; _i < _prompt_render_rows; _i++)); do
     _line_index=$((_prompt_top_line + _i))
-    _line=${_prompt_render_lines[$_line_index]-}
-    if [ "$_line_index" -eq 0 ]; then
-      _prefix=$_prompt_label
-    else
-      _prefix=$(printf '%*s' "${#_prompt_label}" '')
-    fi
-    _prefix_width=${#_prefix}
-    _avail=$((_prompt_cols - _prefix_width - 1))
-    [ "$_avail" -lt 8 ] && _avail=8
+    _prefix=${_prompt_visual_prefixes[$_line_index]-}
+    _text=${_prompt_visual_texts[$_line_index]-}
 
-    if [ "$_line_index" -eq "$_prompt_cursor_line" ]; then
-      [ "$_prompt_cursor_col" -lt "$_prompt_start" ] && _prompt_start=$_prompt_cursor_col
-      [ "$_prompt_cursor_col" -gt $((_prompt_start + _avail)) ] \
-        && _prompt_start=$((_prompt_cursor_col - _avail))
-      [ "$_prompt_start" -lt 0 ] && _prompt_start=0
-      _start=$_prompt_start
+    if [ "$_line_index" -eq "$_prompt_cursor_visual_row" ]; then
       _target_row=$_i
-      _target_col=$((_prefix_width + _prompt_cursor_col - _start))
-    else
-      _start=0
+      _target_col=$_prompt_cursor_visual_col
     fi
 
-    _shown=${_line:_start:_avail}
-    printf '%s%s\e[K' "$_prefix" "$_shown"
+    printf '%s%s\e[K' "$_prefix" "$_text"
     [ "$_i" -lt $((_prompt_render_rows - 1)) ] && printf '\n'
   done
 
@@ -717,9 +844,52 @@ _prompt_finish_render() {
   printf '\r\n'
 }
 
+_prompt_render_fast_append() {
+  local _old=$1 _old_pos=$2 _inserted _len _max_col
+
+  [ "${_prompt_force_full_render:-0}" -eq 0 ] || return 1
+  [ "${_prompt_render_rows:-0}" -gt 0 ] || return 1
+  [ "$_old_pos" -eq "${#_old}" ] || return 1
+  [ "$_prompt_pos" -eq "${#PROMPT_LINE}" ] || return 1
+  [[ $PROMPT_LINE == "$_old"* ]] || return 1
+
+  _inserted=${PROMPT_LINE:${#_old}}
+  [ -n "$_inserted" ] || return 1
+  [[ $_inserted != *$'\n'* ]] || return 1
+
+  # If the append stays inside the currently painted visual row, no wrapping or
+  # scrolling can change yet. Print only the new character(s) and defer the more
+  # expensive wrap rebuild until the next character would cross the right edge.
+  _len=${#_inserted}
+  _max_col=$((_prompt_cols - 1))
+  [ $((_prompt_cursor_screen_col + _len)) -le "$_max_col" ] || return 1
+
+  printf '%s' "$_inserted"
+  _prompt_cursor_screen_col=$((_prompt_cursor_screen_col + _len))
+  return 0
+}
+
+_prompt_render_fast_backspace() {
+  local _old=$1 _old_pos=$2
+
+  [ "${_prompt_force_full_render:-0}" -eq 0 ] || return 1
+  [ "${_prompt_render_rows:-0}" -eq 1 ] || return 1
+  [ "${_prompt_cursor_screen_row:-0}" -eq 0 ] || return 1
+  [ "${_prompt_top_line:-0}" -eq 0 ] || return 1
+  [[ $_old != *$'\n'* ]] || return 1
+  [ "$_old_pos" -eq "${#_old}" ] || return 1
+  [ "$_prompt_pos" -eq "${#PROMPT_LINE}" ] || return 1
+  [ "${_old:0:${#PROMPT_LINE}}" = "$PROMPT_LINE" ] || return 1
+  [ $((${#_old} - ${#PROMPT_LINE})) -eq 1 ] || return 1
+  [ "$_prompt_cursor_screen_col" -gt "${#_prompt_label}" ] || return 1
+
+  printf '\b \b'
+  _prompt_cursor_screen_col=$((_prompt_cursor_screen_col - 1))
+  return 0
+}
+
 _prompt_render_after_edit() {
-  local _old=$1 _old_pos=$2 _inserted _deleted _line_count _col
-  local _label_spaces _avail _i _fast_append_ok
+  local _old=$1 _old_pos=$2
 
   if [ "${_prompt_force_full_render:-0}" -eq 1 ]; then
     _prompt_force_full_render=0
@@ -734,70 +904,9 @@ _prompt_render_after_edit() {
     return 0
   fi
 
-  # Fast path for the common case: appending at the end. This edits the screen
-  # instead of clearing and repainting the prompt on every typed character.
-  if [ "$_old_pos" -eq "${#_old}" ] \
-    && [ "$_prompt_pos" -eq "${#PROMPT_LINE}" ] \
-    && [[ $PROMPT_LINE == "$_old"* ]]; then
-    _inserted=${PROMPT_LINE:${#_old}}
-    _prompt_split_lines "$PROMPT_LINE"
-    _line_count=${#_prompt_render_lines[@]}
-    _avail=$((_prompt_cols - ${#_prompt_label} - 1))
-    [ "$_avail" -lt 8 ] && _avail=8
-    _fast_append_ok=1
-    [ "${_prompt_start:-0}" -ne 0 ] && _fast_append_ok=0
-    for ((_i = 0; _i < _line_count; _i++)); do
-      if [ "${#_prompt_render_lines[$_i]}" -gt "$_avail" ]; then
-        _fast_append_ok=0
-        break
-      fi
-    done
-    if [ "$_line_count" -le "$_prompt_rows" ] && [ "$_fast_append_ok" -eq 1 ]; then
-      _label_spaces=$(printf '%*s' "${#_prompt_label}" '')
-      while [ -n "$_inserted" ]; do
-        case ${_inserted:0:1} in
-          $'\n')
-            _prompt_cursor_screen_row=$((_prompt_cursor_screen_row + 1))
-            _prompt_render_rows=$((_prompt_render_rows + 1))
-            printf '\n%s' "$_label_spaces" ;;
-          *)
-            printf '%s' "${_inserted:0:1}" ;;
-        esac
-        _inserted=${_inserted:1}
-      done
-      _prompt_cursor_line_and_col
-      _prompt_cursor_screen_row=$((_prompt_cursor_line - ${_prompt_top_line:-0}))
-      _prompt_cursor_screen_col=$((${#_prompt_label} + _prompt_cursor_col - _prompt_start))
-      return 0
-    fi
-  fi
+  _prompt_render_fast_append "$_old" "$_old_pos" && return 0
+  _prompt_render_fast_backspace "$_old" "$_old_pos" && return 0
 
-  # Fast path for backspace at the end, including deleting an empty line created
-  # by Shift+Enter. This avoids the full redraw path that can make the popup look
-  # like it vanished when deleting blank multiline rows.
-  if [ "$_old_pos" -eq "${#_old}" ] \
-    && [ "$_prompt_pos" -eq "${#PROMPT_LINE}" ] \
-    && [ "${_prompt_start:-0}" -eq 0 ] \
-    && [ "${_old:0:${#PROMPT_LINE}}" = "$PROMPT_LINE" ] \
-    && [ $((${#_old} - ${#PROMPT_LINE})) -eq 1 ]; then
-    _deleted=${_old: -1}
-    if [ "$_deleted" = $'\n' ] && [ "$_prompt_cursor_screen_row" -gt 0 ]; then
-      _prompt_cursor_screen_row=$((_prompt_cursor_screen_row - 1))
-      [ "$_prompt_render_rows" -gt 1 ] && _prompt_render_rows=$((_prompt_render_rows - 1))
-      _prompt_cursor_line_and_col
-      _col=$((${#_prompt_label} + _prompt_cursor_col))
-      printf '\r\e[K\e[1A\r'
-      [ "$_col" -gt 0 ] && printf '\e[%dC' "$_col"
-      _prompt_cursor_screen_col=$_col
-      return 0
-    elif [ "$_deleted" != $'\n' ]; then
-      printf '\b \b'
-      [ "${_prompt_cursor_screen_col:-0}" -gt 0 ] && _prompt_cursor_screen_col=$((_prompt_cursor_screen_col - 1))
-      return 0
-    fi
-  fi
-
-  _prompt_render_line_local_edit "$_old" "$_old_pos" && return 0
   _prompt_render
 }
 
