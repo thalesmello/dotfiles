@@ -914,6 +914,26 @@ function M.setup()
     {function() fish("yabai-harpoon delete") end},
   })
 
+  local function closeChromePresetApps()
+    task({"chrome-preset", "close-apps"}, function(ok, out)
+      if not ok then
+        Preset.displayMessage("Close Chrome apps: failed")
+        return
+      end
+
+      local count = tonumber(out) or 0
+      if count == 0 then
+        Preset.displayMessage("No Chrome preset apps")
+      elseif count == 1 then
+        Preset.displayMessage("Closed 1 Chrome preset app")
+      else
+        Preset.displayMessage("Closed " .. count .. " Chrome preset apps")
+      end
+    end)
+  end
+  service:bindOnce(hyper, "delete", "Close Chrome Preset Apps", closeChromePresetApps)
+  service:bindOnce({"alt"}, "delete", "Close Chrome Preset Apps", closeChromePresetApps)
+
   -- Side-by-side: arrange the marked windows (2-6) into an optimal grid.
   service:bindOnce({"shift"}, ";", "Side By Side", function()
     local count = ArgList.count()

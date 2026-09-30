@@ -619,6 +619,39 @@ function chrome-preset
         set window_id (app-db-query "SELECT window_id FROM apps WHERE app_name = '$(sq-escape $appname)';")
         test -n "$window_id"; or return 1
         echo "$window_id"
+    case "close-apps"
+        if test -z "$(get-main-chrome-pid)"
+            echo 0
+            return 0
+        end
+
+        # "Chrome preset app" here means a Chrome app-mode/headerless window,
+        # not only a window currently present in apps.db. Reuse the same title
+        # shape as is-app-window/get-profile-regex: Chrome browser windows include
+        # " - Google Chrome - ..." in their title; app-mode windows do not.
+        set app_title_regex (get-profile-regex --app-only "")
+        set window_ids (yabai-preset list-windows --all --app '^Google Chrome$' --regex "$app_title_regex" \
+            | jq -r 'select(.title | test(" - Google Chrome$") | not) | .id')
+        or return 1
+
+        if test (count $window_ids) -eq 0
+            echo 0
+            return 0
+        end
+
+        set closed
+        for window_id in $window_ids
+            # Close by yabai window id instead of focusing and sending Cmd+W: a
+            # failed focus can still exit 0 for off-space Chrome app windows,
+            # which would send Cmd+W to the currently focused browser tab.
+            yabai -m window "$window_id" --close >/dev/null 2>&1
+            or continue
+
+            set -a closed "$window_id"
+            app-db-exec "DELETE FROM apps WHERE window_id = '$(sq-escape $window_id)';"
+        end
+
+        echo (count $closed)
     case "focus-or-create-app"
         argparse profile= enforce-url -- $argv
 
