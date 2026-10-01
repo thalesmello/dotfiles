@@ -40,6 +40,17 @@ local function isProcessRunning(name)
   return taskAsync({"pgrep", "-x", name})
 end
 
+local function zoomMeetingWindowOpen()
+  local app = hs.application.get("us.zoom.xos")
+  if not app then return false end
+  for _, win in ipairs(app:allWindows()) do
+    if (win:title() or ""):match("^Zoom Meeting") then
+      return true
+    end
+  end
+  return false
+end
+
 local function isWindowFloating()
   return taskAsync({"wm-preset", "is-window-floating"})
 end
@@ -687,15 +698,15 @@ function M.setup()
   default:bindOnce(hyper, "e", "Focus Chrome", function() launchOrFocus("Google Chrome") end)
   default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() launchOrFocus("Google Chrome") end)
   default:conditionalBindOnce(hyperShift, "w", "Focus Zoom/Meet", {
-    {cond = function() return isProcessRunning("zoom.us") end, function() task({"wm-preset", "alternate-window", "--title", "Zoom Meeting"}) end},
+    {cond = zoomMeetingWindowOpen, function() task({"wm-preset", "alternate-window", "--title", "^Zoom Meeting"}) end},
     {function() task({"chrome-preset", "focus-or-open-url", "meet.google.com", "--label", "Google Meet"}) end},
   })
   default:conditionalBindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", {
-    {cond = function() return isProcessRunning("zoom.us") end, function()
+    {cond = zoomMeetingWindowOpen, function()
       Preset.displayMessage("Toggle Mute")
       -- Focus the meeting window specifically (same target as hyperShift+w),
       -- so we don't land on another Zoom window when Zoom is already active.
-      task({"wm-preset", "focus-window-title", "Zoom Meeting"})
+      task({"wm-preset", "focus-window-title", "^Zoom Meeting"})
       hs.timer.doAfter(0.5, function() hs.eventtap.keyStroke({"cmd", "shift"}, "a") end)
     end},
     {function()

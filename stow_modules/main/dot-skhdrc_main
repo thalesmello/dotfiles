@@ -320,14 +320,14 @@ ctrl + alt + cmd - r : wm-preset focus-app "Google Chrome"
 ctrl + alt + cmd - a : wm-preset focus-app "Timery"
 ctrl + alt + cmd + shift - a : wm-preset focus-app "Pomofocus"
 ctrl + alt + cmd + shift - z : wm-preset focus-app "Google Keep"
-ctrl + alt + cmd + shift - w : if pgrep "zoom.us" >/dev/null; \
-        wm-preset focus-app "zoom.us"; \
+ctrl + alt + cmd + shift - w : if wm-preset get-window-id-by-title '^Zoom Meeting' >/dev/null; \
+        wm-preset alternate-window --title '^Zoom Meeting'; \
     else; \
         chrome-preset focus-or-open-url meet.google.com --label "Google Meet"; \
     end;
-ctrl + alt + cmd + shift - s : if pgrep "zoom.us" >/dev/null; \
+ctrl + alt + cmd + shift - s : if wm-preset get-window-id-by-title '^Zoom Meeting' >/dev/null; \
         display-message "Toggle Mute"; \
-        wm-preset focus-app "zoom.us"; \
+        wm-preset focus-window-title '^Zoom Meeting'; \
         sleep 0.5; \
         btt-preset send-keys cmd shift a; \
     else; \
