@@ -14,4 +14,5 @@ return {
         vim.g.fugitive_gitlab_domains = { 'http://gitlab.platform' }
     end,
     lazy = false,
+    extra_contexts = {"ssh"}
 }
