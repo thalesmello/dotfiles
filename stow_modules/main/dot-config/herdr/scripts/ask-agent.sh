@@ -503,15 +503,20 @@ case "$agent" in
     ;;
 esac
 
-prompt_file=$(mktemp "${TMPDIR:-/tmp}/ask-agent-${slug}.XXXXXX.md") \
-  || herdr_die 'ask' 'could not create temporary prompt file'
-printf '%s\n' "$question" >"$prompt_file" \
-  || herdr_die 'ask' "could not write temporary prompt file: $prompt_file"
-chmod 600 "$prompt_file" >/dev/null 2>&1 || true
-startup_prompt="We're working on $slug. Details are in @$prompt_file"
+prompt_file=''
+if [[ "$question" == *$'\n'* ]]; then
+  prompt_file=$(mktemp "${TMPDIR:-/tmp}/ask-agent-${slug}.XXXXXX.md") \
+    || herdr_die 'ask' 'could not create temporary prompt file'
+  printf '%s\n' "$question" >"$prompt_file" \
+    || herdr_die 'ask' "could not write temporary prompt file: $prompt_file"
+  chmod 600 "$prompt_file" >/dev/null 2>&1 || true
+  startup_prompt="We're working on $slug. Details are in @$prompt_file"
+else
+  startup_prompt=$question
+fi
 
-# Keep native startup arguments shell-safe: pass a short one-line prompt on the
-# command line and put the user's full, possibly multiline prompt in a temp file.
+# Keep native startup arguments shell-safe: pass one-line prompts directly, and
+# put multiline prompts in a temp file referenced by a short startup prompt.
 case "$agent" in
   pi)     agent_start_args=(--session-id "$session_id" -- "$startup_prompt") ;;
   claude) agent_start_args=(--session-id "$session_id" "$startup_prompt") ;;
@@ -643,8 +648,8 @@ PY
 
 # --- 8. the agent session --------------------------------------------------
 
-# Start the agent with a one-line opening prompt that points at the temp file.
-# The original prompt may be multiline, so it cannot safely be an argv itself.
+# Start the agent with the selected one-line opening prompt.
+agent_start_timeout_ms=${ASK_AGENT_START_TIMEOUT_MS:-120000}
 printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
 
 # Codex only gets a thread id once it has persisted the opening message, so
@@ -654,10 +659,11 @@ start_codex_quick_log_watcher
 
 if [ "${#agent_start_args[@]}" -gt 0 ]; then
   start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
-    -- "${agent_start_args[@]}" 2>&1) \
+    --timeout "$agent_start_timeout_ms" -- "${agent_start_args[@]}" 2>&1) \
     || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
 else
-  start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" 2>&1) \
+  start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
+    --timeout "$agent_start_timeout_ms" 2>&1) \
     || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
 fi
 
