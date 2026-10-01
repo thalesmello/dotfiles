@@ -503,11 +503,19 @@ case "$agent" in
     ;;
 esac
 
-# THE QUESTION IS A STARTUP ARGUMENT, NOT A SECOND CALL. Supported agents take
-# an opening prompt as trailing arguments to `herdr agent start`.
+prompt_file=$(mktemp "${TMPDIR:-/tmp}/ask-agent-${slug}.XXXXXX.md") \
+  || herdr_die 'ask' 'could not create temporary prompt file'
+printf '%s\n' "$question" >"$prompt_file" \
+  || herdr_die 'ask' "could not write temporary prompt file: $prompt_file"
+chmod 600 "$prompt_file" >/dev/null 2>&1 || true
+startup_prompt="We're working on $slug. Details are in @$prompt_file"
+
+# Keep native startup arguments shell-safe: pass a short one-line prompt on the
+# command line and put the user's full, possibly multiline prompt in a temp file.
 case "$agent" in
-  claude) agent_start_args=(--session-id "$session_id" "$question") ;;
-  codex)  agent_start_args=("$question") ;;
+  pi)     agent_start_args=(--session-id "$session_id" -- "$startup_prompt") ;;
+  claude) agent_start_args=(--session-id "$session_id" "$startup_prompt") ;;
+  codex)  agent_start_args=("$startup_prompt") ;;
 esac
 
 descriptor=$(clean_log_field "$slug")
@@ -556,7 +564,7 @@ print(int(time.time() * 1000))
 PY
 )
 
-  python3 - "$log" "$slug" "$descriptor" "$dir" "$question" "$start_ms" <<'PY' >/dev/null 2>&1 &
+  python3 - "$log" "$slug" "$descriptor" "$dir" "$startup_prompt" "$start_ms" <<'PY' >/dev/null 2>&1 &
 import datetime as dt
 import json
 import os
@@ -635,7 +643,8 @@ PY
 
 # --- 8. the agent session --------------------------------------------------
 
-# Start the agent with the opening prompt already on the command line.
+# Start the agent with a one-line opening prompt that points at the temp file.
+# The original prompt may be multiline, so it cannot safely be an argv itself.
 printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
 
 # Codex only gets a thread id once it has persisted the opening message, so
@@ -643,13 +652,12 @@ printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
 # other agents and for non-quick categories.
 start_codex_quick_log_watcher
 
-if [ "$agent" = pi ]; then
-  start_output=$("$herdr" agent start "$slug" --kind pi --pane "$pane" \
-    -- --session-id "$session_id" -- "$question" 2>&1) \
-    || herdr_die 'ask' "could not start pi agent through herdr agent start: $start_output"
-else
+if [ "${#agent_start_args[@]}" -gt 0 ]; then
   start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
     -- "${agent_start_args[@]}" 2>&1) \
+    || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
+else
+  start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" 2>&1) \
     || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
 fi
 
