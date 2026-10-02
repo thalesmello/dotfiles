@@ -663,7 +663,7 @@ agent_panel_sort = "priority"
 # installed so their reported sessions remain native Herdr agent sessions.
 rows = [
     [
-        { token = "$um_unread", fg = "#8caaee", bold = true },
+        { token = "$um_unread", fg = "#a6d189", bold = true },
         { token = "$um_blocked", fg = "#e78284", bold = true },
         { token = "$um_working", fg = "#e5c890", bold = true },
         { token = "$um_done", fg = "#81c8be", bold = true },
