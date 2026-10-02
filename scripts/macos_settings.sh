@@ -26,6 +26,9 @@ defaults write "com.apple.AppleMultitouchTrackpad" "Clicking" -bool false
 # reduce motion
 defaults write "com.apple.universalaccess" "reduceMotion" -bool true
 
+# Use hybrid Bluetooth/Wi-Fi coexistence management
+sudo defaults write /Library/Preferences/com.apple.airport.bt.plist bluetoothCoexMgmt Hybrid
+
 # apps minimize with scale effect (least amount of time)
 defaults write com.apple.dock "mineffect" -string "scale"
 
