@@ -1,0 +1,32 @@
+# Keep the local unread-marker sidebar glyphs in sync with Herdr events.
+#
+# The keybinding itself is a plain [[keys.command]] in config.toml. This local
+# plugin only supplies event hooks so focusing a marked pane clears it and so
+# the custom $um_* status-slot tokens stay aligned with Herdr's native agent
+# status. It has no external dependency and all code lives in this dotfiles repo.
+#
+# Re-link after editing with:
+#
+#   herdr-preset install-local-plugins
+
+id = "unread-marker"
+name = "Unread Marker"
+version = "0.1.0"
+min_herdr_version = "0.8.0"
+description = "Local unread marker that clears on focus and renders in the status slot"
+platforms = ["macos", "linux"]
+
+[[startup]]
+command = ["python3", "../../scripts/unread-marker.py", "daemon"]
+
+[[events]]
+on = "pane.focused"
+command = ["python3", "../../scripts/unread-marker.py", "focus"]
+
+[[events]]
+on = "pane.agent_detected"
+command = ["python3", "../../scripts/unread-marker.py", "sync"]
+
+[[events]]
+on = "pane.agent_status_changed"
+command = ["python3", "../../scripts/unread-marker.py", "sync"]

@@ -168,8 +168,8 @@ function piInvocation(args: string[]): { command: string; args: string[] } {
 }
 
 function summaryArgs(text: string, model?: string): string[] {
-	// Ephemeral: --no-session keeps title generation out of ~/.pi/agent/sessions,
-	// out of `pi --resume`, and out of the agent inbox's history.
+	// Ephemeral: --no-session keeps title generation out of ~/.pi/agent/sessions
+	// and out of `pi --resume`; only the titled parent session reaches Herdr.
 	const args = [...PI_PRINT_ARGS];
 	if (model) args.push("--model", model);
 	args.push("--system-prompt", SYSTEM_PROMPT, "--", text);

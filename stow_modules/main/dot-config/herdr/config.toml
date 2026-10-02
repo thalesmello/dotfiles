@@ -84,7 +84,10 @@ prefix = "ctrl+space"
 # help = "prefix+?"
 # settings = "prefix+s"
 # detach = "prefix+q"
-reload_config = "prefix+shift+r"
+# prefix+shift+r is handled below by scripts/reload-config.sh so long-running
+# local helpers (currently unread-marker's animation daemon) restart with code
+# changes whenever the config is reloaded from the keyboard.
+reload_config = ""
 # prefix+o is repurposed as the output picker (see [[keys.command]] below), so
 # the notification-target jump is unbound.
 open_notification_target = "prefix+shift+o"
@@ -190,6 +193,15 @@ navigate_pane_right = ""
 # command = "lazygit"
 # width = "80%"
 # height = "80%"
+
+# Reload Herdr config and restart local long-running helpers that config reloads
+# do not otherwise touch (notably unread-marker.py daemon, which animates the
+# working status glyph).
+[[keys.command]]
+key = "prefix+shift+r"
+type = "shell"
+command = "~/.config/herdr/scripts/reload-config.sh"
+description = "reload config and local helper daemons"
 
 # tmux parity: `bind C send-keys C-l` — clear the focused pane's screen.
 # (tmux also ran `clear-history`; herdr has no scrollback-clear CLI, so this
@@ -461,48 +473,15 @@ type = "shell"
 command = "~/.config/herdr/scripts/focus-jumplist.fish forward"
 description = "forward in focus history"
 
-# Agent inbox (scripts/agent-inbox-daemon.py + agent-inbox.fish + agent-inbox-tui.py).
-# A local-script port of github.com/douglascorrea/herdr-agent-inbox: the Agents
-# panel becomes an attention queue you can triage like a mailbox. Settling an
-# agent sinks it to the bottom until it does something again; marking one unread
-# pins it back on top. local-plugins/agent-inbox starts the daemon when the Herdr
-# server starts; these keys still ensure it is up as a fallback.
-#
-# prefix+m: settle the focused agent -- "I am done with this thread".
-[[keys.command]]
-key = "prefix+m"
-type = "shell"
-command = "~/.config/herdr/scripts/agent-inbox.fish settle"
-description = "settle agent (sink to bottom of the inbox)"
-
-# prefix+u: the opposite -- push a finished agent back into the attention tier.
-# NOT prefix+shift+m (upstream's key): that is break-pane.sh here.
+# Manual unread marker. This is a no-plugin/no-jq local reimplementation of
+# github.com/JoanGil/herdr-unread-marker: prefix+u toggles the focused pane,
+# local-plugins/unread-marker clears it on focus, and the sidebar renders it in
+# the same slot as Herdr's normal status glyph.
 [[keys.command]]
 key = "prefix+u"
 type = "shell"
-command = "~/.config/herdr/scripts/agent-inbox.fish unread"
-description = "mark agent unread (back to the attention tier)"
-
-# prefix+alt+m: settle everything finished in this workspace at once.
-[[keys.command]]
-key = "prefix+alt+m"
-type = "shell"
-command = "~/.config/herdr/scripts/agent-inbox.fish settle-workspace"
-description = "settle every finished agent in the workspace"
-
-# prefix+i: the inbox popup -- every agent and every closed chat, with titles,
-# runtimes and the triage keys (s settle, u unread, S settle-all, r retitle,
-# g cycle views, h history, enter focus).
-# type = "popup" so it runs in a herdr-rendered PTY: it is a curses app, and a
-# detached type = "shell" command has no terminal at all. Session-modal (it eats
-# the prefix key while open), which is what a modal picker wants anyway.
-[[keys.command]]
-key = "prefix+i"
-type = "popup"
-command = "python3 ~/.config/herdr/scripts/agent-inbox-tui.py"
-description = "agent inbox"
-width = "80%"
-height = "70%"
+command = "~/.config/herdr/scripts/unread-marker.py toggle"
+description = "toggle focused agent unread marker"
 
 # prefix++ / prefix+_: widen / narrow the sidebar by 2 columns. herdr has no
 # keybinding for this (only the mouse drag on the divider), and the live width
@@ -667,43 +646,41 @@ window_title = "[herdr] {hostname}: {workspace}"
 # claude = [["state_icon", "workspace", "tab"], ["terminal_title_stripped"], ["agent"]]
 
 # Agent panel ordering: "spaces" (grouped by space) or "priority" (attention queue).
-# Superseded while the agent-inbox daemon runs: it calls agent.view.set with a
-# sort over its own `rank` token (blocked, then finished-unseen, working, idle,
-# and settled at the bottom), which is this same attention queue plus a settled
-# tier. This value is what the panel falls back to when the daemon is not up.
+# Keep Herdr's native priority ordering. The manual unread marker below is
+# display-only; it does not re-sort.
 agent_panel_sort = "priority"
 
 [ui.sidebar.agents]
-# First line:  <status> <flag> <session title, else stripped window title>
-# Second line: <tab▸workspace> <age>
-# herdr joins row tokens with a space (sidebar rows can't contain literal text,
-# only builtin tokens and `$name` metadata tokens).
+# First line:  <status/unread glyph> <agent-owned session title>
+# Second line: <agent label> <workspace> <tab>
 #
-# The tab/workspace component is a single daemon-reported token ($place), so it
-# renders with no spaces around the separator.
-#
-# The daemon publishes that "session title, else stripped window title" value
-# through the BUILTIN `agent` token by setting display_agent to the same value
-# it computes for its own $title token: derived session title when available,
-# else herdr's stripped terminal title, else the plain agent name as a last
-# resort.
+# Status is rendered through unread-marker.py's mutually-exclusive $um_* tokens
+# rather than state_icon so a manual unread flag can occupy the status slot. The
+# event hook refreshes those tokens on startup, focus, and agent status changes.
+# Titles intentionally come from Herdr's built-in terminal_title_stripped field,
+# not from a side daemon. Pi's session-title extension writes the Pi session name
+# into the terminal title, and the current Herdr Claude/Codex integrations are
+# installed so their reported sessions remain native Herdr agent sessions.
 rows = [
     [
-        "state_icon",
-        { token = "$flag", fg = "#e5c890", bold = true },
-        { token = "agent", fg = "#c6d0f5", bold = false, dim = false },
+        { token = "$um_unread", fg = "#8caaee", bold = true },
+        { token = "$um_blocked", fg = "#e78284", bold = true },
+        { token = "$um_working", fg = "#e5c890", bold = true },
+        { token = "$um_done", fg = "#81c8be", bold = true },
+        { token = "$um_idle", fg = "#a6d189", bold = false },
+        { token = "$um_unknown", fg = "#737994", bold = false, dim = true },
+        { token = "terminal_title_stripped", fg = "#c6d0f5", bold = false, dim = false },
     ],
     [
-        { token = "$place", fg = "#a5adce", bold = false, dim = true },
-        { token = "$age", dim = true }
+        { token = "agent", fg = "#a5adce", bold = false, dim = true },
+        { token = "workspace", fg = "#a5adce", bold = false, dim = true },
+        { token = "tab", fg = "#a5adce", bold = false, dim = true },
     ]
 ]
 
 [ui.sidebar.spaces]
-# Per-workspace rollup from the same daemon: $agents counts its agents by state
-# ("!1 ●2 ▸1 ⚑3"), $busy is the longest stint an agent there has been working.
 rows = [
-    ["state_icon", "workspace", "$agents", { token = "$busy", dim = true }],
+    ["state_icon", "workspace"],
     ["branch", "git_status"]
 ]
 
