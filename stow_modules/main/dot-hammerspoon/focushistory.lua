@@ -2,8 +2,9 @@
 -- the desktop. hyper+o walks back toward older entries, hyper+i walks forward
 -- toward newer entries. The stack is ordered oldest -> newest, and the newest
 -- entry is the top of the stack. Entries are unique: once a browsed-to window is
--- used (key press or click), it is popped from wherever it was and moved to the
--- top rather than creating a browser-style forward branch.
+-- settled (typing/clicking, dwelling, or releasing/changing a modifier after a
+-- navigation shortcut), it is popped from wherever it was and moved to the top
+-- rather than creating a browser-style forward branch.
 --
 -- Detection is event-driven. Deliberately NOT hs.window.filter: it AX-sweeps every
 -- window of every app at construction (~6.3s of a ~6.4s config load, see mode.lua)
@@ -48,6 +49,12 @@ local MAX = 20
 local SETTINGS_KEY = "focushistory"
 -- How long a hotkey press will wait before acting on the history as it stands.
 local SETTLE_TIMEOUT = 0.3
+-- Modifier changes usually arrive just before the UI finishes switching focus;
+-- wait a beat so releasing a shortcut settles the destination, not the source.
+local MODIFIER_SETTLE_DELAY = 0.05
+-- Ignore the modifier-release settle that belongs to hyper+o/i themselves, so a
+-- history-selected entry stays browsable and hyper+i can still go forward.
+local HISTORY_NAV_MODIFIER_SUPPRESS = 0.75
 -- Position readout duration. Shorter than Preset.displayMessage's 0.75s default:
 -- this is glanced at mid-navigation, not read.
 local HUD_DURATION = 0.4
@@ -284,7 +291,8 @@ end
 
 local function cancelActivityArm()
   -- Legacy cleanup: older configs used a dwell timer for pending history
-  -- activation. The current policy is explicit only: key press or click.
+  -- activation. The current policy is explicit activity (key/click/modifier
+  -- change) or the normal focused-window dwell.
   if _G._FocusHistoryActivityTimer then
     pcall(function() _G._FocusHistoryActivityTimer:stop() end)
     _G._FocusHistoryActivityTimer = nil
@@ -301,6 +309,13 @@ local function cancelDwellTimer()
   end
   _G._FocusHistoryDwellKey = nil
   _G._FocusHistoryDwellEntry = nil
+end
+
+local function cancelModifierSettleTimer()
+  if _G._FocusHistoryModifierSettleTimer then
+    pcall(function() _G._FocusHistoryModifierSettleTimer:stop() end)
+    _G._FocusHistoryModifierSettleTimer = nil
+  end
 end
 
 ---------------------------------------------------------------
@@ -487,6 +502,75 @@ local function promoteCurrent(reason)
   return true
 end
 
+local function suppressModifierSettleForHistoryNavigation()
+  st.suppressModifierSettleUntil = hs.timer.secondsSinceEpoch() + HISTORY_NAV_MODIFIER_SUPPRESS
+end
+
+local function clearHistoryNavigationModifierSuppression()
+  st.suppressModifierSettleUntil = nil
+end
+
+local function noteHyperKeyDown(code, flags)
+  local isHyperChord = capsHyper.isHeld() or (flags.ctrl and flags.alt and flags.cmd)
+  if not isHyperChord then return end
+
+  local isHistoryNav = not flags.shift
+    and (code == hs.keycodes.map["o"] or code == hs.keycodes.map["i"])
+  if isHistoryNav then
+    suppressModifierSettleForHistoryNavigation()
+  else
+    -- A subsequent hyper shortcut (e.g. hyper+x to focus Terminal) should settle
+    -- normally even if it follows hyper+o/i quickly.
+    clearHistoryNavigationModifierSuppression()
+  end
+end
+
+local function modifierCount(flags)
+  local n = 0
+  for _, name in ipairs({"cmd", "ctrl", "alt", "shift", "fn"}) do
+    if flags and flags[name] then n = n + 1 end
+  end
+  return n
+end
+
+local function noteRealModifierChange(flags)
+  local count = modifierCount(flags)
+  local previous = st.lastRealModifierCount
+  st.lastRealModifierCount = count
+
+  -- Pressing modifiers is the start of a shortcut, not settling. Releasing one
+  -- is the useful signal that a shortcut-driven navigation just ended.
+  if previous ~= nil and count < previous then return true end
+  return false
+end
+
+local function settleAfterModifierChange(reason)
+  cancelModifierSettleTimer()
+
+  -- If a Hammerspoon-driven focus jump is still in flight, keep the release
+  -- signal alive until the destination has actually landed. Otherwise releasing
+  -- hyper during a slower cross-space jump would be dropped while st.busy is
+  -- true, and the selected place would never be promoted.
+  local deadline = hs.timer.secondsSinceEpoch() + 4
+  local function attempt()
+    _G._FocusHistoryModifierSettleTimer = nil
+    if st.suppressModifierSettleUntil
+      and hs.timer.secondsSinceEpoch() < st.suppressModifierSettleUntil then
+      if M.debug then
+        print(string.format("[focushistory] modifier settle (%s) suppressed after history nav", reason or "?"))
+      end
+      return
+    end
+    if st.busy and hs.timer.secondsSinceEpoch() < deadline then
+      _G._FocusHistoryModifierSettleTimer = hs.timer.doAfter(MODIFIER_SETTLE_DELAY, attempt)
+      return
+    end
+    promoteCurrent(reason or "modifier")
+  end
+
+  _G._FocusHistoryModifierSettleTimer = hs.timer.doAfter(MODIFIER_SETTLE_DELAY, attempt)
+end
+
 local function armActivity(entry)
   cancelActivityArm()
   cancelDwellTimer()
@@ -503,10 +587,14 @@ local function activityEvent(event)
     local flags = event:getFlags()
     local code = event:getKeyCode()
 
+    noteHyperKeyDown(code, flags)
+
     -- A key only counts as activity after hyper is released. This check is
     -- independent of eventtap ordering: if the caps_hyper tap has not stamped
     -- ctrl/cmd/opt onto this event yet, the real hyper state still tells us to
-    -- ignore it.
+    -- ignore it. The hyper release itself settles the selected destination via
+    -- capsHyper.onRelease below, except for hyper+o/i history browsing where
+    -- forward navigation must remain available.
     if capsHyper.isHeld() then return false end
 
     -- Navigation itself is not activity. Cmd+Tab has its own history policy, and
@@ -514,10 +602,19 @@ local function activityEvent(event)
     if flags.cmd and code == hs.keycodes.map["tab"] then return false end
     if flags.ctrl and flags.alt and flags.cmd then return false end
 
-    -- Dwell handles passive focus. A real key press is active use; record it now
-    -- so a quick focus -> type/open -> Cmd+Tab sequence does not lose the source
-    -- window before the dwell timer fires.
+    -- Only unmodified typing counts as active use. Modified key presses are
+    -- shortcuts (e.g. cmd+shift+[ cycling Chrome tabs); those settle once the
+    -- modifier is released or after the normal 5s dwell.
+    if flags.cmd or flags.ctrl or flags.alt or flags.shift or flags.fn then return false end
+
     promoteCurrent("key")
+  elseif t == hs.eventtap.event.types.flagsChanged then
+    -- Real modifier RELEASES are the best signal that an app/tab navigation
+    -- shortcut has ended. Hyper is synthetic, so ignore real-modifier churn while
+    -- it is held and handle the final hyper release separately.
+    if not capsHyper.isHeld() and noteRealModifierChange(event:getFlags()) then
+      settleAfterModifierChange("modifier")
+    end
   elseif t == hs.eventtap.event.types.leftMouseDown
     or t == hs.eventtap.event.types.rightMouseDown
     or t == hs.eventtap.event.types.otherMouseDown then
@@ -664,9 +761,10 @@ local function observe(done, immediate)
     return
   end
 
-  -- A history-selected entry is pending an explicit key/click. Plain AX focus
-  -- notifications must not schedule the normal dwell recorder, or a Chrome tab
-  -- report / focus refresh can promote the entry without interaction.
+  -- A history-selected entry is pending an explicit settle signal (key/click or
+  -- modifier change/release). Plain AX focus notifications must not schedule the
+  -- normal dwell recorder, or a Chrome tab report / focus refresh can promote
+  -- the entry without interaction.
   if st.activityArmed then
     if done then done() end
     return
@@ -717,6 +815,11 @@ function M.noteCurrent(entry)
     if key == st.activityKey then
       st.activityEntry = entry
       setCurrent(key, entry)
+    elseif capsHyper.isHeld() then
+      -- While the user is still holding hyper after hyper+o/i, Chrome can emit
+      -- delayed/passive tab reports for the same browser window. Do not let
+      -- those retarget the armed history entry before hyper+i has a chance to
+      -- walk forward again.
     elseif not samePlace(entry, st.activityEntry) then
       st.activityKey = key
       st.activityEntry = entry
@@ -727,7 +830,7 @@ function M.noteCurrent(entry)
   end
 
   -- Refresh labels/metadata in place, but never reorder. Reordering is reserved
-  -- for record()/recordDwelled() and explicit key/click activity.
+  -- for record()/recordDwelled() and explicit settle activity.
   local idx = indexOfKey(key)
   if idx then
     local cur = st.stack[idx]
@@ -750,8 +853,8 @@ function M.recordDwelled(entry)
   -- Chrome may report the focused tab after a history jump has already landed
   -- and after the short settle window has expired. That report is not user
   -- activity; while a history-selected entry is armed, only the activity eventtap
-  -- (key/click) may promote anything. If the report is just Chrome's tab-level
-  -- identity for the same macOS window we selected, leave currentKey alone too;
+  -- (key/click/modifier) may promote anything. If the report is just Chrome's
+  -- tab-level identity for the same macOS window we selected, leave currentKey alone too;
   -- otherwise continuing hyper+o/i can start from the tab duplicate rather than
   -- from the entry visibly selected in the stack.
   if st.activityArmed then
@@ -759,6 +862,10 @@ function M.recordDwelled(entry)
     if key == st.activityKey then
       st.activityEntry = entry
       setCurrent(key, entry)
+    elseif capsHyper.isHeld() then
+      -- Same guard as noteCurrent(): during a held-hyper history walk, passive
+      -- Chrome activation reports must not move the cursor to a different tab
+      -- and turn the next hyper+i into "history end".
     elseif not samePlace(entry, st.activityEntry) then
       st.activityKey = key
       st.activityEntry = entry
@@ -953,16 +1060,20 @@ jump = function(delta, done)
   -- not activity. Do not flush/record it first, or merely stepping again would
   -- promote the intermediate entry to the top.
   local started = false
-  local function go()
+  local function go(keepCursor)
     if started then return end
     started = true
-    alignCursorToCurrent()
+    if not keepCursor then alignCursorToCurrent() end
     if delta < 0 and st.cursor > 1 then rememberNavigationTop() end
     jumpToIndex(st.cursor, delta, done)
   end
 
   if activityArmMatchesCurrent() then
-    go()
+    -- The cursor was placed on the history-selected entry by jumpToIndex().
+    -- Trust it for continued hyper+o/i browsing; re-aligning through Chrome's
+    -- live reports can snap to the newest tab in the same window and make
+    -- forward incorrectly say "history end".
+    go(true)
     return
   end
 
@@ -1075,6 +1186,7 @@ function M.clear()
   st.cursor = 0
   clearNavigationSession()
   cancelActivityArm()
+  clearHistoryNavigationModifierSuppression()
   setCurrent(nil, nil)
   save()
   hud("Focus history cleared")
@@ -1143,6 +1255,8 @@ function M.setup()
   end
   _G._FocusHistoryHyperUnwatchers = nil
   cancelDwellTimer()
+  cancelModifierSettleTimer()
+  clearHistoryNavigationModifierSuppression()
   clearNavigationSession()
   cancelActivityArm()
 
@@ -1151,11 +1265,16 @@ function M.setup()
 
   _G._FocusHistoryActivityTap = hs.eventtap.new({
     hs.eventtap.event.types.keyDown,
+    hs.eventtap.event.types.flagsChanged,
     hs.eventtap.event.types.leftMouseDown,
     hs.eventtap.event.types.rightMouseDown,
     hs.eventtap.event.types.otherMouseDown,
   }, activityEvent)
   _G._FocusHistoryActivityTap:start()
+
+  _G._FocusHistoryHyperUnwatchers = {
+    capsHyper.onRelease(function() settleAfterModifierChange("hyper-release") end),
+  }
 
   _G._FocusHistoryAppWatcher = hs.application.watcher.new(function(_, event, app)
     if event == hs.application.watcher.activated then
