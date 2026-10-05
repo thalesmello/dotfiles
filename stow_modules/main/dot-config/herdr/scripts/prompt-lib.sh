@@ -113,12 +113,49 @@
 # Read one byte and print its decimal value; empty if the read timed out.
 _prompt_read_byte() { dd bs=1 count=1 2>/dev/null | od -An -tu1 | tr -dc '0-9'; }
 
+_prompt_pending_has_bytes() {
+  [ -n "${_prompt_pending_file:-}" ] && [ -s "$_prompt_pending_file" ]
+}
+
+_prompt_get_byte() {
+  local _b _tmp
+  if _prompt_pending_has_bytes; then
+    IFS= read -r _b <"$_prompt_pending_file"
+    _tmp=$_prompt_pending_file.tmp
+    tail -n +2 "$_prompt_pending_file" >"$_tmp" 2>/dev/null || :
+    mv "$_tmp" "$_prompt_pending_file"
+    printf '%s' "$_b"
+  else
+    _prompt_read_byte
+  fi
+}
+
+_prompt_unread_bytes() {
+  local _tmp
+  [ -n "${_prompt_pending_file:-}" ] || return 0
+  _tmp=$_prompt_pending_file.tmp
+  {
+    printf '%s\n' "$@"
+    _prompt_pending_has_bytes && cat "$_prompt_pending_file"
+  } >"$_tmp"
+  mv "$_tmp" "$_prompt_pending_file"
+}
+
+_prompt_unread_byte() { _prompt_unread_bytes "$1"; }
+
 # Same, but gives up after ~$1 tenths of a second (0 = whatever is already
 # buffered).
 _prompt_peek_byte() {
+  local _b
+  if _prompt_pending_has_bytes; then
+    _prompt_get_byte
+    return
+  fi
+
   stty min 0 time "${1:-0}"
-  _prompt_read_byte
+  _b=$(_prompt_read_byte)
   stty min 1 time 0
+  printf '%s' "$_b"
 }
 
 # A byte's decimal value -> that byte.
@@ -201,6 +238,86 @@ _prompt_delete() {
   _prompt_save_undo
   PROMPT_LINE="${PROMPT_LINE:0:_at}${PROMPT_LINE:_at + _len}"
   [ "$_prompt_pos" -gt "$_at" ] && _prompt_pos=$_at
+}
+
+_prompt_collect_backspace_run() {
+  local _max=$1 _b _count=1
+
+  while :; do
+    _b=$(_prompt_peek_byte)
+    case $_b in
+      8|127)
+        # Once the cursor reaches the start, extra repeated backspaces are
+        # no-ops. Drop them instead of replaying a long no-op queue.
+        [ "$_count" -lt "$_max" ] && _count=$((_count + 1)) ;;
+      '') break ;;
+      *) _prompt_unread_byte "$_b"; break ;;
+    esac
+  done
+
+  _prompt_backspace_count=$_count
+}
+
+_prompt_backspace_key() {
+  local _count _at
+
+  if [ "$_prompt_pos" -le 0 ]; then
+    # Coalesce and drop any immediately queued no-op backspaces at BOL.
+    _prompt_collect_backspace_run 0
+    return 0
+  fi
+
+  _prompt_collect_backspace_run "$_prompt_pos"
+  _count=$_prompt_backspace_count
+  [ "$_count" -gt "$_prompt_pos" ] && _count=$_prompt_pos
+  _at=$((_prompt_pos - _count))
+  _prompt_delete "$_at" "$_count"
+}
+
+_prompt_delete_forward_key() {
+  local _max=$((${#PROMPT_LINE} - _prompt_pos)) _b _count=1
+
+  [ "$_max" -gt 0 ] || return 0
+  while :; do
+    _b=$(_prompt_peek_byte)
+    case $_b in
+      4) [ "$_count" -lt "$_max" ] && _count=$((_count + 1)) ;;
+      '') break ;;
+      *) _prompt_unread_byte "$_b"; break ;;
+    esac
+  done
+
+  [ "$_count" -gt "$_max" ] && _count=$_max
+  _prompt_delete "$_prompt_pos" "$_count"
+}
+
+_prompt_delete_sequence_key() {
+  local _max=$((${#PROMPT_LINE} - _prompt_pos)) _count=1
+  local _b1 _b2 _b3 _b4
+  local -a _seen
+
+  [ "$_max" -gt 0 ] || return 0
+  while :; do
+    _seen=()
+    _b1=$(_prompt_peek_byte); [ -n "$_b1" ] || break; _seen+=("$_b1")
+    [ "$_b1" = 27 ] || { _prompt_unread_bytes "${_seen[@]}"; break; }
+
+    _b2=$(_prompt_peek_byte); [ -n "$_b2" ] || { _prompt_unread_bytes "${_seen[@]}"; break; }; _seen+=("$_b2")
+    [ "$_b2" = 91 ] || { _prompt_unread_bytes "${_seen[@]}"; break; }
+
+    _b3=$(_prompt_peek_byte); [ -n "$_b3" ] || { _prompt_unread_bytes "${_seen[@]}"; break; }; _seen+=("$_b3")
+    [ "$_b3" = 51 ] || { _prompt_unread_bytes "${_seen[@]}"; break; }
+
+    _b4=$(_prompt_peek_byte); [ -n "$_b4" ] || { _prompt_unread_bytes "${_seen[@]}"; break; }; _seen+=("$_b4")
+    if [ "$_b4" = 126 ]; then
+      [ "$_count" -lt "$_max" ] && _count=$((_count + 1))
+    else
+      _prompt_unread_bytes "${_seen[@]}"
+      break
+    fi
+  done
+
+  _prompt_delete "$_prompt_pos" "$_count"
 }
 
 # Word boundaries, readline's definition: alphanumerics are the word, anything
@@ -430,8 +547,7 @@ _prompt_count_lines() {
 }
 
 _prompt_visual_prefix_for() {
-  local _logical_line=$1 _continuation=$2 _spaces _marker=${PROMPT_WRAP_MARKER-↪ }
-  _spaces=$(printf '%*s' "${#_prompt_label}" '')
+  local _logical_line=$1 _continuation=$2 _spaces=${_prompt_label_spaces-} _marker=${PROMPT_WRAP_MARKER-↪ }
 
   if [ "$_continuation" -eq 1 ]; then
     _prompt_visual_prefix="$_spaces$_marker"
@@ -533,7 +649,7 @@ _prompt_visual_cursor() {
   local _n=${#_prompt_visual_texts[@]} _i _start _end _next_start _text_len _col
   _prompt_cursor_visual_row=0
   _prompt_cursor_visual_text_col=0
-  _prompt_cursor_visual_col=${#_prompt_label}
+  _prompt_cursor_visual_col=${_prompt_label_width:-${#_prompt_label}}
 
   for ((_i = 0; _i < _n; _i++)); do
     _start=${_prompt_visual_starts[$_i]}
@@ -572,11 +688,7 @@ _prompt_visual_cursor() {
 }
 
 _prompt_line_prefix_width() {
-  if [ "$1" -eq 0 ]; then
-    _prompt_prefix_width=${#_prompt_label}
-  else
-    _prompt_prefix_width=${#_prompt_label}
-  fi
+  _prompt_prefix_width=${_prompt_label_width:-${#_prompt_label}}
 }
 
 _prompt_render_one_line() {
@@ -588,7 +700,7 @@ _prompt_render_one_line() {
   if [ "$_line_index" -eq 0 ]; then
     _prefix=$_prompt_label
   else
-    _prefix=$(printf '%*s' "${#_prompt_label}" '')
+    _prefix=${_prompt_label_spaces-}
   fi
   _avail=$((_prompt_cols - ${#_prefix} - 1))
   [ "$_avail" -lt 8 ] && _avail=8
@@ -702,6 +814,35 @@ _prompt_render_line_local_edit() {
   _prompt_render_one_line "$_new_line" "$_line" "$_target_col"
 }
 
+_prompt_render_cursor_only_fast() {
+  local _old_pos=$1 _delta _target_col _visual_row _start _end _text
+
+  [ "${_prompt_render_rows:-0}" -gt 0 ] || return 1
+  _delta=$((_prompt_pos - _old_pos))
+  [ "$_delta" -ne 0 ] || return 0
+
+  if [ "$_delta" -gt 0 ]; then
+    _text=${PROMPT_LINE:_old_pos:_delta}
+  else
+    _text=${PROMPT_LINE:_prompt_pos:-_delta}
+  fi
+  [[ $_text != *$'\n'* ]] || return 1
+
+  _target_col=$((${_prompt_cursor_screen_col:-0} + _delta))
+  [ "$_target_col" -ge 0 ] || return 1
+  [ "$_target_col" -lt "${_prompt_cols:-80}" ] || return 1
+
+  _visual_row=$((${_prompt_top_line:-0} + ${_prompt_cursor_screen_row:-0}))
+  if [ -n "${_prompt_visual_starts[$_visual_row]+x}" ] && [ -n "${_prompt_visual_ends[$_visual_row]+x}" ]; then
+    _start=${_prompt_visual_starts[$_visual_row]}
+    _end=${_prompt_visual_ends[$_visual_row]}
+    [ "$_prompt_pos" -ge "$_start" ] || return 1
+    [ "$_prompt_pos" -lt "$_end" ] || return 1
+  fi
+
+  _prompt_move_cursor_to "${_prompt_cursor_screen_row:-0}" "$_target_col"
+}
+
 _prompt_render_cursor_only() {
   local _target_row
 
@@ -762,7 +903,7 @@ _prompt_render_single_line() {
     printf '\r'
   fi
 
-  _avail=$((_prompt_cols - ${#_prompt_label} - 1))
+  _avail=$((_prompt_cols - ${_prompt_label_width:-${#_prompt_label}} - 1))
   [ "$_avail" -lt 8 ] && _avail=8
 
   [ "$_prompt_pos" -lt "$_prompt_start" ] && _prompt_start=$_prompt_pos
@@ -778,7 +919,7 @@ _prompt_render_single_line() {
   [ "$_tail" -gt 0 ] && printf '\e[%dD' "$_tail"
   _prompt_render_rows=1
   _prompt_cursor_screen_row=0
-  _prompt_cursor_screen_col=$((${#_prompt_label} + _prompt_pos - _prompt_start))
+  _prompt_cursor_screen_col=$((${_prompt_label_width:-${#_prompt_label}} + _prompt_pos - _prompt_start))
 }
 
 _prompt_render() {
@@ -869,22 +1010,211 @@ _prompt_render_fast_append() {
   return 0
 }
 
+_prompt_render_lines_fit_unwrapped() {
+  local _s=$1 _line _avail
+
+  _avail=$((_prompt_cols - ${_prompt_label_width:-${#_prompt_label}} - 1))
+  [ "$_avail" -lt 1 ] && _avail=1
+
+  while [[ $_s == *$'\n'* ]]; do
+    _line=${_s%%$'\n'*}
+    [ "${#_line}" -le "$_avail" ] || return 1
+    _s=${_s#*$'\n'}
+  done
+  [ "${#_s}" -le "$_avail" ] || return 1
+}
+
+_prompt_visual_row_is_continuation() {
+  local _row=$1 _prev
+
+  _prompt_visual_row_continuation=0
+  [ "$_row" -gt 0 ] || return 0
+  _prev=$((_row - 1))
+  [ -n "${_prompt_visual_ends[$_prev]+x}" ] || return 0
+  [ -n "${_prompt_visual_starts[$_row]+x}" ] || return 0
+
+  # A wrapped continuation starts exactly where the previous visual row ended.
+  # A new logical line starts one character later because of the intervening \n.
+  if [ "${_prompt_visual_ends[$_prev]}" = "${_prompt_visual_starts[$_row]}" ]; then
+    _prompt_visual_row_continuation=1
+  fi
+}
+
 _prompt_render_fast_backspace() {
-  local _old=$1 _old_pos=$2
+  local _old=$1 _old_pos=$2 _old_len _new_len
+  local _diff _deleted _visual_row _prefix _prefix_len _text_cols _target_col
+
+  _old_len=${#_old}
+  _new_len=${#PROMPT_LINE}
 
   [ "${_prompt_force_full_render:-0}" -eq 0 ] || return 1
-  [ "${_prompt_render_rows:-0}" -eq 1 ] || return 1
-  [ "${_prompt_cursor_screen_row:-0}" -eq 0 ] || return 1
-  [ "${_prompt_top_line:-0}" -eq 0 ] || return 1
-  [[ $_old != *$'\n'* ]] || return 1
-  [ "$_old_pos" -eq "${#_old}" ] || return 1
-  [ "$_prompt_pos" -eq "${#PROMPT_LINE}" ] || return 1
-  [ "${_old:0:${#PROMPT_LINE}}" = "$PROMPT_LINE" ] || return 1
-  [ $((${#_old} - ${#PROMPT_LINE})) -eq 1 ] || return 1
-  [ "$_prompt_cursor_screen_col" -gt "${#_prompt_label}" ] || return 1
+  [ "${_prompt_render_rows:-0}" -gt 0 ] || return 1
+  [ "$_old_pos" -eq "$_old_len" ] || return 1
+  [ "$_prompt_pos" -eq "$_new_len" ] || return 1
+  [ "${_old:0:_new_len}" = "$PROMPT_LINE" ] || return 1
 
-  printf '\b \b'
-  _prompt_cursor_screen_col=$((_prompt_cursor_screen_col - 1))
+  _diff=$((_old_len - _new_len))
+  [ "$_diff" -gt 0 ] || return 1
+  _deleted=${_old:_new_len:_diff}
+  [[ $_deleted != *$'\n'* ]] || return 1
+
+  # EOF deletion can be as cheap as terminal DCH, even when the prompt has
+  # multiple visible rows. It is only unsafe when it would erase an entire
+  # wrapped continuation row: then the row itself disappears and the viewport
+  # needs a normal render.
+  _visual_row=$((${_prompt_top_line:-0} + ${_prompt_cursor_screen_row:-0}))
+  _prefix=${_prompt_visual_prefixes[$_visual_row]-}
+  _prefix_len=${#_prefix}
+  [ -n "${_prompt_visual_prefixes[$_visual_row]+x}" ] || _prefix_len=${_prompt_label_width:-${#_prompt_label}}
+  _text_cols=$((${_prompt_cursor_screen_col:-0} - _prefix_len))
+  [ "$_text_cols" -ge "$_diff" ] || return 1
+
+  _prompt_visual_row_is_continuation "$_visual_row"
+  if [ "$_prompt_visual_row_continuation" -eq 1 ] && [ "$_text_cols" -eq "$_diff" ]; then
+    return 1
+  fi
+
+  _target_col=$((${_prompt_cursor_screen_col:-0} - _diff))
+  _prompt_move_cursor_to "${_prompt_cursor_screen_row:-0}" "$_target_col"
+  printf '\e[%dP' "$_diff"
+  _prompt_cursor_screen_col=$_target_col
+  return 0
+}
+
+_prompt_render_fast_delete() {
+  local _old=$1 _old_pos=$2 _old_len _new_len
+  local _diff _at _deleted _old_line _old_col _new_line _new_col _old_lines _new_lines
+  local _row _target_col
+
+  _old_len=${#_old}
+  _new_len=${#PROMPT_LINE}
+
+  [ "${_prompt_force_full_render:-0}" -eq 0 ] || return 1
+  [ "${_prompt_render_rows:-0}" -gt 0 ] || return 1
+  [ "$_old_len" -gt "$_new_len" ] || return 1
+
+  _diff=$((_old_len - _new_len))
+  _at=$_prompt_pos
+  [ "$_old_pos" -eq "$_at" ] || [ "$_old_pos" -eq $((_at + _diff)) ] || return 1
+  [ "$_at" -ge 0 ] && [ "$_at" -le "$_new_len" ] || return 1
+  [ "${PROMPT_LINE:0:_at}" = "${_old:0:_at}" ] || return 1
+  [ "${PROMPT_LINE:_at}" = "${_old:_at + _diff}" ] || return 1
+
+  _deleted=${_old:_at:_diff}
+  [[ $_deleted != *$'\n'* ]] || return 1
+
+  # For non-EOF deletion, use terminal DCH only when every logical line fits on
+  # one visual row. Then deleting inside one line cannot reflow later rows.
+  _prompt_render_lines_fit_unwrapped "$_old" || return 1
+  _prompt_render_lines_fit_unwrapped "$PROMPT_LINE" || return 1
+
+  _prompt_count_lines "$_old"
+  _old_lines=$_prompt_line_count
+  _prompt_count_lines "$PROMPT_LINE"
+  _new_lines=$_prompt_line_count
+  [ "$_old_lines" -eq "$_new_lines" ] || return 1
+
+  _prompt_calc_line_col "$_old" "$_at"
+  _old_line=$_prompt_calc_line
+  _old_col=$_prompt_calc_col
+  _prompt_calc_line_col "$PROMPT_LINE" "$_prompt_pos"
+  _new_line=$_prompt_calc_line
+  _new_col=$_prompt_calc_col
+
+  [ "$_old_line" -eq "$_new_line" ] || return 1
+  [ "$_old_col" -eq "$_new_col" ] || return 1
+  [ "$_new_line" -ge "${_prompt_top_line:-0}" ] || return 1
+  [ "$_new_line" -lt $((${_prompt_top_line:-0} + ${_prompt_render_rows:-0})) ] || return 1
+
+  _row=$((_new_line - ${_prompt_top_line:-0}))
+  _target_col=$((${_prompt_label_width:-${#_prompt_label}} + _new_col))
+  _prompt_move_cursor_to "$_row" "$_target_col"
+  printf '\e[%dP' "$_diff"
+  _prompt_cursor_screen_col=$_target_col
+  return 0
+}
+
+_prompt_render_changed_viewport() {
+  local _old=$1 _old_pos=$2 _new=$PROMPT_LINE _new_pos=$_prompt_pos
+  local _old_top=${_prompt_top_line:-0} _old_rows=${_prompt_render_rows:-0}
+  local _old_cursor_row=${_prompt_cursor_screen_row:-0} _old_cursor_col=${_prompt_cursor_screen_col:-0}
+  local _visible_rows _line_count _max_top _new_top _new_rows _target_row _target_col
+  local _i _old_index _new_index _old_line _new_line _first=-1 _last=-1 _prefix _text
+  local -a _old_prefixes _old_texts _old_starts _old_ends
+
+  [ "${_prompt_force_full_render:-0}" -eq 0 ] || return 1
+  [ "$_old_rows" -gt 0 ] || return 1
+
+  PROMPT_LINE=$_old
+  _prompt_pos=$_old_pos
+  _prompt_rebuild_visual_lines
+  _old_prefixes=("${_prompt_visual_prefixes[@]}")
+  _old_texts=("${_prompt_visual_texts[@]}")
+  _old_starts=("${_prompt_visual_starts[@]}")
+  _old_ends=("${_prompt_visual_ends[@]}")
+
+  PROMPT_LINE=$_new
+  _prompt_pos=$_new_pos
+  _prompt_rebuild_visual_lines
+  _prompt_visual_cursor
+
+  [ -n "$_prompt_rows" ] && [ "$_prompt_rows" -gt 0 ] 2>/dev/null || _prompt_rows=1
+  _visible_rows=$_prompt_rows
+  [ "$_visible_rows" -lt 1 ] && _visible_rows=1
+
+  _new_top=$_old_top
+  [ "$_prompt_cursor_visual_row" -lt "$_new_top" ] && _new_top=$_prompt_cursor_visual_row
+  if [ "$_prompt_cursor_visual_row" -ge $((_new_top + _visible_rows)) ]; then
+    _new_top=$((_prompt_cursor_visual_row - _visible_rows + 1))
+  fi
+  [ "$_new_top" -lt 0 ] && _new_top=0
+
+  _line_count=${#_prompt_visual_texts[@]}
+  _new_rows=$_visible_rows
+  [ "$_line_count" -lt "$_new_rows" ] && _new_rows=$_line_count
+  [ "$_new_rows" -lt 1 ] && _new_rows=1
+
+  _max_top=$((_line_count - _new_rows))
+  [ "$_max_top" -lt 0 ] && _max_top=0
+  [ "$_new_top" -gt "$_max_top" ] && _new_top=$_max_top
+
+  # Scrolling or a viewport height change affects every row; leave that to the
+  # normal renderer. The partial path is for same-window edits.
+  [ "$_new_top" -eq "$_old_top" ] || return 1
+  [ "$_new_rows" -eq "$_old_rows" ] || return 1
+  [ "$_prompt_cursor_visual_row" -ge "$_new_top" ] || return 1
+  [ "$_prompt_cursor_visual_row" -lt $((_new_top + _new_rows)) ] || return 1
+
+  _target_row=$((_prompt_cursor_visual_row - _new_top))
+  _target_col=$_prompt_cursor_visual_col
+
+  for ((_i = 0; _i < _new_rows; _i++)); do
+    _old_index=$((_old_top + _i))
+    _new_index=$((_new_top + _i))
+    _old_line="${_old_prefixes[$_old_index]-}${_old_texts[$_old_index]-}"
+    _new_line="${_prompt_visual_prefixes[$_new_index]-}${_prompt_visual_texts[$_new_index]-}"
+    if [ "$_old_line" != "$_new_line" ]; then
+      [ "$_first" -lt 0 ] && _first=$_i
+      _last=$_i
+    fi
+  done
+
+  _prompt_cursor_screen_row=$_old_cursor_row
+  _prompt_cursor_screen_col=$_old_cursor_col
+
+  if [ "$_first" -ge 0 ]; then
+    for ((_i = _first; _i <= _last; _i++)); do
+      _new_index=$((_new_top + _i))
+      _prefix=${_prompt_visual_prefixes[$_new_index]-}
+      _text=${_prompt_visual_texts[$_new_index]-}
+      _prompt_move_cursor_to "$_i" 0
+      printf '%s%s\e[K' "$_prefix" "$_text"
+    done
+  fi
+
+  _prompt_top_line=$_new_top
+  _prompt_render_rows=$_new_rows
+  _prompt_move_cursor_to "$_target_row" "$_target_col"
   return 0
 }
 
@@ -899,6 +1229,7 @@ _prompt_render_after_edit() {
 
   if [ "$_old" = "$PROMPT_LINE" ]; then
     [ "$_old_pos" -eq "$_prompt_pos" ] && return 0
+    _prompt_render_cursor_only_fast "$_old_pos" && return 0
     _prompt_render_cursor_only && return 0
     _prompt_render
     return 0
@@ -906,6 +1237,8 @@ _prompt_render_after_edit() {
 
   _prompt_render_fast_append "$_old" "$_old_pos" && return 0
   _prompt_render_fast_backspace "$_old" "$_old_pos" && return 0
+  _prompt_render_fast_delete "$_old" "$_old_pos" && return 0
+  _prompt_render_changed_viewport "$_old" "$_old_pos" && return 0
 
   _prompt_render
 }
@@ -1040,7 +1373,7 @@ _prompt_csi_prompt_key() {
           _at=$(_prompt_word_back "$_prompt_pos")
           _prompt_delete "$_at" $((_prompt_pos - _at)) kill
         else
-          _prompt_delete $((_prompt_pos - 1)) 1
+          _prompt_backspace_key
         fi
         return 0 ;;
       13|57414)
@@ -1106,12 +1439,12 @@ _prompt_csi_prompt_key() {
         _prompt_esc_key || _prompt_cancel=1
         return 0 ;;
       100)                                                                       # ctrl+d
-        if [ -z "$PROMPT_LINE" ]; then _prompt_cancel=1; else _prompt_delete "$_prompt_pos" 1; fi
+        if [ -z "$PROMPT_LINE" ]; then _prompt_cancel=1; else _prompt_delete_forward_key; fi
         return 0 ;;
       101) _prompt_move_line_end; return 0 ;;                                    # ctrl+e
       102) [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1)); return 0 ;; # ctrl+f
       103) _prompt_cancel=1; return 0 ;;                                         # ctrl+g
-      104|127) _prompt_delete $((_prompt_pos - 1)) 1; return 0 ;;                # ctrl+h/backspace
+      104|127) _prompt_backspace_key; return 0 ;;                              # ctrl+h/backspace
       107) _prompt_delete "$_prompt_pos" $((${#PROMPT_LINE} - _prompt_pos)) kill; return 0 ;; # ctrl+k
       108) _prompt_force_full_render=1; return 0 ;;                              # ctrl+l redraw
       110) _prompt_move_vert 1; return 0 ;;                                      # ctrl+n
@@ -1202,7 +1535,7 @@ _prompt_escape() {
           fi ;;
         H|1~|1\;*H) _prompt_move_line_start ;;          # home
         F|4~|1\;*F) _prompt_move_line_end ;;            # end
-        3~) _prompt_delete "$_prompt_pos" 1 ;;           # delete
+        3~) _prompt_delete_sequence_key ;;                # delete
         3\;*~)                                           # alt/ctrl+delete
           _at=$(_prompt_word_fwd "$_prompt_pos")
           _prompt_delete "$_prompt_pos" $((_at - _prompt_pos)) kill ;;
@@ -1274,6 +1607,8 @@ prompt_line() {
 
   PROMPT_CANCELLED_BY_KEY=0
   _prompt_label=$1
+  _prompt_label_width=${#_prompt_label}
+  printf -v _prompt_label_spaces '%*s' "$_prompt_label_width" ''
   PROMPT_LINE=${2-}
   _prompt_pos=${#PROMPT_LINE}
   _prompt_start=0
@@ -1289,6 +1624,8 @@ prompt_line() {
   _prompt_kill=''
   _prompt_undo_lines=()
   _prompt_undo_pos=()
+  _prompt_pending_file=${TMPDIR:-/tmp}/prompt-lib.${BASHPID:-$$}.$RANDOM.pending
+  : >"$_prompt_pending_file"
   _prompt_rows=$(stty size 2>/dev/null | awk '{ print $1 }')
   _prompt_cols=$(stty size 2>/dev/null | awk '{ print $2 }')
   [ -n "$_prompt_rows" ] && [ "$_prompt_rows" -gt 0 ] 2>/dev/null || _prompt_rows=${LINES:-1}
@@ -1299,7 +1636,7 @@ prompt_line() {
   printf '\e[?2004h\e[>5u'             # bracketed paste + modified-key reporting for this prompt only
   _prompt_render
 
-  while _b=$(_prompt_read_byte); [ -n "$_b" ]; do
+  while _b=$(_prompt_get_byte); [ -n "$_b" ]; do
     _prompt_old_line=$PROMPT_LINE
     _prompt_old_pos=$_prompt_pos
     _prompt_vertical_motion=0
@@ -1314,10 +1651,10 @@ prompt_line() {
       5) _prompt_move_line_end ;;                      # ctrl+e
       2) [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1)) ;;                     # ctrl+b
       6) [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1)) ;;     # ctrl+f
-      127|8) _prompt_delete $((_prompt_pos - 1)) 1 ;;  # backspace / ctrl+h
+      127|8) _prompt_backspace_key ;;                    # backspace / ctrl+h
       4)                                               # ctrl+d: delete, or EOF
         if [ -z "$PROMPT_LINE" ]; then _cancelled=1; break; fi
-        _prompt_delete "$_prompt_pos" 1 ;;
+        _prompt_delete_forward_key ;;
       23)                                              # ctrl+w
         _at=$(_prompt_word_back "$_prompt_pos")
         _prompt_delete "$_at" $((_prompt_pos - _at)) kill ;;
@@ -1351,6 +1688,8 @@ prompt_line() {
   printf '\e[<u\e[?2004l'              # restore keyboard protocol and paste mode before anyone else reads
   stty "$_old" 2>/dev/null || stty sane
   _prompt_finish_render
+  rm -f "${_prompt_pending_file:-}"
+  unset _prompt_pending_file
 
   if [ "$_cancelled" -eq 0 ]; then
     PROMPT_CANCELLED_BY_KEY=0
