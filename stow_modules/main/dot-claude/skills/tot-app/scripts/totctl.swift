@@ -39,7 +39,12 @@ func parseDot(_ value: String) throws -> Int {
 }
 
 func percentEncodeQueryValue(_ text: String) -> String {
-    let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+    // Keep Markdown asterisks unescaped. Empirically, Tot's URL handler can
+    // preserve `**bold**` markers when `*` is literal, but may store escaped
+    // backslashes (`\*\*bold\*\*`) when asterisks are encoded as `%2A`.
+    // Keep other query-significant characters encoded so nested Markdown links
+    // like `[Home](tot://1)` survive decoding instead of confusing the URL parser.
+    let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~*")
     return text.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
 }
 
