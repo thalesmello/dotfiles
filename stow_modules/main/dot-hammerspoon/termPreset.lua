@@ -101,8 +101,9 @@ end
 -- window. Iterating only: when there is no terminal window at all this no-ops,
 -- and the caller decides whether to launch one.
 --
--- The cycle covers the visible windows -- `list-windows` filters to those, so a
--- terminal parked on another space is not part of the rotation.
+-- The cycle covers visible windows plus minimized windows (which `focus-window-id`
+-- restores before focusing). A terminal parked on another space is not part of
+-- the rotation.
 --
 -- opts.exceptId (number, or string as passed by the shim; "" means none) and
 -- opts.exceptIds (a list of the same) are the windows to skip -- the devservers,
@@ -123,7 +124,7 @@ function M.iterateWindows(opts)
   log("press: except=" .. (#except > 0 and table.concat(except, ",") or "(none)")
     .. " direction=" .. (prev and "prev" or "next"))
 
-  local args = {"yabai-preset", "list-windows", "--app", TERMINAL_APP_REGEX,
+  local args = {"yabai-preset", "list-windows", "--include-minimized", "--app", TERMINAL_APP_REGEX,
     -- print_stdout = false: shell.task debug-logs every task's stdout, and these
     -- are whole yabai window objects -- kilobytes of JSON in the Hammerspoon
     -- console on each keypress. The trace line and stderr are still logged.
@@ -145,8 +146,8 @@ function M.iterateWindows(opts)
       return
     end
 
-    -- One object per line, already filtered to visible non-sticky terminals
-    -- minus the excluded id, and already in most-recently-used order. So
+    -- One object per line, already filtered to visible/minimized non-sticky
+    -- terminals minus the excluded id, and already in most-recently-used order. So
     -- `stacked` is just the lines in order -- MRU, which is what the fallback
     -- below wants -- and `windows` is the same set sorted by id, the cycle
     -- order, which has to be stable: MRU changes every time we focus something,
@@ -225,9 +226,9 @@ function M.iterateWindows(opts)
 
     -- Elsewhere (Chrome, or the excluded devserver window): raise the most
     -- recently used terminal, which is the head of the list. Every candidate is
-    -- visible, so there is always one -- the old lowest-id fallback only existed
-    -- for the case where the stacking query saw the current space and the
-    -- window list didn't.
+    -- visible or minimized, and focus-window-id restores minimized targets -- the
+    -- old lowest-id fallback only existed for the case where the stacking query
+    -- saw the current space and the window list didn't.
     log("fallback branch: most recent of list -> target "
       .. tostring(stacked[1]) .. " (" .. tostring(titles[stacked[1]]) .. ")")
     log("raise frontmost " .. tostring(stacked[1]))

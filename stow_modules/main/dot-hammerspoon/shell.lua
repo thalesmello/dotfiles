@@ -92,6 +92,31 @@ end
 
 M.taskAsync = a.wrap(M.task)
 
+-- Run several direct binary tasks concurrently. Callback receives the number of
+-- successful tasks and the per-task callback results ({ok, stdout}) in input
+-- order.
+function M.taskAll(argsList, callback)
+  local remaining = #argsList
+  local results = {}
+  local okCount = 0
+
+  if remaining == 0 then
+    if callback then callback(0, results) end
+    return
+  end
+
+  for i, args in ipairs(argsList) do
+    M.task(args, function(ok, out)
+      results[i] = {ok, out}
+      if ok then okCount = okCount + 1 end
+      remaining = remaining - 1
+      if remaining == 0 and callback then callback(okCount, results) end
+    end)
+  end
+end
+
+M.taskAllAsync = a.wrap(M.taskAll)
+
 function M.fish(cmd, callback)
   M.task({FISH, "-c", cmd}, callback)
 end

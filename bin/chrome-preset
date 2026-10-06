@@ -728,13 +728,16 @@ function chrome-preset
 
         echo "chrome-preset focus-profile-window: profile='$profile_name' regex='$regex' current_display=$current_display" >&2
 
-        set windows (yabai-preset list-windows --regex "$regex" | jq -s -r --argjson current_display "$current_display" '
-            sort_by(if .display == $current_display then 0 else 1 end)
+        set windows (yabai-preset list-windows --include-minimized --regex "$regex" | jq -s -r --argjson current_display "$current_display" '
+            sort_by([
+                (if ."is-minimized" then 1 else 0 end),
+                (if .display == $current_display then 0 else 1 end)
+            ])
             | .[].id')
         or return 1
 
         if test (count $windows) -gt 0
-            echo "chrome-preset focus-profile-window: fast path via yabai focus-window-id $windows[1] (visible matches: $windows)" >&2
+            echo "chrome-preset focus-profile-window: fast path via yabai focus-window-id $windows[1] (visible/minimized matches: $windows)" >&2
             yabai-preset focus-window-id "$windows[1]"
         else
             echo "chrome-preset focus-profile-window: slow fallback via Chrome Profiles menu (no visible window matched)" >&2
@@ -764,7 +767,7 @@ function chrome-preset
             return
         end
 
-        set windows (yabai-preset list-windows --regex "$regex" | jq -r '.id' | sort -n)
+        set windows (yabai-preset list-windows --include-minimized --regex "$regex" | jq -r '.id' | sort -n)
         or return 1
 
         set count (count $windows)

@@ -70,6 +70,7 @@ local function navigateArgList(delta)
     local focusOk = a.wait(taskAsync({"wm-preset", "focus-window-id", target}))
     if not focusOk then return end
 
+    ArgList.noteFocused(target)
     local pos = ArgList.indexOf(target) or 0
     Preset.displayMessage("ArgList " .. pos .. " / " .. ArgList.count())
   end)()
@@ -666,6 +667,7 @@ function M.setup()
   })
 
   -- Mode entries
+  default:bindOnce(hyperShift, "space", "Toggle ArgList Windows", ArgList.toggleWindows)
   default:bindEnter(hyper, "space", "Enter Service Mode", service)
   default:bindEnter(hyperShift, "i", "Enter Invoke Mode", invoke)
   default:bindEnter(hyper, "'", "Enter Chrome Mode", chrome)
@@ -695,8 +697,8 @@ function M.setup()
   end)
   default:bindOnce(hyperShift, "z", "Toggle Tot", function() Preset.alternateApp("Tot", {hide = true}) end)
   default:bindOnce(hyper, "s", "Toggle Spotify", function() Preset.alternateApp("Spotify", {hide = true}) end)
-  default:bindOnce(hyper, "e", "Focus Chrome", function() launchOrFocus("Google Chrome") end)
-  default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() launchOrFocus("Google Chrome") end)
+  default:bindOnce(hyper, "e", "Focus Chrome", function() task({"wm-preset", "focus-app", "Google Chrome"}) end)
+  default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() task({"wm-preset", "focus-app", "Google Chrome"}) end)
   default:conditionalBindOnce(hyperShift, "w", "Focus Zoom/Meet", {
     {cond = zoomMeetingWindowOpen, function() task({"wm-preset", "alternate-window", "--title", "^Zoom Meeting"}) end},
     {function() task({"chrome-preset", "focus-or-open-url", "meet.google.com", "--label", "Google Meet"}) end},
@@ -783,6 +785,7 @@ function M.setup()
         return
       end
       local action = ArgList.toggle(id)
+      if action == "added" then ArgList.noteFocused(id) end
       local verb = action == "added" and "Marked" or "Unmarked"
       Preset.displayMessage(verb .. " window " .. id .. " (" .. ArgList.count() .. " marked)")
     end)

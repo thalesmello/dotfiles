@@ -45,7 +45,7 @@ end
 
 -- many thunks -> single thunk
 local join = function (thunks)
-  local len = table.getn(thunks)
+  local len = #thunks
   local done = 0
   local acc = {}
 

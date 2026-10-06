@@ -453,6 +453,8 @@ function yabai-preset
 
         display-message "$(count $windows) windows minimized"
     case "minimize"
+        argparse 'no-message' -- $argv
+        or return 1
         set window $argv[1]
         set -e argv[1]
 
@@ -460,14 +462,21 @@ function yabai-preset
         test -z "$window"; and set window (yabai-preset get-focused-window-id)
 
         # Some apps (e.g. Chrome "app" windows created via chrome-preset) hijack
-        # focus to another of their windows when minimized, which overrides a
-        # post-minimize focus and leaves us on the wrong window. Focus the recent
-        # window first and then minimize the original by id so focus lands where
-        # we want.
-        set recent (yabai-preset get-recent-window-id)
-        and yabai -m window --focus "$recent"
+        # focus to another of their windows when the focused window is minimized,
+        # which overrides a post-minimize focus and leaves us on the wrong
+        # window. In that case, focus the recent window first and then minimize
+        # the original by id so focus lands where we want. If the target is not
+        # focused (e.g. ArgList bulk-minimize has already focused a safe
+        # non-ArgList window), leave focus alone.
+        set focused (yabai-preset get-focused-window-id)
+        if test "$focused" = "$window"
+            set recent (yabai-preset get-recent-window-id)
+            and yabai -m window --focus "$recent"
+        end
         yabai -m window "$window" --minimize
-        display-message -t 0.3 "Minimize"
+        if not set -q _flag_no_message
+            display-message -t 0.3 "Minimize"
+        end
     case "focus-topmost"
         yabai -m window --focus (yabai -m query --windows --space | jq 'first(.[] | select(."is-visible" and (."is-sticky"|not))).id')
     case "deminimize-last"
@@ -1720,27 +1729,35 @@ function yabai-preset
         # CGWindowList. Callers that want a different order re-sort.
         #   --regex     RE  only windows whose title matches RE
         #   --app       RE  only windows whose app name matches RE
-        #   --except-id ID  drop this window id (repeatable)
-        #   --all           also list windows that aren't currently on screen
+        #   --except-id ID       drop this window id (repeatable)
+        #   --include-minimized  include minimized windows in current-space cycles
+        #   --all                also list windows that aren't currently on screen
         # The regexes default to matching everything, so omitting them keeps the
         # unfiltered listing.
         #
         # Windows are restricted to the visible, non-sticky ones by default,
         # which is what the window-cycling callers want: a terminal parked on
-        # another space isn't part of their rotation. --all lifts that for
-        # callers tracking specific windows by id (e.g. the devserver registry),
-        # where "not on the current space" must not read as "closed".
-        argparse 'regex=' 'app=' 'except-id=+' 'all' -- $argv
+        # another space isn't part of their rotation. --include-minimized also
+        # lets minimized windows participate, so focusing a cycle target restores
+        # it. --all lifts the on-screen restriction entirely for callers tracking
+        # specific windows by id (e.g. the devserver registry), where "not on the
+        # current space" must not read as "closed".
+        argparse 'regex=' 'app=' 'except-id=+' 'include-minimized' 'all' -- $argv
         or return 1
 
         # jq wants the exclusions as a JSON array; no flag means an empty one.
         set -l except (printf '%s\n' $_flag_except_id | jq -R . | jq -sc 'map(select(. != ""))')
         set -l onscreen_only true
         set -q _flag_all; and set onscreen_only false
+        set -l include_minimized false
+        set -q _flag_include_minimized; and set include_minimized true
 
         yabai -m query --windows | jq -cer --arg regex "$_flag_regex" --arg app "$_flag_app" \
-            --argjson except "$except" --argjson onscreen_only $onscreen_only '
-            .[] | select((($onscreen_only | not) or (."is-visible" and (."is-sticky" | not)))
+            --argjson except "$except" --argjson onscreen_only $onscreen_only \
+            --argjson include_minimized $include_minimized '
+            .[] | select((($onscreen_only | not)
+                          or ((."is-sticky" | not)
+                              and (."is-visible" or ($include_minimized and ."is-minimized"))))
                          and (.title | test($regex)) and (.app | test($app))
                          and ((.id | tostring) as $id | $except | index($id) | not))'
     case "list-visible-windows"

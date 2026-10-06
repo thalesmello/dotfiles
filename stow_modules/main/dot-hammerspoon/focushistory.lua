@@ -1210,6 +1210,17 @@ function M.showList()
   chooser:show()
 end
 
+function M.mostRecentWindowIdWhere(predicate)
+  if type(predicate) ~= "function" then return nil end
+  for i = #st.stack, 1, -1 do
+    local e = st.stack[i]
+    local id = e and (e.cgWindowId or (e.kind == "window" and e.id) or nil)
+    id = id and tostring(id) or nil
+    if id and predicate(id, e) then return id end
+  end
+  return nil
+end
+
 -- For `hs -c 'hs.inspect(require("focushistory").dump())'`.
 function M.dump()
   return {cursor = st.cursor, entries = st.stack}
