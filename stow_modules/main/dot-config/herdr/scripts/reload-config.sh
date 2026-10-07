@@ -19,9 +19,26 @@ fi
 }
 
 # Pick up edited local plugin manifests first; Herdr's plugin registry stores a
-# copy of each manifest, not a live pointer to it.
-if command -v herdr-preset >/dev/null 2>&1; then
-  herdr-preset install-local-plugins --quiet >/dev/null 2>&1 || true
+# copy of each manifest, not a live pointer to it. A detached Herdr keybinding
+# inherits the server's PATH, which may still point at an old dotfiles checkout,
+# so resolve herdr-preset the same defensive way as the other helpers.
+herdr_preset="${HERDR_PRESET_PATH:-}"
+if [ -z "$herdr_preset" ] || [ ! -x "$herdr_preset" ]; then
+  herdr_preset=$(command -v herdr-preset 2>/dev/null || true)
+fi
+if [ -z "$herdr_preset" ]; then
+  for candidate in \
+    "$HOME/src/dotfiles/bin/herdr-preset" \
+    "$HOME/.local/bin/herdr-preset" \
+    "$HOME/dotfiles/bin/herdr-preset"; do
+    if [ -x "$candidate" ]; then
+      herdr_preset=$candidate
+      break
+    fi
+  done
+fi
+if [ -n "$herdr_preset" ]; then
+  "$herdr_preset" install-local-plugins --quiet >/dev/null 2>&1 || true
 fi
 
 # The unread marker has a long-running animation daemon. Herdr has no
