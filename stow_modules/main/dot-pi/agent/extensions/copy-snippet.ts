@@ -17,6 +17,7 @@ type BranchEntry = {
 };
 
 const CLIPBOARD_TIMEOUT_MS = 5_000;
+const CLIPBOARD_COPY_COMMAND_ENV = "PI_CLIPBOARD_COPY_COMMAND";
 const WHOLE_MESSAGE_CHOICE = "Whole response";
 const EDIT_CHOICE = "Edit/custom snippet...";
 
@@ -62,7 +63,28 @@ function runClipboardCommand(command: string, args: string[], text: string): tru
 	return true;
 }
 
+function runConfiguredClipboardCommand(command: string, text: string): true | string {
+	const result = spawnSync(command, [], {
+		input: text,
+		encoding: "utf-8",
+		timeout: CLIPBOARD_TIMEOUT_MS,
+		stdio: ["pipe", "ignore", "pipe"],
+		shell: true,
+	});
+
+	if (result.error) return result.error.message;
+	if (result.status !== 0) {
+		return result.stderr?.toString().trim() || `${command} exited with status ${result.status}`;
+	}
+	return true;
+}
+
 function copyToClipboard(text: string): true | string {
+	const configuredCommand = process.env[CLIPBOARD_COPY_COMMAND_ENV]?.trim();
+	if (configuredCommand) {
+		return runConfiguredClipboardCommand(configuredCommand, text);
+	}
+
 	if (process.platform === "darwin") {
 		return runClipboardCommand("pbcopy", [], text);
 	}
