@@ -650,6 +650,9 @@ PY
 
 # Start the agent with the selected one-line opening prompt.
 agent_start_timeout_ms=${ASK_AGENT_START_TIMEOUT_MS:-120000}
+start_log=$(mktemp "${TMPDIR:-/tmp}/ask-agent-${slug}.start.XXXXXX.log") \
+  || herdr_die 'ask' 'could not create temporary agent-start log'
+chmod 600 "$start_log" >/dev/null 2>&1 || true
 printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
 
 # Codex only gets a thread id once it has persisted the opening message, so
@@ -657,18 +660,25 @@ printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
 # other agents and for non-quick categories.
 start_codex_quick_log_watcher
 
-if [ "${#agent_start_args[@]}" -gt 0 ]; then
-  start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
-    --timeout "$agent_start_timeout_ms" -- "${agent_start_args[@]}" 2>&1) \
-    || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
+setsid -f bash -c '
+herdr=$1
+slug=$2
+agent=$3
+pane=$4
+agent_start_timeout_ms=$5
+shift 5
+if [ "$#" -gt 0 ]; then
+  "$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
+    --timeout "$agent_start_timeout_ms" -- "$@"
 else
-  start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
-    --timeout "$agent_start_timeout_ms" 2>&1) \
-    || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
+  "$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
+    --timeout "$agent_start_timeout_ms"
 fi
+' ask-agent-start "$herdr" "$slug" "$agent" "$pane" "$agent_start_timeout_ms" \
+  "${agent_start_args[@]}" </dev/null >"$start_log" 2>&1
 
 if [ "$category" = quick ] && [ "$agent" != codex ]; then
   append_quick_log "$session_id"
 fi
 
-printf 'asked %s\n' "$slug"
+printf 'asked %s\nagent start running in background; log: %s\n' "$slug" "$start_log"
