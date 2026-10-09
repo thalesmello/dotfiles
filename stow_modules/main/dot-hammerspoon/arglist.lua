@@ -20,6 +20,9 @@ local M = {}
 
 local SETTINGS_KEY = "arglist"
 local LAST_FOCUSED_KEY = "arglist.lastFocused"
+local HIDDEN_APPS_KEY = "arglist.hiddenApps"
+local RESTORE_KEY = "arglist.restore"
+local RESTORE_AVAILABLE_KEY = "arglist.restoreAvailable"
 
 local list = {}
 do
@@ -40,6 +43,105 @@ if type(lastFocused) ~= "string" then lastFocused = nil end
 
 local function saveLastFocused()
   hs.settings.set(LAST_FOCUSED_KEY, lastFocused)
+end
+
+local function copyItems(items)
+  local copy = {}
+  for _, id in ipairs(items or list) do
+    if type(id) == "string" then copy[#copy + 1] = id end
+  end
+  return copy
+end
+
+local restorableList = copyItems(hs.settings.get(RESTORE_KEY))
+local restoreAvailable = hs.settings.get(RESTORE_AVAILABLE_KEY) == true
+
+local function setRestoreState(items, available)
+  restorableList = copyItems(items)
+  restoreAvailable = available and #restorableList > 0 or false
+  hs.settings.set(RESTORE_KEY, restorableList)
+  hs.settings.set(RESTORE_AVAILABLE_KEY, restoreAvailable)
+end
+
+local hiddenApps = hs.settings.get(HIDDEN_APPS_KEY)
+if type(hiddenApps) ~= "table" then hiddenApps = {} end
+
+local function setHiddenApps(apps)
+  hiddenApps = {}
+  for _, app in ipairs(apps or {}) do
+    if type(app) == "string" then hiddenApps[#hiddenApps + 1] = app end
+  end
+  hs.settings.set(HIDDEN_APPS_KEY, hiddenApps)
+end
+
+local HIDE_INSTEAD_OF_MINIMIZE_APPS = {
+  Tot = true,
+  Spotify = true,
+}
+
+local function queryWindowInfoById(ids)
+  local wanted = {}
+  for _, id in ipairs(ids) do wanted[tostring(id)] = true end
+
+  local ok, out = a.wait(taskAsync({"yabai", "-m", "query", "--windows", print_stdout = false}))
+  if not ok or out == "" then return {} end
+
+  local decodedOk, windows = pcall(hs.json.decode, out)
+  if not decodedOk or type(windows) ~= "table" then return {} end
+
+  local byId = {}
+  for _, win in ipairs(windows) do
+    local id = win and win.id and tostring(win.id) or nil
+    if id and wanted[id] then byId[id] = win end
+  end
+  return byId
+end
+
+local function hiddenAppNamesForIds(ids, windowInfo)
+  windowInfo = windowInfo or queryWindowInfoById(ids)
+  local seen = {}
+  local apps = {}
+  for _, id in ipairs(ids) do
+    local win = windowInfo[tostring(id)]
+    local app = win and win.app
+    if app and HIDE_INSTEAD_OF_MINIMIZE_APPS[app] and not seen[app] then
+      seen[app] = true
+      apps[#apps + 1] = app
+    end
+  end
+  return apps
+end
+
+local function splitHideAndMinimizeIds(ids)
+  local windowInfo = queryWindowInfoById(ids)
+  local hideApps = hiddenAppNamesForIds(ids, windowInfo)
+  local minimizeIds = {}
+  for _, id in ipairs(ids) do
+    local win = windowInfo[tostring(id)]
+    local app = win and win.app
+    if not (app and HIDE_INSTEAD_OF_MINIMIZE_APPS[app]) then
+      minimizeIds[#minimizeIds + 1] = id
+    end
+  end
+  return hideApps, minimizeIds
+end
+
+local function appsToShowForIds(ids)
+  local seen = {}
+  local apps = {}
+  for _, app in ipairs(hiddenApps) do
+    if not seen[app] then
+      seen[app] = true
+      apps[#apps + 1] = app
+    end
+  end
+  for _, app in ipairs(hiddenAppNamesForIds(ids)) do
+    if not seen[app] then
+      seen[app] = true
+      apps[#apps + 1] = app
+    end
+  end
+  return apps
 end
 
 function M.items()
@@ -159,12 +261,17 @@ function M.toggleWindows()
       local fallback = M.topmostExternalWindowId()
       if fallback then a.wait(taskAsync({"wm-preset", "focus-window-id", fallback})) end
 
+      local hideApps, minimizeIds = splitHideAndMinimizeIds(ids)
+      setHiddenApps(hideApps)
       local bulk = {}
-      for _, id in ipairs(ids) do
+      for _, app in ipairs(hideApps) do
+        bulk[#bulk + 1] = {"osascript-preset", "show-or-hide-app", "--only-hide", app}
+      end
+      for _, id in ipairs(minimizeIds) do
         bulk[#bulk + 1] = {"wm-preset", "minimize", "--no-message", id}
       end
-      local minimized = a.wait(taskAllAsync(bulk))
-      Preset.displayMessage("ArgList: minimized " .. minimized .. " / " .. #ids)
+      local hiddenOrMinimized = a.wait(taskAllAsync(bulk))
+      Preset.displayMessage("ArgList: hidden/minimized " .. hiddenOrMinimized .. " / " .. #ids)
     end)()
     return
   end
@@ -172,6 +279,16 @@ function M.toggleWindows()
   local target = M.mostRecentWindowId()
   local ids = M.itemsWithLast(target)
   a.sync(function()
+    -- Show apps that were hidden instead of minimized before focusing windows.
+    local showBulk = {}
+    for _, app in ipairs(appsToShowForIds(ids)) do
+      showBulk[#showBulk + 1] = {"osascript-preset", "show-or-hide-app", "--only-show", app}
+    end
+    if #showBulk > 0 then
+      a.wait(taskAllAsync(showBulk))
+      setHiddenApps({})
+    end
+
     -- Raise/focus every arglist window in parallel, including the MRU one, then
     -- focus the MRU target once more at the end so it is left active.
     local bulk = {}
@@ -198,9 +315,35 @@ end
 -- Adds id if it is absent. Returns true if it was added, false if already present.
 function M.add(id)
   if M.contains(id) then return false end
+  setRestoreState(list, false)
   table.insert(list, id)
   save()
   return true
+end
+
+-- Replace the list in one mutation. This avoids producing intermediate restore
+-- states when callers build a whole selection at once.
+function M.replace(ids)
+  setRestoreState(list, false)
+  for i = #list, 1, -1 do list[i] = nil end
+  for _, id in ipairs(ids or {}) do
+    id = tostring(id or "")
+    if id ~= "" and not M.contains(id) then list[#list + 1] = id end
+  end
+  if lastFocused and not M.contains(lastFocused) then
+    lastFocused = nil
+    saveLastFocused()
+  end
+  save()
+end
+
+function M.restoreLastCleared()
+  if not restoreAvailable or #restorableList == 0 or not M.isEmpty() then return false end
+  local restore = copyItems(restorableList)
+  setRestoreState(list, false)
+  for _, id in ipairs(restore) do list[#list + 1] = id end
+  save()
+  return #list
 end
 
 -- Adds id if it is absent, removes it if it is already present.
@@ -208,6 +351,7 @@ end
 function M.toggle(id)
   for i, v in ipairs(list) do
     if v == id then
+      setRestoreState(list, false)
       table.remove(list, i)
       if lastFocused == id then
         lastFocused = nil
@@ -217,6 +361,7 @@ function M.toggle(id)
       return "removed"
     end
   end
+  setRestoreState(list, false)
   table.insert(list, id)
   save()
   return "added"
@@ -240,13 +385,16 @@ function M.relative(currentId, delta)
   return list[((idx - 1 + delta) % n) + 1]
 end
 
-function M.clear()
+function M.clear(opts)
+  opts = opts or {}
+  if #list > 0 then setRestoreState(list, not opts.noRestore) end
   -- Empty in place so external references to the table (M.items) stay valid.
   for i = #list, 1, -1 do
     list[i] = nil
   end
   lastFocused = nil
   saveLastFocused()
+  setHiddenApps({})
   save()
 end
 

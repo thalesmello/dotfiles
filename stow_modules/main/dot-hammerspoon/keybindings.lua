@@ -11,6 +11,7 @@ local FocusHistory = require("focushistory")
 
 local task = shell.task
 local taskAsync = shell.taskAsync
+local taskAllAsync = shell.taskAllAsync
 local fish = shell.fish
 local fishAsync = shell.fishAsync
 local sleep = shell.sleepAsync
@@ -73,6 +74,32 @@ local function navigateArgList(delta)
     ArgList.noteFocused(target)
     local pos = ArgList.indexOf(target) or 0
     Preset.displayMessage("ArgList " .. pos .. " / " .. ArgList.count())
+  end)()
+end
+
+local ARG_LIST_FOCUS_REQUIRED_MESSAGE = "ArgList: no ArgList window focused; press hyperShift+n"
+
+local function argListItemsCopy()
+  local ids = {}
+  for _, id in ipairs(ArgList.items()) do ids[#ids + 1] = id end
+  return ids
+end
+
+local function withFocusedArgListWindow(fn)
+  a.sync(function()
+    if ArgList.isEmpty() then
+      Preset.displayMessage("ArgList: empty")
+      return
+    end
+
+    local ok, id = a.wait(taskAsync({"yabai-preset", "get-focused-window-id"}))
+    if not ok or id == "" or not ArgList.contains(id) then
+      Preset.displayMessage(ARG_LIST_FOCUS_REQUIRED_MESSAGE)
+      return
+    end
+
+    ArgList.noteFocused(id)
+    fn(id)
   end)()
 end
 
@@ -303,7 +330,24 @@ function M.setup()
 
   -- Utility
   default:bindOnce(hyperShift, "m", "Deminimize Last", function() task({"wm-preset", "deminimize-last"}) end)
-  default:bindOnce(hyper, "m", "Minimize", function() task({"wm-preset", "minimize"}) end)
+  -- ArgList populated: minimize marked windows, but only when a marked window is focused.
+  default:conditionalBindOnce(hyper, "m", "Minimize", {
+    {cond = function() return not ArgList.isEmpty() end, function()
+      withFocusedArgListWindow(function(focusedId)
+        local ids = ArgList.itemsWithLast(focusedId)
+        local fallback = ArgList.topmostExternalWindowId()
+        if fallback then a.wait(taskAsync({"wm-preset", "focus-window-id", fallback})) end
+
+        local bulk = {}
+        for _, id in ipairs(ids) do
+          bulk[#bulk + 1] = {"wm-preset", "minimize", "--no-message", id}
+        end
+        local minimized = a.wait(taskAllAsync(bulk))
+        Preset.displayMessage("ArgList: minimized " .. minimized .. " / " .. #ids)
+      end)
+    end},
+    {function() task({"wm-preset", "minimize"}) end},
+  })
   default:conditionalBindOnce(hyper, "return", "Toggle Fullscreen", {
     {cond = function() return Preset.hasSavedFloatingFrame() end, function() Preset.toggleFloatingFullscreen() end},
     {cond = isWindowFloating, function() Preset.toggleFloatingFullscreen() end},
@@ -410,6 +454,11 @@ function M.setup()
   _G._GhosttyNewSplitTabTap = hs.eventtap.new({hs.eventtap.event.types.keyDown}, function(event)
     local flags = event:getFlags()
     local code = event:getKeyCode()
+
+    -- Let active modal modes own their chords. Without this, Ghostty's Cmd+W
+    -- fallback swallows Service > Cmd+W before the service modal can close the
+    -- ArgList windows.
+    if service:isActive() then return false end
 
     -- ctrl+tab / ctrl+shift+tab in a herdr window -> prefix+] / prefix+[.
     -- Otherwise leave Ghostty's native ctrl+tab tab-switching (and every other
@@ -865,10 +914,9 @@ function M.setup()
   end)
   service:bindOnce({"shift"}, "e", "Harpoon Edit Pinfiles", function() fish("yabai-harpoon edit-pinfiles") end)
 
-  -- Cycle window selection in three stages: first press marks the foreground
-  -- (un-occluded) windows, second press expands to every window in the space,
-  -- third press (everything already marked) clears the arglist.
-  service:bindOnce(hyper, "a", "Select Visible / All Windows In Space", function()
+  -- Cycle window selection: restore the most recently cleared ArgList when
+  -- empty, else visible windows -> floating windows -> all windows -> visible.
+  service:bindOnce(hyper, "a", "Select Visible / Floating / All Windows In Space", function()
     -- Splits newline-separated command output into a list of window ids.
     local function splitIds(out)
       local ids = {}
@@ -878,55 +926,133 @@ function M.setup()
       return ids
     end
 
-    -- Marks every id in the list; returns true if anything new was added,
-    -- i.e. the arglist changed.
-    local function addAll(ids)
-      local changed = false
+    local function argListMatches(ids)
+      if ArgList.count() ~= #ids then return false end
       for _, id in ipairs(ids) do
-        if ArgList.add(id) then changed = true end
+        if not ArgList.contains(id) then return false end
       end
-      return changed
+      return true
+    end
+
+    local function selectOnly(ids)
+      ArgList.replace(ids)
+    end
+
+    local function floatingIds(ids)
+      local checks = {}
+      for _, id in ipairs(ids) do
+        checks[#checks + 1] = {"wm-preset", "is-window-floating", id}
+      end
+
+      local _, results = a.wait(taskAllAsync(checks))
+      local floating = {}
+      for i, id in ipairs(ids) do
+        if results and results[i] and results[i][1] then
+          floating[#floating + 1] = id
+        end
+      end
+      return floating
     end
 
     a.sync(function()
-      -- Stage 1: foreground-visible windows. Skipped when there is only one
-      -- visible window (marking a single window is pointless) or when
-      -- empty/unsupported (e.g. AeroSpace) — both fall through to the
-      -- all-windows stage below.
-      local _, visibleOut = a.wait(fishAsync("wm-preset list-visible-windows | jq -r .id"))
-      local visible = splitIds(visibleOut)
-      if #visible > 1 and addAll(visible) then
-        Preset.displayMessage("Selected visible windows (" .. ArgList.count() .. " marked)")
-        return
+      if ArgList.isEmpty() then
+        local restored = ArgList.restoreLastCleared()
+        if restored then
+          _G._ArgListSelectionCycleStage = nil
+          Preset.displayMessage("Restored ArgList (" .. restored .. " marked)")
+          return
+        end
       end
 
-      -- Stage 2: every window in the current space.
+      -- Read all candidate sets before changing the ArgList. The last stage is
+      -- tracked so the cycle keeps moving forward even when two sets overlap.
+      local _, visibleOut = a.wait(fishAsync("wm-preset list-visible-windows | jq -r .id"))
+      local visible = splitIds(visibleOut)
+
       local ok, spaceOut = a.wait(taskAsync({"wm-preset", "get-space-window-ids"}))
       local space = splitIds(spaceOut)
       if not ok or #space == 0 then
         Preset.displayMessage("ArgList: no windows in space")
         return
       end
-      if addAll(space) then
-        Preset.displayMessage("Selected all windows (" .. ArgList.count() .. " marked)")
+
+      local floating = floatingIds(space)
+      local stage = _G._ArgListSelectionCycleStage
+
+      local function selectStage(nextStage, ids, message)
+        selectOnly(ids)
+        _G._ArgListSelectionCycleStage = nextStage
+        Preset.displayMessage(message .. " (" .. ArgList.count() .. " marked)")
+      end
+
+      if stage == "all" and argListMatches(space) then
+        if #visible > 0 then
+          selectStage("visible", visible, "Selected visible windows")
+        elseif #floating > 0 then
+          selectStage("floating", floating, "Selected floating windows")
+        else
+          selectStage("all", space, "Selected all windows")
+        end
         return
       end
 
-      -- Stage 3: everything already marked -> clear.
-      ArgList.clear()
-      Preset.displayMessage("Deselected all windows")
+      if stage == "floating" and #floating > 0 and argListMatches(floating) then
+        selectStage("all", space, "Selected all windows")
+        return
+      end
+
+      if stage == "visible" and #visible > 0 and argListMatches(visible) then
+        if #floating > 0 then
+          selectStage("floating", floating, "Selected floating windows")
+        else
+          selectStage("all", space, "Selected all windows")
+        end
+        return
+      end
+
+      if #visible > 0 then
+        selectStage("visible", visible, "Selected visible windows")
+      elseif #floating > 0 then
+        selectStage("floating", floating, "Selected floating windows")
+      else
+        selectStage("all", space, "Selected all windows")
+      end
     end)()
   end)
 
-  -- ArgList populated: clear it. Empty: clear the harpoon pins (default behavior).
+  -- ArgList populated: clear it from any focused window. Empty: clear the
+  -- harpoon pins (default behavior).
   service:conditionalBindOnce({}, "delete", "Clear ArgList / Harpoon Pins", {
     {cond = function() return not ArgList.isEmpty() end, function()
       local count = ArgList.count()
       ArgList.clear()
+      _G._ArgListSelectionCycleStage = nil
       Preset.displayMessage("Cleared ArgList (" .. count .. " windows)")
     end},
     {function() fish("yabai-harpoon delete") end},
   })
+
+  -- Close every marked window, then clear the ArgList regardless of individual
+  -- close failures so stale window ids do not stay selected. Unlike layout/move
+  -- bulk actions, this works from any focused window.
+  service:bindOnce({"cmd"}, "w", "Close ArgList Windows", function()
+    local ids = argListItemsCopy()
+    if #ids == 0 then
+      Preset.displayMessage("ArgList: empty")
+      return
+    end
+
+    a.sync(function()
+      local bulk = {}
+      for _, id in ipairs(ids) do
+        bulk[#bulk + 1] = {"yabai", "-m", "window", id, "--close"}
+      end
+
+      local closed = a.wait(taskAllAsync(bulk))
+      ArgList.clear({noRestore = true})
+      Preset.displayMessage("Closed " .. closed .. " / " .. #ids .. " ArgList windows")
+    end)()
+  end)
 
   local function closeChromePresetApps()
     task({"chrome-preset", "close-apps"}, function(ok, out)
@@ -962,14 +1088,16 @@ function M.setup()
       return
     end
 
-    local args = {"yabai-preset", "side-by-side"}
-    for _, id in ipairs(ArgList.items()) do args[#args + 1] = id end
-    task(args, function(ok)
-      if ok then
-        Preset.displayMessage("Side By Side: arranged " .. count .. " windows")
-      else
-        Preset.displayMessage("Side By Side: failed")
-      end
+    withFocusedArgListWindow(function()
+      local args = {"yabai-preset", "side-by-side"}
+      for _, id in ipairs(ArgList.items()) do args[#args + 1] = id end
+      task(args, function(ok)
+        if ok then
+          Preset.displayMessage("Side By Side: arranged " .. count .. " windows")
+        else
+          Preset.displayMessage("Side By Side: failed")
+        end
+      end)
     end)
   end)
 
@@ -993,13 +1121,12 @@ function M.setup()
   service:bindOnce({}, "v", "Insert Direction East", function() task({"wm-preset", "insert-direction", "east"}) end)
   service:bindOnce({"shift"}, "'", "Insert Direction South", function() task({"wm-preset", "insert-direction", "south"}) end)
   -- ArgList empty: toggle the focused window. Populated: if any marked window is
-  -- floating, tile them all; otherwise float them all.
+  -- floating, tile them all; otherwise float them all. The bulk operation only
+  -- runs when a marked window is focused.
   default:conditionalBindOnce(hyper, "t", "Toggle Float", {
     {cond = function() return not ArgList.isEmpty() end, function()
-      local ids = {}
-      for _, id in ipairs(ArgList.items()) do ids[#ids + 1] = id end
-
-      a.sync(function()
+      local ids = argListItemsCopy()
+      withFocusedArgListWindow(function()
         local anyFloating = false
         for _, id in ipairs(ids) do
           if a.wait(taskAsync({"wm-preset", "is-window-floating", id})) then
@@ -1015,7 +1142,7 @@ function M.setup()
 
         local verb = anyFloating and "Tiled" or "Floated"
         Preset.displayMessage(verb .. " " .. #ids .. " windows")
-      end)()
+      end)
     end},
     {function() fish('display-message (wm-preset toggle-float)') end},
   })
@@ -1032,14 +1159,16 @@ function M.setup()
     end},
     {function()
       local count = ArgList.count()
-      local args = {"wm-preset", "stack-window-ids"}
-      for _, id in ipairs(ArgList.items()) do args[#args + 1] = id end
-      task(args, function(ok)
-        if ok then
-          Preset.displayMessage("Stacked " .. count .. " windows")
-        else
-          Preset.displayMessage("Stack: failed")
-        end
+      withFocusedArgListWindow(function()
+        local args = {"wm-preset", "stack-window-ids"}
+        for _, id in ipairs(ArgList.items()) do args[#args + 1] = id end
+        task(args, function(ok)
+          if ok then
+            Preset.displayMessage("Stacked " .. count .. " windows")
+          else
+            Preset.displayMessage("Stack: failed")
+          end
+        end)
       end)
     end},
   })
@@ -1073,14 +1202,16 @@ function M.setup()
       end},
       {function()
         local count = ArgList.count()
-        local args = {"wm-preset", "move-window-ids-to-space", "--space", tostring(i)}
-        for _, id in ipairs(ArgList.items()) do args[#args + 1] = id end
-        task(args, function(ok)
-          if ok then
-            Preset.displayMessage("Moved " .. count .. " windows to space " .. i)
-          else
-            Preset.displayMessage("Move cancelled: a window did not focus")
-          end
+        withFocusedArgListWindow(function()
+          local args = {"wm-preset", "move-window-ids-to-space", "--space", tostring(i)}
+          for _, id in ipairs(ArgList.items()) do args[#args + 1] = id end
+          task(args, function(ok)
+            if ok then
+              Preset.displayMessage("Moved " .. count .. " windows to space " .. i)
+            else
+              Preset.displayMessage("Move cancelled: a window did not focus")
+            end
+          end)
         end)
       end},
     })
@@ -1101,7 +1232,45 @@ function M.setup()
   -- Misc service
   service:bindOnce(hyper, "]", "Harpoon Focus Pin Next", function() fish("yabai-harpoon focus-pin next") end)
   service:bindOnce(hyper, "[", "Harpoon Focus Pin Prev", function() fish("yabai-harpoon focus-pin prev") end)
-  service:bindOnce({"shift"}, "tab", "Move Window To Next Display", function() task({"wm-preset", "smart-move-window-to-next-display"}) end)
+  -- ArgList empty: move the focused window to the next display. ArgList
+  -- populated: calculate the next display from the focused marked window, then
+  -- move every marked window to that same display. If a non-ArgList window is
+  -- focused, show the standard ArgList focus message.
+  service:bindOnce({"shift"}, "tab", "Move Window(s) To Next Display", function()
+    if ArgList.isEmpty() then
+      task({"wm-preset", "smart-move-window-to-next-display"})
+      return
+    end
+
+    withFocusedArgListWindow(function(focusedId)
+      local focusedWin = hs.window.focusedWindow()
+      local currentScreen = focusedWin and focusedWin:screen()
+      local targetScreen = currentScreen and currentScreen:next()
+      if not targetScreen or targetScreen == currentScreen then
+        Preset.displayMessage("Move display: no next display")
+        return
+      end
+
+      local ids = ArgList.itemsWithLast(focusedId)
+      local moved = 0
+      for _, id in ipairs(ids) do
+        local focusOk = a.wait(taskAsync({"wm-preset", "focus-window-id", id}))
+        local win = focusOk and hs.window.focusedWindow() or nil
+        if win and tostring(win:id()) == tostring(id) then
+          local wasFloating = a.wait(taskAsync({"wm-preset", "is-window-floating", id}))
+          if not wasFloating then
+            a.wait(taskAsync({"wm-preset", "enforce-tiling", "--floating", id}))
+          end
+          win:moveToScreen(targetScreen, false, true, 0)
+          if not wasFloating then
+            a.wait(taskAsync({"wm-preset", "enforce-tiling", "--tiling", id}))
+          end
+          moved = moved + 1
+        end
+      end
+      Preset.displayMessage("Moved " .. moved .. " / " .. #ids .. " ArgList windows to next display")
+    end)
+  end)
   service:bindOnce(hyperShift, "tab", "Swap Workspaces Between Monitors", function() task({"wm-preset", "swap-workspaces-between-monitors"}) end)
   service:bindOnce({"shift"}, "/", "Trigger Help Menu", function() Preset.triggerMenuBar("Help") end)
   service:bindOnce({"shift"}, "v", "Tile Left", function() Preset.triggerMenuBar("Window;Full Screen Tile; Left of Screen") end)

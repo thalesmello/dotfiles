@@ -157,13 +157,20 @@ function Mode:exit()
   if self._modal then self._modal:exit() end
 end
 
+function Mode:isActive()
+  return self._modal and self._modal._active or false
+end
+
 function M.createModal(name, prefix)
   local modal = hs.hotkey.modal.new()
+  modal._active = false
   local alertUUID = nil
   function modal:entered()
+    self._active = true
     if name then alertUUID = hs.alert.show(name, true) end
   end
   function modal:exited()
+    self._active = false
     if alertUUID then hs.alert.closeSpecific(alertUUID) end
     alertUUID = nil
   end
