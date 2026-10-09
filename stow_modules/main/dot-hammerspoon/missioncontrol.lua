@@ -42,16 +42,22 @@ local function toggleWindowUnderCursorInArgList()
 end
 
 -- While Mission Control is on screen, a right click closes the window whose
--- tile sits under the cursor, and a middle click toggles that window in the
--- ArgList. Detection (osascript-preset), close/query (yabai), and list writes
--- run as async tasks, so the eventtap callback never blocks the system mouse
--- path; we let the event pass through and act on the side.
+-- tile sits under the cursor. A middle click or Command+right click toggles
+-- that window in the ArgList. Detection (osascript-preset), close/query
+-- (yabai), and list writes run as async tasks, so the eventtap callback never
+-- blocks the system mouse path; we let the event pass through and act on the
+-- side.
 function M.setup()
   local tap
   tap = hs.eventtap.new({eventTypes.rightMouseUp, eventTypes.otherMouseUp}, function(event)
     local eventType = event:getType()
     if eventType == eventTypes.rightMouseUp then
-      whenMissionControlActive(closeWindowUnderCursor)
+      local flags = event:getFlags()
+      if flags.cmd then
+        whenMissionControlActive(toggleWindowUnderCursorInArgList)
+      else
+        whenMissionControlActive(closeWindowUnderCursor)
+      end
     elseif eventType == eventTypes.otherMouseUp then
       local button = event:getProperty(eventProps.mouseEventButtonNumber)
       if button == 2 then
