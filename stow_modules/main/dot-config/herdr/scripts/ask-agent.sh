@@ -561,12 +561,13 @@ else
   startup_prompt=$question
 fi
 
-# Keep native startup arguments shell-safe: pass one-line prompts directly, and
-# put multiline prompts in a temp file referenced by a short startup prompt.
+# Keep native startup arguments prompt-free. `herdr agent start` should only
+# load the agent and wait for it to become ready; the question is submitted
+# afterwards through `herdr agent prompt` for every supported agent.
 case "$agent" in
-  pi)     agent_start_args=(--session-id "$session_id" -- "$startup_prompt") ;;
-  claude) agent_start_args=(--session-id "$session_id" "$startup_prompt") ;;
-  codex)  agent_start_args=("$startup_prompt") ;;
+  pi)     agent_start_args=(--session-id "$session_id") ;;
+  claude) agent_start_args=(--session-id "$session_id") ;;
+  codex)  agent_start_args=() ;;
 esac
 
 descriptor=$(clean_log_field "$slug")
@@ -694,14 +695,11 @@ PY
 
 # --- 8. the agent session --------------------------------------------------
 
-# Start the agent with the selected one-line opening prompt.
+# Start the agent blank first. `herdr agent start` returns when the agent is
+# ready for interactive input; passing the question as a native startup arg can
+# make start wait for the whole first turn instead.
 agent_start_timeout_ms=${ASK_AGENT_START_TIMEOUT_MS:-120000}
 printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
-
-# Codex only gets a thread id once it has persisted the opening message, so
-# the watcher has to be listening before the agent starts. It no-ops for the
-# other agents and for non-quick categories.
-start_codex_quick_log_watcher
 
 if [ "${#agent_start_args[@]}" -gt 0 ]; then
   start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
@@ -712,6 +710,14 @@ else
     --timeout "$agent_start_timeout_ms" 2>&1) \
     || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
 fi
+
+# Codex only gets a thread id once it has persisted the opening message, so
+# the watcher has to be listening before the prompt is submitted. It no-ops for
+# the other agents and for non-quick categories.
+start_codex_quick_log_watcher
+
+prompt_output=$("$herdr" agent prompt "$slug" "$startup_prompt" 2>&1) \
+  || herdr_die 'ask' "could not prompt $agent agent through herdr agent prompt: $prompt_output"
 
 if [ "$category" = quick ] && [ "$agent" != codex ]; then
   append_quick_log "$session_id"
