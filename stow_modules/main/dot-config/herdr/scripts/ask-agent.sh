@@ -98,7 +98,7 @@ herdr=$(herdr_bin) || herdr_die 'ask' 'herdr CLI not found'
 
 # --- 1. the question -------------------------------------------------------
 
-prompt_line 'Ask: ' || exit 0
+prompt_line 'Ask: ' '' ask || exit 0
 question=$PROMPT_LINE
 [ -n "${question// /}" ] || exit 0
 
@@ -400,6 +400,50 @@ print(next((w["workspace_id"] for w in workspaces if w.get("label") == label), "
 ' "$1"
 }
 
+pane_has_available_shell() {
+  python3 - "$1" <<'PY'
+import json
+import sys
+
+try:
+    info = json.loads(sys.argv[1])["result"]["process_info"]
+except Exception:
+    raise SystemExit(1)
+
+shell_pid = info.get("shell_pid")
+fg_pgid = info.get("foreground_process_group_id")
+processes = info.get("foreground_processes") or []
+shell_names = {"bash", "fish", "sh", "zsh"}
+
+for proc in processes:
+    if proc.get("pid") == shell_pid and proc.get("name") in shell_names:
+        raise SystemExit(0)
+
+if shell_pid is not None and fg_pgid == shell_pid:
+    for proc in processes:
+        if proc.get("name") in shell_names:
+            raise SystemExit(0)
+
+raise SystemExit(1)
+PY
+}
+
+wait_for_shell_pane() {
+  local _pane=$1 _attempt=1 _max _info
+  _max=${ASK_AGENT_SHELL_WAIT_ATTEMPTS:-150}
+  case $_max in ''|*[!0-9]*) _max=150 ;; esac
+  [ "$_max" -gt 0 ] 2>/dev/null || _max=150
+
+  while [ "$_attempt" -le "$_max" ]; do
+    _info=$("$herdr" pane process-info --pane "$_pane" 2>/dev/null) \
+      && pane_has_available_shell "$_info" \
+      && return 0
+    sleep 0.2
+    _attempt=$((_attempt + 1))
+  done
+  return 1
+}
+
 workspace=''
 if [ "$reuse_workspace" = 1 ]; then
   workspace=$(workspace_with_label "$workspace_label")
@@ -420,6 +464,8 @@ tab=$(printf '%s' "$created" | json_field tab_id)
 
 [ -n "$pane" ] || herdr_die 'ask' "could not open a tab in the $workspace_label workspace"
 [ -n "$tab" ] && "$herdr" tab rename "$tab" "$slug" >/dev/null 2>&1
+wait_for_shell_pane "$pane" \
+  || herdr_die 'ask' "pane $pane did not become an available shell"
 
 # --- 6. Claude project trust ----------------------------------------------
 
@@ -650,9 +696,6 @@ PY
 
 # Start the agent with the selected one-line opening prompt.
 agent_start_timeout_ms=${ASK_AGENT_START_TIMEOUT_MS:-120000}
-start_log=$(mktemp "${TMPDIR:-/tmp}/ask-agent-${slug}.start.XXXXXX.log") \
-  || herdr_die 'ask' 'could not create temporary agent-start log'
-chmod 600 "$start_log" >/dev/null 2>&1 || true
 printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
 
 # Codex only gets a thread id once it has persisted the opening message, so
@@ -660,25 +703,18 @@ printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
 # other agents and for non-quick categories.
 start_codex_quick_log_watcher
 
-setsid -f bash -c '
-herdr=$1
-slug=$2
-agent=$3
-pane=$4
-agent_start_timeout_ms=$5
-shift 5
-if [ "$#" -gt 0 ]; then
-  "$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
-    --timeout "$agent_start_timeout_ms" -- "$@"
+if [ "${#agent_start_args[@]}" -gt 0 ]; then
+  start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
+    --timeout "$agent_start_timeout_ms" -- "${agent_start_args[@]}" 2>&1) \
+    || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
 else
-  "$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
-    --timeout "$agent_start_timeout_ms"
+  start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
+    --timeout "$agent_start_timeout_ms" 2>&1) \
+    || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
 fi
-' ask-agent-start "$herdr" "$slug" "$agent" "$pane" "$agent_start_timeout_ms" \
-  "${agent_start_args[@]}" </dev/null >"$start_log" 2>&1
 
 if [ "$category" = quick ] && [ "$agent" != codex ]; then
   append_quick_log "$session_id"
 fi
 
-printf 'asked %s\nagent start running in background; log: %s\n' "$slug" "$start_log"
+printf 'asked %s\n' "$slug"

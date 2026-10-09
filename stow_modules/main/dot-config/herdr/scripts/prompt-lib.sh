@@ -33,8 +33,9 @@
 # operation applies at the cursor, not just at the end.
 #
 #   left / right, ctrl+b / ctrl+f      char left / right
-#   up / down, ctrl+p / ctrl+n         previous / next line in multiline input
-#   alt+p / alt+n                      previous / next line in multiline input
+#   up / down, ctrl+p / ctrl+n         history when empty/history browsing;
+#                                      otherwise previous / next line in multiline input
+#   alt+p / alt+n                      same as up / down
 #   alt+left / alt+right, alt+b / f    word left / right
 #   ctrl+left / ctrl+right             word left / right
 #   home / end, ctrl+a / ctrl+e        start / end of the logical line;
@@ -219,6 +220,7 @@ _prompt_undo() {                       # restore the previous edited state
 _prompt_insert() {                     # insert text at the cursor
   local _t=$1
   [ -n "$_t" ] || return 0
+  _prompt_history_edit_mode
   _prompt_save_undo
   PROMPT_LINE="${PROMPT_LINE:0:_prompt_pos}$_t${PROMPT_LINE:_prompt_pos}"
   _prompt_pos=$((_prompt_pos + ${#_t}))
@@ -235,6 +237,7 @@ _prompt_delete() {
   [ "$_at" -lt "$_n" ] || return 0
   [ $((_at + _len)) -gt "$_n" ] && _len=$((_n - _at))
   [ -n "$_ring" ] && _prompt_kill=${PROMPT_LINE:_at:_len}
+  _prompt_history_edit_mode
   _prompt_save_undo
   PROMPT_LINE="${PROMPT_LINE:0:_at}${PROMPT_LINE:_at + _len}"
   [ "$_prompt_pos" -gt "$_at" ] && _prompt_pos=$_at
@@ -320,6 +323,148 @@ _prompt_delete_sequence_key() {
   _prompt_delete "$_prompt_pos" "$_count"
 }
 
+# --- prompt history ---------------------------------------------------------
+
+_prompt_history_sanitize_name() {
+  local _raw=${1:-prompt}
+  printf '%s' "$_raw" \
+    | tr '[:upper:]' '[:lower:]' \
+    | tr -c 'a-z0-9_.-' '-' \
+    | sed -e 's/--*/-/g' -e 's/^-//' -e 's/-$//' \
+    | cut -c1-64 \
+    | sed -e 's/-$//'
+}
+
+_prompt_history_refresh_files() {
+  local _f _had_nullglob=1
+  _prompt_history_files=()
+  [ -n "${_prompt_history_dir:-}" ] || return 0
+  [ -d "$_prompt_history_dir" ] || return 0
+
+  shopt -q nullglob && _had_nullglob=0
+  shopt -s nullglob
+  for _f in "$_prompt_history_dir"/*.prompt; do
+    _prompt_history_files+=("$_f")
+  done
+  [ "$_had_nullglob" -eq 0 ] || shopt -u nullglob
+
+  if [ "${#_prompt_history_files[@]}" -gt 1 ]; then
+    mapfile -t _prompt_history_files < <(printf '%s\n' "${_prompt_history_files[@]}" | sort)
+  fi
+}
+
+_prompt_history_setup() {
+  local _name
+  _prompt_history_enabled=0
+  _prompt_history_active=0
+  _prompt_history_draft=''
+  _prompt_history_files=()
+  _prompt_history_index=0
+  _prompt_history_dir=''
+
+  [ "${PROMPT_LIB_HISTORY:-1}" != 0 ] || return 0
+  _name=$(_prompt_history_sanitize_name "$1")
+  [ -n "$_name" ] || _name=prompt
+  _prompt_history_dir=${XDG_STATE_HOME:-$HOME/.local/state}/prompt-lib/$_name
+  mkdir -p "$_prompt_history_dir" 2>/dev/null || return 0
+  chmod 700 "${XDG_STATE_HOME:-$HOME/.local/state}/prompt-lib" "$_prompt_history_dir" 2>/dev/null || true
+
+  _prompt_history_refresh_files
+  _prompt_history_index=${#_prompt_history_files[@]}
+  _prompt_history_enabled=1
+}
+
+_prompt_history_edit_mode() {
+  _prompt_history_active=0
+  _prompt_history_index=${#_prompt_history_files[@]}
+}
+
+_prompt_history_move() {
+  local _dir=$1 _n=${#_prompt_history_files[@]}
+  [ "${_prompt_history_enabled:-0}" -eq 1 ] || return 0
+  [ "$_n" -gt 0 ] || return 0
+
+  if [ "${_prompt_history_active:-0}" -ne 1 ]; then
+    _prompt_history_draft=$PROMPT_LINE
+    _prompt_history_index=$_n
+    _prompt_history_active=1
+  fi
+
+  if [ "$_dir" -lt 0 ]; then
+    [ "$_prompt_history_index" -gt 0 ] || return 0
+    _prompt_history_index=$((_prompt_history_index - 1))
+  else
+    [ "$_prompt_history_index" -lt "$_n" ] || return 0
+    _prompt_history_index=$((_prompt_history_index + 1))
+  fi
+
+  if [ "$_prompt_history_index" -eq "$_n" ]; then
+    PROMPT_LINE=$_prompt_history_draft
+  else
+    PROMPT_LINE=$(<"${_prompt_history_files[$_prompt_history_index]}")
+  fi
+  _prompt_pos=${#PROMPT_LINE}
+  _prompt_start=0
+  _prompt_top_line=0
+  unset _prompt_goal_col
+}
+
+_prompt_history_or_move_vert() {
+  local _dir=$1
+  if [ "${_prompt_history_enabled:-0}" -eq 1 ] \
+      && { [ -z "$PROMPT_LINE" ] || [ "${_prompt_history_active:-0}" -eq 1 ]; }; then
+    _prompt_history_move "$_dir"
+  else
+    _prompt_move_vert "$_dir"
+  fi
+}
+
+_prompt_history_timestamp() {
+  python3 - <<'PY' 2>/dev/null || date -u '+%Y%m%dT%H%M%S'
+import datetime as dt
+import time
+
+ns = time.time_ns()
+sec, frac = divmod(ns, 1_000_000_000)
+print(dt.datetime.fromtimestamp(sec, dt.timezone.utc).strftime('%Y%m%dT%H%M%S') + f'.{frac:09d}')
+PY
+}
+
+_prompt_history_save() {
+  local _tmp _entry _limit _n _latest _excess _i
+  [ "${_prompt_history_enabled:-0}" -eq 1 ] || return 0
+  [ -n "$PROMPT_LINE" ] || return 0
+  [ -d "$_prompt_history_dir" ] || return 0
+
+  _tmp=$(mktemp "$_prompt_history_dir/.tmp.XXXXXX") || return 0
+  printf '%s' "$PROMPT_LINE" >"$_tmp" || { rm -f "$_tmp"; return 0; }
+  chmod 600 "$_tmp" 2>/dev/null || true
+
+  _prompt_history_refresh_files
+  _n=${#_prompt_history_files[@]}
+  if [ "$_n" -gt 0 ]; then
+    _latest=${_prompt_history_files[$((_n - 1))]}
+    if cmp -s "$_tmp" "$_latest"; then
+      rm -f "$_tmp"
+      return 0
+    fi
+  fi
+
+  _entry=$_prompt_history_dir/$(_prompt_history_timestamp).${BASHPID:-$$}.${RANDOM}.prompt
+  mv "$_tmp" "$_entry" || { rm -f "$_tmp"; return 0; }
+
+  _limit=${PROMPT_LIB_HISTORY_LIMIT:-200}
+  case $_limit in ''|*[!0-9]*) _limit=200 ;; esac
+  [ "$_limit" -gt 0 ] 2>/dev/null || _limit=200
+  _prompt_history_refresh_files
+  _excess=$((${#_prompt_history_files[@]} - _limit))
+  if [ "$_excess" -gt 0 ]; then
+    for ((_i = 0; _i < _excess; _i++)); do
+      rm -f "${_prompt_history_files[$_i]}"
+    done
+  fi
+}
+
 # Word boundaries, readline's definition: alphanumerics are the word, anything
 # else is separator.
 _prompt_word_back() {                  # index of the start of the word left of $1
@@ -336,6 +481,26 @@ _prompt_word_fwd() {                   # index of the end of the word right of $
   printf '%s' "$_i"
 }
 
+_prompt_move_char_left() {
+  _prompt_history_edit_mode
+  [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1))
+}
+
+_prompt_move_char_right() {
+  _prompt_history_edit_mode
+  [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1))
+}
+
+_prompt_move_word_left() {
+  _prompt_history_edit_mode
+  _prompt_pos=$(_prompt_word_back "$_prompt_pos")
+}
+
+_prompt_move_word_right() {
+  _prompt_history_edit_mode
+  _prompt_pos=$(_prompt_word_fwd "$_prompt_pos")
+}
+
 _prompt_line_start_at() {              # index of the start of the line containing $1
   local _i=$1
   while [ "$_i" -gt 0 ] && [ "${PROMPT_LINE:_i-1:1}" != $'\n' ]; do _i=$((_i - 1)); done
@@ -350,6 +515,7 @@ _prompt_line_end_at() {                # index of the end of the line containing
 
 _prompt_move_line_start() {            # home / ctrl+a: line start, then buffer start
   local _at
+  _prompt_history_edit_mode
   _at=$(_prompt_line_start_at "$_prompt_pos")
   if [ "$_prompt_pos" -eq "$_at" ] && [ "$_prompt_pos" -gt 0 ]; then
     _prompt_pos=0
@@ -360,6 +526,7 @@ _prompt_move_line_start() {            # home / ctrl+a: line start, then buffer 
 
 _prompt_move_line_end() {              # end / ctrl+e: line end, then buffer end
   local _at _n=${#PROMPT_LINE}
+  _prompt_history_edit_mode
   _at=$(_prompt_line_end_at "$_prompt_pos")
   if [ "$_prompt_pos" -eq "$_at" ] && [ "$_prompt_pos" -lt "$_n" ]; then
     _prompt_pos=$_n
@@ -388,6 +555,7 @@ _prompt_case_word() {
   esac
 
   if [ "$_word" != "$_old_word" ]; then
+    _prompt_history_edit_mode
     _prompt_save_undo
     PROMPT_LINE="${PROMPT_LINE:0:_prompt_pos}$_word${PROMPT_LINE:_end}"
   fi
@@ -401,7 +569,10 @@ _prompt_transpose() {                  # ctrl+t: swap the chars around the curso
   [ "$_at" -ge 1 ] || return 0
   _a=${PROMPT_LINE:_at-1:1}
   _b=${PROMPT_LINE:_at:1}
-  [ "$_a" != "$_b" ] && _prompt_save_undo
+  if [ "$_a" != "$_b" ]; then
+    _prompt_history_edit_mode
+    _prompt_save_undo
+  fi
   PROMPT_LINE="${PROMPT_LINE:0:_at-1}$_b$_a${PROMPT_LINE:_at+1}"
   _prompt_pos=$((_at + 1))
 }
@@ -443,13 +614,18 @@ _prompt_transpose_words() {            # alt+t: swap adjacent words
   _w1=${PROMPT_LINE:_w1_start:_w1_end - _w1_start}
   _mid=${PROMPT_LINE:_w1_end:_w2_start - _w1_end}
   _w2=${PROMPT_LINE:_w2_start:_w2_end - _w2_start}
-  [ "$_w1" != "$_w2" ] && _prompt_save_undo
+  if [ "$_w1" != "$_w2" ]; then
+    _prompt_history_edit_mode
+    _prompt_save_undo
+  fi
   PROMPT_LINE="${PROMPT_LINE:0:_w1_start}$_w2$_mid$_w1${PROMPT_LINE:_w2_end}"
   _prompt_pos=$_w2_end
 }
 
 # Throw the buffer away, keeping it on the undo stack so ctrl+_ brings it back.
 _prompt_clear_buffer() {
+  _prompt_history_active=0
+  _prompt_history_index=${#_prompt_history_files[@]}
   _prompt_save_undo
   PROMPT_LINE=''
   _prompt_pos=0
@@ -1385,20 +1561,20 @@ _prompt_csi_prompt_key() {
         return 0 ;;
       57417)                                                                      # kitty left arrow
         if [ $((_mod_bits & 62)) -ne 0 ]; then
-          _prompt_pos=$(_prompt_word_back "$_prompt_pos")
+          _prompt_move_word_left
         else
-          [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1))
+          _prompt_move_char_left
         fi
         return 0 ;;
       57418)                                                                      # kitty right arrow
         if [ $((_mod_bits & 62)) -ne 0 ]; then
-          _prompt_pos=$(_prompt_word_fwd "$_prompt_pos")
+          _prompt_move_word_right
         else
-          [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1))
+          _prompt_move_char_right
         fi
         return 0 ;;
-      57419) _prompt_move_vert -1; return 0 ;;                                    # kitty up arrow
-      57420) _prompt_move_vert 1; return 0 ;;                                     # kitty down arrow
+      57419) _prompt_history_or_move_vert -1; return 0 ;;                         # kitty up arrow
+      57420) _prompt_history_or_move_vert 1; return 0 ;;                          # kitty down arrow
       57423) _prompt_move_line_start; return 0 ;;                                 # kitty home
       57424) _prompt_move_line_end; return 0 ;;                                   # kitty end
       27)
@@ -1413,10 +1589,10 @@ _prompt_csi_prompt_key() {
       _lower=$_code
       [ "$_lower" -ge 65 ] 2>/dev/null && [ "$_lower" -le 90 ] && _lower=$((_lower + 32))
       case $_lower in
-        98) _prompt_pos=$(_prompt_word_back "$_prompt_pos"); return 0 ;;         # alt+b
-        102) _prompt_pos=$(_prompt_word_fwd "$_prompt_pos"); return 0 ;;         # alt+f
-        110) _prompt_move_vert 1; return 0 ;;                                     # alt+n
-        112) _prompt_move_vert -1; return 0 ;;                                    # alt+p
+        98) _prompt_move_word_left; return 0 ;;                                  # alt+b
+        102) _prompt_move_word_right; return 0 ;;                                # alt+f
+        110) _prompt_history_or_move_vert 1; return 0 ;;                         # alt+n
+        112) _prompt_history_or_move_vert -1; return 0 ;;                        # alt+p
         100) _at=$(_prompt_word_fwd "$_prompt_pos"); _prompt_delete "$_prompt_pos" $((_at - _prompt_pos)) kill; return 0 ;; # alt+d
         104) _at=$(_prompt_word_back "$_prompt_pos"); _prompt_delete "$_at" $((_prompt_pos - _at)) kill; return 0 ;; # alt+ctrl+h
         116) _prompt_transpose_words; return 0 ;;                                # alt+t
@@ -1434,7 +1610,7 @@ _prompt_csi_prompt_key() {
     [ "$_lower" -ge 65 ] 2>/dev/null && [ "$_lower" -le 90 ] && _lower=$((_lower + 32))
     case $_lower in
       97) _prompt_move_line_start; return 0 ;;                                   # ctrl+a
-      98) [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1)); return 0 ;; # ctrl+b
+      98) _prompt_move_char_left; return 0 ;;                                    # ctrl+b
       99)                                                                        # ctrl+c
         _prompt_esc_key || _prompt_cancel=1
         return 0 ;;
@@ -1442,13 +1618,13 @@ _prompt_csi_prompt_key() {
         if [ -z "$PROMPT_LINE" ]; then _prompt_cancel=1; else _prompt_delete_forward_key; fi
         return 0 ;;
       101) _prompt_move_line_end; return 0 ;;                                    # ctrl+e
-      102) [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1)); return 0 ;; # ctrl+f
+      102) _prompt_move_char_right; return 0 ;;                                  # ctrl+f
       103) _prompt_cancel=1; return 0 ;;                                         # ctrl+g
       104|127) _prompt_backspace_key; return 0 ;;                              # ctrl+h/backspace
       107) _prompt_delete "$_prompt_pos" $((${#PROMPT_LINE} - _prompt_pos)) kill; return 0 ;; # ctrl+k
       108) _prompt_force_full_render=1; return 0 ;;                              # ctrl+l redraw
-      110) _prompt_move_vert 1; return 0 ;;                                      # ctrl+n
-      112) _prompt_move_vert -1; return 0 ;;                                     # ctrl+p
+      110) _prompt_history_or_move_vert 1; return 0 ;;                          # ctrl+n
+      112) _prompt_history_or_move_vert -1; return 0 ;;                         # ctrl+p
       116) _prompt_transpose; return 0 ;;                                        # ctrl+t
       117) _prompt_delete 0 "$_prompt_pos" kill; return 0 ;;                    # ctrl+u
       119) _at=$(_prompt_word_back "$_prompt_pos"); _prompt_delete "$_at" $((_prompt_pos - _at)) kill; return 0 ;; # ctrl+w
@@ -1524,13 +1700,13 @@ _prompt_escape() {
           [ -n "$_mod" ] && [ "$_mod" -ge 1 ] 2>/dev/null && _mod_bits=$((_mod - 1))
           if [ $((_mod_bits & 62)) -ne 0 ]; then
             case $_tail in
-              *C) _prompt_pos=$(_prompt_word_fwd "$_prompt_pos") ;;
-              *)  _prompt_pos=$(_prompt_word_back "$_prompt_pos") ;;
+              *C) _prompt_move_word_right ;;
+              *)  _prompt_move_word_left ;;
             esac
           else
             case $_tail in
-              *C) [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1)) ;;
-              *)  [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1)) ;;
+              *C) _prompt_move_char_right ;;
+              *)  _prompt_move_char_left ;;
             esac
           fi ;;
         H|1~|1\;*H) _prompt_move_line_start ;;          # home
@@ -1539,8 +1715,8 @@ _prompt_escape() {
         3\;*~)                                           # alt/ctrl+delete
           _at=$(_prompt_word_fwd "$_prompt_pos")
           _prompt_delete "$_prompt_pos" $((_at - _prompt_pos)) kill ;;
-        A|[0-9]*A) _prompt_move_vert -1 ;;             # up: previous line
-        B|[0-9]*B) _prompt_move_vert 1 ;;              # down: next line
+        A|[0-9]*A) _prompt_history_or_move_vert -1 ;;  # up: history or previous line
+        B|[0-9]*B) _prompt_history_or_move_vert 1 ;;   # down: history or next line
         *) : ;;                        # anything else: consumed and ignored
       esac ;;
     27)                                # alt-arrow from terminals that emit ESC ESC [C/D
@@ -1550,35 +1726,35 @@ _prompt_escape() {
         91)
           _tail=$(_prompt_csi_tail)
           case $_tail in
-            C|[0-9]*C) _prompt_pos=$(_prompt_word_fwd "$_prompt_pos") ;;
-            D|[0-9]*D) _prompt_pos=$(_prompt_word_back "$_prompt_pos") ;;
+            C|[0-9]*C) _prompt_move_word_right ;;
+            D|[0-9]*D) _prompt_move_word_left ;;
             *) : ;;
           esac ;;
         79)
           _nxt=$(_prompt_peek_byte)
           case $_nxt in
-            65) _prompt_move_vert -1 ;;
-            66) _prompt_move_vert 1 ;;
-            67) _prompt_pos=$(_prompt_word_fwd "$_prompt_pos") ;;
-            68) _prompt_pos=$(_prompt_word_back "$_prompt_pos") ;;
+            65) _prompt_history_or_move_vert -1 ;;
+            66) _prompt_history_or_move_vert 1 ;;
+            67) _prompt_move_word_right ;;
+            68) _prompt_move_word_left ;;
           esac ;;
         *) : ;;
       esac ;;
     79)                                # SS3 (application cursor keys)
       _nxt=$(_prompt_peek_byte)
       case $_nxt in
-        65) _prompt_move_vert -1 ;;                                                         # A
-        66) _prompt_move_vert 1 ;;                                                          # B
-        67) [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1)) ;;  # C
-        68) [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1)) ;;                  # D
+        65) _prompt_history_or_move_vert -1 ;;                                              # A
+        66) _prompt_history_or_move_vert 1 ;;                                               # B
+        67) _prompt_move_char_right ;;                                                      # C
+        68) _prompt_move_char_left ;;                                                       # D
         72) _prompt_move_line_start ;;                                                       # H
         70) _prompt_move_line_end ;;                                                         # F
       esac ;;
     # meta chords: alt+key arrives as Esc key
-    98|66)  _prompt_pos=$(_prompt_word_back "$_prompt_pos") ;;   # alt+b
-    102|70) _prompt_pos=$(_prompt_word_fwd "$_prompt_pos") ;;    # alt+f
-    110|78) _prompt_move_vert 1 ;;                                # alt+n
-    112|80) _prompt_move_vert -1 ;;                               # alt+p
+    98|66)  _prompt_move_word_left ;;                             # alt+b
+    102|70) _prompt_move_word_right ;;                            # alt+f
+    110|78) _prompt_history_or_move_vert 1 ;;                      # alt+n
+    112|80) _prompt_history_or_move_vert -1 ;;                     # alt+p
     100)                                                          # alt+d
       _at=$(_prompt_word_fwd "$_prompt_pos")
       _prompt_delete "$_prompt_pos" $((_at - _prompt_pos)) kill ;;
@@ -1599,11 +1775,13 @@ _prompt_escape() {
 
 # --- the prompt -------------------------------------------------------------
 
-# prompt_line <prompt> [prefill]
+# prompt_line <prompt> [prefill] [history-name]
 # Sets PROMPT_LINE to the edited buffer. Returns 0 when accepted with Enter,
 # 1 when cancelled (Esc, ctrl+g, ctrl+d on an empty line, or ctrl+c on one).
+# History is stored under ~/.local/state/prompt-lib/<history-name>/ unless
+# PROMPT_LIB_HISTORY=0 disables it. PROMPT_LIB_HISTORY_NAME overrides the name.
 prompt_line() {
-  local _old _b _c _at _cancelled=0
+  local _old _b _c _at _cancelled=0 _history_name
 
   PROMPT_CANCELLED_BY_KEY=0
   _prompt_label=$1
@@ -1611,6 +1789,14 @@ prompt_line() {
   printf -v _prompt_label_spaces '%*s' "$_prompt_label_width" ''
   PROMPT_LINE=${2-}
   _prompt_pos=${#PROMPT_LINE}
+  if [ -n "${PROMPT_LIB_HISTORY_NAME:-}" ]; then
+    _history_name=$PROMPT_LIB_HISTORY_NAME
+  elif [ "$#" -ge 3 ]; then
+    _history_name=$3
+  else
+    _history_name=$_prompt_label
+  fi
+  _prompt_history_setup "$_history_name"
   _prompt_start=0
   _prompt_top_line=0
   _prompt_render_rows=0
@@ -1649,8 +1835,8 @@ prompt_line() {
       13) break ;;                                     # Enter -> accept
       1) _prompt_move_line_start ;;                    # ctrl+a
       5) _prompt_move_line_end ;;                      # ctrl+e
-      2) [ "$_prompt_pos" -gt 0 ] && _prompt_pos=$((_prompt_pos - 1)) ;;                     # ctrl+b
-      6) [ "$_prompt_pos" -lt "${#PROMPT_LINE}" ] && _prompt_pos=$((_prompt_pos + 1)) ;;     # ctrl+f
+      2) _prompt_move_char_left ;;                         # ctrl+b
+      6) _prompt_move_char_right ;;                        # ctrl+f
       127|8) _prompt_backspace_key ;;                    # backspace / ctrl+h
       4)                                               # ctrl+d: delete, or EOF
         if [ -z "$PROMPT_LINE" ]; then _cancelled=1; break; fi
@@ -1662,8 +1848,8 @@ prompt_line() {
       11)                                              # ctrl+k: kill to end
         _prompt_delete "$_prompt_pos" $((${#PROMPT_LINE} - _prompt_pos)) kill ;;
       25) _prompt_insert "$_prompt_kill" ;;            # ctrl+y
-      14) _prompt_move_vert 1 ;;                       # ctrl+n
-      16) _prompt_move_vert -1 ;;                      # ctrl+p
+      14) _prompt_history_or_move_vert 1 ;;            # ctrl+n
+      16) _prompt_history_or_move_vert -1 ;;           # ctrl+p
       20) _prompt_transpose ;;                         # ctrl+t
       31) _prompt_undo ;;                              # ctrl+shift+_ / ctrl+_
       12) _prompt_force_full_render=1 ;;               # ctrl+l: redraw
@@ -1692,6 +1878,7 @@ prompt_line() {
   unset _prompt_pending_file
 
   if [ "$_cancelled" -eq 0 ]; then
+    _prompt_history_save
     PROMPT_CANCELLED_BY_KEY=0
     return 0
   fi
