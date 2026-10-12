@@ -216,14 +216,15 @@ description = "clear screen (ctrl+l)"
 # after the agent died in it. Resolves the conversation by pane (see
 # `herdr-preset resume-agent`, and the agent-sessions plugin in local-plugins
 # that records them), so it picks the right one where `claude --continue` --
-# most recent for the cwd -- does not. The `resume-agent` shim is what turns a
-# failure into a notification: a detached type = "shell" command has no
-# terminal, so "an agent is still running here" would otherwise be a keypress
-# that appears to do nothing.
+# most recent for the cwd -- does not. The `resume-agent` shim is invoked by
+# path because the Herdr server environment may not have ~/src/dotfiles/bin on
+# PATH; it turns a failure into a notification, since a detached type = "shell"
+# command has no terminal and "an agent is still running here" would otherwise
+# be a keypress that appears to do nothing.
 [[keys.command]]
 key = "prefix+ctrl+r"
 type = "shell"
-command = "resume-agent"
+command = "~/src/dotfiles/bin/resume-agent"
 description = "resume this pane's dead agent"
 
 # prefix+=: even out every split in the tab, so all panes end up the same size

@@ -28,10 +28,9 @@
 # Check it with `herdr plugin list` and `herdr plugin log`, which keeps each
 # hook's exit code and stderr.
 #
-# The commands are bare names: hooks run with the herdr SERVER's environment,
-# which is the login environment it was started from, so ~/src/dotfiles/bin is
-# on PATH. If herdr is ever started from somewhere without it, every hook fails
-# at once and `herdr plugin log` says so.
+# Hook commands run with the herdr SERVER's environment, which may not include
+# ~/src/dotfiles/bin on PATH. Call herdr-preset by path relative to this plugin
+# root instead of relying on PATH; `herdr plugin log` records failures.
 
 id = "agent-sessions"
 name = "agent-sessions"
@@ -58,7 +57,7 @@ platforms = ["macos", "linux"]
 # match and does nothing -- `herdr-preset resume-agent` sweeps again before it
 # looks anything up, so the re-keying still happens in time to be used.
 [[startup]]
-command = ["herdr-preset", "track-agent-sessions"]
+command = ["../../../../../../bin/herdr-preset", "track-agent-sessions"]
 
 # An agent appeared in a pane. The conversation id is NOT reported yet at this
 # point -- herdr has recognised the program on screen, while the id comes
@@ -69,7 +68,7 @@ command = ["herdr-preset", "track-agent-sessions"]
 # installed) waits that out once, at start, and is recorded without one.
 [[events]]
 on = "pane.agent_detected"
-command = ["herdr-preset", "track-agent-sessions", "--event", "--wait", "20"]
+command = ["../../../../../../bin/herdr-preset", "track-agent-sessions", "--event", "--wait", "20"]
 
 # Every idle/working transition of every agent. Chatty on purpose: it is the
 # only recurring per-pane event herdr publishes, so it is the standing chance
@@ -79,4 +78,4 @@ command = ["herdr-preset", "track-agent-sessions", "--event", "--wait", "20"]
 # __herdr_agent_sweep).
 [[events]]
 on = "pane.agent_status_changed"
-command = ["herdr-preset", "track-agent-sessions", "--event"]
+command = ["../../../../../../bin/herdr-preset", "track-agent-sessions", "--event"]
