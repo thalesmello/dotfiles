@@ -94,6 +94,7 @@ if test -z "$sock"
     exit 1
 end
 
+herdr_file_key $sock >$dir/socket-key
 date +%s >$dir/started
 
 # Every start costs a warm-up, so leave a trail: if these lines pile up, the

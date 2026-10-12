@@ -123,6 +123,33 @@ function herdr_focus_history_dir
     echo $dir
 end
 
+# herdr_file_key <path> -- print a portable identity for a file/socket.
+function herdr_file_key --argument-names path
+    test -e "$path"; or return 1
+    set -l stat_key (begin
+        # GNU stat accepts -f, but it means "filesystem status" there and exits 0,
+        # producing several non-key lines. Try GNU's -c first, then BSD/macOS -f.
+        stat -c '%d:%i:%Y' "$path"
+        or stat -f '%d:%i:%m' "$path"
+    end 2>/dev/null | string trim)
+    test -n "$stat_key"; or return 1
+    printf '%s:%s\n' "$path" "$stat_key"
+end
+
+# herdr_current_socket_key -- print the active Herdr API socket identity.
+function herdr_current_socket_key
+    set -l sock (herdr_socket); or return 1
+    herdr_file_key $sock
+end
+
+# herdr_focus_history_socket_current -- true when the daemon recorded this socket.
+function herdr_focus_history_socket_current
+    set -l dir (herdr_focus_history_dir)
+    set -l current (herdr_current_socket_key)
+    set -l recorded (cat $dir/socket-key 2>/dev/null | string trim)
+    test -n "$current"; and test "$recorded" = "$current"
+end
+
 # herdr_focus_history_running -- true when the focus-history daemon is alive.
 function herdr_focus_history_running
     set -l dir (herdr_focus_history_dir)
@@ -131,6 +158,9 @@ function herdr_focus_history_running
     kill -0 $pid 2>/dev/null; or return 1
     # Guard against pid reuse: the pid must still be our daemon.
     ps -p $pid -o command= 2>/dev/null | string match -q '*focus-history-daemon*'; or return 1
+    # A daemon can survive a Herdr server restart with an nc child still present
+    # on a dead socket. Treat a socket identity mismatch as stale.
+    herdr_focus_history_socket_current; or return 1
     # A daemon whose subscription died is worse than none -- it holds the lock
     # while recording nothing -- so the nc carrying that subscription has to
     # still be one of its children.
@@ -159,11 +189,19 @@ function herdr_ensure_focus_history
     # clear it out first.
     set -l dir (herdr_focus_history_dir)
     set -l stale (cat $dir/daemon.lock/pid 2>/dev/null)
+    set -l stale_socket_mismatch 0
+    herdr_focus_history_socket_current; or set stale_socket_mismatch 1
     if test -n "$stale"; and kill -0 $stale 2>/dev/null
         and ps -p $stale -o command= 2>/dev/null | string match -q '*focus-history-daemon*'
         herdr_kill_tree $stale
     end
     rm -rf $dir/daemon.lock
+    if test "$stale_socket_mismatch" = 1
+        # Server restarts can preserve old pane IDs in the journal and frozen
+        # walk state that no longer describe the current session. Start fresh.
+        printf '' >$dir/journal
+        rm -f $dir/walk $dir/walk-state
+    end
 
     set -l daemon (status dirname)/focus-history-daemon.fish
     test -x $daemon; or return 1
