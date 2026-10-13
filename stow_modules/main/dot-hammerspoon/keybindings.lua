@@ -79,13 +79,39 @@ end
 
 local ARG_LIST_FOCUS_REQUIRED_MESSAGE = "ArgList: no ArgList window focused; press hyperShift+n"
 
+local function restartYabaiAfterNoFocusedWindow(context)
+  local prefix = context and (context .. ": ") or ""
+  Preset.displayMessage(prefix .. "no focused window; restarting yabai")
+  task({"yabai-preset", "restart-wm"})
+end
+
+local function isNoFocusedWindowResult(ok, output)
+  return not ok and (output or ""):match("^%s*No focused window%s*$") ~= nil
+end
+
+local function toggleFocusedWindowFloat()
+  task({"wm-preset", "toggle-float"}, function(ok, output)
+    if isNoFocusedWindowResult(ok, output) then
+      restartYabaiAfterNoFocusedWindow("Toggle Float")
+      return
+    end
+
+    if output and output ~= "" then
+      Preset.displayMessage(output)
+    elseif not ok then
+      Preset.displayMessage("Toggle Float: failed")
+    end
+  end)
+end
+
 local function argListItemsCopy()
   local ids = {}
   for _, id in ipairs(ArgList.items()) do ids[#ids + 1] = id end
   return ids
 end
 
-local function withFocusedArgListWindow(fn)
+local function withFocusedArgListWindow(fn, opts)
+  opts = opts or {}
   a.sync(function()
     if ArgList.isEmpty() then
       Preset.displayMessage("ArgList: empty")
@@ -93,7 +119,16 @@ local function withFocusedArgListWindow(fn)
     end
 
     local ok, id = a.wait(taskAsync({"yabai-preset", "get-focused-window-id"}))
-    if not ok or id == "" or not ArgList.contains(id) then
+    if not ok or id == "" then
+      if opts.restartYabaiOnNoFocusedWindow then
+        restartYabaiAfterNoFocusedWindow(opts.context)
+      else
+        Preset.displayMessage(ARG_LIST_FOCUS_REQUIRED_MESSAGE)
+      end
+      return
+    end
+
+    if not ArgList.contains(id) then
       Preset.displayMessage(ARG_LIST_FOCUS_REQUIRED_MESSAGE)
       return
     end
@@ -1142,9 +1177,9 @@ function M.setup()
 
         local verb = anyFloating and "Tiled" or "Floated"
         Preset.displayMessage(verb .. " " .. #ids .. " windows")
-      end)
+      end, {restartYabaiOnNoFocusedWindow = true, context = "Toggle Float"})
     end},
-    {function() fish('display-message (wm-preset toggle-float)') end},
+    {toggleFocusedWindowFloat},
   })
   service:bindOnce({}, "z", "Insert Direction Stack", function() task({"wm-preset", "insert-direction", "stack"}) end)
   service:bindOnce({}, "s", "Insert Direction Stack (s)", function() task({"wm-preset", "insert-direction", "stack"}) end)
