@@ -676,9 +676,10 @@ rows = [
         { token = "$um_done", fg = "#81c8be", bold = true },
         { token = "$um_idle", fg = "#a6d189", bold = false },
         { token = "$um_unknown", fg = "#737994", bold = false, dim = true },
-        { token = "pane", fg = "#c6d0f5", bold = false, dim = false },
+        { token = "terminal_title_stripped", fg = "#c6d0f5", bold = false, dim = false },
     ],
     [
+        { token = "agent", fg = "#a5adce", bold = false, dim = true },
         { token = "workspace", fg = "#a5adce", bold = false, dim = true },
         { token = "tab", fg = "#a5adce", bold = false, dim = true },
     ]
