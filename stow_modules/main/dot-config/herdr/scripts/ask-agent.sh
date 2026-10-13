@@ -561,11 +561,12 @@ else
   startup_prompt=$question
 fi
 
-# Keep native startup arguments prompt-free. `herdr agent start` should only
-# load the agent and wait for it to become ready; the question is submitted
-# afterwards through `herdr agent prompt` for every supported agent.
+# Keep terminal-submitted prompt arguments away from agents where possible.
+# Pi is the exception: Herdr's prompt/key paths can encode Enter in a way Pi
+# treats as a modified Enter and inserts a newline. Pass Pi's initial prompt as
+# a native CLI argument so Pi starts the turn itself, without terminal key input.
 case "$agent" in
-  pi)     agent_start_args=(--session-id "$session_id") ;;
+  pi)     agent_start_args=(--session-id "$session_id" -- "$startup_prompt") ;;
   claude) agent_start_args=(--session-id "$session_id") ;;
   codex)  agent_start_args=() ;;
 esac
@@ -695,9 +696,10 @@ PY
 
 # --- 8. the agent session --------------------------------------------------
 
-# Start the agent blank first. `herdr agent start` returns when the agent is
-# ready for interactive input; passing the question as a native startup arg can
-# make start wait for the whole first turn instead.
+# Start the agent. Pi gets the prompt as a native startup arg to avoid
+# terminal Enter encoding; other agents start blank and are prompted below.
+# A native Pi startup prompt can make `herdr agent start` wait for the first
+# turn to settle.
 agent_start_timeout_ms=${ASK_AGENT_START_TIMEOUT_MS:-120000}
 printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
 
@@ -716,8 +718,19 @@ fi
 # the other agents and for non-quick categories.
 start_codex_quick_log_watcher
 
-prompt_output=$("$herdr" agent prompt "$slug" "$startup_prompt" 2>&1) \
-  || herdr_die 'ask' "could not prompt $agent agent through herdr agent prompt: $prompt_output"
+submit_startup_prompt() {
+  case "$agent" in
+    pi)
+      # Already submitted through Pi's native initial prompt argument.
+      ;;
+    *)
+      prompt_output=$("$herdr" agent prompt "$slug" "$startup_prompt" 2>&1) \
+        || herdr_die 'ask' "could not prompt $agent agent through herdr agent prompt: $prompt_output"
+      ;;
+  esac
+}
+
+submit_startup_prompt
 
 if [ "$category" = quick ] && [ "$agent" != codex ]; then
   append_quick_log "$session_id"
