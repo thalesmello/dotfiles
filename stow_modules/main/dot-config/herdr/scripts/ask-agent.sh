@@ -561,14 +561,14 @@ else
   startup_prompt=$question
 fi
 
-# Keep terminal-submitted prompt arguments away from agents where possible.
-# Pi is the exception: Herdr's prompt/key paths can encode Enter in a way Pi
-# treats as a modified Enter and inserts a newline. Pass Pi's initial prompt as
-# a native CLI argument so Pi starts the turn itself, without terminal key input.
+# Submit the first prompt through each agent's native startup arguments.
+# This avoids a startup race where terminal-submitted CR can be translated to LF
+# before the agent fully switches the tty into raw mode, causing a newline insert
+# instead of prompt submission.
 case "$agent" in
   pi)     agent_start_args=(--session-id "$session_id" -- "$startup_prompt") ;;
-  claude) agent_start_args=(--session-id "$session_id") ;;
-  codex)  agent_start_args=() ;;
+  claude) agent_start_args=(--session-id "$session_id" -- "$startup_prompt") ;;
+  codex)  agent_start_args=(-- "$startup_prompt") ;;
 esac
 
 descriptor=$(clean_log_field "$slug")
@@ -606,16 +606,19 @@ append_quick_log() {
 # that starts with this exact prompt, then append the same log shape with the
 # actual thread id and a precise resume command. The agent should not be held
 # hostage by this bookkeeping, so the watcher is best-effort and backgrounded.
+current_epoch_ms() {
+  python3 - <<'PY'
+import time
+print(int(time.time() * 1000))
+PY
+}
+
 start_codex_quick_log_watcher() {
   [ "$category" = quick ] || return 0
   [ "$agent" = codex ] || return 0
 
   log=$dir/questions.log
-  start_ms=$(python3 - <<'PY'
-import time
-print(int(time.time() * 1000))
-PY
-)
+  start_ms=${codex_prompt_start_ms:-$(current_epoch_ms)}
 
   python3 - "$log" "$slug" "$descriptor" "$dir" "$startup_prompt" "$start_ms" <<'PY' >/dev/null 2>&1 &
 import datetime as dt
@@ -696,12 +699,16 @@ PY
 
 # --- 8. the agent session --------------------------------------------------
 
-# Start the agent. Pi gets the prompt as a native startup arg to avoid
-# terminal Enter encoding; other agents start blank and are prompted below.
-# A native Pi startup prompt can make `herdr agent start` wait for the first
+# Start the agent. The prompt is passed as a native startup arg to avoid
+# terminal Enter encoding. This can make `herdr agent start` wait for the first
 # turn to settle.
 agent_start_timeout_ms=${ASK_AGENT_START_TIMEOUT_MS:-120000}
 printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
+
+codex_prompt_start_ms=''
+if [ "$agent" = codex ]; then
+  codex_prompt_start_ms=$(current_epoch_ms)
+fi
 
 if [ "${#agent_start_args[@]}" -gt 0 ]; then
   start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
@@ -713,24 +720,11 @@ else
     || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
 fi
 
-# Codex only gets a thread id once it has persisted the opening message, so
-# the watcher has to be listening before the prompt is submitted. It no-ops for
-# the other agents and for non-quick categories.
+# Codex only gets a thread id once it has persisted the opening message.
+# The prompt is now submitted during agent startup, so the watcher uses a
+# timestamp captured before `herdr agent start`. It no-ops for the other agents
+# and for non-quick categories.
 start_codex_quick_log_watcher
-
-submit_startup_prompt() {
-  case "$agent" in
-    pi)
-      # Already submitted through Pi's native initial prompt argument.
-      ;;
-    *)
-      prompt_output=$("$herdr" agent prompt "$slug" "$startup_prompt" 2>&1) \
-        || herdr_die 'ask' "could not prompt $agent agent through herdr agent prompt: $prompt_output"
-      ;;
-  esac
-}
-
-submit_startup_prompt
 
 if [ "$category" = quick ] && [ "$agent" != codex ]; then
   append_quick_log "$session_id"
