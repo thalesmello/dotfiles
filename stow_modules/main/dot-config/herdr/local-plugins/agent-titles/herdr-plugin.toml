@@ -1,0 +1,28 @@
+# Restore agent sidebar titles after Herdr startup, restart, and live handoff.
+#
+# Herdr can preserve panes and agent sessions across `herdr update --handoff`
+# while losing the live terminal title captured from the pane. The script reads
+# durable agent session state and republishes a $restored_title metadata token
+# that config.toml renders as a fallback.
+#
+# Re-link after editing with:
+#
+#   herdr-preset install-local-plugins
+
+id = "agent-titles"
+name = "Agent Titles"
+version = "0.1.0"
+min_herdr_version = "0.8.0"
+description = "Restore agent sidebar titles after Herdr startup and handoff"
+platforms = ["macos", "linux"]
+
+[[startup]]
+command = ["python3", "../../scripts/restore-agent-titles.py", "sync", "--wait", "20"]
+
+[[events]]
+on = "pane.agent_detected"
+command = ["python3", "../../scripts/restore-agent-titles.py", "sync", "--event", "--wait", "20"]
+
+[[events]]
+on = "pane.agent_status_changed"
+command = ["python3", "../../scripts/restore-agent-titles.py", "sync", "--event"]

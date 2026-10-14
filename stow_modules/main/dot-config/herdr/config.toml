@@ -664,10 +664,9 @@ agent_panel_sort = "priority"
 # Status is rendered through unread-marker.py's mutually-exclusive $um_* tokens
 # rather than state_icon so a manual unread flag can occupy the status slot. The
 # event hook refreshes those tokens on startup, focus, and agent status changes.
-# Titles intentionally come from Herdr's built-in terminal_title_stripped field,
-# not from a side daemon. Pi's session-title extension writes the Pi session name
-# into the terminal title, and the current Herdr Claude/Codex integrations are
-# installed so their reported sessions remain native Herdr agent sessions.
+# Titles prefer Herdr's built-in terminal_title_stripped field. $restored_title
+# is a handoff/restart fallback populated by the local agent-titles plugin when
+# Herdr preserved the agent session but lost the live terminal title.
 rows = [
     [
         { token = "$um_unread", fg = "#a6d189", bold = true },
