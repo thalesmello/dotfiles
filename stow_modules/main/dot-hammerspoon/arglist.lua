@@ -224,6 +224,25 @@ function M.topmostExternalWindowId()
   return nil
 end
 
+function M.areWindowsOnTopOfStack()
+  if M.isEmpty() or not M.focusedWindowId() then return false end
+
+  local seen = {}
+  local count = 0
+  for _, win in ipairs(hs.window.orderedWindows()) do
+    local id = windowId(win)
+    if id then
+      if not M.contains(id) then return false end
+      if not seen[id] then
+        seen[id] = true
+        count = count + 1
+        if count == #list then return true end
+      end
+    end
+  end
+  return false
+end
+
 function M.mostRecentWindowId()
   local id = M.focusedWindowId()
   if id then return id end
@@ -252,7 +271,7 @@ function M.toggleWindows()
   end
 
   local focusedId = M.focusedWindowId()
-  if focusedId then
+  if focusedId and M.areWindowsOnTopOfStack() then
     M.noteFocused(focusedId)
     local ids = M.itemsWithLast()
     a.sync(function()

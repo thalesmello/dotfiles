@@ -114,7 +114,11 @@ local function withFocusedArgListWindow(fn, opts)
   opts = opts or {}
   a.sync(function()
     if ArgList.isEmpty() then
-      Preset.displayMessage("ArgList: empty")
+      if opts.fallback then
+        opts.fallback()
+      else
+        Preset.displayMessage("ArgList: empty")
+      end
       return
     end
 
@@ -122,6 +126,8 @@ local function withFocusedArgListWindow(fn, opts)
     if not ok or id == "" then
       if opts.restartYabaiOnNoFocusedWindow then
         restartYabaiAfterNoFocusedWindow(opts.context)
+      elseif opts.fallback then
+        opts.fallback()
       else
         Preset.displayMessage(ARG_LIST_FOCUS_REQUIRED_MESSAGE)
       end
@@ -129,7 +135,11 @@ local function withFocusedArgListWindow(fn, opts)
     end
 
     if not ArgList.contains(id) then
-      Preset.displayMessage(ARG_LIST_FOCUS_REQUIRED_MESSAGE)
+      if opts.fallback then
+        opts.fallback()
+      else
+        Preset.displayMessage(ARG_LIST_FOCUS_REQUIRED_MESSAGE)
+      end
       return
     end
 
@@ -365,7 +375,8 @@ function M.setup()
 
   -- Utility
   default:bindOnce(hyperShift, "m", "Deminimize Last", function() task({"wm-preset", "deminimize-last"}) end)
-  -- ArgList populated: minimize marked windows, but only when a marked window is focused.
+  -- Focused window in ArgList: minimize marked windows. Otherwise: minimize the
+  -- focused window.
   default:conditionalBindOnce(hyper, "m", "Minimize", {
     {cond = function() return not ArgList.isEmpty() end, function()
       withFocusedArgListWindow(function(focusedId)
@@ -379,7 +390,7 @@ function M.setup()
         end
         local minimized = a.wait(taskAllAsync(bulk))
         Preset.displayMessage("ArgList: minimized " .. minimized .. " / " .. #ids)
-      end)
+      end, {fallback = function() task({"wm-preset", "minimize"}) end})
     end},
     {function() task({"wm-preset", "minimize"}) end},
   })
@@ -1155,9 +1166,8 @@ function M.setup()
   service:bindOnce({"shift"}, "y", "Toggle WM", function() task({"wm-preset", "toggle-wm"}) end)
   service:bindOnce({}, "v", "Insert Direction East", function() task({"wm-preset", "insert-direction", "east"}) end)
   service:bindOnce({"shift"}, "'", "Insert Direction South", function() task({"wm-preset", "insert-direction", "south"}) end)
-  -- ArgList empty: toggle the focused window. Populated: if any marked window is
-  -- floating, tile them all; otherwise float them all. The bulk operation only
-  -- runs when a marked window is focused.
+  -- Focused window in ArgList: if any marked window is floating, tile them all;
+  -- otherwise float them all. Otherwise: toggle the focused window.
   default:conditionalBindOnce(hyper, "t", "Toggle Float", {
     {cond = function() return not ArgList.isEmpty() end, function()
       local ids = argListItemsCopy()
@@ -1177,7 +1187,11 @@ function M.setup()
 
         local verb = anyFloating and "Tiled" or "Floated"
         Preset.displayMessage(verb .. " " .. #ids .. " windows")
-      end, {restartYabaiOnNoFocusedWindow = true, context = "Toggle Float"})
+      end, {
+        fallback = toggleFocusedWindowFloat,
+        restartYabaiOnNoFocusedWindow = true,
+        context = "Toggle Float",
+      })
     end},
     {toggleFocusedWindowFloat},
   })
@@ -1228,8 +1242,8 @@ function M.setup()
   end
 
   -- Move window to space 1-9.
-  -- ArgList empty: move the current window. ArgList populated: hand the ids to
-  -- move-window-ids-to-space (the list is kept for further use).
+  -- Focused window in ArgList: hand the ids to move-window-ids-to-space (the
+  -- list is kept for further use). Otherwise: move the current window.
   for i = 1, 9 do
     service:conditionalBindOnce({"shift"}, tostring(i), "Move Window(s) To Space " .. i, {
       {cond = function() return ArgList.isEmpty() end, function()
@@ -1247,7 +1261,9 @@ function M.setup()
               Preset.displayMessage("Move cancelled: a window did not focus")
             end
           end)
-        end)
+        end, {fallback = function()
+          task({"wm-preset", "move-window-to-space", tostring(i)})
+        end})
       end},
     })
   end
@@ -1267,10 +1283,9 @@ function M.setup()
   -- Misc service
   service:bindOnce(hyper, "]", "Harpoon Focus Pin Next", function() fish("yabai-harpoon focus-pin next") end)
   service:bindOnce(hyper, "[", "Harpoon Focus Pin Prev", function() fish("yabai-harpoon focus-pin prev") end)
-  -- ArgList empty: move the focused window to the next display. ArgList
-  -- populated: calculate the next display from the focused marked window, then
-  -- move every marked window to that same display. If a non-ArgList window is
-  -- focused, show the standard ArgList focus message.
+  -- Focused window in ArgList: calculate the next display from the focused
+  -- marked window, then move every marked window to that same display.
+  -- Otherwise: move the focused window to the next display.
   service:bindOnce({"shift"}, "tab", "Move Window(s) To Next Display", function()
     if ArgList.isEmpty() then
       task({"wm-preset", "smart-move-window-to-next-display"})
@@ -1304,7 +1319,9 @@ function M.setup()
         end
       end
       Preset.displayMessage("Moved " .. moved .. " / " .. #ids .. " ArgList windows to next display")
-    end)
+    end, {fallback = function()
+      task({"wm-preset", "smart-move-window-to-next-display"})
+    end})
   end)
   service:bindOnce(hyperShift, "tab", "Swap Workspaces Between Monitors", function() task({"wm-preset", "swap-workspaces-between-monitors"}) end)
   service:bindOnce({"shift"}, "/", "Trigger Help Menu", function() Preset.triggerMenuBar("Help") end)
