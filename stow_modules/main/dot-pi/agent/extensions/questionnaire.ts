@@ -615,6 +615,9 @@ export default function questionnaire(pi: ExtensionAPI) {
 					const lines: string[] = [];
 					const renderWidth = Math.max(1, width);
 					let activeLine = 0;
+					let activeEndLine = 0;
+					let activeQuestionLine = 0;
+					let activeQuestionEndLine = 0;
 
 					function addWrapped(text: string) {
 						lines.push(...wrapTextWithAnsi(text, renderWidth));
@@ -646,6 +649,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 							const isOther = opt.isOther === true;
 							if (activeOption) {
 								activeLine = lines.length;
+								activeEndLine = lines.length;
 							}
 							const prefix = activeOption ? theme.fg("accent", "> ") : "  ";
 							const selectedSingle = !question.multiple && answer?.entries.some((entry) => entry.index === i + 1) === true;
@@ -682,11 +686,15 @@ export default function questionnaire(pi: ExtensionAPI) {
 							if (opt.description) {
 								addWrappedWithPrefix("     ", theme.fg("muted", opt.description));
 							}
+							if (activeOption) {
+								activeEndLine = Math.max(activeLine, lines.length - 1);
+							}
 						}
 					}
 
 					function renderQuestion(question: Question, questionIndex: number) {
 						const activeQuestion = currentTab === questionIndex;
+						const questionLine = lines.length;
 						const answer = answers.get(question.id);
 						const status = answer ? theme.fg("success", " ✓") : theme.fg("muted", "");
 						const prefix = activeQuestion ? theme.fg("accent", "> ") : "  ";
@@ -694,6 +702,10 @@ export default function questionnaire(pi: ExtensionAPI) {
 						addWrappedWithPrefix(prefix, `${label}${theme.fg("text", question.prompt)}${status}`);
 						lines.push("");
 						renderOptions(question, questionIndex);
+						if (activeQuestion) {
+							activeQuestionLine = questionLine;
+							activeQuestionEndLine = Math.max(questionLine, lines.length - 1);
+						}
 					}
 
 					lines.push(theme.fg("accent", "─".repeat(renderWidth)));
@@ -712,6 +724,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 						const activeSubmit = currentTab === submitTab;
 						if (activeSubmit) {
 							activeLine = lines.length;
+							activeEndLine = lines.length;
 						}
 						const submitPrefix = activeSubmit ? theme.fg("accent", "> ") : "  ";
 						const canSubmit = allAnswered();
@@ -724,6 +737,9 @@ export default function questionnaire(pi: ExtensionAPI) {
 								.map((q) => q.label)
 								.join(", ");
 							addWrappedWithPrefix("  ", theme.fg("warning", `Unanswered: ${missing}`));
+						}
+						if (activeSubmit) {
+							activeEndLine = Math.max(activeLine, lines.length - 1);
 						}
 						lines.push("");
 					}
@@ -749,11 +765,17 @@ export default function questionnaire(pi: ExtensionAPI) {
 						return lines;
 					}
 
+					const scrollMargin = 2;
+					const activeQuestionHeight = activeQuestionEndLine - activeQuestionLine + 1;
+					const canRevealActiveQuestion =
+						currentTab !== submitTab && activeQuestionHeight <= viewportHeight - scrollMargin * 2;
+					const targetLine = canRevealActiveQuestion ? activeQuestionLine : activeLine;
+					const targetEndLine = canRevealActiveQuestion ? activeQuestionEndLine : activeEndLine;
 					const maxScroll = Math.max(0, lines.length - viewportHeight);
-					if (activeLine < scrollOffset + 2) {
-						scrollOffset = Math.max(0, activeLine - 2);
-					} else if (activeLine >= scrollOffset + viewportHeight - 2) {
-						scrollOffset = Math.min(maxScroll, activeLine - viewportHeight + 3);
+					if (targetLine < scrollOffset + scrollMargin) {
+						scrollOffset = Math.max(0, targetLine - scrollMargin);
+					} else if (targetEndLine >= scrollOffset + viewportHeight - scrollMargin) {
+						scrollOffset = Math.min(maxScroll, targetEndLine - viewportHeight + scrollMargin + 1);
 					}
 					scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
 
