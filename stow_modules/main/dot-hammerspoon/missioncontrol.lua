@@ -15,12 +15,12 @@ local function whenMissionControlActive(fn)
 end
 
 local function closeWindowUnderCursor()
-  util.log("missioncontrol: right click, closing window under cursor")
+  util.log("missioncontrol: cmd+right/middle click, closing window under cursor")
   shell.task({"yabai", "-m", "window", "mouse", "--close"})
 end
 
 local function toggleWindowUnderCursorInArgList()
-  util.log("missioncontrol: middle click, toggling window under cursor in arglist")
+  util.log("missioncontrol: right click, toggling window under cursor in arglist")
   shell.task({"yabai", "-m", "query", "--windows", "--window", "mouse", print_stdout = false}, function(ok, out)
     if not ok or out == "" then
       Preset.displayMessage("ArgList: no window under cursor")
@@ -41,9 +41,9 @@ local function toggleWindowUnderCursorInArgList()
   end)
 end
 
--- While Mission Control is on screen, a right click closes the window whose
--- tile sits under the cursor. A middle click or Command+right click toggles
--- that window in the ArgList. Detection (osascript-preset), close/query
+-- While Mission Control is on screen, a right click toggles the window whose
+-- tile sits under the cursor in the ArgList. A middle click or Command+right
+-- click closes that window. Detection (osascript-preset), close/query
 -- (yabai), and list writes run as async tasks, so the eventtap callback never
 -- blocks the system mouse path; we let the event pass through and act on the
 -- side.
@@ -54,14 +54,14 @@ function M.setup()
     if eventType == eventTypes.rightMouseUp then
       local flags = event:getFlags()
       if flags.cmd then
-        whenMissionControlActive(toggleWindowUnderCursorInArgList)
-      else
         whenMissionControlActive(closeWindowUnderCursor)
+      else
+        whenMissionControlActive(toggleWindowUnderCursorInArgList)
       end
     elseif eventType == eventTypes.otherMouseUp then
       local button = event:getProperty(eventProps.mouseEventButtonNumber)
       if button == 2 then
-        whenMissionControlActive(toggleWindowUnderCursorInArgList)
+        whenMissionControlActive(closeWindowUnderCursor)
       end
     end
     -- Never swallow the click: outside Mission Control it must still reach apps.
