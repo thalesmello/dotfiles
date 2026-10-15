@@ -58,7 +58,7 @@ const {
 	optionMarker,
 	parseContextEntry,
 	parseCustomEntries,
-} = await import("./questionnaire.ts");
+} = await import("../extensions/questionnaire.ts");
 
 type AnswerEntry = Parameters<typeof formatEntryLabels>[0][number];
 

@@ -196,6 +196,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 				let inputQuestionId: string | null = null;
 				let inputOptionIndex: number | null = null;
 				let scrollOffset = 0;
+				let cancelArmed = false;
 				let cachedLines: string[] | undefined;
 				const answers = new Map<string, Answer>();
 				const optionIndices = new Map<string, number>();
@@ -224,6 +225,21 @@ export default function questionnaire(pi: ExtensionAPI) {
 
 				function submit(cancelled: boolean) {
 					done({ questions, answers: Array.from(answers.values()), cancelled });
+				}
+
+				function armOrCancel() {
+					if (cancelArmed) {
+						submit(true);
+						return;
+					}
+					cancelArmed = true;
+					refresh();
+				}
+
+				function clearCancelArmed(): boolean {
+					if (!cancelArmed) return false;
+					cancelArmed = false;
+					return true;
 				}
 
 				function currentQuestion(): Question | undefined {
@@ -386,6 +402,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 				}
 
 				function openCustomInput(question: Question, purpose: InputPurpose = "answer", optionIndex: number | null = null) {
+					clearCancelArmed();
 					inputMode = true;
 					inputPurpose = purpose;
 					inputQuestionId = question.id;
@@ -491,14 +508,19 @@ export default function questionnaire(pi: ExtensionAPI) {
 					inputPurpose = "answer";
 					inputQuestionId = null;
 					inputOptionIndex = null;
+					clearCancelArmed();
 					editor.setText("");
 					advanceAfterAnswer();
 				};
 
 				function handleInput(data: string) {
+					const isEscape = matchesKey(data, Key.escape);
+					const clearedCancelArmed = !isEscape && clearCancelArmed();
+
 					// Input mode: route to editor
 					if (inputMode) {
-						if (matchesKey(data, Key.escape)) {
+						if (isEscape) {
+							clearCancelArmed();
 							inputMode = false;
 							inputPurpose = "answer";
 							inputQuestionId = null;
@@ -538,8 +560,8 @@ export default function questionnaire(pi: ExtensionAPI) {
 					if (currentTab === submitTab) {
 						if (matchesKey(data, Key.enter) && allAnswered()) {
 							submit(false);
-						} else if (matchesKey(data, Key.escape)) {
-							submit(true);
+						} else if (isEscape) {
+							armOrCancel();
 						} else if (matchesKey(data, Key.up)) {
 							moveUp();
 						}
@@ -579,9 +601,11 @@ export default function questionnaire(pi: ExtensionAPI) {
 						return;
 					}
 
-					// Cancel
-					if (matchesKey(data, Key.escape)) {
-						submit(true);
+					// Cancel after confirmation to avoid accidental exit.
+					if (isEscape) {
+						armOrCancel();
+					} else if (clearedCancelArmed) {
+						refresh();
 					}
 				}
 
@@ -706,13 +730,15 @@ export default function questionnaire(pi: ExtensionAPI) {
 
 					if (inputMode) {
 						addWrappedWithPrefix(" ", theme.fg("dim", "Type inline • Enter submit text • Esc cancel input"));
+					} else if (cancelArmed) {
+						addWrappedWithPrefix(" ", theme.fg("warning", "Press Esc again to cancel questionnaire"));
 					} else {
 						const activeQuestion = currentQuestion();
 						const help = activeQuestion?.multiple
-							? "←→ change question • ↑↓ move • Space toggle • Tab edit selected option • Type on Other • Enter confirm/submit • Esc cancel"
+							? "←→ change question • ↑↓ move • Space toggle • Tab edit selected option • Type on Other • Enter confirm/submit • Esc then Esc cancel"
 							: isMulti
-								? "←→ change question • ↑↓ move • Type on Other • Tab edit selected option • Enter select/submit • Esc cancel"
-								: "↑↓ navigate • Type on Other • Tab edit selected option • Enter select • Esc cancel";
+								? "←→ change question • ↑↓ move • Type on Other • Tab edit selected option • Enter select/submit • Esc then Esc cancel"
+								: "↑↓ navigate • Type on Other • Tab edit selected option • Enter select • Esc then Esc cancel";
 						addWrappedWithPrefix(" ", theme.fg("dim", help));
 					}
 					lines.push(theme.fg("accent", "─".repeat(renderWidth)));
