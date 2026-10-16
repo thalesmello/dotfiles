@@ -42,8 +42,8 @@ VISIBLE_TOKENS = {
     "unknown": "um_unknown",
 }
 STATUS_GLYPHS = {
-    "blocked": (VISIBLE_TOKENS["blocked"], "●"),
-    "done": (VISIBLE_TOKENS["done"], "●"),
+    "blocked": (VISIBLE_TOKENS["blocked"], "×"),
+    "done": (VISIBLE_TOKENS["done"], "✓"),
     "idle": (VISIBLE_TOKENS["idle"], "○"),
     "unknown": (VISIBLE_TOKENS["unknown"], "·"),
 }

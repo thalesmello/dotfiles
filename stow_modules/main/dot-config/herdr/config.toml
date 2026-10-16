@@ -637,7 +637,7 @@ window_title = "[herdr] {hostname}: {workspace}"
 
 # Agent status indicators: "dots" preserves the compact color marks; "symbols" uses
 # distinct static glyphs for blocked, working, done, idle, and unknown states.
-# status_indicators = "dots"
+status_indicators = "symbols"
 
 # Expanded agent rows. Built-ins are state_icon, state_text, workspace, tab, pane, agent,
 # terminal_title, and terminal_title_stripped.
