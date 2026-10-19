@@ -47,8 +47,8 @@ STATUS_GLYPHS = {
     "idle": (VISIBLE_TOKENS["idle"], "○"),
     "unknown": (VISIBLE_TOKENS["unknown"], "·"),
 }
-# Pi-style braille spinner for working agents.
-WORKING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+# Rotating half-circle spinner for working agents (matches symbols mode's ◐).
+WORKING_FRAMES = ["◐", "◓", "◑", "◒"]
 # Pi's titlebar-spinner example uses an 80ms frame interval.
 ANIMATION_SECS = 0.08
 # Nerd Fonts Material Design email (nf-md-email), used as the manual unread
