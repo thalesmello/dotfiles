@@ -400,7 +400,7 @@ print(next((w["workspace_id"] for w in workspaces if w.get("label") == label), "
 ' "$1"
 }
 
-pane_has_available_shell() {
+pane_available_shell_name() {
   python3 - "$1" <<'PY'
 import json
 import sys
@@ -417,27 +417,32 @@ shell_names = {"bash", "fish", "sh", "zsh"}
 
 for proc in processes:
     if proc.get("pid") == shell_pid and proc.get("name") in shell_names:
+        print(proc["name"])
         raise SystemExit(0)
 
 if shell_pid is not None and fg_pgid == shell_pid:
     for proc in processes:
         if proc.get("name") in shell_names:
+            print(proc["name"])
             raise SystemExit(0)
 
 raise SystemExit(1)
 PY
 }
 
+pane_shell=''
 wait_for_shell_pane() {
-  local _pane=$1 _attempt=1 _max _info
+  local _pane=$1 _attempt=1 _max _info _shell
   _max=${ASK_AGENT_SHELL_WAIT_ATTEMPTS:-150}
   case $_max in ''|*[!0-9]*) _max=150 ;; esac
   [ "$_max" -gt 0 ] 2>/dev/null || _max=150
 
   while [ "$_attempt" -le "$_max" ]; do
-    _info=$("$herdr" pane process-info --pane "$_pane" 2>/dev/null) \
-      && pane_has_available_shell "$_info" \
-      && return 0
+    if _info=$("$herdr" pane process-info --pane "$_pane" 2>/dev/null) \
+      && _shell=$(pane_available_shell_name "$_info"); then
+      pane_shell=$_shell
+      return 0
+    fi
     sleep 0.2
     _attempt=$((_attempt + 1))
   done
@@ -699,10 +704,101 @@ PY
 
 # --- 8. the agent session --------------------------------------------------
 
-# Start the agent. The prompt is passed as a native startup arg to avoid
-# terminal Enter encoding. This can make `herdr agent start` wait for the first
-# turn to settle.
-agent_start_timeout_ms=${ASK_AGENT_START_TIMEOUT_MS:-120000}
+format_agent_command() {
+  python3 - "$1" "${@:2}" <<'PY'
+import re
+import shlex
+import sys
+
+shell = sys.argv[1]
+argv = sys.argv[2:]
+safe = re.compile(r"^[A-Za-z0-9_@%+=:,./-]+$")
+
+
+def quote_fish(arg: str) -> str:
+    if arg and safe.match(arg):
+        return arg
+    return "'" + arg.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+if shell == "fish":
+    print(" ".join(quote_fish(a) for a in argv))
+else:
+    print(" ".join(shlex.quote(a) for a in argv))
+PY
+}
+
+pane_has_detected_agent() {
+  python3 - "$1" "$2" <<'PY'
+import json
+import sys
+
+try:
+    agent = json.loads(sys.argv[1])["result"]["agent"]
+except Exception:
+    raise SystemExit(1)
+
+if agent.get("agent") == sys.argv[2]:
+    raise SystemExit(0)
+
+raise SystemExit(1)
+PY
+}
+
+wait_for_agent_pane() {
+  local _pane=$1 _want=$2 _attempt=1 _max _info
+  _max=${ASK_AGENT_DETECT_WAIT_ATTEMPTS:-150}
+  case $_max in ''|*[!0-9]*) _max=150 ;; esac
+  [ "$_max" -gt 0 ] 2>/dev/null || _max=150
+
+  while [ "$_attempt" -le "$_max" ]; do
+    _info=$("$herdr" agent get "$_pane" 2>/dev/null) \
+      && pane_has_detected_agent "$_info" "$_want" \
+      && return 0
+    sleep 0.2
+    _attempt=$((_attempt + 1))
+  done
+  return 1
+}
+
+unique_agent_name() {
+  local _list
+  _list=$("$herdr" agent list 2>/dev/null) || _list=''
+  python3 - "$1" "$2" "$_list" <<'PY'
+import json
+import sys
+
+base, pane, raw = sys.argv[1], sys.argv[2], sys.argv[3]
+try:
+    agents = json.loads(raw)["result"]["agents"]
+except Exception:
+    agents = []
+taken = {
+    a.get("name")
+    for a in agents
+    if isinstance(a, dict) and a.get("pane_id") != pane and a.get("name")
+}
+if base not in taken:
+    print(base)
+    raise SystemExit(0)
+i = 2
+while True:
+    suffix = f"-{i}"
+    stem = base[: 32 - len(suffix)].rstrip("-")
+    candidate = f"{stem}{suffix}"
+    if candidate not in taken:
+        print(candidate)
+        raise SystemExit(0)
+    i += 1
+PY
+}
+
+# Start the agent with the prompt passed as a native CLI argument, using
+# `herdr pane run` + `herdr agent rename` instead of `herdr agent start`.
+# `herdr agent start` waits for `interactive_ready` (`agent_status == "idle"`
+# after a 3s gate), which hangs for the entire first turn when an initial
+# prompt argument puts the agent straight into `working` (and wipes the agent
+# name if the first turn exceeds the startup timeout).
 printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
 
 codex_prompt_start_ms=''
@@ -710,19 +806,22 @@ if [ "$agent" = codex ]; then
   codex_prompt_start_ms=$(current_epoch_ms)
 fi
 
-if [ "${#agent_start_args[@]}" -gt 0 ]; then
-  start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
-    --timeout "$agent_start_timeout_ms" -- "${agent_start_args[@]}" 2>&1) \
-    || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
-else
-  start_output=$("$herdr" agent start "$slug" --kind "$agent" --pane "$pane" \
-    --timeout "$agent_start_timeout_ms" 2>&1) \
-    || herdr_die 'ask' "could not start $agent agent through herdr agent start: $start_output"
-fi
+agent_command=$(format_agent_command "${pane_shell:-fish}" "$agent" "${agent_start_args[@]}") \
+  || herdr_die 'ask' "could not format $agent startup command"
+
+run_output=$("$herdr" pane run "$pane" "$agent_command" 2>&1) \
+  || herdr_die 'ask' "could not launch $agent in pane $pane: $run_output"
+
+wait_for_agent_pane "$pane" "$agent" \
+  || herdr_die 'ask' "$agent agent was not detected in pane $pane"
+
+agent_name=$(unique_agent_name "$slug" "$pane")
+[ -n "$agent_name" ] || agent_name=$slug
+"$herdr" agent rename "$pane" "$agent_name" >/dev/null 2>&1 || true
 
 # Codex only gets a thread id once it has persisted the opening message.
 # The prompt is now submitted during agent startup, so the watcher uses a
-# timestamp captured before `herdr agent start`. It no-ops for the other agents
+# timestamp captured before launching the agent. It no-ops for the other agents
 # and for non-quick categories.
 start_codex_quick_log_watcher
 
