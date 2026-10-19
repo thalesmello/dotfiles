@@ -103,7 +103,9 @@ note() {
 resolve_tty() {
     # stderr redirected FIRST: redirections are processed left to right, and a
     # failing `> /dev/tty` complains to whatever stderr is at that moment.
-    if : 2>/dev/null > /dev/tty; then
+    # `true`, not `:`: in POSIX /bin/sh (bash --posix on Linux), `:` is a
+    # special built-in whose redirection error immediately exits the subshell.
+    if true 2>/dev/null > /dev/tty; then
         printf '/dev/tty\n'
         return 0
     fi

@@ -24,8 +24,44 @@ esac
 
 # RS/US make this a framed record rather than text a user might ordinarily
 # copy. The fixed 128-bit namespace token and version must match keybindings.lua.
+#
+# The escape goes to the TERMINAL, not to stdout: callers like pi's openBrowser
+# and herdr's Linux open_url spawn xdg-open detached with stdio redirected to
+# /dev/null, which would swallow stdout and silently drop the open request.
+resolve_tty() {
+    # `true`, not `:`: in POSIX /bin/sh (bash --posix on Linux), `:` is a
+    # special built-in, so a redirection failure on `> /dev/tty` when there is
+    # no controlling terminal (setsid / detached) immediately exits the
+    # $(resolve_tty) subshell before `if` can catch it.
+    if true 2>/dev/null > /dev/tty; then
+        printf '/dev/tty\n'
+        return 0
+    fi
+
+    _pid=$$
+    _hop=0
+    while [ "$_hop" -lt 8 ]; do
+        _hop=$(( _hop + 1 ))
+        _pid=$(ps -o ppid= -p "$_pid" 2>/dev/null | tr -d ' ')
+        [ -n "$_pid" ] && [ "$_pid" -gt 1 ] 2>/dev/null || return 1
+
+        _t=$(ps -o tty= -p "$_pid" 2>/dev/null | tr -d ' ')
+        case $_t in
+            ""|"?"|"??"|"-") continue ;;
+            /dev/*) [ -w "$_t" ] && { printf '%s\n' "$_t"; return 0; } ;;
+            *) [ -w "/dev/$_t" ] && { printf '/dev/%s\n' "$_t"; return 0; } ;;
+        esac
+    done
+    return 1
+}
+
+terminal=$(resolve_tty) || {
+    printf 'herdr-open: no terminal to write the open-url escape to\n' >&2
+    exit 1
+}
+
 url_b64=$(printf '%s' "$url" | base64 | tr -d '\r\n')
 request=$(printf '\036HERDR_OPEN_URL_V1:8f26c7a14d9346b8a01e57bc649b2e3d:%s\037' "$url_b64")
 request_b64=$(printf '%s' "$request" | base64 | tr -d '\r\n')
 
-printf '\033]52;c;%s\007' "$request_b64"
+printf '\033]52;c;%s\007' "$request_b64" > "$terminal"
