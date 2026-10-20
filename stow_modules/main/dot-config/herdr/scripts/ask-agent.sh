@@ -117,8 +117,8 @@ agent=$(printf '%s\n' "$question" \
 # --- 3. slug and classify the prompt ---------------------------------------
 
 # The popup needs the category to choose qq/src/prototype placement immediately,
-# and it needs the slug up front for the tab name, prototype workspace, and
-# managed-agent name. So the small routing call happens before the tab exists.
+# and it needs the slug up front for the tab name and prototype workspace. So
+# the small routing call happens before the tab exists.
 slugify() {
   printf '%s' "$1" \
     | tr '[:upper:]' '[:lower:]' \
@@ -761,44 +761,12 @@ wait_for_agent_pane() {
   return 1
 }
 
-unique_agent_name() {
-  local _list
-  _list=$("$herdr" agent list 2>/dev/null) || _list=''
-  python3 - "$1" "$2" "$_list" <<'PY'
-import json
-import sys
-
-base, pane, raw = sys.argv[1], sys.argv[2], sys.argv[3]
-try:
-    agents = json.loads(raw)["result"]["agents"]
-except Exception:
-    agents = []
-taken = {
-    a.get("name")
-    for a in agents
-    if isinstance(a, dict) and a.get("pane_id") != pane and a.get("name")
-}
-if base not in taken:
-    print(base)
-    raise SystemExit(0)
-i = 2
-while True:
-    suffix = f"-{i}"
-    stem = base[: 32 - len(suffix)].rstrip("-")
-    candidate = f"{stem}{suffix}"
-    if candidate not in taken:
-        print(candidate)
-        raise SystemExit(0)
-    i += 1
-PY
-}
-
 # Start the agent with the prompt passed as a native CLI argument, using
-# `herdr pane run` + `herdr agent rename` instead of `herdr agent start`.
-# `herdr agent start` waits for `interactive_ready` (`agent_status == "idle"`
-# after a 3s gate), which hangs for the entire first turn when an initial
-# prompt argument puts the agent straight into `working` (and wipes the agent
-# name if the first turn exceeds the startup timeout).
+# `herdr pane run` instead of `herdr agent start`. `herdr agent start` waits for
+# `interactive_ready` (`agent_status == "idle"` after a 3s gate), which hangs
+# for the entire first turn when an initial prompt argument puts the agent
+# straight into `working`, and it also overrides the agent label instead of
+# leaving it as pi/codex/claude.
 printf 'starting %s agent %s in %s (%s)\n' "$agent" "$slug" "$dir" "$category"
 
 codex_prompt_start_ms=''
@@ -814,10 +782,6 @@ run_output=$("$herdr" pane run "$pane" "$agent_command" 2>&1) \
 
 wait_for_agent_pane "$pane" "$agent" \
   || herdr_die 'ask' "$agent agent was not detected in pane $pane"
-
-agent_name=$(unique_agent_name "$slug" "$pane")
-[ -n "$agent_name" ] || agent_name=$slug
-"$herdr" agent rename "$pane" "$agent_name" >/dev/null 2>&1 || true
 
 # Codex only gets a thread id once it has persisted the opening message.
 # The prompt is now submitted during agent startup, so the watcher uses a
