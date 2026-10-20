@@ -1,4 +1,4 @@
-if not status --is-interactive
+if not status --is-interactive; and not set -q IS_FIFC_COMPLETION
     return
 end
 
