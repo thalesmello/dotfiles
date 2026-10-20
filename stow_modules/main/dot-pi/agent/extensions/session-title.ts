@@ -402,7 +402,22 @@ export default function (pi: ExtensionAPI) {
 		// A resumed/named session keeps the name it had. A brand-new unnamed
 		// session is reset to Pi's own startup title, so a title left behind by an
 		// older pi run is not shown while the first generated name is computed.
-		if (ctx.hasUI) ctx.ui?.setTitle(displayTitle ?? defaultPiTitle(ctx.cwd));
+		// Pi's `rebindCurrentSession()` calls `this.updateTerminalTitle()` (`π -
+		// <name> - <cwd>`) after `await bindCurrentSessionExtensions()` +
+		// `await updateAvailableProviderCount()`, so re-apply on the next turn of
+		// the event loop to win over that post-bind overwrite.
+		if (ctx.hasUI) {
+			const targetTitle = displayTitle ?? defaultPiTitle(ctx.cwd);
+			const initialName = pi.getSessionName();
+			ctx.ui?.setTitle(targetTitle);
+			for (const delay of [0, 50, 200]) {
+				setTimeout(() => {
+					if (pi.getSessionName() === initialName) {
+						ctx.ui?.setTitle(targetTitle);
+					}
+				}, delay).unref?.();
+			}
+		}
 	});
 
 	pi.on("message_end", async (event) => {
