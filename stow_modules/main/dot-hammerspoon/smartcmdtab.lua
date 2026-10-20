@@ -57,7 +57,9 @@ function M.setup(hyper)
 
       -- First press: pick an action, defer it until Cmd is released
       local win = hs.window.focusedWindow()
-      if QuickTerminalAlternateWindowId and win and win:id() == QuickTerminalAlternateWindowId then
+      if preset.isDesktopRevealed() then
+        PendingCmdTabAction = preset.restoreRevealedDesktop
+      elseif QuickTerminalAlternateWindowId and win and win:id() == QuickTerminalAlternateWindowId then
         -- We're on the window we switched to after hiding a floating terminal;
         -- restore whichever terminal that was.
         PendingCmdTabAction = function()

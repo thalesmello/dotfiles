@@ -402,6 +402,67 @@ function M.isFloatingTerminal()
   return M.isFloatingTerminalActive() or M.isGhosttyQuickTerminalActive()
 end
 
+-- True when macOS Show Desktop ("Click wallpaper to reveal desktop", trackpad
+-- spread, or Show Desktop shortcut) has pushed windows aside to reveal the
+-- desktop. While Show Desktop is active, Dock owns an overlay window at layer
+-- 18 (within layers 17-19, below the Dock bar's own layer 20) without exposing
+-- the Mission Control AXGroup ("mc") on the Dock application element.
+function M.isDesktopRevealed()
+  local ok, hasDockOverlay = hs.osascript.javascript(
+    'ObjC.import("CoreGraphics");'
+    .. 'ObjC.import("Foundation");'
+    .. 'var list=ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly,0));'
+    .. 'var active=false;'
+    .. 'for(var i=0;i<list.count;i++){'
+    .. 'var e=list.objectAtIndex(i);'
+    .. 'if(ObjC.unwrap(e.objectForKey("kCGWindowOwnerName"))==="Dock"){'
+    .. 'var l=ObjC.unwrap(e.objectForKey("kCGWindowLayer"));'
+    .. 'if(l>=17&&l<20){active=true;break;}'
+    .. '}}'
+    .. 'active;'
+  )
+  if not ok or (hasDockOverlay ~= true and hasDockOverlay ~= "true") then
+    return false
+  end
+
+  local dockApps = hs.application.applicationsForBundleID("com.apple.dock")
+  local dockApp = dockApps and dockApps[1]
+  local dockElement = dockApp and hs.axuielement.applicationElement(dockApp)
+  if dockElement then
+    for _, child in ipairs(dockElement:attributeValue("AXChildren") or {}) do
+      if child:attributeValue("AXIdentifier") == "mc" then
+        return false
+      end
+    end
+  end
+  return true
+end
+
+function M.restoreRevealedDesktop()
+  local topWin = hs.window.orderedWindows()[1]
+  hs.spaces.toggleShowDesktop()
+
+  local tries = 0
+  local function restoreFocusIfNeeded()
+    if M.isDesktopRevealed() then
+      if tries < 30 then
+        tries = tries + 1
+        hs.timer.doAfter(0.02, restoreFocusIfNeeded)
+      end
+      return
+    end
+
+    local focused = hs.window.focusedWindow()
+    if (focused and focused:isStandard()) or M.isFloatingTerminal() then
+      return
+    end
+
+    local target = topWin or hs.window.orderedWindows()[1]
+    if target then target:focus() end
+  end
+  hs.timer.doAfter(0.02, restoreFocusIfNeeded)
+end
+
 function M.getSelectedText()
   local elem = hs.axuielement.systemWideElement()
 
