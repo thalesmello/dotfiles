@@ -1,6 +1,7 @@
 return {
    {
       "andymass/vim-matchup",
+      event = { "BufReadPost", "BufNewFile", "BufFilePost" },
       -- Defer matchparen so it highlights after the cursor settles instead of
       -- searching for the matching keyword on every CursorMoved. Keeps scrolling
       -- smooth in large, keyword-heavy files (e.g. fish's if/switch/for … end).

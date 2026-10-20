@@ -55,7 +55,7 @@ return {
       dependencies = {
          { 'honza/vim-snippets' },
       },
-      lazy = false,
+      event = "InsertEnter",
       injectable_opts = {
          {
             'hrsh7th/nvim-cmp',

@@ -25,6 +25,7 @@ return {
     },
     {
         "PeterRincker/vim-argumentative",
+        event = "VeryLazy",
         init = function ()
             vim.g.argumentative_no_mappings = 1
         end,
@@ -57,6 +58,12 @@ return {
     {
         'coderifous/textobj-word-column.vim',
         enabled = true,
+        keys = {
+            { 'a\\', mode = { "o", "x" } },
+            { 'a|', mode = { "o", "x" } },
+            { 'i\\', mode = { "o", "x" } },
+            { 'i|', mode = { "o", "x" } },
+        },
         init = function()
             vim.g.skip_default_textobj_word_column_mappings = 1
             vim.g.textobj_word_column_no_smart_boundary_cols = 1

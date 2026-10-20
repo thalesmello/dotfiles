@@ -1,6 +1,12 @@
 return {
     {
         'monaqa/dial.nvim',
+        keys = {
+            { "<C-a>", mode = { "n", "v" }, desc = "Dial increment" },
+            { "<C-x>", mode = { "n", "v" }, desc = "Dial decrement" },
+            { "g<C-a>", mode = { "n", "v" }, desc = "Dial g-increment" },
+            { "g<C-x>", mode = { "n", "v" }, desc = "Dial g-decrement" },
+        },
         config = function()
             local augend = require("dial.augend")
             local config = require("dial.config")
@@ -32,6 +38,10 @@ return {
     },
     {
         'AndrewRadev/switch.vim',
+        keys = {
+            { "+", mode = "n", desc = "Switch word under cursor" },
+        },
+        cmd = { "Switch", "SwitchReverse" },
         init = function ()
             vim.g.switch_mapping = "+"
         end,

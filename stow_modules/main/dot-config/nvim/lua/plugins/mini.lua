@@ -1,15 +1,14 @@
-local vim_utils = require('vim_utils')
-local ftmini = require('ftmini')
-
 return {
     {
         'echasnovski/mini.comment',
         version = false,
+        event = "VeryLazy",
         opts = {},
         extra_contexts = {"lite_mode", "ssh"},
     },
     {
         "echasnovski/mini.diff",
+        event = "VeryLazy",
         config = function()
             local diff = require("mini.diff")
             diff.setup({
@@ -20,9 +19,12 @@ return {
     {
         'echasnovski/mini.ai',
         version = '*',
+        event = "VeryLazy",
         dependencies = {'nvim-treesitter/nvim-treesitter'},
         extra_contexts = {"vscode", "firenvim", "lite_mode", "ssh"},
         config = function()
+            local vim_utils = require('vim_utils')
+            local ftmini = require('ftmini')
             local mini_ai = require('mini.ai')
 
             mini_ai.setup({
@@ -260,8 +262,10 @@ return {
     {
         "thalesmello/mini.surround",
         version = false,
+        event = "VeryLazy",
         extra_contexts = {"vscode", "firenvim", "lite_mode", "ssh"},
         config = function ()
+            local ftmini = require('ftmini')
             local surround = require('mini.surround')
             local get_input = surround.user_input
             surround.setup({
@@ -352,6 +356,7 @@ return {
     {
         'echasnovski/mini.operators',
         version = false,
+        event = "VeryLazy",
         opts = {
             -- Evaluate text and replace with output
             evaluate = {

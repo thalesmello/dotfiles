@@ -1,7 +1,20 @@
 return {
    {
       "nvim-telescope/telescope.nvim",
-      dependencies = {"nvim-lua/plenary.nvim"},
+      dependencies = {
+         "nvim-lua/plenary.nvim",
+         "nvim-telescope/telescope-fzf-native.nvim",
+      },
+      cmd = "Telescope",
+      keys = {
+         { "<leader>ff", desc = "Telescope find files" },
+         { "<leader>fg", desc = "Telescope live grep" },
+         { "<leader>fb", desc = "Telescope buffers" },
+         { "<leader>fh", desc = "Telescope help tags" },
+         { "<leader>fv", desc = "Telescope vim config files" },
+         { "<leader>fd", desc = "Telescope dotfiles" },
+         { "<leader>fV", desc = "Telescope plugin files" },
+      },
       opts = {},
       config = function ()
          local builtin = require('telescope.builtin')
@@ -27,6 +40,7 @@ return {
    },
    {
       "nvim-telescope/telescope-fzf-native.nvim",
+      lazy = true,
       build = "make",
       config = function()
          require("telescope").load_extension("fzf")

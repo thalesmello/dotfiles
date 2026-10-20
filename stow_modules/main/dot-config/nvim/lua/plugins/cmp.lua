@@ -1,11 +1,12 @@
 local vim_utils = require("vim_utils")
-local style_cmp = require("style.cmp")
 
 return {
    {
       'hrsh7th/nvim-cmp',
+      event = { "InsertEnter", "CmdlineEnter" },
       opts = function (_, opts)
          local cmp = require('cmp')
+         local style_cmp = require("style.cmp")
 
          return vim.tbl_deep_extend('force', opts, {
             mapping = cmp.mapping.preset.insert({
@@ -64,6 +65,7 @@ return {
    },
    vim_utils.injector_module({
       "thalesmello/cmp-rg",
+      lazy = true,
       injectable_opts = {
          "hrsh7th/nvim-cmp",
          merge_opts = function()
@@ -82,6 +84,7 @@ return {
    }),
    vim_utils.injector_module({
       'hrsh7th/cmp-path',
+      lazy = true,
       injectable_opts = {
          "hrsh7th/nvim-cmp",
          merge_opts = {
@@ -94,6 +97,7 @@ return {
    }),
    vim_utils.injector_module({
       'hrsh7th/cmp-nvim-lsp',
+      lazy = true,
       injectable_opts = {
          "hrsh7th/nvim-cmp",
          merge_opts = {
@@ -105,6 +109,7 @@ return {
    }),
    vim_utils.injector_module({
       'hrsh7th/cmp-calc',
+      lazy = true,
       injectable_opts = {
          "hrsh7th/nvim-cmp",
          merge_opts = {
@@ -117,6 +122,7 @@ return {
    }),
    vim_utils.injector_module({
       'hrsh7th/cmp-buffer',
+      lazy = true,
       injectable_opts = {
          "hrsh7th/nvim-cmp",
          merge_opts = {
@@ -157,6 +163,7 @@ return {
    }),
    {
       'hrsh7th/cmp-cmdline',
+      event = "CmdlineEnter",
       dependencies = {'hrsh7th/nvim-cmp'},
       config = function ()
          local cmp = require('cmp')

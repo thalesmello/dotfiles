@@ -12,12 +12,12 @@ return {
         'tpope/vim-abolish',
         keys = {"cr"},
         cmd = {"Abolish", "Subvert", "S"},
-        extra_context = {'lite_mode'}
+        extra_contexts = {'lite_mode'}
     },
     {
         'tpope/vim-sleuth',
         event = { "BufReadPost", "BufNewFile", "BufFilePost"},
-        extra_context = {'lite_mode'}
+        extra_contexts = {'lite_mode'}
     },
     {
         'tpope/vim-rsi',

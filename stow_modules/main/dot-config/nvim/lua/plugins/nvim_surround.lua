@@ -1,13 +1,13 @@
-local surround_adapter = require("surround_adapter")
-local ftmini = require("ftmini")
-
 return {
     'kylechui/nvim-surround',
+    event = "VeryLazy",
     dependencies = {
         'nvim-treesitter/nvim-treesitter',
         'kana/vim-textobj-user',
     },
     config = function()
+        local surround_adapter = require("surround_adapter")
+        local ftmini = require("ftmini")
         local surround = require('nvim-surround')
         local get_input = surround_adapter.user_input
 

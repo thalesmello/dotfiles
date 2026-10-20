@@ -1,6 +1,7 @@
 return {
    {
       "rasulomaroff/reactive.nvim",
+      event = "VeryLazy",
       opts = {
          builtin = {
             cursorline = true,

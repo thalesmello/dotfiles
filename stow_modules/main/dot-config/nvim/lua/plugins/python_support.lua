@@ -1,5 +1,7 @@
 return {
     'thalesmello/python-support.nvim',
+    event = "VeryLazy",
+    cmd = { "PythonSupportInitPython3", "PythonSupportInitPython2" },
     build = function()
         vim.cmd.PythonSupportInitPython3()
     end,

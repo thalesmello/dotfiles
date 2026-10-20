@@ -1,11 +1,8 @@
-local vim_utils = require("vim_utils")
-local ai_agents = require("ai_agents")
-
 -- Inside herdr, agents run in their own herdr pane so they show up in the
 -- agents sidebar (herdr only detects agents by a pane's foreground process, so
 -- an in-nvim terminal is invisible to it). See herdr_agent_pane.lua.
 -- Set vim.g.claudecode_herdr_pane = false before startup to stay in-nvim.
-local use_herdr_pane = ai_agents.use_herdr
+local use_herdr_pane = vim.env.HERDR_PANE_ID ~= nil and vim.g.claudecode_herdr_pane ~= false
 
 local function copy_reference(reference)
    vim.fn.setreg("+", reference)
@@ -13,81 +10,100 @@ local function copy_reference(reference)
 end
 
 local function copy_file_reference()
-   copy_reference(ai_agents.file_reference())
+   copy_reference(require("ai_agents").file_reference())
 end
 
 local function copy_visual_reference()
-   copy_reference(vim_utils.visual_reference())
+   copy_reference(require("vim_utils").visual_reference())
 end
 
--- Pure copy keymaps: no agent involved, so these are the only definitions.
-vim.keymap.set("n", "<leader>aB", copy_file_reference, { desc = "Copy file reference" })
-vim.keymap.set("v", "<leader>ay", copy_visual_reference, { desc = "Copy code reference" })
+local function setup_ai_agent_Globals()
+   -- Pure copy keymaps: no agent involved, so these are the only definitions.
+   vim.keymap.set("n", "<leader>aB", copy_file_reference, { desc = "Copy file reference" })
+   vim.keymap.set("v", "<leader>ay", copy_visual_reference, { desc = "Copy code reference" })
 
--- Agent-agnostic keymaps. These act on whichever agent is currently attached to
--- a terminal and fall back to Claude when none is, so they are defined here
--- rather than as lazy `keys` of one plugin (which would tie them to Claude and
--- would not work in lite mode, where the agent plugins are absent).
-vim.keymap.set("n", "<leader>ab", ai_agents.add_buffer, { desc = "Add current buffer to agent" })
-vim.keymap.set("v", "<leader>as", ai_agents.send_selection, { desc = "Send to agent" })
-vim.keymap.set("v", "<leader>.", ai_agents.send_selection_or_copy, { desc = "Send to agent or copy reference" })
-vim.keymap.set("n", "<leader>aR", ai_agents.pick_session, { desc = "Attach to an agent session" })
-vim.keymap.set("n", "<leader>a<bs>", ai_agents.detach, { desc = "Detach all agents" })
+   -- Agent-agnostic keymaps. These act on whichever agent is currently attached to
+   -- a terminal and fall back to Claude when none is, so they are defined here
+   -- rather than as lazy `keys` of one plugin (which would tie them to Claude and
+   -- would not work in lite mode, where the agent plugins are absent).
+   vim.keymap.set("n", "<leader>ab", function() require("ai_agents").add_buffer() end, { desc = "Add current buffer to agent" })
+   vim.keymap.set("v", "<leader>as", function() require("ai_agents").send_selection() end, { desc = "Send to agent" })
+   vim.keymap.set("v", "<leader>.", function() require("ai_agents").send_selection_or_copy() end, { desc = "Send to agent or copy reference" })
+   vim.keymap.set("n", "<leader>aR", function() require("ai_agents").pick_session() end, { desc = "Attach to an agent session" })
+   vim.keymap.set("n", "<leader>a<bs>", function() require("ai_agents").detach() end, { desc = "Detach all agents" })
 
--- Defined here rather than in a plugin's config so they exist even when none of
--- the agent plugins have loaded.
-vim.api.nvim_create_user_command("AiAgentDetach", ai_agents.detach, {
-   desc = "Let go of every attached agent, leaving them running",
-})
+   -- Defined here rather than in a plugin's config so they exist even when none of
+   -- the agent plugins have loaded.
+   vim.api.nvim_create_user_command("AiAgentDetach", function()
+      require("ai_agents").detach()
+   end, {
+      desc = "Let go of every attached agent, leaving them running",
+   })
 
-vim.api.nvim_create_user_command("AiAgentAttach", function(cmd_opts)
-   ai_agents.attach(cmd_opts.args)
-end, {
-   nargs = "?",
-   complete = ai_agents.attach_candidates,
-   desc = "Attach to an agent pane, or pick one when no pane is given",
-})
+   vim.api.nvim_create_user_command("AiAgentAttach", function(cmd_opts)
+      require("ai_agents").attach(cmd_opts.args)
+   end, {
+      nargs = "?",
+      complete = function(...)
+         return require("ai_agents").attach_candidates(...)
+      end,
+      desc = "Attach to an agent pane, or pick one when no pane is given",
+   })
 
--- Per-agent activation: visual mode sends the selection, normal mode opens the
--- agent's pane/terminal.
-for key, agent in pairs({ ac = "claude", ax = "codex", ap = "pi" }) do
-   for _, mode in ipairs({ "n", "v" }) do
-      vim.keymap.set(mode, "<leader>" .. key, function()
-         ai_agents.activate(agent, mode)
-      end, { desc = (mode == "v" and "Send to " or "Toggle ") .. ai_agents.get(agent).label })
+   -- Per-agent activation: visual mode sends the selection, normal mode opens the
+   -- agent's pane/terminal.
+   local agent_labels = { claude = "Claude", codex = "Codex", pi = "pi" }
+   for key, agent in pairs({ ac = "claude", ax = "codex", ap = "pi" }) do
+      for _, mode in ipairs({ "n", "v" }) do
+         vim.keymap.set(mode, "<leader>" .. key, function()
+            require("ai_agents").activate(agent, mode)
+         end, { desc = (mode == "v" and "Send to " or "Toggle ") .. agent_labels[agent] })
+      end
+   end
+
+   -- Tree/file-list buffers: the same <leader>as / <leader>. verbs, scoped to the
+   -- filetypes that have a notion of "the file under the cursor".
+   local tree_patterns = { "NvimTree", "neo-tree", "oil", "minifiles", "netrw", "dirvish" }
+   local group = vim.api.nvim_create_augroup("AiAgentTreeMaps", { clear = true })
+   vim.api.nvim_create_autocmd("FileType", {
+      group = group,
+      pattern = tree_patterns,
+      callback = function(args)
+         local opts = { buffer = args.buf }
+
+         if args.match == "dirvish" then
+            -- Arglist if populated, else the file under the cursor -- the same
+            -- rule <leader>Y uses in vim_dirvish.lua.
+            vim.keymap.set("n", "<leader>as", function() require("ai_agents").add_targets() end,
+               vim.tbl_extend("force", opts, { desc = "Add file(s) to agent" }))
+
+            -- Visual mode only. vim_dirvish.lua owns normal-mode <leader>. for
+            -- Quick Look, and <leader>as already covers "the file under the
+            -- cursor" through the same arglist-or-cursor rule, so there is nothing
+            -- to gain by fighting it for that key. Buffer-local, so these still
+            -- beat the global visual mappings -- without them a visual <leader>as
+            -- in dirvish sends the buffer's own name, which is the directory, with
+            -- the selected line range attached.
+            vim.keymap.set("v", "<leader>as", function() require("ai_agents").add_visual_lines() end,
+               vim.tbl_extend("force", opts, { desc = "Add selected files to agent" }))
+            vim.keymap.set("v", "<leader>.", function() require("ai_agents").add_visual_lines() end,
+               vim.tbl_extend("force", opts, { desc = "Add selected files to agent" }))
+         else
+            vim.keymap.set("n", "<leader>as", function() require("ai_agents").tree_add() end,
+               vim.tbl_extend("force", opts, { desc = "Add file to agent" }))
+         end
+      end,
+   })
+
+   if vim.tbl_contains(tree_patterns, vim.bo.filetype) then
+      vim.api.nvim_exec_autocmds("FileType", { group = group, pattern = vim.bo.filetype })
    end
 end
 
--- Tree/file-list buffers: the same <leader>as / <leader>. verbs, scoped to the
--- filetypes that have a notion of "the file under the cursor".
-vim.api.nvim_create_autocmd("FileType", {
-   group = vim.api.nvim_create_augroup("AiAgentTreeMaps", {}),
-   pattern = { "NvimTree", "neo-tree", "oil", "minifiles", "netrw", "dirvish" },
-   callback = function(args)
-      local opts = { buffer = args.buf }
-
-      if args.match == "dirvish" then
-         -- Arglist if populated, else the file under the cursor -- the same
-         -- rule <leader>Y uses in vim_dirvish.lua.
-         vim.keymap.set("n", "<leader>as", ai_agents.add_targets,
-            vim.tbl_extend("force", opts, { desc = "Add file(s) to agent" }))
-
-         -- Visual mode only. vim_dirvish.lua owns normal-mode <leader>. for
-         -- Quick Look, and <leader>as already covers "the file under the
-         -- cursor" through the same arglist-or-cursor rule, so there is nothing
-         -- to gain by fighting it for that key. Buffer-local, so these still
-         -- beat the global visual mappings -- without them a visual <leader>as
-         -- in dirvish sends the buffer's own name, which is the directory, with
-         -- the selected line range attached.
-         vim.keymap.set("v", "<leader>as", ai_agents.add_visual_lines,
-            vim.tbl_extend("force", opts, { desc = "Add selected files to agent" }))
-         vim.keymap.set("v", "<leader>.", ai_agents.add_visual_lines,
-            vim.tbl_extend("force", opts, { desc = "Add selected files to agent" }))
-      else
-         vim.keymap.set("n", "<leader>as", ai_agents.tree_add,
-            vim.tbl_extend("force", opts, { desc = "Add file to agent" }))
-      end
-   end,
+vim.api.nvim_create_autocmd("User", {
+   pattern = "VeryLazy",
+   once = true,
+   callback = setup_ai_agent_Globals,
 })
 
 return {
@@ -136,6 +152,7 @@ return {
          --
          -- Under herdr the neoterm provider is swapped for the herdr provider,
          -- which puts Claude in a real herdr pane (agents sidebar integration).
+         local ai_agents = require("ai_agents")
          opts.terminal = vim.tbl_extend("force", ai_agents.terminal_config, {
             provider = ai_agents.get("claude").provider(),
          })
@@ -167,7 +184,7 @@ return {
             -- the workspace, auto-attaching when there is only one.
             -- <leader>aR is the cross-agent version of this.
             vim.api.nvim_create_user_command("ClaudeCodeHerdrAttach", function(cmd_opts)
-               local provider = ai_agents.get("claude").provider()
+               local provider = require("ai_agents").get("claude").provider()
 
                if cmd_opts.args ~= "" then
                   provider.attach(cmd_opts.args, { focus = true })
@@ -180,7 +197,7 @@ return {
             end, { nargs = "?", desc = "Attach to an existing Claude herdr pane" })
 
             vim.api.nvim_create_user_command("ClaudeCodeHerdrDetach", function()
-               ai_agents.get("claude").provider().detach()
+               require("ai_agents").get("claude").provider().detach()
             end, { desc = "Forget the attached Claude herdr pane" })
          end
 
@@ -206,6 +223,7 @@ return {
       -- contract. That is what lets ai_agents drive both through one code path.
       "ishiooon/codex.nvim",
       opts = function()
+         local ai_agents = require("ai_agents")
          return {
             -- claudecode's `open_in_current_tab = false` spelled the other way
             -- round in the fork.
@@ -244,6 +262,7 @@ return {
          -- So when there is no websocket, deliver it ourselves: make sure a
          -- pane exists, then paste the reference in the shared format. No
          -- queue, no timeout, and identical text to Claude and pi.
+         local ai_agents = require("ai_agents")
          local codex = require("codex")
          local terminal = require("codex.terminal")
          local provider = ai_agents.get("codex").provider()
@@ -276,6 +295,17 @@ return {
    {
       "ThePrimeagen/99",
       dependencies = { "coder/claudecode.nvim" },
+      keys = {
+         { "<leader>9s", function() require("99").search() end, desc = "99: Search" },
+         { "<leader>9v", function() require("99").visual() end, mode = "v", desc = "99: Visual replace" },
+         { "<leader>9x", function() require("99").stop_all_requests() end, desc = "99: Stop all" },
+         { "<leader>9o", function() require("99").open() end, desc = "99: Open results" },
+         { "<leader>9l", function() require("99").view_logs() end, desc = "99: View logs" },
+         { "<leader>9c", function() require("99").clear_previous_requests() end, desc = "99: Clear requests" },
+         { "<leader>9V", function() require("99").vibe() end, desc = "99: Vibe mode" },
+         { "<leader>9w", function() require("99").Extensions.Worker.set_work() end, desc = "99: Set work" },
+         { "<leader>9W", function() require("99").Extensions.Worker.search() end, desc = "99: Search work" },
+      },
       config = function()
          local _99 = require("99")
          local project_name = vim.fn.fnamemodify(vim.fn.getcwd(), ":t")
@@ -290,16 +320,6 @@ return {
                file = "/tmp/" .. project_name .. ".99.debug",
             },
          })
-
-         vim.keymap.set("n", "<leader>9s", _99.search, { desc = "99: Search" })
-         vim.keymap.set("v", "<leader>9v", _99.visual, { desc = "99: Visual replace" })
-         vim.keymap.set("n", "<leader>9x", _99.stop_all_requests, { desc = "99: Stop all" })
-         vim.keymap.set("n", "<leader>9o", _99.open, { desc = "99: Open results" })
-         vim.keymap.set("n", "<leader>9l", _99.view_logs, { desc = "99: View logs" })
-         vim.keymap.set("n", "<leader>9c", _99.clear_previous_requests, { desc = "99: Clear requests" })
-         vim.keymap.set("n", "<leader>9V", _99.vibe, { desc = "99: Vibe mode" })
-         vim.keymap.set("n", "<leader>9w", _99.Extensions.Worker.set_work, { desc = "99: Set work" })
-         vim.keymap.set("n", "<leader>9W", _99.Extensions.Worker.search, { desc = "99: Search work" })
       end,
    },
 }

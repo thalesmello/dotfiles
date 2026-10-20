@@ -1,5 +1,6 @@
 return {
     'mhinz/vim-signify',
+    event = { "BufReadPost", "BufNewFile", "BufFilePost" },
     config = function()
         vim.keymap.set("n", "]c", function()
             if vim.wo.diff then

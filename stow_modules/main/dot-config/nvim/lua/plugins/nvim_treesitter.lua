@@ -320,7 +320,6 @@ return {
             })
         end,
         extra_contexts = {"vscode", "firenvim", "ssh"},
-        lazy = false,
     },
     {
 

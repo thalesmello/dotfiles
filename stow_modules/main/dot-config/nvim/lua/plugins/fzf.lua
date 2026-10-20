@@ -1,13 +1,16 @@
 return {
     "ibhagwan/fzf-lua",
     dependencies = { 'vim-projectionist', "subnut/nvim-ghost.nvim" },
+    cmd = { "FzfLua", "Ag" },
     keys = {
         {"<c-p>", mode = {"n", "v"}},
+        {"<leader><c-p>", mode = "n"},
         {"<c-t>", mode = {"n", "v"}},
         {"<c-f>", mode = "n"},
         {"<leader>/", mode = {"n", "v"}},
         {"<leader>:", mode = {"n", "v"}},
         {"<leader>;", mode = {"n", "v"}},
+        {"<leader>?", mode = "n"},
     },
     opts = {
         "fzf-vim",
@@ -132,6 +135,5 @@ return {
             end,
         })
     end,
-    lazy=false,
     extra_contexts = {"ssh"}
 }

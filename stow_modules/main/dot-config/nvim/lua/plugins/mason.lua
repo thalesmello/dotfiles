@@ -2,11 +2,20 @@ return {
 
    {
       'williamboman/mason.nvim',
+      lazy = true,
+      cmd = { "Mason", "MasonInstall", "MasonUpdate", "MasonUninstall", "MasonUninstallAll", "MasonLog" },
+      init = function()
+         local mason_bin = vim.fn.stdpath("data") .. "/mason/bin"
+         if not (vim.env.PATH or ""):find(mason_bin, 1, true) then
+            vim.env.PATH = mason_bin .. ":" .. (vim.env.PATH or "")
+         end
+      end,
       opts = {},
    },
    {
       'williamboman/mason-lspconfig.nvim',
-      dependencies = { 'williamboman/mason.nvim' },
+      lazy = true,
+      dependencies = { 'williamboman/mason.nvim', 'neovim/nvim-lspconfig' },
       opts = {
          ensure_installed = {
             "jsonls",

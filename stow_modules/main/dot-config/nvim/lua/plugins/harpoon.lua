@@ -1,6 +1,7 @@
 return {
    {
       "nvim-lua/plenary.nvim" ,
+      lazy = true,
       extra_contexts = {"ssh"},
       opts = {},
       config = function() end
@@ -9,6 +10,21 @@ return {
       "ThePrimeagen/harpoon",
       branch = "harpoon2",
       dependencies = { "nvim-lua/plenary.nvim" },
+      keys = {
+         { "<leader>ka", desc = "Harpoon add" },
+         { "<leader>ke", desc = "Harpoon quick menu" },
+         { "<leader>1", desc = "Harpoon 1" },
+         { "<leader>2", desc = "Harpoon 2" },
+         { "<leader>3", desc = "Harpoon 3" },
+         { "<leader>4", desc = "Harpoon 4" },
+         { "<leader>5", desc = "Harpoon 5" },
+         { "<leader>6", desc = "Harpoon 6" },
+         { "<leader>7", desc = "Harpoon 7" },
+         { "<leader>8", desc = "Harpoon 8" },
+         { "<leader>9", desc = "Harpoon 9" },
+         { "[h", desc = "Harpoon prev" },
+         { "]h", desc = "Harpoon next" },
+      },
       opts = {
 
       },

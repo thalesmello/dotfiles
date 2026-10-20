@@ -4,6 +4,10 @@
 
 
 -- Polyglot disabled configs should load before any syntax is loaded
+if vim.loader then
+    vim.loader.enable()
+end
+
 vim.g.mapleader = " "
 vim.g.maplocalleader = "'"
 

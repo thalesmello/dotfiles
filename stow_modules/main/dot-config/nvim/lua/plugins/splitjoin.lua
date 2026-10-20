@@ -34,11 +34,12 @@ return {
         --     },
         -- },
         extra_contexts = {"vscode", "firenvim"},
-        lazy = false
+        lazy = true,
     },
     {
         'echasnovski/mini.splitjoin',
         version = '*',
+        event = "VeryLazy",
         opts = {
             mappings = {
                 toggle = '',

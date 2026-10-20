@@ -1,6 +1,7 @@
 return {
    {
       "mfussenegger/nvim-lint",
+      lazy = true,
       config = function()
          require('lint').linters_by_ft = {
             python = { 'flake8' }
@@ -8,12 +9,7 @@ return {
 
          local group = vim.api.nvim_create_augroup("LintGroup", { clear = true })
 
-         vim.api.nvim_create_autocmd({ "BufEnter" }, {
-            group = group,
-            callback = function() require("lint").try_lint() end,
-         })
-
-         vim.api.nvim_create_autocmd({ "BufWritePost" }, {
+         vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost" }, {
             group = group,
             callback = function() require("lint").try_lint() end,
          })
@@ -22,6 +18,7 @@ return {
    },
    {
       "rshkarin/mason-nvim-lint",
+      lazy = true,
       dependencies = {
          "mfussenegger/nvim-lint",
          'williamboman/mason.nvim'

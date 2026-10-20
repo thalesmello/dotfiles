@@ -123,5 +123,5 @@ return {
         })
     end,
     cond = true,
-    extra_context = {"ssh"},
+    extra_contexts = {"ssh"},
 }

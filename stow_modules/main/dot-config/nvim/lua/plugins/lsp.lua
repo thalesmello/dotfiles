@@ -1,17 +1,18 @@
 return {
     {
         'neovim/nvim-lspconfig',
-        event = { "BufReadPost", "BufNewFile", "BufFilePost" },
+        lazy = true,
         extra_contexts = {"ssh"},
+        init = function()
+            vim.api.nvim_create_autocmd("User", {
+                pattern = "VeryLazy",
+                once = true,
+                callback = function()
+                    require("lsp_kickstart").setup_keymaps()
+                end,
+            })
+        end,
         config = function ()
-            -- note: diagnostics are not exclusive to lsp servers
-            -- so these can be global keybindings
-
-            vim.keymap.set('n', 'gl', '<cmd>lua vim.diagnostic.open_float()<cr>')
-            vim.keymap.set('n', '[g', '<cmd>lua vim.diagnostic.goto_prev()<cr>')
-            vim.keymap.set('n', ']g', '<cmd>lua vim.diagnostic.goto_next()<cr>')
-
-
             local group = vim.api.nvim_create_augroup("LspAuGroup", { clear = true})
 
             vim.api.nvim_create_autocmd('LspAttach', {
@@ -41,6 +42,7 @@ return {
 
                     mapCapability(capabilities.hoverProvider, 'n', 'K', '<cmd>lua vim.lsp.buf.hover()<cr>')
                     vim.opt_local.tagfunc = "v:lua.vim.lsp.tagfunc"
+                    mapCapability(capabilities.definitionProvider, 'n', 'gd', '<cmd>lua vim.lsp.buf.definition()<cr>')
                     mapCapability(capabilities.declarationProvider, 'n', 'gD', '<cmd>lua vim.lsp.buf.declaration()<cr>')
                     mapCapability(capabilities.implementationProvider, 'n', 'gI', '<cmd>lua vim.lsp.buf.implementation()<cr>')
                     mapCapability(capabilities.typeDefinitionProvider, 'n', '<leader>go', '<cmd>lua vim.lsp.buf.type_definition()<cr>')
@@ -54,6 +56,7 @@ return {
     },
     {
         "ray-x/lsp_signature.nvim",
+        lazy = true,
         extra_contexts = {"ssh"},
         opts = {
             hint_enable = true,
@@ -87,6 +90,8 @@ return {
     },
     {
         'ii14/lsp-command',
+        lazy = true,
+        cmd = { "LspStart", "LspStop", "LspRestart", "LspInfo", "LspLog" },
         init = function ()
             vim.g.lsp_legacy_commands = true
         end,
