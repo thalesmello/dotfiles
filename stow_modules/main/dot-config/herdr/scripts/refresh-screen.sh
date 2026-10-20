@@ -30,7 +30,8 @@ for pid in $(pgrep -x herdr 2>/dev/null); do
 done
 
 if [ "$found" -eq 0 ]; then
-  herdr="${HERDR_BIN_PATH:-herdr}"
+  . "$(dirname "$0")/herdr-lib.sh"
+  herdr=$(herdr_bin) || exit 1
   "$herdr" notification show "no local client to refresh" \
     --body "remote session? detach and reattach" \
     --position top-right --sound none >/dev/null 2>&1

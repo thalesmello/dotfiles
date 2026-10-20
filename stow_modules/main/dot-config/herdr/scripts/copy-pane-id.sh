@@ -13,7 +13,9 @@
 # NOT $HERDR_PANE_ID -- for a popup command that would point at the popup itself
 # rather than the pane that was focused when the keybinding fired.
 
-herdr="${HERDR_BIN_PATH:-herdr}"
+. "$(dirname "$0")/herdr-lib.sh"
+
+herdr=$(herdr_bin) || exit 1
 
 pane="${HERDR_ACTIVE_PANE_ID}"
 [ -n "$pane" ] || exit 1

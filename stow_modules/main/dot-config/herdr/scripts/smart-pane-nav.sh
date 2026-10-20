@@ -15,10 +15,12 @@
 # read it directly instead of parsing it back out of the layout.
 # Set HERDR_SMARTNAV_DEBUG=1 to print the decision instead of acting.
 
+. "$(dirname "$0")/herdr-lib.sh"
+
 dir="$1"      # left | down | up | right
 letter="$2"   # h | j | k | l
 
-herdr="${HERDR_BIN_PATH:-herdr}"
+herdr=$(herdr_bin) || exit 0
 
 # Focused pane id is injected by herdr; no CLI call needed for it.
 pane="${HERDR_ACTIVE_PANE_ID:-}"

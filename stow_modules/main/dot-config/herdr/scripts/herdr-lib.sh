@@ -45,7 +45,7 @@
 #   command substitutions, where stdout is a pipe.
 
 herdr_bin() {
-    if [ -n "$HERDR_BIN_PATH" ] && [ -x "$HERDR_BIN_PATH" ]; then
+    if [ -n "${HERDR_BIN_PATH:-}" ] && [ -x "$HERDR_BIN_PATH" ]; then
         printf '%s\n' "$HERDR_BIN_PATH"
         return 0
     fi
@@ -67,7 +67,7 @@ herdr_bin() {
 }
 
 herdr_socket() {
-    if [ -n "$HERDR_SOCKET_PATH" ] && [ -S "$HERDR_SOCKET_PATH" ]; then
+    if [ -n "${HERDR_SOCKET_PATH:-}" ] && [ -S "$HERDR_SOCKET_PATH" ]; then
         printf '%s\n' "$HERDR_SOCKET_PATH"
         return 0
     fi

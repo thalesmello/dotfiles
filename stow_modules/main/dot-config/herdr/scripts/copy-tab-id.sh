@@ -9,7 +9,9 @@
 # Tab identity comes from $HERDR_ACTIVE_TAB_ID, which herdr auto-injects into
 # custom commands alongside HERDR_ACTIVE_WORKSPACE_ID / HERDR_ACTIVE_PANE_ID.
 
-herdr="${HERDR_BIN_PATH:-herdr}"
+. "$(dirname "$0")/herdr-lib.sh"
+
+herdr=$(herdr_bin) || exit 1
 
 tab="${HERDR_ACTIVE_TAB_ID}"
 [ -n "$tab" ] || exit 1

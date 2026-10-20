@@ -25,9 +25,11 @@
 # here used to submit at its first newline and leave the tail behind. An empty
 # command (just Enter) cancels too.
 
-. "$(cd "$(dirname "$0")" && pwd)/prompt-lib.sh"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+. "$script_dir/herdr-lib.sh"
+. "$script_dir/prompt-lib.sh"
 
-herdr="${HERDR_BIN_PATH:-herdr}"
+herdr=$(herdr_bin) || herdr_die "run-command" "herdr CLI not found"
 
 prompt_line 'Command: ' || exit 0
 cmd=$PROMPT_LINE

@@ -209,7 +209,7 @@ description = "reload config and local helper daemons"
 [[keys.command]]
 key = "prefix+ctrl+c"
 type = "shell"
-command = "\"${HERDR_BIN_PATH:-herdr}\" pane send-keys \"$HERDR_ACTIVE_PANE_ID\" ctrl+l"
+command = ". ~/.config/herdr/scripts/herdr-lib.sh && herdr=$(herdr_bin) && \"$herdr\" pane send-keys \"$HERDR_ACTIVE_PANE_ID\" ctrl+l"
 description = "clear screen (ctrl+l)"
 
 # prefix+ctrl+r: put THIS pane back into the conversation its agent was in,
@@ -617,7 +617,7 @@ hide_tab_bar_when_single_tab = false
 # adds a compact Nerd Font magnifying glass at the right edge when the active tab
 # is zoomed, without patching Herdr.
 tab_bar_right = [
-  { type = "command", command = "layout=$(${HERDR_BIN_PATH:-herdr} pane layout --pane \"$HERDR_ACTIVE_PANE_ID\" 2>/dev/null || ${HERDR_BIN_PATH:-herdr} pane layout --current 2>/dev/null); case \"$layout\" in *'\"zoomed\":true'*) printf '[󰍉 ZOOM]\\n' ;; esac", interval_seconds = 1, timeout_seconds = 3 },
+  { type = "command", command = ". ~/.config/herdr/scripts/herdr-lib.sh && herdr=$(herdr_bin) && layout=$(\"$herdr\" pane layout --pane \"$HERDR_ACTIVE_PANE_ID\" 2>/dev/null || \"$herdr\" pane layout --current 2>/dev/null); case \"$layout\" in *'\"zoomed\":true'*) printf '[󰍉 ZOOM]\\n' ;; esac", interval_seconds = 1, timeout_seconds = 3 },
 ]
 tab_bar_right_separator = " "
 
@@ -679,9 +679,9 @@ rows = [
         { token = "terminal_title_stripped", fg = "#c6d0f5", bold = false, dim = false },
     ],
     [
-        { token = "agent", fg = "#a5adce", bold = false, dim = true },
         { token = "workspace", fg = "#a5adce", bold = false, dim = true },
         { token = "tab", fg = "#a5adce", bold = false, dim = true },
+        { token = "agent", fg = "#a5adce", bold = false, dim = true },
     ]
 ]
 

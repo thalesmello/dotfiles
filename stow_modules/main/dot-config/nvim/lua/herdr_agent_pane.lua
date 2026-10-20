@@ -24,7 +24,11 @@
 local M = {}
 
 local function herdr_bin()
-   return vim.env.HERDR_BIN_PATH or "herdr"
+   local env_bin = vim.env.HERDR_BIN_PATH
+   if env_bin and env_bin ~= "" and vim.fn.executable(env_bin) == 1 then
+      return env_bin
+   end
+   return "herdr"
 end
 
 --- Run a herdr CLI command synchronously. Returns the completed process, or nil

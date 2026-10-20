@@ -26,9 +26,11 @@
 # Esc cancels and moves nothing. Emptying the prompt and pressing Enter keeps
 # herdr's generated name.
 
-. "$(cd "$(dirname "$0")" && pwd)/prompt-lib.sh"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+. "$script_dir/herdr-lib.sh"
+. "$script_dir/prompt-lib.sh"
 
-herdr="${HERDR_BIN_PATH:-herdr}"
+herdr=$(herdr_bin) || herdr_die "break-pane" "herdr CLI not found"
 
 pane="$HERDR_ACTIVE_PANE_ID"
 [ -n "$pane" ] || { printf 'no focused pane\n'; sleep 1; exit 1; }

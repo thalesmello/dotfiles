@@ -29,6 +29,7 @@ import fcntl
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -48,7 +49,20 @@ def config_path():
 
 
 def herdr_bin():
-    return os.environ.get("HERDR_BIN_PATH") or "herdr"
+    env_bin = os.environ.get("HERDR_BIN_PATH")
+    if env_bin and os.path.isfile(env_bin) and os.access(env_bin, os.X_OK):
+        return env_bin
+    resolved = shutil.which("herdr")
+    if resolved:
+        return resolved
+    for candidate in (
+        os.path.expanduser("~/.local/bin/herdr"),
+        "/opt/homebrew/bin/herdr",
+        "/usr/local/bin/herdr",
+    ):
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    return "herdr"
 
 
 def lock_dir():

@@ -10,9 +10,11 @@
 # ring matches the sidebar top-to-bottom order rather than raw id order.
 # Set HERDR_SMARTNAV_DEBUG=1 to print the target tab instead of focusing it.
 
+. "$(dirname "$0")/herdr-lib.sh"
+
 dir="${1:-next}"   # next | prev
 
-herdr="${HERDR_BIN_PATH:-herdr}"
+herdr=$(herdr_bin) || exit 0
 
 target=$(
   { "$herdr" workspace list 2>/dev/null; "$herdr" tab list 2>/dev/null; } | jq -rs --arg dir "$dir" '

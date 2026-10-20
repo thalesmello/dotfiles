@@ -6,7 +6,9 @@
 #
 # Pane identity comes from `herdr pane layout --current`.
 
-herdr="${HERDR_BIN_PATH:-herdr}"
+. "$(dirname "$0")/herdr-lib.sh"
+
+herdr=$(herdr_bin) || exit 0
 
 info=$("$herdr" pane layout --current 2>/dev/null | python3 -c '
 import sys, json

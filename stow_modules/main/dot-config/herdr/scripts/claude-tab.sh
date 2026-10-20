@@ -6,11 +6,11 @@
 # injects HERDR_BIN_PATH into custom commands. An empty name falls back to
 # "claude"; pressing Esc closes the popup without creating anything.
 
-herdr="${HERDR_BIN_PATH:-herdr}"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+. "$script_dir/herdr-lib.sh"
+. "$script_dir/prompt-lib.sh"
 
-# The tab name comes from the shared popup prompt (prompt-lib.sh): raw-mode
-# line editing, Esc to cancel, bracketed paste.
-. "$(cd "$(dirname "$0")" && pwd)/prompt-lib.sh"
+herdr=$(herdr_bin) || herdr_die "claude-tab" "herdr CLI not found"
 
 prompt_line 'Tab name: ' || exit 0    # Esc -> cancel, create nothing
 name=$PROMPT_LINE

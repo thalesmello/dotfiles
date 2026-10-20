@@ -8,7 +8,9 @@
 # `pane split --ratio` is the ORIGINAL pane's fraction, so 0.6 leaves the source
 # pane at 60% and gives the new claude pane 40% of the width.
 
-herdr="${HERDR_BIN_PATH:-herdr}"
+. "$(dirname "$0")/herdr-lib.sh"
+
+herdr=$(herdr_bin) || exit 1
 
 pane="${HERDR_ACTIVE_PANE_ID}"
 [ -n "$pane" ] || exit 1

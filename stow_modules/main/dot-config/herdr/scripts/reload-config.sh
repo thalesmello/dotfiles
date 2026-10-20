@@ -1,19 +1,9 @@
 #!/bin/sh
 set -eu
 
-herdr_bin="${HERDR_BIN_PATH:-}"
-if [ -z "$herdr_bin" ] || [ ! -x "$herdr_bin" ]; then
-  herdr_bin=$(command -v herdr 2>/dev/null || true)
-fi
-if [ -z "$herdr_bin" ]; then
-  for candidate in "$HOME/.local/bin/herdr" /opt/homebrew/bin/herdr /usr/local/bin/herdr; do
-    if [ -x "$candidate" ]; then
-      herdr_bin=$candidate
-      break
-    fi
-  done
-fi
-[ -n "$herdr_bin" ] || {
+. "$(dirname "$0")/herdr-lib.sh"
+
+herdr_bin=$(herdr_bin) || {
   printf 'herdr CLI not found\n' >&2
   exit 1
 }
