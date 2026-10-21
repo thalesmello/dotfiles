@@ -19,6 +19,7 @@ import fcntl
 import json
 import os
 import random
+import select
 import signal
 import socket
 import subprocess
@@ -51,6 +52,9 @@ STATUS_GLYPHS = {
 WORKING_FRAMES = ["◐", "◓", "◑", "◒"]
 # Pi's titlebar-spinner example uses an 80ms frame interval.
 ANIMATION_SECS = 0.08
+# Refresh agent.list at most once per second during continuous spinner animation
+# unless woken immediately by an event hook (SIGUSR1) or state file change.
+AGENT_LIST_REFRESH_SECS = 1.0
 # Nerd Fonts Material Design email (nf-md-email), used as the manual unread
 # marker in the status slot. It reads larger than Font Awesome's envelope.
 # Falls back to tofu only if the outer terminal font is not a Nerd Font.
@@ -74,16 +78,24 @@ def state_dir() -> Path:
     base = Path(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"))
     suffix = f"@{session_name()}" if session_name() else ""
     path = base / "herdr" / f"unread-marker{suffix}"
-    path.mkdir(mode=0o700, parents=True, exist_ok=True)
-    try:
-        path.chmod(0o700)
-    except OSError:
-        pass
+    if not path.is_dir():
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
+        try:
+            path.chmod(0o700)
+        except OSError:
+            pass
     return path
 
 
 def marked_path() -> Path:
     return state_dir() / "marked.json"
+
+
+def file_mtime_ns(path: Path) -> int | None:
+    try:
+        return path.stat().st_mtime_ns
+    except OSError:
+        return None
 
 
 def load_marked() -> set[str]:
@@ -210,6 +222,8 @@ def report(pane_id: str, pane: dict[str, Any], marked: bool, frame: int = 0) -> 
 
 
 def apply_one(pane_id: str, op: str, marked: set[str]) -> bool:
+    if op in {"unmark", "focus"} and not marked:
+        return False
     pane = pane_get(pane_id)
     if not pane:
         return False
@@ -222,35 +236,46 @@ def apply_one(pane_id: str, op: str, marked: set[str]) -> bool:
     else:  # unmark/focus/sync
         want_marked = False if op in {"unmark", "focus"} else is_marked
 
+    if want_marked == is_marked and op in {"mark", "unmark", "focus"}:
+        return False
+
     if want_marked:
         marked.add(key)
     else:
         marked.discard(key)
-    report(pane_id, pane, want_marked)
+    report(pane_id, pane, want_marked, int(time.monotonic() / ANIMATION_SECS))
     return True
 
 
-def sync_all(
-    marked: set[str],
-    frame: int = 0,
-    cache: dict[str, dict[str, str | None]] | None = None,
-) -> set[str]:
+def fetch_agents() -> list[dict[str, Any]] | None:
     response = request("agent.list", {})
     agents = (response.get("result") or {}).get("agents")
     if not isinstance(agents, list):
-        return marked
+        return None
+    return [agent for agent in agents if isinstance(agent, dict)]
+
+
+def sync_agents(
+    agents: list[dict[str, Any]],
+    marked: set[str],
+    frame: int = 0,
+    cache: dict[str, dict[str, str | None]] | None = None,
+) -> tuple[set[str], bool]:
     live_keys: set[str] = set()
     live_panes: set[str] = set()
+    has_working = False
     for agent in agents:
-        if not isinstance(agent, dict):
-            continue
         pane_id = agent.get("pane_id")
         if not isinstance(pane_id, str) or not pane_id:
             continue
         key = pane_key(agent, pane_id)
         live_keys.add(key)
         live_panes.add(pane_id)
-        tokens = token_patch(status_name(agent), pane_marked(agent, pane_id, marked), frame)
+        status = status_name(agent)
+        is_marked = pane_marked(agent, pane_id, marked)
+        if status == "working" and not is_marked:
+            has_working = True
+        tokens = token_patch(status, is_marked, frame)
         if cache is None or cache.get(pane_id) != tokens:
             report_tokens(pane_id, tokens)
             if cache is not None:
@@ -259,7 +284,19 @@ def sync_all(
         for pane_id in set(cache) - live_panes:
             cache.pop(pane_id, None)
     # Prune terminals/panes that no longer exist.
-    return {key for key in marked if key in live_keys}
+    return ({key for key in marked if key in live_keys}, has_working)
+
+
+def sync_all(
+    marked: set[str],
+    frame: int = 0,
+    cache: dict[str, dict[str, str | None]] | None = None,
+) -> set[str]:
+    agents = fetch_agents()
+    if agents is None:
+        return marked
+    pruned, _ = sync_agents(agents, marked, frame, cache)
+    return pruned
 
 
 def daemon_pid() -> int | None:
@@ -274,6 +311,17 @@ def daemon_pid() -> int | None:
     except OSError:
         return None
     return pid
+
+
+def notify_daemon() -> bool:
+    pid = daemon_pid()
+    if not pid or pid == os.getpid():
+        return False
+    try:
+        os.kill(pid, signal.SIGUSR1)
+        return True
+    except OSError:
+        return False
 
 
 def start_daemon_detached() -> None:
@@ -313,34 +361,134 @@ def restart_daemon() -> int:
     return 0
 
 
+def drain_fd(fd: int) -> None:
+    while True:
+        try:
+            if not os.read(fd, 1024):
+                break
+        except BlockingIOError:
+            break
+        except OSError:
+            break
+
+
 def daemon_loop() -> int:
-    lock_path = state_dir() / "daemon.lock"
+    sdir = state_dir()
+    lock_path = sdir / "daemon.lock"
     lock = lock_path.open("a+")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         return 0
+
+    wakeup_r, wakeup_w = os.pipe()
+    os.set_blocking(wakeup_r, False)
+    os.set_blocking(wakeup_w, False)
+    signal.signal(signal.SIGUSR1, lambda _signum, _frame: None)
+    signal.set_wakeup_fd(wakeup_w, warn_on_full_buffer=False)
+
     lock.seek(0)
     lock.truncate()
     lock.write(str(os.getpid()))
     lock.flush()
 
-    try:
-        script_mtime = Path(__file__).stat().st_mtime_ns
-    except OSError:
-        script_mtime = 0
+    script_path = Path(os.path.realpath(__file__))
+    script_mtime = file_mtime_ns(script_path) or 0
+
+    kq = select.kqueue() if hasattr(select, "kqueue") else None
+    open_flag = getattr(os, "O_EVTONLY", os.O_RDONLY)
+    watched_fds: list[int] = []
+    if kq is not None:
+        kevents = [
+            select.kevent(
+                wakeup_r,
+                filter=select.KQ_FILTER_READ,
+                flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE,
+            )
+        ]
+        vnode_fflags = (
+            select.KQ_NOTE_WRITE
+            | select.KQ_NOTE_DELETE
+            | select.KQ_NOTE_RENAME
+            | select.KQ_NOTE_ATTRIB
+        )
+        for watch_path in (script_path,):
+            try:
+                fd = os.open(str(watch_path), open_flag)
+                watched_fds.append(fd)
+                kevents.append(
+                    select.kevent(
+                        fd,
+                        filter=select.KQ_FILTER_VNODE,
+                        flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE | select.KQ_EV_CLEAR,
+                        fflags=vnode_fflags,
+                    )
+                )
+            except OSError:
+                pass
+        kq.control(kevents, 0, 0)
+
     cache: dict[str, dict[str, str | None]] = {}
+    marked: set[str] = set()
+    marked_mtime: int | None = -1
+    agents: list[dict[str, Any]] | None = None
+    last_fetch_at = 0.0
+    force_refresh = True
     frame = 0
+
     while True:
+        has_working = False
         try:
-            if script_mtime and Path(__file__).stat().st_mtime_ns != script_mtime:
-                os.execv(sys.executable, [sys.executable, os.path.realpath(__file__), "daemon"])
-            marked = sync_all(load_marked(), frame, cache)
-            save_marked(marked)
+            cur_script_mtime = file_mtime_ns(script_path) or 0
+            if script_mtime and cur_script_mtime != script_mtime:
+                for fd in watched_fds:
+                    os.close(fd)
+                os.close(wakeup_r)
+                os.close(wakeup_w)
+                if kq is not None:
+                    kq.close()
+                os.execv(sys.executable, [sys.executable, str(script_path), "daemon"])
+
+            cur_marked_mtime = file_mtime_ns(marked_path())
+            if cur_marked_mtime != marked_mtime:
+                marked = load_marked()
+                marked_mtime = cur_marked_mtime
+                force_refresh = True
+
+            now = time.monotonic()
+            if (
+                force_refresh
+                or agents is None
+                or (now - last_fetch_at) >= AGENT_LIST_REFRESH_SECS
+            ):
+                fetched = fetch_agents()
+                if fetched is not None:
+                    agents = fetched
+                    last_fetch_at = now
+                    force_refresh = False
+
+            if agents is not None:
+                pruned, has_working = sync_agents(agents, marked, frame, cache)
+                if pruned != marked:
+                    marked = pruned
+                    save_marked(marked)
+                    marked_mtime = file_mtime_ns(marked_path())
+
             frame = (frame + 1) % len(WORKING_FRAMES)
         except Exception:
             cache.clear()
-        time.sleep(ANIMATION_SECS)
+            agents = None
+
+        timeout = ANIMATION_SECS if has_working else (1.0 if agents is None else None)
+        if kq is not None:
+            events = kq.control(None, 4, timeout)
+            for ev in events:
+                if ev.ident == wakeup_r:
+                    drain_fd(wakeup_r)
+                    force_refresh = True
+        else:
+            time.sleep(ANIMATION_SECS if has_working else 1.0)
+            drain_fd(wakeup_r)
 
 
 def main(argv: list[str]) -> int:
@@ -359,18 +507,24 @@ def main(argv: list[str]) -> int:
     if args.op == "restart":
         return restart_daemon()
 
-    marked = load_marked()
     if args.op == "sync":
-        marked = sync_all(marked, int(time.monotonic() / ANIMATION_SECS))
-        save_marked(marked)
+        if notify_daemon():
+            return 0
+        marked = load_marked()
+        pruned = sync_all(marked, int(time.monotonic() / ANIMATION_SECS))
+        if pruned != marked:
+            save_marked(pruned)
+        start_daemon_detached()
         return 0
 
+    marked = load_marked()
     pane_id = args.pane_id or pane_id_from_context()
     if not pane_id:
         return 0
     changed = apply_one(pane_id, args.op, marked)
     if changed:
         save_marked(marked)
+        notify_daemon()
     return 0
 
 
