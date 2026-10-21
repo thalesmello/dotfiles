@@ -51,11 +51,57 @@ if panes:
 ' "$workspace"
 end
 
-# Print two tab-separated fields for a workspace: its current label and its
-# elected-root pane id (the herdr_autoroot metadata token, empty if none).
-# Exits non-zero with no output if the workspace cannot be queried, so callers
-# can distinguish a genuinely empty label from a failed query.
+# Print tab-separated fields for a workspace:
+#   label \t elected_root_pane_id [\t natural_root_pane_id]
+# When __herdr_natural_root is not yet cached, queries `herdr api snapshot`
+# once to fetch both the workspace state and the natural root pane id in a
+# single pass instead of spawning two separate herdr + python3 pipelines.
 function __herdr_workspace_state --argument-names workspace
+    if not set -q __herdr_natural_root
+        if command -q jq
+            herdr api snapshot 2>/dev/null | jq -r --arg ws "$workspace" '
+                .result.snapshot as $s
+                | ([$s.workspaces[]? | select(.workspace_id == $ws)][0]) as $w
+                | if $w then
+                    (([$s.tabs[]? | select(.workspace_id == $ws)] | min_by(.number // 1073741824) | .tab_id) as $rt
+                     | (if $rt then ([$s.layouts[]? | select(.tab_id == $rt) | .panes[0]?.pane_id // empty][0] // "") else "" end)) as $root
+                    | [($w.label // ""), ($w.tokens.herdr_autoroot // ""), $root] | @tsv
+                  else halt_error(1) end
+            '
+            return $status
+        end
+        command -q python3; or return 1
+        herdr api snapshot 2>/dev/null | python3 -c '
+import sys, json
+ws = sys.argv[1]
+try:
+    snap = json.load(sys.stdin)["result"]["snapshot"]
+    w = next(x for x in snap.get("workspaces", []) if x.get("workspace_id") == ws)
+except Exception:
+    sys.exit(1)
+label = w.get("label", "") or ""
+elected = (w.get("tokens") or {}).get("herdr_autoroot", "") or ""
+tabs = [t for t in snap.get("tabs", []) if t.get("workspace_id") == ws]
+root_pane = ""
+if tabs:
+    root_tab = min(tabs, key=lambda t: t.get("number", 1 << 30)).get("tab_id")
+    layout = next((l for l in snap.get("layouts", []) if l.get("tab_id") == root_tab), None)
+    panes = (layout or {}).get("panes") or []
+    if panes:
+        root_pane = panes[0].get("pane_id", "") or ""
+print(label + "\t" + elected + "\t" + root_pane)
+' "$workspace"
+        return $status
+    end
+
+    if command -q jq
+        herdr workspace get "$workspace" 2>/dev/null | jq -r '
+            .result.workspace as $w
+            | if $w then [($w.label // ""), ($w.tokens.herdr_autoroot // "")] | @tsv
+              else halt_error(1) end
+        '
+        return $status
+    end
     command -q python3; or return 1
     herdr workspace get "$workspace" 2>/dev/null | python3 -c '
 import sys, json
@@ -89,12 +135,16 @@ function __herdr_rename_workspace_on_cd --on-variable PWD
     status is-interactive; or return
     set -q HERDR_WORKSPACE_ID; and set -q HERDR_PANE_ID; or return
 
-    # One query gives us both the live label and the elected-root pane.
+    # One query gives us the live label, the elected-root pane, and (on first
+    # run) the natural root pane id.
     set -l state (__herdr_workspace_state "$HERDR_WORKSPACE_ID")
     test (count $state) -gt 0; or return
     set -l fields (string split \t -- $state[1])
     set -l cur $fields[1]
     set -l elected $fields[2]
+    if not set -q __herdr_natural_root; and test (count $fields) -ge 3
+        set -g __herdr_natural_root $fields[3]
+    end
 
     __herdr_pane_is_root "$elected"; or return
 

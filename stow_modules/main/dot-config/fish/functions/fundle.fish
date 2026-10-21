@@ -262,7 +262,11 @@ function __fundle_load_plugin -a plugin -a path -a fundle_dir -a profile -d "loa
 
 	set -g __fundle_loaded_plugins $plugin $__fundle_loaded_plugins
 
-	set -l dependencies (printf '%s\n' $plugin_paths $__fundle_plugin_name_paths | sort | uniq -u)
+	set -l dependencies
+	if test (count $__fundle_plugin_name_paths) -gt (count $plugin_paths)
+		set -l next_idx (math (count $plugin_paths) + 1)
+		set dependencies $__fundle_plugin_name_paths[$next_idx..-1]
+	end
 	for dependency in $dependencies
         set -l name_path (string split : -- $dependency)
         if test "$profile" -eq 1
@@ -418,8 +422,11 @@ function __fundle_list -d "list registered plugins"
 end
 
 function fundle -d "run fundle"
-	if __fundle_no_git
-		return 1
+	switch "$argv[1]"
+		case "install" "update" "self-update"
+			if __fundle_no_git
+				return 1
+			end
 	end
 
 	set -l sub_args ""

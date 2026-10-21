@@ -48,7 +48,7 @@ if begin; status --is-interactive; and not functions -q -- iterm2_status; and te
 
   function iterm2_write_remotehost_currentdir_uservars
     if not set -q -g iterm2_hostname
-      printf "\033]1337;RemoteHost=%s@%s\007\033]1337;CurrentDir=%s\007" $USER (hostname -f 2>/dev/null) $PWD
+      printf "\033]1337;RemoteHost=%s@%s\007\033]1337;CurrentDir=%s\007" $USER $hostname $PWD
     else
       printf "\033]1337;RemoteHost=%s@%s\007\033]1337;CurrentDir=%s\007" $USER $iterm2_hostname $PWD
     end
@@ -74,7 +74,7 @@ if begin; status --is-interactive; and not functions -q -- iterm2_status; and te
   end
 
   function iterm2_check_function -d "Check if function is defined and non-empty"
-    test (functions $argv[1] | grep -cvE '^ *(#|function |end$|$)') != 0
+    string match -rvq '^ *(#|function |end$|$)' -- (functions $argv[1])
   end
 
   if iterm2_check_function fish_mode_prompt
@@ -108,17 +108,9 @@ if begin; status --is-interactive; and not functions -q -- iterm2_status; and te
     end
   end
 
-  # If hostname -f is slow for you, set iterm2_hostname before sourcing this script
+  # Use Fish's built-in $hostname instead of forking uname and hostname -f.
   if not set -q -g iterm2_hostname
-    # hostname -f is fast on macOS so don't cache it. This lets us get an updated version when
-    # it changes, such as if you attach to a VPN.
-    if test (uname) != Darwin
-      set -g iterm2_hostname (hostname -f 2>/dev/null)
-      # some flavors of BSD (i.e. NetBSD and OpenBSD) don't have the -f option
-      if test $status -ne 0
-        set -g iterm2_hostname (hostname)
-      end
-    end
+    set -g iterm2_hostname $hostname
   end
 
   iterm2_write_remotehost_currentdir_uservars
