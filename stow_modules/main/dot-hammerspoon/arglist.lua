@@ -79,22 +79,37 @@ local HIDE_INSTEAD_OF_MINIMIZE_APPS = {
   Spotify = true,
 }
 
-local function queryWindowInfoById(ids)
+local function queryWindows()
+  local ok, out = a.wait(taskAsync({"yabai-preset", "list-windows", "--include-minimized", print_stdout = false}))
+  if not ok or not out or out == "" then return {}, {} end
+
+  local windows = {}
+  local byId = {}
+  for line in out:gmatch("[^\n]+") do
+    local decodedOk, win = pcall(hs.json.decode, line)
+    if decodedOk and type(win) == "table" and win.id ~= nil then
+      local id = tostring(win.id)
+      windows[#windows + 1] = win
+      byId[id] = win
+    end
+  end
+  return windows, byId
+end
+
+local function queryWindowInfoById(ids, byId)
   local wanted = {}
   for _, id in ipairs(ids) do wanted[tostring(id)] = true end
 
-  local ok, out = a.wait(taskAsync({"yabai", "-m", "query", "--windows", print_stdout = false}))
-  if not ok or out == "" then return {} end
-
-  local decodedOk, windows = pcall(hs.json.decode, out)
-  if not decodedOk or type(windows) ~= "table" then return {} end
-
-  local byId = {}
-  for _, win in ipairs(windows) do
-    local id = win and win.id and tostring(win.id) or nil
-    if id and wanted[id] then byId[id] = win end
+  if not byId then
+    local _
+    _, byId = queryWindows()
   end
-  return byId
+
+  local filtered = {}
+  for id in pairs(wanted) do
+    if byId[id] then filtered[id] = byId[id] end
+  end
+  return filtered
 end
 
 local function hiddenAppNamesForIds(ids, windowInfo)
@@ -112,8 +127,8 @@ local function hiddenAppNamesForIds(ids, windowInfo)
   return apps
 end
 
-local function splitHideAndMinimizeIds(ids)
-  local windowInfo = queryWindowInfoById(ids)
+local function splitHideAndMinimizeIds(ids, windowInfo)
+  windowInfo = queryWindowInfoById(ids, windowInfo)
   local hideApps = hiddenAppNamesForIds(ids, windowInfo)
   local minimizeIds = {}
   for _, id in ipairs(ids) do
@@ -126,7 +141,7 @@ local function splitHideAndMinimizeIds(ids)
   return hideApps, minimizeIds
 end
 
-local function appsToShowForIds(ids)
+local function appsToShowForIds(ids, windowInfo)
   local seen = {}
   local apps = {}
   for _, app in ipairs(hiddenApps) do
@@ -135,7 +150,7 @@ local function appsToShowForIds(ids)
       apps[#apps + 1] = app
     end
   end
-  for _, app in ipairs(hiddenAppNamesForIds(ids)) do
+  for _, app in ipairs(hiddenAppNamesForIds(ids, windowInfo)) do
     if not seen[app] then
       seen[app] = true
       apps[#apps + 1] = app
@@ -202,54 +217,104 @@ local function windowId(win)
   return id and tostring(id) or nil
 end
 
+local function isVisibleArgListWindow(win)
+  if not win then return false end
+  return win["is-visible"] == true and not win["is-minimized"] and not win["is-hidden"]
+end
+
+-- Non-arglist windows that participate in the normal window stack.
+-- `yabai-preset list-windows --include-minimized` already filters to current-space
+-- visible/minimized non-sticky windows; this excludes minimized, hidden,
+-- non-normal-layer, and non-standard windows.
+local function isNormalVisibleWindow(win)
+  if not isVisibleArgListWindow(win) or win["is-sticky"] then
+    return false
+  end
+  if win.level ~= nil and win.level ~= 0 then return false end
+  if win.layer ~= nil and win.layer ~= "normal" then return false end
+  if win.role ~= "AXWindow" or win.subrole ~= "AXStandardWindow" then return false end
+  return true
+end
+
 function M.focusedWindowId()
   local id = windowId(hs.window.focusedWindow())
   if id and M.contains(id) then return id end
   return nil
 end
 
-function M.topmostWindowId()
-  for _, win in ipairs(hs.window.orderedWindows()) do
-    local id = windowId(win)
-    if id and M.contains(id) then return id end
+function M.topmostWindowId(windows)
+  if not windows then windows = queryWindows() end
+  for _, win in ipairs(windows) do
+    local id = win and win.id and tostring(win.id) or nil
+    if id and M.contains(id) and isVisibleArgListWindow(win) then
+      return id
+    end
   end
   return nil
 end
 
-function M.topmostExternalWindowId()
-  for _, win in ipairs(hs.window.orderedWindows()) do
-    local id = windowId(win)
-    if id and not M.contains(id) then return id end
+function M.topmostExternalWindowId(windows, byId)
+  if not windows then windows, byId = queryWindows() end
+  local focusedId = M.focusedWindowId()
+  local focusedWin = focusedId and byId and byId[focusedId] or nil
+  local preferredSpace = focusedWin and focusedWin.space or nil
+  local anyFallback = nil
+  for _, win in ipairs(windows) do
+    local id = win and win.id and tostring(win.id) or nil
+    if id and not M.contains(id) and isNormalVisibleWindow(win) then
+      if not preferredSpace or win.space == preferredSpace then
+        return id
+      end
+      if not anyFallback then anyFallback = id end
+    end
   end
-  return nil
+  return anyFallback
 end
 
-function M.areWindowsOnTopOfStack()
-  if M.isEmpty() or not M.focusedWindowId() then return false end
+function M.areWindowsOnTopOfStack(windows, byId)
+  if M.isEmpty() or #hiddenApps > 0 or not M.focusedWindowId() then return false end
+  if not windows then windows, byId = queryWindows() end
+
+  local targetCount = 0
+  local targetSpaces = {}
+  for _, id in ipairs(list) do
+    local win = byId and byId[tostring(id)] or nil
+    if win then
+      if not isVisibleArgListWindow(win) then return false end
+      targetCount = targetCount + 1
+      if win.space then targetSpaces[win.space] = true end
+    end
+  end
+  if targetCount == 0 then return false end
 
   local seen = {}
   local count = 0
-  for _, win in ipairs(hs.window.orderedWindows()) do
-    local id = windowId(win)
+  for _, win in ipairs(windows) do
+    local id = win and win.id and tostring(win.id) or nil
     if id then
-      if not M.contains(id) then return false end
-      if not seen[id] then
-        seen[id] = true
-        count = count + 1
-        if count == #list then return true end
+      if M.contains(id) and byId[id] then
+        if not seen[id] then
+          seen[id] = true
+          count = count + 1
+          if count == targetCount then return true end
+        end
+      elseif isNormalVisibleWindow(win) then
+        if not next(targetSpaces) or targetSpaces[win.space] then
+          return false
+        end
       end
     end
   end
   return false
 end
 
-function M.mostRecentWindowId()
+function M.mostRecentWindowId(windows)
   local id = M.focusedWindowId()
   if id then return id end
 
   -- Visible windows are ordered front-to-back, which is the most accurate MRU
   -- signal when the arglist is merely behind another app instead of minimized.
-  id = M.topmostWindowId()
+  id = M.topmostWindowId(windows)
   if id then return id end
 
   -- When the group was hidden through this toggle, the focused arglist window
@@ -270,17 +335,18 @@ function M.toggleWindows()
     return
   end
 
-  local focusedId = M.focusedWindowId()
-  if focusedId and M.areWindowsOnTopOfStack() then
-    M.noteFocused(focusedId)
-    local ids = M.itemsWithLast()
-    a.sync(function()
+  a.sync(function()
+    local windows, byId = queryWindows()
+    local focusedId = M.focusedWindowId()
+    if focusedId and M.areWindowsOnTopOfStack(windows, byId) then
+      M.noteFocused(focusedId)
+      local ids = M.itemsWithLast()
       -- Focus a safe non-arglist window first, then minimize every arglist
       -- window in parallel, including the one that was focused.
-      local fallback = M.topmostExternalWindowId()
+      local fallback = M.topmostExternalWindowId(windows, byId)
       if fallback then a.wait(taskAsync({"wm-preset", "focus-window-id", fallback})) end
 
-      local hideApps, minimizeIds = splitHideAndMinimizeIds(ids)
+      local hideApps, minimizeIds = splitHideAndMinimizeIds(ids, byId)
       setHiddenApps(hideApps)
       local bulk = {}
       for _, app in ipairs(hideApps) do
@@ -291,16 +357,14 @@ function M.toggleWindows()
       end
       local hiddenOrMinimized = a.wait(taskAllAsync(bulk))
       Preset.displayMessage("ArgList: hidden/minimized " .. hiddenOrMinimized .. " / " .. #ids)
-    end)()
-    return
-  end
+      return
+    end
 
-  local target = M.mostRecentWindowId()
-  local ids = M.itemsWithLast(target)
-  a.sync(function()
+    local target = M.mostRecentWindowId(windows)
+    local ids = M.itemsWithLast(target)
     -- Show apps that were hidden instead of minimized before focusing windows.
     local showBulk = {}
-    for _, app in ipairs(appsToShowForIds(ids)) do
+    for _, app in ipairs(appsToShowForIds(ids, byId)) do
       showBulk[#showBulk + 1] = {"osascript-preset", "show-or-hide-app", "--only-show", app}
     end
     if #showBulk > 0 then
