@@ -78,13 +78,13 @@ yabai -m config $configs
 
 # window borders (yabai v7 uses JankyBorders for border rendering)
 # Run through a supervisor so reloads keep one border instance, and borders dies with yabai.
-set borders_supervisor /Users/thalesmello/.config/yabai/borders-supervisor.fish
+set borders_supervisor /Users/thalesmello/.config/yabai/borders-supervisor.py
 set yabai_pid (ps -o ppid= -p $fish_pid | string trim)
 set yabai_parent_comm (ps -p $yabai_pid -o comm= 2>/dev/null | string trim)
 if not string match -q -- "*/yabai" "$yabai_parent_comm"; and test "$yabai_parent_comm" != "yabai"
     set yabai_pid (pgrep -x yabai | head -n 1)
 end
-pkill -f "$borders_supervisor" 2>/dev/null
+pkill -f "/Users/thalesmello/.config/yabai/borders-supervisor" 2>/dev/null
 sleep 0.2
 $borders_supervisor $yabai_pid >/tmp/jankyborders.log 2>&1 &
 
