@@ -27,7 +27,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 # A popup inherits the herdr SERVER's environment, not a login shell's, so the
 # tools this script calls are not necessarily on PATH (same reasoning as
 # herdr_bin in herdr-lib.sh). Keep the target agent startup on the same PATH.
-ASK_PATH="$HOME/.local/bin:$HOME/src/dotfiles/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+ASK_PATH="$HOME/.local/bin:$HOME/src/dotfiles/bin:/opt/homebrew/bin:/opt/chef/embedded/bin:/usr/local/bin:$PATH"
 PATH=$ASK_PATH
 export PATH
 
