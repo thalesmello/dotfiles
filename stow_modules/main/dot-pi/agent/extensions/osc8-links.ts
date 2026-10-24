@@ -185,29 +185,28 @@ export function parseOsc8Code(ansiCode: string): ParsedOsc8 | null | undefined {
  * Finds bare http(s) URLs in an ANSI-styled string where no OSC 8 hyperlink is active
  * and wraps their exact character ranges in OSC 8 hyperlinks while preserving all SGR colors.
  */
-export function linkifyAnsiLineUrls(line: string, styleUrlPrefix = "", styleUrlSuffix = ""): string {
+export function linkifyAnsiLineUrls(line: string, styleUrlPrefix = "\x1b[4m", styleUrlSuffix = "\x1b[24m"): string {
 	if (!line || (!line.includes("http://") && !line.includes("https://") && !/https?:\/\//i.test(line))) {
 		return line;
 	}
 
-	// Build plain text and map each plain character index to whether an OSC 8 link is already active.
+	// Build plain text and map each plain character index to whether an OSC 8 link or underline is already active.
 	let plain = "";
 	const charHasOsc8: boolean[] = [];
-	let activeOsc8 = false;
+	const charHasUnderline: boolean[] = [];
+	const tracker = new AnsiTracker();
 	let i = 0;
 
 	while (i < line.length) {
 		const ansi = extractAnsiCode(line, i);
 		if (ansi) {
-			const parsed = parseOsc8Code(ansi.code);
-			if (parsed !== undefined) {
-				activeOsc8 = parsed !== null;
-			}
+			tracker.process(ansi.code);
 			i += ansi.length;
 			continue;
 		}
 		plain += line[i];
-		charHasOsc8.push(activeOsc8);
+		charHasOsc8.push(tracker.activeHyperlink !== null);
+		charHasUnderline.push(tracker.underline);
 		i++;
 	}
 
@@ -231,18 +230,24 @@ export function linkifyAnsiLineUrls(line: string, styleUrlPrefix = "", styleUrlS
 
 	let out = "";
 	let plainIdx = 0;
+	let addedUnderlineForUrl = false;
 	i = 0;
 	while (i < line.length) {
 		const ansi = extractAnsiCode(line, i);
 		if (ansi) {
 			out += ansi.code;
+			if (addedUnderlineForUrl && /^\x1b\[(?:0|24)(?:;[\d;]*)*m$/.test(ansi.code)) {
+				out += styleUrlPrefix;
+			}
 			i += ansi.length;
 			continue;
 		}
 
 		const openUrl = openAtPlainIdx.get(plainIdx);
 		if (openUrl !== undefined) {
-			out += `\x1b]8;;${openUrl}\x1b\\${styleUrlPrefix}`;
+			const needsPrefix = Boolean(styleUrlPrefix) && !(styleUrlPrefix === "\x1b[4m" && charHasUnderline[plainIdx]);
+			addedUnderlineForUrl = needsPrefix;
+			out += `\x1b]8;;${openUrl}\x1b\\${needsPrefix ? styleUrlPrefix : ""}`;
 		}
 
 		out += line[i];
@@ -250,14 +255,16 @@ export function linkifyAnsiLineUrls(line: string, styleUrlPrefix = "", styleUrlS
 		i++;
 
 		if (closeAtPlainIdx.get(plainIdx)) {
-			out += `${styleUrlSuffix}${OSC8_CLOSE}`;
+			const closeSuffix = addedUnderlineForUrl ? styleUrlSuffix : "";
+			addedUnderlineForUrl = false;
+			out += `${closeSuffix}${OSC8_CLOSE}`;
 		}
 	}
 
 	return out;
 }
 
-export function linkifyAnsiTextUrls(text: string, styleUrlPrefix = "", styleUrlSuffix = ""): string {
+export function linkifyAnsiTextUrls(text: string, styleUrlPrefix = "\x1b[4m", styleUrlSuffix = "\x1b[24m"): string {
 	if (!text || (!text.includes("http://") && !text.includes("https://") && !/https?:\/\//i.test(text))) {
 		return text;
 	}
@@ -936,6 +943,26 @@ export function expandInlineTokensForOsc8(
 				i = j;
 				continue;
 			}
+
+			const { url: trimmedHref, trailing: hrefTrailing } = splitTrailingUrlPunctuation(current.href);
+			if (trimmedHref !== current.href && trimmedHref.length > "https://".length) {
+				coalesced.push({
+					...current,
+					raw: trimmedHref,
+					text: trimmedHref,
+					href: trimmedHref,
+					tokens: [{ type: "text", raw: trimmedHref, text: trimmedHref }],
+				});
+				if (hrefTrailing.length > 0) {
+					coalesced.push({
+						type: "text",
+						raw: hrefTrailing,
+						text: hrefTrailing,
+					});
+				}
+				i++;
+				continue;
+			}
 		}
 
 		coalesced.push(current);
@@ -997,6 +1024,7 @@ export function expandInlineTokensForOsc8(
 
 type PatchState = {
 	installed: boolean;
+	generation: number;
 	origMarkdownRender: typeof piTui.Markdown.prototype.render;
 	origMarkdownRenderInlineTokens: (tokens: InlineToken[], styleContext?: unknown) => string;
 	origMarkdownRenderToken: (
@@ -1059,6 +1087,7 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 
 	const state: PatchState = existing ?? {
 		installed: true,
+		generation: 0,
 		origMarkdownRender: mdProto.render,
 		origMarkdownRenderInlineTokens: mdProto.renderInlineTokens,
 		origMarkdownRenderToken: mdProto.renderToken,
@@ -1067,10 +1096,21 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 		origTextRender: tui.Text.prototype.render,
 		origTruncatedTextRender: tui.TruncatedText.prototype.render,
 	};
+	state.generation += 1;
 	globalHolder[PATCH_STATE_SYMBOL] = state;
 
 	mdProto.render = function (this: typeof mdProto, width: number): string[] {
 		enableOsc8Hyperlinks(tui);
+		const cacheHolder = this as unknown as {
+			cachedLines?: string[];
+			cachedTokens?: unknown;
+			_osc8Gen?: number;
+		};
+		if (cacheHolder._osc8Gen !== state.generation) {
+			cacheHolder.cachedLines = undefined;
+			cacheHolder.cachedTokens = undefined;
+			cacheHolder._osc8Gen = state.generation;
+		}
 		const origTransform = this.options.transform;
 		this.options.transform = (text: string, contentWidth: number) => {
 			const transformed = origTransform ? origTransform(text, contentWidth) : text;
@@ -1119,7 +1159,7 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 						result +=
 							linkifyPlainTextUrls(
 								codeText,
-								(urlText, url) => tui.hyperlink(this.theme.underline(this.theme.code(urlText)), url),
+								(urlText, url) => tui.hyperlink(this.theme.link(this.theme.underline(urlText)), url),
 								(chunk) => this.theme.code(chunk),
 							) + stylePrefix;
 					}
@@ -1230,7 +1270,27 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 		styleContext?: any,
 	): string[] {
 		const lines = state.origMarkdownRenderToken.call(this, token, width, nextTokenType, styleContext);
-		return lines.map((line) => linkifyAnsiLineUrls(line));
+		const linkedLines = lines.map((line) => linkifyAnsiLineUrls(line));
+		const tokenType = token?.type;
+		if (
+			tokenType === "table" ||
+			tokenType === "list" ||
+			tokenType === "blockquote" ||
+			tokenType === "hr" ||
+			tokenType === "space"
+		) {
+			return linkedLines;
+		}
+		const targetWidth = Math.max(1, width);
+		const wrapped: string[] = [];
+		for (const line of linkedLines) {
+			if (!line) {
+				wrapped.push("");
+			} else {
+				wrapped.push(...wrapAnsiTextPreservingOsc8(line, targetWidth, tui.visibleWidth));
+			}
+		}
+		return wrapped;
 	};
 
 	mdProto.renderTable = function (
@@ -1402,10 +1462,16 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 		enableOsc8Hyperlinks(tui);
 		const textHolder = this as unknown as {
 			text: string;
+			paddingX?: number;
 			cachedText?: string;
 			cachedWidth?: number;
 			cachedLines?: string[];
+			_osc8Gen?: number;
 		};
+		if (textHolder._osc8Gen !== state.generation) {
+			textHolder.cachedLines = undefined;
+			textHolder._osc8Gen = state.generation;
+		}
 		const rawText = textHolder.text;
 		if (!rawText || rawText.trim() === "") {
 			return state.origTextRender.call(this, width);
@@ -1413,8 +1479,11 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 		if (textHolder.cachedLines && textHolder.cachedText === rawText && textHolder.cachedWidth === width) {
 			return textHolder.cachedLines;
 		}
-		const linkedText = linkifyAnsiTextUrls(rawText);
-		textHolder.text = linkedText;
+		const normalizedText = rawText.replace(/\t/g, "   ");
+		const paddingX = Math.min(textHolder.paddingX ?? 0, Math.max(0, Math.floor((width - 1) / 2)));
+		const contentWidth = Math.max(1, width - paddingX * 2);
+		const prewrappedText = wrapAnsiTextPreservingOsc8(normalizedText, contentWidth, tui.visibleWidth).join("\n");
+		textHolder.text = prewrappedText;
 		try {
 			const lines = state.origTextRender.call(this, width);
 			textHolder.cachedText = rawText;

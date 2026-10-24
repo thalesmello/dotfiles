@@ -344,4 +344,41 @@ describe("osc8-links extension", () => {
 		expect(linkedTextForUrl(lines, url1)).toBe(url1);
 		expect(linkedTextForUrl(lines, url2)).toBe(url2);
 	});
+
+	test("wraps explicit URLs in paragraphs, lists, and Text without leaking OSC 8 or extra leading spaces", () => {
+		const url = "https://www.internalfb.com/diff/D124714457";
+		const md = new realTui.Markdown(
+			`See ${url} and then some more text after it\n\n- \`${url}\` in a list item`,
+			1,
+			0,
+			markdownTheme,
+		);
+		// At width=48 (contentWidth=46), "See " + url is exactly 46 columns, forcing a wrap right after the URL.
+		const lines = md.render(48);
+		expect(realTui.stripTerminalSequences(lines[0]!)).toBe(` See ${url} `);
+		expect(realTui.stripTerminalSequences(lines[1]!).trimEnd()).toBe(" and then some more text after it");
+
+		for (let col = 0; col < realTui.stripTerminalSequences(lines[1]!).length; col++) {
+			expect(realTui.getOsc8LinkAtColumn(lines[1]!, col)).toBeUndefined();
+		}
+
+		expect(linkedTextForUrl(lines, url)).toBe(url + url);
+
+		const textComp = new realTui.Text(`See ${url} for details`, 1, 0);
+		const textLines = textComp.render(48);
+		expect(realTui.stripTerminalSequences(textLines[0]!)).toBe(` See ${url} `);
+		expect(realTui.stripTerminalSequences(textLines[1]!).trimEnd()).toBe(" for details");
+		expect(textLines[0]).toContain("\x1b[4m");
+		expect(linkedTextForUrl(textLines, url)).toBe(url);
+	});
+
+	test("strips trailing closing brackets and braces from bare GFM autolinks", () => {
+		const url1 = "https://www.internalfb.com/diff/D124714457";
+		const url2 = "https://wa.me/5511992611510";
+		const md = new realTui.Markdown(`Refs: [${url1}] and {${url2}}`, 0, 0, markdownTheme);
+		const lines = md.render(80);
+
+		expect(linkedTextForUrl(lines, url1)).toBe(url1);
+		expect(linkedTextForUrl(lines, url2)).toBe(url2);
+	});
 });

@@ -43,11 +43,20 @@ resolve_tty() {
     while [ "$_hop" -lt 8 ]; do
         _hop=$(( _hop + 1 ))
         _pid=$(ps -o ppid= -p "$_pid" 2>/dev/null | tr -d ' ')
-        [ -n "$_pid" ] && [ "$_pid" -gt 1 ] 2>/dev/null || return 1
+        [ -n "$_pid" ] && [ "$_pid" -gt 1 ] 2>/dev/null || break
 
         _t=$(ps -o tty= -p "$_pid" 2>/dev/null | tr -d ' ')
         case $_t in
             ""|"?"|"??"|"-") continue ;;
+            /dev/*) [ -w "$_t" ] && { printf '%s\n' "$_t"; return 0; } ;;
+            *) [ -w "/dev/$_t" ] && { printf '/dev/%s\n' "$_t"; return 0; } ;;
+        esac
+    done
+
+    # Fallback when spawned by the detached `herdr server` daemon (ppid=1, tty=?):
+    # find an attached `herdr` client process with a writable controlling terminal.
+    for _t in $(ps -u "${USER:-$(id -un)}" -o tty=,comm= 2>/dev/null | awk '$2 == "herdr" && $1 != "?" && $1 != "??" { print $1 }'); do
+        case $_t in
             /dev/*) [ -w "$_t" ] && { printf '%s\n' "$_t"; return 0; } ;;
             *) [ -w "/dev/$_t" ] && { printf '/dev/%s\n' "$_t"; return 0; } ;;
         esac
