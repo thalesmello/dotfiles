@@ -19,7 +19,7 @@ source (status dirname)/herdr-lib.fish
 
 # prefix+shift+tab walks back out of these jumps, and its trail is only recorded
 # while the daemon runs -- so make sure it is running before we move the focus.
-herdr_ensure_focus_history
+herdr_ensure_focus_history (herdr_current_pane)
 
 set -l bin (herdr_bin)
 if test -z "$bin"
@@ -60,6 +60,8 @@ if not $bin agent focus $pane >/dev/null 2>&1
     herdr_notify "Attention jump failed" "could not focus $pane"
     exit 1
 end
+
+herdr_focus_history_record $pane
 
 set -l others (math $total - 1)
 if test $others -gt 0

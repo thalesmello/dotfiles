@@ -29,47 +29,10 @@
 
 source (status dirname)/herdr-lib.fish
 
-# Warm-up: a daemon that has just started is still receiving herdr's replay of
-# past events, so the end of the journal is not yet "where you just were". The
-# replay arrives back-to-back at a few entries per second, so a journal that has
-# been quiet for a moment is a journal that has drained -- which is usually true
-# a couple of seconds in, rather than the whole REPLAY_MAX_SECONDS. That bound
-# is only the fallback for a replay that keeps trickling.
-set -l REPLAY_MAX_SECONDS 20
-set -l QUIET_SECONDS 2
-
 set -l direction $argv[1]
 if test "$direction" != back -a "$direction" != forward
     herdr_notify "Focus jumplist" "usage: focus-jumplist.fish back|forward"
     exit 2
-end
-
-herdr_ensure_focus_history
-
-set -l dir (herdr_focus_history_dir)
-set -l journal $dir/journal
-set -l walk_file $dir/walk
-set -l state_file $dir/walk-state
-
-set -l started (cat $dir/started 2>/dev/null | string trim)
-if test -z "$started"
-    herdr_notify "Focus history starting" "Try again in a few seconds"
-    exit 0
-end
-
-set -l now (date +%s)
-set -l mtime (begin
-    # GNU stat accepts -f, but it means "filesystem status" there and exits 0,
-    # producing several non-numeric lines. Try GNU's -c first, then BSD/macOS -f.
-    stat -c %Y $journal
-    or stat -f %m $journal
-end 2>/dev/null | string trim)
-
-if test (math $now - $started) -lt $REPLAY_MAX_SECONDS
-    and test -n "$mtime"
-    and test (math $now - $mtime) -lt $QUIET_SECONDS
-    herdr_notify "Focus history warming up" "Try again in a few seconds"
-    exit 0
 end
 
 set -l current (herdr_current_pane)
@@ -78,8 +41,20 @@ if test -z "$current"
     exit 1
 end
 
+herdr_ensure_focus_history $current
+
+set -l dir (herdr_focus_history_dir)
+set -l journal $dir/journal
+set -l seq_file $dir/seq
+set -l walk_file $dir/walk
+set -l state_file $dir/walk-state
+
 set -l trail (cat $journal 2>/dev/null)
 set -l trail_len (count $trail)
+set -l cur_seq (cat $seq_file 2>/dev/null | string trim)
+if not string match -qr '^[0-9]+$' -- "$cur_seq"
+    set cur_seq $trail_len
+end
 
 # Is the walk from the last press still ours to continue?
 set -l index 0
@@ -87,9 +62,14 @@ set -l walk
 set -l prev (cat $state_file 2>/dev/null | string split ' ')
 if test (count $prev) -eq 3
     and test "$prev[2]" = "$current"
-    and test (math $trail_len - $prev[3]) -le 1
-    set index $prev[1]
-    set walk (cat $walk_file 2>/dev/null)
+    and string match -qr '^[0-9]+$' -- "$prev[3]"
+    and test (math $cur_seq - $prev[3]) -ge 0
+    and test (math $cur_seq - $prev[3]) -le 1
+    set -l saved_walk (cat $walk_file 2>/dev/null)
+    if test (count $saved_walk) -gt 1
+        set index $prev[1]
+        set walk $saved_walk
+    end
 end
 
 set -l bin (herdr_bin); or exit 1
@@ -114,6 +94,13 @@ if test $index -eq 0
         contains -- $pane $live; or continue
         set -a walk $pane
     end
+
+    if test (count $walk) -le 1
+        rm -f $walk_file $state_file
+        herdr_notify "Start of focus history"
+        exit 0
+    end
+
     set index 1
     printf '%s\n' $walk >$walk_file
 end
@@ -125,14 +112,14 @@ while true
         set target_index (math $target_index + 1)
         if test $target_index -gt (count $walk)
             herdr_notify "Start of focus history"
-            printf '%s %s %s\n' $index $current $trail_len >$state_file
+            printf '%s %s %s\n' $index $current $cur_seq >$state_file
             exit 0
         end
     else
         set target_index (math $target_index - 1)
         if test $target_index -lt 1
             herdr_notify "End of focus history"
-            printf '%s %s %s\n' $index $current $trail_len >$state_file
+            printf '%s %s %s\n' $index $current $cur_seq >$state_file
             exit 0
         end
     end
@@ -146,7 +133,12 @@ if not herdr_focus_pane $target
     exit 1
 end
 
-printf '%s %s %s\n' $target_index $target $trail_len >$state_file
+herdr_focus_history_record $target
+set cur_seq (cat $seq_file 2>/dev/null | string trim)
+if not string match -qr '^[0-9]+$' -- "$cur_seq"
+    set cur_seq (wc -l <$journal 2>/dev/null | string trim)
+end
+printf '%s %s %s\n' $target_index $target $cur_seq >$state_file
 
 set -l steps (math $target_index - 1)
 if test "$direction" = back

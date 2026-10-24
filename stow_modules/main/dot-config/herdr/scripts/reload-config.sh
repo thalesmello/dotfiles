@@ -31,10 +31,11 @@ if [ -n "$herdr_preset" ]; then
   "$herdr_preset" install-local-plugins --quiet >/dev/null 2>&1 || true
 fi
 
-# The unread marker has a long-running animation daemon. Herdr has no
-# config-reload plugin hook, so restart it explicitly from the reload key so code
-# and glyph changes are visible immediately.
+# The unread marker and focus history have long-running daemons. Herdr has no
+# config-reload plugin hook, so restart them explicitly from the reload key so
+# code and glyph changes are visible immediately.
 python3 "$HOME/.config/herdr/scripts/unread-marker.py" restart >/dev/null 2>&1 || true
+python3 "$HOME/.config/herdr/scripts/focus-history-daemon.fish" restart >/dev/null 2>&1 || true
 
 if output=$("$herdr_bin" server reload-config 2>&1); then
   "$herdr_bin" notification show "Herdr config reloaded" \

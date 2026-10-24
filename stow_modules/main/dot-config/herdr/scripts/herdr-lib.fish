@@ -109,7 +109,8 @@ end
 #   as agents ("agent target ... not found"), and focus history is full of plain
 #   shells. The pane.focus API call has no such restriction.
 function herdr_focus_pane --argument-names pane
-    herdr_request pane.focus (printf '{"pane_id":"%s"}' $pane) >/dev/null 2>&1
+    set -l resp (herdr_request pane.focus (printf '{"pane_id":"%s"}' $pane) 2>/dev/null)
+    test -n "$resp"; and not string match -q '*"error"*' -- "$resp"
 end
 
 # herdr_focus_history_dir -- print (and create) the focus-history state dir.
@@ -158,13 +159,8 @@ function herdr_focus_history_running
     kill -0 $pid 2>/dev/null; or return 1
     # Guard against pid reuse: the pid must still be our daemon.
     ps -p $pid -o command= 2>/dev/null | string match -q '*focus-history-daemon*'; or return 1
-    # A daemon can survive a Herdr server restart with an nc child still present
-    # on a dead socket. Treat a socket identity mismatch as stale.
+    # Treat a socket identity mismatch after a Herdr server restart as stale.
     herdr_focus_history_socket_current; or return 1
-    # A daemon whose subscription died is worse than none -- it holds the lock
-    # while recording nothing -- so the nc carrying that subscription has to
-    # still be one of its children.
-    pgrep -P $pid nc >/dev/null 2>&1
 end
 
 # herdr_kill_tree <pid> -- kill a process and everything below it.
@@ -176,39 +172,22 @@ function herdr_kill_tree --argument-names pid
     return 0
 end
 
-# herdr_ensure_focus_history -- start the focus-history daemon if it is not up.
-#
-#   Both focus bindings call this, so the history starts recording the first
-#   time either key is pressed rather than needing a separate autostart.
-function herdr_ensure_focus_history
-    herdr_focus_history_running; and return 0
-
-    # Not running -- but the lock may still be held by a daemon that is up and
-    # deaf (subscription gone, or wedged waiting on a pipeline that will never
-    # finish). A new daemon would lose the lock race to that corpse and exit, so
-    # clear it out first.
-    set -l dir (herdr_focus_history_dir)
-    set -l stale (cat $dir/daemon.lock/pid 2>/dev/null)
-    set -l stale_socket_mismatch 0
-    herdr_focus_history_socket_current; or set stale_socket_mismatch 1
-    if test -n "$stale"; and kill -0 $stale 2>/dev/null
-        and ps -p $stale -o command= 2>/dev/null | string match -q '*focus-history-daemon*'
-        herdr_kill_tree $stale
-    end
-    rm -rf $dir/daemon.lock
-    if test "$stale_socket_mismatch" = 1
-        # Server restarts can preserve old pane IDs in the journal and frozen
-        # walk state that no longer describe the current session. Start fresh.
-        printf '' >$dir/journal
-        rm -f $dir/walk $dir/walk-state
-    end
-
+# herdr_focus_history_record <pane_id> -- atomically append <pane_id> to journal.
+function herdr_focus_history_record --argument-names pane
+    test -n "$pane"; or return 1
     set -l daemon (status dirname)/focus-history-daemon.fish
     test -x $daemon; or return 1
+    $daemon record $pane >/dev/null 2>&1
+end
 
-    # Detached: the keybinding process exits immediately, the daemon keeps
-    # running under init. Its own lock decides whether it survives, so a race
-    # between two presses is harmless.
-    fish -c "$daemon >/dev/null 2>&1 &" >/dev/null 2>&1
+# herdr_ensure_focus_history -- ensure the focus-history daemon is up and seeded.
+function herdr_ensure_focus_history --argument-names pane
+    set -l daemon (status dirname)/focus-history-daemon.fish
+    test -x $daemon; or return 1
+    if test -n "$pane"
+        $daemon ensure $pane >/dev/null 2>&1
+    else
+        $daemon ensure >/dev/null 2>&1
+    end
     return 0
 end

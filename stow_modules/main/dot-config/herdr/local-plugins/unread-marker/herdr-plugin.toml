@@ -19,9 +19,16 @@ platforms = ["macos", "linux"]
 [[startup]]
 command = ["python3", "../../scripts/unread-marker.py", "daemon"]
 
+[[startup]]
+command = ["python3", "../../scripts/focus-history-daemon.fish", "ensure"]
+
 [[events]]
 on = "pane.focused"
 command = ["python3", "../../scripts/unread-marker.py", "focus"]
+
+[[events]]
+on = "pane.focused"
+command = ["python3", "../../scripts/focus-history-daemon.fish", "focus"]
 
 [[events]]
 on = "pane.agent_detected"
