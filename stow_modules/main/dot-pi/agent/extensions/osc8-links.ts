@@ -18,6 +18,9 @@ const PLAIN_URL_Candidate_REGEX =
 const HTML_LAYOUT_TAG_REGEX =
 	/^<\/?(?:br|wbr|hr|p|div|span|a|img|code|pre|em|strong|b|i|u|s|del|ins|sub|sup|td|th|tr|table)\b/i;
 
+const HTML_BR_TAG_REGEX = /^<\/?br\s*\/?>$/i;
+const HTML_BR_CONTAINS_REGEX = /<\/?br\s*\/?>/i;
+
 const HTML_ANCHOR_REGEX = /^<a\s+[^>]*href=(?:"([^"]+)"|'([^']+)'|([^\s>]+))[^>]*>([\s\S]*?)<\/a>$/i;
 
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
@@ -802,6 +805,21 @@ export function wrapAnsiTextPreservingOsc8(
 	return result.length > 0 ? result : [""];
 }
 
+export function maxLineVisibleWidth(
+	text: string,
+	measureWidth: (s: string) => number = piTui.visibleWidth,
+): number {
+	if (!text) return 0;
+	if (!text.includes("\n") && !text.includes("\r")) {
+		return measureWidth(text);
+	}
+	let max = 0;
+	for (const line of text.split(/\r\n|\r|\n/)) {
+		max = Math.max(max, measureWidth(line));
+	}
+	return max;
+}
+
 type InlineToken = {
 	type: string;
 	raw?: string;
@@ -839,6 +857,7 @@ export function expandInlineTokensForOsc8(
 			!token.raw.startsWith("$$") &&
 			(/https?:\/\//i.test(token.raw) ||
 				token.raw.includes("\x1b]8;") ||
+				HTML_BR_CONTAINS_REGEX.test(token.raw) ||
 				(token.pending === true && /\[[^\]]+\]\([^)]+\)/.test(token.raw)))
 		) {
 			expanded.push({ type: "text", raw: "$", text: "$" });
@@ -923,7 +942,57 @@ export function expandInlineTokensForOsc8(
 		i++;
 	}
 
-	return coalesced;
+	// Convert inline <br> HTML tokens to "br" tokens and trim adjacent horizontal spaces at line breaks.
+	const normalized: InlineToken[] = [];
+	let trimLeadingHorizontalSpace = false;
+	for (const token of coalesced) {
+		const rawHtml =
+			token.type === "html" ? (typeof token.raw === "string" ? token.raw : String(token.text ?? "")) : "";
+		if (token.type === "br" || (token.type === "html" && HTML_BR_TAG_REGEX.test(rawHtml.trim()))) {
+			const prev = normalized[normalized.length - 1];
+			if (prev && prev.type === "text" && (!prev.tokens || prev.tokens.length === 0) && typeof prev.text === "string") {
+				const trimmedText = prev.text.replace(/[ \t]+$/, "");
+				const trimmedRaw = typeof prev.raw === "string" ? prev.raw.replace(/[ \t]+$/, "") : trimmedText;
+				if (trimmedText.length === 0 && normalized.length > 1) {
+					normalized.pop();
+				} else {
+					normalized[normalized.length - 1] = {
+						...prev,
+						raw: trimmedRaw,
+						text: trimmedText,
+					};
+				}
+			}
+			normalized.push({ type: "br", raw: rawHtml || token.raw || "<br>", text: "\n" });
+			trimLeadingHorizontalSpace = true;
+			continue;
+		}
+
+		if (
+			trimLeadingHorizontalSpace &&
+			token.type === "text" &&
+			(!token.tokens || token.tokens.length === 0) &&
+			typeof token.text === "string"
+		) {
+			const trimmedText = token.text.replace(/^[ \t]+/, "");
+			const trimmedRaw = typeof token.raw === "string" ? token.raw.replace(/^[ \t]+/, "") : trimmedText;
+			trimLeadingHorizontalSpace = false;
+			if (trimmedText.length === 0) {
+				continue;
+			}
+			normalized.push({
+				...token,
+				raw: trimmedRaw,
+				text: trimmedText,
+			});
+			continue;
+		}
+
+		trimLeadingHorizontalSpace = false;
+		normalized.push(token);
+	}
+
+	return normalized;
 }
 
 type PatchState = {
@@ -935,6 +1004,12 @@ type PatchState = {
 		width: number,
 		nextTokenType?: string,
 		styleContext?: unknown,
+	) => string[];
+	origMarkdownRenderTable: (
+		token: any,
+		availableWidth: number,
+		nextTokenType?: string,
+		styleContext?: any,
 	) => string[];
 	origMarkdownWrapCellText: (text: string, maxWidth: number, stylePrefix?: string) => string[];
 	origTextRender: typeof piTui.Text.prototype.render;
@@ -960,6 +1035,8 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 		render: (width: number) => string[];
 		renderInlineTokens: (tokens: InlineToken[], styleContext?: any) => string;
 		renderToken: (token: any, width: number, nextTokenType?: string, styleContext?: any) => string[];
+		renderTable: (token: any, availableWidth: number, nextTokenType?: string, styleContext?: any) => string[];
+		getLongestWordWidth: (text: string, maxWidth?: number) => number;
 		wrapCellText: (text: string, maxWidth: number, stylePrefix?: string) => string[];
 		getDefaultInlineStyleContext: () => { applyText: (t: string) => string; stylePrefix: string };
 		getStylePrefix: (styleFn: (t: string) => string) => string;
@@ -985,6 +1062,7 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 		origMarkdownRender: mdProto.render,
 		origMarkdownRenderInlineTokens: mdProto.renderInlineTokens,
 		origMarkdownRenderToken: mdProto.renderToken,
+		origMarkdownRenderTable: mdProto.renderTable,
 		origMarkdownWrapCellText: mdProto.wrapCellText,
 		origTextRender: tui.Text.prototype.render,
 		origTruncatedTextRender: tui.TruncatedText.prototype.render,
@@ -1079,12 +1157,21 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 					result += applyTextWithNewlinesAndUrls(escapeText);
 					break;
 				}
+				case "br": {
+					result = `${trimTrailingSpacesPreservingAnsi(result)}\n`;
+					break;
+				}
 				case "html": {
 					const rawHtml = typeof token.raw === "string" ? token.raw : String(token.text ?? "");
+					if (HTML_BR_TAG_REGEX.test(rawHtml.trim())) {
+						result = `${trimTrailingSpacesPreservingAnsi(result)}\n`;
+						break;
+					}
 					const anchorMatch = HTML_ANCHOR_REGEX.exec(rawHtml.trim());
 					if (!inLink && anchorMatch) {
 						const href = (anchorMatch[1] ?? anchorMatch[2] ?? anchorMatch[3] ?? "").trim();
-						const label = stripTerminalSequencesSafe(anchorMatch[4] ?? "").trim() || href;
+						const label =
+							stripTerminalSequencesSafe((anchorMatch[4] ?? "").replace(/<\/?br\s*\/?>/gi, "\n")).trim() || href;
 						result += stylePlainUrl(label, href);
 					} else {
 						result += applyTextWithNewlinesAndUrls(rawHtml);
@@ -1144,6 +1231,158 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 	): string[] {
 		const lines = state.origMarkdownRenderToken.call(this, token, width, nextTokenType, styleContext);
 		return lines.map((line) => linkifyAnsiLineUrls(line));
+	};
+
+	mdProto.renderTable = function (
+		this: typeof mdProto,
+		token: any,
+		availableWidth: number,
+		nextTokenType?: string,
+		styleContext?: any,
+	): string[] {
+		const lines: string[] = [];
+		const numCols = token.header?.length ?? 0;
+		if (numCols === 0) {
+			return lines;
+		}
+		const borderOverhead = 3 * numCols + 1;
+		const availableForCells = availableWidth - borderOverhead;
+		if (availableForCells < numCols) {
+			const fallbackRaw = typeof token.raw === "string" ? token.raw.replace(/<\/?br\s*\/?>/gi, "\n") : "";
+			const fallbackLines = fallbackRaw ? wrapAnsiTextPreservingOsc8(fallbackRaw, availableWidth, tui.visibleWidth) : [];
+			if (nextTokenType && nextTokenType !== "space") {
+				fallbackLines.push("");
+			}
+			return fallbackLines;
+		}
+
+		const maxUnbrokenWordWidth = 30;
+		const naturalWidths: number[] = [];
+		const minWordWidths: number[] = [];
+		const headerTexts: string[] = [];
+		const rowTexts: string[][] = [];
+
+		for (let i = 0; i < numCols; i++) {
+			const headerText = this.renderInlineTokens(token.header[i].tokens || [], styleContext);
+			headerTexts[i] = headerText;
+			naturalWidths[i] = maxLineVisibleWidth(headerText, tui.visibleWidth);
+			minWordWidths[i] = Math.max(1, this.getLongestWordWidth(headerText, maxUnbrokenWordWidth));
+		}
+
+		for (const row of token.rows) {
+			const renderedRow: string[] = [];
+			for (let i = 0; i < row.length; i++) {
+				const cellText = this.renderInlineTokens(row[i].tokens || [], styleContext);
+				renderedRow[i] = cellText;
+				naturalWidths[i] = Math.max(naturalWidths[i] || 0, maxLineVisibleWidth(cellText, tui.visibleWidth));
+				minWordWidths[i] = Math.max(minWordWidths[i] || 1, this.getLongestWordWidth(cellText, maxUnbrokenWordWidth));
+			}
+			rowTexts.push(renderedRow);
+		}
+
+		let minColumnWidths = minWordWidths.slice();
+		let minCellsWidth = minColumnWidths.reduce((a, b) => a + b, 0);
+		if (minCellsWidth > availableForCells) {
+			minColumnWidths = new Array(numCols).fill(1);
+			const remaining = availableForCells - numCols;
+			if (remaining > 0) {
+				const totalWeight = minWordWidths.reduce((total, width) => total + Math.max(0, width - 1), 0);
+				const growth = minWordWidths.map((width) => {
+					const weight = Math.max(0, width - 1);
+					return totalWeight > 0 ? Math.floor((weight / totalWeight) * remaining) : 0;
+				});
+				for (let i = 0; i < numCols; i++) {
+					minColumnWidths[i] += growth[i] ?? 0;
+				}
+				const allocated = growth.reduce((total, width) => total + width, 0);
+				let leftover = remaining - allocated;
+				for (let i = 0; leftover > 0 && i < numCols; i++) {
+					minColumnWidths[i]++;
+					leftover--;
+				}
+			}
+			minCellsWidth = minColumnWidths.reduce((a, b) => a + b, 0);
+		}
+
+		const totalNaturalWidth = naturalWidths.reduce((a, b) => a + b, 0) + borderOverhead;
+		let columnWidths: number[];
+		if (totalNaturalWidth <= availableWidth) {
+			columnWidths = naturalWidths.map((width, index) => Math.max(width, minColumnWidths[index]!));
+		} else {
+			const totalGrowPotential = naturalWidths.reduce((total, width, index) => {
+				return total + Math.max(0, width - minColumnWidths[index]!);
+			}, 0);
+			const extraWidth = Math.max(0, availableForCells - minCellsWidth);
+			columnWidths = minColumnWidths.map((minWidth, index) => {
+				const naturalWidth = naturalWidths[index]!;
+				const minWidthDelta = Math.max(0, naturalWidth - minWidth);
+				let grow = 0;
+				if (totalGrowPotential > 0) {
+					grow = Math.floor((minWidthDelta / totalGrowPotential) * extraWidth);
+				}
+				return minWidth + grow;
+			});
+			const allocated = columnWidths.reduce((a, b) => a + b, 0);
+			let remaining = availableForCells - allocated;
+			while (remaining > 0) {
+				let grew = false;
+				for (let i = 0; i < numCols && remaining > 0; i++) {
+					if (columnWidths[i]! < naturalWidths[i]!) {
+						columnWidths[i]!++;
+						remaining--;
+						grew = true;
+					}
+				}
+				if (!grew) {
+					break;
+				}
+			}
+		}
+
+		const topBorderCells = columnWidths.map((w) => "─".repeat(w));
+		lines.push(`┌─${topBorderCells.join("─┬─")}─┐`);
+
+		const headerCellLines = headerTexts.map((text, i) =>
+			this.wrapCellText(text, columnWidths[i]!, styleContext?.stylePrefix),
+		);
+		const headerLineCount = Math.max(...headerCellLines.map((c) => c.length));
+		for (let lineIdx = 0; lineIdx < headerLineCount; lineIdx++) {
+			const rowParts = headerCellLines.map((cellLines, colIdx) => {
+				const text = cellLines[lineIdx] || "";
+				const padded = text + " ".repeat(Math.max(0, columnWidths[colIdx]! - tui.visibleWidth(text)));
+				return this.theme.bold(padded);
+			});
+			lines.push(`│ ${rowParts.join(" │ ")} │`);
+		}
+
+		const separatorCells = columnWidths.map((w) => "─".repeat(w));
+		const separatorLine = `├─${separatorCells.join("─┼─")}─┤`;
+		lines.push(separatorLine);
+
+		for (let rowIndex = 0; rowIndex < rowTexts.length; rowIndex++) {
+			const row = rowTexts[rowIndex]!;
+			const rowCellLines = row.map((text, i) =>
+				this.wrapCellText(text, columnWidths[i]!, styleContext?.stylePrefix),
+			);
+			const rowLineCount = Math.max(...rowCellLines.map((c) => c.length));
+			for (let lineIdx = 0; lineIdx < rowLineCount; lineIdx++) {
+				const rowParts = rowCellLines.map((cellLines, colIdx) => {
+					const text = cellLines[lineIdx] || "";
+					return text + " ".repeat(Math.max(0, columnWidths[colIdx]! - tui.visibleWidth(text)));
+				});
+				lines.push(`│ ${rowParts.join(" │ ")} │`);
+			}
+			if (rowIndex < rowTexts.length - 1) {
+				lines.push(separatorLine);
+			}
+		}
+
+		const bottomBorderCells = columnWidths.map((w) => "─".repeat(w));
+		lines.push(`└─${bottomBorderCells.join("─┴─")}─┘`);
+		if (nextTokenType && nextTokenType !== "space") {
+			lines.push("");
+		}
+		return lines;
 	};
 
 	mdProto.wrapCellText = function (

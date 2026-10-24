@@ -20,6 +20,8 @@ function loadRealPiTui() {
 	const mEnd = bin.indexOf(
 		"// ../../../../../../../../../../re_tmp/pi-mono/packages/tui/src/components/mouse-region.ts",
 	);
+	const cjkStart = bin.indexOf("// ../../../../../../../../../../re_tmp/pi-mono/node_modules/marked-cjk-friendly");
+	const cjkEnd = cjkStart >= 0 ? bin.indexOf("// ../../../../../../../../../../re_tmp/pi-mono/", cjkStart + 10) : -1;
 
 	let capabilities = { images: null, trueColor: true, hyperlinks: false };
 	const factoryCode = `
@@ -39,6 +41,7 @@ const Z = Marked;
 ${bin.slice(uStart, uEnd)}
 ${bin.slice(tStart, tEnd)}
 ${bin.slice(trStart, trEnd)}
+${cjkStart >= 0 && cjkEnd > cjkStart ? bin.slice(cjkStart, cjkEnd) : "const init_dist = () => {}; const markedCjkFriendly = () => ({});"}
 ${bin.slice(mStart, mEnd)}
 init_utils5();
 init_text();
@@ -292,5 +295,53 @@ describe("osc8-links extension", () => {
 			"https://www.internalfb.com/diff/D124805000",
 		);
 		expect(linkedTextForUrl(lines, "http://fwdproxy:8080")).toBe("http://fwdproxy:8080");
+	});
+
+	test("renders <br>, <br/>, and <br /> in table cells as newlines and sizes columns by max line width", () => {
+		const sample = [
+			"| Traffic Path | Direction (Partner POV) | What to Allowlist | Notes |",
+			"|---|---|---|---|",
+			"| Enterprise Solutions Private Connectors (Membrane → Partner API) | Inbound (TCP 443) | 4 static IPs:<br>3.124.215.118<br>44.207.182.216<br/>47.130.246.90<br />54.232.69.185 | Used when the business agent executes an agent tool call through a Membrane connector. Membrane runs on external cloud infra (AWS) outside Meta's ASN. |",
+		].join("\n");
+
+		const md = new realTui.Markdown(sample, 0, 0, markdownTheme);
+		const plainLines = md.render(98).map((l: string) => realTui.stripTerminalSequences(l));
+		const rendered = plainLines.join("\n");
+
+		expect(rendered).not.toContain("<br");
+		expect(rendered).toContain("│ 4 static IPs:");
+		expect(rendered).toContain("│ 3.124.215.118");
+		expect(rendered).toContain("│ 44.207.182.216");
+		expect(rendered).toContain("│ 47.130.246.90");
+		expect(rendered).toContain("│ 54.232.69.185");
+
+		// Column 3 ("What to Allowlist", header 17 chars, max IP line 14 chars) should not be
+		// inflated to the sum of all 5 lines (66 chars).
+		const topBorder = plainLines[0]!;
+		const colSegments = topBorder.slice(1, -1).split("┬");
+		// Each segment has 2 border dashes around the column width (`─` + width + `─`).
+		const allowlistColWidth = colSegments[2]!.length - 2;
+		expect(allowlistColWidth).toBeLessThanOrEqual(17);
+		expect(allowlistColWidth).toBeGreaterThanOrEqual(14);
+	});
+
+	test("preserves <br> inside literal inline code while converting <br> after $variables and around links", () => {
+		const url1 = "https://example.com/one";
+		const url2 = "https://example.com/two";
+		const sample = [
+			"| Case | Output |",
+			"|---|---|",
+			`| Env & Links | $FOO_BAR <br> ${url1}<br>${url2} |`,
+			"| Literal code | Use `<br>` for breaks |",
+		].join("\n");
+
+		const md = new realTui.Markdown(sample, 0, 0, markdownTheme);
+		const lines = md.render(60);
+		const plain = lines.map((l: string) => realTui.stripTerminalSequences(l)).join("\n");
+
+		expect(plain).toContain("$FOO_BAR");
+		expect(plain).toContain("Use <br> for breaks");
+		expect(linkedTextForUrl(lines, url1)).toBe(url1);
+		expect(linkedTextForUrl(lines, url2)).toBe(url2);
 	});
 });
