@@ -216,7 +216,21 @@ function selectedAutocompleteValue(editor: unknown): string | undefined {
 	return typeof value === "string" ? value : undefined;
 }
 
-function installSnippetCopyEditor(ctx: ExtensionContext): void {
+function populateEditorHistory(editor: CustomEditor, ctx: ExtensionContext): void {
+	const branch = ctx.sessionManager.getBranch() as BranchEntry[];
+	for (const entry of branch) {
+		if (entry.type !== "message" || entry.message?.role !== "user") continue;
+		const text = textOf(entry.message.content);
+		if (text) {
+			editor.addToHistory(text);
+		}
+	}
+}
+
+function installSnippetCopyEditor(
+	ctx: ExtensionContext,
+	onEditorCreated: (editor: CustomEditor) => void,
+): void {
 	if (ctx.mode !== "tui") return;
 
 	ctx.ui.setEditorComponent((tui, theme, keybindings) => {
@@ -238,22 +252,39 @@ function installSnippetCopyEditor(ctx: ExtensionContext): void {
 			}
 		}
 
-		return new SnippetCopyEditor(tui, theme, keybindings);
+		const editor = new SnippetCopyEditor(tui, theme, keybindings);
+		populateEditorHistory(editor, ctx);
+		onEditorCreated(editor);
+		return editor;
 	});
 }
 
 export default function copySnippetExtension(pi: ExtensionAPI): void {
+	let activeEditor: CustomEditor | undefined;
+
 	// In TUI mode, built-in slash commands are handled before the extension
 	// `input` event. A custom editor lets us catch `/copy` and Ctrl+X before the
 	// built-in copy handler copies the whole last assistant message.
-	pi.on("session_start", (_event, ctx) => installSnippetCopyEditor(ctx));
+	pi.on("session_start", (_event, ctx) => {
+		installSnippetCopyEditor(ctx, (editor) => {
+			activeEditor = editor;
+		});
+	});
+
+	pi.on("session_shutdown", () => {
+		activeEditor = undefined;
+	});
 
 	// Keep the same behaviour for RPC/prompt submissions, where `/copy` reaches
-	// extension input handlers.
+	// extension input handlers. Also record initial CLI messages (`pi -- msg`)
+	// into the TUI editor history, since InteractiveMode.run() calls
+	// session.prompt(initialMessage) directly without editor.addToHistory().
 	pi.on("input", async (event, ctx) => {
 		if (event.source === "extension") {
 			return { action: "continue" };
 		}
+
+		activeEditor?.addToHistory(event.text);
 
 		if (event.text.trim() !== "/copy") {
 			return { action: "continue" };
