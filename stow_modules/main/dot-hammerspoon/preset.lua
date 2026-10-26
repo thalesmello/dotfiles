@@ -158,6 +158,16 @@ function M.displayMessage(message, duration)
   currentAlert = hs.alert.show(message, {
     textStyle = { paragraphStyle = { alignment = "center" } },
   }, seconds)
+  for _, entry in ipairs(hs.alert._visibleAlerts or {}) do
+    if entry.UUID == currentAlert then
+      for _, d in ipairs(entry.drawings or {}) do
+        pcall(function()
+          d:setBehaviorByLabels({"canJoinAllSpaces", "stationary", "ignoresCycle"})
+        end)
+      end
+      break
+    end
+  end
 
   -- Drop the handle once the alert has expired on its own, so the next message
   -- isn't closing a uuid hs.alert has already retired.
