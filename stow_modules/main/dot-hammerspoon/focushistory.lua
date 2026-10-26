@@ -34,6 +34,7 @@
 local shell = require("shell")
 local Preset = require("preset")
 local capsHyper = require("caps_hyper")
+local TotWatcher = require("totwatcher")
 
 local uiwatcher = hs.uielement.watcher
 
@@ -71,6 +72,7 @@ M.dwell = 5.0
 local IGNORED_APPS = {
   ["Hammerspoon"] = true,
   ["Alfred"] = true,
+  ["Tot"] = true,
   ["loginwindow"] = true,
   ["Mission Control"] = true,
   ["Window Server"] = true,
@@ -271,10 +273,37 @@ local function removeChromeWindowDuplicates()
   end
 end
 
+local function removeIgnoredEntries()
+  local changed = false
+  for i = #st.stack, 1, -1 do
+    local e = st.stack[i]
+    if e and IGNORED_APPS[e.app or ""] then
+      local oldKey = entryKey(e)
+      table.remove(st.stack, i)
+      if i < st.cursor then
+        st.cursor = st.cursor - 1
+      elseif st.cursor > #st.stack then
+        st.cursor = #st.stack
+      end
+      if st.currentKey == oldKey then setCurrent(nil, nil) end
+      if st.activityKey == oldKey then cancelActivityArm() end
+      if st.navSessionTopKey == oldKey then clearNavigationSession() end
+      if st.lastJumpKey == oldKey then st.lastJumpKey = nil end
+      changed = true
+    end
+  end
+
+  if changed then
+    st.cursor = math.max(0, math.min(st.cursor, #st.stack))
+    save()
+  end
+end
+
 local function restore()
   if #st.stack > 0 then return end
   local saved = hs.settings.get(SETTINGS_KEY)
   if type(saved) ~= "table" or type(saved.stack) ~= "table" then return end
+  local droppedIgnored = false
   for _, e in ipairs(saved.stack) do
     -- A kind with no focus handler can't be jumped to, so it would only be dead
     -- weight for back/forward to skip past. chrome_tab entries survive only when
@@ -282,11 +311,16 @@ local function restore()
     -- ones left behind by the old title-inference code are dropped.
     if type(e) == "table" and e.id
       and (e.kind == "window" or M.focusHandlers[e.kind]) then
-      st.stack[#st.stack + 1] = e
+      if IGNORED_APPS[e.app or ""] then
+        droppedIgnored = true
+      else
+        st.stack[#st.stack + 1] = e
+      end
     end
   end
   local cursor = tonumber(saved.cursor) or #st.stack
   st.cursor = math.max(0, math.min(math.floor(cursor), #st.stack))
+  if droppedIgnored then save() end
 end
 
 local function cancelActivityArm()
@@ -755,6 +789,8 @@ end
 -- passing over the window you are actually looking at -- and you would have
 -- nothing to go forward to afterwards.
 local function observe(done, immediate)
+  TotWatcher.notifyFocusChanged()
+
   if immediate then
     if not flushDwell() then commit() end
     if done then done() end
@@ -772,6 +808,14 @@ local function observe(done, immediate)
 
   local win = hs.window.focusedWindow()
   local winId = win and win:id()
+  local app = win and win:application()
+  local appName = app and app:name() or ""
+  if not winId or IGNORED_APPS[appName] then
+    cancelDwellTimer()
+    setCurrent(nil, nil)
+    if done then done() end
+    return
+  end
 
   -- The extension has a tab pending for this very window, and its entry is the
   -- better one -- richer, and keyed as a tab. Scheduling ours would replace it
@@ -1009,6 +1053,12 @@ local function jumpToIndex(index, delta, done)
   step(index, 1)
 end
 
+local function focusedOnIgnoredApp()
+  local win = hs.window.focusedWindow()
+  local app = win and win:application() or hs.application.frontmostApplication()
+  return app ~= nil and IGNORED_APPS[app:name() or ""] == true
+end
+
 local function alignCursorToCurrent()
   local key = currentKeyAndEntry()
   local idx = indexOfKey(key)
@@ -1064,6 +1114,10 @@ jump = function(delta, done)
     if started then return end
     started = true
     if not keepCursor then alignCursorToCurrent() end
+    if delta < 0 and focusedOnIgnoredApp() and not currentKeyAndEntry()
+      and st.cursor >= 1 and st.cursor <= #st.stack then
+      return jumpToIndex(st.cursor + 1, -1, done)
+    end
     if delta < 0 and st.cursor > 1 then rememberNavigationTop() end
     jumpToIndex(st.cursor, delta, done)
   end
@@ -1106,6 +1160,11 @@ function M.cmdTab(done)
     end
 
     alignCursorToCurrent()
+
+    if focusedOnIgnoredApp() and not currentKeyAndEntry()
+      and st.cursor >= 1 and st.cursor <= #st.stack then
+      return jumpToIndex(st.cursor + 1, -1, done)
+    end
 
     -- From the most-recent window, Cmd+Tab means "previous app".
     if st.cursor >= #st.stack then
@@ -1272,6 +1331,7 @@ function M.setup()
   cancelActivityArm()
 
   restore()
+  removeIgnoredEntries()
   removeChromeWindowDuplicates()
 
   _G._FocusHistoryActivityTap = hs.eventtap.new({

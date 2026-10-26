@@ -505,7 +505,8 @@ function M.alternateApp(appName, opts)
   -- A floating terminal (iTerm hotkey window / Ghostty quick terminal) is
   -- manage=off, so it can sit on top of whichever app we're alternating to. Hide
   -- whichever is active first (no-op when none is).
-  local front = hs.window.focusedWindow():application()
+  local win = hs.window.focusedWindow()
+  local front = win and win:application()
   shell.task({"term-preset", "hide-floating-terminal"})
   if front and front:name() == appName then
     if opts.hide then
