@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Manual unread marker for Herdr agent panes.
+"""Manual unread marker and chat pin for Herdr agent panes.
 
 Local, dependency-free reimplementation of the useful bits of
-https://github.com/JoanGil/herdr-unread-marker, with two local additions:
+https://github.com/JoanGil/herdr-unread-marker, with local additions:
 
-* focusing a marked pane clears it (via the local plugin event hook);
-* the marker renders in the same sidebar slot as Herdr's normal status glyph.
+* focusing a marked pane clears the unread mark (via the local plugin event hook);
+* the unread marker renders in the same sidebar slot as Herdr's normal status glyph;
+* pinning a pane (prefix+p) renders a Nerd Font pin glyph alongside the current
+  status glyph and floats pinned chats to the top of the Agents list via
+  agent.view.set.
 
-State is private machine state under $XDG_STATE_HOME/herdr/unread-marker*. The
-visible sidebar glyphs are pane metadata tokens, so this script never changes
-Herdr's native agent status/seen model.
+State is private machine state under $XDG_STATE_HOME/herdr/unread-marker*.
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ from typing import Any
 
 SOURCE = "unread-marker"
 MARK_TOKEN = "um_marked"
+PIN_TOKEN = "um_pin"
 LEGACY_TOKEN = "unread"
 
 # Exactly one of these visible tokens is set on a pane at a time. config.toml
@@ -59,6 +61,14 @@ AGENT_LIST_REFRESH_SECS = 1.0
 # marker in the status slot. It reads larger than Font Awesome's envelope.
 # Falls back to tofu only if the outer terminal font is not a Nerd Font.
 UNREAD_GLYPH = "󰇮"
+# Nerd Fonts Material Design pin (nf-md-pin), rendered alongside the current
+# status glyph when an agent chat is pinned.
+PIN_GLYPH = "󰐃"
+VIEW_SORT = [
+    {"field": {"token": PIN_TOKEN}, "order": "asc"},
+    {"field": "attention", "order": "asc"},
+    {"field": "state_change_seq", "order": "desc"},
+]
 
 
 def socket_path() -> str:
@@ -91,6 +101,10 @@ def marked_path() -> Path:
     return state_dir() / "marked.json"
 
 
+def pinned_path() -> Path:
+    return state_dir() / "pinned.json"
+
+
 def file_mtime_ns(path: Path) -> int | None:
     try:
         return path.stat().st_mtime_ns
@@ -98,9 +112,9 @@ def file_mtime_ns(path: Path) -> int | None:
         return None
 
 
-def load_marked() -> set[str]:
+def load_key_set(path: Path) -> set[str]:
     try:
-        data = json.loads(marked_path().read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return set()
     if isinstance(data, list):
@@ -108,11 +122,26 @@ def load_marked() -> set[str]:
     return set()
 
 
-def save_marked(marked: set[str]) -> None:
-    path = marked_path()
+def save_key_set(path: Path, keys: set[str]) -> None:
     tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(sorted(marked), indent=2) + "\n", encoding="utf-8")
+    tmp.write_text(json.dumps(sorted(keys), indent=2) + "\n", encoding="utf-8")
     os.replace(tmp, path)
+
+
+def load_marked() -> set[str]:
+    return load_key_set(marked_path())
+
+
+def save_marked(marked: set[str]) -> None:
+    save_key_set(marked_path(), marked)
+
+
+def load_pinned() -> set[str]:
+    return load_key_set(pinned_path())
+
+
+def save_pinned(pinned: set[str]) -> None:
+    save_key_set(pinned_path(), pinned)
 
 
 def request(method: str, params: dict[str, Any], timeout: float = 2.0) -> dict[str, Any]:
@@ -184,6 +213,11 @@ def pane_marked(pane: dict[str, Any], pane_id: str, marked: set[str]) -> bool:
     return tokens.get(MARK_TOKEN) == "1" or pane_key(pane, pane_id) in marked
 
 
+def pane_pinned(pane: dict[str, Any], pane_id: str, pinned: set[str]) -> bool:
+    tokens = pane.get("tokens") or {}
+    return bool(tokens.get(PIN_TOKEN)) or pane_key(pane, pane_id) in pinned
+
+
 def status_name(pane: dict[str, Any]) -> str:
     status = pane.get("agent_status")
     if isinstance(status, str) and status in VISIBLE_TOKENS:
@@ -191,11 +225,17 @@ def status_name(pane: dict[str, Any]) -> str:
     return "unknown"
 
 
-def token_patch(status: str, marked: bool, frame: int = 0) -> dict[str, str | None]:
+def token_patch(
+    status: str,
+    marked: bool,
+    pinned: bool = False,
+    frame: int = 0,
+) -> dict[str, str | None]:
     tokens: dict[str, str | None] = {name: None for name in VISIBLE_TOKENS.values()}
     # Clear the first version of this script too.
     tokens[LEGACY_TOKEN] = None
     tokens[MARK_TOKEN] = "1" if marked else None
+    tokens[PIN_TOKEN] = PIN_GLYPH if pinned else None
     if marked:
         tokens[VISIBLE_TOKENS["unread"]] = UNREAD_GLYPH
     elif status == "working":
@@ -217,34 +257,108 @@ def report_tokens(pane_id: str, tokens: dict[str, str | None]) -> None:
     )
 
 
-def report(pane_id: str, pane: dict[str, Any], marked: bool, frame: int = 0) -> None:
-    report_tokens(pane_id, token_patch(status_name(pane), marked, frame))
+def report(
+    pane_id: str,
+    pane: dict[str, Any],
+    marked: bool,
+    pinned: bool = False,
+    frame: int = 0,
+) -> None:
+    report_tokens(pane_id, token_patch(status_name(pane), marked, pinned, frame))
 
 
-def apply_one(pane_id: str, op: str, marked: set[str]) -> bool:
-    if op in {"unmark", "focus"} and not marked:
+def sync_view(want_active: bool) -> bool:
+    if not want_active:
+        response = request("agent.view.clear", {"source": SOURCE})
+        return isinstance(response.get("result"), dict)
+    probe = request("agent.view.clear", {"source": f"{SOURCE}.probe"})
+    result = probe.get("result")
+    if not isinstance(result, dict):
         return False
+    owner = result.get("source") if result.get("active") else None
+    if isinstance(owner, str) and owner and owner != SOURCE:
+        return True
+    response = request("agent.view.set", {"source": SOURCE, "sort": VIEW_SORT})
+    return isinstance(response.get("result"), dict)
+
+
+def resolve_target_pane(
+    pane_id: str,
+    op: str,
+) -> tuple[str, dict[str, Any]] | tuple[None, None]:
     pane = pane_get(pane_id)
     if not pane:
-        return False
-    key = pane_key(pane, pane_id)
-    is_marked = pane_marked(pane, pane_id, marked)
+        return None, None
+    if op == "focus" or pane.get("agent") or pane.get("agent_status"):
+        return pane_id, pane
+    tab_id = pane.get("tab_id")
+    if isinstance(tab_id, str) and tab_id:
+        for agent in fetch_agents() or ():
+            agent_pane_id = agent.get("pane_id")
+            if (
+                agent.get("tab_id") == tab_id
+                and isinstance(agent_pane_id, str)
+                and agent_pane_id
+            ):
+                target = pane_get(agent_pane_id) or agent
+                return agent_pane_id, target
+    return pane_id, pane
+
+
+def apply_one(
+    pane_id: str,
+    op: str,
+    marked: set[str],
+    pinned: set[str],
+) -> tuple[bool, bool]:
+    if op in {"unmark", "focus"} and not marked:
+        return False, False
+    if op == "unpin" and not pinned:
+        return False, False
+    target_pane_id, pane = resolve_target_pane(pane_id, op)
+    if not target_pane_id or not pane:
+        return False, False
+    key = pane_key(pane, target_pane_id)
+    is_marked = pane_marked(pane, target_pane_id, marked)
+    is_pinned = pane_pinned(pane, target_pane_id, pinned)
+    want_marked = is_marked
+    want_pinned = is_pinned
+
     if op == "toggle":
         want_marked = not is_marked
     elif op == "mark":
         want_marked = True
-    else:  # unmark/focus/sync
-        want_marked = False if op in {"unmark", "focus"} else is_marked
+    elif op in {"unmark", "focus"}:
+        want_marked = False
+    elif op == "pin":
+        want_pinned = not is_pinned
+    elif op == "unpin":
+        want_pinned = False
 
-    if want_marked == is_marked and op in {"mark", "unmark", "focus"}:
-        return False
+    if (
+        want_marked == is_marked
+        and want_pinned == is_pinned
+        and op in {"mark", "unmark", "focus", "unpin"}
+    ):
+        return False, False
 
     if want_marked:
         marked.add(key)
     else:
         marked.discard(key)
-    report(pane_id, pane, want_marked, int(time.monotonic() / ANIMATION_SECS))
-    return True
+    if want_pinned:
+        pinned.add(key)
+    else:
+        pinned.discard(key)
+
+    report(
+        target_pane_id,
+        pane,
+        want_marked,
+        want_pinned,
+        int(time.monotonic() / ANIMATION_SECS),
+    )
+    return want_marked != is_marked or op == "toggle", want_pinned != is_pinned or op == "pin"
 
 
 def fetch_agents() -> list[dict[str, Any]] | None:
@@ -255,15 +369,32 @@ def fetch_agents() -> list[dict[str, Any]] | None:
     return [agent for agent in agents if isinstance(agent, dict)]
 
 
+def fetch_pane_keys() -> set[str] | None:
+    response = request("pane.list", {})
+    panes = (response.get("result") or {}).get("panes")
+    if not isinstance(panes, list):
+        return None
+    keys: set[str] = set()
+    for pane in panes:
+        if not isinstance(pane, dict):
+            continue
+        pane_id = pane.get("pane_id")
+        if isinstance(pane_id, str) and pane_id:
+            keys.add(pane_key(pane, pane_id))
+    return keys
+
+
 def sync_agents(
     agents: list[dict[str, Any]],
     marked: set[str],
+    pinned: set[str],
     frame: int = 0,
     cache: dict[str, dict[str, str | None]] | None = None,
-) -> tuple[set[str], bool]:
+) -> tuple[set[str], set[str], bool, bool]:
     live_keys: set[str] = set()
     live_panes: set[str] = set()
     has_working = False
+    server_unsynced = False
     for agent in agents:
         pane_id = agent.get("pane_id")
         if not isinstance(pane_id, str) or not pane_id:
@@ -272,31 +403,59 @@ def sync_agents(
         live_keys.add(key)
         live_panes.add(pane_id)
         status = status_name(agent)
-        is_marked = pane_marked(agent, pane_id, marked)
+        is_marked = key in marked or (agent.get("tokens") or {}).get(MARK_TOKEN) == "1"
+        is_pinned = key in pinned
         if status == "working" and not is_marked:
             has_working = True
-        tokens = token_patch(status, is_marked, frame)
-        if cache is None or cache.get(pane_id) != tokens:
+        tokens = token_patch(status, is_marked, is_pinned, frame)
+        live_tokens = agent.get("tokens") or {}
+        if not any(live_tokens.get(name) for name in VISIBLE_TOKENS.values()):
+            server_unsynced = True
+        if (
+            cache is None
+            or cache.get(pane_id) != tokens
+            or live_tokens.get(PIN_TOKEN) != tokens[PIN_TOKEN]
+            or live_tokens.get(MARK_TOKEN) != tokens[MARK_TOKEN]
+            or server_unsynced
+        ):
             report_tokens(pane_id, tokens)
+            agent["tokens"] = dict(tokens)
             if cache is not None:
                 cache[pane_id] = tokens
     if cache is not None:
         for pane_id in set(cache) - live_panes:
             cache.pop(pane_id, None)
-    # Prune terminals/panes that no longer exist.
-    return ({key for key in marked if key in live_keys}, has_working)
+    # Keep state for panes that still exist in pane.list (e.g. during startup
+    # before agent detection finishes, or when an agent exited to a shell).
+    missing_keys = (marked | pinned) - live_keys
+    if missing_keys:
+        pane_keys = fetch_pane_keys()
+        if pane_keys is None:
+            keep_keys = live_keys | missing_keys
+        else:
+            keep_keys = live_keys | pane_keys
+    else:
+        keep_keys = live_keys
+    return (
+        {key for key in marked if key in keep_keys},
+        {key for key in pinned if key in keep_keys},
+        has_working,
+        server_unsynced,
+    )
 
 
 def sync_all(
     marked: set[str],
+    pinned: set[str],
     frame: int = 0,
     cache: dict[str, dict[str, str | None]] | None = None,
-) -> set[str]:
+) -> tuple[set[str], set[str]]:
     agents = fetch_agents()
     if agents is None:
-        return marked
-    pruned, _ = sync_agents(agents, marked, frame, cache)
-    return pruned
+        return marked, pinned
+    pruned_marked, pruned_pinned, _, _ = sync_agents(agents, marked, pinned, frame, cache)
+    sync_view(bool(pruned_pinned))
+    return pruned_marked, pruned_pinned
 
 
 def daemon_pid() -> int | None:
@@ -431,6 +590,9 @@ def daemon_loop() -> int:
     cache: dict[str, dict[str, str | None]] = {}
     marked: set[str] = set()
     marked_mtime: int | None = -1
+    pinned: set[str] = set()
+    pinned_mtime: int | None = -1
+    view_active: bool | None = None
     agents: list[dict[str, Any]] | None = None
     last_fetch_at = 0.0
     force_refresh = True
@@ -455,29 +617,55 @@ def daemon_loop() -> int:
                 marked_mtime = cur_marked_mtime
                 force_refresh = True
 
+            cur_pinned_mtime = file_mtime_ns(pinned_path())
+            if cur_pinned_mtime != pinned_mtime:
+                pinned = load_pinned()
+                pinned_mtime = cur_pinned_mtime
+                force_refresh = True
+
             now = time.monotonic()
-            if (
+            refreshing = (
                 force_refresh
                 or agents is None
                 or (now - last_fetch_at) >= AGENT_LIST_REFRESH_SECS
-            ):
+            )
+            check_view = force_refresh
+            if refreshing:
                 fetched = fetch_agents()
                 if fetched is not None:
                     agents = fetched
                     last_fetch_at = now
                     force_refresh = False
+                else:
+                    agents = None
+                    cache.clear()
+                    view_active = None
 
             if agents is not None:
-                pruned, has_working = sync_agents(agents, marked, frame, cache)
-                if pruned != marked:
-                    marked = pruned
+                pruned_marked, pruned_pinned, has_working, server_unsynced = sync_agents(
+                    agents, marked, pinned, frame, cache
+                )
+                if pruned_marked != marked:
+                    marked = pruned_marked
                     save_marked(marked)
                     marked_mtime = file_mtime_ns(marked_path())
+                if pruned_pinned != pinned:
+                    pinned = pruned_pinned
+                    save_pinned(pinned)
+                    pinned_mtime = file_mtime_ns(pinned_path())
+                want_view = bool(pinned)
+                if (
+                    view_active != want_view
+                    or (want_view and (server_unsynced or check_view))
+                ):
+                    if sync_view(want_view):
+                        view_active = want_view
 
             frame = (frame + 1) % len(WORKING_FRAMES)
         except Exception:
             cache.clear()
             agents = None
+            view_active = None
 
         timeout = ANIMATION_SECS if has_working else (1.0 if agents is None else None)
         if kq is not None:
@@ -492,12 +680,24 @@ def daemon_loop() -> int:
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="toggle/sync Herdr unread marker metadata")
+    parser = argparse.ArgumentParser(
+        description="toggle/sync Herdr unread marker and chat pin metadata"
+    )
     parser.add_argument(
         "op",
         nargs="?",
         default="toggle",
-        choices=["toggle", "mark", "unmark", "focus", "sync", "daemon", "restart"],
+        choices=[
+            "toggle",
+            "mark",
+            "unmark",
+            "pin",
+            "unpin",
+            "focus",
+            "sync",
+            "daemon",
+            "restart",
+        ],
     )
     parser.add_argument("--pane", dest="pane_id")
     args = parser.parse_args(argv[1:])
@@ -511,20 +711,33 @@ def main(argv: list[str]) -> int:
         if notify_daemon():
             return 0
         marked = load_marked()
-        pruned = sync_all(marked, int(time.monotonic() / ANIMATION_SECS))
-        if pruned != marked:
-            save_marked(pruned)
+        pinned = load_pinned()
+        pruned_marked, pruned_pinned = sync_all(
+            marked,
+            pinned,
+            int(time.monotonic() / ANIMATION_SECS),
+        )
+        if pruned_marked != marked:
+            save_marked(pruned_marked)
+        if pruned_pinned != pinned:
+            save_pinned(pruned_pinned)
         start_daemon_detached()
         return 0
 
     marked = load_marked()
+    pinned = load_pinned()
     pane_id = args.pane_id or pane_id_from_context()
     if not pane_id:
         return 0
-    changed = apply_one(pane_id, args.op, marked)
-    if changed:
+    marked_changed, pinned_changed = apply_one(pane_id, args.op, marked, pinned)
+    if marked_changed:
         save_marked(marked)
-        notify_daemon()
+    if pinned_changed:
+        save_pinned(pinned)
+        sync_view(bool(pinned))
+    if marked_changed or pinned_changed:
+        if not notify_daemon():
+            start_daemon_detached()
     return 0
 
 

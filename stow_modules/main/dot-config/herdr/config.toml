@@ -484,6 +484,15 @@ type = "shell"
 command = "~/.config/herdr/scripts/unread-marker.py toggle"
 description = "toggle focused agent unread marker"
 
+# Pin an agent chat to the top of the Agents sidebar. prefix+p toggles the pin
+# on the focused chat; pinned chats show a Nerd Font pin icon alongside the
+# current status glyph and sort above unpinned chats via agent.view.set.
+[[keys.command]]
+key = "prefix+p"
+type = "shell"
+command = "~/.config/herdr/scripts/unread-marker.py pin"
+description = "toggle focused agent pin"
+
 # prefix++ / prefix+_: widen / narrow the sidebar by 2 columns. herdr has no
 # keybinding for this (only the mouse drag on the divider), and the live width
 # is session state that config cannot move directly -- see sidebar-resize.py for
@@ -654,15 +663,17 @@ status_indicators = "symbols"
 
 # Agent panel ordering: "spaces" (grouped by space) or "priority" (attention queue).
 # Keep Herdr's native priority ordering. The manual unread marker below is
-# display-only; it does not re-sort.
+# display-only; it does not re-sort. Pinned chats (prefix+p) float to the top
+# via agent.view.set while keeping priority ordering within each group.
 agent_panel_sort = "priority"
 
 [ui.sidebar.agents]
-# First line:  <status/unread glyph> <agent-owned session title>
+# First line:  <status/unread glyph> <pin glyph> <agent-owned session title>
 # Second line: <agent label> <workspace> <tab>
 #
 # Status is rendered through unread-marker.py's mutually-exclusive $um_* tokens
-# rather than state_icon so a manual unread flag can occupy the status slot. The
+# rather than state_icon so a manual unread flag can occupy the status slot.
+# $um_pin renders alongside the status glyph when the chat is pinned. The
 # event hook refreshes those tokens on startup, focus, and agent status changes.
 # Titles prefer Herdr's built-in terminal_title_stripped field. $restored_title
 # is a handoff/restart fallback populated by the local agent-titles plugin when
@@ -675,6 +686,7 @@ rows = [
         { token = "$um_done", fg = "#81c8be", bold = true },
         { token = "$um_idle", fg = "#a6d189", bold = false },
         { token = "$um_unknown", fg = "#737994", bold = false, dim = true },
+        { token = "$um_pin", fg = "#ca9ee6", bold = true },
         { token = "$restored_title", fg = "#c6d0f5", bold = false, dim = false },
         { token = "terminal_title_stripped", fg = "#c6d0f5", bold = false, dim = false },
     ],
