@@ -18,7 +18,11 @@ stow_modules/main/dot-config/herdr/*.sock.*
 # `herdr plugin link` registry + per-plugin state: machine-local absolute paths.
 # The plugin manifests under plugins/<name>/ are tracked.
 stow_modules/main/dot-config/herdr/plugins.json
-stow_modules/main/dot-config/herdr/plugins/config/
+stow_modules/main/dot-config/herdr/plugins/config/*
+# herdr-bar's config is version controlled: it turns on auto tab titles and
+# tab status glyphs (both default to off enough to matter in upstream).
+!stow_modules/main/dot-config/herdr/plugins/config/herdr-bar/
+!stow_modules/main/dot-config/herdr/plugins/config/herdr-bar/config.json
 stow_modules/main/dot-config/herdr/*.log
 stow_modules/main/dot-config/herdr/session.json
 stow_modules/main/dot-config/herdr/session-history.json

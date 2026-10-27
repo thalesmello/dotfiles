@@ -92,9 +92,12 @@ reload_config = ""
 # the notification-target jump is unbound.
 open_notification_target = "prefix+shift+o"
 # workspace_picker = "prefix+w"
-# goto = "prefix+g"
+# prefix+g opens the herdr-bar command bar (see [[keys.command]] below), so the
+# classic goto picker moves to prefix+alt+g. prefix+shift+g creates a new git
+# worktree workspace.
+goto = "prefix+alt+g"
 # new_workspace = "prefix+shift+n"
-# new_worktree = "prefix+shift+g"
+new_worktree = "prefix+shift+g"
 # open_worktree = ""    # optional, unset by default
 # remove_worktree = ""  # optional, unset by default; opens confirmation
 # rename_workspace = "prefix+shift+w"
@@ -504,6 +507,17 @@ key = ["prefix+ctrl+backspace", "prefix+x"]
 type = "shell"
 command = "~/.config/herdr/scripts/confirm-close.py close"
 description = "close pane (confirm if busy)"
+
+# herdr-bar command bar (scripts/herdr-bar.py): fuzzy-jump to any agent, tab,
+# named pane, or workspace. prefix+g opens it; the classic goto picker is on
+# prefix+alt+g above. type = "popup" so it runs in a herdr-rendered PTY.
+[[keys.command]]
+key = "prefix+g"
+type = "popup"
+command = "~/.config/herdr/scripts/herdr-bar.py"
+description = "command bar: jump to agent/tab/pane/workspace"
+width = "74%"
+height = "62%"
 
 # prefix++ / prefix+_: widen / narrow the sidebar by 2 columns. herdr has no
 # keybinding for this (only the mouse drag on the divider), and the live width

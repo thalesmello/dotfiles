@@ -1,0 +1,34 @@
+# Start the local herdr-bar tab title and status watcher on Herdr startup and
+# agent detection.
+#
+# The bar popup itself is bound directly in config.toml as a type = "popup"
+# command (prefix+g -> scripts/herdr-bar.py) and also starts the watcher when
+# opened. This local plugin only supplies startup and agent_detected hooks so
+# automatic tab titles and live tab status glyphs start as soon as the server
+# boots.
+#
+# Re-link after editing with:
+#
+#   herdr-preset install-local-plugins
+
+id = "herdr-bar"
+name = "Bar"
+version = "0.12.0"
+min_herdr_version = "0.9.0"
+description = "Cmd+K command bar with agent icons, fuzzy search, and automatic tab titles/status"
+platforms = ["macos", "linux"]
+
+[[panes]]
+id = "bar"
+title = "Bar"
+placement = "popup"
+width = "74%"
+height = "62%"
+command = ["python3", "../../scripts/herdr-bar.py"]
+
+[[startup]]
+command = ["python3", "../../scripts/herdr-bar.py", "--start-titles"]
+
+[[events]]
+on = "pane.agent_detected"
+command = ["python3", "../../scripts/herdr-bar.py", "--start-titles"]
