@@ -37,6 +37,7 @@ vim.keymap.set("n", "<leader>%", "<C-w>v", { remap = true })
 vim.keymap.set("n", '<leader>"', "<C-w>s", { remap = true })
 vim.keymap.set("n", '<leader>-', "<C-w>s", { remap = true })
 vim.keymap.set("n", "<leader><bs>", "<c-w>q", { remap = true })
+vim.keymap.set({"n", "t"}, "<c-space><bs>", '<c-\\><C-n><c-w>q', { noremap = true, silent = true })
 
 -- Edit and load vimrc
 vim.keymap.set("n", "<leader>ev", ":edit $MYVIMRC<cr>", { noremap = true })
