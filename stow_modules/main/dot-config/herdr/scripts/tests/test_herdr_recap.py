@@ -247,5 +247,145 @@ class EscapeTest(unittest.TestCase):
         self.assertEqual(model.handle_key("esc"), "quit")
 
 
+class DecoderTest(unittest.TestCase):
+    def test_kitty_csi_u_keys(self):
+        decoder = rc.Decoder()
+        self.assertEqual(decoder.feed(b"\x1b[27u"), [("key", "esc")])
+        self.assertEqual(decoder.feed(b"\x1b[13u"), [("key", "enter")])
+        self.assertEqual(decoder.feed(b"\x1b[127u"), [("key", "backspace")])
+        self.assertEqual(decoder.feed(b"\x1b[107;7u"), [("key", "ctrl+alt+k")])
+        self.assertEqual(decoder.feed(b"a"), [("char", "a")])
+
+    def test_kitty_release_is_ignored(self):
+        decoder = rc.Decoder()
+        self.assertEqual(decoder.feed(b"\x1b[27;1:3u"), [])
+
+    def test_bare_escape_resolves_on_flush(self):
+        decoder = rc.Decoder()
+        self.assertEqual(decoder.feed(b"\x1b"), [])
+        self.assertTrue(decoder.pending_escape())
+        self.assertEqual(decoder.flush(), [("key", "esc")])
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class DrawTest(unittest.TestCase):
+    def test_frame_erases_below_and_clears_on_resize(self):
+        import io
+        from unittest import mock
+        term = rc.RawTerminal.__new__(rc.RawTerminal)
+        term.fd = 1
+        term.saved = None
+        term._last_size = None
+        out = io.StringIO()
+        with mock.patch.object(rc.sys, "stdout", out):
+            term.draw(["a", "b", "c", "d", "footer"], 80, 5)
+            first = out.getvalue()
+            out.seek(0)
+            out.truncate()
+            term.draw(["a", "footer"], 80, 3)  # shrunk: stale rows below
+            second = out.getvalue()
+            out.seek(0)
+            out.truncate()
+            term.draw(["a", "footer"], 80, 3)  # same size: no full clear
+            third = out.getvalue()
+        self.assertIn("\x1b[2J", first)
+        self.assertIn("\x1b[2J", second)
+        self.assertNotIn("\x1b[2J", third)
+        for frame in (first, second, third):
+            self.assertTrue(frame.endswith("\x1b[0m\x1b[J"))
+
+
+class ViewHeightTest(unittest.TestCase):
+    def make_model(self):
+        import time as _time
+        model = rc.Model(rc.Config(), demo=True)
+        self.addCleanup(model.executor.shutdown, wait=False)
+        model.load()
+        for _ in range(100):
+            model.process_jobs()
+            if all((e.session is not None or e.note) for e in model.entries.values()):
+                break
+            _time.sleep(0.02)
+        return model
+
+    def test_view_is_exactly_terminal_height(self):
+        model = self.make_model()
+        for height in (12, 20, 30, 45):
+            model.width, model.height = 100, height
+            with self.subTest(height=height):
+                self.assertEqual(len(model.view()), height)
+
+    def test_one_footer_while_replying(self):
+        model = self.make_model()
+        model.width, model.height = 100, 24
+        entry = next(iter(model.entries.values()))
+        model.order = [entry.agent.pane_id]
+        model.start_reply()
+        model.reply_text = "line one\nline two\nline three"
+        lines = model.view()
+        self.assertEqual(len(lines), 24)
+        footers = [line for line in lines if "enter send" in line]
+        self.assertEqual(len(footers), 1)
+        self.assertIn("enter send", lines[-1])
+
+
+class TruncateStyledTest(unittest.TestCase):
+    def test_plain_and_styled(self):
+        self.assertEqual(rc.truncate_styled("hello", 10), "hello")
+        cut = rc.truncate_styled("hello world", 5)
+        self.assertEqual(rc.display_width(cut), 5)
+        styled = "\x1b[1m\x1b[38;2;1;2;3mhello world\x1b[0m"
+        cut = rc.truncate_styled(styled, 5)
+        self.assertEqual(rc.display_width(cut), 5)
+        self.assertTrue(cut.endswith(rc.RESET))
+
+    def test_draw_never_fills_last_column(self):
+        import io
+        from unittest import mock
+        term = rc.RawTerminal.__new__(rc.RawTerminal)
+        term.fd, term.saved, term._last_size = 1, None, None
+        out = io.StringIO()
+        with mock.patch.object(rc.sys, "stdout", out):
+            term.draw(["x" * 200, "y" * 200], 72, 2)
+        import re as _re
+        rows = out.getvalue().split("\r\n")
+        for row in rows:
+            plain = _re.sub(r"\x1b\[[0-9;:]*[A-Za-z]", "", row)
+            self.assertLessEqual(rc.display_width(plain), 71)
+
+
+class PickerExitTest(unittest.TestCase):
+    def test_picker_exits_with_blocked_workers(self):
+        # Regression: Esc restored the terminal but the process stayed
+        # alive until Ctrl+C, because interpreter shutdown joins every
+        # executor worker — including ones blocked in a summarizer call.
+        import subprocess
+        import textwrap
+        script = textwrap.dedent("""
+            import importlib.util, sys, threading
+            spec = importlib.util.spec_from_file_location("rc", sys.argv[1])
+            rc = importlib.util.module_from_spec(spec)
+            sys.modules["rc"] = rc
+            spec.loader.exec_module(rc)
+
+            class FakeTerm:
+                def __enter__(self): return self
+                def __exit__(self, *exc): return False
+
+            rc.RawTerminal = FakeTerm
+
+            def fake_run(self, term):
+                self.executor.submit(lambda: threading.Event().wait(30))
+                return None
+
+            rc.Model.run = fake_run
+            sys.exit(rc.run_picker(rc.Config(), demo=True))
+        """)
+        path = os.path.join(_HERE, "..", "herdr-recap.py")
+        proc = subprocess.run(
+            [sys.executable, "-c", script, os.path.abspath(path)],
+            capture_output=True, text=True, timeout=10)
+        self.assertEqual(proc.returncode, 0, proc.stderr)

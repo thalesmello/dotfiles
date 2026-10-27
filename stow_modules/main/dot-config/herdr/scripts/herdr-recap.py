@@ -1907,6 +1907,38 @@ class Decoder:
             if final == "M" and button & 3 == 0:
                 return length, ("mouse", "press", x, y, final)
             return length, None
+        if final == "u":
+            # Kitty keyboard protocol (CSI u): a terminal with escape-code
+            # disambiguation sends Esc as ESC[27u, Ctrl+Alt+K as
+            # ESC[107;7u, and so on. Herdr passes these through from
+            # Ghostty, so without this the popup never sees Esc at all.
+            parts = params.split(";")
+            try:
+                code = int(parts[0]) if parts and parts[0] else 0
+            except ValueError:
+                return length, None
+            mods, event = 0, ""
+            if len(parts) > 1:
+                mod_text, _, event = parts[1].partition(":")
+                if mod_text.isdigit():
+                    mods = int(mod_text) - 1  # kitty modifiers are 1-based bitmask
+            if event == "3":
+                return length, None  # key release: the press already counted
+            prefix = ""
+            if mods & 4:
+                prefix += "ctrl+"
+            if mods & 2:
+                prefix += "alt+"
+            if mods & 1:
+                prefix += "shift+"
+            named = {27: "esc", 13: "enter", 9: "tab", 127: "backspace", 57370: "esc"}
+            if code in named:
+                return length, ("key", prefix + named[code])
+            if 32 <= code < 0x110000:
+                if prefix:
+                    return length, ("key", prefix + chr(code).lower())
+                return length, ("char", chr(code))
+            return length, None
         if final == "~":
             if params == "200":
                 self.paste = bytearray()
@@ -1934,10 +1966,48 @@ class Decoder:
             return "", 1
 
 
+def truncate_styled(text: str, max_cells: int) -> str:
+    """Cut a styled line to max_cells display cells, keeping ANSI sequences.
+
+    A line that fills the terminal's last column wraps when the next
+    row is written, and the wrapped spill stacks up at the bottom (a
+    duplicated footer). Drawn rows therefore stay one cell short.
+    """
+    if max_cells <= 0:
+        return ""
+    if display_width(text) <= max_cells:
+        return text
+    out: list[str] = []
+    used = 0
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch == "\x1b":
+            # Copy the whole escape sequence without counting it.
+            if i + 1 < len(text) and text[i + 1] == "[":
+                j = i + 2
+                while j < len(text) and not ("@" <= text[j] <= "~"):
+                    j += 1
+                out.append(text[i:j + 1])
+                i = j + 1
+                continue
+            out.append(ch)
+            i += 1
+            continue
+        step = char_width(ch)
+        if used + step > max_cells:
+            break
+        out.append(ch)
+        used += step
+        i += 1
+    return "".join(out) + RESET
+
+
 class RawTerminal:
     def __init__(self):
         self.fd = sys.stdin.fileno()
         self.saved = None
+        self._last_size: tuple[int, int] | None = None
     def __enter__(self):
         import termios, tty
         self.saved = termios.tcgetattr(self.fd)
@@ -1956,11 +2026,23 @@ class RawTerminal:
         return max(1, size.columns), max(1, size.lines)
     def draw(self, lines, width, height):
         out = ["\x1b[H"]
+        if (width, height) != self._last_size:
+            # A resize (the popup settling at startup, the terminal
+            # changing) leaves rows from a taller frame below the new
+            # one — a stale footer at the bottom that nothing repaints.
+            # Clear the whole screen when the size moves.
+            out.append("\x1b[2J\x1b[H")
+            self._last_size = (width, height)
+        limit = max(1, width - 1)  # never fill the last column: it wraps
         for i in range(height):
             line = lines[i] if i < len(lines) else ""
-            out.append(line + "\x1b[0m\x1b[K")
+            out.append(truncate_styled(line, limit) + "\x1b[0m\x1b[K")
             if i < height - 1:
                 out.append("\r\n")
+        # Erase anything below the frame (a wrapped row's spill, a
+        # taller previous frame) so the bottom only ever shows this
+        # frame's footer.
+        out.append("\x1b[0m\x1b[J")
         sys.stdout.write("".join(out))
         sys.stdout.flush()
 
@@ -3337,7 +3419,14 @@ class Model:
                 data = os.read(sys.stdin.fileno(), 65536)
                 if not data:
                     return
+                keylog = os.environ.get("HERDR_RECAP_KEYLOG")
+                if keylog:
+                    with contextlib.suppress(OSError), open(keylog, "a") as handle:
+                        handle.write(repr(data) + "\n")
                 for event in decoder.feed(data):
+                    if keylog:
+                        with contextlib.suppress(OSError), open(keylog, "a") as handle:
+                            handle.write("event " + repr(event) + "\n")
                     if event[0] == "key":
                         outcome = self.handle_key(event[1]) or outcome
                     elif event[0] == "char":
@@ -3384,17 +3473,24 @@ def run_picker(cfg: Config, demo: bool) -> int:
     else:
         forget = lambda: None
     model = Model(cfg, demo=demo)
+    code = 0
     try:
         with RawTerminal() as term:
             model.run(term)
     except SystemExit as exc:
-        return int(exc.code or 0)
+        code = int(exc.code or 0)
     except KeyboardInterrupt:
-        return 0
+        code = 0
     finally:
         forget()
         model.executor.shutdown(wait=False, cancel_futures=True)
-    return 0
+    # Exit now, without joining the recap workers: Python's executor
+    # atexit hook waits for every worker thread, and a worker can sit in
+    # a summarizer call for the full timeout. That left a blank popup
+    # hanging after Esc until Ctrl+C. Cache writes inside workers are
+    # atomic (tmp file + rename), so leaving them behind is safe.
+    sys.stdout.flush()
+    os._exit(code)
 
 
 def debug_list(cfg: Config) -> int:
