@@ -132,7 +132,9 @@ next_tab = ["prefix+ctrl+]"]
 # forwards for cmd+1..9 (mirrors nvim's Ngt on the same chord).
 switch_workspace = ["prefix+alt+1..9", "ctrl+alt+1..9"]
 close_tab = "prefix+shift+backspace"
-close_pane = "prefix+ctrl+backspace"
+# close_pane is handled by scripts/confirm-close.py (see [[keys.command]]
+# below): an idle shell pane closes at once, a busy pane asks first.
+close_pane = ""
 # rename_pane = "prefix+shift+p"
 edit_scrollback = ["prefix+shift+v", "prefix+e"]
 # tmux parity: `bind Space copy-mode` (herdr default is prefix+[)
@@ -492,6 +494,16 @@ key = "prefix+p"
 type = "shell"
 command = "~/.config/herdr/scripts/agent-handler.py pin"
 description = "toggle focused agent pin"
+
+# Confirm before closing a busy pane (scripts/confirm-close.py, a script port
+# of asumaran/asconfirmclose): an idle shell pane closes immediately, a pane
+# running a process asks first (y or enter closes; n/esc/any other key keeps).
+# prefix+backspace / ctrl+alt+w keep smart-close.sh's vim forwarding on top.
+[[keys.command]]
+key = ["prefix+ctrl+backspace", "prefix+x"]
+type = "shell"
+command = "~/.config/herdr/scripts/confirm-close.py close"
+description = "close pane (confirm if busy)"
 
 # prefix++ / prefix+_: widen / narrow the sidebar by 2 columns. herdr has no
 # keybinding for this (only the mouse drag on the divider), and the live width

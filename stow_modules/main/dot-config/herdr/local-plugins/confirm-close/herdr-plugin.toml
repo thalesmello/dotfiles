@@ -1,0 +1,26 @@
+# Popup entrypoint for scripts/confirm-close.py.
+#
+# The close keybindings themselves are plain [[keys.command]] entries in
+# config.toml so closing an idle shell pane or forwarding to (n)vim works
+# immediately with zero popup flash. When the focused pane is running a busy
+# non-shell process, confirm-close.py opens this popup entrypoint (and
+# auto-links this manifest over the Herdr socket if not linked yet).
+#
+# Re-link after editing with:
+#
+#   herdr-preset install-local-plugins
+
+id = "confirm-close"
+name = "confirm-close"
+version = "0.3.2"
+min_herdr_version = "0.8.0"
+description = "Close the focused pane, asking first only when a process is running in it"
+platforms = ["macos", "linux"]
+
+[[panes]]
+id = "confirm"
+title = "Close pane?"
+placement = "popup"
+width = 64
+height = 9
+command = ["python3", "../../scripts/confirm-close.py", "prompt"]
