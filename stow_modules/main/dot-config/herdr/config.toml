@@ -85,7 +85,7 @@ prefix = "ctrl+space"
 # settings = "prefix+s"
 # detach = "prefix+q"
 # prefix+shift+r is handled below by scripts/reload-config.sh so long-running
-# local helpers (currently unread-marker's animation daemon) restart with code
+# local helpers (currently agent-handler's animation daemon) restart with code
 # changes whenever the config is reloaded from the keyboard.
 reload_config = ""
 # prefix+o is repurposed as the output picker (see [[keys.command]] below), so
@@ -195,7 +195,7 @@ navigate_pane_right = ""
 # height = "80%"
 
 # Reload Herdr config and restart local long-running helpers that config reloads
-# do not otherwise touch (notably unread-marker.py daemon, which animates the
+# do not otherwise touch (notably agent-handler.py's daemon, which animates the
 # working status glyph).
 [[keys.command]]
 key = "prefix+shift+r"
@@ -474,14 +474,14 @@ type = "shell"
 command = "~/.config/herdr/scripts/focus-jumplist.fish forward"
 description = "forward in focus history"
 
-# Manual unread marker. This is a no-plugin/no-jq local reimplementation of
-# github.com/JoanGil/herdr-unread-marker: prefix+u toggles the focused pane,
-# local-plugins/unread-marker clears it on focus, and the sidebar renders it in
-# the same slot as Herdr's normal status glyph.
+# Agent handler: scripts/agent-handler.py owns animated agent status glyphs,
+# the manual unread marker, and chat pins. prefix+u toggles the unread marker
+# on the focused pane; local-plugins/agent-handler clears it on focus, and the
+# sidebar renders it in the same slot as Herdr's normal status glyph.
 [[keys.command]]
 key = "prefix+u"
 type = "shell"
-command = "~/.config/herdr/scripts/unread-marker.py toggle"
+command = "~/.config/herdr/scripts/agent-handler.py toggle"
 description = "toggle focused agent unread marker"
 
 # Pin an agent chat to the top of the Agents sidebar. prefix+p toggles the pin
@@ -490,7 +490,7 @@ description = "toggle focused agent unread marker"
 [[keys.command]]
 key = "prefix+p"
 type = "shell"
-command = "~/.config/herdr/scripts/unread-marker.py pin"
+command = "~/.config/herdr/scripts/agent-handler.py pin"
 description = "toggle focused agent pin"
 
 # prefix++ / prefix+_: widen / narrow the sidebar by 2 columns. herdr has no
@@ -671,7 +671,7 @@ agent_panel_sort = "priority"
 # First line:  <status/unread glyph> <pin glyph> <agent-owned session title>
 # Second line: <agent label> <workspace> <tab>
 #
-# Status is rendered through unread-marker.py's mutually-exclusive $um_* tokens
+# Status is rendered through agent-handler.py's mutually-exclusive $um_* tokens
 # rather than state_icon so a manual unread flag can occupy the status slot.
 # $um_pin renders alongside the status glyph when the chat is pinned. The
 # event hook refreshes those tokens on startup, focus, and agent status changes.

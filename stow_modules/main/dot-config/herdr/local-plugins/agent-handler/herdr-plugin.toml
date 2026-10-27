@@ -1,30 +1,39 @@
-# Keep the local unread-marker sidebar glyphs in sync with Herdr events.
+# Keep the local agent-handler sidebar state in sync with Herdr events.
 #
-# The keybinding itself is a plain [[keys.command]] in config.toml. This local
-# plugin only supplies event hooks so focusing a marked pane clears it and so
-# the custom $um_* status-slot tokens stay aligned with Herdr's native agent
-# status. It has no external dependency and all code lives in this dotfiles repo.
+# agent-handler.py owns animated agent status glyphs, the manual unread
+# marker, and chat pins. The keybindings themselves are plain
+# [[keys.command]] entries in config.toml. This local plugin only supplies
+# event hooks so focusing a marked pane clears it, pins/status stay aligned,
+# and the long-running animation daemon starts with the server. It has no
+# external dependency and all code lives in this dotfiles repo.
 #
 # Re-link after editing with:
 #
 #   herdr-preset install-local-plugins
 
-id = "unread-marker"
-name = "Unread Marker"
-version = "0.1.0"
+id = "agent-handler"
+name = "Agent Handler"
+version = "0.2.0"
 min_herdr_version = "0.8.0"
-description = "Local unread marker that clears on focus and renders in the status slot"
+description = "Agent status animation, unread marker, and chat pins for the Herdr sidebar"
 platforms = ["macos", "linux"]
 
 [[startup]]
-command = ["python3", "../../scripts/unread-marker.py", "daemon"]
+command = ["python3", "../../scripts/agent-handler.py", "daemon"]
+
+# At every herdr server start, make sure all vendored local plugins are
+# still linked (and built, on a new installation). Cheap when all is well:
+# one `plugin list` and exit. See `herdr-preset
+# ensure-local-plugins-installed`.
+[[startup]]
+command = ["../../../../../../bin/herdr-preset", "ensure-local-plugins-installed", "--quiet"]
 
 [[startup]]
 command = ["python3", "../../scripts/focus-history-daemon.fish", "ensure"]
 
 [[events]]
 on = "pane.focused"
-command = ["python3", "../../scripts/unread-marker.py", "focus"]
+command = ["python3", "../../scripts/agent-handler.py", "focus"]
 
 [[events]]
 on = "pane.focused"
@@ -32,8 +41,8 @@ command = ["python3", "../../scripts/focus-history-daemon.fish", "focus"]
 
 [[events]]
 on = "pane.agent_detected"
-command = ["python3", "../../scripts/unread-marker.py", "sync"]
+command = ["python3", "../../scripts/agent-handler.py", "sync"]
 
 [[events]]
 on = "pane.agent_status_changed"
-command = ["python3", "../../scripts/unread-marker.py", "sync"]
+command = ["python3", "../../scripts/agent-handler.py", "sync"]

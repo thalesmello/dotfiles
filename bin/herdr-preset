@@ -1221,6 +1221,84 @@ sys.stdout.write("\n".join(out) + ("\n" if out else ""))
         or return 1
         echo "$match"
 
+    case "ensure-local-plugins-installed"
+        # Make sure every local plugin in this repo is linked into the
+        # running herdr.
+        #
+        #   ensure-local-plugins-installed [--dir <path>] [--quiet]
+        #
+        # This is the cheap check that runs at every herdr server start
+        # (the agent-handler plugin's [[startup]] hook calls it): when every
+        # manifest under <dir> already has an entry in the plugin registry,
+        # it only does one `plugin list` and exits 0. On a new installation
+        # the registry is empty, so it runs install-local-plugins to link
+        # everything. The local plugins are scripts; there is nothing to
+        # build.
+        set -l tag "herdr-preset ensure-local-plugins-installed"
+
+        argparse 'dir=' 'quiet' -- $argv
+        or return 1
+
+        set -l bin (__herdr_bin); or begin
+            echo "$tag: herdr CLI not found (HERDR_BIN_PATH unset and no herdr on PATH)" >&2
+            return 1
+        end
+
+        set -l dir $_flag_dir
+        test -n "$dir"; or set dir (__herdr_plugin_dir)
+        test -d "$dir"; or begin
+            echo "$tag: no plugin directory at '$dir'" >&2
+            return 1
+        end
+
+        # Expected plugin ids, read off the manifests the same way
+        # install-local-plugins reads them.
+        set -l expected
+        for manifest in $dir/*/herdr-plugin.toml
+            set -l id (string match -rg '^\s*id\s*=\s*"([^"]+)"' <$manifest | head -n1)
+            test -n "$id"; and set -a expected $id
+        end
+        if test (count $expected) -eq 0
+            set -q _flag_quiet; or echo "$tag: no herdr-plugin.toml under $dir"
+            return 0
+        end
+
+        set -l installed ($bin plugin list --json 2>&1 | string collect)
+        printf '%s' "$installed" | jq -e . >/dev/null 2>&1; or begin
+            echo "$tag: could not list plugins (is the herdr server running?)" >&2
+            return 1
+        end
+        set -l installed_ids (printf '%s' "$installed" | jq -r '.result.plugins[]?.plugin_id' 2>/dev/null)
+
+        set -l missing
+        for id in $expected
+            contains -- $id $installed_ids; or set -a missing $id
+        end
+
+        if test (count $missing) -gt 0
+            set -q _flag_quiet; or echo "$tag: linking missing plugins: $missing"
+            set -l self (status filename)
+            if set -q _flag_quiet
+                "$self" install-local-plugins --dir "$dir" --quiet; or return 1
+            else
+                "$self" install-local-plugins --dir "$dir"; or return 1
+            end
+
+            set -l after ($bin plugin list --json 2>&1 | string collect)
+            set -l after_ids (printf '%s' "$after" | jq -r '.result.plugins[]?.plugin_id' 2>/dev/null)
+            for id in $expected
+                contains -- $id $after_ids; or begin
+                    echo "$tag: plugin '$id' is still not installed after linking" >&2
+                    return 1
+                end
+            end
+        end
+
+        if not set -q _flag_quiet
+            set -l total (count $expected)
+            echo "$tag: all $total local plugins installed"
+        end
+
     case "install-local-plugins"
         # Link every plugin that lives in this repo's herdr config into the
         # running herdr.

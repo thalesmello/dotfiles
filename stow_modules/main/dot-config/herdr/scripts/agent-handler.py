@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Manual unread marker and chat pin for Herdr agent panes.
+"""Agent handler for Herdr agent panes.
 
-Local, dependency-free reimplementation of the useful bits of
-https://github.com/JoanGil/herdr-unread-marker, with local additions:
+This script owns the local agent sidebar state that Herdr does not provide:
 
-* focusing a marked pane clears the unread mark (via the local plugin event hook);
-* the unread marker renders in the same sidebar slot as Herdr's normal status glyph;
-* pinning a pane (prefix+p) renders a Nerd Font pin glyph alongside the current
-  status glyph and floats pinned chats to the top of the Agents list via
-  agent.view.set.
+* animated status glyphs in the same sidebar slot as Herdr's normal status;
+* a manual unread marker (local reimplementation of the useful bits of
+  https://github.com/JoanGil/herdr-unread-marker), cleared when its pane gains
+  focus;
+* chat pins (prefix+p): a Nerd Font pin glyph beside the status glyph, plus
+  agent.view.set ordering so pinned chats float to the top.
 
-State is private machine state under $XDG_STATE_HOME/herdr/unread-marker*.
+State is private machine state under $XDG_STATE_HOME/herdr/agent-handler*.
+State written by the former unread-marker.py name migrates on first use.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ import json
 import os
 import random
 import select
+import shutil
 import signal
 import socket
 import subprocess
@@ -29,7 +31,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-SOURCE = "unread-marker"
+SOURCE = "agent-handler"
+LEGACY_SOURCE = "unread-marker"
 MARK_TOKEN = "um_marked"
 PIN_TOKEN = "um_pin"
 LEGACY_TOKEN = "unread"
@@ -87,13 +90,20 @@ def session_name() -> str:
 def state_dir() -> Path:
     base = Path(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"))
     suffix = f"@{session_name()}" if session_name() else ""
-    path = base / "herdr" / f"unread-marker{suffix}"
+    path = base / "herdr" / f"agent-handler{suffix}"
     if not path.is_dir():
-        path.mkdir(mode=0o700, parents=True, exist_ok=True)
+        legacy = base / "herdr" / f"unread-marker{suffix}"
         try:
+            if legacy.is_dir():
+                shutil.copytree(legacy, path)
+            else:
+                path.mkdir(mode=0o700, parents=True, exist_ok=True)
             path.chmod(0o700)
         except OSError:
-            pass
+            try:
+                path.mkdir(mode=0o700, parents=True, exist_ok=True)
+            except OSError:
+                pass
     return path
 
 
@@ -269,14 +279,19 @@ def report(
 
 def sync_view(want_active: bool) -> bool:
     if not want_active:
-        response = request("agent.view.clear", {"source": SOURCE})
-        return isinstance(response.get("result"), dict)
+        ok = False
+        for src in (SOURCE, LEGACY_SOURCE):
+            response = request("agent.view.clear", {"source": src})
+            ok = isinstance(response.get("result"), dict) or ok
+        return ok
     probe = request("agent.view.clear", {"source": f"{SOURCE}.probe"})
     result = probe.get("result")
     if not isinstance(result, dict):
         return False
     owner = result.get("source") if result.get("active") else None
-    if isinstance(owner, str) and owner and owner != SOURCE:
+    if isinstance(owner, str) and owner and owner not in (SOURCE, LEGACY_SOURCE):
+        # Another owner (for example herdr-snooze) holds the single agent
+        # view. Its sort includes um_pin, so pinned chats still float.
         return True
     response = request("agent.view.set", {"source": SOURCE, "sort": VIEW_SORT})
     return isinstance(response.get("result"), dict)
@@ -681,7 +696,7 @@ def daemon_loop() -> int:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        description="toggle/sync Herdr unread marker and chat pin metadata"
+        description="toggle/sync Herdr agent status, unread, and chat pin metadata"
     )
     parser.add_argument(
         "op",
