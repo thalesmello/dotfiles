@@ -31,6 +31,7 @@ stow_modules/main/dot-config/herdr/session.json
 stow_modules/main/dot-config/herdr/session-history.json
 stow_modules/main/dot-config/herdr/release-notes.json
 stow_modules/main/dot-pi/agent/sessions/
+stow_modules/main/dot-pi/agent/subagent-sessions/
 .DS_Store
 stow_modules/main/dot-config/nvim/tmp/
 .watchman-cookie*
