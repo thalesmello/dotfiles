@@ -188,6 +188,14 @@ export default function questionnaire(pi: ExtensionAPI) {
 			const submitTab = questions.length;
 			const totalTabs = questions.length + 1; // questions + Submit
 
+			// Herdr reports the agent as working while a tool runs. Emit herdr:blocked
+			// while the form is open so Herdr reports blocked/awaiting input
+			// instead. herdr-agent-state.ts counts these events and clears the
+			// blocked state when it gets active: false. No listener = no-op.
+			pi.events.emit("herdr:blocked", {
+				active: true,
+				label: `Awaiting input: ${questions.map((q) => q.label).join(", ")}`,
+			});
 			const result = await ctx.ui.custom<QuestionnaireResult>((tui, theme, _kb, done) => {
 				// State
 				let currentTab = 0;
@@ -798,6 +806,8 @@ export default function questionnaire(pi: ExtensionAPI) {
 					},
 					handleInput,
 				};
+			}).finally(() => {
+				pi.events.emit("herdr:blocked", { active: false });
 			});
 
 			if (result.cancelled) {
