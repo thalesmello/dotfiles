@@ -3,9 +3,9 @@
  *
  * pi shows the first message in its session selector and leaves the terminal
  * title as "π - <dir>", which is what every pane of every project looks like.
- * This names the session instead: after the first turn it asks a cheap model
- * for a 3-7 word title and calls pi.setSessionName(), then refreshes it as the
- * thread moves on.
+ * This names the session instead: on the first prompt it asks a cheap model
+ * in parallel for a 3-7 word title and calls pi.setSessionName(), then
+ * refreshes it as the thread moves on.
  *
  * The name lands in three places at once:
  *
@@ -244,9 +244,15 @@ function titleState(data: unknown): TitleState | undefined {
 	};
 }
 
-export default function (pi: ExtensionAPI) {
+export type SessionTitleOptions = {
+	summarize?: (text: string) => Promise<string | undefined>;
+};
+
+export default function (pi: ExtensionAPI, options: SessionTitleOptions = {}) {
 	// Inside our own summarizer: register nothing at all.
 	if (process.env[CHILD_MARKER]) return;
+
+	const runSummarize = options.summarize ?? summarize;
 
 	let userTurns: string[] = [];
 	let ourName: string | undefined; // the last name WE set
@@ -348,8 +354,10 @@ export default function (pi: ExtensionAPI) {
 	): Promise<string | undefined> => {
 		running = true;
 		const startingName = pi.getSessionName();
+		const turnCount = userTurns.length;
+		const text = digest(userTurns);
 		try {
-			const title = await summarize(digest(userTurns));
+			const title = await runSummarize(text);
 			if (!title) return undefined;
 			// Re-check: /name may have been typed or cleared while we waited.
 			const current = pi.getSessionName();
@@ -358,7 +366,7 @@ export default function (pi: ExtensionAPI) {
 			pi.setSessionName(title);
 			ourName = title;
 			manualTitleLocked = false;
-			titledAtUserTurnCount = userTurns.length;
+			titledAtUserTurnCount = turnCount;
 			pi.appendEntry(STATE_ENTRY, { name: title, userTurnCount: titledAtUserTurnCount });
 			// pi does not put the session name in the terminal title, and the
 			// terminal title is what a multiplexer reads.
@@ -367,6 +375,15 @@ export default function (pi: ExtensionAPI) {
 		} finally {
 			running = false;
 		}
+	};
+
+	const maybeRetitle = (ctx: { hasUI?: boolean; ui?: { setTitle(title: string): void } }) => {
+		if (!ctx.hasUI) return; // print/json mode: where the summarizer and subagents run
+		if (!mayTitle()) return;
+		// Deliberately not awaited: run in parallel with the active turn so the
+		// session is named before long tools or subagents finish, without delaying
+		// the model request or the next prompt.
+		void retitle(ctx);
 	};
 
 	pi.on("session_start", async (_event, ctx) => {
@@ -420,18 +437,15 @@ export default function (pi: ExtensionAPI) {
 		}
 	});
 
-	pi.on("message_end", async (event) => {
+	pi.on("message_end", async (event, ctx) => {
 		const message = (event as { message?: { role?: string; content?: unknown } }).message;
 		if (message?.role !== "user") return;
 		rememberUserTurn(message.content);
+		maybeRetitle(ctx);
 	});
 
 	pi.on("turn_end", async (_event, ctx) => {
-		if (!ctx.hasUI) return; // print/json mode: where the summarizer runs
-		if (!mayTitle()) return;
-		// Deliberately not awaited: the turn is over, and a ~7s model call
-		// must not delay the next prompt.
-		void retitle(ctx);
+		maybeRetitle(ctx);
 	});
 
 	pi.registerCommand("retitle", {
