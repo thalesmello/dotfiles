@@ -1,0 +1,38 @@
+# Schedule recaps in the background and provide the Recap popup entrypoint.
+#
+# The popup itself is bound directly in config.toml as a type = "popup"
+# command (prefix+i -> scripts/herdr-recap.py picker), so it works without
+# `herdr plugin install`. This local plugin only supplies the popup pane
+# registration (for plugin-to-plugin handoffs, e.g. Snooze's `r` key) and
+# tick hooks: when a supported agent finishes or blocks, a recap is
+# scheduled for recap_after_seconds later (default 180).
+#
+# Supported by this port: Claude and Codex (native forked recaps), plus Pi
+# transcripts summarized locally, and OpenCode/Hermes through Memex when
+# listed in config.json's "agents".
+#
+# Re-link after editing with:
+#
+#   herdr-preset install-local-plugins
+
+id = "herdr-recap"
+name = "Recap"
+version = "0.10.1"
+min_herdr_version = "0.9.0"
+description = "Come back to a bunch of agents and know in seconds which ones need you: per-agent recaps written while you were away"
+platforms = ["macos", "linux"]
+
+[[panes]]
+id = "picker"
+title = "Recap"
+placement = "popup"
+width = "80%"
+height = "75%"
+command = ["python3", "../../scripts/herdr-recap.py", "picker"]
+
+[[events]]
+on = "pane.agent_status_changed"
+command = ["python3", "../../scripts/herdr-recap.py", "tick"]
+
+[[startup]]
+command = ["python3", "../../scripts/herdr-recap.py", "tick"]

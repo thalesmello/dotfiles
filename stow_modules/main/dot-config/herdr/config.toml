@@ -519,6 +519,17 @@ description = "command bar: jump to agent/tab/pane/workspace"
 width = "74%"
 height = "62%"
 
+# herdr-recap (scripts/herdr-recap.py): every agent's status and recap in one
+# popup. prefix+i opens it. Recaps are scheduled by local-plugins/herdr-recap
+# when an agent finishes or blocks. resize mode stays on prefix+r.
+[[keys.command]]
+key = "prefix+i"
+type = "popup"
+command = "~/.config/herdr/scripts/herdr-recap.py picker"
+description = "recap: every agent, where it got to"
+width = "80%"
+height = "75%"
+
 # prefix++ / prefix+_: widen / narrow the sidebar by 2 columns. herdr has no
 # keybinding for this (only the mouse drag on the divider), and the live width
 # is session state that config cannot move directly -- see sidebar-resize.py for

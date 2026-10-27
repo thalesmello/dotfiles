@@ -1,0 +1,251 @@
+"""Tests for scripts/herdr-recap.py.
+
+Translated from the upstream Go tests in mrolafsson/herdr-recap
+(title_test.go, stage_test.go, search_test.go, meta_test.go,
+recap_test.go), adapted to the Python port's shapes. Cases are kept;
+harness-only parts (Bubble Tea models, fake sources) are left out.
+Pi cases come from the local Pi addition (mirroring pi_test.go upstream
+style, written for this port).
+"""
+
+import importlib.util
+import json
+import os
+import sys
+import tempfile
+import unittest
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_spec = importlib.util.spec_from_file_location(
+    "herdr_recap", os.path.join(_HERE, "..", "herdr-recap.py"))
+rc = importlib.util.module_from_spec(_spec)
+sys.modules["herdr_recap"] = rc
+_spec.loader.exec_module(rc)
+
+
+class TicketKeyTest(unittest.TestCase):
+    def test_cases(self):
+        cases = {
+            "mrolafsson-act-1921-users-that-are-immediately-activated": "ACT-1921",
+            "mrolafsson/the-30-invitations-can-be-reissued": "THE-30",
+            "ACT-7": "ACT-7",
+            "fix/checkout-flake": "",
+            "main": "",
+            "project-phase-0-substrate-c2c2de2dae78": "",
+            "phase-2-web-88-rate-limits": "WEB-88",
+            "release-3": "",
+            "project-morning-brief-update-689e9d59115": "",
+            "": "",
+        }
+        for branch, want in cases.items():
+            with self.subTest(branch=branch):
+                self.assertEqual(rc.ticket_key(branch), want)
+
+
+class PoorTitleTest(unittest.TestCase):
+    def test_cases(self):
+        cases = [
+            ("", "main", True),
+            ("Claude Code", "main", True),
+            ("fix-channelless-assignment-notify", "main", True),
+            ("review_merge_before_push", "main", True),
+            ("Sensor improvements", "project-sensors-overhaul-3b30ce3f1ec4", False),
+            ("scratch", "main", False),
+            ("PR 2 voices", "mrolafsson-act-1870-review-jira-sensors", True),
+            ("act-1870 Jira sensors on a par", "mrolafsson-act-1870-review-jira-sensors", False),
+            ("Phase 0 substrate", "project-phase-0-substrate-c2c2de2dae78", False),
+        ]
+        for title, branch, want in cases:
+            with self.subTest(title=title):
+                self.assertEqual(rc.poor_title(title, branch), want)
+
+
+class CleanTitleTest(unittest.TestCase):
+    def test_cases(self):
+        good = {
+            "ACT-1921 Activation Email for New Users": "ACT-1921 Activation Email for New Users",
+            '"ACT-1921  Activation Email"': "ACT-1921 Activation Email",
+            "**Fix the Flaky Checkout Test.**": "Fix the Flaky Checkout Test",
+            "Fix \x1b]52;c;aGk=\x07Login": "Fix Login",
+        }
+        for raw, want in good.items():
+            with self.subTest(raw=raw):
+                self.assertEqual(rc.clean_title(raw), want)
+        for raw in ("Here is a name:\nACT-1921 Activation Email", "/clear", "",
+                    "A title that goes on and on " + "and on " * 8):
+            with self.subTest(raw=raw):
+                with self.assertRaises(Exception):
+                    rc.clean_title(raw)
+
+
+class StageTest(unittest.TestCase):
+    def entry(self, status="idle", tokens=None, files=0, ahead=0):
+        agent = rc.AgentInfo(pane_id="w1:p1", agent="claude", status=status, tokens=tokens or {})
+        entry = rc.Entry(agent=agent)
+        entry.changes = rc.GitChanges(files=files, ahead=ahead)
+        return entry
+
+    def test_status_wins(self):
+        self.assertEqual(rc.stage_of(self.entry("blocked")), "needs-you")
+        self.assertEqual(rc.stage_of(self.entry("done")), "done")
+        self.assertEqual(rc.stage_of(self.entry("working")), "working")
+        self.assertEqual(rc.stage_of(self.entry("idle")), "idle")
+
+    def test_pr_stages(self):
+        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "open"})), "review")
+        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "draft"})), "idle")
+        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "open", "pr_checks": "✗"})), "fixing")
+        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "open", "pr_review": "changes requested"})), "fixing")
+        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "merged"})), "merged")
+        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "closed"})), "merged")
+
+    def test_new_work_after_merge_is_idle(self):
+        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "merged"}, files=2)), "idle")
+        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "merged"}, ahead=1)), "idle")
+
+    def test_snoozed_wins_over_status(self):
+        entry = self.entry("working", tokens={rc.SNOOZE_MARK: "1"})
+        self.assertEqual(rc.stage_of(entry), "snoozed")
+
+
+class SearchTest(unittest.TestCase):
+    def test_finder_needs_every_word(self):
+        finder = rc.Finder(["cart", "race"])
+        finder.see("the cart animation takes 300ms")
+        self.assertEqual(finder.snippet(), "")
+        finder.see("it raced the cart animation")
+        self.assertIn("cart", finder.snippet())
+
+    def test_word_index_prefers_whole_words(self):
+        self.assertGreaterEqual(rc.word_index("the cart total", "cart"), 0)
+        self.assertEqual(rc.word_index("withdrawn", "raw"), -1)
+        self.assertGreaterEqual(rc.word_index("raw file", "raw"), 0)
+
+    def test_search_words_min_length(self):
+        self.assertEqual(rc.search_words("ab"), [])
+        self.assertEqual(rc.search_words("dark mode"), ["dark", "mode"])
+
+    def test_search_transcript_reads_only_speech(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "s.jsonl")
+            records = [
+                {"type": "user", "message": {"role": "user", "content": "playwright retries"}},
+                {"type": "assistant", "message": {"role": "assistant", "content": [
+                    {"type": "tool_use", "name": "Read", "input": {"file_path": "/x/playwright.md"}},
+                    {"type": "text", "text": "use toHaveText so playwright retries"}]}},
+            ]
+            with open(path, "w") as handle:
+                for record in records:
+                    handle.write(json.dumps(record) + "\n")
+            found = rc.search_transcript(path, ["playwright"])
+            self.assertIn("toHaveText", found)
+
+
+class MetaTest(unittest.TestCase):
+    def test_pending_text(self):
+        self.assertEqual(rc.pending_text("Bash", {"command": "make test"}), "Run make test")
+        self.assertEqual(rc.pending_text("ExitPlanMode", {}), "Approve its plan?")
+        self.assertEqual(rc.pending_text("Edit", {"file_path": "/a/b/c.py"}), "Edit c.py")
+        self.assertEqual(rc.pending_text("Write", {"file_path": "/a/notes.md"}), "Write notes.md")
+        self.assertEqual(rc.pending_text("AskUserQuestion", {"questions": [{"question": "Ship it?"}]}), "Ship it?")
+        self.assertEqual(rc.pending_text("WebSearch", {"query": "herdr"}), "Search the web for herdr")
+        self.assertEqual(rc.pending_text("mcp__github__create_issue", {}), "Use create_issue (github)")
+
+    def test_short_model(self):
+        self.assertEqual(rc.short_model("claude-opus-5-5"), "opus 5.5")
+        self.assertEqual(rc.short_model("claude-haiku-4-5-20251001"), "haiku 4.5")
+        self.assertEqual(rc.short_model("gemini-x"), "gemini x")
+
+
+class RecapParseTest(unittest.TestCase):
+    def test_parse_recap(self):
+        out = json.dumps({"is_error": False, "result": "Fixed the thing.  Next: push it.",
+                          "total_cost_usd": 0.02})
+        text, cost = rc.parse_recap(out)
+        self.assertEqual(text, "Fixed the thing. Next: push it.")
+        self.assertEqual(cost, 0.02)
+
+    def test_parse_recap_nothing_yet(self):
+        out = json.dumps({"is_error": False, "result": "Nothing to recap yet.", "total_cost_usd": 0})
+        with self.assertRaises(rc.NothingYet):
+            rc.parse_recap(out)
+
+    def test_agent_env_is_a_dict_without_herdr_vars(self):
+        session = rc.AgentSession(agent="pi", path="/usr/bin:/bin", config_dir="/cfg/claude", config_dir_set=True)
+        env = rc.agent_env(session, "CLAUDE_CONFIG_DIR")
+        self.assertIsInstance(env, dict)
+        self.assertEqual(env["PATH"], "/usr/bin:/bin")
+        self.assertEqual(env["CLAUDE_CONFIG_DIR"], "/cfg/claude")
+        self.assertFalse(any(k.startswith("HERDR_") for k in env))
+
+
+PI_TRANSCRIPT = "\n".join([
+    '{"type":"session","version":3,"id":"e5824072-fd55-4a4a-8faa-50a2db0b62f9","timestamp":"2026-10-26T20:49:24.473Z","cwd":"/work/repo"}',
+    '{"type":"model_change","id":"m1","timestamp":"2026-10-26T20:49:24.768Z","provider":"google","modelId":"gemini-x"}',
+    '{"type":"message","id":"1","timestamp":"2026-10-26T20:49:25.000Z","message":{"role":"user","content":[{"type":"text","text":"fix the flaky test"}]}}',
+    '{"type":"message","id":"2","timestamp":"2026-10-26T20:49:30.000Z","message":{"role":"assistant","model":"gemini-x","content":[{"type":"thinking","thinking":"secret reasoning"},{"type":"text","text":"Found the race."},{"type":"toolCall","id":"t1","name":"bash","arguments":{}}]}}',
+    '{"type":"message","id":"3","timestamp":"2026-10-26T20:49:31.000Z","message":{"role":"system","content":"ignore me"}}',
+]) + "\n"
+
+
+class PiTest(unittest.TestCase):
+    def write_transcript(self, directory):
+        path = os.path.join(directory, "2026-10-26T20-49-24-473Z_e5824072-fd55-4a4a-8faa-50a2db0b62f9.jsonl")
+        with open(path, "w") as handle:
+            handle.write(PI_TRANSCRIPT)
+        return path
+
+    def test_capable(self):
+        cfg = rc.Config()
+        agent = rc.AgentInfo(agent="pi", agent_session={"kind": "path", "value": "/x/s.jsonl"})
+        self.assertTrue(rc.recap_capable(cfg, agent))
+        self.assertFalse(rc.recap_capable(cfg, rc.AgentInfo(agent="pi")))
+        self.assertFalse(rc.recap_capable(rc.Config(agents=["claude"]), agent))
+
+    def test_conversation_only_spoken(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_transcript(directory)
+            session = rc.AgentSession(agent="pi", id="x", transcript=path)
+            text = rc.transcript_conversation(session, 24000)
+            self.assertIn("USER: fix the flaky test", text)
+            self.assertIn("ASSISTANT: Found the race.", text)
+            self.assertNotIn("secret reasoning", text)
+            self.assertNotIn("ignore me", text)
+
+    def test_freshness_uses_transcript_stamp(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_transcript(directory)
+            session = rc.AgentSession(agent="pi", id="e5824072-fd55-4a4a-8faa-50a2db0b62f9", transcript=path)
+            size, mod = rc.transcript_stamp(path)
+            recap = rc.Recap(session=session.id, source="pi", text="done", size=size, mod_time=mod)
+            self.assertTrue(rc.recap_fresh(recap, session))
+            with open(path, "a") as handle:
+                handle.write('{"type":"message","message":{"role":"user","content":"more"}}\n')
+            self.assertFalse(rc.recap_fresh(recap, session))
+
+
+class EscapeTest(unittest.TestCase):
+    def make_model(self):
+        model = rc.Model(rc.Config())
+        self.addCleanup(model.executor.shutdown, wait=False)
+        return model
+
+    def test_esc_closes_even_with_filter_and_stage(self):
+        model = self.make_model()
+        model.filter, model.filter_cursor, model.show = "dark", 4, "working"
+        self.assertEqual(model.handle_key("esc"), "quit")
+
+    def test_esc_in_reply_cancels_reply_first(self):
+        model = self.make_model()
+        entry = rc.Entry(agent=rc.AgentInfo(pane_id="w1:p1", agent="pi"))
+        model.entries["w1:p1"] = entry
+        model.order = ["w1:p1"]
+        model.start_reply()
+        self.assertTrue(model.replying)
+        self.assertIsNone(model.handle_key("esc"))
+        self.assertFalse(model.replying)
+        self.assertEqual(model.handle_key("esc"), "quit")
+
+
+if __name__ == "__main__":
+    unittest.main()
