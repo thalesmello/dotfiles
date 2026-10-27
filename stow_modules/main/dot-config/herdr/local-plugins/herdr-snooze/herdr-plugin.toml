@@ -1,0 +1,49 @@
+# Reconcile Herdr Snooze tokens and the Agents panel view with Herdr events.
+#
+# User-facing actions are bound directly in config.toml as type = "shell" /
+# type = "popup" commands (prefix+shift+z, prefix+alt+z, prefix+ctrl+z ->
+# scripts/herdr-snooze.py), so snoozing works without `herdr plugin
+# install`. This local plugin supplies the picker pane registration (for
+# Recap's ctrl+s handoff) and tick hooks: token TTL refresh, view repair
+# after restarts/other plugins, conditional wakes (done/merged/blocked),
+# and the Just woke list.
+#
+# Re-link after editing with:
+#
+#   herdr-preset install-local-plugins
+
+id = "herdr-snooze"
+name = "Snooze"
+version = "0.5.2"
+min_herdr_version = "0.9.0"
+description = "Hide an agent (or every agent in a space) from the Agents panel until a time, until done/merged, or until it needs you"
+platforms = ["macos", "linux"]
+
+[[panes]]
+id = "picker"
+title = "Snooze"
+placement = "popup"
+command = ["python3", "../../scripts/herdr-snooze.py", "picker"]
+
+[[startup]]
+command = ["python3", "../../scripts/herdr-snooze.py", "tick", "--force"]
+
+[[events]]
+on = "pane.agent_status_changed"
+command = ["python3", "../../scripts/herdr-snooze.py", "tick"]
+
+[[events]]
+on = "pane.agent_detected"
+command = ["python3", "../../scripts/herdr-snooze.py", "tick", "--detected"]
+
+[[events]]
+on = "pane.focused"
+command = ["python3", "../../scripts/herdr-snooze.py", "tick"]
+
+[[events]]
+on = "pane.closed"
+command = ["python3", "../../scripts/herdr-snooze.py", "tick"]
+
+[[events]]
+on = "pane.moved"
+command = ["python3", "../../scripts/herdr-snooze.py", "tick"]
