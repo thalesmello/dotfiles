@@ -138,3 +138,12 @@ keybind = cmd+p=text:\x14
 keybind = cmd+z=text:\x1f
 keybind = ctrl+shift+slash=toggle_quick_terminal
 keybind = global:f17=toggle_quick_terminal
+
+# Strip leaked Herdr environment variables from shells launched by Ghostty
+env = HERDR_ENV=
+env = HERDR_WORKSPACE_ID=
+env = HERDR_TAB_ID=
+env = HERDR_PANE_ID=
+env = HERDR_SOCKET_PATH=
+env = HERDR_BIN_PATH=
+
