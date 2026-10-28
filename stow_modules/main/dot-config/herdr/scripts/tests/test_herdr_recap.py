@@ -430,6 +430,78 @@ class TerminalRegressionTest(unittest.TestCase):
             self.assertIn(f"\x1b[{row};1H\x1b[0m\x1b[2K", frame)
 
 
+class ReplyRegressionTest(unittest.TestCase):
+    def test_prompt_waits_for_submission(self):
+        from unittest import mock
+        with mock.patch.object(rc, "herdr_call") as call:
+            rc.send_agent_reply("w1:p1", "hello\nthere")
+        self.assertEqual(call.call_count, 1)
+        self.assertEqual(call.call_args.args[0], "agent.prompt")
+        self.assertEqual(call.call_args.args[1]["text"], "hello\nthere")
+        self.assertIn("working", call.call_args.args[1]["wait"]["until"])
+        self.assertGreater(call.call_args.kwargs["timeout"], 7)
+
+    def test_stalled_prompt_retries_only_enter(self):
+        from unittest import mock
+        with mock.patch.object(rc, "herdr_call", side_effect=[rc.HerdrError("agent_prompt_stalled"), {}, {}]) as call:
+            rc.send_agent_reply("w1:p1", "hello")
+        self.assertEqual([c.args[0] for c in call.call_args_list], ["agent.prompt", "agent.send_keys", "agent.wait"])
+        self.assertEqual(call.call_args_list[1].args[1], {"target": "w1:p1", "keys": ["enter"]})
+        self.assertIn("working", call.call_args_list[2].args[1]["until"])
+
+    def test_other_errors_never_retry_enter(self):
+        from unittest import mock
+        for code in ("agent_blocked", "timeout", "agent_not_ready", "transport"):
+            with self.subTest(code=code), \
+                    mock.patch.object(rc, "herdr_call", side_effect=rc.HerdrError(code)) as call:
+                with self.assertRaises(rc.HerdrError):
+                    rc.send_agent_reply("w1:p1", "hello")
+                self.assertEqual(call.call_count, 1)
+
+    def test_tab_message_enter_keeps_draft_until_success(self):
+        from unittest import mock
+        model = rc.Model(rc.Config())
+        self.addCleanup(model.executor.shutdown, wait=False)
+        entry = rc.Entry(agent=rc.AgentInfo(pane_id="w1:p1", agent="pi", title="Test"))
+        model.entries = {"w1:p1": entry}
+        model.order = ["w1:p1"]
+        model.handle_key("tab")
+        model.handle_reply_key("", "hello")
+        with mock.patch.object(model, "submit") as submit, \
+                mock.patch.object(rc, "send_agent_reply") as send:
+            model.handle_key("enter")
+            model.handle_key("enter")
+            self.assertTrue(model.replying)
+            self.assertTrue(model.reply_sending)
+            self.assertEqual(model.reply_text, "hello")
+            submit.assert_called_once()
+            submit.call_args.args[2]()
+            send.assert_called_once_with("w1:p1", "hello")
+        model.handle_action_result("reply", entry, {}, None)
+        self.assertFalse(model.replying)
+        self.assertFalse(model.reply_sending)
+        self.assertEqual(model.reply_text, "")
+        self.assertEqual(model.flash, "Sent.")
+
+    def test_failed_reply_preserves_draft_and_shows_error(self):
+        from unittest import mock
+        model = rc.Model(rc.Config())
+        self.addCleanup(model.executor.shutdown, wait=False)
+        entry = rc.Entry(agent=rc.AgentInfo(pane_id="w1:p1", agent="pi", title="Test"))
+        model.entries = {"w1:p1": entry}
+        model.order = ["w1:p1"]
+        model.width, model.height = 80, 24
+        model.start_reply()
+        model.reply_text = "keep this draft"
+        with mock.patch.object(model, "submit"):
+            model.send_reply()
+        model.handle_action_result("reply", entry, None, rc.HerdrError("timeout"))
+        self.assertTrue(model.replying)
+        self.assertFalse(model.reply_sending)
+        self.assertEqual(model.reply_text, "keep this draft")
+        self.assertIn("Couldn't send", model.status_line())
+
+
 class PickerExitTest(unittest.TestCase):
     def test_picker_exits_with_blocked_workers(self):
         # Regression: Esc restored the terminal but the process stayed

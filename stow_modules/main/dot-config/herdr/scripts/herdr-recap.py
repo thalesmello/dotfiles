@@ -345,6 +345,19 @@ def focus_agent(pane_id: str) -> None:
     herdr_call("agent.focus", {"target": pane_id})
 
 
+def send_agent_reply(pane_id: str, text: str) -> None:
+    wait = {"until": ["working", "blocked", "done"], "timeout_ms": 7000}
+    try:
+        herdr_call("agent.prompt", {"target": pane_id, "text": text, "wait": wait}, timeout=10.0)
+    except HerdrError as exc:
+        if exc.code != "agent_prompt_stalled":
+            raise
+        # The paste reached the editor, but its Enter did not start work.
+        # Retry only Enter, never the text, and only after a confirmed stall.
+        herdr_call("agent.send_keys", {"target": pane_id, "keys": ["enter"]})
+        herdr_call("agent.wait", {"target": pane_id, "until": ["working", "blocked"], "timeout_ms": 7000}, timeout=10.0)
+
+
 # ── process helpers ───────────────────────────────────────────────────────
 
 def read_process_env(pid: int) -> dict[str, str]:
@@ -2237,6 +2250,7 @@ class Model:
         self.seek_due = 0.0
         self.seek_seq = 0
         self.replying = False
+        self.reply_sending = False
         self.reply_to = ""
         self.reply_text = ""
         self.reply_cursor = 0
@@ -2385,6 +2399,9 @@ class Model:
                     if stage_of(entry) != old_stage:
                         self.resort(self.selected_pane())
                 continue
+            if job.kind == "reply":
+                self.handle_action_result(job.kind, entry, result, error)
+                continue
             if entry is None:
                 continue
             if job.kind == "session":
@@ -2452,12 +2469,16 @@ class Model:
             else:
                 self.err = "Couldn't go to that agent: " + str(error)
             return
-        if kind == "prompt":
+        if kind in ("prompt", "reply"):
+            if kind == "reply":
+                self.reply_sending = False
             if isinstance(error, HerdrError) and error.code == "agent_blocked":
                 self.err = "That agent is waiting on a question or approval: go to it (enter) to answer."
             elif error is not None:
                 self.err = "Couldn't send the reply: " + str(error)
             else:
+                if kind == "reply":
+                    self.end_reply()
                 self.flash = "Sent."
             return
         if kind == "title":
@@ -3008,6 +3029,10 @@ class Model:
                 parts.append(THEME.paint("dim", "recap from " + ago_text(time.time(), entry.recap.at)))
         return THEME.paint("dim", " \u00b7 ").join(parts) if parts else "", spans
     def status_line(self) -> str:
+        if self.reply_sending:
+            return " " + THEME.paint("accent", "Sending reply\u2026")
+        if self.replying and self.err:
+            return " " + THEME.paint("red", shorten(clean(self.err), max(1, self.width - 2)))
         if self.replying:
             entry = self.entries.get(self.reply_to)
             name = shorten(agent_title(entry.agent), 30) if entry else "agent"
@@ -3113,16 +3138,20 @@ class Model:
         self.replying, self.reply_text, self.reply_cursor = False, "", 0
         self.dirty = True
     def send_reply(self):
+        if self.reply_sending:
+            return
         text = self.reply_text.strip()
         pane = self.reply_to
-        self.end_reply()
         entry = self.entries.get(pane)
         if not text or entry is None:
             return
         if self.demo:
+            self.end_reply()
             self.flash = "Sent to " + shorten(agent_title(entry.agent), 60) + "."
             return
-        self.submit("prompt", pane, lambda p=pane, t=text: herdr_call("agent.prompt", {"target": p, "text": t}))
+        self.reply_sending, self.err = True, ""
+        self.submit("reply", pane, lambda p=pane, t=text: send_agent_reply(p, t))
+        self.dirty = True
     def here_ref(self, pane: str) -> dict[str, Any]:
         return {"plugin_id": plugin_id(), "entrypoint": "picker", "width": POPUP_WIDTH, "height": POPUP_HEIGHT, "env": {SELECT_ENV: pane}}
     def open_link(self, plugin: str):
@@ -3314,6 +3343,8 @@ class Model:
     def handle_reply_key(self, name: str, text: str = ""):
         if name == "ctrl+c":
             return "quit"
+        if self.reply_sending:
+            return None
         if name == "esc":
             self.end_reply()
             return None
