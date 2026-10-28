@@ -738,6 +738,114 @@ class PopupStateAndScrollTest(unittest.TestCase):
                 self.assertEqual(len(lines), model.height)
 
 
+class InMemorySnapshotTest(unittest.TestCase):
+    def make_model(self):
+        model = rc.Model(rc.Config())
+        self.addCleanup(model.executor.shutdown, wait=False)
+        self.addCleanup(model.stop_search_workers)
+        model.width, model.height, model.loaded = 100, 24, True
+        agent = rc.AgentInfo(pane_id="w1:p1", agent="pi", status="idle",
+                             title="nvim:/tmp/prompt.md", cached_title="Human session title",
+                             agent_session={"kind": "path", "value": "/fixture/session.jsonl"})
+        model.entries = {agent.pane_id: rc.Entry(agent=agent, recap=rc.Recap(text="Summary stays in memory"))}
+        model.resort("")
+        return model
+
+    def test_filter_and_render_never_read_files_or_call_herdr(self):
+        from unittest import mock
+        model = self.make_model()
+        with mock.patch("builtins.open", side_effect=AssertionError("UI opened a file")), \
+                mock.patch.object(rc, "herdr_call", side_effect=AssertionError("UI called Herdr")), \
+                mock.patch.object(rc, "pi_title", side_effect=AssertionError("UI scanned transcript")):
+            for query in ("h", "human", "summary", ""):
+                model.filter = query
+                model.refilter()
+                lines = model.view()
+                self.assertEqual(len(lines), 24)
+                self.assertEqual(rc.agent_title(model.entries["w1:p1"].agent), "Human session title")
+
+    def test_poll_returns_immediately_and_preserves_memory_until_result(self):
+        import concurrent.futures
+        from unittest import mock
+        model = self.make_model()
+        future = concurrent.futures.Future()
+        with mock.patch.object(model.executor, "submit", return_value=future) as submit, \
+                mock.patch.object(rc, "herdr_call", side_effect=AssertionError("UI called Herdr")):
+            model.load()
+            model.load()
+        submit.assert_called_once_with(rc.agent_snapshot)
+        self.assertEqual(model.order, ["w1:p1"])
+        self.assertEqual(model.entries["w1:p1"].recap.text, "Summary stays in memory")
+        self.assertEqual(len(model.jobs), 1)
+
+    def test_poll_preserves_cached_title_and_summary_for_same_session(self):
+        from unittest import mock
+        model = self.make_model()
+        summary = model.entries["w1:p1"].recap
+        incoming = rc.AgentInfo(pane_id="w1:p1", agent="pi", title="temporary terminal title",
+                               agent_session={"kind": "path", "value": "/fixture/session.jsonl"})
+        with mock.patch.object(model, "maybe_resolve"):
+            model.apply_snapshot([incoming], [])
+        self.assertEqual(rc.session_title(incoming), "Human session title")
+        self.assertIs(model.entries["w1:p1"].recap, summary)
+
+    def test_session_change_invalidates_title_and_summary(self):
+        from unittest import mock
+        model = self.make_model()
+        incoming = rc.AgentInfo(pane_id="w1:p1", agent="pi", title="New session",
+                               agent_session={"kind": "path", "value": "/fixture/new-session.jsonl"})
+        with mock.patch.object(model, "maybe_resolve"):
+            model.apply_snapshot([incoming], [])
+        self.assertEqual(incoming.cached_title, "")
+        self.assertIsNone(model.entries["w1:p1"].recap)
+        self.assertEqual(model.entries["w1:p1"].resolved_seq, -1)
+
+    def test_metadata_refresh_uses_process_pool(self):
+        from unittest import mock
+        model = self.make_model()
+        entry = model.entries["w1:p1"]
+        with mock.patch.object(model, "submit_process") as submit:
+            model.maybe_resolve(entry)
+        self.assertEqual(submit.call_args.args[:3], ("session", "w1:p1", rc.session_snapshot))
+        self.assertEqual(submit.call_args.kwargs["session_id"], "/fixture/session.jsonl")
+
+    def test_background_result_updates_title_and_summary_without_file_reads(self):
+        import concurrent.futures
+        from unittest import mock
+        model = self.make_model()
+        session = rc.AgentSession(id="fixture", agent="pi", meta=rc.SessionMeta(title="Renamed human title"))
+        summary = rc.Recap(text="Refreshed summary")
+        future = concurrent.futures.Future()
+        future.set_result((session, summary, True))
+        model.jobs = [rc.FutureJob("session", "w1:p1", future, session_id="/fixture/session.jsonl")]
+        with mock.patch("builtins.open", side_effect=AssertionError("UI read a file")), \
+                mock.patch.object(rc, "load_recap", side_effect=AssertionError("UI loaded summary")):
+            model.process_jobs()
+        self.assertEqual(rc.session_title(model.entries["w1:p1"].agent), "Renamed human title")
+        self.assertIs(model.entries["w1:p1"].recap, summary)
+        self.assertTrue(model.entries["w1:p1"].current)
+
+    def test_old_session_result_cannot_overwrite_new_session(self):
+        import concurrent.futures
+        from unittest import mock
+        model = self.make_model()
+        future = concurrent.futures.Future()
+        future.set_result((rc.AgentSession(agent="pi", meta=rc.SessionMeta(title="Wrong old title")), None, False))
+        model.jobs = [rc.FutureJob("session", "w1:p1", future, session_id="/fixture/old-session.jsonl")]
+        with mock.patch.object(model, "maybe_resolve") as refresh:
+            model.process_jobs()
+        self.assertEqual(model.entries["w1:p1"].agent.cached_title, "Human session title")
+        refresh.assert_called_once()
+
+    def test_pi_metadata_reads_latest_human_title(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "session.jsonl")
+            with open(path, "w") as handle:
+                for name in ("Original title", "Renamed human title"):
+                    handle.write(json.dumps({"type": "session_info", "name": name}) + "\n")
+            self.assertEqual(rc.read_pi_meta(path).title, "Renamed human title")
+
+
 class BackgroundSearchTest(unittest.TestCase):
     def make_model(self):
         model = rc.Model(rc.Config())

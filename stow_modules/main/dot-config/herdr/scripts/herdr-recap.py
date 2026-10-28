@@ -293,6 +293,7 @@ class AgentInfo:
     focused: bool = False
     cwd: str = ""
     title: str = ""
+    cached_title: str = ""
     shown: str = ""
     tokens: dict[str, str] = dataclasses.field(default_factory=dict)
     state_change_seq: int = 0
@@ -339,6 +340,20 @@ def list_workspaces() -> list[WorkspaceInfo]:
         wt = w.get("worktree") if isinstance(w.get("worktree"), dict) else {}
         out.append(WorkspaceInfo(str(w.get("workspace_id") or ""), str(w.get("label") or ""), str(wt.get("checkout_path") or ""), str(wt.get("repo_name") or "")))
     return sanitize_obj(out)  # type: ignore[return-value]
+
+
+def agent_snapshot() -> tuple[list[AgentInfo], list[WorkspaceInfo]]:
+    return list_agents(), list_workspaces()
+
+
+def repository_snapshot(cwd: str) -> tuple[str, GitChanges]:
+    return git_branch(cwd), read_changes(cwd)
+
+
+def session_snapshot(cfg: Config, agent: AgentInfo) -> tuple[AgentSession, Recap | None, bool]:
+    session = resolve_session(cfg, agent)
+    cached = load_recap(session.id)
+    return session, cached, recap_fresh(cached, session)
 
 
 def pane_processes(pane_id: str) -> list[dict[str, Any]]:
@@ -444,6 +459,7 @@ def open_files(pid: int) -> list[str]:
 
 @dataclasses.dataclass
 class SessionMeta:
+    title: str = ""
     branch: str = ""
     model: str = ""
     mode: str = ""
@@ -676,6 +692,7 @@ def resolve_session(cfg: Config, agent: AgentInfo) -> AgentSession:
         session = resolve_pi(agent)
         if session.transcript:
             session.meta = read_pi_meta(session.transcript)
+            agent.cached_title = session.meta.title
             return session
         raise NothingYet("nothing to recap yet")
     else:
@@ -825,8 +842,7 @@ def read_pi_meta(path: str) -> SessionMeta:
                 except ValueError:
                     continue
                 if entry.get("type") == "session_info" and isinstance(entry.get("name"), str):
-                    # Pi title is used as session title; branch remains git folder branch.
-                    pass
+                    meta.title = entry["name"].strip()
                 if entry.get("type") == "message":
                     message = entry.get("message") if isinstance(entry.get("message"), dict) else {}
                     if message.get("role") == "user":
@@ -1425,10 +1441,8 @@ def shown_tokens(tokens: dict[str, str], only: list[str]) -> list[tuple[str, str
 
 def session_title(agent: AgentInfo) -> str:
     title = agent.title.strip()
-    if agent.agent == "pi" and agent.agent_session.get("kind") == "path":
-        pi = pi_title(str(agent.agent_session.get("value") or ""))
-        if pi:
-            return pi
+    if agent.agent == "pi" and agent.cached_title:
+        return agent.cached_title
     if agent.agent != "codex":
         return title
     if " | " in title:
@@ -2337,18 +2351,16 @@ class Model:
 
     # data loading
     def load(self):
+        self.last_poll = time.monotonic()
+        if self.demo:
+            self.apply_snapshot(*self.demo_agents())
+        elif not any(job.kind == "agents" for job in self.jobs):
+            self.submit("agents", "", agent_snapshot)
+
+    def apply_snapshot(self, agents: list[AgentInfo], workspaces: list[WorkspaceInfo]):
         selected = self.selected_pane()
         if not self.loaded and self.start_on:
             selected, self.picked = self.start_on, True
-        try:
-            if self.demo:
-                agents, workspaces = self.demo_agents()
-            else:
-                agents, workspaces = list_agents(), list_workspaces()
-        except Exception as exc:
-            self.err = "Couldn't list herdr's agents: " + str(exc)
-            self.last_poll = time.monotonic()
-            return
         if self.err.startswith("Couldn't list"):
             self.err = ""
         self.loaded, self.workspaces = True, workspaces
@@ -2360,6 +2372,11 @@ class Model:
                 entry = Entry(agent=agent, resolved_seq=-1)
                 self.entries[agent.pane_id] = entry
             kind_changed = entry.agent.agent != agent.agent
+            same_session = (not kind_changed and entry.agent.agent_session == agent.agent_session)
+            if same_session:
+                agent.cached_title = entry.agent.cached_title
+            else:
+                entry.session, entry.recap, entry.resolved_seq = None, None, -1
             entry.agent = agent
             if entry.renaming:
                 if session_title(agent) == entry.renaming or (entry.rename_sent and time.time() - entry.rename_sent > 15):
@@ -2368,8 +2385,8 @@ class Model:
                     self.send_rename(entry)
             branch_key = agent.cwd + "\0" + str(agent.state_change_seq)
             if agent.cwd and entry.branch_at != branch_key:
-                entry.branch, entry.branch_at = git_branch(agent.cwd), branch_key
-                self.submit("changes", agent.pane_id, lambda cwd=agent.cwd: read_changes(cwd))
+                entry.branch_at = branch_key
+                self.submit("changes", agent.pane_id, lambda cwd=agent.cwd: repository_snapshot(cwd))
             if not recap_capable(self.cfg, agent):
                 entry.session, entry.recap, entry.note = None, None, "Recaps aren't available for this agent."
                 continue
@@ -2418,7 +2435,8 @@ class Model:
         if self.demo:
             self.submit("session", agent.pane_id, lambda a=agent: self.demo_session(a), agent.state_change_seq)
         else:
-            self.submit("session", agent.pane_id, lambda a=agent, c=cfg: resolve_session(c, a), agent.state_change_seq)
+            self.submit_process("session", agent.pane_id, session_snapshot, cfg, agent,
+                                seq=agent.state_change_seq, session_id=str(agent.agent_session.get("value") or ""))
 
     def demo_session(self, agent: AgentInfo) -> AgentSession:
         item = next((x for x in DEMO_AGENTS if x["agent"].pane_id == agent.pane_id), None)
@@ -2465,10 +2483,23 @@ class Model:
                 error = None
             except Exception as exc:
                 result, error = None, exc
+            if job.kind == "links":
+                if error is None:
+                    self.links = result
+                continue
+            if job.kind == "agents":
+                if error is not None:
+                    self.err = "Couldn't list herdr's agents: " + str(error)
+                else:
+                    self.apply_snapshot(*result)
+                continue
             if job.kind == "changes":
                 if entry is not None and error is None:
                     old_stage = stage_of(entry)
-                    entry.changes = result
+                    if isinstance(result, tuple):
+                        entry.branch, entry.changes = result
+                    else:
+                        entry.changes = result
                     if stage_of(entry) != old_stage:
                         self.resort(self.selected_pane())
                 continue
@@ -2492,6 +2523,9 @@ class Model:
                 continue
             if job.kind == "session":
                 entry.resolving = False
+                if job.session_id and job.session_id != str(entry.agent.agent_session.get("value") or ""):
+                    self.maybe_resolve(entry)
+                    continue
                 if error is not None:
                     entry.session, entry.note = None, self.session_note(error)
                     entry.failures += 1
@@ -2499,7 +2533,9 @@ class Model:
                     if job.seq != entry.agent.state_change_seq:
                         self.maybe_resolve(entry)
                     continue
-                session = result
+                session, cached, fresh = result if isinstance(result, tuple) else (result, None, False)
+                if session.agent == "pi":
+                    entry.agent.cached_title = session.meta.title
                 if entry.session is None or entry.session.id != session.id:
                     entry.recap, entry.settled = None, False
                 if entry.session and entry.session.id == session.id and entry.session.stamp == session.stamp and session.stamp and entry.note.startswith("Couldn't recap"):
@@ -2510,8 +2546,7 @@ class Model:
                     cached = self.demo_state.recaps.get(session.id) if self.demo_state else None
                     entry.recap, entry.current = cached, bool(cached and self.demo_state and self.demo_state.current.get(session.id))
                 else:
-                    cached = load_recap(session.id)
-                    entry.recap, entry.current = cached, recap_fresh(cached, session)
+                    entry.recap, entry.current = cached, fresh
                     if cached and cached.renaming and not entry.renaming:
                         entry.renaming, entry.rename_noted = self.suggestion(entry), True
                 if not session.transcript:
@@ -3551,7 +3586,11 @@ class Model:
             return self.activate()
         return self.handle_key(key)
     def run(self, term: RawTerminal):
-        self.links = siblings() if not self.demo else {GITHUB_PLUGIN: {"plugin_id": GITHUB_PLUGIN, "entrypoint": "picker"}, LINEAR_PLUGIN: {"plugin_id": LINEAR_PLUGIN, "entrypoint": "picker"}, SNOOZE_PLUGIN: {"plugin_id": SNOOZE_PLUGIN, "entrypoint": "picker"}, VITALS_PLUGIN: {"plugin_id": VITALS_PLUGIN, "entrypoint": "picker"}}
+        if self.demo:
+            self.links = {plugin: {"plugin_id": plugin, "entrypoint": "picker"}
+                          for plugin in (GITHUB_PLUGIN, LINEAR_PLUGIN, SNOOZE_PLUGIN, VITALS_PLUGIN)}
+        else:
+            self.submit("links", "", siblings)
         self.load()
         decoder = Decoder()
         escape_deadline = None
