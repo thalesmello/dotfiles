@@ -8,6 +8,9 @@
 #   config     -> reuse/create the "src" workspace and start in ~/src
 #   prototype  -> create a fresh try directory and slug-named workspace, then
 #                 start the agent there
+#   project    -> a `project:NAME` word in the prompt overrides the others:
+#                 reuse/create the NAME workspace, start in ~/src/NAME
+#                 (created if missing), and name the tab after the slug
 #
 # Bound as a `type = "popup"` command so the prompt runs in a herdr-rendered PTY
 # where interactive input works -- a detached `type = "shell"` command has no
@@ -98,9 +101,33 @@ herdr=$(herdr_bin) || herdr_die 'ask' 'herdr CLI not found'
 
 # --- 1. the question -------------------------------------------------------
 
-prompt_line 'Ask: ' '' ask || exit 0
+# Highlight the words that steer routing below, and complete project:NAME from
+# the directories under ~/src.
+prompt_line \
+  --highlight pi,codex,claude,prototype,qq,config \
+  --complete "project:=$HOME/src" \
+  'Ask: ' '' ask || exit 0
 question=$PROMPT_LINE
 [ -n "${question// /}" ] || exit 0
+
+# --- 1b. the project ------------------------------------------------------
+
+# A `project:NAME` word pins the session to ~/src/NAME and the NAME workspace.
+# The word is removed from the question before agent detection and routing, so
+# `project:pi` does not pick the pi agent and NAME does not leak into the slug.
+# Trailing dots/hyphens are dropped so "see project:foo." means foo.
+project=''
+project_re='(^|[[:space:]])project:([A-Za-z0-9._-]+)'
+if [[ "$question" =~ $project_re ]]; then
+  project=$(printf '%s' "${BASH_REMATCH[2]}" | sed -E 's/[.-]+$//')
+  case "$project" in
+    ''|.*) herdr_die 'ask' "invalid project name: ${BASH_REMATCH[2]}" ;;
+  esac
+  stripped_question=$(printf '%s\n' "$question" \
+    | sed -E 's/(^|[[:space:]])project:[A-Za-z0-9._-]+/\1/' \
+    | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+  [ -n "${stripped_question// /}" ] && question=$stripped_question
+fi
 
 # --- 2. the agent ----------------------------------------------------------
 
@@ -134,7 +161,7 @@ normalize_category() {
 
 category_ok() {
   case "$1" in
-    quick|prototype|config) return 0 ;;
+    quick|prototype|config|project) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -297,7 +324,9 @@ case "$slug" in
     ;;
 esac
 
-if [ -n "$forced_category" ]; then
+if [ -n "$project" ]; then
+  category=project
+elif [ -n "$forced_category" ]; then
   category=$forced_category
 else
   [ -n "$category" ] || category=$(fallback_category)
@@ -346,6 +375,12 @@ case "$category" in
     workspace_label=$SRC_WORKSPACE_LABEL
     dir="$HOME/src"
     [ -d "$dir" ] || herdr_die 'ask' "$dir does not exist"
+    reuse_workspace=1
+    ;;
+  project)
+    workspace_label=$project
+    dir="$HOME/src/$project"
+    mkdir -p "$dir" || herdr_die 'ask' "could not create $dir"
     reuse_workspace=1
     ;;
   *)
@@ -476,7 +511,8 @@ wait_for_shell_pane "$pane" \
 
 # Claude Code prompts once per project directory before it will run there.
 # Ask-agent only starts in the dedicated quick-question folder, a fresh try
-# directory, or ~/src for configuration edits; pre-trust that chosen project
+# directory, ~/src for configuration edits, or ~/src/NAME for a project:NAME
+# prompt; pre-trust that chosen project
 # before `herdr agent start` so the first Claude frame is the actual session,
 # not the trust dialog.
 trust_claude_project() {

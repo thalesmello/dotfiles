@@ -63,6 +63,31 @@ They do not mock the edit operations; they only replace the TTY byte source.
 'ask-hello-world'
 >>> _history_roundtrip_for_doctest()
 'one'
+
+Optional highlighting and token completion (see ``parse_line_options``).
+Highlighted words match whole alphanumeric words, case-insensitively; a
+completion token is a whitespace-delimited word that starts with its trigger.
+
+>>> _styles_for_doctest("ask Codex in project:pi", highlight=["pi", "codex"])
+'    wwwww    cccccccccc'
+>>> with _dir_tree_for_doctest("alpha", "beta", "alphabet", ".hidden") as d:
+...     _edit_for_doctest(b"go project:al\r\r", complete=[f"project:={d}"])
+(0, 'go project:alpha ')
+>>> with _dir_tree_for_doctest("alpha", "beta", "alphabet") as d:
+...     _edit_for_doctest(b"project:\x0e\x0e\t\r", complete=[f"project:={d}"])
+(0, 'project:beta ')
+>>> with _dir_tree_for_doctest("alpha", "beta") as d:
+...     _edit_for_doctest(b"project:alpha\r", complete=[f"project:={d}"])
+(0, 'project:alpha')
+>>> with _dir_tree_for_doctest("alpha", "beta") as d:
+...     _edit_for_doctest(b"project:b\x1b[27uX\r", complete=[f"project:={d}"])
+(0, 'project:bX')
+>>> with _dir_tree_for_doctest("movida-modify-book", "beta") as d:
+...     _edit_for_doctest(b"project:mmb\r\r", complete=[f"project:={d}"])
+(0, 'project:movida-modify-book ')
+>>> hl, comp, rest = parse_line_options(["--highlight", "pi,qq", "--complete", "p:=/x", "--", "--label"])
+>>> sorted(hl), comp, rest
+(['pi', 'qq'], [('p:', '/x')], ['--label'])
 """
 
 from __future__ import annotations
@@ -78,6 +103,7 @@ import tempfile
 import termios
 import time
 import unicodedata
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Union
@@ -86,6 +112,57 @@ ESC = 27
 SHOWBREAK = "↪"
 PASTE_START = "200~"
 PASTE_END = b"\x1b[201~"
+MENU_MAX_ROWS = 8
+SGR_RESET = "\x1b[0m"
+STYLE_SGR = {
+    "w": "\x1b[1;36m",  # highlighted word: bold cyan
+    "c": "\x1b[1;35m",  # completion token: bold magenta
+}
+WORD_RE = re.compile(r"[^\W_]+")
+
+
+class DirSource:
+    """Completion candidates: the visible subdirectory names of one directory."""
+
+    def __init__(self, path: str) -> None:
+        self.path = os.path.expandvars(os.path.expanduser(path))
+        self._names: Optional[list[str]] = None
+
+    def names(self) -> list[str]:
+        if self._names is None:
+            try:
+                entries = os.listdir(self.path)
+            except OSError:
+                entries = []
+            self._names = sorted(
+                n
+                for n in entries
+                if not n.startswith(".")
+                and not any(ch.isspace() for ch in n)
+                and os.path.isdir(os.path.join(self.path, n))
+            )
+        return self._names
+
+    def matches(self, query: str) -> list[str]:
+        """Prefix matches first, then substring, then in-order subsequence."""
+        q = query.lower()
+        prefix: list[str] = []
+        substring: list[str] = []
+        subsequence: list[str] = []
+        for name in self.names():
+            low = name.lower()
+            if low.startswith(q):
+                prefix.append(name)
+            elif q in low:
+                substring.append(name)
+            elif _is_subsequence(q, low):
+                subsequence.append(name)
+        return prefix + substring + subsequence
+
+
+def _is_subsequence(needle: str, hay: str) -> bool:
+    it = iter(hay)
+    return all(ch in it for ch in needle)
 
 
 @dataclass
@@ -335,8 +412,24 @@ class History:
 
 
 class Prompt:
-    def __init__(self, term: Terminal, label: str, prefill: str, history_name: str) -> None:
+    def __init__(
+        self,
+        term: Terminal,
+        label: str,
+        prefill: str,
+        history_name: str,
+        highlight: Optional[set[str]] = None,
+        complete: Optional[list[tuple[str, str]]] = None,
+    ) -> None:
         self.term = term
+        self.highlight = {w.lower() for w in (highlight or ())}
+        self.completions = [(trig, DirSource(path)) for trig, path in (complete or [])]
+        self.menu_sel = 0
+        self.menu_top = 0
+        self.menu_query: Optional[str] = None
+        self.menu_dismissed: Optional[int] = None
+        self.menu_shown = False
+        self.final = False
         self.label = label
         self.label_width = display_width(label)
         self.label_spaces = " " * self.label_width
@@ -444,7 +537,89 @@ class Prompt:
         self.edit_mode()
         self.pos = self.word_fwd(self.pos)
 
+    # --- completion menu -------------------------------------------------
+
+    def completion_context(self) -> Optional[tuple[int, str, DirSource, str]]:
+        """(token start, trigger, source, query) for the token ending at the cursor."""
+        if not self.completions or self.history.active:
+            return None
+        start = self.pos
+        while start > 0 and not self.buf[start - 1].isspace():
+            start -= 1
+        token = self.buf[start : self.pos]
+        for trig, source in self.completions:
+            if token.startswith(trig):
+                return start, trig, source, token[len(trig) :]
+        return None
+
+    def menu(self) -> Optional[tuple[tuple[int, str, DirSource, str], list[str]]]:
+        ctx = self.completion_context()
+        if ctx is None:
+            self.menu_dismissed = None
+            self.menu_query = None
+            return None
+        start, _trig, source, query = ctx
+        if self.menu_dismissed == start:
+            return None
+        cands = source.matches(query)
+        # An exact, already-typed name needs no menu: Enter should submit.
+        if not cands or query in cands:
+            return None
+        if query != self.menu_query:
+            self.menu_query = query
+            self.menu_sel = 0
+            self.menu_top = 0
+        self.menu_sel = max(0, min(self.menu_sel, len(cands) - 1))
+        return ctx, cands
+
+    def menu_move(self, direction: int) -> bool:
+        m = self.menu()
+        if m is None:
+            return False
+        self.menu_sel = (self.menu_sel + direction) % len(m[1])
+        return True
+
+    def menu_accept(self) -> bool:
+        m = self.menu()
+        if m is None:
+            return False
+        (start, trig, _source, _query), cands = m
+        value_at = start + len(trig)
+        end = self.pos
+        while end < len(self.buf) and not self.buf[end].isspace():
+            end += 1
+        choice = cands[self.menu_sel]
+        tail = self.buf[end:]
+        sep = "" if tail[:1].isspace() else " "
+        self.edit_mode()
+        self.save_undo()
+        self.buf = self.buf[:value_at] + choice + sep + tail
+        self.pos = value_at + len(choice) + len(sep)
+        self.menu_dismissed = start
+        return True
+
+    def escape(self) -> None:
+        """Esc closes an open completion menu; otherwise clear, then cancel."""
+        m = self.menu()
+        if m is not None:
+            self.menu_dismissed = m[0][0]
+            return
+        self.clear_or_cancel()
+
+    def styles(self) -> list[Optional[str]]:
+        out: list[Optional[str]] = [None] * len(self.buf)
+        if self.highlight:
+            for m in WORD_RE.finditer(self.buf):
+                if m.group(0).lower() in self.highlight:
+                    out[m.start() : m.end()] = ["w"] * (m.end() - m.start())
+        for trig, _source in self.completions:
+            for m in re.finditer(r"(?<!\S)" + re.escape(trig) + r"\S*", self.buf):
+                out[m.start() : m.end()] = ["c"] * (m.end() - m.start())
+        return out
+
     def move_history_or_vertical(self, direction: int) -> None:
+        if self.menu_move(direction):
+            return
         if self.history.enabled and (not self.buf or self.history.active):
             text = self.history.move(direction, self.buf)
             if text is not None:
@@ -611,6 +786,8 @@ class Prompt:
             self.transpose_chars()
         elif b == 31:
             self.undo_last()
+        elif b == 9:
+            self.menu_accept()
         elif b == 12:
             pass
         elif b == 7:
@@ -659,6 +836,12 @@ class Prompt:
                 pass
         for code in codes:
             lower = code + 32 if 65 <= code <= 90 else code
+            if code == 9:
+                if mod_bits & 1:
+                    self.menu_move(-1)
+                else:
+                    self.menu_accept()
+                return True
             if code in (8, 127):
                 if mod_bits & 62:
                     at = self.word_back(self.pos)
@@ -669,7 +852,7 @@ class Prompt:
             if code in (13, 57414):
                 if mod_bits & 3:
                     self.insert("\n")
-                else:
+                elif not self.menu_accept():
                     self.accepted = True
                 return True
             if code == 57417:
@@ -691,7 +874,7 @@ class Prompt:
                 self.move_line_end()
                 return True
             if code == 27:
-                self.clear_or_cancel()
+                self.escape()
                 return True
             if mod_bits & 58:
                 if lower == 98:
@@ -745,6 +928,8 @@ class Prompt:
             self.move_line_start()
         elif tail in ("F", "4~", "1;1F") or re.fullmatch(r"1;\d+F", tail):
             self.move_line_end()
+        elif tail == "Z":
+            self.menu_move(-1)
         elif tail == "3~":
             self.delete_forward()
         elif re.fullmatch(r"3;\d+~", tail):
@@ -758,7 +943,7 @@ class Prompt:
     def handle_escape(self) -> None:
         nxt = self.term.read_byte(timeout=0.2)
         if nxt is None:
-            self.clear_or_cancel()
+            self.escape()
             return
         if nxt in (10, 13):
             self.insert("\n")
@@ -767,7 +952,7 @@ class Prompt:
         elif nxt == ESC:
             nxt2 = self.term.read_byte(timeout=0.2)
             if nxt2 is None:
-                self.clear_or_cancel()
+                self.escape()
             elif nxt2 == ord("["):
                 tail = self.term.read_csi_tail()
                 if tail.endswith("C"):
@@ -884,17 +1069,69 @@ class Prompt:
             fallback = (i, display_width(row.display))
         return fallback
 
+    def styled_row(self, row: VisualLine, styles: list[Optional[str]], cols: int) -> str:
+        # Cut by cells so a very wide glyph cannot spill after a resize.
+        out: list[str] = []
+        w = 0
+        for ch in row.prefix:
+            cw = char_width(ch)
+            if w + cw > cols:
+                return "".join(out)
+            out.append(ch)
+            w += cw
+        current: Optional[str] = None
+        for i, ch in enumerate(row.text):
+            cw = char_width(ch)
+            if w + cw > cols:
+                break
+            style = styles[row.start + i] if row.start + i < len(styles) else None
+            if style != current:
+                out.append(SGR_RESET if style is None else STYLE_SGR[style])
+                current = style
+            out.append(ch)
+            w += cw
+        if current is not None:
+            out.append(SGR_RESET)
+        return "".join(out)
+
+    def menu_lines(self, cands: list[str], count: int, cols: int) -> list[str]:
+        if self.menu_sel < self.menu_top:
+            self.menu_top = self.menu_sel
+        elif self.menu_sel >= self.menu_top + count:
+            self.menu_top = self.menu_sel - count + 1
+        self.menu_top = max(0, min(self.menu_top, len(cands) - count))
+        indent = self.label_spaces[: max(0, cols - 4)]
+        lines = []
+        for i in range(self.menu_top, self.menu_top + count):
+            text = ("› " if i == self.menu_sel else "  ") + cands[i]
+            more = (i == self.menu_top + count - 1) and (i < len(cands) - 1)
+            if more:
+                text += f"  (+{len(cands) - 1 - i})"
+            avail = max(1, cols - display_width(indent))
+            text = text[:avail]
+            if i == self.menu_sel:
+                lines.append(indent + "\x1b[7m" + text + SGR_RESET)
+            else:
+                lines.append(indent + "\x1b[2m" + text + SGR_RESET)
+        return lines
+
     def render(self) -> None:
         size = shutil.get_terminal_size((80, 24))
         cols = max(1, size.columns)
         max_rows = max(1, size.lines)
+        menu = None if self.final else self.menu()
+        cands = menu[1] if menu else []
+        menu_count = min(len(cands), MENU_MAX_ROWS, max_rows - 1)
+        if menu_count > 0:
+            self.menu_shown = True
+        prompt_rows = max(1, max_rows - menu_count)
         rows = self.split_visual_lines(cols)
         cursor_abs, cursor_col = self.cursor_in_rows(rows)
         if cursor_abs < self.top_line:
             self.top_line = cursor_abs
-        elif cursor_abs >= self.top_line + max_rows:
-            self.top_line = cursor_abs - max_rows + 1
-        render_count = min(max_rows, len(rows))
+        elif cursor_abs >= self.top_line + prompt_rows:
+            self.top_line = cursor_abs - prompt_rows + 1
+        render_count = min(prompt_rows, len(rows))
         self.top_line = max(0, min(self.top_line, max(0, len(rows) - render_count)))
         visible = rows[self.top_line : self.top_line + render_count]
         cursor_row = max(0, min(cursor_abs - self.top_line, len(visible) - 1))
@@ -907,21 +1144,15 @@ class Prompt:
                 out.append(f"\x1b[{self.cursor_row}A")
         else:
             out.append("\r")
-        total = max(self.rendered_rows, len(visible), 1)
+        styles = self.styles()
+        lines = [self.styled_row(row, styles, cols) for row in visible]
+        if menu_count > 0:
+            lines.extend(self.menu_lines(cands, menu_count, cols))
+        total = max(self.rendered_rows, len(lines), 1)
         for i in range(total):
             out.append("\r\x1b[K")
-            if i < len(visible):
-                text = visible[i].display
-                # Cut by cells so a very wide glyph cannot spill after a resize.
-                cut = []
-                w = 0
-                for ch in text:
-                    cw = char_width(ch)
-                    if w + cw > cols:
-                        break
-                    cut.append(ch)
-                    w += cw
-                out.append("".join(cut))
+            if i < len(lines):
+                out.append(lines[i])
             if i < total - 1:
                 out.append("\n")
         up = total - 1 - cursor_row
@@ -932,7 +1163,7 @@ class Prompt:
             out.append(f"\x1b[{cursor_col}C")
         out.append("\x1b[?25h")
         self.term.write("".join(out))
-        self.rendered_rows = len(visible)
+        self.rendered_rows = len(lines)
         self.cursor_row = cursor_row
         self.cursor_col = cursor_col
 
@@ -944,6 +1175,21 @@ class Prompt:
         out.append("\r\n")
         self.term.write("".join(out))
 
+    def handle_byte(self, b: int) -> bool:
+        """Apply one input byte; True when the prompt is accepted or cancelled."""
+        if b == ESC:
+            self.handle_escape()
+        elif b == 10:
+            self.insert("\n")
+        elif b == 13:
+            if not self.menu_accept():
+                self.accepted = True
+        elif b < 32 or b == 127:
+            self.handle_control(b)
+        else:
+            self.insert(self.term.read_utf8_char(b))
+        return self.accepted or self.cancelled
+
     def run(self) -> int:
         self.term.raw()
         self.term.write("\x1b[?2004h\x1b[>5u")
@@ -954,18 +1200,12 @@ class Prompt:
                 if b is None:
                     self.cancelled = True
                     break
-                if b == ESC:
-                    self.handle_escape()
-                elif b == 10:
-                    self.insert("\n")
-                elif b == 13:
+                if self.handle_byte(b):
                     break
-                elif b < 32 or b == 127:
-                    self.handle_control(b)
-                else:
-                    self.insert(self.term.read_utf8_char(b))
-                if self.accepted or self.cancelled:
-                    break
+                self.render()
+            if self.menu_shown:
+                # Clear the menu rows so later popup output starts clean.
+                self.final = True
                 self.render()
             self.term.write("\x1b[<u\x1b[?2004l")
         finally:
@@ -1047,28 +1287,28 @@ class _DoctestTerminal:
         return "".join(ch for ch in text if ch == "\n" or (ord(ch) >= 32 and ord(ch) != 127))
 
 
-def _edit_for_doctest(data: bytes, initial: str = "", label: str = "P: ") -> tuple[int, str]:
+def _edit_for_doctest(
+    data: bytes,
+    initial: str = "",
+    label: str = "P: ",
+    highlight: Optional[list[str]] = None,
+    complete: Optional[list[str]] = None,
+) -> tuple[int, str]:
     old_history = os.environ.get("PROMPT_LIB_HISTORY")
     os.environ["PROMPT_LIB_HISTORY"] = "0"
     try:
         term = _DoctestTerminal(data)
-        prompt = Prompt(term, label, initial, "doctest")
+        prompt = Prompt(
+            term, label, initial, "doctest",
+            highlight=set(highlight or ()),
+            complete=[_parse_complete(c) for c in (complete or [])],
+        )
         while True:
             b = term.read_byte()
             if b is None:
                 prompt.cancelled = True
                 break
-            if b == ESC:
-                prompt.handle_escape()
-            elif b == 10:
-                prompt.insert("\n")
-            elif b == 13:
-                break
-            elif b < 32 or b == 127:
-                prompt.handle_control(b)
-            else:
-                prompt.insert(term.read_utf8_char(b))
-            if prompt.accepted or prompt.cancelled:
+            if prompt.handle_byte(b):
                 break
         return (1 if prompt.cancelled else 0, prompt.buf)
     finally:
@@ -1076,6 +1316,19 @@ def _edit_for_doctest(data: bytes, initial: str = "", label: str = "P: ") -> tup
             os.environ.pop("PROMPT_LIB_HISTORY", None)
         else:
             os.environ["PROMPT_LIB_HISTORY"] = old_history
+
+
+def _styles_for_doctest(text: str, highlight: list[str]) -> str:
+    prompt = Prompt(_DoctestTerminal(b""), "", text, "doctest", highlight=set(highlight), complete=[("project:", "/nonexistent")])
+    return "".join(s or " " for s in prompt.styles())
+
+
+@contextmanager
+def _dir_tree_for_doctest(*names: str):
+    with tempfile.TemporaryDirectory() as root:
+        for name in names:
+            os.mkdir(os.path.join(root, name))
+        yield root
 
 
 def _history_roundtrip_for_doctest() -> str:
@@ -1100,7 +1353,49 @@ def _history_roundtrip_for_doctest() -> str:
             os.environ["PROMPT_LIB_HISTORY"] = old_history
 
 
+def _parse_complete(spec: str) -> tuple[str, str]:
+    trigger, sep, path = spec.partition("=")
+    if not sep or not trigger or not path:
+        raise ValueError(f"--complete expects TRIGGER=DIR, got {spec!r}")
+    return trigger, path
+
+
+def parse_line_options(argv: list[str]) -> tuple[set[str], list[tuple[str, str]], list[str]]:
+    """Split leading options from the positional `line` arguments.
+
+    --highlight WORDS   comma-separated words to highlight (repeatable)
+    --complete T=DIR    a word starting with T opens a menu of DIR's
+                        subdirectories, filtered by what follows T (repeatable)
+    --                  end of options
+    """
+    highlight: set[str] = set()
+    complete: list[tuple[str, str]] = []
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg == "--":
+            i += 1
+            break
+        if arg in ("--highlight", "--complete"):
+            if i + 1 >= len(argv):
+                raise ValueError(f"{arg} needs a value")
+            value = argv[i + 1]
+            if arg == "--highlight":
+                highlight.update(w.strip().lower() for w in value.split(",") if w.strip())
+            else:
+                complete.append(_parse_complete(value))
+            i += 2
+            continue
+        break
+    return highlight, complete, argv[i:]
+
+
 def prompt_line(argv: list[str]) -> int:
+    try:
+        highlight, complete, argv = parse_line_options(argv)
+    except ValueError as e:
+        print(f"prompt-lib: {e}", file=sys.stderr)
+        return 2
     label = argv[0] if len(argv) >= 1 else ""
     prefill = argv[1] if len(argv) >= 2 else ""
     if os.environ.get("PROMPT_LIB_HISTORY_NAME"):
@@ -1110,7 +1405,7 @@ def prompt_line(argv: list[str]) -> int:
     else:
         history_name = label
     term = Terminal()
-    prompt = Prompt(term, label, prefill, history_name)
+    prompt = Prompt(term, label, prefill, history_name, highlight=highlight, complete=complete)
     status = prompt.run()
     result_file = os.environ.get("PROMPT_LIB_RESULT_FILE")
     if status == 0 and result_file:

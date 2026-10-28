@@ -265,6 +265,10 @@ height = 3
 # workspace and log to ~/src/qq/questions.log; config edits reuse the src
 # workspace and start in ~/src; prototypes stage in src, then the runner moves
 # the pane into a fresh slug-named workspace and creates a fresh try directory.
+# A `project:NAME` word overrides the classification: the agent starts in
+# ~/src/NAME (created if missing) in a slug-named tab of the NAME workspace.
+# Typing project: opens a filtered menu of ~/src directories under the prompt,
+# so the popup is tall enough for the prompt plus 8 menu rows.
 # The prompt still runs in a popup PTY, while the actual agent session starts
 # from a short runner script in /tmp so the real temp path and prompt do not end
 # up in shell history. Wider and sized for 5 prompt rows because a question can
@@ -273,9 +277,9 @@ height = 3
 key = "prefix+a"
 type = "popup"
 command = "~/.config/herdr/scripts/ask-agent.sh"
-description = "ask an agent in qq/src/prototype workspace"
+description = "ask an agent in qq/src/prototype/project workspace"
 width = "70%"
-height = 7
+height = 15
 
 # ctrl+alt+shift+semicolon (ctrl+meta+shift+:): prompt for a shell command in a
 # popup, then eval it there. type = "popup" so the prompt runs in a herdr-rendered

@@ -20,13 +20,33 @@ _prompt_temp_file() {
   printf '%s' "$_base"
 }
 
-# prompt_line <prompt> [prefill] [history-name]
+# prompt_line [options] [--] <prompt> [prefill] [history-name]
+# Options (each repeatable, all optional; other popup scripts pass none):
+#   --highlight WORDS  comma-separated words drawn highlighted when typed as
+#                      whole words, e.g. --highlight pi,codex,claude
+#   --complete T=DIR   typing a word that starts with T opens a popup menu of
+#                      DIR's subdirectories, filtered by the text after T;
+#                      Tab/Enter picks, Up/Down or ctrl-n/ctrl-p move, Esc
+#                      closes the menu, e.g. --complete "project:=$HOME/src"
 # Sets PROMPT_LINE to the edited buffer. Returns 0 when accepted with Enter,
 # 1 when cancelled (Esc, ctrl+g, ctrl+d on an empty line, or ctrl+c on one).
 # History is stored under ~/.local/state/prompt-lib/<history-name>/ unless
 # PROMPT_LIB_HISTORY=0 disables it. PROMPT_LIB_HISTORY_NAME overrides the name.
 prompt_line() {
   local _result _status _history_name
+  local _opts=()
+
+  while [ "$#" -gt 0 ]; do
+    case $1 in
+      --highlight|--complete)
+        [ "$#" -ge 2 ] || { printf 'prompt_line: %s needs a value\n' "$1" >&2; return 2; }
+        _opts+=("$1" "$2")
+        shift 2
+        ;;
+      --) shift; break ;;
+      *) break ;;
+    esac
+  done
 
   PROMPT_CANCELLED_BY_KEY=0
   _result=$(_prompt_temp_file result) || return 1
@@ -40,7 +60,8 @@ prompt_line() {
   fi
 
   PROMPT_LIB_RESULT_FILE=$_result \
-    "$_prompt_lib_python" "$_prompt_lib_py" line "${1-}" "${2-}" "$_history_name"
+    "$_prompt_lib_python" "$_prompt_lib_py" line ${_opts[@]+"${_opts[@]}"} -- \
+    "${1-}" "${2-}" "$_history_name"
   _status=$?
 
   if [ "$_status" -eq 0 ]; then
