@@ -1975,6 +1975,10 @@ def truncate_styled(text: str, max_cells: int) -> str:
     """
     if max_cells <= 0:
         return ""
+    # Only SGR styling may survive inside a row; data must not move the cursor.
+    sgr = r"\x1b\[[0-9;:]*m"
+    text = "".join(part if re.fullmatch(sgr, part) else clean(part)
+                   for part in re.split(f"({sgr})", text))
     if display_width(text) <= max_cells:
         return text
     out: list[str] = []
@@ -2022,7 +2026,10 @@ class RawTerminal:
         if self.saved is not None:
             termios.tcsetattr(self.fd, termios.TCSADRAIN, self.saved)
     def size(self):
-        size = shutil.get_terminal_size((80, 24))
+        try:
+            size = os.get_terminal_size(self.fd)
+        except OSError:
+            size = os.terminal_size((80, 24))
         return max(1, size.columns), max(1, size.lines)
     def draw(self, lines, width, height):
         out = ["\x1b[H"]
@@ -2033,12 +2040,11 @@ class RawTerminal:
             # Clear the whole screen when the size moves.
             out.append("\x1b[2J\x1b[H")
             self._last_size = (width, height)
-        limit = max(1, width - 1)  # never fill the last column: it wraps
+        limit = max(0, width - 1)  # never fill the last column: it wraps
         for i in range(height):
             line = lines[i] if i < len(lines) else ""
+            out.append(f"\x1b[{i + 1};1H\x1b[0m\x1b[2K")
             out.append(truncate_styled(line, limit) + "\x1b[0m\x1b[K")
-            if i < height - 1:
-                out.append("\r\n")
         # Erase anything below the frame (a wrapped row's spill, a
         # taller previous frame) so the bottom only ever shows this
         # frame's footer.
@@ -2732,8 +2738,8 @@ class Model:
             return wrap_text(entry.note, width, 2), True
         return [""], True
     def list_height(self) -> int:
-        reply_lines = (1 + self.reply_text.count("\n") + 1) if self.replying else 0
-        return max(3, self.height - 4 - 2 - max(0, reply_lines - 1))
+        reply_lines = len(self.reply_lines()) if self.replying else 0
+        return max(0, self.height - 4 - 2 - reply_lines)
     def scroll_to(self):
         if not self.order:
             self.offset = 0
@@ -2797,13 +2803,20 @@ class Model:
 
     # rendering
     def view(self) -> list[str]:
-        if not self.width:
+        if not self.width or not self.height:
             return []
-        lines = [self.header_line(), "", self.filter_line(), self.found_line()]
+        header = self.header_line()
+        if self.height == 1:
+            return [header]
+        if self.height == 2:
+            return [header, self.footer_line()]
+        lines = [header, "", self.filter_line(), self.found_line()][:self.height - 2]
         height = self.list_height()
         used = 0
         self.row_ranges, self.suggestion_ranges, self.detail_spans = [], {}, {}
-        if not self.loaded:
+        if not height:
+            pass
+        elif not self.loaded:
             lines.append("  " + THEME.paint("dim", "Loading\u2026"))
             used += 1
         elif not self.order and self.entries and self.show != "all" and not self.filter:
@@ -3015,11 +3028,14 @@ class Model:
         right_text = THEME.paint("dim", " \u00b7 ").join(right)
         if not meta.last_prompt:
             return " " * max(1, self.width - display_width(right_text) - 1) + right_text if right_text else ""
-        return fit_plain(" ", THEME.paint("dim", "\u203a " + meta.last_prompt), right_text, self.width)
+        return fit_plain(" ", THEME.paint("dim", "\u203a " + clean(meta.last_prompt)), right_text, self.width)
     def reply_lines(self) -> list[str]:
         lines = []
+        limit = min(6, max(0, self.height - 6))
+        if not limit:
+            return lines
         text_lines = self.reply_text.split("\n")
-        for i, line in enumerate(text_lines[-6:]):
+        for i, line in enumerate(text_lines[-limit:]):
             prompt = " \u203a  " if i == 0 else "    "
             lines.append(prompt + line)
         return lines
@@ -3408,7 +3424,11 @@ class Model:
             if now - self.last_spin >= 0.33:
                 self.last_spin = now
                 self.dirty = True
-            self.width, self.height = term.size()
+            size = term.size()
+            if size != (self.width, self.height):
+                self.width, self.height = size
+                self.scroll_to()
+                self.dirty = True
             if self.dirty:
                 term.draw(self.view(), self.width, self.height)
                 self.dirty = False

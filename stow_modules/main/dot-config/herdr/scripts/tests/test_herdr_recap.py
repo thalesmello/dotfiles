@@ -313,7 +313,7 @@ class ViewHeightTest(unittest.TestCase):
 
     def test_view_is_exactly_terminal_height(self):
         model = self.make_model()
-        for height in (12, 20, 30, 45):
+        for height in range(1, 46):
             model.width, model.height = 100, height
             with self.subTest(height=height):
                 self.assertEqual(len(model.view()), height)
@@ -351,10 +351,83 @@ class TruncateStyledTest(unittest.TestCase):
         with mock.patch.object(rc.sys, "stdout", out):
             term.draw(["x" * 200, "y" * 200], 72, 2)
         import re as _re
-        rows = out.getvalue().split("\r\n")
+        rows = _re.split(r"\x1b\[\d+;1H", out.getvalue())
         for row in rows:
             plain = _re.sub(r"\x1b\[[0-9;:]*[A-Za-z]", "", row)
             self.assertLessEqual(rc.display_width(plain), 71)
+
+
+class LayoutRegressionTest(ViewHeightTest):
+    def test_long_replies_keep_footer_at_bottom(self):
+        model = self.make_model()
+        entry = next(iter(model.entries.values()))
+        model.order = [entry.agent.pane_id]
+        model.start_reply()
+        for height in range(2, 31):
+            for count in (1, 3, 6, 7, 12):
+                model.width, model.height = 80, height
+                model.reply_text = "\n".join(f"line {i}" for i in range(count))
+                with self.subTest(height=height, count=count):
+                    lines = model.view()
+                    self.assertEqual(len(lines), height)
+                    self.assertIn("enter send", lines[-1])
+
+    def test_multiline_prompt_stays_in_one_status_row(self):
+        model = self.make_model()
+        model.width, model.height = 80, 24
+        entry = next(e for e in model.entries.values() if e.session)
+        model.order = [entry.agent.pane_id]
+        model.cursor = 0
+        entry.session.meta.last_prompt = "first\nsecond\tthird\r"
+        status = model.status_line()
+        self.assertIn("first second third", status)
+        self.assertNotIn("\n", status)
+        self.assertNotIn("\t", status)
+        self.assertNotIn("\r", status)
+
+    def test_resize_forces_redraw_without_spinner_tick(self):
+        from unittest import mock
+        model = self.make_model()
+        model.width, model.height = 80, 24
+        model.last_poll = model.last_spin = 10.0
+        model.dirty = True
+        term = mock.Mock()
+        term.size.side_effect = [(80, 24), (60, 8)]
+        with mock.patch.object(model, "load"), mock.patch.object(model, "process_jobs"), \
+                mock.patch.object(rc.time, "monotonic", return_value=10.0), \
+                mock.patch.object(rc.select, "select", side_effect=[([], [], []), ([0], [], [])]), \
+                mock.patch.object(rc.os, "read", return_value=b""):
+            model.run(term)
+        self.assertEqual(term.draw.call_count, 2)
+        self.assertEqual(term.draw.call_args.args[1:], (60, 8))
+        self.assertEqual(len(term.draw.call_args.args[0]), 8)
+
+
+class TerminalRegressionTest(unittest.TestCase):
+    def test_size_uses_pty_instead_of_environment(self):
+        from unittest import mock
+        term = rc.RawTerminal.__new__(rc.RawTerminal)
+        term.fd = 42
+        with mock.patch.dict(rc.os.environ, {"COLUMNS": "200", "LINES": "60"}), \
+                mock.patch.object(rc.os, "get_terminal_size", return_value=os.terminal_size((72, 18))) as size:
+            self.assertEqual(term.size(), (72, 18))
+            size.assert_called_once_with(42)
+
+    def test_rows_cannot_scroll_or_move_cursor(self):
+        import io
+        from unittest import mock
+        term = rc.RawTerminal.__new__(rc.RawTerminal)
+        term._last_size = None
+        out = io.StringIO()
+        with mock.patch.object(rc.sys, "stdout", out):
+            term.draw(["tabs", "\x1b[31mfirst\nsecond\tthird\x1b[10B\x1b[0m", "footer"], 80, 3)
+        frame = out.getvalue()
+        self.assertNotIn("\n", frame)
+        self.assertNotIn("\t", frame)
+        self.assertNotIn("\x1b[10B", frame)
+        self.assertIn("\x1b[31mfirst second third", frame)
+        for row in (1, 2, 3):
+            self.assertIn(f"\x1b[{row};1H\x1b[0m\x1b[2K", frame)
 
 
 class PickerExitTest(unittest.TestCase):
