@@ -738,6 +738,44 @@ class PopupStateAndScrollTest(unittest.TestCase):
                 self.assertEqual(len(lines), model.height)
 
 
+class ReplyCursorTest(unittest.TestCase):
+    def make_model(self):
+        model = rc.Model(rc.Config(), demo=True)
+        self.addCleanup(model.executor.shutdown, wait=False)
+        model.width, model.height, model.replying = 40, 24, True
+        return model
+
+    def test_empty_reply_has_visible_cursor(self):
+        model = self.make_model()
+        self.assertIn("\x1b[7m \x1b[27m", model.reply_lines()[0])
+
+    def test_cursor_tracks_typing_and_left_arrow(self):
+        model = self.make_model()
+        model.handle_reply_key("", "hello")
+        self.assertIn("hello\x1b[7m \x1b[27m", model.reply_lines()[0])
+        model.handle_reply_key("left")
+        self.assertIn("hell\x1b[7mo\x1b[27m", model.reply_lines()[0])
+
+    def test_long_line_keeps_end_cursor_visible(self):
+        model = self.make_model()
+        model.reply_text = "x" * 200
+        model.reply_cursor = len(model.reply_text)
+        line = model.reply_lines()[0]
+        self.assertIn("\x1b[7m \x1b[27m", line)
+        self.assertLessEqual(rc.display_width(line), model.width - 1)
+
+    def test_cursor_row_stays_visible_in_multiline_reply(self):
+        model = self.make_model()
+        model.reply_text = "\n".join(f"line {i}" for i in range(12))
+        for cursor in (0, len(model.reply_text)):
+            model.reply_cursor = cursor
+            lines = model.reply_lines()
+            self.assertEqual(sum("\x1b[7m" in line for line in lines), 1)
+            self.assertLessEqual(len(lines), 6)
+        model.reply_cursor = 0
+        self.assertIn("\x1b[7ml\x1b[27m", model.reply_lines()[0])
+
+
 class PiTitleSuggestionTest(unittest.TestCase):
     def make_session(self, directory):
         path = os.path.join(directory, "session.jsonl")

@@ -3235,8 +3235,25 @@ class Model:
         if not limit:
             return lines
         text_lines = self.reply_text.split("\n")
-        for i, line in enumerate(text_lines[-limit:]):
+        cursor = max(0, min(self.reply_cursor, len(self.reply_text)))
+        head = self.reply_text[:cursor]
+        cursor_row, cursor_col = head.count("\n"), len(head.rsplit("\n", 1)[-1])
+        start = max(0, min(cursor_row, len(text_lines) - limit))
+        room = max(1, self.width - 5)
+        for i, line in enumerate(text_lines[start:start + limit]):
             prompt = " \u203a  " if i == 0 else "    "
+            if start + i == cursor_row and not self.reply_sending:
+                under = line[cursor_col:cursor_col + 1] or " "
+                left, used = cursor_col, 0
+                budget = max(0, room - display_width(under))
+                for ch in reversed(line[:cursor_col]):
+                    if used + char_width(ch) > budget:
+                        break
+                    left, used = left - 1, used + char_width(ch)
+                line = line[left:cursor_col] + "\x1b[7m" + under + "\x1b[27m" + line[cursor_col + 1:]
+                line = truncate_styled(line, room)
+            else:
+                line = shorten(line, room)
             lines.append(prompt + line)
         return lines
     def footer(self):
