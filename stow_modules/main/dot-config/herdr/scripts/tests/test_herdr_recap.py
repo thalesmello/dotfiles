@@ -738,6 +738,88 @@ class PopupStateAndScrollTest(unittest.TestCase):
                 self.assertEqual(len(lines), model.height)
 
 
+class PiTitleSuggestionTest(unittest.TestCase):
+    def make_session(self, directory):
+        path = os.path.join(directory, "session.jsonl")
+        with open(path, "w") as handle:
+            handle.write(json.dumps({"type": "message", "message": {
+                "role": "user", "content": [{"type": "text", "text": "Implement a delta cache for the UI"}]}}) + "\n")
+        return rc.AgentSession(id="pi-fixture", agent="pi", transcript=path)
+
+    def test_pi_uses_configured_summarizer_with_conversation(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as directory:
+            session = self.make_session(directory)
+            cfg = rc.Config(summarizer=["fixture-summarizer"])
+            with mock.patch.object(rc, "run_bounded", return_value=('"Implement Delta Cache"\n', "", 0)) as run, \
+                    mock.patch.object(rc, "run_claude", side_effect=AssertionError("Cannot resume Pi in Claude")):
+                self.assertEqual(rc.suggest_title(cfg, session, "Old Title"), ("Implement Delta Cache", 0.0))
+            prompt = run.call_args.kwargs["stdin_text"]
+            self.assertIn("Suggest a name", prompt)
+            self.assertIn("untrusted data", prompt)
+            data = json.loads(prompt.rsplit("\n\n", 1)[1])
+            self.assertEqual(data["agent"], "pi")
+            self.assertIn("Implement a delta cache", data["conversation"])
+            self.assertTrue(rc.titleable(session))
+
+    def test_pi_default_backend_is_tool_free_and_does_not_resume(self):
+        from unittest import mock
+        result = json.dumps({"result": "Implement Delta Cache", "total_cost_usd": 0.02, "is_error": False})
+        with tempfile.TemporaryDirectory() as directory:
+            session = self.make_session(directory)
+            with mock.patch.object(rc, "claude_binary", return_value="claude"), \
+                    mock.patch.object(rc, "run_bounded", return_value=(result, "", 0)) as run:
+                self.assertEqual(rc.suggest_title(rc.Config(), session, "Old Title"), ("Implement Delta Cache", 0.02))
+            args = run.call_args.args[0]
+            self.assertNotIn("--resume", args)
+            self.assertEqual(args[args.index("--tools") + 1], "")
+
+    def test_pi_rejects_multiline_suggestions(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as directory:
+            session = self.make_session(directory)
+            with mock.patch.object(rc, "run_bounded", return_value=("Title\nExplanation", "", 0)):
+                with self.assertRaisesRegex(RuntimeError, "more than a title"):
+                    rc.suggest_title(rc.Config(summarizer=["fixture"]), session, "Old Title")
+
+    def test_pi_title_is_saved_in_recap_cache(self):
+        from pathlib import Path
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as directory:
+            session = self.make_session(directory)
+            with mock.patch.object(rc, "state_dir", return_value=Path(directory)), \
+                    mock.patch.object(rc, "suggest_title", return_value=("Implement Delta Cache", 0.02)):
+                recap = rc.ensure_title(rc.Config(), session, "Old Title")
+                self.assertEqual(rc.load_recap(session.id).title, "Implement Delta Cache")
+                self.assertEqual(recap.cost_usd, 0.02)
+                self.assertFalse(recap.settled)
+
+    def test_ctrl_r_dispatches_pi_suggestion_to_process_pool(self):
+        from unittest import mock
+        model = rc.Model(rc.Config())
+        self.addCleanup(model.executor.shutdown, wait=False)
+        entry = rc.Entry(agent=rc.AgentInfo(pane_id="w1:p1", agent="pi", cached_title="Old Title"),
+                         session=rc.AgentSession(id="pi-fixture", agent="pi", transcript="/fixture/session.jsonl"))
+        model.entries, model.order = {"w1:p1": entry}, ["w1:p1"]
+        with mock.patch.object(model, "submit_process") as submit:
+            model.handle_key("ctrl+r")
+        self.assertTrue(entry.titling)
+        self.assertEqual(submit.call_args.args, ("title", "w1:p1", rc.ensure_title, model.cfg, entry.session, "Old Title"))
+
+    def test_pi_applies_name_command_and_other_kinds_keep_rename(self):
+        from pathlib import Path
+        from unittest import mock
+        for kind, command in (("pi", "/name "), ("claude", "/rename "), ("codex", "/rename ")):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory, \
+                    mock.patch.object(rc, "state_dir", return_value=Path(directory)), \
+                    mock.patch.object(rc, "list_agents", return_value=[]), \
+                    mock.patch.object(rc, "herdr_call") as call:
+                rc.save_recap(rc.Recap(session="fixture", title="Implement Delta Cache", renaming=True))
+                rc.give_title("w1:p1", "fixture", kind)
+                call.assert_called_once_with("agent.prompt", {"target": "w1:p1", "text": command + "Implement Delta Cache"})
+                self.assertTrue(rc.load_recap("fixture").settled)
+
+
 class InMemorySnapshotTest(unittest.TestCase):
     def make_model(self):
         model = rc.Model(rc.Config())
