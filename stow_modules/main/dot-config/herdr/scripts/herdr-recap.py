@@ -48,6 +48,7 @@ PLUGIN_ID = "herdr-recap"
 POPUP_WIDTH, POPUP_HEIGHT = "80%", "75%"
 RETURN_ENV = "HERDR_POPUP_RETURN"
 SELECT_ENV = "HERDR_RECAP_PANE"
+UI_STATE_ENV = "HERDR_RECAP_UI_STATE"
 GITHUB_PLUGIN, LINEAR_PLUGIN, SNOOZE_PLUGIN, VITALS_PLUGIN = (
     "herdr-github", "herdr-linear", "herdr-snooze", "herdr-vitals",
 )
@@ -95,6 +96,11 @@ def state_dir() -> Path:
     if value:
         return Path(value)
     return xdg("XDG_STATE_HOME", ".local/state") / "herdr" / "plugins" / plugin_id()
+
+
+def ui_state_path() -> Path:
+    session = hashlib.sha256(os.fsencode(socket_path())).hexdigest()[:16]
+    return state_dir() / f"ui-{session}.json"
 
 
 def load_config() -> tuple[Config, str | None]:
@@ -2236,6 +2242,7 @@ class Model:
         self.cursor = 0
         self.offset = 0  # content row, independent of the selected item
         self.free_scroll = False
+        self.restore_cursor: int | None = None
         self.picked = False
         self.loaded = False
         self.width = 0
@@ -2266,6 +2273,48 @@ class Model:
         self.suggestion_ranges: dict[str, tuple[tuple[int, int], tuple[int, int]]] = {}
         self.detail_spans: dict[str, list[tuple[str, int, int]]] = {}
         self.last_spin = 0.0
+
+    def ui_state(self) -> dict[str, Any]:
+        return {"tab": self.show, "cursor": self.cursor}
+
+    def restore_ui_state(self):
+        if self.demo:
+            return
+        raw = os.environ.get(UI_STATE_ENV)
+        # Explicit pane targets from other popups keep their existing behavior.
+        if not raw and self.start_on:
+            return
+        try:
+            state = json.loads(raw) if raw else json.loads(ui_state_path().read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+        if not isinstance(state, dict):
+            return
+        if state.get("tab") in ("all", "woke", *STAGES):
+            self.show = state["tab"]
+        if type(state.get("cursor")) is int:
+            self.restore_cursor = max(0, state["cursor"])
+        self.filter, self.filter_cursor, self.offset = "", 0, 0
+        self.free_scroll = False
+        if raw:
+            self.start_on = ""
+
+    def save_ui_state(self):
+        if self.demo or not self.loaded:
+            return
+        path = ui_state_path()
+        tmp = None
+        try:
+            path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as handle:
+                tmp = Path(handle.name)
+                json.dump(self.ui_state(), handle)
+            os.replace(tmp, path)
+        except OSError as exc:
+            print(f"herdr-recap: couldn't save UI state: {exc}", file=sys.stderr)
+        finally:
+            if tmp is not None:
+                tmp.unlink(missing_ok=True)
 
     # data loading
     def load(self):
@@ -2598,6 +2647,10 @@ class Model:
                 if pane == selected:
                     self.cursor = i
                     break
+        if self.restore_cursor is not None:
+            self.cursor = min(self.restore_cursor, max(0, len(self.order) - 1))
+            self.restore_cursor = None
+            self.picked = True
         if not self.picked and not self.free_scroll:
             self.offset = 0
         self.scroll_to(follow_selection=not self.free_scroll)
@@ -3176,7 +3229,7 @@ class Model:
         self.submit("reply", pane, lambda p=pane, t=text: send_agent_reply(p, t))
         self.dirty = True
     def here_ref(self, pane: str) -> dict[str, Any]:
-        return {"plugin_id": plugin_id(), "entrypoint": "picker", "width": POPUP_WIDTH, "height": POPUP_HEIGHT, "env": {SELECT_ENV: pane}}
+        return {"plugin_id": plugin_id(), "entrypoint": "picker", "width": POPUP_WIDTH, "height": POPUP_HEIGHT, "env": {UI_STATE_ENV: json.dumps(self.ui_state())}}
     def open_link(self, plugin: str):
         entry = self.selected()
         if entry is None:
@@ -3268,7 +3321,7 @@ class Model:
             raw = os.environ.get(RETURN_ENV, "")
             with contextlib.suppress(Exception):
                 ref = json.loads(raw)
-                if isinstance(ref, dict) and ref.get("plugin_id") and ref.get("entrypoint") and not self.start_on and not self.demo:
+                if isinstance(ref, dict) and ref.get("plugin_id") and ref.get("entrypoint") and not self.start_on and not os.environ.get(UI_STATE_ENV) and not self.demo:
                     spawn_handoff(ref)
             return "quit"
         if name == "tab":
@@ -3538,6 +3591,7 @@ def run_picker(cfg: Config, demo: bool) -> int:
     model = Model(cfg, demo=demo)
     code = 0
     try:
+        model.restore_ui_state()
         with RawTerminal() as term:
             model.run(term)
     except SystemExit as exc:
@@ -3545,6 +3599,7 @@ def run_picker(cfg: Config, demo: bool) -> int:
     except KeyboardInterrupt:
         code = 0
     finally:
+        model.save_ui_state()
         forget()
         model.executor.shutdown(wait=False, cancel_futures=True)
     # Exit now, without joining the recap workers: Python's executor

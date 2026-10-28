@@ -516,6 +516,147 @@ class PopupStateAndScrollTest(unittest.TestCase):
         model.resort("")
         return model
 
+    def test_snooze_return_restores_tab_and_number_not_pane(self):
+        from unittest import mock
+        model = self.make_model()
+        model.move(1)
+        model.scroll_rows(3)
+        model.links[rc.SNOOZE_PLUGIN] = {"plugin_id": rc.SNOOZE_PLUGIN, "entrypoint": "picker"}
+        old_pane = model.selected_pane()
+        with mock.patch.object(rc, "spawn_handoff") as handoff:
+            self.assertEqual(model.handle_key("ctrl+s"), "quit")
+        outgoing = handoff.call_args.args[0]
+        back = json.loads(outgoing["env"][rc.RETURN_ENV])
+        self.assertEqual(json.loads(back["env"][rc.UI_STATE_ENV]), model.ui_state())
+        self.assertNotIn(rc.SELECT_ENV, back["env"])
+        restored = self.make_model()
+        restored.entries[old_pane].agent.tokens[rc.SNOOZE_MARK] = "1"
+        with mock.patch.dict(rc.os.environ, back["env"]):
+            restored.restore_ui_state()
+        restored.resort("")
+        self.assertEqual(restored.show, "idle")
+        self.assertEqual(restored.cursor, 1)
+        self.assertEqual(restored.selected_pane(), "w1:p2")
+        self.assertNotEqual(restored.selected_pane(), old_pane)
+        self.assertEqual(restored.offset, 0)
+
+    def test_restore_ignores_legacy_filter_and_offset(self):
+        from unittest import mock
+        model = self.make_model()
+        model.filter, model.filter_cursor, model.offset = "old query", 9, 99
+        state = {"tab": "idle", "cursor": 2, "filter": "legacy query", "offset": 999}
+        with mock.patch.dict(rc.os.environ, {rc.UI_STATE_ENV: json.dumps(state)}):
+            model.restore_ui_state()
+        self.assertEqual((model.filter, model.filter_cursor, model.offset), ("", 0, 0))
+        model.resort("")
+        self.assertEqual(model.cursor, 2)
+        self.assertEqual(model.order, ["w1:p0", "w1:p1", "w1:p2", "w1:p3"])
+        self.assertEqual(model.ui_state(), {"tab": "idle", "cursor": 2})
+
+    def test_saved_state_contains_only_tab_and_position(self):
+        from pathlib import Path
+        from unittest import mock
+        model = self.make_model()
+        model.cursor, model.offset, model.filter = 2, 4, "temporary query"
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(rc, "ui_state_path", return_value=Path(directory) / "ui.json"):
+            model.save_ui_state()
+            self.assertEqual(json.loads(rc.ui_state_path().read_text()), {"tab": "idle", "cursor": 2})
+
+    def test_restore_clamps_number_for_shorter_or_empty_list(self):
+        from unittest import mock
+        for count, expected in ((2, 1), (0, 0)):
+            with self.subTest(count=count):
+                model = self.make_model(count)
+                env = {rc.UI_STATE_ENV: json.dumps({"tab": "idle", "cursor": 3, "offset": 100})}
+                with mock.patch.dict(rc.os.environ, env):
+                    model.restore_ui_state()
+                model.resort("")
+                self.assertEqual(model.show, "idle")
+                self.assertEqual(model.cursor, expected)
+                self.assertEqual(model.offset, 0)
+                self.assertEqual(len(model.view()), 12)
+
+    def test_saved_state_restores_on_normal_reopen(self):
+        from pathlib import Path
+        from unittest import mock
+        model = self.make_model()
+        model.move(2)
+        model.scroll_rows(3)
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(rc, "ui_state_path", return_value=Path(directory) / "ui.json"), \
+                mock.patch.dict(rc.os.environ):
+            rc.os.environ.pop(rc.UI_STATE_ENV, None)
+            model.save_ui_state()
+            self.assertEqual(json.loads(rc.ui_state_path().read_text()), model.ui_state())
+            restored = self.make_model()
+            restored.start_on = ""
+            restored.restore_ui_state()
+            restored.resort("")
+            self.assertEqual(restored.ui_state(), model.ui_state())
+            self.assertEqual(rc.ui_state_path().stat().st_mode & 0o777, 0o600)
+
+    def test_enter_exit_saves_tab_and_numerical_selection(self):
+        from pathlib import Path
+        from unittest import mock
+        def run(model, term):
+            fixture = self.make_model()
+            model.show, model.loaded = "idle", True
+            model.entries, model.order = fixture.entries, fixture.order
+            model.cursor, model.picked = 2, True
+            model.handle_key("enter")
+            for job in model.jobs:
+                job.future.result(timeout=2)
+            model.process_jobs()
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(rc, "ui_state_path", return_value=Path(directory) / "ui.json"), \
+                mock.patch.object(rc.Model, "run", run), \
+                mock.patch.object(rc, "RawTerminal"), \
+                mock.patch.object(rc, "note_popup", return_value=lambda: None), \
+                mock.patch.object(rc, "focus_agent") as focus, \
+                mock.patch.object(rc.os, "_exit", side_effect=SystemExit(0)), \
+                mock.patch.dict(rc.os.environ):
+            rc.os.environ.pop(rc.UI_STATE_ENV, None)
+            rc.os.environ.pop(rc.SELECT_ENV, None)
+            with self.assertRaises(SystemExit):
+                rc.run_picker(rc.Config(), demo=False)
+            focus.assert_called_once_with("w1:p2")
+            state = json.loads(rc.ui_state_path().read_text())
+            self.assertEqual(state["tab"], "idle")
+            self.assertEqual(state["cursor"], 2)
+
+    def test_handoff_state_wins_over_disk_and_explicit_pane(self):
+        from unittest import mock
+        model = self.make_model()
+        model.start_on = "w1:p0"
+        with mock.patch.dict(rc.os.environ, {rc.UI_STATE_ENV: json.dumps({"tab": "idle", "cursor": 2})}), \
+                mock.patch.object(rc, "ui_state_path") as disk:
+            model.restore_ui_state()
+        disk.assert_not_called()
+        model.resort("")
+        self.assertEqual(model.start_on, "")
+        self.assertEqual(model.cursor, 2)
+
+    def test_bad_state_is_ignored(self):
+        from unittest import mock
+        for raw in ("broken", "[]", '{"tab": [], "cursor": false, "offset": "bad"}'):
+            with self.subTest(raw=raw):
+                model = self.make_model()
+                with mock.patch.dict(rc.os.environ, {rc.UI_STATE_ENV: raw}):
+                    model.restore_ui_state()
+                model.resort("")
+                self.assertEqual(model.show, "idle")
+                self.assertEqual(model.cursor, 0)
+                self.assertEqual(model.offset, 0)
+
+    def test_state_is_scoped_to_herdr_session(self):
+        from unittest import mock
+        with mock.patch.dict(rc.os.environ, {"HERDR_SOCKET_PATH": "/tmp/session-one.sock"}):
+            first = rc.ui_state_path()
+        with mock.patch.dict(rc.os.environ, {"HERDR_SOCKET_PATH": "/tmp/session-two.sock"}):
+            second = rc.ui_state_path()
+        self.assertNotEqual(first, second)
+
     def test_native_wheel_scrolls_rows_without_moving_selection(self):
         from unittest import mock
         model = self.make_model()
