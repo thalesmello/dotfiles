@@ -1913,6 +1913,10 @@ class Decoder:
                 button, x, y = int(parts[0]), int(parts[1]), int(parts[2])
             except Exception:
                 return length, None
+            if x < 1 or y < 1:
+                return length, None
+            # SGR mouse coordinates are 1-based; view hit ranges are 0-based.
+            x, y = x - 1, y - 1
             if button & 64:
                 return length, ("mouse", "wheel_up" if button & 1 == 0 else "wheel_down", x, y, final)
             if button & 32:
@@ -2230,7 +2234,8 @@ class Model:
         self.order: list[str] = []
         self.show = "all"
         self.cursor = 0
-        self.offset = 0
+        self.offset = 0  # content row, independent of the selected item
+        self.free_scroll = False
         self.picked = False
         self.loaded = False
         self.width = 0
@@ -2593,9 +2598,9 @@ class Model:
                 if pane == selected:
                     self.cursor = i
                     break
-        if not self.picked:
+        if not self.picked and not self.free_scroll:
             self.offset = 0
-        self.scroll_to()
+        self.scroll_to(follow_selection=not self.free_scroll)
         self.dirty = True
     def refilter(self):
         if self.filter != self.found_for:
@@ -2603,6 +2608,7 @@ class Model:
         self.seeking = False
         self.sort_entries()
         self.cursor, self.offset, self.picked = 0, 0, False
+        self.free_scroll = False
         self.scroll_to()
         self.maybe_seek()
         self.dirty = True
@@ -2727,7 +2733,15 @@ class Model:
             return
         self.cursor = max(0, min(len(self.order) - 1, self.cursor + delta))
         self.picked = True
+        self.free_scroll = False
         self.scroll_to()
+        self.dirty = True
+    def scroll_rows(self, delta: int):
+        if not self.list_height():
+            return
+        self.offset += delta
+        self.free_scroll = True
+        self.scroll_to(follow_selection=False)
         self.dirty = True
     def entry_height(self, entry: Entry) -> int:
         body, _dim = self.body(entry)
@@ -2761,27 +2775,34 @@ class Model:
     def list_height(self) -> int:
         reply_lines = len(self.reply_lines()) if self.replying else 0
         return max(0, self.height - 4 - 2 - reply_lines)
-    def scroll_to(self):
+    def entry_layout(self) -> list[tuple[int, int, int]]:
+        layout, row = [], 0
+        for i, pane in enumerate(self.order):
+            title_row = row + self.heading_height(i)
+            end = title_row + self.entry_height(self.entries[pane])
+            layout.append((row, title_row, end))
+            row = end
+        return layout
+    def scroll_to(self, follow_selection: bool = True):
         if not self.order:
             self.offset = 0
             return
         self.cursor = max(0, min(self.cursor, len(self.order) - 1))
-        if self.cursor < self.offset:
-            self.offset = self.cursor
-        while self.offset < self.cursor:
-            used = 0
-            for i in range(self.offset, self.cursor + 1):
-                used += self.heading_height(i) + self.entry_height(self.entries[self.order[i]])
-            if used <= self.list_height() + 1:
-                break
-            self.offset += 1
-        self.offset = max(0, min(self.offset, max(0, len(self.order) - 1)))
+        layout = self.entry_layout()
+        height = self.list_height()
+        if follow_selection and height:
+            start, title, end = layout[self.cursor]
+            if title < self.offset:
+                self.offset = start
+            elif end > self.offset + height:
+                self.offset = min(title, max(start, end - height))
+        self.offset = max(0, min(self.offset, max(0, layout[-1][2] - height)))
     def heading_height(self, index: int) -> int:
         return 2 if self.headed(index) else 0
     def headed(self, index: int) -> bool:
         if self.show != "all" or self.ranked():
             return False
-        return index == 0 or index == self.offset or stage_of(self.entries[self.order[index]]) != stage_of(self.entries[self.order[index - 1]])
+        return index == 0 or stage_of(self.entries[self.order[index]]) != stage_of(self.entries[self.order[index - 1]])
     def stage_tabs(self):
         counts: dict[str, int] = {}
         total = 0
@@ -2801,6 +2822,7 @@ class Model:
     def show_stage(self, stage: str):
         selected = self.selected_pane()
         self.show, self.offset = stage, 0
+        self.free_scroll = False
         self.resort(selected)
     def step_stage(self, delta: int):
         tabs = self.stage_tabs()
@@ -2855,23 +2877,24 @@ class Model:
         elif not self.order:
             lines.append("  " + THEME.paint("dim", "No agents running."))
             used += 1
-        for i in range(self.offset, len(self.order)):
-            if used >= height:
+        self.scroll_to(follow_selection=False)
+        for i, (start, title, end) in enumerate(self.entry_layout()):
+            if end <= self.offset:
+                continue
+            if start >= self.offset + height:
                 break
             if self.headed(i):
-                for heading in (self.heading_line(stage_of(self.entries[self.order[i]])), ""):
-                    if used >= height:
-                        break
-                    lines.append(heading)
-                    used += 1
+                for j, heading in enumerate((self.heading_line(stage_of(self.entries[self.order[i]])), "")):
+                    if self.offset <= start + j < self.offset + height:
+                        lines.append(heading)
+                        used += 1
             entry = self.entries[self.order[i]]
             entry_lines = self.entry_lines(entry, i == self.cursor, i)
             for row_in_entry, line in enumerate(entry_lines):
-                if used >= height:
-                    break
-                self.row_ranges.append((len(lines), i, row_in_entry))
-                lines.append(line)
-                used += 1
+                if self.offset <= title + row_in_entry < self.offset + height:
+                    self.row_ranges.append((len(lines), i, row_in_entry))
+                    lines.append(line)
+                    used += 1
         while used < height:
             lines.append("")
             used += 1
@@ -3380,20 +3403,9 @@ class Model:
         return None
     def handle_mouse(self, event):
         _kind, action, x, y, final = event
-        if action == "wheel_up":
-            if not self.replying:
-                self.move(-1)
-            return None
-        if action == "wheel_down":
-            if not self.replying:
-                self.move(1)
-            return None
-        if action == "motion":
-            for row_y, index, _row in self.row_ranges:
-                if row_y == y and not self.replying:
-                    self.cursor, self.picked = index, True
-                    self.scroll_to()
-                    self.dirty = True
+        if action in ("wheel_up", "wheel_down"):
+            if 4 <= y < 4 + self.list_height():
+                self.scroll_rows(-1 if action == "wheel_up" else 1)
             return None
         if action != "press" or final != "M":
             return None
@@ -3458,7 +3470,7 @@ class Model:
             size = term.size()
             if size != (self.width, self.height):
                 self.width, self.height = size
-                self.scroll_to()
+                self.scroll_to(follow_selection=not self.free_scroll)
                 self.dirty = True
             if self.dirty:
                 term.draw(self.view(), self.width, self.height)

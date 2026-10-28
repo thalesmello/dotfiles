@@ -502,6 +502,101 @@ class ReplyRegressionTest(unittest.TestCase):
         self.assertIn("Couldn't send", model.status_line())
 
 
+class PopupStateAndScrollTest(unittest.TestCase):
+    def make_model(self, count=4):
+        model = rc.Model(rc.Config())
+        self.addCleanup(model.executor.shutdown, wait=False)
+        model.width, model.height, model.loaded = 80, 12, True
+        model.show = "idle"
+        model.entries = {
+            f"w1:p{i}": rc.Entry(agent=rc.AgentInfo(
+                pane_id=f"w1:p{i}", agent="claude", status="idle", title=f"Item {i}"))
+            for i in range(count)
+        }
+        model.resort("")
+        return model
+
+    def test_native_wheel_scrolls_rows_without_moving_selection(self):
+        from unittest import mock
+        model = self.make_model()
+        before = model.view()
+        content = [line for i, pane in enumerate(model.order)
+                   for line in model.entry_lines(model.entries[pane], i == model.cursor, i)]
+        events = rc.Decoder().feed(b"\x1b[<65;5;6M")
+        self.assertEqual(events, [("mouse", "wheel_down", 4, 5, "M")])
+        with mock.patch.object(model, "move") as move:
+            model.handle_mouse(events[0])
+        move.assert_not_called()
+        after = model.view()
+        self.assertEqual(model.cursor, 0)
+        self.assertEqual(model.offset, 1)
+        self.assertEqual(after[4:10], content[1:7])
+        self.assertEqual(before[:4], after[:4])
+        self.assertEqual(before[-2:], after[-2:])
+
+    def test_wheel_bounds_and_non_content_rows(self):
+        model = self.make_model()
+        model.scroll_rows(-100)
+        self.assertEqual(model.offset, 0)
+        model.scroll_rows(100)
+        self.assertEqual(model.offset, model.entry_layout()[-1][2] - model.list_height())
+        old_offset = model.offset
+        for y in (0, 2, model.height - 2, model.height - 1):
+            model.handle_mouse(("mouse", "wheel_up", 4, y, "M"))
+        self.assertEqual(model.offset, old_offset)
+        model.handle_mouse(("mouse", "wheel_up", 4, 5, "M"))
+        self.assertEqual(model.offset, old_offset - 1)
+
+    def test_poll_preserves_scroll_and_keyboard_reveals_selection(self):
+        model = self.make_model()
+        model.scroll_rows(6)
+        model.resort(model.selected_pane())
+        self.assertEqual(model.offset, 6)
+        self.assertEqual(model.cursor, 0)
+        model.handle_key("home")
+        self.assertFalse(model.free_scroll)
+        self.assertEqual(model.offset, 0)
+
+    def test_partial_entry_keeps_correct_mouse_hit_rows(self):
+        from unittest import mock
+        model = self.make_model()
+        model.scroll_rows(1)
+        model.view()
+        self.assertEqual(model.row_ranges[0], (4, 0, 1))
+        with mock.patch.object(model, "activate") as activate:
+            model.handle_mouse(("mouse", "press", 70, 7, "M"))
+        self.assertEqual(model.cursor, 1)
+        activate.assert_called_once()
+
+    def test_wheel_during_reply_preserves_reply_target_and_text(self):
+        model = self.make_model()
+        model.start_reply()
+        model.reply_text = "keep this message"
+        target = model.reply_to
+        model.handle_mouse(("mouse", "wheel_down", 4, 5, "M"))
+        self.assertEqual(model.offset, 1)
+        self.assertEqual(model.reply_to, target)
+        self.assertEqual(model.reply_text, "keep this message")
+        self.assertEqual(model.cursor, 0)
+
+    def test_group_headings_and_partial_rows_match_full_content(self):
+        model = self.make_model()
+        model.show = "all"
+        model.entries["w1:p2"].agent.status = "blocked"
+        model.resort("")
+        content = []
+        for i, pane in enumerate(model.order):
+            if model.headed(i):
+                content.extend((model.heading_line(rc.stage_of(model.entries[pane])), ""))
+            content.extend(model.entry_lines(model.entries[pane], i == model.cursor, i))
+        for offset in range(len(content) - model.list_height() + 1):
+            with self.subTest(offset=offset):
+                model.offset = offset
+                lines = model.view()
+                self.assertEqual(lines[4:10], content[offset:offset + 6])
+                self.assertEqual(len(lines), model.height)
+
+
 class PickerExitTest(unittest.TestCase):
     def test_picker_exits_with_blocked_workers(self):
         # Regression: Esc restored the terminal but the process stayed
