@@ -738,6 +738,120 @@ class PopupStateAndScrollTest(unittest.TestCase):
                 self.assertEqual(len(lines), model.height)
 
 
+class BackgroundSearchTest(unittest.TestCase):
+    def make_model(self):
+        model = rc.Model(rc.Config())
+        self.addCleanup(model.executor.shutdown, wait=False)
+        self.addCleanup(model.stop_search_workers)
+        model.width, model.height = 80, 24
+        model.entries = {"w1:p1": rc.Entry(
+            agent=rc.AgentInfo(pane_id="w1:p1", agent="pi", status="idle", title="Fixture"),
+            session=rc.AgentSession(id="fixture", agent="pi"))}
+        return model
+
+    def test_search_uses_spawn_process_pool_and_snapshot(self):
+        from unittest import mock
+        model = self.make_model()
+        model.filter = "needle"
+        with mock.patch.object(rc.concurrent.futures, "ProcessPoolExecutor") as pool, \
+                mock.patch.object(model.executor, "submit") as io_submit:
+            model.start_search()
+        self.assertEqual(pool.call_args.kwargs["max_workers"], 1)
+        self.assertEqual(pool.call_args.kwargs["mp_context"].get_start_method(), "spawn")
+        args = pool.return_value.submit.call_args.args
+        self.assertIs(args[0], rc.search_sessions)
+        self.assertEqual(args[2], {"w1:p1": model.entries["w1:p1"].session})
+        self.assertEqual(args[3], ["needle"])
+        self.assertEqual(model.jobs[0].session_id, "needle")
+        io_submit.assert_not_called()
+
+    def test_search_without_pane_id_applies_results(self):
+        import concurrent.futures
+        model = self.make_model()
+        model.filter, model.seeking = "needle", True
+        future = concurrent.futures.Future()
+        future.set_result(({"w1:p1": "needle in the conversation"}, {}))
+        model.jobs = [rc.FutureJob("search", "", future, session_id="needle")]
+        model.process_jobs()
+        self.assertFalse(model.seeking)
+        self.assertEqual(model.found_for, "needle")
+        self.assertEqual(model.order, ["w1:p1"])
+        self.assertEqual(model.found["w1:p1"], "needle in the conversation")
+
+    def test_stale_result_cannot_replace_new_query_or_clear_busy_state(self):
+        import concurrent.futures
+        model = self.make_model()
+        model.filter, model.seeking = "new query", True
+        future = concurrent.futures.Future()
+        future.set_result(({"w1:p1": "old result"}, {}))
+        model.jobs = [rc.FutureJob("search", "", future, session_id="old query")]
+        model.process_jobs()
+        self.assertTrue(model.seeking)
+        self.assertEqual(model.found, {})
+        self.assertEqual(model.found_for, "")
+
+    def test_edit_cancels_queued_search(self):
+        import concurrent.futures
+        model = self.make_model()
+        future = concurrent.futures.Future()
+        model.jobs = [rc.FutureJob("search", "", future, session_id="old query")]
+        model.filter = "new query"
+        model.refilter()
+        self.assertTrue(future.cancelled())
+
+    def test_running_scan_does_not_queue_a_scan_per_keystroke(self):
+        import concurrent.futures
+        from unittest import mock
+        model = self.make_model()
+        future = concurrent.futures.Future()
+        future.set_running_or_notify_cancel()
+        model.jobs = [rc.FutureJob("search", "", future, session_id="old query")]
+        model.filter = "new query"
+        with mock.patch.object(rc.concurrent.futures, "ProcessPoolExecutor") as pool:
+            model.start_search()
+        pool.assert_not_called()
+        self.assertGreater(model.seek_due, 0)
+        self.assertEqual(len(model.jobs), 1)
+
+    def test_worker_error_is_visible_and_clears_busy_state(self):
+        import concurrent.futures
+        model = self.make_model()
+        model.filter, model.seeking = "needle", True
+        future = concurrent.futures.Future()
+        future.set_exception(RuntimeError("worker failed"))
+        model.jobs = [rc.FutureJob("search", "", future, session_id="needle")]
+        model.process_jobs()
+        self.assertFalse(model.seeking)
+        self.assertIn("worker failed", model.err)
+        self.assertIn("worker failed", model.status_line())
+
+    def test_shutdown_terminates_work_before_joining_pool_manager(self):
+        from unittest import mock
+        model = self.make_model()
+        pool = mock.Mock(spec=["_processes", "shutdown"])
+        worker = mock.Mock()
+        pool._processes = {1: worker}
+        model.search_executor = pool
+        order = mock.Mock()
+        order.attach_mock(worker, "worker")
+        order.attach_mock(pool, "pool")
+        model.stop_search_workers()
+        self.assertEqual(order.mock_calls, [mock.call.worker.is_alive(), mock.call.worker.terminate(),
+                                           mock.call.pool.shutdown(wait=True, cancel_futures=True)])
+        self.assertIsNone(model.search_executor)
+
+    def test_worker_searches_real_python_transcript(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "conversation.jsonl")
+            with open(path, "w") as handle:
+                handle.write(json.dumps({"type": "message", "message": {
+                    "role": "user", "content": [{"type": "text", "text": "find the needle here"}]}}) + "\n")
+            session = rc.AgentSession(id="fixture", agent="pi", transcript=path)
+            found, scores = rc.search_sessions(rc.Config(), {"w1:p1": session}, ["needle"])
+            self.assertEqual(found, {"w1:p1": "find the needle here"})
+            self.assertEqual(scores, {})
+
+
 class PickerExitTest(unittest.TestCase):
     def test_picker_exits_with_blocked_workers(self):
         # Regression: Esc restored the terminal but the process stayed

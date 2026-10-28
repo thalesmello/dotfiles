@@ -28,6 +28,7 @@ import fcntl
 import glob
 import hashlib
 import json
+import multiprocessing
 import os
 import random
 import re
@@ -1528,6 +1529,23 @@ def search_session(cfg: Config, session: AgentSession, words: list[str]) -> str:
     return search_transcript(session.transcript, words)
 
 
+def search_sessions(cfg: Config, sessions: dict[str, AgentSession], words: list[str], demo: bool = False) -> tuple[dict[str, str], dict[str, float]]:
+    """Search a snapshot in a worker process, without capturing the UI model."""
+    found = {}
+    for pane, session in sessions.items():
+        if demo:
+            item = next((x for x in DEMO_AGENTS if x["agent"].pane_id == pane), None)
+            finder = Finder(words)
+            if item:
+                finder.see(item.get("said", ""))
+            text = finder.snippet()
+        else:
+            text = search_session(cfg, session, words)
+        if text:
+            found[pane] = text
+    return found, {}
+
+
 # ── tick / actions / handoff ─────────────────────────────────────────────
 
 def hook_pane() -> str:
@@ -2254,6 +2272,7 @@ class Model:
         self.links: dict[str, dict[str, Any]] = {}
         self.start_on = "" if demo else os.environ.get(SELECT_ENV, "")
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
+        self.search_executor: concurrent.futures.ProcessPoolExecutor | None = None
         self.jobs: list[FutureJob] = []
         self.found: dict[str, str] = {}
         self.scores: dict[str, float] = {}
@@ -2456,6 +2475,19 @@ class Model:
             if job.kind == "reply":
                 self.handle_action_result(job.kind, entry, result, error)
                 continue
+            if job.kind == "search":
+                if job.session_id != self.filter:
+                    continue
+                self.seeking = False
+                if error is not None:
+                    self.err = "Couldn't search conversations: " + str(error)
+                    self.found_for = job.session_id
+                elif result is not None:
+                    self.found, self.scores, self.found_for = result[0], result[1], job.session_id
+                    self.cursor, self.offset, self.picked = 0, 0, False
+                    self.free_scroll = False
+                    self.resort("")
+                continue
             if entry is None:
                 continue
             if job.kind == "session":
@@ -2504,12 +2536,6 @@ class Model:
                         entry.recap, entry.current, entry.note = recap, not again, ""
                 if again and entry.session is not None and entry.session.transcript:
                     self.start_recap(entry, False)
-            elif job.kind == "search":
-                self.seeking = False
-                if job.session_id == self.filter and error is None and result is not None:
-                    self.found, self.scores, self.found_for = result
-                    self.cursor, self.offset, self.picked = 0, 0, False
-                    self.resort("")
             elif job.kind in ("prompt", "rename_note", "rename_give", "rename_settle", "title", "space_rename", "focus"):
                 self.handle_action_result(job.kind, entry, result, error)
         self.jobs = pending
@@ -2656,6 +2682,11 @@ class Model:
         self.scroll_to(follow_selection=not self.free_scroll)
         self.dirty = True
     def refilter(self):
+        if self.err.startswith("Couldn't search conversations:"):
+            self.err = ""
+        for job in self.jobs:
+            if job.kind == "search" and job.session_id != self.filter:
+                job.future.cancel()
         if self.filter != self.found_for:
             self.found, self.scores, self.found_for = {}, {}, ""
         self.seeking = False
@@ -2675,24 +2706,39 @@ class Model:
     def start_search(self):
         query = self.filter
         words = search_words(query)
+        if not words:
+            return
+        # Do not queue a scan per keystroke behind a scan already in progress.
+        if any(job.kind == "search" and not job.future.done() for job in self.jobs):
+            self.seek_due = time.monotonic() + 0.05
+            return
         sessions = {p: e.session for p, e in self.entries.items() if e.session is not None}
-        cfg = self.cfg
-        def search_all():
-            found = {}
-            for pane, session in sessions.items():
-                if self.demo:
-                    item = next((x for x in DEMO_AGENTS if x["agent"].pane_id == pane), None)
-                    finder = Finder(words)
-                    if item:
-                        finder.see(item.get("said", ""))
-                    text = finder.snippet()
-                else:
-                    text = search_session(cfg, session, words)
-                if text:
-                    found[pane] = text
-            return found, {}
+        self.submit_process("search", "", search_sessions, self.cfg, sessions, words, self.demo, session_id=query)
         self.seeking = True
-        self.submit("search", "", search_all, session_id=query)
+
+    def submit_process(self, kind: str, pane: str, fn, *args, seq: int = 0, session_id: str = ""):
+        if self.search_executor is None:
+            self.search_executor = concurrent.futures.ProcessPoolExecutor(
+                max_workers=1, mp_context=multiprocessing.get_context("spawn"))
+        future = self.search_executor.submit(fn, *args)
+        self.jobs.append(FutureJob(kind, pane, future, seq, session_id))
+        return future
+
+    def stop_search_workers(self):
+        if self.search_executor is None:
+            return
+        pool, self.search_executor = self.search_executor, None
+        if hasattr(pool, "terminate_workers"):
+            pool.terminate_workers()
+        else:
+            # Python <3.14 has no public terminate_workers(). Stop work first,
+            # then join the pool manager so it releases queues and semaphores
+            # before this popup exits with os._exit().
+            processes = list((pool._processes or {}).values())
+            for process in processes:
+                if process.is_alive():
+                    process.terminate()
+            pool.shutdown(wait=True, cancel_futures=True)
 
     # titles/rename
     def suggestion(self, entry: Entry) -> str:
@@ -3602,6 +3648,7 @@ def run_picker(cfg: Config, demo: bool) -> int:
         model.save_ui_state()
         forget()
         model.executor.shutdown(wait=False, cancel_futures=True)
+        model.stop_search_workers()
     # Exit now, without joining the recap workers: Python's executor
     # atexit hook waits for every worker thread, and a worker can sit in
     # a summarizer call for the full timeout. That left a blank popup
