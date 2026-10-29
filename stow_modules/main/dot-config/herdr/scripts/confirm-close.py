@@ -13,21 +13,22 @@ Two subcommands:
 
 from __future__ import annotations
 
-import dataclasses
 import json
 import os
-import random
-import select
-import shutil
-import signal
 import socket
-import subprocess
 import sys
-import termios
 import time
-import tty
-from pathlib import Path
-from typing import Any, Callable
+
+# Only json/os/socket/sys/time load at import time; together they are the
+# idle-close hot path and what the popup prompt touches. Everything heavier
+# (select, shutil, signal, subprocess, termios, tty, pathlib) is imported
+# lazily inside the one function that needs it, so a keypress-triggered run
+# starts ~20ms sooner. dataclasses in particular dragged in inspect/re/ast
+# (~14ms), so the config/verdict carriers below are plain classes instead.
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any, Callable
 
 VERSION = "0.3.2"
 PLUGIN_ID = "confirm-close"
@@ -61,26 +62,26 @@ def style(sgr: str, text: str) -> str:
     return f"{sgr}{text}{RESET}"
 
 
-@dataclasses.dataclass
 class PopupConfig:
-    width: str = DEFAULT_POPUP_WIDTH
-    height: str = DEFAULT_POPUP_HEIGHT
+    def __init__(self, width: str = DEFAULT_POPUP_WIDTH, height: str = DEFAULT_POPUP_HEIGHT) -> None:
+        self.width = width
+        self.height = height
 
 
-@dataclasses.dataclass
 class Config:
-    ignore: list[str] = dataclasses.field(default_factory=list)
-    popup: PopupConfig = dataclasses.field(default_factory=PopupConfig)
+    def __init__(self, ignore: list[str] | None = None, popup: PopupConfig | None = None) -> None:
+        self.ignore: list[str] = ignore if ignore is not None else []
+        self.popup = popup if popup is not None else PopupConfig()
 
     def ignore_set(self) -> set[str]:
         return {name.strip().lower() for name in self.ignore if isinstance(name, str) and name.strip()}
 
 
-@dataclasses.dataclass
 class Verdict:
-    busy: bool = False
-    process: str = ""
-    cmdline: str = ""
+    def __init__(self, busy: bool = False, process: str = "", cmdline: str = "") -> None:
+        self.busy = busy
+        self.process = process
+        self.cmdline = cmdline
 
 
 class CliError(RuntimeError):
@@ -163,6 +164,8 @@ def herdr_bin() -> str:
     env_bin = os.environ.get("HERDR_BIN_PATH")
     if env_bin and os.path.isfile(env_bin) and os.access(env_bin, os.X_OK):
         return env_bin
+    import shutil
+
     resolved = shutil.which("herdr")
     if resolved:
         return resolved
@@ -198,14 +201,16 @@ def parse_popup_size(value: str) -> int | str:
 
 class HerdrRunner:
     def __init__(self, bin_path: str | None = None, socket_path: str | None = None) -> None:
-        self.bin_path = bin_path or herdr_bin()
+        # Resolve the binary lazily (see cli()): the socket branch is the only
+        # one the hot path takes, so skip the herdr_bin() PATH scan here.
+        self.bin_path = bin_path
         self.socket_path = socket_path if socket_path is not None else herdr_socket()
 
     def request(self, method: str, params: dict[str, Any], timeout: float = 2.0) -> dict[str, Any]:
         if not self.socket_path:
             raise OSError("herdr socket not found")
         payload = {
-            "id": f"confirm-close:{int(time.time() * 1000)}:{random.randrange(1_000_000):06d}",
+            "id": f"confirm-close:{time.time_ns()}:{os.getpid()}",
             "method": method,
             "params": params,
         }
@@ -239,8 +244,10 @@ class HerdrRunner:
         return result
 
     def cli(self, *args: str) -> dict[str, Any]:
+        import subprocess
+
         proc = subprocess.run(
-            [self.bin_path, *args],
+            [self.bin_path or herdr_bin(), *args],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -399,6 +406,8 @@ def send_keys(runner: HerdrRunner, pane_id: str, keys: list[str]) -> None:
 
 
 def ensure_local_plugin_linked(runner: HerdrRunner) -> None:
+    from pathlib import Path
+
     plugin_dir = Path(__file__).resolve().parents[1] / "local-plugins" / PLUGIN_ID
     if not (plugin_dir / "herdr-plugin.toml").is_file():
         return
@@ -548,6 +557,8 @@ def render_prompt(
 
 
 def read_single_key(fd: int) -> str:
+    import select
+
     while True:
         ready, _, _ = select.select([fd], [], [], 0.1)
         if not ready:
@@ -577,6 +588,12 @@ def run_prompt(
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         print("error: prompt requires a terminal", file=sys.stderr)
         return 1
+
+    import select
+    import shutil
+    import signal
+    import termios
+    import tty
 
     fd = sys.stdin.fileno()
     old_attrs = termios.tcgetattr(fd)
