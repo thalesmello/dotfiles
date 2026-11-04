@@ -114,3 +114,5 @@ mas "Xcode", id: 497799835
 brew "multimarkdown"
 cask "claude-code"
 brew "tree-sitter-cli"
+# First run: cd homebrew && stow casks
+Dir.glob(File.join(__dir__, "homebrew/casks/thalesmello/homebrew-alfred-workflows/Casks/*.rb")).sort.each { |file| cask "thalesmello/alfred-workflows/#{File.basename(file, '.rb')}", trusted: true } if OS.mac?

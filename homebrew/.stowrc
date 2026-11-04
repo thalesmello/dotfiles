@@ -1,0 +1,3 @@
+--dir=.
+--target=/opt/homebrew/Library/Taps
+--ignore=\.stowrc

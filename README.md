@@ -3,6 +3,8 @@
 Install dependencies:
 
 ```
+brew install stow
+cd homebrew && stow casks && cd ..
 brew bundle install
 bash ./scripts/pipx_install.sh
 bash ./scripts/go_install.sh
@@ -37,6 +39,24 @@ fish_add_path (python3 -m site --user-base)/bin
 mkdir -p ~/.local/bin && fish_add_path ~/.local/bin
 mkdir -p ~/go/bin && fish_add_path ~/go/bin
 ```
+
+## Alfred workflows
+
+The `.stowrc` in `homebrew/` targets Homebrew's tap folder, so
+run `stow casks` from that folder (above). Stow requires a package
+name, so bare `stow` does not work.
+The Brewfile installs every cask in its `Casks/` folder. Requires Alfred Powerpack.
+
+**Quit Alfred before migrating existing workflows.** Settings are preserved;
+custom script changes are backed up, not merged. Do not change the sync folder
+while installing.
+
+```
+HOMEBREW_ALFRED_WORKFLOWS_MIGRATE=1 brew bundle install
+```
+
+Backups: `~/Library/Application Support/Alfred Workflow Backups/`.
+
 
 ## Herdr plugins
 
