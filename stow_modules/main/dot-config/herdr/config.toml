@@ -593,9 +593,10 @@ description = "agent sessions: every section, live + settled"
 # prefix+alt+d: settle review (scripts/settle-review.sh). Opens a Pi session
 # in the reused settle-review workspace (new tab per press) that scans every
 # idle/done agent, reads each transcript tail, prints a Settle/Keep/Uncertain
-# verdict table, then asks once via questionnaire (settle / keep / snooze 1d
-# per candidate) and only settles the approved panes via herdr-settled.py.
-# Next to prefix+alt+z (snooze) on purpose: d for done/discuss.
+# verdict table, then asks ONE multi-select questionnaire question listing
+# only the settle suggestions (select to settle, or add a free-text entry
+# to snooze one instead) and only settles the sessions he picks.
+# Next to prefix+alt+s (settled list) and prefix+alt+z (snooze) on purpose.
 [[keys.command]]
 key = "prefix+alt+d"
 type = "shell"
