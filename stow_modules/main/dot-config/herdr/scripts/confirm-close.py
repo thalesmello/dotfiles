@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Any, Callable
 
-VERSION = "0.3.2"
+VERSION = "0.3.3"
 PLUGIN_ID = "confirm-close"
 UPSTREAM_PLUGIN_ID = "asumaran.asconfirmclose"
 PROMPT_ENTRYPOINT = "confirm"
@@ -38,6 +38,7 @@ PROMPT_ENTRYPOINT = "confirm"
 ENV_PANE_ID = "ASCONFIRMCLOSE_PANE_ID"
 ENV_PROCESS = "ASCONFIRMCLOSE_PROCESS"
 ENV_CMDLINE = "ASCONFIRMCLOSE_CMDLINE"
+ENV_TITLE = "ASCONFIRMCLOSE_TITLE"
 
 DEFAULT_POPUP_WIDTH = "64"
 DEFAULT_POPUP_HEIGHT = "9"
@@ -78,10 +79,11 @@ class Config:
 
 
 class Verdict:
-    def __init__(self, busy: bool = False, process: str = "", cmdline: str = "") -> None:
+    def __init__(self, busy: bool = False, process: str = "", cmdline: str = "", title: str = "") -> None:
         self.busy = busy
         self.process = process
         self.cmdline = cmdline
+        self.title = title
 
 
 class CliError(RuntimeError):
@@ -393,6 +395,47 @@ def fetch_process_info(runner: HerdrRunner, pane_id: str) -> dict[str, Any]:
     return info
 
 
+def agent_title_from_pane(pane: dict[str, Any]) -> str:
+    """Session title of the agent in `pane` (``pane.get`` payload), or "".
+
+    Only agent panes have a meaningful title; for a bare ``pi``/``claude``
+    process the terminal title is the conversation/session name Herdr shows
+    in the sidebar (``terminal_title_stripped``), which identifies the chat
+    far better than the process name alone. Returns "" for non-agent panes,
+    missing/blank titles, and titles that are just the agent name itself.
+    """
+    if not isinstance(pane, dict):
+        return ""
+    agent = pane.get("agent")
+    if not isinstance(agent, str) or not agent.strip():
+        return ""
+    title = pane.get("terminal_title_stripped") or pane.get("terminal_title") or ""
+    if not isinstance(title, str) or not title.strip():
+        tokens = pane.get("tokens")
+        if isinstance(tokens, dict):
+            restored = tokens.get("restored_title")
+            if isinstance(restored, str):
+                title = restored
+    if not isinstance(title, str):
+        return ""
+    # Collapse whitespace/control chars: the title is rendered raw in the
+    # popup and passed through an env var, so it must stay one safe line.
+    title = " ".join("".join(ch if ch >= " " else " " for ch in title).split())
+    if not title or title.lower() == agent.strip().lower():
+        return ""
+    return title
+
+
+def fetch_agent_title(runner: HerdrRunner, pane_id: str) -> str:
+    """Best-effort agent session title for `pane_id`; "" on any failure."""
+    try:
+        res = runner.call("pane.get", {"pane_id": pane_id}, ["pane", "get", pane_id])
+    except Exception:
+        return ""
+    pane = res.get("pane") if isinstance(res, dict) else None
+    return agent_title_from_pane(pane) if isinstance(pane, dict) else ""
+
+
 def close_pane(runner: HerdrRunner, pane_id: str) -> None:
     runner.call("pane.close", {"pane_id": pane_id}, ["pane", "close", pane_id])
 
@@ -433,6 +476,8 @@ def open_confirm_popup(
     }
     if verdict.cmdline:
         env[ENV_CMDLINE] = verdict.cmdline
+    if verdict.title:
+        env[ENV_TITLE] = verdict.title
 
     cli_args = [
         "plugin", "pane", "open",
@@ -447,6 +492,8 @@ def open_confirm_popup(
     ]
     if verdict.cmdline:
         cli_args.extend(["--env", f"{ENV_CMDLINE}={verdict.cmdline}"])
+    if verdict.title:
+        cli_args.extend(["--env", f"{ENV_TITLE}={verdict.title}"])
 
     params: dict[str, Any] = {
         "plugin_id": PLUGIN_ID,
@@ -495,6 +542,10 @@ def run_close(
         print(f"closed idle pane {pane_id}", file=log)
         return "closed"
 
+    # An agent's process name ("pi", "claude") does not identify which chat
+    # is about to be killed; its session title does. Best-effort only: a
+    # failed lookup must never block or break the confirmation.
+    verdict.title = fetch_agent_title(runner, pane_id)
     open_confirm_popup(runner, cfg, pane_id, verdict)
     print(f"pane {pane_id} is running {verdict.process}; opened confirmation", file=log)
     return "prompted"
@@ -515,6 +566,7 @@ def render_prompt(
     width: int = 64,
     closing: bool = False,
     err: str | None = None,
+    title: str = "",
 ) -> str:
     inner = width - 4
     if inner < 20:
@@ -535,11 +587,17 @@ def render_prompt(
             lines.append(
                 "  " + style(ST_DIM, "herdr could not inspect the pane; it may still be busy")
             )
+            if title:
+                lines.append("  " + style(ST_PROCESS, truncate(title, inner - 2)))
         else:
             lines.append(
                 f"  Pane {style(ST_TITLE, pane_id)} is running {style(ST_PROCESS, process)}"
             )
-            if cmdline and cmdline != process:
+            if title:
+                # The session title replaces the (usually noisy, truncated)
+                # cmdline: it is what actually identifies the agent's chat.
+                lines.append("  " + style(ST_PROCESS, truncate(title, inner - 2)))
+            elif cmdline and cmdline != process:
                 lines.append("  " + style(ST_DIM, truncate(cmdline, inner - 2)))
         lines.append("")
         lines.append(
@@ -584,6 +642,7 @@ def run_prompt(
     process: str,
     cmdline: str,
     close_fn: Callable[[], None],
+    title: str = "",
 ) -> int:
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         print("error: prompt requires a terminal", file=sys.stderr)
@@ -607,7 +666,7 @@ def run_prompt(
 
     def draw(closing: bool = False, err: str | None = None) -> None:
         cols = shutil.get_terminal_size((64, 9)).columns
-        frame = render_prompt(pane_id, process, cmdline, width=cols, closing=closing, err=err)
+        frame = render_prompt(pane_id, process, cmdline, width=cols, closing=closing, err=err, title=title)
         sys.stdout.write("\x1b[2J\x1b[H" + frame.replace("\n", "\r\n"))
         sys.stdout.flush()
 
@@ -656,7 +715,7 @@ def usage() -> None:
   close [--pane ID] [--forward-vim]
           inspect the focused pane and close it, or open the confirmation
           popup when a process is running in it
-  prompt  the confirmation popup (reads {ENV_PANE_ID}, {ENV_PROCESS}, {ENV_CMDLINE})
+  prompt  the confirmation popup (reads {ENV_PANE_ID}, {ENV_PROCESS}, {ENV_CMDLINE}, {ENV_TITLE})
 
 flags:
   -version, --version   print the version and exit""",
@@ -719,7 +778,8 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         process = os.environ.get(ENV_PROCESS) or UNKNOWN_PROCESS
         cmdline = os.environ.get(ENV_CMDLINE, "")
-        return run_prompt(pane_id, process, cmdline, lambda: close_pane(runner, pane_id))
+        title = os.environ.get(ENV_TITLE, "")
+        return run_prompt(pane_id, process, cmdline, lambda: close_pane(runner, pane_id), title=title)
 
     usage()
     return 2

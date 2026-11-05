@@ -107,9 +107,10 @@ BUSY = {"foreground_process_group_id": 20, "shell_pid": 10,
 
 
 class FakeRunner(cc.HerdrRunner):
-    def __init__(self, info=None, info_error=None, open_error=None):
+    def __init__(self, info=None, info_error=None, open_error=None, pane=None):
         super().__init__(bin_path="herdr", socket_path=None)
         self.info, self.info_error, self.open_error = info, info_error, open_error
+        self.pane = pane
         self.calls = []
 
     def call(self, method, params, cli_args):
@@ -118,6 +119,8 @@ class FakeRunner(cc.HerdrRunner):
             if self.info_error is not None:
                 raise self.info_error
             return {"process_info": self.info}
+        if method == "pane.get":
+            return {"pane": self.pane} if self.pane is not None else {}
         if method == "plugin.pane.open" and self.open_error is not None:
             raise self.open_error
         return {}
@@ -146,6 +149,24 @@ class RunCloseTest(unittest.TestCase):
         self.assertEqual(params["env"][cc.ENV_PANE_ID], "w1:p1")
         self.assertEqual(params["env"][cc.ENV_PROCESS], "claude")
         self.assertEqual(params["env"][cc.ENV_CMDLINE], "claude --enable-auto-mode")
+
+    def test_busy_agent_popup_carries_session_title(self):
+        pane = {"agent": "pi", "terminal_title": "⠋ pi - Fix the flaky test",
+                "terminal_title_stripped": "Fix the flaky test"}
+        runner = FakeRunner(BUSY, pane=pane)
+        self.assertEqual(self.run_close(runner), "prompted")
+        _, params = runner.calls[-1]
+        self.assertEqual(params["env"][cc.ENV_TITLE], "Fix the flaky test")
+        # Title lookup happens between process_info and the popup, never on idle.
+        self.assertEqual([m for m, _ in runner.calls],
+                         ["pane.process_info", "pane.get", "plugin.pane.open"])
+
+    def test_busy_non_agent_popup_has_no_title(self):
+        pane = {"terminal_title_stripped": "notes.md"}
+        runner = FakeRunner(BUSY, pane=pane)
+        self.assertEqual(self.run_close(runner), "prompted")
+        _, params = runner.calls[-1]
+        self.assertNotIn(cc.ENV_TITLE, params["env"])
 
     def test_popup_uses_configured_size(self):
         cfg = cc.Config()
@@ -191,6 +212,30 @@ class RunCloseTest(unittest.TestCase):
         self.assertEqual(self.run_close(runner), "prompted")
 
 
+class AgentTitleTest(unittest.TestCase):
+    def test_prefers_stripped_title(self):
+        pane = {"agent": "pi", "terminal_title": "⠋ pi - Chat",
+                "terminal_title_stripped": "Chat"}
+        self.assertEqual(cc.agent_title_from_pane(pane), "Chat")
+
+    def test_falls_back_to_terminal_title_and_restored_token(self):
+        self.assertEqual(cc.agent_title_from_pane(
+            {"agent": "claude", "terminal_title": "  My   chat "}), "My chat")
+        self.assertEqual(cc.agent_title_from_pane(
+            {"agent": "claude", "tokens": {"restored_title": "Old chat"}}), "Old chat")
+
+    def test_no_title_for_non_agent_blank_or_agent_name(self):
+        self.assertEqual(cc.agent_title_from_pane({"terminal_title_stripped": "Chat"}), "")
+        self.assertEqual(cc.agent_title_from_pane({"agent": "pi"}), "")
+        self.assertEqual(cc.agent_title_from_pane({"agent": "pi", "terminal_title_stripped": "pi"}), "")
+        self.assertEqual(cc.agent_title_from_pane({}), "")
+
+    def test_fetch_failure_is_empty(self):
+        runner = FakeRunner(BUSY)
+        runner.pane = None
+        self.assertEqual(cc.fetch_agent_title(runner, "w1:p1"), "")
+
+
 class ConfigTest(unittest.TestCase):
     def test_defaults(self):
         for directory in ("", tempfile.mkdtemp()):
@@ -233,6 +278,13 @@ class RenderPromptTest(unittest.TestCase):
     def test_hides_cmdline_when_same_as_process(self):
         view = cc.render_prompt("w1:p1", "vim", "vim", width=64)
         self.assertEqual(view.count("vim"), 1)
+
+    def test_shows_agent_title_instead_of_cmdline(self):
+        view = cc.render_prompt("w1:p1", "pi", "pi --session-id abc -- do a thing",
+                                width=64, title="Fix the flaky test")
+        self.assertIn("pi", view)
+        self.assertIn("Fix the flaky test", view)
+        self.assertNotIn("--session-id", view)
 
     def test_unknown_process(self):
         view = cc.render_prompt("w1:p1", cc.UNKNOWN_PROCESS, "", width=64)

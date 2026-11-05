@@ -12,7 +12,7 @@
 
 id = "confirm-close"
 name = "confirm-close"
-version = "0.3.2"
+version = "0.3.3"
 min_herdr_version = "0.8.0"
 description = "Close the focused pane, asking first only when a process is running in it"
 platforms = ["macos", "linux"]
