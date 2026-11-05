@@ -556,6 +556,18 @@ type = "shell"
 command = "~/.config/herdr/scripts/herdr-snooze.py toggle"
 description = "agents panel: priority -> grouped -> snoozed"
 
+# prefix+alt+d: settle review (scripts/settle-review.sh). Opens a Pi session
+# in the reused settle-review workspace (new tab per press) that scans every
+# idle/done agent, reads each transcript tail, prints a Settle/Keep/Uncertain
+# verdict table, then asks once via questionnaire (settle / keep / snooze 1d
+# per candidate) and only settles the approved panes via herdr-settled.py.
+# Next to prefix+alt+z (snooze) on purpose: d for done/discuss.
+[[keys.command]]
+key = "prefix+alt+d"
+type = "shell"
+command = "~/.config/herdr/scripts/settle-review.sh"
+description = "settle review: scan idle sessions, ask before settling"
+
 # prefix++ / prefix+_: widen / narrow the sidebar by 2 columns. herdr has no
 # keybinding for this (only the mouse drag on the divider), and the live width
 # is session state that config cannot move directly -- see sidebar-resize.py for
