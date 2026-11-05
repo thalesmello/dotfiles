@@ -27,6 +27,7 @@ import datetime as _dt
 import fcntl
 import glob
 import hashlib
+import io
 import json
 import multiprocessing
 import os
@@ -61,14 +62,14 @@ NOT_ALNUM = re.compile(r"[^a-zA-Z0-9]")
 
 @dataclasses.dataclass
 class Config:
-    recap_after_seconds: int = 180
+    recap_after_seconds: int = 15
     claude: str = ""
     agents: list[str] = dataclasses.field(default_factory=lambda: ["claude", "codex", "pi"])
     codex: str = ""
     memex: str = "memex"
     summarizer: list[str] = dataclasses.field(default_factory=list)
     summarizer_model: str = "haiku"
-    transcript_max_chars: int = 24000
+    transcript_max_chars: int = 8000
     timeout_seconds: int = 120
     theme: str = ""
     tokens: list[str] = dataclasses.field(default_factory=list)
@@ -593,6 +594,7 @@ def open_files(pid: int) -> list[str]:
 
 @dataclasses.dataclass
 class SessionMeta:
+    provider: str = ""
     title: str = ""
     branch: str = ""
     model: str = ""
@@ -977,8 +979,17 @@ def read_pi_meta(path: str) -> SessionMeta:
                     continue
                 if entry.get("type") == "session_info" and isinstance(entry.get("name"), str):
                     meta.title = entry["name"].strip()
+                if entry.get("type") == "model_change":
+                    if isinstance(entry.get("provider"), str):
+                        meta.provider = entry["provider"]
+                    if isinstance(entry.get("modelId"), str):
+                        meta.model = entry["modelId"]
                 if entry.get("type") == "message":
                     message = entry.get("message") if isinstance(entry.get("message"), dict) else {}
+                    if isinstance(message.get("provider"), str):
+                        meta.provider = message["provider"]
+                    if isinstance(message.get("model"), str):
+                        meta.model = message["model"]
                     if message.get("role") == "user":
                         meta.last_prompt = spoken_text(message)[:300]
     except OSError:
@@ -1290,7 +1301,17 @@ def memex_conversation(cfg: Config, session: AgentSession) -> str:
 def transcript_conversation(session: AgentSession, max_chars: int) -> str:
     parts: list[str] = []
     try:
-        with open(session.transcript, encoding="utf-8", errors="replace") as handle:
+        # Only the tail matters (the result is truncated to max_chars from
+        # the end anyway): don't parse a multi-MB transcript from the top.
+        tail_bytes = max(512 * 1024, max_chars * 16)
+        with open(session.transcript, "rb") as raw:
+            raw.seek(0, os.SEEK_END)
+            if raw.tell() > tail_bytes:
+                raw.seek(-tail_bytes, os.SEEK_END)
+                raw.readline()  # drop the partial first line
+            else:
+                raw.seek(0)
+            handle = io.TextIOWrapper(raw, encoding="utf-8", errors="replace")
             for line in handle:
                 try:
                     entry = json.loads(line)
@@ -1319,6 +1340,42 @@ def transcript_conversation(session: AgentSession, max_chars: int) -> str:
     return text[-max_chars:] if len(text) > max_chars else text
 
 
+# Pi sessions summarize with pi itself, on the light model of the provider
+# family the session is running: (provider, --model pattern, fallback IDs
+# newest first). No "nano" exists in pi's Google catalog; flash-lite is
+# its light tier. Unknown providers fall back to cfg.summarizer_model.
+LIGHT_MODELS: dict[str, tuple[str, str, list[str]]] = {
+    "anthropic": ("anthropic", "haiku", ["claude-haiku-5-5", "claude-haiku-4-5"]),
+    "openai": ("openai", "luna", ["gpt-6-luna", "gpt-5.6-luna"]),
+    "meta": ("meta", "spark", ["muse-spark-1.4-internal", "muse-spark-1.3-internal"]),
+    "google": ("google", "nano", ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"]),
+}
+
+
+def run_pi_summary(cfg: Config, session: AgentSession, prompt: str, preserve_lines: bool) -> tuple[str, float]:
+    provider = session.meta.provider.strip().lower()
+    family = LIGHT_MODELS.get(provider)
+    selectors: list[list[str]] = []
+    if family:
+        prov, pattern, fallbacks = family
+        selectors.append(["--provider", prov, "--model", pattern])
+        selectors += [["--model", f"{prov}/{model_id}"] for model_id in fallbacks]
+    selectors.append(["--model", cfg.summarizer_model])
+    binary = shutil.which("pi") or "pi"
+    error = "pi gave no output"
+    for selector in selectors:
+        args = [binary, "-p", "--no-session", "--no-tools", "--no-extensions", "--no-skills",
+                "--no-context-files", "--no-mcp", "--mode", "text", "--thinking", "off", *selector, prompt]
+        out, err, code = run_bounded(args, cfg.timeout_seconds, cwd=tempfile.gettempdir(), env=agent_env(session, "CLAUDE_CONFIG_DIR"))
+        text = clean(out, keep_breaks=preserve_lines).strip()
+        if code == 0 and text:
+            if not preserve_lines:
+                text = " ".join(text.split())
+            return text, 0.0
+        error = (err.strip().splitlines() or [f"pi exited {code}"])[-1][:200]
+    raise RuntimeError("pi summarizer: " + error)
+
+
 def run_summary(cfg: Config, session: AgentSession, conversation: str, *, instruction: str = "", preserve_lines: bool = False) -> tuple[str, float]:
     payload = json.dumps({"agent": session.agent, "conversation": conversation})
     task = instruction or "Write one concise recap (at most 40 words) of this coding-agent session: goal, current state, and next action."
@@ -1335,6 +1392,8 @@ def run_summary(cfg: Config, session: AgentSession, conversation: str, *, instru
         if not text:
             raise RuntimeError(f"summarizer gave an empty {answer}")
         return text, 0.0
+    if session.agent == "pi":
+        return run_pi_summary(cfg, session, prompt, preserve_lines)
     args = [claude_binary(cfg, session), "-p", "--no-session-persistence", "--output-format", "json", "--tools", "", "--model", cfg.summarizer_model]
     out, err, code = run_bounded(args, cfg.timeout_seconds, stdin_text=prompt, cwd=tempfile.gettempdir(), env=agent_env(session, "CLAUDE_CONFIG_DIR"))
     if code != 0 and not out:
@@ -1762,7 +1821,11 @@ def recap_later(cfg: Config, after: int, seq: int, pane_id: str) -> int:
         time.sleep(after)
         agents = list_agents()
         current = next((a for a in agents if a.pane_id == pane_id), None)
-        if current is None or current.state_change_seq != seq or not recap_capable(cfg, current) or current.status not in ("done", "blocked"):
+        # Idle counts: a pi agent goes done -> idle (bumping its seq) as
+        # soon as its tab is seen, which used to void the scheduled recap
+        # before it ever ran. Working is still excluded -- that agent went
+        # back to work, and its next done/blocked transition reschedules.
+        if current is None or not recap_capable(cfg, current) or current.status not in ("done", "blocked", "idle"):
             return 0
         session = resolve_session(cfg, current)
         recap, ran = ensure_recap(cfg, session, session_title(current), force=False)
@@ -2485,6 +2548,7 @@ class Model:
         self.start_on = "" if demo else os.environ.get(SELECT_ENV, "")
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
         self.search_executor: concurrent.futures.ProcessPoolExecutor | None = None
+        self.job_executor: concurrent.futures.ProcessPoolExecutor | None = None
         self.jobs: list[FutureJob] = []
         self.found: dict[str, str] = {}
         self.scores: dict[str, float] = {}
@@ -3013,28 +3077,39 @@ class Model:
         self.seeking = True
 
     def submit_process(self, kind: str, pane: str, fn, *args, seq: int = 0, session_id: str = ""):
-        if self.search_executor is None:
-            self.search_executor = concurrent.futures.ProcessPoolExecutor(
-                max_workers=1, mp_context=multiprocessing.get_context("spawn"))
-        future = self.search_executor.submit(fn, *args)
+        # Search scans keep their single worker (one scan at a time, no
+        # queue per keystroke). Session resolves and recaps -- each mostly
+        # a subprocess waiting on a model call -- get a parallel pool, so
+        # opening the popup doesn't recap ~15 sessions strictly serially.
+        if kind == "search":
+            if self.search_executor is None:
+                self.search_executor = concurrent.futures.ProcessPoolExecutor(
+                    max_workers=1, mp_context=multiprocessing.get_context("spawn"))
+            executor = self.search_executor
+        else:
+            if self.job_executor is None:
+                self.job_executor = concurrent.futures.ProcessPoolExecutor(
+                    max_workers=4, mp_context=multiprocessing.get_context("spawn"))
+            executor = self.job_executor
+        future = executor.submit(fn, *args)
         self.jobs.append(FutureJob(kind, pane, future, seq, session_id))
         return future
 
     def stop_search_workers(self):
-        if self.search_executor is None:
-            return
-        pool, self.search_executor = self.search_executor, None
-        if hasattr(pool, "terminate_workers"):
-            pool.terminate_workers()
-        else:
-            # Python <3.14 has no public terminate_workers(). Stop work first,
-            # then join the pool manager so it releases queues and semaphores
-            # before this popup exits with os._exit().
-            processes = list((pool._processes or {}).values())
-            for process in processes:
-                if process.is_alive():
-                    process.terminate()
-            pool.shutdown(wait=True, cancel_futures=True)
+        pools = [pool for pool in (self.search_executor, self.job_executor) if pool is not None]
+        self.search_executor = self.job_executor = None
+        for pool in pools:
+            if hasattr(pool, "terminate_workers"):
+                pool.terminate_workers()
+            else:
+                # Python <3.14 has no public terminate_workers(). Stop work first,
+                # then join the pool manager so it releases queues and semaphores
+                # before this popup exits with os._exit().
+                processes = list((pool._processes or {}).values())
+                for process in processes:
+                    if process.is_alive():
+                        process.terminate()
+                pool.shutdown(wait=True, cancel_futures=True)
 
     # titles/rename
     def suggestion(self, entry: Entry) -> str:

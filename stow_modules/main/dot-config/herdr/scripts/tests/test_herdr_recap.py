@@ -102,6 +102,65 @@ class StageTest(unittest.TestCase):
         self.assertEqual(rc.bucket_of(entry), "snoozed")
 
 
+class PiSummarizerTest(unittest.TestCase):
+    def session(self, provider):
+        session = rc.AgentSession(agent="pi", transcript="/tmp/x.jsonl")
+        session.meta.provider = provider
+        return session
+
+    def test_light_model_per_provider_family(self):
+        from unittest import mock
+        calls = []
+        def fake_run(cmd, timeout, **kwargs):
+            calls.append(cmd)
+            return "a recap", "", 0
+        with mock.patch.object(rc, "run_bounded", fake_run), mock.patch.object(rc.shutil, "which", return_value="/usr/local/bin/pi"):
+            text, _cost = rc.run_summary(rc.Config(), self.session("meta"), "conversation")
+        self.assertEqual(text, "a recap")
+        self.assertIn("--provider", calls[0])
+        self.assertEqual(calls[0][calls[0].index("--provider") + 1], "meta")
+        self.assertEqual(calls[0][calls[0].index("--model") + 1], "spark")
+
+    def test_google_falls_back_when_nano_is_unavailable(self):
+        from unittest import mock
+        calls = []
+        def fake_run(cmd, timeout, **kwargs):
+            calls.append(cmd)
+            if "nano" in cmd:
+                return "", "no model nano", 1
+            return "a recap", "", 0
+        with mock.patch.object(rc, "run_bounded", fake_run), mock.patch.object(rc.shutil, "which", return_value="/usr/local/bin/pi"):
+            text, _cost = rc.run_summary(rc.Config(), self.session("google"), "conversation")
+        self.assertEqual(text, "a recap")
+        self.assertEqual(calls[1][calls[1].index("--model") + 1], "google/gemini-3.5-flash-lite")
+
+    def test_read_pi_meta_captures_provider_and_model(self):
+        import tempfile, os
+        rows = [
+            {"type": "model_change", "provider": "openai", "modelId": "gpt-5.6-sol"},
+            {"type": "message", "message": {"role": "assistant", "provider": "openai", "model": "gpt-6.1-sol", "content": "hi"}},
+        ]
+        with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False) as handle:
+            for row in rows:
+                handle.write(json.dumps(row) + "\n")
+            path = handle.name
+        self.addCleanup(os.unlink, path)
+        meta = rc.read_pi_meta(path)
+        self.assertEqual((meta.provider, meta.model), ("openai", "gpt-6.1-sol"))
+
+    def test_transcript_conversation_reads_the_tail(self):
+        import tempfile, os
+        with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False) as handle:
+            for i in range(3000):
+                handle.write(json.dumps({"type": "message", "message": {"role": "assistant", "content": f"filler {i} " + "x" * 200}}) + "\n")
+            handle.write(json.dumps({"type": "message", "message": {"role": "assistant", "content": "THE FINAL MARKER"}}) + "\n")
+            path = handle.name
+        self.addCleanup(os.unlink, path)
+        text = rc.transcript_conversation(rc.AgentSession(agent="pi", transcript=path), 8000)
+        self.assertIn("THE FINAL MARKER", text)
+        self.assertLessEqual(len(text), 8000)
+
+
 class BucketOrderTest(unittest.TestCase):
     def make_model(self, specs):
         model = rc.Model(rc.Config())
@@ -1002,15 +1061,15 @@ class PiTitleSuggestionTest(unittest.TestCase):
 
     def test_pi_default_backend_is_tool_free_and_does_not_resume(self):
         from unittest import mock
-        result = json.dumps({"result": "Implement Delta Cache", "total_cost_usd": 0.02, "is_error": False})
         with tempfile.TemporaryDirectory() as directory:
             session = self.make_session(directory)
-            with mock.patch.object(rc, "claude_binary", return_value="claude"), \
-                    mock.patch.object(rc, "run_bounded", return_value=(result, "", 0)) as run:
-                self.assertEqual(rc.suggest_title(rc.Config(), session, "Old Title"), ("Implement Delta Cache", 0.02))
+            with mock.patch.object(rc.shutil, "which", return_value="pi"), \
+                    mock.patch.object(rc, "run_bounded", return_value=("Implement Delta Cache", "", 0)) as run:
+                self.assertEqual(rc.suggest_title(rc.Config(), session, "Old Title"), ("Implement Delta Cache", 0.0))
             args = run.call_args.args[0]
+            self.assertEqual(args[0], "pi")
             self.assertNotIn("--resume", args)
-            self.assertEqual(args[args.index("--tools") + 1], "")
+            self.assertIn("--no-tools", args)
 
     def test_pi_rejects_multiline_suggestions(self):
         from unittest import mock
