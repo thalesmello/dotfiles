@@ -4,7 +4,7 @@
  * Exports the pi-tui / pi-coding-agent surface the extension imports,
  * backed by:
  * - the real pi-tui utilities extracted from the installed pi binary (the
- *   same pattern table-selection-host.ts uses), and
+ *   same pattern selection-manager-host.ts uses), and
  * - a fake Markdown whose renderToken mirrors the built-in code-block
  *   rendering, and a fake TuiAltScreen implementing the internals contract
  *   the extension patches into (selection bounds/columns, click handling

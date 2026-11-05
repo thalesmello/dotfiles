@@ -1,5 +1,5 @@
 /**
- * Test host for table-selection.test.ts.
+ * Test host for selection-manager.test.ts.
  *
  * Exports the pi-tui surface the extension imports, backed by:
  * - the real pi-tui utilities extracted from the installed pi binary (the

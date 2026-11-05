@@ -1,5 +1,5 @@
 /**
- * table-selection.ts -- table-aware mouse selection in fullscreen mode.
+ * selection-manager.ts -- table-aware mouse selection in fullscreen mode.
  *
  * Why this exists
  * ---------------
@@ -455,7 +455,7 @@ function drawReferencePopup(
 // Reference blocks in the prompt editor
 // ---------------------------------------------------------------------------
 
-const REFERENCE_EDITOR_MARKER = Symbol.for("table-selection.reference-editor");
+const REFERENCE_EDITOR_MARKER = Symbol.for("selection-manager.reference-editor");
 
 /**
  * Style one text segment in the reference block style: gray italic text,
@@ -1045,13 +1045,13 @@ function uninstallTableSelection(): void {
 	pendingReferences.clear();
 }
 
-export default function tableSelectionExtension(pi: ExtensionAPI): void {
+export default function selectionManagerExtension(pi: ExtensionAPI): void {
 	pi.on("session_start", (_event, ctx) => {
 		if (ctx.mode !== "tui") return;
 		activeCtx = ctx;
 		installReferenceEditor(ctx);
 		if (!installTableSelection()) {
-			ctx.ui.notify("table-selection: fullscreen selection internals not found; extension inactive", "warning");
+			ctx.ui.notify("selection-manager: fullscreen selection internals not found; extension inactive", "warning");
 		}
 	});
 
@@ -1074,13 +1074,13 @@ export default function tableSelectionExtension(pi: ExtensionAPI): void {
 		return changed ? { action: "transform", text } : { action: "continue" };
 	});
 
-	pi.registerCommand("table-selection", {
+	pi.registerCommand("selection-manager", {
 		description: "Report whether table-aware mouse selection is active",
 		handler: async (_args, ctx) => {
 			ctx.ui.notify(
 				installed
-					? "table-selection: active (fullscreen table cells copy as Markdown)"
-					: "table-selection: inactive (patch not installed)",
+					? "selection-manager: active (fullscreen table cells copy as Markdown)"
+					: "selection-manager: inactive (patch not installed)",
 				installed ? "info" : "warning",
 			);
 		},

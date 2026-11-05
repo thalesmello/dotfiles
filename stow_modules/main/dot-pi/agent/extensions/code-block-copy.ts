@@ -35,7 +35,7 @@
  * ------------
  * Pi has no extension hook for rendering or clicking inside a normal
  * assistant/user Markdown message, so -- like osc8-links.ts and
- * table-selection.ts -- this extension patches pi-tui prototypes for the
+ * selection-manager.ts -- this extension patches pi-tui prototypes for the
  * life of a TUI session:
  *
  * - `Markdown.prototype.renderToken` appends the button line to `code`
@@ -54,7 +54,7 @@
  * Patch state lives on `globalThis` under a Symbol (the osc8-links.ts
  * pattern), so a /reload or a session replacement never wraps a method
  * twice, and shutdown only restores a method when this patch is still the
- * outermost one (table-selection.ts may sit on top of the selection
+ * outermost one (selection-manager.ts may sit on top of the selection
  * methods; its own shutdown restore then puts this patch back).
  *
  * Clicking requires fullscreen mode (`tuiMode: "fullscreen"`), where pi
@@ -197,7 +197,7 @@ function registerBlock(state: PatchState, code: string): number {
 
 // ---------------------------------------------------------------------------
 // TuiAltScreen internals, reached through runtime properties (as in
-// table-selection.ts; TypeScript `private` members are runtime properties)
+// selection-manager.ts; TypeScript `private` members are runtime properties)
 // ---------------------------------------------------------------------------
 
 interface SelectionPointLike {
@@ -735,7 +735,7 @@ function uninstallCodeBlockCopy(): void {
 	const state = getPatchState();
 
 	// Only restore a method when this patch is still the outermost one.
-	// If another extension (table-selection) wrapped ours after we
+	// If another extension (selection-manager) wrapped ours after we
 	// installed, its own shutdown restore puts our patch back, and our
 	// installed flags correctly stay set for the next session.
 	const markdownPrototype = Markdown.prototype as unknown as MarkdownPrototypeLike;

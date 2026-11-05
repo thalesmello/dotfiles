@@ -5,29 +5,29 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // Load the real extension source with its "@earendil-works/pi-tui" import
-// redirected to the local test host (table-selection-host.ts). The host
+// redirected to the local test host (selection-manager-host.ts). The host
 // provides a fake TuiAltScreen that implements the internals contract the
 // extension patches, backed by the real pi-tui utilities. This avoids a
 // process-wide pi-tui mock, which would fight the osc8-links test's mock
 // when the whole suite runs in one Bun process.
-const hostPath = join(import.meta.dir, "table-selection-host.ts");
+const hostPath = join(import.meta.dir, "selection-manager-host.ts");
 const { FakeAltScreen, FakeCustomEditor } = await import(pathToFileURL(hostPath).href);
 
-const extensionPath = join(import.meta.dir, "../extensions/table-selection.ts");
+const extensionPath = join(import.meta.dir, "../extensions/selection-manager.ts");
 const extensionSource = fs.readFileSync(extensionPath, "utf8");
 if (!extensionSource.includes('from "@earendil-works/pi-tui"')) {
-	throw new Error("table-selection.ts no longer imports pi-tui as this test expects");
+	throw new Error("selection-manager.ts no longer imports pi-tui as this test expects");
 }
 const redirectedSource = extensionSource
 	.replace('from "@earendil-works/pi-tui"', `from ${JSON.stringify(pathToFileURL(hostPath).href)}`)
 	.replace('from "@earendil-works/pi-coding-agent"', `from ${JSON.stringify(pathToFileURL(hostPath).href)}`);
-const redirectedPath = join(tmpdir(), `table-selection-extension-${process.pid}.ts`);
+const redirectedPath = join(tmpdir(), `selection-manager-extension-${process.pid}.ts`);
 fs.writeFileSync(redirectedPath, redirectedSource);
 afterAll(() => {
 	fs.rmSync(redirectedPath, { force: true });
 });
 
-const tableSelection = (await import(pathToFileURL(redirectedPath).href)).default;
+const selectionManager = (await import(pathToFileURL(redirectedPath).href)).default;
 
 // ---------------------------------------------------------------------------
 // Extension harness: capture the handlers the extension registers on `pi`.
@@ -50,7 +50,7 @@ const fakePi: any = {
 	},
 };
 
-tableSelection(fakePi);
+selectionManager(fakePi);
 
 let editorText = "";
 let editorFactory: ((tui: unknown, theme: unknown, keybindings: unknown) => unknown) | undefined;
@@ -98,7 +98,7 @@ const BASIC_TABLE = [
 	"└────────┴────────┘",
 ];
 
-describe("table-selection extension", () => {
+describe("selection-manager extension", () => {
 	test("installs the patch on session_start and restores it on session_shutdown", async () => {
 		const prototype: any = FakeAltScreen.prototype;
 		const originalCopy = prototype.getActiveSelectionText;
@@ -109,7 +109,7 @@ describe("table-selection extension", () => {
 		expect(prototype.applySelection).not.toBe(originalHighlight);
 
 		notifications.length = 0;
-		await commands.get("table-selection")!.handler("", tuiCtx);
+		await commands.get("selection-manager")!.handler("", tuiCtx);
 		expect(notifications.at(-1)?.message).toContain("active");
 
 		await emit("session_shutdown");
