@@ -20,7 +20,11 @@
  *
  * Clicking that label (fullscreen mode) copies the block's exact original
  * contents -- not the highlighted, wrapped, or padded rendering -- to the
- * clipboard and shows pi's "Copied!" flash.
+ * clipboard and shows pi's "Copied!" flash. The button itself also reads
+ * "Copied" instead of "⧉ Copy" for a couple of seconds after a
+ * successful click (see the paint-time substitution below: the Markdown
+ * renderer's per-block cache means a re-render alone would keep showing
+ * the originally rendered label).
  *
  * The button is not selectable:
  * - Text copied from a drag selection never contains the button line. A
@@ -43,6 +47,15 @@
  *   carries the registry id encoded in zero-width characters after the
  *   visible label, so a rendered line can be traced back to its exact
  *   source even after highlighting, wrapping, and padding.
+ * - `Markdown.prototype.render` rewrites the button label to "Copied"
+ *   on the lines it returns while a block is in its post-click feedback
+ *   window. This hook (not the alt screen's paint path) is where the
+ *   swap lives: Markdown.render is what produces a message's lines on
+ *   every frame, whereas selection-manager.ts wraps `applySelection`
+ *   and returns early -- without delegating to this extension -- when
+ *   there is no active selection, which is exactly the state after a
+ *   click. The renderer's cached lines are never mutated, so the button
+ *   reverts to "Copy" by itself once the window expires.
  * - `TuiAltScreen.prototype.handleSelectionMouseEvent` intercepts a click
  *   (press + release on the same cell, no drag) that lands on a button
  *   before the built-in selection handling can treat it as a selection.
@@ -55,7 +68,15 @@
  * pattern), so a /reload or a session replacement never wraps a method
  * twice, and shutdown only restores a method when this patch is still the
  * outermost one (selection-manager.ts may sit on top of the selection
- * methods; its own shutdown restore then puts this patch back).
+ * methods; its own shutdown restore then puts this patch back). One
+ * consequence of that layering: after a /reload the prototype can be
+ * left pointing at the *previous* module incarnation's patched
+ * functions (restored by the outer wrapper's shutdown after this
+ * extension's own shutdown had already run). Install therefore checks
+ * for that case -- our stored patch sitting outermost but not identical
+ * to this incarnation's function -- and swaps in the fresh function, so
+ * a reload actually picks up new code instead of silently keeping the
+ * old behaviour.
  *
  * Clicking requires fullscreen mode (`tuiMode: "fullscreen"`), where pi
  * owns the mouse. In regular mode the terminal owns mouse and selection,
@@ -74,7 +95,22 @@ import { Markdown, sliceByColumn, stripTerminalSequences, TuiAltScreen, visibleW
 // ---------------------------------------------------------------------------
 
 export const COPY_BUTTON_LABEL = "⧉ Copy";
-const COPY_BUTTON_LABEL_WIDTH = visibleWidth(COPY_BUTTON_LABEL);
+// No icon: "Copied" is exactly as wide as "⧉ Copy" (icon + space +
+// "Copy"), so the chip keeps its size while showing the feedback.
+export const COPIED_BUTTON_LABEL = "Copied";
+/** How long the button reads "Copied" after a successful click. */
+export const COPIED_FEEDBACK_MS = 2_000;
+const BUTTON_LABELS = [COPY_BUTTON_LABEL, COPIED_BUTTON_LABEL] as const;
+
+function hasButtonLabel(text: string): boolean {
+	// The "Copied" label has no icon to make it distinctive, so a line
+	// only counts as a button line if "Copied" is its entire trimmed
+	// content; a prose or code line merely containing the word is text.
+	return text
+		.split("\n")
+		.some((line) => line.includes(COPY_BUTTON_LABEL) || line.trim() === COPIED_BUTTON_LABEL);
+}
+
 // The button is rendered as a padded chip: two spaces of padding inside
 // an accent-coloured background on each side of the label. The clickable
 // (and blank-under-selection) segment covers the whole chip, padding
@@ -102,14 +138,24 @@ interface ButtonHit {
 	start: number;
 	end: number;
 	id: number;
+	/** Which label the chip currently shows ("Copy", or "Copied" as painted after a click). */
+	label: string;
 }
 
 /** Find the copy button chip on a plain (ANSI-stripped) rendered line, if any. */
 export function findCopyButton(plainLine: string): ButtonHit | undefined {
-	const labelIndex = plainLine.indexOf(COPY_BUTTON_LABEL);
+	let label: string = COPY_BUTTON_LABEL;
+	let labelIndex = -1;
+	for (const candidate of BUTTON_LABELS) {
+		labelIndex = plainLine.indexOf(candidate);
+		if (labelIndex >= 0) {
+			label = candidate;
+			break;
+		}
+	}
 	if (labelIndex < 0) return undefined;
 	// The id marker sits after the chip's trailing padding.
-	let markerIndex = labelIndex + COPY_BUTTON_LABEL.length;
+	let markerIndex = labelIndex + label.length;
 	let padding = 0;
 	while (padding < CHIP_PADDING && plainLine[markerIndex] === " ") {
 		markerIndex += 1;
@@ -128,7 +174,7 @@ export function findCopyButton(plainLine: string): ButtonHit | undefined {
 		2,
 	);
 	if (!Number.isFinite(id)) return undefined;
-	return { start, end: labelIndex + COPY_BUTTON_LABEL_WIDTH + padding, id };
+	return { start, end: labelIndex + visibleWidth(label) + padding, id, label };
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +182,7 @@ export function findCopyButton(plainLine: string): ButtonHit | undefined {
 // ---------------------------------------------------------------------------
 
 type RenderTokenFn = (token: unknown, width: number, nextTokenType?: string, styleContext?: unknown) => string[];
+type RenderFn = (width: number) => string[];
 type GetSelectionTextFn = (this: AltScreenInternals) => string | undefined;
 type ApplySelectionFn = (this: AltScreenInternals, screen: string[], layout?: unknown) => string[];
 type HandleSelectionMouseFn = (this: AltScreenInternals, event: RawMouseEvent) => void;
@@ -143,15 +190,21 @@ type HandleSelectionMouseFn = (this: AltScreenInternals, event: RawMouseEvent) =
 interface PatchState {
 	registry: Map<number, string>;
 	lastBlockId: number;
+	/** Block id -> epoch ms until which its button reads "Copied" instead of "Copy". */
+	copiedUntil: Map<number, number>;
+	copiedTimers: Map<number, ReturnType<typeof setTimeout>>;
 	markdownInstalled: boolean;
+	markdownRenderInstalled: boolean;
 	selectionTextInstalled: boolean;
 	applySelectionInstalled: boolean;
 	clickInstalled: boolean;
 	origRenderToken: RenderTokenFn | undefined;
+	origRender: RenderFn | undefined;
 	origGetSelectionText: GetSelectionTextFn | undefined;
 	origApplySelection: ApplySelectionFn | undefined;
 	origHandleSelectionMouse: HandleSelectionMouseFn | undefined;
 	patchedRenderToken: RenderTokenFn | undefined;
+	patchedRender: RenderFn | undefined;
 	patchedGetSelectionText: GetSelectionTextFn | undefined;
 	patchedApplySelection: ApplySelectionFn | undefined;
 	patchedHandleSelectionMouse: HandleSelectionMouseFn | undefined;
@@ -164,20 +217,73 @@ function getPatchState(): PatchState {
 	holder[PATCH_STATE_SYMBOL] ??= {
 		registry: new Map(),
 		lastBlockId: 0,
+		copiedUntil: new Map(),
+		copiedTimers: new Map(),
 		markdownInstalled: false,
+		markdownRenderInstalled: false,
 		selectionTextInstalled: false,
 		applySelectionInstalled: false,
 		clickInstalled: false,
 		origRenderToken: undefined,
+		origRender: undefined,
 		origGetSelectionText: undefined,
 		origApplySelection: undefined,
 		origHandleSelectionMouse: undefined,
 		patchedRenderToken: undefined,
+		patchedRender: undefined,
 		patchedGetSelectionText: undefined,
 		patchedApplySelection: undefined,
 		patchedHandleSelectionMouse: undefined,
 	};
-	return holder[PATCH_STATE_SYMBOL]!;
+	const state = holder[PATCH_STATE_SYMBOL]!;
+	// A state object created by an older version of this extension (kept
+	// across a /reload) may not have the copied-feedback bookkeeping yet.
+	state.copiedUntil ??= new Map();
+	state.copiedTimers ??= new Map();
+	state.markdownRenderInstalled ??= false;
+	return state;
+}
+
+// ---------------------------------------------------------------------------
+// "Copied" feedback: after a successful click the button reads "Copied"
+// for COPIED_FEEDBACK_MS. The Markdown renderer caches each block's
+// rendered lines (button included), so the button line itself cannot be
+// regenerated with a different label; instead patchedRender rewrites
+// the label on the lines Markdown.render returns while a block is in
+// its feedback window (the cached lines are left untouched, so the
+// label reverts by itself afterwards), patchedApplySelection applies
+// the same rewrite as a fallback for any lines that reach the screen
+// without going through Markdown.render, and a timer requests one more
+// render when the feedback expires so the revert is painted promptly.
+// ---------------------------------------------------------------------------
+
+function isCopiedFeedbackActive(state: PatchState, id: number): boolean {
+	const until = state.copiedUntil.get(id);
+	if (until === undefined) return false;
+	if (until <= Date.now()) {
+		state.copiedUntil.delete(id);
+		return false;
+	}
+	return true;
+}
+
+function markBlockCopied(state: PatchState, id: number, requestRender?: () => void): void {
+	state.copiedUntil.set(id, Date.now() + COPIED_FEEDBACK_MS);
+	const previousTimer = state.copiedTimers.get(id);
+	if (previousTimer !== undefined) clearTimeout(previousTimer);
+	const timer = setTimeout(() => {
+		state.copiedTimers.delete(id);
+		if (!isCopiedFeedbackActive(state, id)) requestRender?.();
+	}, COPIED_FEEDBACK_MS);
+	timer.unref?.();
+	state.copiedTimers.set(id, timer);
+	requestRender?.();
+}
+
+function clearCopiedFeedback(state: PatchState): void {
+	for (const timer of state.copiedTimers.values()) clearTimeout(timer);
+	state.copiedTimers.clear();
+	state.copiedUntil.clear();
 }
 
 const MAX_REGISTERED_BLOCKS = 1000;
@@ -329,15 +435,26 @@ function copyToClipboard(text: string): true | string {
 // Set on session_start so the click patch can report fallback copies.
 let notifyCopyResult: ((text: string) => void) | undefined;
 
-function copyBlockText(internals: AltScreenInternals | undefined, code: string): void {
+function copyBlockText(internals: AltScreenInternals | undefined, code: string, onCopied?: () => void): void {
 	if (internals && typeof internals.copyTextToClipboard === "function") {
 		// The alt screen flashes "Copied!" (or the failure) itself.
-		void internals.copyTextToClipboard(code);
+		const result = internals.copyTextToClipboard(code);
+		if (result && typeof (result as Promise<boolean>).then === "function") {
+			void Promise.resolve(result).then(
+				(ok) => {
+					if (ok !== false) onCopied?.();
+				},
+				() => {},
+			);
+		} else if (result !== false) {
+			onCopied?.();
+		}
 		return;
 	}
 	const result = copyToClipboard(code);
 	if (result === true) {
 		notifyCopyResult?.(code);
+		onCopied?.();
 	}
 }
 
@@ -547,6 +664,25 @@ function patchedRenderToken(
 	return applyCodeBackground(this.theme, insertButtonLine(this, lines, token.text));
 }
 
+/**
+ * Markdown.render is called for every message on every frame and is
+ * what hands the (cached) rendered lines -- copy buttons included -- to
+ * the layout, so this is where the "Copied" label swap is applied. It
+ * deliberately does not live only in the alt screen's applySelection:
+ * selection-manager.ts wraps that method and, when there is no active
+ * selection (the state right after a click), returns the screen without
+ * ever delegating to this extension's patch underneath it.
+ */
+function patchedRender(this: MarkdownInternals, width: number): string[] {
+	const state = getPatchState();
+	const lines = state.origRender!.call(this, width);
+	try {
+		return showCopiedButtons(lines);
+	} catch {
+		return lines;
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Alt-screen patches: click to copy, and a button that is not selectable
 // ---------------------------------------------------------------------------
@@ -554,14 +690,14 @@ function patchedRenderToken(
 function patchedGetSelectionText(this: AltScreenInternals): string | undefined {
 	const state = getPatchState();
 	const text = state.origGetSelectionText!.call(this);
-	if (text === undefined || !text.includes(COPY_BUTTON_LABEL)) return text;
+	if (text === undefined || !hasButtonLabel(text)) return text;
 	// Button lines are not text the user can select: drop them wholesale.
 	// Match on the visible label alone here: pi's column slicing can drop
 	// the trailing zero-width id when a selection ends at the line's
 	// visible width, so copied text may no longer carry the marker. (A
 	// user-authored line containing this exact label would also be
 	// dropped from a selection copy; that trade-off is intentional.)
-	const kept = text.split("\n").filter((line) => !line.includes(COPY_BUTTON_LABEL));
+	const kept = text.split("\n").filter((line) => !hasButtonLabel(line));
 	if (kept.length === text.split("\n").length) return text;
 	const joined = kept.join("\n");
 	return joined.length > 0 ? joined : undefined;
@@ -628,13 +764,44 @@ function blankSelectedButtons(
 	return changed ? result : screen;
 }
 
+/**
+ * Rewrite the label of every button whose block was just copied so the
+ * chip reads "Copied" instead of "⧉ Copy", keeping the chip's own
+ * styling (the replacement happens inside the already-styled chip
+ * segment). "Copied" occupies exactly the cells of "⧉ Copy", so the
+ * chip does not resize. Lines whose block is not in its feedback
+ * window are left untouched.
+ */
+function showCopiedButtons(screen: string[]): string[] {
+	const state = getPatchState();
+	if (state.copiedUntil.size === 0) return screen;
+	let changed = false;
+	const result = screen.map((line) => {
+		const hit = findCopyButton(stripTerminalSequences(line));
+		if (!hit || hit.label === COPIED_BUTTON_LABEL || !isCopiedFeedbackActive(state, hit.id)) return line;
+		const lineWidth = visibleWidth(line);
+		const before = sliceByColumn(line, 0, hit.start, true);
+		const chip = sliceByColumn(line, hit.start, hit.end - hit.start, true);
+		const after = sliceByColumn(line, hit.end, Math.max(0, lineWidth - hit.end), true);
+		if (!chip.includes(COPY_BUTTON_LABEL)) return line;
+		changed = true;
+		return `${before}${chip.replace(COPY_BUTTON_LABEL, COPIED_BUTTON_LABEL)}${after}`;
+	});
+	return changed ? result : screen;
+}
+
 function patchedApplySelection(this: AltScreenInternals, screen: string[], layout?: unknown): string[] {
 	const state = getPatchState();
 	let processed = screen;
 	try {
-		processed = blankSelectedButtons(this, screen, layout);
+		processed = showCopiedButtons(processed);
 	} catch {
 		processed = screen;
+	}
+	try {
+		processed = blankSelectedButtons(this, processed, layout);
+	} catch {
+		// Keep whatever showCopiedButtons produced.
 	}
 	return state.origApplySelection!.call(this, processed, layout);
 }
@@ -664,7 +831,7 @@ function patchedHandleSelectionMouse(this: AltScreenInternals, event: RawMouseEv
 						this.selectionFocus = undefined;
 						this.pressedUrl = undefined;
 						this.stopSelectionAutoScroll?.();
-						copyBlockText(this, code);
+						copyBlockText(this, code, () => markBlockCopied(state, hit.id, () => this.requestRender?.()));
 						this.requestRender?.();
 						return;
 					}
@@ -684,6 +851,28 @@ function patchedHandleSelectionMouse(this: AltScreenInternals, event: RawMouseEv
 
 interface MarkdownPrototypeLike {
 	renderToken?: RenderTokenFn;
+	render?: RenderFn;
+}
+
+/**
+ * After a /reload, a wrapper that sat on top of one of our patches (and
+ * whose shutdown therefore ran after ours) restores the prototype to our
+ * *previous* incarnation's patched function. That function is still
+ * ours, so it is safe -- and necessary -- to swap in this incarnation's
+ * function when we find the stored patch sitting outermost; otherwise
+ * the reloaded code never takes effect for that method.
+ */
+function replaceStalePatch<T>(
+	current: T | undefined,
+	stored: T | undefined,
+	fresh: T,
+	apply: (fn: T) => void,
+	store: (fn: T | undefined) => void,
+): void {
+	if (current !== undefined && stored !== undefined && current === stored && stored !== fresh) {
+		apply(fresh);
+		store(fresh);
+	}
 }
 
 interface AltScreenPrototypeLike {
@@ -695,17 +884,44 @@ interface AltScreenPrototypeLike {
 function installCodeBlockCopy(): { markdown: boolean; altScreen: boolean } {
 	const state = getPatchState();
 
-	let markdown = state.markdownInstalled;
-	if (!state.markdownInstalled) {
-		const prototype = Markdown.prototype as unknown as MarkdownPrototypeLike;
-		if (typeof prototype.renderToken === "function") {
-			state.origRenderToken = prototype.renderToken as RenderTokenFn;
-			state.patchedRenderToken = patchedRenderToken as RenderTokenFn;
-			prototype.renderToken = state.patchedRenderToken;
-			state.markdownInstalled = true;
-			markdown = true;
-		}
+	const markdownPrototype = Markdown.prototype as unknown as MarkdownPrototypeLike;
+	if (!state.markdownInstalled && typeof markdownPrototype.renderToken === "function") {
+		state.origRenderToken = markdownPrototype.renderToken as RenderTokenFn;
+		state.patchedRenderToken = patchedRenderToken as RenderTokenFn;
+		markdownPrototype.renderToken = state.patchedRenderToken;
+		state.markdownInstalled = true;
+	} else if (state.markdownInstalled) {
+		replaceStalePatch(
+			markdownPrototype.renderToken,
+			state.patchedRenderToken,
+			patchedRenderToken as RenderTokenFn,
+			(fn) => {
+				markdownPrototype.renderToken = fn;
+			},
+			(fn) => {
+				state.patchedRenderToken = fn;
+			},
+		);
 	}
+	if (!state.markdownRenderInstalled && typeof markdownPrototype.render === "function") {
+		state.origRender = markdownPrototype.render as RenderFn;
+		state.patchedRender = patchedRender as RenderFn;
+		markdownPrototype.render = state.patchedRender;
+		state.markdownRenderInstalled = true;
+	} else if (state.markdownRenderInstalled) {
+		replaceStalePatch(
+			markdownPrototype.render,
+			state.patchedRender,
+			patchedRender as RenderFn,
+			(fn) => {
+				markdownPrototype.render = fn;
+			},
+			(fn) => {
+				state.patchedRender = fn;
+			},
+		);
+	}
+	const markdown = state.markdownInstalled && state.markdownRenderInstalled;
 
 	let altScreen = state.selectionTextInstalled && state.applySelectionInstalled && state.clickInstalled;
 	const prototype = TuiAltScreen.prototype as unknown as AltScreenPrototypeLike;
@@ -714,18 +930,54 @@ function installCodeBlockCopy(): { markdown: boolean; altScreen: boolean } {
 		state.patchedGetSelectionText = patchedGetSelectionText as GetSelectionTextFn;
 		prototype.getActiveSelectionText = state.patchedGetSelectionText;
 		state.selectionTextInstalled = true;
+	} else if (state.selectionTextInstalled) {
+		replaceStalePatch(
+			prototype.getActiveSelectionText,
+			state.patchedGetSelectionText,
+			patchedGetSelectionText as GetSelectionTextFn,
+			(fn) => {
+				prototype.getActiveSelectionText = fn;
+			},
+			(fn) => {
+				state.patchedGetSelectionText = fn;
+			},
+		);
 	}
 	if (!state.applySelectionInstalled && typeof prototype.applySelection === "function") {
 		state.origApplySelection = prototype.applySelection;
 		state.patchedApplySelection = patchedApplySelection as ApplySelectionFn;
 		prototype.applySelection = state.patchedApplySelection;
 		state.applySelectionInstalled = true;
+	} else if (state.applySelectionInstalled) {
+		replaceStalePatch(
+			prototype.applySelection,
+			state.patchedApplySelection,
+			patchedApplySelection as ApplySelectionFn,
+			(fn) => {
+				prototype.applySelection = fn;
+			},
+			(fn) => {
+				state.patchedApplySelection = fn;
+			},
+		);
 	}
 	if (!state.clickInstalled && typeof prototype.handleSelectionMouseEvent === "function") {
 		state.origHandleSelectionMouse = prototype.handleSelectionMouseEvent;
 		state.patchedHandleSelectionMouse = patchedHandleSelectionMouse as HandleSelectionMouseFn;
 		prototype.handleSelectionMouseEvent = state.patchedHandleSelectionMouse;
 		state.clickInstalled = true;
+	} else if (state.clickInstalled) {
+		replaceStalePatch(
+			prototype.handleSelectionMouseEvent,
+			state.patchedHandleSelectionMouse,
+			patchedHandleSelectionMouse as HandleSelectionMouseFn,
+			(fn) => {
+				prototype.handleSelectionMouseEvent = fn;
+			},
+			(fn) => {
+				state.patchedHandleSelectionMouse = fn;
+			},
+		);
 	}
 	altScreen = state.selectionTextInstalled && state.applySelectionInstalled && state.clickInstalled;
 	return { markdown, altScreen };
@@ -733,6 +985,7 @@ function installCodeBlockCopy(): { markdown: boolean; altScreen: boolean } {
 
 function uninstallCodeBlockCopy(): void {
 	const state = getPatchState();
+	clearCopiedFeedback(state);
 
 	// Only restore a method when this patch is still the outermost one.
 	// If another extension (selection-manager) wrapped ours after we
@@ -742,6 +995,10 @@ function uninstallCodeBlockCopy(): void {
 	if (state.markdownInstalled && markdownPrototype.renderToken === state.patchedRenderToken) {
 		markdownPrototype.renderToken = state.origRenderToken;
 		state.markdownInstalled = false;
+	}
+	if (state.markdownRenderInstalled && markdownPrototype.render === state.patchedRender) {
+		markdownPrototype.render = state.origRender;
+		state.markdownRenderInstalled = false;
 	}
 	const altPrototype = TuiAltScreen.prototype as unknown as AltScreenPrototypeLike;
 	if (state.selectionTextInstalled && altPrototype.getActiveSelectionText === state.patchedGetSelectionText) {
@@ -760,7 +1017,13 @@ function uninstallCodeBlockCopy(): void {
 
 function isInstalled(): boolean {
 	const state = getPatchState();
-	return state.markdownInstalled && state.selectionTextInstalled && state.applySelectionInstalled && state.clickInstalled;
+	return (
+		state.markdownInstalled &&
+		state.markdownRenderInstalled &&
+		state.selectionTextInstalled &&
+		state.applySelectionInstalled &&
+		state.clickInstalled
+	);
 }
 
 export default function codeBlockCopyExtension(pi: ExtensionAPI): void {

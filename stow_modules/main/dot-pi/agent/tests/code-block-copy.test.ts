@@ -11,6 +11,7 @@ const hostPath = join(import.meta.dir, "code-block-copy-host.ts");
 const host = await import(pathToFileURL(hostPath).href);
 const { FakeAltScreen, Markdown, plainTheme } = host;
 const strip = host.stripTerminalSequences as (text: string) => string;
+const visibleWidth = host.visibleWidth as (text: string) => number;
 
 const extensionPath = join(import.meta.dir, "../extensions/code-block-copy.ts");
 const extensionSource = fs.readFileSync(extensionPath, "utf8");
@@ -28,7 +29,9 @@ afterAll(() => {
 	fs.rmSync(redirectedPath, { force: true });
 });
 
-const codeBlockCopy = (await import(pathToFileURL(redirectedPath).href)).default;
+const extensionModule = await import(pathToFileURL(redirectedPath).href);
+const codeBlockCopy = extensionModule.default;
+const COPIED_FEEDBACK_MS = extensionModule.COPIED_FEEDBACK_MS as number;
 
 // ---------------------------------------------------------------------------
 // Extension harness
@@ -82,12 +85,14 @@ describe("code-block-copy extension", () => {
 		const markdownPrototype: any = Markdown.prototype;
 		const altPrototype: any = FakeAltScreen.prototype;
 		const origRender = markdownPrototype.renderToken;
+		const origMarkdownRender = markdownPrototype.render;
 		const origCopy = altPrototype.getActiveSelectionText;
 		const origHighlight = altPrototype.applySelection;
 		const origMouse = altPrototype.handleSelectionMouseEvent;
 
 		await emit("session_start");
 		expect(markdownPrototype.renderToken).not.toBe(origRender);
+		expect(markdownPrototype.render).not.toBe(origMarkdownRender);
 		expect(altPrototype.getActiveSelectionText).not.toBe(origCopy);
 		expect(altPrototype.applySelection).not.toBe(origHighlight);
 		expect(altPrototype.handleSelectionMouseEvent).not.toBe(origMouse);
@@ -98,6 +103,7 @@ describe("code-block-copy extension", () => {
 
 		await emit("session_shutdown");
 		expect(markdownPrototype.renderToken).toBe(origRender);
+		expect(markdownPrototype.render).toBe(origMarkdownRender);
 		expect(altPrototype.getActiveSelectionText).toBe(origCopy);
 		expect(altPrototype.applySelection).toBe(origHighlight);
 		expect(altPrototype.handleSelectionMouseEvent).toBe(origMouse);
@@ -164,6 +170,80 @@ describe("code-block-copy extension", () => {
 		expect(screen.getSelectionBounds()).toBeUndefined();
 	});
 
+	test("the button reads Copied temporarily after a click, then reverts to Copy", async () => {
+		// A persistent Markdown component, as in a real message: render()
+		// caches the block's lines (button id included), so the label can
+		// only change via the render wrapper, not by re-rendering.
+		const markdown = new Markdown("```ts\n" + CODE + "\n```", plainTheme);
+		const lines = markdown.render(40);
+		expect(strip(lines[4]!)).toContain("⧉ Copy");
+
+		const screen = new FakeAltScreen();
+		screen.setTranscript(lines);
+		const buttonCol = strip(lines[4]!).indexOf("Copy");
+		screen.handleSelectionMouseEvent({ button: 0, x: buttonCol, y: 4 });
+		screen.handleSelectionMouseEvent({ button: 3, x: buttonCol, y: 4, release: true });
+		expect(screen.clipboard).toEqual([CODE]);
+
+		// The clipboard copy resolves in a microtask; flush it so the
+		// copied feedback is marked before the next frame is rendered.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		const painted = markdown.render(40);
+		// The whole button, icon included, becomes just "Copied" -- which
+		// is exactly as wide as "⧉ Copy", so the chip does not resize.
+		expect(strip(painted[4]!)).toContain("Copied");
+		expect(strip(painted[4]!)).not.toContain("⧉");
+		expect(visibleWidth(painted[4]!)).toBe(visibleWidth(lines[4]!));
+		// The chip keeps its styling and encoded id while showing Copied,
+		// and the renderer's cached lines are not mutated.
+		expect(painted[4]).toContain("\x1b[48;5;62m");
+		expect(strip(lines[4]!)).toContain("⧉ Copy");
+
+		// After the feedback window the button reverts, and the expiry
+		// timer requests a render so the revert is actually painted.
+		const rendersBeforeExpiry = screen.renderRequests;
+		await new Promise((resolve) => setTimeout(resolve, COPIED_FEEDBACK_MS + 100));
+		expect(screen.renderRequests).toBeGreaterThan(rendersBeforeExpiry);
+		const reverted = markdown.render(40);
+		expect(strip(reverted[4]!)).toContain("⧉ Copy");
+		expect(strip(reverted[4]!)).not.toContain("Copied");
+	});
+
+	test("a reload swaps in the fresh patches when a wrapper restored the stale ones", async () => {
+		const markdownPrototype: any = Markdown.prototype;
+		const altPrototype: any = FakeAltScreen.prototype;
+		const staleRenderToken = markdownPrototype.renderToken;
+		const staleRender = markdownPrototype.render;
+		const staleSelectionText = altPrototype.getActiveSelectionText;
+		const staleApplySelection = altPrototype.applySelection;
+		const staleMouse = altPrototype.handleSelectionMouseEvent;
+
+		// Simulate a /reload: a fresh copy of the extension module (new
+		// function objects, same global patch state) registers its
+		// handlers alongside the old incarnation's and session_start runs
+		// again while the prototypes still point at the old patches.
+		const reloadedPath = join(tmpdir(), `code-block-copy-extension-reloaded-${process.pid}.ts`);
+		fs.writeFileSync(reloadedPath, redirectedSource);
+		try {
+			const reloaded = await import(pathToFileURL(reloadedPath).href);
+			reloaded.default(fakePi);
+			await emit("session_start");
+		} finally {
+			fs.rmSync(reloadedPath, { force: true });
+		}
+
+		expect(markdownPrototype.renderToken).not.toBe(staleRenderToken);
+		expect(markdownPrototype.render).not.toBe(staleRender);
+		expect(altPrototype.getActiveSelectionText).not.toBe(staleSelectionText);
+		expect(altPrototype.applySelection).not.toBe(staleApplySelection);
+		expect(altPrototype.handleSelectionMouseEvent).not.toBe(staleMouse);
+
+		notifications.length = 0;
+		await commands.get("code-copy")!.handler("", tuiCtx);
+		expect(notifications.at(-1)?.message).toContain("active");
+	});
+
 	test("clicking code (not the button) copies nothing", () => {
 		const screen = new FakeAltScreen();
 		screen.setTranscript(renderTranscript());
@@ -215,6 +295,15 @@ describe("code-block-copy extension", () => {
 		const painted = screen.applySelection([...lines]);
 		expect(strip(painted[4]!)).toContain("⧉ Copy");
 		expect(strip(painted[6]!)).toContain("after");
+	});
+
+	test("a plain text line containing the word Copied is still selectable", () => {
+		const screen = new FakeAltScreen();
+		screen.setTranscript(["Copied to the clipboard", "beta", "gamma"]);
+
+		screen.setSelection({ row: 0, col: 0 }, { row: 1, col: 3 });
+
+		expect(screen.getActiveSelectionText()).toBe("Copied to the clipboard\nbeta");
 	});
 
 	test("keeps the built-in plain text copy outside code blocks", () => {

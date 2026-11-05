@@ -76,10 +76,34 @@ export const plainTheme: FakeMarkdownTheme = {
 export class Markdown {
 	text: string;
 	theme: FakeMarkdownTheme;
+	cachedRenderWidth: number | undefined;
+	cachedRenderedLines: string[] | undefined;
 
 	constructor(text: string, theme: FakeMarkdownTheme = plainTheme) {
 		this.text = text;
 		this.theme = theme;
+	}
+
+	/**
+	 * Mirrors the real Markdown.render: a fenced block in the text is
+	 * rendered once via renderToken and the resulting lines are cached
+	 * (button id included) and returned as-is on later calls at the same
+	 * width, so a label change can only come from a render wrapper
+	 * post-processing the returned lines, never from re-rendering.
+	 */
+	render(width: number): string[] {
+		if (this.cachedRenderedLines && this.cachedRenderWidth === width) {
+			return this.cachedRenderedLines;
+		}
+		const fence = /^```([^\n]*)\n([\s\S]*?)\n```\s*$/.exec(this.text.trim());
+		const lines = fence
+			? this.renderToken({ type: "code", lang: fence[1], text: fence[2] }, width, undefined)
+			: this.text
+				? [this.text]
+				: [];
+		this.cachedRenderWidth = width;
+		this.cachedRenderedLines = lines;
+		return lines;
 	}
 
 	renderToken(token: any, _width: number, nextTokenType?: string): string[] {
@@ -103,7 +127,10 @@ export class Markdown {
 		return [String(token?.text ?? "")];
 	}
 
-	invalidate(): void {}
+	invalidate(): void {
+		this.cachedRenderWidth = undefined;
+		this.cachedRenderedLines = undefined;
+	}
 }
 
 // ---------------------------------------------------------------------------
