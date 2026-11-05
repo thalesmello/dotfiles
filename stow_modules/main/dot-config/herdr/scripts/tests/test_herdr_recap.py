@@ -85,27 +85,73 @@ class StageTest(unittest.TestCase):
         entry.changes = rc.GitChanges(files=files, ahead=ahead)
         return entry
 
-    def test_status_wins(self):
-        self.assertEqual(rc.stage_of(self.entry("blocked")), "needs-you")
-        self.assertEqual(rc.stage_of(self.entry("done")), "done")
-        self.assertEqual(rc.stage_of(self.entry("working")), "working")
-        self.assertEqual(rc.stage_of(self.entry("idle")), "idle")
+    def test_status_is_the_bucket(self):
+        self.assertEqual(rc.bucket_of(self.entry("blocked")), "blocked")
+        self.assertEqual(rc.bucket_of(self.entry("done")), "done")
+        self.assertEqual(rc.bucket_of(self.entry("working")), "working")
+        self.assertEqual(rc.bucket_of(self.entry("idle")), "idle")
+        self.assertEqual(rc.bucket_of(self.entry("")), "unknown")
 
-    def test_pr_stages(self):
-        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "open"})), "review")
-        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "draft"})), "idle")
-        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "open", "pr_checks": "✗"})), "fixing")
-        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "open", "pr_review": "changes requested"})), "fixing")
-        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "merged"})), "merged")
-        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "closed"})), "merged")
-
-    def test_new_work_after_merge_is_idle(self):
-        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "merged"}, files=2)), "idle")
-        self.assertEqual(rc.stage_of(self.entry(tokens={"pr_state": "merged"}, ahead=1)), "idle")
+    def test_pr_tokens_do_not_change_the_bucket(self):
+        self.assertEqual(rc.bucket_of(self.entry(tokens={"pr_state": "open"})), "idle")
+        self.assertEqual(rc.bucket_of(self.entry(tokens={"pr_state": "open", "pr_checks": "✗"})), "idle")
+        self.assertEqual(rc.bucket_of(self.entry(tokens={"pr_state": "merged"}, files=2)), "idle")
 
     def test_snoozed_wins_over_status(self):
         entry = self.entry("working", tokens={rc.SNOOZE_MARK: "1"})
-        self.assertEqual(rc.stage_of(entry), "snoozed")
+        self.assertEqual(rc.bucket_of(entry), "snoozed")
+
+
+class BucketOrderTest(unittest.TestCase):
+    def make_model(self, specs):
+        model = rc.Model(rc.Config())
+        self.addCleanup(model.executor.shutdown, wait=False)
+        for pane, status, seq, tokens in specs:
+            agent = rc.AgentInfo(pane_id=pane, workspace_id="w1", agent="pi", status=status, state_change_seq=seq, tokens=tokens or {})
+            model.entries[pane] = rc.Entry(agent=agent)
+        model.loaded = True
+        model.sort_entries()
+        return model
+
+    def test_smart_priority_order_with_snoozed_last(self):
+        model = self.make_model([
+            ("w1:p1", "working", 100, None),
+            ("w1:p2", "idle", 90, None),
+            ("w1:p3", "working", 200, {rc.SNOOZE_MARK: "1"}),
+            ("w1:p4", "done", 5, None),
+            ("w1:p5", "blocked", 1, None),
+            ("w1:p6", "", 300, None),
+            ("w1:p7", "idle", 95, {"pr_state": "open"}),  # PR tokens stay in the idle bucket
+        ])
+        self.assertEqual(model.order, ["w1:p5", "w1:p4", "w1:p7", "w1:p2", "w1:p6", "w1:p1", "w1:p3"])
+
+    def test_tabs_filter_by_bucket(self):
+        model = self.make_model([
+            ("w1:p1", "working", 100, None),
+            ("w1:p3", "working", 200, {rc.SNOOZE_MARK: "1"}),
+        ])
+        model.show = "working"
+        model.sort_entries()
+        self.assertEqual(model.order, ["w1:p1"])
+        model.show = "snoozed"
+        model.sort_entries()
+        self.assertEqual(model.order, ["w1:p3"])
+
+    def test_selected_item_freezes_until_cursor_moves(self):
+        def snap(pane, status, seq):
+            return rc.AgentInfo(pane_id=pane, workspace_id="w1", agent="pi", status=status, state_change_seq=seq)
+        model = self.make_model([
+            ("w1:p1", "idle", 10, None),
+            ("w1:p2", "idle", 5, None),
+        ])
+        self.assertEqual(model.order, ["w1:p1", "w1:p2"])  # cursor sits on w1:p1
+        model.apply_snapshot([snap("w1:p1", "working", 50), snap("w1:p2", "idle", 5)], [])
+        self.assertEqual(model.entries["w1:p1"].agent.status, "idle")  # frozen display
+        self.assertEqual(model.order, ["w1:p1", "w1:p2"])  # frozen position
+        model.move(1)  # cursor moves to w1:p2: w1:p1 unfreezes next snapshot
+        model.apply_snapshot([snap("w1:p1", "working", 50), snap("w1:p2", "idle", 5)], [])
+        self.assertEqual(model.entries["w1:p1"].agent.status, "working")
+        self.assertEqual(model.order, ["w1:p2", "w1:p1"])
 
 
 class SearchTest(unittest.TestCase):
@@ -732,7 +778,7 @@ class PopupStateAndScrollTest(unittest.TestCase):
         content = []
         for i, pane in enumerate(model.order):
             if model.headed(i):
-                content.extend((model.heading_line(rc.stage_of(model.entries[pane])), ""))
+                content.extend((model.heading_line(rc.bucket_of(model.entries[pane])), ""))
             content.extend(model.entry_lines(model.entries[pane], i == model.cursor, i))
         for offset in range(len(content) - model.list_height() + 1):
             with self.subTest(offset=offset):

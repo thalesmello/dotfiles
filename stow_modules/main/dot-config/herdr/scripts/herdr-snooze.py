@@ -1151,6 +1151,49 @@ def known_sort(owner, views=None):
     return known["sorts"].get(label) if known else None
 
 
+# agent-handler's prefix+w panel cycle (see PANEL_MODES there): while we
+# hold the view for a snooze, cycling must still switch modes, so when the
+# borrowed view is agent-handler's we compose from its *current* mode --
+# read from its panel-mode state file on every plan -- instead of the sort
+# behind whatever label it had when we borrowed the view. Grouped shows
+# snoozed agents (no snooze filter); smart priority hides them as usual;
+# working hidden hides snoozed and working (focused exempt, via um_active).
+_PANEL_CYCLE_LABELS = {"grouped": "grouped", "smart": "smart priority", "hidden": "working hidden"}
+
+
+def agent_handler_panel_mode():
+    parent = os.path.dirname(socket_path())
+    suffix = "@" + os.path.basename(parent) if os.path.basename(os.path.dirname(parent)) == "sessions" else ""
+    base = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
+    try:
+        with open(os.path.join(base, "herdr", "agent-handler" + suffix, "panel-mode"), encoding="utf-8") as handle:
+            mode = handle.read().strip()
+    except OSError:
+        return None
+    return mode if mode in _PANEL_CYCLE_LABELS else None
+
+
+def panel_cycle(inherited):
+    if (inherited or {}).get("source") not in ("agent-handler", "unread-marker"):
+        return None
+    mode = agent_handler_panel_mode()
+    if mode is None:
+        return None
+    label = _PANEL_CYCLE_LABELS[mode]
+    if mode == "grouped":
+        want_filter = None
+    elif mode == "smart":
+        want_filter = VIEW_FILTER
+    else:
+        want_filter = _all_of(VIEW_FILTER, NOT_WORKING_FILTER)
+    return {
+        "mode": mode,
+        "label": label,
+        "sort": KNOWN_VIEWS["agent-handler"]["sorts"][label],
+        "filter": want_filter,
+    }
+
+
 # herdr's own panel order, for when nobody else holds the view. Any view hides
 # the panel's "grouped"/"priority" label (and its toggle) behind the view's own
 # label, and a view with no sort gets the server's config.toml order, not the
@@ -1292,11 +1335,16 @@ def plan_view(state, owner, count, sort_override=None, badge=DEFAULT_BADGE, owne
         if order and order != mode and native_label:
             native_label += "*"
         base = (inherited or {}).get("label") or native_label
+        # agent-handler's prefix+w mode, while we hold its view: composed
+        # below (never for the snoozed/all lists, which are ours).
+        cycle = panel_cycle(inherited)
         # `showing` is the toggle: the same panel, flipped to list what is
         # snoozed. The two labels must not be confusable — one means "N are
         # hidden from this list", the other "this list IS the hidden ones".
         showing_snoozed = view.get("showing") == "snoozed"
         showing_all = view.get("showing") == "all"
+        if cycle and not (showing_snoozed or showing_all):
+            base = cycle["label"]
         if showing_snoozed:
             label = badged(badge, "snoozed only · %d" % count) + (" + %d blocked" % blocked if blocked else "")
             want_filter = SNOOZED_LIST_FILTER
@@ -1311,16 +1359,24 @@ def plan_view(state, owner, count, sort_override=None, badge=DEFAULT_BADGE, owne
             # working agent is not snoozed.
             label = "%s working hidden" % base if base else "working hidden"
             want_filter = NOT_WORKING_FILTER
+        elif cycle and cycle["mode"] == "hidden":
+            # Plain words again (no 💤): the snoozed agents are named as
+            # text, and the badge would read as part of "working hidden".
+            label = "working hidden · %d snoozed" % count
+            want_filter = cycle["filter"]
         else:
             label = "%s %s" % (base, badged(badge, str(count))) if base else badged(badge, str(count))
             if hide_working:
                 label += " · working hidden"
-            want_filter = _all_of(VIEW_FILTER, NOT_WORKING_FILTER if hide_working else None)
+            if cycle:
+                want_filter = _all_of(cycle["filter"], NOT_WORKING_FILTER if hide_working and cycle["mode"] != "hidden" else None)
+            else:
+                want_filter = _all_of(VIEW_FILTER, NOT_WORKING_FILTER if hide_working else None)
         want = {
             "source": SOURCE,
             "label": label.strip(),
             "filter": want_filter,
-            "sort": sort_override or known_sort(inherited, views) or native_sort or [],
+            "sort": sort_override or (cycle["sort"] if cycle and not (showing_snoozed or showing_all) else None) or known_sort(inherited, views) or native_sort or [],
         }
         fingerprint = json.dumps(want, sort_keys=True)
         state["view"] = {"inherited": inherited, "applied": fingerprint}
@@ -1339,6 +1395,11 @@ def plan_view(state, owner, count, sort_override=None, badge=DEFAULT_BADGE, owne
     if not mine:
         return None
     sort = known_sort(inherited, views)
+    cycle = panel_cycle(inherited)
+    if cycle:
+        # Hand agent-handler's view back in its *current* cycle mode, not
+        # the mode it was in when we borrowed it.
+        return ("set", {"source": inherited["source"], "label": cycle["label"], "sort": cycle["sort"]})
     if inherited and sort is not None:
         # Hand the borrowed view back exactly as we found it, under its
         # owner's source, so that owner's own toggles keep working.

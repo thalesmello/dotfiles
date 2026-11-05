@@ -476,6 +476,23 @@ class PlanView(unittest.TestCase):
         st = state()
         self.assertEqual(snooze.plan_view(st, {"active": True, "source": snooze.SOURCE}, 0), ("clear", {"source": snooze.SOURCE}))
 
+    # Local additions: while snooze holds agent-handler's view (an agent is
+    # snoozed), agent-handler's prefix+w cycle still switches panel modes.
+    def test_panel_cycle_modes_while_snoozed(self):
+        owner = {"active": True, "source": "agent-handler", "label": "smart priority"}
+        sorts = snooze.KNOWN_VIEWS["agent-handler"]["sorts"]
+        with mock.patch.object(snooze, "agent_handler_panel_mode", return_value="grouped"):
+            _kind, params = snooze.plan_view(state(dict(self.snoozed)), owner, 1, badge="z")
+            self.assertEqual((params["label"], params["filter"], params["sort"]), ("grouped z 1", None, sorts["grouped"]))
+        with mock.patch.object(snooze, "agent_handler_panel_mode", return_value="smart"):
+            _kind, params = snooze.plan_view(state(dict(self.snoozed)), owner, 1, badge="z")
+            self.assertEqual((params["label"], params["filter"], params["sort"]), ("smart priority z 1", snooze.VIEW_FILTER, sorts["smart priority"]))
+        with mock.patch.object(snooze, "agent_handler_panel_mode", return_value="hidden"):
+            _kind, params = snooze.plan_view(state(dict(self.snoozed)), owner, 1, badge="z")
+            self.assertEqual(params["label"], "working hidden · 1 snoozed")
+            self.assertEqual(params["filter"], {"op": "all", "filters": [snooze.VIEW_FILTER, snooze.NOT_WORKING_FILTER]})
+            self.assertEqual(params["sort"], sorts["working hidden"])
+
     def test_keeps_herdrs_own_order_and_label_on_a_free_view(self):
         for mode, label in (("priority", "priority z 1"), ("spaces", "grouped z 1")):
             st = state(dict(self.snoozed))

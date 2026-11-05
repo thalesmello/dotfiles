@@ -1531,10 +1531,8 @@ def settle_title(session_id: str) -> None:
             save_recap(recap)
 
 
-# ── stages, tokens, search ───────────────────────────────────────────────
+# ── buckets, tokens, search ──────────────────────────────────────────────
 
-STAGES = ["needs-you", "done", "fixing", "idle", "working", "review", "merged", "snoozed"]
-STAGE_LABELS = {"needs-you": "Needs you", "done": "Done", "fixing": "Needs fixing", "idle": "Idle", "working": "Working", "review": "In review", "merged": "Merged", "snoozed": "Snoozed", "woke": "Just woke", "all": "All"}
 SNOOZE_MARK, SNOOZE_BADGE, SNOOZE_WOKE = "herdr_snooze", "snoozed", "snooze_woke"
 # Pin token/glyph owned by agent-handler.py (see toggle_pin_agent).
 PIN_TOKEN, PIN_GLYPH = "um_pin", "\U000f0403"  # nf-md-pin, as in agent-handler.py
@@ -1553,25 +1551,18 @@ def just_woke(agent: AgentInfo) -> bool:
     return bool(agent.tokens.get(SNOOZE_WOKE))
 
 
-def stage_of(entry: "Entry") -> str:
-    agent = entry.agent
-    if snoozed(agent):
+# Panel buckets: the Agents panel's smart-priority order, by plain agent
+# status (snoozed last, whatever its status underneath).
+BUCKETS = ["blocked", "done", "idle", "unknown", "working", "snoozed"]
+BUCKET_LABELS = {"blocked": "Needs you", "done": "Done", "idle": "Idle", "unknown": "Unknown", "working": "Working", "snoozed": "Snoozed"}
+BUCKET_ORDER = {name: i for i, name in enumerate(BUCKETS)}
+
+
+def bucket_of(entry: "Entry") -> str:
+    if snoozed(entry.agent):
         return "snoozed"
-    if agent.status == "blocked":
-        return "needs-you"
-    if agent.status == "done":
-        return "done"
-    if agent.status == "working":
-        return "working"
-    tokens = agent.tokens
-    if tokens.get("pr_state") in ("merged", "closed"):
-        return "idle" if entry.changes.files > 0 or entry.changes.ahead > 0 else "merged"
-    if tokens.get("pr_state") in ("open", "draft"):
-        if tokens.get("pr_checks") == "\u2717" or tokens.get("pr_review") == "changes requested" or "conflicts" in tokens.get("pr_badge", ""):
-            return "fixing"
-        if tokens.get("pr_state") == "open":
-            return "review"
-    return "idle"
+    status = entry.agent.status
+    return status if status in BUCKET_ORDER else "unknown"
 
 
 def shown_tokens(tokens: dict[str, str], only: list[str]) -> list[tuple[str, str]]:
@@ -2333,7 +2324,7 @@ def same_name(label: str, name: str) -> bool:
 
 
 def stage_role(stage: str) -> str:
-    return {"needs-you": "red", "done": "teal", "fixing": "red", "idle": "green", "working": "peach", "review": "green", "merged": "mauve", "snoozed": "blue", "woke": "green", "all": "accent"}.get(stage, "dim")
+    return {"blocked": "red", "done": "teal", "idle": "green", "working": "peach", "snoozed": "blue", "woke": "green", "all": "accent"}.get(stage, "dim")
 
 
 def fit_plain(left: str, title: str, right: str, width: int) -> str:
@@ -2546,7 +2537,7 @@ class Model:
             return
         if not isinstance(state, dict):
             return
-        if state.get("tab") in ("all", "woke", *STAGES):
+        if state.get("tab") in ("all", "woke", *BUCKETS):
             self.show = state["tab"]
         if type(state.get("cursor")) is int:
             self.restore_cursor = max(0, state["cursor"])
@@ -2600,7 +2591,12 @@ class Model:
                 agent.cached_title = entry.agent.cached_title
             else:
                 entry.session, entry.recap, entry.resolved_seq = None, None, -1
-            entry.agent = agent
+            # The selected item is frozen: while the cursor sits on it, its
+            # agent snapshot (displayed status, and therefore its bucket
+            # and sort position) does not update. Moving the cursor to
+            # another item unfreezes it on the next snapshot.
+            if agent.pane_id != selected:
+                entry.agent = agent
             if entry.renaming:
                 if session_title(agent) == entry.renaming or (entry.rename_sent and time.time() - entry.rename_sent > 15):
                     self.end_rename(entry)
@@ -2731,13 +2727,10 @@ class Model:
                 continue
             if job.kind == "changes":
                 if entry is not None and error is None:
-                    old_stage = stage_of(entry)
                     if isinstance(result, tuple):
                         entry.branch, entry.changes = result
                     else:
                         entry.changes = result
-                    if stage_of(entry) != old_stage:
-                        self.resort(self.selected_pane())
                 continue
             if job.kind == "reply":
                 self.handle_action_result(job.kind, entry, result, error)
@@ -2923,7 +2916,7 @@ class Model:
     def in_tab(self, entry: Entry) -> bool:
         if self.show == "woke":
             return just_woke(entry.agent)
-        return self.show == "all" or stage_of(entry) == self.show
+        return self.show == "all" or bucket_of(entry) == self.show
     def ranked(self) -> bool:
         return bool(self.scores) and self.found_for == self.filter and bool(self.found_for)
     def found_in(self, entry: Entry) -> str | None:
@@ -2936,7 +2929,7 @@ class Model:
             return True
         if self.found_in(entry) is not None:
             return True
-        hay = [agent_title(entry.agent), entry.agent.agent, STAGE_LABELS[stage_of(entry)], entry.branch]
+        hay = [agent_title(entry.agent), entry.agent.agent, BUCKET_LABELS[bucket_of(entry)], entry.branch]
         if entry.agent.status != "idle":
             hay.append(entry.agent.status)
         if entry.agent.status == "blocked":
@@ -2960,20 +2953,12 @@ class Model:
         for pane, entry in self.entries.items():
             if (self.in_tab(entry) or (self.replying and pane == self.reply_to)) and self.matches(entry):
                 panes.append(pane)
-        stage_order = {name: i for i, name in enumerate(STAGES)}
-        def in_state(entry: Entry) -> float:
-            if entry.session is None:
-                return 0.0
-            meta = entry.session.meta
-            if entry.agent.status == "blocked" and meta.pending_at:
-                return meta.pending_at
-            if entry.agent.status == "working" and meta.prompt_at:
-                return meta.prompt_at
-            return meta.active
         def key(pane: str):
             a, b = self.entries[pane].agent, self.entries[pane]
             score_a = self.scores.get(pane, 0.0)
-            return ( -score_a if self.ranked() else 0, stage_order[stage_of(b)], in_state(b) or float("inf"), ws_index.get(a.workspace_id, 999), pane_number(a.pane_id), a.pane_id)
+            # Smart-priority order: bucket, then most recent state change
+            # first (workspace/pane only break exact ties).
+            return (-score_a if self.ranked() else 0, BUCKET_ORDER[bucket_of(b)], -(b.agent.state_change_seq or 0), ws_index.get(a.workspace_id, 999), pane_number(a.pane_id), a.pane_id)
         panes.sort(key=key)
         self.order = panes
     def resort(self, selected: str):
@@ -3215,18 +3200,18 @@ class Model:
     def headed(self, index: int) -> bool:
         if self.show != "all" or self.ranked():
             return False
-        return index == 0 or stage_of(self.entries[self.order[index]]) != stage_of(self.entries[self.order[index - 1]])
+        return index == 0 or bucket_of(self.entries[self.order[index]]) != bucket_of(self.entries[self.order[index - 1]])
     def stage_tabs(self):
         counts: dict[str, int] = {}
         total = 0
         for entry in self.entries.values():
             if self.matches(entry):
-                counts[stage_of(entry)] = counts.get(stage_of(entry), 0) + 1
+                counts[bucket_of(entry)] = counts.get(bucket_of(entry), 0) + 1
                 if just_woke(entry.agent):
                     counts["woke"] = counts.get("woke", 0) + 1
                 total += 1
         tabs = [("all", total)]
-        for stage in STAGES:
+        for stage in BUCKETS:
             if stage == "snoozed" and (counts.get("woke", 0) or self.show == "woke"):
                 tabs.append(("woke", counts.get("woke", 0)))
             if counts.get(stage, 0) or self.show == stage:
@@ -3253,8 +3238,6 @@ class Model:
         label = {"blocked": "waiting", "working": "working", "done": "done", "idle": "idle"}.get(entry.agent.status, "")
         if not label:
             return ""
-        if entry.agent.status == "idle" and stage_of(entry) != "idle":
-            label = "for"
         return label + " " + duration_text(time.time() - since)
 
     # rendering
@@ -3324,7 +3307,7 @@ class Model:
             if start >= self.offset + height:
                 break
             if self.headed(i):
-                for j, heading in enumerate((self.heading_line(stage_of(self.entries[self.order[i]])), "")):
+                for j, heading in enumerate((self.heading_line(bucket_of(self.entries[self.order[i]])), "")):
                     if self.offset <= start + j < self.offset + height:
                         lines.append(heading)
                         used += 1
@@ -3572,9 +3555,9 @@ class Model:
         for short in (False, True):
             parts, x = [" "], 1
             for stage, count in tabs:
-                label = "All" if stage == "all" else STAGE_LABELS[stage]
+                label = "All" if stage == "all" else BUCKET_LABELS.get(stage, "Just woke" if stage == "woke" else stage)
                 if short:
-                    label = {"all": "All", "needs-you": "You", "done": "Done", "fixing": "Fix", "idle": "Idle", "working": "Work", "review": "Review", "merged": "Merged", "snoozed": "\U0001f4a4", "woke": "\u23f0"}[stage]
+                    label = {"all": "All", "blocked": "You", "done": "Done", "idle": "Idle", "unknown": "?", "working": "Work", "snoozed": "\U0001f4a4", "woke": "\u23f0"}[stage]
                 elif stage == "snoozed":
                     label = "\U0001f4a4 " + label
                 elif stage == "woke":
@@ -3584,7 +3567,7 @@ class Model:
                     rendered = bg(THEME.p["accent"]) + fg(THEME.p["panel"]) + BOLD + " " + text + " " + RESET
                     width = display_width(text) + 2
                 else:
-                    rendered = THEME.paint("dim" if stage not in STAGES else stage_role(stage), text)
+                    rendered = THEME.paint("dim" if stage not in (*BUCKETS, "woke", "all") else stage_role(stage), text)
                     width = display_width(text)
                     rendered = " " + rendered + " "
                     width += 2
@@ -3616,8 +3599,8 @@ class Model:
             return ""
         return THEME.paint("dim", " No row matches: found in these conversations" + (", the best match first" if self.ranked() else ""))
     def heading_line(self, stage: str) -> str:
-        count = sum(1 for pane in self.order if stage_of(self.entries[pane]) == stage)
-        return " " + THEME.paint(stage_role(stage), STAGE_LABELS[stage], bold=True) + THEME.paint("dim", " " + str(count))
+        count = sum(1 for pane in self.order if bucket_of(self.entries[pane]) == stage)
+        return " " + THEME.paint(stage_role(stage), BUCKET_LABELS[stage], bold=True) + THEME.paint("dim", " " + str(count))
     def entry_lines(self, entry: Entry, selected: bool, order_index: int) -> list[str]:
         width = self.width
         right = []

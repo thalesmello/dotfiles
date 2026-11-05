@@ -936,6 +936,22 @@ def main(argv: list[str]) -> int:
         mode = PANEL_MODES[(PANEL_MODES.index(mode) + 1) % len(PANEL_MODES)]
         save_panel_mode(mode)
         sync_view(True)
+        # If another owner (herdr-snooze, while an agent is snoozed) holds
+        # the view, sync_view deferred to it: it composes the panel from
+        # panel-mode on its tick, so nudge a tick to land the cycle now.
+        probe = request("agent.view.clear", {"source": f"{SOURCE}.probe"})
+        result = probe.get("result")
+        owner = result.get("source") if isinstance(result, dict) and result.get("active") else None
+        if isinstance(owner, str) and owner and owner not in (SOURCE, LEGACY_SOURCE):
+            try:
+                subprocess.run(
+                    [sys.executable, str(Path(__file__).with_name("herdr-snooze.py")), "tick"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=15,
+                )
+            except Exception:
+                pass
         if not notify_daemon():
             start_daemon_detached()
         return 0
