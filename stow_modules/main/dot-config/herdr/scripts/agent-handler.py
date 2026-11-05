@@ -67,11 +67,110 @@ UNREAD_GLYPH = "󰇮"
 # Nerd Fonts Material Design pin (nf-md-pin), rendered alongside the current
 # status glyph when an agent chat is pinned.
 PIN_GLYPH = "󰐃"
+# Sidebar panel order, top to bottom: pinned, blocked, done, idle, unknown,
+# working; most recent state change first within a status. Herdr's native
+# "priority" sort puts working above idle, so the sort runs on a reported
+# token instead of the opaque "attention" rank: um_sort is the status rank
+# digit followed by the inverted state_change_seq (zero-padded, so plain
+# lexicographic order is rank ascending, then newest first).
+#
+# The focused agent's um_sort is FROZEN: while an agent has focus, its token
+# stops tracking status/seq, so submitting a prompt (idle -> working) does
+# not move it out of its pile mid-thought. Other agents keep sorting live
+# around it. When focus moves to another agent or pane, the token unfreezes
+# and the agent lands wherever its current status puts it.
+RANK_TOKEN = "um_rank"
+SORT_TOKEN = "um_sort"
+# Set to "1" on the focused agent only. The agent-view filter language has
+# no "focused" field, so this token is how working-hidden mode exempts the
+# focused agent (see NOT_WORKING_FILTER below).
+ACTIVE_TOKEN = "um_active"
+STATUS_RANK = {
+    "blocked": "0",
+    "done": "1",
+    "idle": "2",
+    "unknown": "3",
+    "working": "4",
+}
 VIEW_SORT = [
     {"field": {"token": PIN_TOKEN}, "order": "asc"},
-    {"field": "attention", "order": "asc"},
+    {"field": {"token": SORT_TOKEN}, "order": "asc"},
     {"field": "state_change_seq", "order": "desc"},
 ]
+
+
+def sort_token(status: str, seq: int) -> str:
+    rank = STATUS_RANK.get(status, STATUS_RANK["unknown"])
+    return f"{rank}:{999_999_999_999 - seq:012d}"
+
+
+def usable_sort(value: Any) -> str | None:
+    """A captured sort token, or None if it is missing/malformed. A token
+    encoding seq 0 is the token_patch default for "seq unknown", not a real
+    position, so it never counts as a frozen position worth keeping."""
+    if not isinstance(value, str) or len(value) != 14 or value[1] != ":":
+        return None
+    if value[:1] not in STATUS_RANK.values() or not value[2:].isdigit():
+        return None
+    if 999_999_999_999 - int(value[2:]) <= 0:
+        return None
+    return value
+
+# prefix+w cycles the Agents panel through these modes (config.toml binds
+# it to `cycle-panel`): grouped (workspace order) -> smart priority (the
+# um_sort order above) -> working hidden (smart priority, working filtered
+# out) -> grouped... The mode is a file in the state dir so the daemon, the
+# cycle-panel op, and restarts agree. The view's label is the panel button's
+# text, so labels are plain words: in particular "working hidden" carries no
+# snooze badge -- the 💤 is snooze's, and a hidden working agent is not snoozed.
+PANEL_MODES = ("grouped", "smart", "hidden")
+PANEL_LABELS = {
+    "grouped": "grouped",
+    "smart": "smart priority",
+    "hidden": "working hidden",
+}
+GROUPED_SORT = [
+    {"field": "workspace_order", "order": "asc"},
+    {"field": "tab_order", "order": "asc"},
+    {"field": "pane_order", "order": "asc"},
+]
+# Working-hidden mode: same um_sort order as smart priority, but working
+# agents are filtered out -- except the focused one, which stays visible
+# (in its frozen position) until focus moves to another agent or pane.
+NOT_WORKING_FILTER = {
+    "op": "any",
+    "filters": [
+        {"op": "not", "filter": {"op": "eq", "field": "status", "value": "working"}},
+        {"op": "exists", "field": {"token": ACTIVE_TOKEN}},
+    ],
+}
+
+
+def panel_mode_path() -> Path:
+    return state_dir() / "panel-mode"
+
+
+def load_panel_mode() -> str:
+    try:
+        mode = panel_mode_path().read_text(encoding="utf-8").strip()
+    except OSError:
+        return "smart"
+    return mode if mode in PANEL_MODES else "smart"
+
+
+def save_panel_mode(mode: str) -> None:
+    panel_mode_path().write_text(mode + "\n", encoding="utf-8")
+
+
+def view_params() -> dict[str, Any]:
+    mode = load_panel_mode()
+    params: dict[str, Any] = {
+        "source": SOURCE,
+        "label": PANEL_LABELS[mode],
+        "sort": GROUPED_SORT if mode == "grouped" else VIEW_SORT,
+        "filter": NOT_WORKING_FILTER if mode == "hidden" else None,
+    }
+    return params
 
 
 def socket_path() -> str:
@@ -152,6 +251,26 @@ def load_pinned() -> set[str]:
 
 def save_pinned(pinned: set[str]) -> None:
     save_key_set(pinned_path(), pinned)
+
+
+def frozen_path() -> Path:
+    return state_dir() / "frozen.json"
+
+
+def load_frozen() -> dict[str, str]:
+    try:
+        data = json.loads(frozen_path().read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if isinstance(data, dict):
+        return {str(k): str(v) for k, v in data.items() if k and v}
+    return {}
+
+
+def save_frozen(frozen: dict[str, str]) -> None:
+    tmp = frozen_path().with_suffix(".tmp")
+    tmp.write_text(json.dumps(frozen, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(tmp, frozen_path())
 
 
 def request(method: str, params: dict[str, Any], timeout: float = 2.0) -> dict[str, Any]:
@@ -240,12 +359,21 @@ def token_patch(
     marked: bool,
     pinned: bool = False,
     frame: int = 0,
+    sort_value: str | None = None,
+    active: bool = False,
 ) -> dict[str, str | None]:
     tokens: dict[str, str | None] = {name: None for name in VISIBLE_TOKENS.values()}
     # Clear the first version of this script too.
     tokens[LEGACY_TOKEN] = None
     tokens[MARK_TOKEN] = "1" if marked else None
     tokens[PIN_TOKEN] = PIN_GLYPH if pinned else None
+    if sort_value is None:
+        sort_value = sort_token(status, 0)
+    tokens[SORT_TOKEN] = sort_value
+    tokens[ACTIVE_TOKEN] = "1" if active else None
+    # The rank digit of the (possibly frozen) sort token; kept for readers
+    # that only need the effective category.
+    tokens[RANK_TOKEN] = sort_value[:1]
     if marked:
         tokens[VISIBLE_TOKENS["unread"]] = UNREAD_GLYPH
     elif status == "working":
@@ -274,7 +402,24 @@ def report(
     pinned: bool = False,
     frame: int = 0,
 ) -> None:
-    report_tokens(pane_id, token_patch(status_name(pane), marked, pinned, frame))
+    # Keep whatever sort token the pane already carries: a mark/pin toggle
+    # must not re-sort the agent (notably not unfreeze the focused one).
+    # Without one, fall back to the pane's own seq, not seq 0.
+    existing = usable_sort((pane.get("tokens") or {}).get(SORT_TOKEN))
+    if existing is None:
+        seq = pane.get("state_change_seq")
+        existing = sort_token(status_name(pane), seq if isinstance(seq, int) else 0)
+    report_tokens(
+        pane_id,
+        token_patch(
+            status_name(pane),
+            marked,
+            pinned,
+            frame,
+            existing,
+            (pane.get("tokens") or {}).get(ACTIVE_TOKEN) == "1",
+        ),
+    )
 
 
 def sync_view(want_active: bool) -> bool:
@@ -291,9 +436,9 @@ def sync_view(want_active: bool) -> bool:
     owner = result.get("source") if result.get("active") else None
     if isinstance(owner, str) and owner and owner not in (SOURCE, LEGACY_SOURCE):
         # Another owner (for example herdr-snooze) holds the single agent
-        # view. Its sort includes um_pin, so pinned chats still float.
+        # view. It mirrors our sort for our label (see its KNOWN_VIEWS).
         return True
-    response = request("agent.view.set", {"source": SOURCE, "sort": VIEW_SORT})
+    response = request("agent.view.set", view_params())
     return isinstance(response.get("result"), dict)
 
 
@@ -405,7 +550,10 @@ def sync_agents(
     pinned: set[str],
     frame: int = 0,
     cache: dict[str, dict[str, str | None]] | None = None,
-) -> tuple[set[str], set[str], bool, bool]:
+    frozen: dict[str, str] | None = None,
+) -> tuple[set[str], set[str], dict[str, str], bool, bool]:
+    if frozen is None:
+        frozen = {}
     live_keys: set[str] = set()
     live_panes: set[str] = set()
     has_working = False
@@ -422,7 +570,22 @@ def sync_agents(
         is_pinned = key in pinned
         if status == "working" and not is_marked:
             has_working = True
-        tokens = token_patch(status, is_marked, is_pinned, frame)
+        seq = agent.get("state_change_seq")
+        live_sort = sort_token(status, seq if isinstance(seq, int) else 0)
+        if agent.get("focused"):
+            # Freeze: keep the sort token the agent already had (from the
+            # frozen file, or the one the server still carries) so status
+            # changes under focus do not move it. First sight while focused
+            # captures the live token.
+            previous = usable_sort((agent.get("tokens") or {}).get(SORT_TOKEN))
+            effective_sort = usable_sort(frozen.get(key)) or previous or live_sort
+            frozen[key] = effective_sort
+        else:
+            effective_sort = live_sort
+            frozen.pop(key, None)
+        tokens = token_patch(
+            status, is_marked, is_pinned, frame, effective_sort, bool(agent.get("focused"))
+        )
         live_tokens = agent.get("tokens") or {}
         if not any(live_tokens.get(name) for name in VISIBLE_TOKENS.values()):
             server_unsynced = True
@@ -431,6 +594,7 @@ def sync_agents(
             or cache.get(pane_id) != tokens
             or live_tokens.get(PIN_TOKEN) != tokens[PIN_TOKEN]
             or live_tokens.get(MARK_TOKEN) != tokens[MARK_TOKEN]
+            or live_tokens.get(SORT_TOKEN) != tokens[SORT_TOKEN]
             or server_unsynced
         ):
             report_tokens(pane_id, tokens)
@@ -442,7 +606,7 @@ def sync_agents(
             cache.pop(pane_id, None)
     # Keep state for panes that still exist in pane.list (e.g. during startup
     # before agent detection finishes, or when an agent exited to a shell).
-    missing_keys = (marked | pinned) - live_keys
+    missing_keys = (marked | pinned | set(frozen)) - live_keys
     if missing_keys:
         pane_keys = fetch_pane_keys()
         if pane_keys is None:
@@ -454,6 +618,7 @@ def sync_agents(
     return (
         {key for key in marked if key in keep_keys},
         {key for key in pinned if key in keep_keys},
+        {key: value for key, value in frozen.items() if key in keep_keys},
         has_working,
         server_unsynced,
     )
@@ -468,8 +633,15 @@ def sync_all(
     agents = fetch_agents()
     if agents is None:
         return marked, pinned
-    pruned_marked, pruned_pinned, _, _ = sync_agents(agents, marked, pinned, frame, cache)
-    sync_view(bool(pruned_pinned))
+    frozen = load_frozen()
+    frozen_before = dict(frozen)
+    pruned_marked, pruned_pinned, pruned_frozen, _, _ = sync_agents(
+        agents, marked, pinned, frame, cache, frozen
+    )
+    if pruned_frozen != frozen_before:
+        save_frozen(pruned_frozen)
+    # Always own the view: VIEW_SORT is the panel order even with no pins.
+    sync_view(True)
     return pruned_marked, pruned_pinned
 
 
@@ -607,6 +779,9 @@ def daemon_loop() -> int:
     marked_mtime: int | None = -1
     pinned: set[str] = set()
     pinned_mtime: int | None = -1
+    frozen: dict[str, str] = {}
+    frozen_mtime: int | None = -1
+    panel_mode_mtime: int | None = -1
     view_active: bool | None = None
     agents: list[dict[str, Any]] | None = None
     last_fetch_at = 0.0
@@ -638,6 +813,17 @@ def daemon_loop() -> int:
                 pinned_mtime = cur_pinned_mtime
                 force_refresh = True
 
+            cur_panel_mode_mtime = file_mtime_ns(panel_mode_path())
+            if cur_panel_mode_mtime != panel_mode_mtime:
+                panel_mode_mtime = cur_panel_mode_mtime
+                force_refresh = True
+
+            cur_frozen_mtime = file_mtime_ns(frozen_path())
+            if cur_frozen_mtime != frozen_mtime:
+                frozen = load_frozen()
+                frozen_mtime = cur_frozen_mtime
+                force_refresh = True
+
             now = time.monotonic()
             refreshing = (
                 force_refresh
@@ -657,8 +843,9 @@ def daemon_loop() -> int:
                     view_active = None
 
             if agents is not None:
-                pruned_marked, pruned_pinned, has_working, server_unsynced = sync_agents(
-                    agents, marked, pinned, frame, cache
+                frozen_before = dict(frozen)
+                pruned_marked, pruned_pinned, pruned_frozen, has_working, server_unsynced = sync_agents(
+                    agents, marked, pinned, frame, cache, frozen
                 )
                 if pruned_marked != marked:
                     marked = pruned_marked
@@ -668,7 +855,11 @@ def daemon_loop() -> int:
                     pinned = pruned_pinned
                     save_pinned(pinned)
                     pinned_mtime = file_mtime_ns(pinned_path())
-                want_view = bool(pinned)
+                if pruned_frozen != frozen_before:
+                    frozen = pruned_frozen
+                    save_frozen(frozen)
+                    frozen_mtime = file_mtime_ns(frozen_path())
+                want_view = True  # VIEW_SORT is the panel order, pins or not
                 if (
                     view_active != want_view
                     or (want_view and (server_unsynced or check_view))
@@ -712,6 +903,7 @@ def main(argv: list[str]) -> int:
             "sync",
             "daemon",
             "restart",
+            "cycle-panel",
         ],
     )
     parser.add_argument("--pane", dest="pane_id")
@@ -739,6 +931,15 @@ def main(argv: list[str]) -> int:
         start_daemon_detached()
         return 0
 
+    if args.op == "cycle-panel":
+        mode = load_panel_mode()
+        mode = PANEL_MODES[(PANEL_MODES.index(mode) + 1) % len(PANEL_MODES)]
+        save_panel_mode(mode)
+        sync_view(True)
+        if not notify_daemon():
+            start_daemon_detached()
+        return 0
+
     marked = load_marked()
     pinned = load_pinned()
     pane_id = args.pane_id or pane_id_from_context()
@@ -749,8 +950,11 @@ def main(argv: list[str]) -> int:
         save_marked(marked)
     if pinned_changed:
         save_pinned(pinned)
-        sync_view(bool(pinned))
-    if marked_changed or pinned_changed:
+        sync_view(True)
+    # A focus change also wakes the daemon even when nothing was marked:
+    # the newly focused agent's sort token freezes (and the previously
+    # focused one unfreezes) on the daemon's next sync.
+    if marked_changed or pinned_changed or args.op == "focus":
         if not notify_daemon():
             start_daemon_detached()
     return 0

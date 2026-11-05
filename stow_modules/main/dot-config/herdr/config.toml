@@ -91,7 +91,9 @@ reload_config = ""
 # prefix+o is repurposed as the output picker (see [[keys.command]] below), so
 # the notification-target jump is unbound.
 open_notification_target = "prefix+shift+o"
-# workspace_picker = "prefix+w"
+# prefix+w is repurposed as the Agents panel priority cycle (see
+# [[keys.command]] below), so the workspace picker is unbound.
+workspace_picker = ""
 # prefix+shift+g creates a new git worktree workspace.
 goto = "prefix+g"
 # new_workspace = "prefix+shift+n"
@@ -546,16 +548,19 @@ type = "shell"
 command = "~/.config/herdr/scripts/herdr-snooze.py toggle"
 description = "agents panel: priority -> grouped -> snoozed -> all"
 
-# prefix+alt+w: toggle working agents in the Agents panel. Part of snooze,
-# not a separate view owner -- herdr has ONE agent view, so snooze composes
-# "not working" into the filter it already holds (and holds the view for it
-# even when nothing is snoozed). Blocked/done/idle/pinned are unaffected:
-# when a working agent blocks or finishes it reappears on its own.
+# prefix+w: cycle the Agents panel through agent-handler's modes:
+# grouped -> smart priority -> working hidden -> grouped... agent-handler
+# owns the one agent view in every mode (there is no click handler on the
+# panel's label button while a plugin view is active, so the cycle lives on
+# this key), and the view label -- the button's text -- names the mode in
+# plain words ("working hidden" gets no snooze 💤; hidden is not snoozed).
+# Snooze's old toggle-working still exists as a CLI command but is unbound;
+# the hidden mode here supersedes it.
 [[keys.command]]
-key = "prefix+alt+w"
+key = "prefix+w"
 type = "shell"
-command = "~/.config/herdr/scripts/herdr-snooze.py toggle-working"
-description = "agents panel: show/hide working agents"
+command = "~/.config/herdr/scripts/agent-handler.py cycle-panel"
+description = "agents panel: grouped -> smart priority -> working hidden"
 
 # herdr-settled (scripts/herdr-settled.py): the T3 Code inbox, as a popup.
 # Every section in one list -- Pinned, Blocked, Working, Done, Active,
@@ -766,9 +771,14 @@ status_indicators = "symbols"
 # claude = [["state_icon", "workspace", "tab"], ["terminal_title_stripped"], ["agent"]]
 
 # Agent panel ordering: "spaces" (grouped by space) or "priority" (attention queue).
-# Keep Herdr's native priority ordering. The manual unread marker below is
-# display-only; it does not re-sort. Pinned chats (prefix+p) float to the top
-# via agent.view.set while keeping priority ordering within each group.
+# Native priority is only the fallback when no plugin owns the agent view:
+# agent-handler always owns it with a custom sort -- pinned, blocked, done,
+# idle, unknown, working (working at the bottom, unlike native priority),
+# most recent state change first within a status -- except the focused
+# agent, whose position freezes until focus moves to another agent or pane.
+# See VIEW_SORT and the um_sort token in scripts/agent-handler.py; herdr-snooze mirrors that sort
+# in KNOWN_VIEWS while it holds the view. The manual unread marker below is
+# display-only; it does not re-sort.
 agent_panel_sort = "priority"
 
 [ui.sidebar.agents]

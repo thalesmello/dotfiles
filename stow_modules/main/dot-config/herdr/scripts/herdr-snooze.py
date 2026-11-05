@@ -92,15 +92,34 @@ def _all_of(*filters):
 # ({"<source>": {"<label>": [<sort>, …]}}), or pin a sort outright with "sort".
 KNOWN_VIEWS = {
     "agent-handler": {
+        # Its prefix+w cycle (PANEL_MODES there) labels the view by mode:
+        # grouped is plain workspace order, the other two sort on um_sort
+        # (pinned first, then blocked, done, idle, unknown, working;
+        # the focused agent's um_sort is frozen until focus leaves it).
         "sorts": {
+            "grouped": [
+                {"field": "workspace_order", "order": "asc"},
+                {"field": "tab_order", "order": "asc"},
+                {"field": "pane_order", "order": "asc"},
+            ],
+            "smart priority": [
+                {"field": {"token": "um_pin"}, "order": "asc"},
+                {"field": {"token": "um_sort"}, "order": "asc"},
+                {"field": "state_change_seq", "order": "desc"},
+            ],
+            "working hidden": [
+                {"field": {"token": "um_pin"}, "order": "asc"},
+                {"field": {"token": "um_sort"}, "order": "asc"},
+                {"field": "state_change_seq", "order": "desc"},
+            ],
             "": [
                 {"field": {"token": "um_pin"}, "order": "asc"},
-                {"field": "attention", "order": "asc"},
+                {"field": {"token": "um_sort"}, "order": "asc"},
                 {"field": "state_change_seq", "order": "desc"},
             ],
             None: [
                 {"field": {"token": "um_pin"}, "order": "asc"},
-                {"field": "attention", "order": "asc"},
+                {"field": {"token": "um_sort"}, "order": "asc"},
                 {"field": "state_change_seq", "order": "desc"},
             ],
         },
@@ -109,12 +128,12 @@ KNOWN_VIEWS = {
         "sorts": {
             "": [
                 {"field": {"token": "um_pin"}, "order": "asc"},
-                {"field": "attention", "order": "asc"},
+                {"field": {"token": "um_sort"}, "order": "asc"},
                 {"field": "state_change_seq", "order": "desc"},
             ],
             None: [
                 {"field": {"token": "um_pin"}, "order": "asc"},
-                {"field": "attention", "order": "asc"},
+                {"field": {"token": "um_sort"}, "order": "asc"},
                 {"field": "state_change_seq", "order": "desc"},
             ],
         },
