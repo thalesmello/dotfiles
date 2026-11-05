@@ -489,7 +489,7 @@ class PlanView(unittest.TestCase):
             self.assertEqual((params["label"], params["filter"], params["sort"]), ("smart priority z 1", snooze.VIEW_FILTER, sorts["smart priority"]))
         with mock.patch.object(snooze, "agent_handler_panel_mode", return_value="hidden"):
             _kind, params = snooze.plan_view(state(dict(self.snoozed)), owner, 1, badge="z")
-            self.assertEqual(params["label"], "working hidden · 1 snoozed")
+            self.assertEqual(params["label"], "working hidden · z 1")
             self.assertEqual(params["filter"], {"op": "all", "filters": [snooze.VIEW_FILTER, snooze.NOT_WORKING_FILTER]})
             self.assertEqual(params["sort"], sorts["working hidden"])
 

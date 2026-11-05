@@ -1360,9 +1360,10 @@ def plan_view(state, owner, count, sort_override=None, badge=DEFAULT_BADGE, owne
             label = "%s working hidden" % base if base else "working hidden"
             want_filter = NOT_WORKING_FILTER
         elif cycle and cycle["mode"] == "hidden":
-            # Plain words again (no 💤): the snoozed agents are named as
-            # text, and the badge would read as part of "working hidden".
-            label = "working hidden · %d snoozed" % count
+            # The 💤 belongs to the snoozed count (as in the other modes'
+            # labels), kept after the "·" so it cannot read as part of
+            # "working hidden" itself.
+            label = "working hidden · " + badged(badge, str(count))
             want_filter = cycle["filter"]
         else:
             label = "%s %s" % (base, badged(badge, str(count))) if base else badged(badge, str(count))
