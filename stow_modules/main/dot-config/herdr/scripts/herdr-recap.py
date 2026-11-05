@@ -2012,6 +2012,22 @@ class Decoder:
             if params == "200":
                 self.paste = bytearray()
                 return length, None
+            fields = params.split(";")
+            # Shift+Enter and friends also arrive as modifyOtherKeys
+            # (CSI 27;mod;code~) or xterm CSI code;mod~ -- e.g. Ghostty
+            # without the kitty protocol. Decode them like CSI u so
+            # the editor sees the same "shift+enter" name either way.
+            special = {"13": "enter", "27": "esc", "9": "tab", "127": "backspace"}
+            coded = None
+            if fields[0] == "27" and len(fields) == 3 and fields[1].isdigit():
+                coded = (fields[2], fields[1])
+            elif fields[0] in special and len(fields) > 1 and fields[1].isdigit():
+                coded = (fields[0], fields[1])
+            if coded and coded[0] in special:
+                mods = int(coded[1]) - 1  # modifier params are 1-based bitmasks
+                prefix = (("ctrl+" if mods & 4 else "") + ("alt+" if mods & 2 else "")
+                          + ("shift+" if mods & 1 else ""))
+                return length, ("key", prefix + special[coded[0]])
             base = params.split(";")[0]
             name = {"1": "home", "2": "insert", "3": "delete", "4": "end", "5": "pgup", "6": "pgdn", "7": "home", "8": "end"}.get(base)
             return length, (("key", name) if name else None)
@@ -2076,6 +2092,34 @@ def truncate_styled(text: str, max_cells: int) -> str:
     return "".join(out) + RESET
 
 
+def drop_styled_cells(text: str, cells: int) -> str:
+    """A styled line with its first ``cells`` display cells removed.
+
+    SGR sequences before the cut are kept, so the remainder keeps the
+    styling it had in the full line. Used to keep the part of a list
+    row that sticks out to the right of the reply popup.
+    """
+    if cells <= 0:
+        return text
+    out: list[str] = []
+    used = 0
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch == "\x1b" and i + 1 < len(text) and text[i + 1] == "[":
+            j = i + 2
+            while j < len(text) and not ("@" <= text[j] <= "~"):
+                j += 1
+            out.append(text[i:j + 1])
+            i = j + 1
+            continue
+        if used >= cells:
+            out.append(ch)
+        used += char_width(ch)
+        i += 1
+    return "".join(out)
+
+
 class RawTerminal:
     def __init__(self):
         self.fd = sys.stdin.fileno()
@@ -2085,12 +2129,18 @@ class RawTerminal:
         import termios, tty
         self.saved = termios.tcgetattr(self.fd)
         tty.setraw(self.fd)
-        sys.stdout.write("\x1b[?1049h\x1b[?25l\x1b[?7l\x1b[?2004h\x1b[?1000h\x1b[?1006h")
+        # Kitty keyboard enhancement, flag 1 (disambiguate): without
+        # negotiating it, Herdr/Ghostty encode every modified Enter as
+        # legacy plain Enter, so Shift+Enter could never be told from
+        # Enter (it submitted instead of inserting a line). With it,
+        # Shift+Enter arrives as CSI 13;2u, which Decoder maps to
+        # "shift+enter". Popped again on exit, below.
+        sys.stdout.write("\x1b[?1049h\x1b[>1u\x1b[?25l\x1b[?7l\x1b[?2004h\x1b[?1000h\x1b[?1006h")
         sys.stdout.flush()
         return self
     def __exit__(self, *exc):
         import termios
-        sys.stdout.write("\x1b[?1006l\x1b[?1000l\x1b[?2004l\x1b[?7h\x1b[?25h\x1b[?1049l\x1b[0m")
+        sys.stdout.write("\x1b[<u\x1b[?1006l\x1b[?1000l\x1b[?2004l\x1b[?7h\x1b[?25h\x1b[?1049l\x1b[0m")
         sys.stdout.flush()
         if self.saved is not None:
             termios.tcsetattr(self.fd, termios.TCSADRAIN, self.saved)
@@ -2320,6 +2370,7 @@ class Model:
         self.suggestion_ranges: dict[str, tuple[tuple[int, int], tuple[int, int]]] = {}
         self.detail_spans: dict[str, list[tuple[str, int, int]]] = {}
         self.last_spin = 0.0
+        self.reply_popup_rect: tuple[int, int, int, int] | None = None  # x, y, w, h
 
     def ui_state(self) -> dict[str, Any]:
         return {"tab": self.show, "cursor": self.cursor}
@@ -2925,8 +2976,9 @@ class Model:
             return wrap_text(entry.note, width, 2), True
         return [""], True
     def list_height(self) -> int:
-        reply_lines = len(self.reply_lines()) if self.replying else 0
-        return max(0, self.height - 4 - 2 - reply_lines)
+        # The reply popup overlays the list instead of taking rows from
+        # it, so the list layout is the same whether or not it is open.
+        return max(0, self.height - 4 - 2)
     def entry_layout(self) -> list[tuple[int, int, int]]:
         layout, row = [], 0
         for i, pane in enumerate(self.order):
@@ -3005,6 +3057,14 @@ class Model:
             return [header]
         if self.height == 2:
             return [header, self.footer_line()]
+        if self.replying:
+            # Render the normal list first, then draw the prompt popup
+            # on top of it (reply_popup), so the window behind stays
+            # exactly as it was. Tiny terminals fall back to the
+            # full-frame editor in reply_popup.
+            return self.reply_popup(self._list_view(header))
+        return self._list_view(header)
+    def _list_view(self, header: str) -> list[str]:
         lines = [header, "", self.filter_line(), self.found_line()][:self.height - 2]
         height = self.list_height()
         used = 0
@@ -3051,9 +3111,134 @@ class Model:
             lines.append("")
             used += 1
         lines.append(self.status_line())
-        if self.replying:
-            lines.extend(self.reply_lines())
         lines.append(self.footer_line())
+        return lines
+    def reply_popup(self, base: list[str]) -> list[str]:
+        """Draw Tab's prompt capture as a popup on top of the list.
+
+        ``base`` is the ordinary list frame, rendered unchanged; the
+        popup box is composited over its centre, leaving the tab bar,
+        the rows outside the box, the status row and the cheatsheet
+        visible behind/around it. Inside the box: the agent's
+        identity and state, its recap for context, and a text area
+        for the prompt. Tiny terminals get the full-frame editor.
+        """
+        if self.width < 50 or self.height < 14:
+            return self.reply_view()
+        popup_w = max(46, min(self.width - 4, int(self.width * 0.82)))
+        popup_h = max(10, min(self.height - 3, int(self.height * 0.72)))
+        x0 = max(1, (self.width - popup_w) // 2)
+        y0 = max(1, (self.height - popup_h) // 2)
+        self.reply_popup_rect = (x0, y0, popup_w, popup_h)
+        box = self._reply_box(popup_w, popup_h)
+        lines = (list(base) + [""] * self.height)[:self.height]
+        for j, box_line in enumerate(box):
+            y = y0 + j
+            if y >= self.height - 1:  # never cover the cheatsheet
+                break
+            left = truncate_styled(lines[y], x0)
+            left += " " * max(0, x0 - display_width(left))
+            right = drop_styled_cells(lines[y], x0 + popup_w)
+            lines[y] = left + box_line + right
+        return lines
+    def _reply_box(self, popup_w: int, popup_h: int) -> list[str]:
+        entry = self.entries.get(self.reply_to)
+        inner = max(1, popup_w - 4)
+        border = THEME.paint("accent", "\u2500" * max(1, popup_w - 2))
+        def boxed(content: str = "") -> str:
+            content = truncate_styled(content, inner)
+            pad = " " * max(0, inner - display_width(content))
+            return (THEME.paint("accent", "\u2502 ") + content + pad
+                    + THEME.paint("accent", " \u2502"))
+        rows: list[str] = [THEME.paint("accent", "\u256d") + border + THEME.paint("accent", "\u256e")]
+        name = shorten(agent_title(entry.agent), inner - 10) if entry else "agent"
+        rows.append(boxed(THEME.paint("accent", "Prompt to " + name, bold=True)))
+        if entry:
+            agent = entry.agent
+            workspace = next((ws.label for ws in self.workspaces
+                              if ws.workspace_id == agent.workspace_id and ws.label), "")
+            info = [agent.agent or "agent", agent.status or "unknown"]
+            if workspace:
+                info.append(workspace)
+            info.append(agent.pane_id)
+            rows.append(boxed(THEME.paint("dim", shorten(" \u00b7 ".join(info), inner))))
+            meta = entry.session.meta if entry.session else None
+            detail: list[str] = []
+            branch = entry.branch or (meta.branch if meta else "")
+            if branch:
+                detail.append(branch)
+            if meta and meta.model:
+                detail.append(short_model(meta.model))
+            if meta and meta.mode and meta.mode != "default":
+                detail.append(meta.mode)
+            if meta and meta.tasks_total:
+                detail.append(f"{meta.tasks_done}/{meta.tasks_total} tasks")
+            if agent.cwd:
+                detail.append(agent.cwd)
+            if detail:
+                rows.append(boxed(THEME.paint("dim", shorten(" \u00b7 ".join(detail), inner))))
+            if meta and meta.last_prompt:
+                rows.append(boxed(THEME.paint("dim", shorten("\u203a " + clean(meta.last_prompt), inner))))
+            if agent.status == "blocked" and meta and meta.pending:
+                rows.append(boxed(THEME.paint("red", shorten("? " + clean(meta.pending), inner))))
+        # Recap, for context: what this agent has been doing, so the
+        # prompt can be written without leaving the popup to check.
+        rows.append(boxed(THEME.paint("accent", "Recap", bold=True)))
+        if self.reply_sending:
+            rows.append(boxed(THEME.paint("accent", "Sending reply\u2026")))
+        elif self.err:
+            rows.extend(boxed(THEME.paint("red", line))
+                        for line in wrap_text(clean(self.err), inner, 2))
+        recap_text = entry.recap.text if entry and entry.recap and entry.recap.text else ""
+        recap_lines = wrap_text(recap_text, inner, 4) if recap_text else ["No recap yet for this agent."]
+        rows.extend(boxed(THEME.paint("text", line)) for line in recap_lines)
+        rows.append(boxed(THEME.paint("dim", "\u2500" * inner)))
+        # Whatever rows remain go to the prompt itself.
+        room = max(1, popup_h - len(rows) - 2)  # hint row + bottom border
+        editor = self.reply_lines(limit=room)
+        rows.extend(boxed(line) for line in editor)
+        rows.extend([boxed()] * (room - len(editor)))
+        rows.append(boxed(THEME.paint("dim", "\u23ce send \u00b7 shift/alt+\u23ce new line \u00b7 esc cancel")))
+        rows.append(THEME.paint("accent", "\u2570") + border + THEME.paint("accent", "\u256f"))
+        rows = rows[:popup_h]
+        rows[-1] = THEME.paint("accent", "\u2570") + border + THEME.paint("accent", "\u256f")
+        return rows
+    def reply_view(self) -> list[str]:
+        """Full-frame prompt editor, the tiny-terminal popup fallback.
+
+        Pressing Tab used to squeeze the editor into at most six rows
+        between the agent list and the footer, so a real prompt was
+        written blind in a tiny session at the bottom of the screen.
+        On a normal terminal reply_popup draws a popup over the list;
+        this keeps the same large editor when there is no room for a
+        box on top of it. Exactly ``height`` rows, like every frame.
+        """
+        entry = self.entries.get(self.reply_to)
+        name = shorten(agent_title(entry.agent), 40) if entry else "agent"
+        title = " " + THEME.paint("accent", "Prompt to " + name, bold=True)
+        if entry:
+            title += THEME.paint("dim", "  " + entry.agent.agent + " \u00b7 " + entry.agent.status)
+        if self.reply_sending:
+            context = " " + THEME.paint("accent", "Sending reply\u2026")
+        elif self.err:
+            context = " " + THEME.paint("red", shorten(clean(self.err), max(1, self.width - 2)))
+        elif entry and entry.recap and entry.recap.text:
+            context = " " + THEME.paint("dim", shorten(clean(entry.recap.text), max(1, self.width - 2)))
+        elif entry and entry.session and entry.session.meta.last_prompt:
+            context = " " + THEME.paint("dim", shorten("\u203a " + clean(entry.session.meta.last_prompt), max(1, self.width - 2)))
+        else:
+            context = " " + THEME.paint("dim", "Type the next prompt for this agent.")
+        lines = [title, context, THEME.paint("dim", " " + "\u2500" * max(1, self.width - 2))]
+        # Title + context + rule + hint row + footer are fixed; the
+        # editor gets every remaining row (previously capped at six).
+        room = max(0, self.height - len(lines) - 2)
+        editor = self.reply_lines(limit=room) if room else []
+        lines.extend(editor)
+        lines.extend([""] * (room - len(editor)))
+        lines.append(" " + THEME.paint("dim", "shift/alt+enter new line \u00b7 ctrl+u clear \u00b7 ctrl+w word"))
+        lines.append(self.footer_line())
+        lines = (lines + [""] * self.height)[:self.height]
+        lines[-1] = self.footer_line()
         return lines
     def header_line(self) -> str:
         tabs = self.stage_tabs()
@@ -3211,7 +3396,7 @@ class Model:
         if self.replying:
             entry = self.entries.get(self.reply_to)
             name = shorten(agent_title(entry.agent), 30) if entry else "agent"
-            return " " + THEME.paint("accent", "Reply to " + name + ":", bold=True) + THEME.paint("dim", "  alt+enter new line")
+            return " " + THEME.paint("accent", "Reply to " + name + ":", bold=True) + THEME.paint("dim", "  shift/alt+enter new line")
         if self.err:
             return " " + THEME.paint("red", shorten(clean(self.err), max(10, self.width - 2)))
         if self.flash:
@@ -3229,9 +3414,11 @@ class Model:
         if not meta.last_prompt:
             return " " * max(1, self.width - display_width(right_text) - 1) + right_text if right_text else ""
         return fit_plain(" ", THEME.paint("dim", "\u203a " + clean(meta.last_prompt)), right_text, self.width)
-    def reply_lines(self) -> list[str]:
+    def reply_lines(self, limit: int | None = None) -> list[str]:
         lines = []
-        limit = min(6, max(0, self.height - 6))
+        if limit is None:
+            limit = min(6, max(0, self.height - 6))
+        limit = max(0, limit)
         if not limit:
             return lines
         text_lines = self.reply_text.split("\n")
@@ -3276,29 +3463,35 @@ class Model:
             hints.append(("^l issue", "ctrl+l", "view"))
         hints += [("\u2190\u2192 stage", "right", "view"), (esc, "esc", "quiet")]
         return hints
-    def footer_line(self) -> str:
-        hints = self.footer()
-        # Shorten then drop least important, keeping esc.
-        while hints and sum(display_width(h[0]) + 3 for h in hints) > self.width:
-            shortened = []
-            changed = False
-            for label, key, kind in hints:
-                first, sep, _rest = label.partition(" ")
-                _a, sep2, second = label[len(first) + 1:].partition(" ") if sep else ("", "", "")
-                new = first + (" " + second if sep2 else "")
-                if new != label:
-                    changed = True
-                shortened.append((new, key, kind))
-            hints = shortened
-            if changed:
-                continue
+    def visible_footer_hints(self):
+        """The cheatsheet hints that will actually be drawn, at full text.
+
+        The old footer fitted the row by shaving words off every label
+        (``tab reply`` -> ``tab``, ``enter go to agent`` -> ``enter to
+        agent``), so as soon as a busier frame brought more hints than
+        the width allowed, the text after each key was lost and the
+        rendered pills no longer matched the labels the mouse handler
+        measured. Instead, drop whole hints -- least important first
+        (view, then act, then go; esc always stays) -- and keep every
+        drawn pill's ``key + action`` text intact. Rendering and mouse
+        hit-testing both use this list, so the screen is the same on
+        every frame and a pill does what its text says.
+        """
+        hints = list(self.footer())
+        def total(rows) -> int:
+            return sum(display_width(label) + 3 for label, _key, _kind in rows)
+        while len(hints) > 1 and total(hints) > self.width:
             for kind in ("view", "act", "go"):
-                index = next((i for i in range(len(hints) - 1, -1, -1) if hints[i][2] == kind), -1)
+                index = next((i for i in range(len(hints) - 1, -1, -1)
+                              if hints[i][2] == kind), -1)
                 if index >= 0:
                     hints.pop(index)
                     break
             else:
                 break
+        return hints
+    def footer_line(self) -> str:
+        hints = self.visible_footer_hints()
         parts = []
         for label, _key, kind in hints:
             ground = {"go": THEME.p["green"], "act": THEME.p["peach"], "view": THEME.p["blue"], "quiet": THEME.p["surface"]}.get(kind, THEME.p["surface"])
@@ -3543,7 +3736,7 @@ class Model:
         if name == "enter":
             self.send_reply()
             return None
-        if name in ("alt+enter", "ctrl+j"):
+        if name in ("alt+enter", "shift+enter", "ctrl+j"):
             self.reply_text = self.reply_text[:self.reply_cursor] + "\n" + self.reply_text[self.reply_cursor:]
             self.reply_cursor += 1
         elif name == "backspace":
@@ -3585,14 +3778,19 @@ class Model:
                     return None
             return None
         if y == self.height - 1:
-            # Footer pills are buttons; mapping is approximate by hint order.
-            hints = self.footer()
+            # Footer pills are buttons, measured with the same visible
+            # (full-text) hint list footer_line() draws.
+            hints = self.visible_footer_hints()
             pos = 1
             for label, key, _kind2 in hints:
                 width = display_width(label) + 2
                 if pos <= x < pos + width:
                     return self.dispatch_hint(key)
                 pos += width + 1
+            return None
+        if self.replying:
+            # The prompt popup covers the list: clicks must not fall
+            # through to (and activate) an agent hidden underneath it.
             return None
         for row_y, index, row_in_entry in list(self.row_ranges):
             if row_y != y:

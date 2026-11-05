@@ -256,6 +256,14 @@ class DecoderTest(unittest.TestCase):
         self.assertEqual(decoder.feed(b"\x1b[107;7u"), [("key", "ctrl+alt+k")])
         self.assertEqual(decoder.feed(b"a"), [("char", "a")])
 
+    def test_shift_enter_in_all_encodings(self):
+        for raw in (b"\x1b[13;2u", b"\x1b[27;2;13~", b"\x1b[13;2~"):
+            with self.subTest(raw=raw):
+                self.assertEqual(rc.Decoder().feed(raw), [("key", "shift+enter")])
+        # Unmodified/modified Enter still decode as before.
+        self.assertEqual(rc.Decoder().feed(b"\x1b[13~"), [])
+        self.assertEqual(rc.Decoder().feed(b"\x1b[27;5;13~"), [("key", "ctrl+enter")])
+
     def test_kitty_release_is_ignored(self):
         decoder = rc.Decoder()
         self.assertEqual(decoder.feed(b"\x1b[27;1:3u"), [])
@@ -738,6 +746,30 @@ class PopupStateAndScrollTest(unittest.TestCase):
                 self.assertEqual(len(lines), model.height)
 
 
+class KittyNegotiationTest(unittest.TestCase):
+    def test_picker_enables_and_pops_kitty_disambiguation(self):
+        # Without CSI >1u the host encodes Shift+Enter as plain Enter,
+        # so the decoder/editor handling can never see it.
+        import io
+        import pty
+        from unittest import mock
+        master, slave = pty.openpty()
+        self.addCleanup(os.close, master)
+        stdin = mock.Mock()
+        stdin.fileno.return_value = slave
+        out = io.StringIO()
+        term = rc.RawTerminal.__new__(rc.RawTerminal)
+        term.fd, term.saved, term._last_size = slave, None, None
+        with mock.patch.object(rc.sys, "stdin", stdin), \
+                mock.patch.object(rc.sys, "stdout", out):
+            with term:
+                pass
+        written = out.getvalue()
+        self.assertIn("\x1b[>1u", written)
+        self.assertIn("\x1b[<u", written)
+        self.assertLess(written.index("\x1b[>1u"), written.index("\x1b[<u"))
+
+
 class ReplyCursorTest(unittest.TestCase):
     def make_model(self):
         model = rc.Model(rc.Config(), demo=True)
@@ -755,6 +787,21 @@ class ReplyCursorTest(unittest.TestCase):
         self.assertIn("hello\x1b[7m \x1b[27m", model.reply_lines()[0])
         model.handle_reply_key("left")
         self.assertIn("hell\x1b[7mo\x1b[27m", model.reply_lines()[0])
+
+    def test_shift_enter_inserts_new_line_not_send(self):
+        from unittest import mock
+        model = self.make_model()
+        model.handle_reply_key("", "hello")
+        with mock.patch.object(model, "send_reply") as send:
+            model.handle_reply_key("shift+enter")
+            model.handle_reply_key("shift+enter")
+            model.handle_reply_key("", "world")
+        send.assert_not_called()
+        self.assertEqual(model.reply_text, "hello\n\nworld")
+        self.assertEqual(model.reply_cursor, len(model.reply_text))
+        lines = model.reply_lines()
+        self.assertEqual(len(lines), 3)
+        self.assertIn("world", lines[2])
 
     def test_long_line_keeps_end_cursor_visible(self):
         model = self.make_model()
@@ -774,6 +821,117 @@ class ReplyCursorTest(unittest.TestCase):
             self.assertLessEqual(len(lines), 6)
         model.reply_cursor = 0
         self.assertIn("\x1b[7ml\x1b[27m", model.reply_lines()[0])
+
+
+def _plain(text):
+    import re as _re
+    return _re.sub(r"\x1b\[[0-9;:]*[A-Za-z]", "", text)
+
+
+class FooterConsistencyTest(ViewHeightTest):
+    def test_drawn_pills_keep_full_key_text_at_any_width(self):
+        model = self.make_model()
+        model.links = {rc.SNOOZE_PLUGIN: {}, rc.GITHUB_PLUGIN: {}, rc.LINEAR_PLUGIN: {}}
+        full = [label for label, _key, _kind in model.footer()]
+        for width in (30, 40, 60, 80, 100, 120, 160):
+            model.width, model.height = width, 24
+            with self.subTest(width=width):
+                first = model.footer_line()
+                # Pure/repeatable: the next frame draws the same cheatsheet.
+                self.assertEqual(first, model.footer_line())
+                self.assertEqual(first, model.view()[-1])
+                self.assertEqual(first, model.view()[-1])
+                drawn = _plain(first)
+                self.assertLessEqual(rc.display_width(drawn), width)
+                # Every drawn pill is a complete hint, never a label
+                # with the words after its key shaved off.
+                for label, _key, _kind in model.visible_footer_hints():
+                    self.assertIn(label, full)
+                    self.assertIn(" " + label + " ", drawn)
+                self.assertIn("esc close", drawn)
+
+    def test_footer_click_uses_the_drawn_pill(self):
+        model = self.make_model()
+        model.width, model.height = 100, 24
+        model.view()
+        hints = model.visible_footer_hints()
+        tab = next(i for i, h in enumerate(hints) if h[1] == "tab")
+        self.assertEqual(hints[tab][0], "tab reply")
+        x = 1 + sum(rc.display_width(h[0]) + 3 for h in hints[:tab]) + 1
+        model.handle_mouse(("mouse", "press", x, model.height - 1, "M"))
+        self.assertTrue(model.replying)
+
+
+class ReplyPopupTest(ViewHeightTest):
+    def test_tab_opens_a_full_prompt_popup_not_a_bottom_strip(self):
+        model = self.make_model()
+        model.width, model.height = 100, 24
+        behind = [_plain(line) for line in model.view()]
+        self.assertIsNone(model.handle_key("tab"))
+        self.assertTrue(model.replying)
+        lines = model.view()
+        self.assertEqual(len(lines), 24)
+        plain = [_plain(line) for line in lines]
+        joined = "\n".join(plain)
+        # A bordered popup drawn on top of the unchanged list: the tab
+        # bar, rows outside the box and the cheatsheet stay visible.
+        self.assertIn("\u256d", joined)
+        self.assertIn("\u2570", joined)
+        self.assertEqual(plain[0], behind[0])
+        # Rows beside/below the box are the list itself, not blanks.
+        self.assertIn("Flaky", joined)
+        self.assertIn("scratch", joined)
+        self.assertIn("enter send", plain[-1])
+        x, y, w, h = model.reply_popup_rect
+        self.assertTrue(0 < x and 0 < y and y + h < 24)
+        self.assertIn(behind[y + h + 1], plain[y + h + 1])
+        self.assertIn("Prompt to", plain[y + 1])
+        self.assertTrue(all(any(ch in plain[y + j] for ch in "\u2502\u256d\u2570")
+                            for j in range(h)))
+        # Long prompts get most of the popup, not the old six rows.
+        model.reply_text = "\n".join(f"prompt line {i}" for i in range(12))
+        model.reply_cursor = len(model.reply_text)
+        plain = [_plain(line) for line in model.view()]
+        self.assertTrue(any("prompt line 11" in line for line in plain))
+        self.assertEqual(len(model.reply_lines(limit=12)), 12)
+
+    def test_popup_shows_agent_information_and_recap(self):
+        model = self.make_model()
+        model.width, model.height = 100, 24
+        entry = model.selected()
+        model.start_reply()
+        joined = "\n".join(_plain(line) for line in model.view())
+        self.assertIn("Prompt to " + rc.agent_title(entry.agent), joined)
+        self.assertIn(entry.agent.agent + " \u00b7 " + entry.agent.status, joined)
+        self.assertIn(entry.agent.pane_id, joined)
+        meta = entry.session.meta
+        self.assertIn(meta.branch, joined)
+        self.assertIn(rc.short_model(meta.model), joined)
+        self.assertIn(f"{meta.tasks_done}/{meta.tasks_total} tasks", joined)
+        self.assertIn(rc.clean(meta.last_prompt), joined)
+        self.assertIn("Recap", joined)
+        self.assertIn("Moving the billing webhooks", joined)
+
+    def test_popup_preserves_draft_and_esc_returns_to_list(self):
+        model = self.make_model()
+        model.width, model.height = 100, 24
+        model.start_reply()
+        model.handle_reply_key("", "fix the failing test")
+        self.assertIn("fix the failing test", "\n".join(_plain(line) for line in model.view()))
+        model.handle_key("esc")
+        self.assertFalse(model.replying)
+        self.assertIn("enter go to agent", _plain(model.view()[-1]))
+
+    def test_clicks_do_not_fall_through_the_popup(self):
+        from unittest import mock
+        model = self.make_model()
+        model.width, model.height = 100, 24
+        model.start_reply()
+        model.view()
+        with mock.patch.object(model, "activate") as activate:
+            model.handle_mouse(("mouse", "press", 5, 5, "M"))
+        activate.assert_not_called()
+        self.assertTrue(model.replying)
 
 
 class PiTitleSuggestionTest(unittest.TestCase):
