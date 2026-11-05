@@ -42,9 +42,24 @@
  * Requires fullscreen mode (`tuiMode: "fullscreen"`) with copy on select, so
  * pi captures the mouse at all. In regular mode the terminal owns selection
  * and this extension does nothing visible.
+ *
+ * Referencing a selection
+ * ------------------------
+ * While a selection is live, a `⇥ reference` popup sits at the end of the
+ * selection. Clicking it, or pressing Tab, appends a one-line reference to
+ * the prompt editor — `> the first line of the selection ...` — and leaves
+ * the cursor on the next line. The editor never holds the whole selection.
+ * On submit, the `input` handler swaps each reference line for the full
+ * selected text, so the model receives the selection as context.
+ *
+ * In the editor, a reference line renders as a grayed-out block. It cannot
+ * be edited: typing on that line does nothing, and Backspace or Delete on
+ * or next to the block removes the whole block (and its pending reference).
+ * The editor wrapper composes over whichever editor factory was installed
+ * before this extension (copy-snippet's editor today).
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { CustomEditor, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { sliceByColumn, stripTerminalSequences, TuiAltScreen, visibleWidth } from "@earendil-works/pi-tui";
 
 // ---------------------------------------------------------------------------
@@ -359,6 +374,282 @@ function applySelectionHighlight(text: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Referencing a selection in the next prompt
+// ---------------------------------------------------------------------------
+
+const REFERENCE_POPUP_LABEL = " ⇥ reference ";
+
+interface SelectionSnapshot {
+	text: string;
+}
+
+/** The last completed selection, armed for referencing until it is used or replaced. */
+let armedSnapshot: SelectionSnapshot | undefined;
+/** Where the popup was last painted, in screen columns on one row. */
+let popupRect: { row: number; start: number; end: number } | undefined;
+/** Editor/session context captured at session_start, used to reach the prompt editor. */
+let activeCtx: ExtensionContext | undefined;
+/** The live fullscreen renderer instance, captured while it renders a selection. */
+let capturedTui: AltScreenInternals | undefined;
+/** Reference line shown in the editor -> full selected text, swapped in on submit. */
+const pendingReferences = new Map<string, string>();
+
+/** One-line visual stand-in for a selection in the prompt editor. */
+function makeReferenceLine(text: string): string {
+	const firstLine = text.split("\n").find((line) => line.trim().length > 0)?.trim() ?? "";
+	const maxPreview = 60;
+	const truncated = text.includes("\n") || firstLine.length > maxPreview;
+	const preview = firstLine.length > maxPreview ? firstLine.slice(0, maxPreview).trimEnd() : firstLine;
+	return truncated ? `> ${preview} ...` : `> ${preview}`;
+}
+
+/** Append the armed selection as a reference line and put the cursor on the next line. */
+function addArmedSelectionAsReference(): void {
+	if (!armedSnapshot || !activeCtx) return;
+	const referenceLine = makeReferenceLine(armedSnapshot.text);
+	pendingReferences.set(referenceLine, armedSnapshot.text);
+	const current = activeCtx.ui.getEditorText();
+	const prefix = current.length > 0 && !current.endsWith("\n") ? "\n" : "";
+	activeCtx.ui.setEditorText(`${current}${prefix}${referenceLine}\n`);
+	armedSnapshot = undefined;
+	popupRect = undefined;
+	(capturedTui as { requestRender?: () => void } | undefined)?.requestRender?.();
+}
+
+/** Tab adds the armed selection as a reference; every other key passes through. */
+function handleReferenceInput(data: string): { consume: boolean } | undefined {
+	if (data !== "\t" && data !== "\x1b[9u" && data !== "\x1b[9;1u") return undefined;
+	if (!armedSnapshot || !activeCtx) return undefined;
+	addArmedSelectionAsReference();
+	return { consume: true };
+}
+
+/** Paint the reference popup at the end of the selection and remember its rectangle. */
+function drawReferencePopup(
+	screen: string[],
+	screenSelection: SelectionLike,
+	terminalWidth: number,
+	highlightEnd: number,
+): string[] {
+	popupRect = undefined;
+	if (!armedSnapshot) return screen;
+	const row = screenSelection.end.row;
+	if (row < 0 || row >= screen.length || isImageLine(screen[row] ?? "")) return screen;
+	const labelWidth = visibleWidth(REFERENCE_POPUP_LABEL);
+	const start = Math.max(0, Math.min(highlightEnd, terminalWidth - labelWidth));
+	if (terminalWidth < labelWidth) return screen;
+	popupRect = { row, start, end: start + labelWidth };
+	const line = screen[row] ?? "";
+	const lineWidth = visibleWidth(line);
+	// Non-strict slices keep ANSI resets that sit exactly on the cut column.
+	// If a highlight still ends open at the cut, close it before the popup.
+	let before = sliceByColumn(line, 0, start);
+	if (before.lastIndexOf("\x1b[7m") > before.lastIndexOf("\x1b[27m")) before += "\x1b[27m";
+	const after = sliceByColumn(line, start + labelWidth, Math.max(0, lineWidth - (start + labelWidth)));
+	const result = [...screen];
+	result[row] = `${before}\x1b[1;30;106m${REFERENCE_POPUP_LABEL}\x1b[0m${after}`;
+	return result;
+}
+
+// ---------------------------------------------------------------------------
+// Reference blocks in the prompt editor
+// ---------------------------------------------------------------------------
+
+const REFERENCE_EDITOR_MARKER = Symbol.for("table-selection.reference-editor");
+
+/**
+ * Style one text segment in the reference block style: gray italic text,
+ * the way a quoted line renders in the transcript. The style is restated
+ * after any inner styles so the whole segment stays gray.
+ */
+const REFERENCE_STYLE = "\x1b[3;38;5;245m";
+
+function styleReferenceSegment(text: string): string {
+	let result = REFERENCE_STYLE;
+	let index = 0;
+	while (index < text.length) {
+		const ansi = ANSI_AT.exec(text.slice(index));
+		if (ansi) {
+			result += ansi[0];
+			if (ansi[0].endsWith("m")) result += REFERENCE_STYLE;
+			index += ansi[0].length;
+			continue;
+		}
+		result += text[index];
+		index += 1;
+	}
+	return `${result}\x1b[0m`;
+}
+
+/**
+ * Gray out a reference line in an editor render.
+ *
+ * Only the reference text itself is highlighted — not the editor padding
+ * around it and not the rest of the row. The block shows a `│` vertical bar
+ * in front of the quoted text, which stays as-is. The editor text itself
+ * keeps the `>` line, so submit expansion still matches it.
+ */
+function highlightReferenceLine(line: string, referenceLine: string): string {
+	const plain = stripTerminalSequences(line);
+	const start = plain.indexOf(referenceLine);
+	if (start < 0) return line;
+	const segmentWidth = visibleWidth(referenceLine);
+	const end = start + segmentWidth;
+	const lineWidth = visibleWidth(line);
+	const before = sliceByColumn(line, 0, start, true);
+	const segment = sliceByColumn(line, start, segmentWidth, true);
+	const after = sliceByColumn(line, end, Math.max(0, lineWidth - end), true);
+	const displaySegment = `│ ${stripTerminalSequences(segment)}`;
+	return `${before}${styleReferenceSegment(displaySegment)}${after}`;
+}
+
+interface EditorInternals {
+	getText(): string;
+	setText(text: string): void;
+	// The real pi editor keeps its cursor in `state`; flat fields are a fallback.
+	state?: { cursorLine: number; cursorCol: number };
+	cursorLine: number;
+	cursorCol: number;
+	setCursorCol?(col: number): void;
+	handleInput(data: string): void;
+	handleMouse?(event: unknown): unknown;
+	render(width: number): string[];
+}
+
+function getEditorCursor(editor: EditorInternals): { cursorLine: number; cursorCol: number } {
+	return editor.state ?? editor;
+}
+
+function setEditorCursor(editor: EditorInternals, line: number, col: number): void {
+	const cursor = getEditorCursor(editor);
+	cursor.cursorLine = line;
+	if (editor.state && typeof editor.setCursorCol === "function") editor.setCursorCol(col);
+	else cursor.cursorCol = col;
+}
+
+/** Remove one reference block from the editor and drop its pending reference. */
+function removeReferenceBlock(editor: EditorInternals, referenceIndex: number, cursor: { line: number; col: number }): void {
+	const lines = editor.getText().split("\n");
+	const [removed] = lines.splice(referenceIndex, 1);
+	if (removed) pendingReferences.delete(removed);
+	editor.setText(lines.join("\n"));
+	setEditorCursor(editor, Math.max(0, Math.min(cursor.line, lines.length - 1)), cursor.col);
+	(editor as { requestRender?: () => void }).requestRender?.();
+}
+
+/** Drop pending references whose line no longer exists verbatim in the editor. */
+function pruneStaleReferences(editor: EditorInternals): void {
+	if (pendingReferences.size === 0) return;
+	const lines = editor.getText().split("\n");
+	for (const referenceLine of [...pendingReferences.keys()]) {
+		if (!lines.includes(referenceLine)) pendingReferences.delete(referenceLine);
+	}
+}
+
+/** Keep the cursor out of a reference block: park it at the block's end. */
+function snapCursorOffReference(editor: EditorInternals): void {
+	const lines = editor.getText().split("\n");
+	const cursor = getEditorCursor(editor);
+	const line = lines[cursor.cursorLine];
+	if (line !== undefined && pendingReferences.has(line)) {
+		setEditorCursor(editor, cursor.cursorLine, line.length);
+	}
+}
+
+/**
+ * Wrap an editor instance so reference lines render as highlighted blocks
+ * and cannot be edited. The wrapper subclasses the instance's own class and
+ * then swaps the instance prototype, so host instanceof checks and every
+ * other editor behavior stay the base editor's.
+ */
+function wrapEditorWithReferenceBlocks(base: unknown, keybindings: { matches(data: string, action: string): boolean }): unknown {
+	const editor = base as EditorInternals & Record<PropertyKey, unknown>;
+	if (editor[REFERENCE_EDITOR_MARKER]) return base;
+	const BaseCtor = editor.constructor as new (...args: never[]) => EditorInternals;
+	const baseHandleInput = BaseCtor.prototype.handleInput;
+	const baseHandleMouse = BaseCtor.prototype.handleMouse;
+	const baseRender = BaseCtor.prototype.render;
+
+	class ReferenceEditor extends BaseCtor {}
+	const proto = ReferenceEditor.prototype as EditorInternals & Record<PropertyKey, unknown>;
+
+	proto.handleInput = function (data: string): void {
+		const self = this as unknown as EditorInternals;
+		const isSubmit = keybindings.matches(data, "tui.input.submit");
+		const isBackspace = data === "\x7f" || data === "\x08";
+		const isDelete = data.startsWith("\x1b[3");
+		if (!isSubmit) {
+			const cursor = getEditorCursor(self);
+			const lines = self.getText().split("\n");
+			const lineIndex = Math.max(0, Math.min(cursor.cursorLine, lines.length - 1));
+			const onReference = pendingReferences.has(lines[lineIndex] ?? "");
+			if (onReference) {
+				if (isBackspace || isDelete) {
+					removeReferenceBlock(self, lineIndex, { line: lineIndex, col: 0 });
+					return;
+				}
+				// Navigation keys (escape sequences other than paste) may pass;
+				// anything else would edit the block, so it stops here.
+				if (!data.startsWith("\x1b") || data.startsWith("\x1b[200~")) return;
+			} else {
+				if (isBackspace && cursor.cursorCol === 0 && lineIndex > 0 && pendingReferences.has(lines[lineIndex - 1] ?? "")) {
+					removeReferenceBlock(self, lineIndex - 1, { line: lineIndex - 1, col: 0 });
+					return;
+				}
+				if (
+					isDelete &&
+					cursor.cursorCol >= (lines[lineIndex]?.length ?? 0) &&
+					lineIndex + 1 < lines.length &&
+					pendingReferences.has(lines[lineIndex + 1] ?? "")
+				) {
+					removeReferenceBlock(self, lineIndex + 1, { line: lineIndex, col: cursor.cursorCol });
+					return;
+				}
+			}
+		}
+		baseHandleInput.call(self, data);
+		pruneStaleReferences(self);
+		snapCursorOffReference(self);
+	};
+	if (baseHandleMouse) {
+		proto.handleMouse = function (event: unknown): unknown {
+			const result = baseHandleMouse.call(this, event);
+			snapCursorOffReference(this as unknown as EditorInternals);
+			return result;
+		};
+	}
+	proto.render = function (width: number): string[] {
+		const lines = baseRender.call(this, width);
+		if (pendingReferences.size === 0) return lines;
+		return lines.map((line: string) => {
+			const plain = stripTerminalSequences(line);
+			for (const referenceLine of pendingReferences.keys()) {
+				if (plain.includes(referenceLine)) return highlightReferenceLine(line, referenceLine);
+			}
+			return line;
+		});
+	};
+
+	Object.setPrototypeOf(editor, ReferenceEditor.prototype);
+	editor[REFERENCE_EDITOR_MARKER] = true;
+	return editor;
+}
+
+type EditorFactoryLike = (tui: unknown, theme: unknown, keybindings: { matches(data: string, action: string): boolean }) => unknown;
+
+/** Install the reference-block editor wrapper over the current editor factory. */
+function installReferenceEditor(ctx: ExtensionContext): void {
+	const previous = ctx.ui.getEditorComponent() as EditorFactoryLike | undefined;
+	if ((previous as (EditorFactoryLike & Record<PropertyKey, unknown>) | undefined)?.[REFERENCE_EDITOR_MARKER]) return;
+	const factory: EditorFactoryLike & Record<PropertyKey, unknown> = (tui, theme, keybindings) => {
+		const base = previous?.(tui, theme, keybindings) ?? new CustomEditor(tui as never, theme as never, keybindings as never);
+		return wrapEditorWithReferenceBlocks(base, keybindings);
+	};
+	factory[REFERENCE_EDITOR_MARKER] = true;
+	ctx.ui.setEditorComponent(factory as never);
+}
+
+// ---------------------------------------------------------------------------
 // Table-aware selection text and highlight
 // ---------------------------------------------------------------------------
 
@@ -550,24 +841,71 @@ type ApplySelectionFn = (this: AltScreenInternals, screen: string[], layout?: La
 interface AltScreenPrototype {
 	getActiveSelectionText?: GetSelectionTextFn;
 	applySelection?: ApplySelectionFn;
+	handleMouseEvent?: HandleMouseEventFn;
 }
 
 let installed = false;
-let originals: { getActiveSelectionText: GetSelectionTextFn; applySelection: ApplySelectionFn } | undefined;
+let originals:
+	| { getActiveSelectionText: GetSelectionTextFn; applySelection: ApplySelectionFn; handleMouseEvent: HandleMouseEventFn }
+	| undefined;
 
 function patchedGetActiveSelectionText(this: AltScreenInternals): string | undefined {
 	const selection = this.getSelectionBounds();
 	if (!selection) return undefined;
 	const sourceLines = getSelectionSourceLines(this, selection);
+	let result: string | undefined;
 	if (sourceLines) {
-		const tableText = getTableSelectionText(this, selection, sourceLines);
-		if (tableText !== undefined) return tableText;
+		result = getTableSelectionText(this, selection, sourceLines);
 	}
-	return originals!.getActiveSelectionText.call(this);
+	result ??= originals!.getActiveSelectionText.call(this);
+	// A completed selection arms the reference popup until it is used or a
+	// new mouse press replaces the selection.
+	if (result) armedSnapshot = { text: result };
+	return result;
+}
+
+interface RawMouseEvent {
+	button: number;
+	x: number;
+	y: number;
+	release: boolean;
+}
+
+type HandleMouseEventFn = (this: AltScreenInternals, event: RawMouseEvent) => void;
+
+function patchedHandleMouseEvent(this: AltScreenInternals, event: RawMouseEvent): void {
+	const isPrimaryPress = !event.release && (event.button & 32) === 0 && (event.button & 3) === 0;
+	if (isPrimaryPress) {
+		if (
+			armedSnapshot &&
+			popupRect &&
+			event.y === popupRect.row &&
+			event.x >= popupRect.start &&
+			event.x < popupRect.end
+		) {
+			addArmedSelectionAsReference();
+			return;
+		}
+		// Any other press starts a new selection and drops the armed one.
+		armedSnapshot = undefined;
+		popupRect = undefined;
+	}
+	originals!.handleMouseEvent.call(this, event);
 }
 
 function patchedApplySelection(this: AltScreenInternals, screen: string[], layout?: LayoutFrameLike): string[] {
 	const internals = this;
+	// Capture the live renderer once so Tab presses can reach the reference
+	// logic. The renderer's own input listener was registered first, so Tab
+	// reaches this listener only when no viewport action consumes it.
+	if (capturedTui !== internals) {
+		capturedTui = internals;
+		popupRect = undefined;
+		const withInput = internals as AltScreenInternals & {
+			addInputListener?: (listener: typeof handleReferenceInput) => void;
+		};
+		withInput.addInputListener?.(handleReferenceInput);
+	}
 	const selection = internals.getSelectionBounds();
 	if (!selection) return screen;
 
@@ -614,11 +952,24 @@ function patchedApplySelection(this: AltScreenInternals, screen: string[], layou
 			.some((line) => getTableBorderKind(line) !== undefined);
 		if (startCellIndex === endCellIndex && !crossesRowSeparator) singleCellIndex = startCellIndex;
 	}
-	if (!tableSegments && singleCellIndex === undefined) {
-		return originals!.applySelection.call(internals, screen, layout);
+	// The popup sits after the painted highlight, which for a table
+	// selection can extend past the pointer to the end of the last cell.
+	let highlightEnd = screenSelection.end.col + (screenSelection.end.boundary ? 0 : 1);
+	if (tableSegments) {
+		const endSegments = tableSegments.get(screenSelection.end.row) ?? [];
+		if (endSegments.length > 0) highlightEnd = Math.max(...endSegments.map((segment) => segment.end));
+	} else if (singleCellIndex !== undefined) {
+		const cell = getTableRowCells(screen[screenSelection.end.row] ?? "")?.[singleCellIndex];
+		if (cell) highlightEnd = Math.max(highlightEnd, cell.contentEnd);
 	}
 
-	return screen.map((line, row) => {
+	let painted: string[];
+	if (!tableSegments && singleCellIndex === undefined) {
+		painted = originals!.applySelection.call(internals, screen, layout);
+		return drawReferencePopup(painted, screenSelection, internals.terminal.columns, highlightEnd);
+	}
+
+	painted = screen.map((line, row) => {
 		if (
 			row < minRow ||
 			row > maxRow ||
@@ -655,20 +1006,27 @@ function patchedApplySelection(this: AltScreenInternals, screen: string[], layou
 		const after = sliceByColumn(line, columns.end, Math.max(0, lineWidth - columns.end), true);
 		return `${before}${applySelectionHighlight(selected)}${after}`;
 	});
+	return drawReferencePopup(painted, screenSelection, internals.terminal.columns, highlightEnd);
 }
 
 function installTableSelection(): boolean {
 	if (installed) return true;
 	const prototype = TuiAltScreen.prototype as unknown as AltScreenPrototype;
-	if (typeof prototype.getActiveSelectionText !== "function" || typeof prototype.applySelection !== "function") {
+	if (
+		typeof prototype.getActiveSelectionText !== "function" ||
+		typeof prototype.applySelection !== "function" ||
+		typeof prototype.handleMouseEvent !== "function"
+	) {
 		return false;
 	}
 	originals = {
 		getActiveSelectionText: prototype.getActiveSelectionText,
 		applySelection: prototype.applySelection,
+		handleMouseEvent: prototype.handleMouseEvent,
 	};
 	prototype.getActiveSelectionText = patchedGetActiveSelectionText;
 	prototype.applySelection = patchedApplySelection;
+	prototype.handleMouseEvent = patchedHandleMouseEvent;
 	installed = true;
 	return true;
 }
@@ -678,20 +1036,42 @@ function uninstallTableSelection(): void {
 	const prototype = TuiAltScreen.prototype as unknown as AltScreenPrototype;
 	prototype.getActiveSelectionText = originals.getActiveSelectionText;
 	prototype.applySelection = originals.applySelection;
+	prototype.handleMouseEvent = originals.handleMouseEvent;
 	originals = undefined;
 	installed = false;
+	armedSnapshot = undefined;
+	popupRect = undefined;
+	capturedTui = undefined;
+	pendingReferences.clear();
 }
 
 export default function tableSelectionExtension(pi: ExtensionAPI): void {
 	pi.on("session_start", (_event, ctx) => {
 		if (ctx.mode !== "tui") return;
+		activeCtx = ctx;
+		installReferenceEditor(ctx);
 		if (!installTableSelection()) {
 			ctx.ui.notify("table-selection: fullscreen selection internals not found; extension inactive", "warning");
 		}
 	});
 
 	pi.on("session_shutdown", () => {
+		activeCtx = undefined;
 		uninstallTableSelection();
+	});
+
+	// Swap reference lines in the submitted prompt for the full selections.
+	pi.on("input", async (event) => {
+		if (pendingReferences.size === 0) return { action: "continue" };
+		let text = event.text;
+		let changed = false;
+		for (const [referenceLine, fullText] of [...pendingReferences]) {
+			if (!text.includes(referenceLine)) continue;
+			text = text.split(referenceLine).join(`Referenced selection:\n"""\n${fullText}\n"""`);
+			pendingReferences.delete(referenceLine);
+			changed = true;
+		}
+		return changed ? { action: "transform", text } : { action: "continue" };
 	});
 
 	pi.registerCommand("table-selection", {

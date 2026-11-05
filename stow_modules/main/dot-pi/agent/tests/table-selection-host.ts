@@ -85,8 +85,35 @@ export class FakeAltScreen {
 	currentLayout: { root: LayoutBox } | undefined;
 	terminal = { columns: 30, rows: 16 };
 	scrollView = { scrollTop: 0 };
+	inputListeners: Array<(data: string) => { consume?: boolean } | undefined> = [];
+	mouseEvents: Array<{ button: number; x: number; y: number; release: boolean }> = [];
+	renderRequests = 0;
 	private anchor: SelectionPoint | undefined;
 	private focus: SelectionPoint | undefined;
+
+	addInputListener(listener: (data: string) => { consume?: boolean } | undefined): () => void {
+		this.inputListeners.push(listener);
+		return () => {
+			this.inputListeners = this.inputListeners.filter((candidate) => candidate !== listener);
+		};
+	}
+
+	/** Run input listeners in registration order; returns the consuming result, if any. */
+	emitInput(data: string): { consume?: boolean } | undefined {
+		for (const listener of this.inputListeners) {
+			const result = listener(data);
+			if (result?.consume) return result;
+		}
+		return undefined;
+	}
+
+	handleMouseEvent(event: { button: number; x: number; y: number; release: boolean }): void {
+		this.mouseEvents.push(event);
+	}
+
+	requestRender(): void {
+		this.renderRequests += 1;
+	}
 
 	/** Show `lines` as the transcript of a primary scroll view at the origin. */
 	setTranscript(lines: string[]): void {
@@ -191,3 +218,100 @@ export class FakeAltScreen {
 // The pi-tui surface the extension imports.
 export const TuiAltScreen = FakeAltScreen;
 export { sliceByColumn, stripTerminalSequences, visibleWidth };
+
+// ---------------------------------------------------------------------------
+// Fake editor for the reference-block wrapper. Implements the small slice of
+// the pi editor the wrapper touches: text, cursor, basic editing keys,
+// submit, and plain rendering.
+// ---------------------------------------------------------------------------
+
+export class FakeCustomEditor {
+	state = { lines: [""], cursorLine: 0, cursorCol: 0 };
+	focused = true;
+	onSubmit: ((text: string) => void) | undefined;
+	readonly tui: unknown;
+	readonly theme: unknown;
+	readonly keybindings: unknown;
+
+	constructor(tui?: unknown, theme?: unknown, keybindings?: unknown) {
+		this.tui = tui;
+		this.theme = theme;
+		this.keybindings = keybindings;
+	}
+
+	get cursorLine(): number {
+		return this.state.cursorLine;
+	}
+
+	set cursorLine(value: number) {
+		this.state.cursorLine = value;
+	}
+
+	get cursorCol(): number {
+		return this.state.cursorCol;
+	}
+
+	set cursorCol(value: number) {
+		this.state.cursorCol = value;
+	}
+
+	setCursorCol(col: number): void {
+		const line = this.state.lines[this.state.cursorLine] ?? "";
+		this.state.cursorCol = Math.max(0, Math.min(col, line.length));
+	}
+
+	getText(): string {
+		return this.state.lines.join("\n");
+	}
+
+	setText(text: string): void {
+		this.state.lines = text.split("\n");
+		this.state.cursorLine = this.state.lines.length - 1;
+		this.setCursorCol(this.state.lines[this.state.cursorLine]?.length ?? 0);
+	}
+
+	handleInput(data: string): void {
+		if (data === "\r") {
+			this.onSubmit?.(this.getText());
+			return;
+		}
+		const lines = this.state.lines;
+		const line = lines[this.state.cursorLine] ?? "";
+		if (data === "\x7f" || data === "\x08") {
+			if (this.state.cursorCol > 0) {
+				lines[this.state.cursorLine] = line.slice(0, this.state.cursorCol - 1) + line.slice(this.state.cursorCol);
+				this.state.cursorCol -= 1;
+			} else if (this.state.cursorLine > 0) {
+				const previous = lines[this.state.cursorLine - 1] ?? "";
+				this.state.cursorCol = previous.length;
+				lines.splice(this.state.cursorLine - 1, 2, previous + line);
+				this.state.cursorLine -= 1;
+			}
+		} else if (data.startsWith("\x1b[3")) {
+			if (this.state.cursorCol < line.length) {
+				lines[this.state.cursorLine] = line.slice(0, this.state.cursorCol) + line.slice(this.state.cursorCol + 1);
+			} else if (this.state.cursorLine + 1 < lines.length) {
+				lines.splice(this.state.cursorLine, 2, line + (lines[this.state.cursorLine + 1] ?? ""));
+			}
+		} else if (data === "\x1b[D") {
+			this.state.cursorCol = Math.max(0, this.state.cursorCol - 1);
+		} else if (data === "\x1b[C") {
+			this.state.cursorCol = Math.min(line.length, this.state.cursorCol + 1);
+		} else if (data === "\x1b[A") {
+			this.state.cursorLine = Math.max(0, this.state.cursorLine - 1);
+			this.state.cursorCol = Math.min(this.state.cursorCol, (lines[this.state.cursorLine] ?? "").length);
+		} else if (data === "\x1b[B") {
+			this.state.cursorLine = Math.min(lines.length - 1, this.state.cursorLine + 1);
+			this.state.cursorCol = Math.min(this.state.cursorCol, (lines[this.state.cursorLine] ?? "").length);
+		} else if (!data.startsWith("\x1b") && data >= " ") {
+			lines[this.state.cursorLine] = line.slice(0, this.state.cursorCol) + data + line.slice(this.state.cursorCol);
+			this.state.cursorCol += data.length;
+		}
+	}
+
+	render(_width: number): string[] {
+		return [...this.state.lines];
+	}
+}
+
+export const CustomEditor = FakeCustomEditor;
