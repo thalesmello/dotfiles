@@ -14,6 +14,11 @@ const socketEndpoint =
   process.platform === "win32" && socketPath ? `\\\\.\\pipe\\${socketPath}` : socketPath;
 const paneId = process.env.HERDR_PANE_ID;
 const source = "herdr:pi";
+const HERDR_TERMINAL_INSTRUCTIONS = [
+  "Herdr is the terminal multiplexer in this environment.",
+  "",
+  "**Do not use `tmux`.** Do not create or attach to tmux sessions, windows, or panes; do not drive terminals or agents with `tmux new-session`, `send-keys`, `capture-pane`, or similar commands; and do not use tmux as a disposable/background terminal or as a harness for testing another TUI or agent. Use Herdr workspaces, tabs, panes, `pane run`, `pane wait-output`, `pane read`, `agent start`, and `agent prompt` instead. If Herdr is unavailable, stop and say so rather than falling back to tmux. The only exception is when Thales explicitly asks you to use tmux in the current request.",
+].join("\n");
 
 function enabled() {
   return HERDR_ENV === "1" && !!socketPath && !!paneId;
@@ -207,6 +212,14 @@ export default function (pi) {
     lastMessage = next.message;
     queueState(next.state, next.message);
   }
+
+  pi.on("before_agent_start", (event) => {
+    if (!rootSession) {
+      delete event.systemPromptOptions.sections.herdr_terminal;
+      return;
+    }
+    event.systemPromptOptions.sections.herdr_terminal = HERDR_TERMINAL_INSTRUCTIONS;
+  });
 
   pi.events.on("herdr:blocked", (data) => {
     if (!rootSession) {
