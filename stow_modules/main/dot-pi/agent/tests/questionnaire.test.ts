@@ -12,6 +12,11 @@ mock.module("@earendil-works/pi-tui", () => ({
 			return this.text;
 		}
 		handleInput(value: string) {
+			// Mirror the real Editor: Enter submits, other input is appended.
+			if (value === "enter") {
+				this.onSubmit?.(this.text);
+				return;
+			}
 			this.text += value;
 		}
 		render() {
@@ -58,7 +63,9 @@ const {
 	optionMarker,
 	parseContextEntry,
 	parseCustomEntries,
+	shouldAdvanceAfterEditorSubmit,
 } = await import("../extensions/questionnaire.ts");
+const questionnaire = (await import("../extensions/questionnaire.ts")).default;
 
 type AnswerEntry = Parameters<typeof formatEntryLabels>[0][number];
 
@@ -117,10 +124,130 @@ describe("questionnaire helpers", () => {
 		expect(optionMarker(true, false, false)).toBe("[ ]");
 	});
 
+	test("editor submit only advances for single-select questions", () => {
+		expect(shouldAdvanceAfterEditorSubmit(false)).toBe(true);
+		expect(shouldAdvanceAfterEditorSubmit(true)).toBe(false);
+	});
+
 	test("parses typed entries", () => {
 		expect(parseCustomEntries("one, two\nthree")).toEqual(["one", "two", "three"]);
 		expect(parseCustomEntries("   ")).toEqual(["(no response)"]);
 		expect(parseContextEntry(" with tests ")).toEqual(["with tests"]);
 		expect(parseContextEntry("   ")).toEqual([]);
+	});
+});
+
+describe("questionnaire multiple-choice inline context", () => {
+	function createHarness(questions: unknown[]) {
+		let tool: any;
+		let component: any;
+		let submitted: any;
+		const pi: any = {
+			registerTool(captured: any) {
+				tool = captured;
+			},
+			events: { emit() {} },
+		};
+		questionnaire(pi);
+		const theme: any = {
+			fg: (_style: string, text: string) => text,
+			bg: (_style: string, text: string) => text,
+			bold: (text: string) => text,
+			inverse: (text: string) => text,
+		};
+		const tui: any = { requestRender() {}, terminal: { rows: 50 } };
+		const ctx: any = {
+			mode: "tui",
+			ui: {
+				custom: (factory: any) =>
+					new Promise((resolve) => {
+						component = factory(tui, theme, {}, (result: any) => {
+							submitted = result;
+							resolve(result);
+						});
+					}),
+			},
+		};
+		const resultPromise = tool.execute("call", { questions }, undefined, undefined, ctx);
+		return {
+			resultPromise,
+			input: (data: string) => component.handleInput(data),
+			getSubmitted: () => submitted,
+		};
+	}
+
+	const options = [
+		{ value: "a", label: "A" },
+		{ value: "b", label: "B" },
+	];
+
+	test("Enter and Tab accept context without submitting, so another option can be selected", async () => {
+		const harness = createHarness([{ id: "q1", prompt: "Pick", options, multiple: true }]);
+
+		// Tab opens inline context on A; Enter accepts the text.
+		harness.input("tab");
+		harness.input(" with tests");
+		harness.input("enter");
+		expect(harness.getSubmitted()).toBeUndefined();
+
+		// Tab again reopens the full accepted text for editing: accepting it
+		// replaces it instead of appending a duplicate fragment.
+		harness.input("tab");
+		harness.input(" updated");
+		harness.input("enter");
+		expect(harness.getSubmitted()).toBeUndefined();
+
+		// Select B as well, add context, and accept it with Tab.
+		harness.input("down");
+		harness.input("space");
+		harness.input("tab");
+		harness.input(" for speed");
+		harness.input("tab");
+		expect(harness.getSubmitted()).toBeUndefined();
+
+		// Enter outside input mode confirms the multiple-choice question.
+		harness.input("enter");
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(false);
+		expect(result.details.answers[0].entries.map((entry: any) => entry.label)).toEqual([
+			"A with tests updated",
+			"B for speed",
+		]);
+	});
+
+	test("reopening Type something edits the full set of custom entries", async () => {
+		const harness = createHarness([{ id: "q1", prompt: "Pick", options, multiple: true }]);
+
+		harness.input("down");
+		harness.input("down");
+		harness.input("tab");
+		harness.input("custom one");
+		harness.input("enter");
+		expect(harness.getSubmitted()).toBeUndefined();
+
+		// Reopened editor holds "custom one"; extending it replaces the set
+		// instead of appending duplicate entries.
+		harness.input("tab");
+		harness.input(", custom two");
+		harness.input("enter");
+		expect(harness.getSubmitted()).toBeUndefined();
+
+		harness.input("up");
+		harness.input("enter");
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(false);
+		expect(result.details.answers[0].entries.map((entry: any) => entry.label)).toEqual(["custom one", "custom two"]);
+	});
+
+	test("Enter still submits after context on a single-select question", async () => {
+		const harness = createHarness([{ id: "q1", prompt: "Pick", options, multiple: false }]);
+
+		harness.input("tab");
+		harness.input(" with tests");
+		harness.input("enter");
+
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(false);
+		expect(result.details.answers[0].entries.map((entry: any) => entry.label)).toEqual(["A with tests"]);
 	});
 });

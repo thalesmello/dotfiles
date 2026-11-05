@@ -107,6 +107,12 @@ function errorResult(
 	};
 }
 
+export function shouldAdvanceAfterEditorSubmit(multiple: boolean): boolean {
+	// A multiple-choice question is not finished when one typed entry/context
+	// is accepted: stay on the question so another option can be selected.
+	return !multiple;
+}
+
 export function parseCustomEntries(value: string): string[] {
 	const entries = value
 		.split(/\r?\n|,/)
@@ -378,9 +384,10 @@ export default function questionnaire(pi: ExtensionAPI) {
 				}
 
 				function saveContextAnswer(question: Question, optionIndex: number, values: string[]) {
-					if (values.length > 0) {
-						setContextValues(question, optionIndex, [...contextValues(question, optionIndex), ...values]);
-					}
+					// Replace, not append: the editor is prefilled with the full
+					// accepted text, so submitting it is an edit of that text
+					// (an empty value clears the context for this option).
+					setContextValues(question, optionIndex, values);
 					if (question.multiple) {
 						saveMultipleAnswer(question);
 						return;
@@ -409,13 +416,31 @@ export default function questionnaire(pi: ExtensionAPI) {
 					openCustomInput(question, "context", optionIndex);
 				}
 
+				function existingInputText(question: Question, purpose: InputPurpose, optionIndex: number | null): string {
+					if (purpose === "context" && optionIndex !== null) {
+						return contextValues(question, optionIndex).join(" ");
+					}
+					if (question.multiple) {
+						return customValues(question).join(", ");
+					}
+					const answer = answers.get(question.id);
+					return (
+						answer?.entries
+							.filter((entry) => entry.kind === "custom")
+							.map((entry) => entry.label)
+							.join(", ") ?? ""
+					);
+				}
+
 				function openCustomInput(question: Question, purpose: InputPurpose = "answer", optionIndex: number | null = null) {
 					clearCancelArmed();
 					inputMode = true;
 					inputPurpose = purpose;
 					inputQuestionId = question.id;
 					inputOptionIndex = optionIndex;
-					editor.setText("");
+					// Prefill with any already-accepted text so it can be edited
+					// or cleared, not just appended to.
+					editor.setText(existingInputText(question, purpose, optionIndex));
 					refresh();
 				}
 
@@ -506,7 +531,9 @@ export default function questionnaire(pi: ExtensionAPI) {
 					if (inputPurpose === "context" && inputOptionIndex !== null) {
 						saveContextAnswer(question, inputOptionIndex, parseContextEntry(value));
 					} else if (question.multiple) {
-						customEntries.set(question.id, [...customValues(question), ...parseCustomEntries(value)]);
+						// Replace: the editor holds the full set of custom entries.
+						// An emptied editor clears them instead of adding "(no response)".
+						customEntries.set(question.id, value.trim() ? parseCustomEntries(value) : []);
 						saveMultipleAnswer(question);
 					} else {
 						const trimmed = value.trim() || "(no response)";
@@ -518,7 +545,11 @@ export default function questionnaire(pi: ExtensionAPI) {
 					inputOptionIndex = null;
 					clearCancelArmed();
 					editor.setText("");
-					advanceAfterAnswer();
+					if (shouldAdvanceAfterEditorSubmit(question.multiple)) {
+						advanceAfterAnswer();
+					} else {
+						refresh();
+					}
 				};
 
 				function handleInput(data: string) {
@@ -527,6 +558,15 @@ export default function questionnaire(pi: ExtensionAPI) {
 
 					// Input mode: route to editor
 					if (inputMode) {
+						if (matchesKey(data, Key.tab)) {
+							// Tab accepts the typed text exactly like Enter (editor
+							// submit) instead of being passed to the editor. For
+							// multiple-choice questions the submit handler stays
+							// on the question, so another option can be selected.
+							editor.onSubmit?.(editor.getText());
+							refresh();
+							return;
+						}
 						if (isEscape) {
 							clearCancelArmed();
 							inputMode = false;
@@ -753,7 +793,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 					}
 
 					if (inputMode) {
-						addWrappedWithPrefix(" ", theme.fg("dim", "Type inline • Enter submit text • Esc cancel input"));
+						addWrappedWithPrefix(" ", theme.fg("dim", "Type inline • Enter/Tab accept text • Esc cancel input"));
 					} else if (cancelArmed) {
 						addWrappedWithPrefix(" ", theme.fg("warning", "Press Esc again to cancel questionnaire"));
 					} else {
