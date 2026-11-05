@@ -6,7 +6,7 @@
 # escape is intercepted by herdr and delivered to the attached CLIENT's
 # clipboard, whereas pbcopy would set the clipboard on the server's host. This
 # only works from a herdr-RENDERED PTY, so the matching keybinding in config.toml
-# runs this as a `type = "popup"` command, not a detached `type = "shell"` one.
+# runs this inside a plugin popup (prompt-popups, via scripts/open-popup.sh).
 #
 # Pane identity comes from $HERDR_ACTIVE_PANE_ID, which herdr auto-injects into
 # custom commands (along with HERDR_SOCKET_PATH and HERDR_BIN_PATH). Note it is

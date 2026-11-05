@@ -1,0 +1,77 @@
+# Named popups for the config's prompt-style keybindings.
+#
+# A [[keys.command]] type = "popup" binding gets the generic border title
+# "popup" and cannot be renamed; a plugin pane carries its manifest title
+# as the pane label instead. This plugin only registers popup panes for
+# scripts that used to be type = "popup" bindings -- the bindings in
+# config.toml are now type = "shell" and open these through
+# scripts/open-popup.sh, which forwards the HERDR_ACTIVE_* context
+# (several of these scripts act on the pane/tab that was focused when the
+# key fired, and read it from exactly those variables).
+#
+# Re-link after editing with:
+#
+#   herdr-preset install-local-plugins
+
+id = "prompt-popups"
+name = "Prompt Popups"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Descriptively titled popup panes for the config's prompt keybindings"
+platforms = ["macos", "linux"]
+
+[[panes]]
+id = "pi-tab"
+title = "New Pi Tab"
+placement = "popup"
+width = "40%"
+height = 3
+command = ["../../scripts/pi-tab.sh"]
+
+[[panes]]
+id = "ask-agent"
+title = "Ask an Agent"
+placement = "popup"
+width = "70%"
+height = 15
+command = ["../../scripts/ask-agent.sh"]
+
+[[panes]]
+id = "run-command"
+title = "Run Command"
+placement = "popup"
+width = "60%"
+height = "40%"
+command = ["../../scripts/run-command.sh"]
+
+[[panes]]
+id = "break-pane"
+title = "Move Pane to New Tab"
+placement = "popup"
+width = "60%"
+height = 3
+command = ["../../scripts/break-pane.sh"]
+
+[[panes]]
+id = "copy-last-output"
+title = "Copy Last Output"
+placement = "popup"
+width = 20
+height = 1
+command = ["../../scripts/copy-last-output.sh"]
+
+[[panes]]
+id = "copy-pane-id"
+title = "Copy Pane ID"
+placement = "popup"
+width = 20
+height = 1
+command = ["../../scripts/copy-pane-id.sh"]
+
+[[panes]]
+id = "copy-tab-id"
+title = "Copy Tab ID"
+placement = "popup"
+width = 20
+height = 1
+command = ["../../scripts/copy-tab-id.sh"]

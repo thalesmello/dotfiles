@@ -1429,7 +1429,7 @@ sys.stdout.write("\n".join(out) + ("\n" if out else ""))
         #   --print     print the resume command instead of running it
         #   --force     resume even though an agent is live in the pane
         #   --exec      replace the pane's shell with the agent, so quitting it
-        #               closes the pane (how claude-split.sh starts one; NOT
+        #               closes the pane (how pi-split.sh starts one; NOT
         #               the default here -- see below)
         #   --no-track  skip the opening sweep of the store
         #
@@ -1532,7 +1532,7 @@ sys.stdout.write("\n".join(out) + ("\n" if out else ""))
         # that no longer exists. Pane ids do not survive: herdr renumbers them
         # when it restores its layout after a server restart, and a pane that
         # closed together with its agent (started with `exec`, as
-        # claude-split.sh does) comes back as a different id too. So the
+        # pi-split.sh does) comes back as a different id too. So the
         # leftovers are scored by where they were -- the same tab beats merely
         # the same directory, and among equals the newest wins.
         #
@@ -1633,10 +1633,13 @@ SPEC = {
         "resume": lambda v: ["--resume", v],
         "fallback": ["--continue"],
         "drop_value": {"--session-id"},
-        "drop_opt": {"--resume", "-r"},
+        "drop_opt": {"--resume", "-r", "-p", "--print"},
         "drop_bool": {"--continue", "-c", "--fork-session"},
         "keep_value": {"--model", "--agents", "--append-system-prompt", "--settings",
-                       "--permission-mode", "--add-dir", "--mcp-config", "-p", "--print"},
+                       "--permission-mode", "--add-dir", "--mcp-config"},
+        "bool_flags": {"--verbose", "--ide", "--strict-mcp-config", "--brief",
+                       "--dangerously-skip-permissions", "--disable-slash-commands",
+                       "--allow-dangerously-skip-permissions"},
         "subcommand": None,
     },
     "codex": {
@@ -1649,6 +1652,7 @@ SPEC = {
         "keep_value": {"-c", "--config", "-m", "--model", "-p", "--profile",
                        "-s", "--sandbox", "-a", "--ask-for-approval", "-i",
                        "--image", "-C", "--cd", "--add-dir"},
+        "bool_flags": {"--full-auto", "--dangerously-bypass-approvals-and-sandbox", "--oss", "--search"},
         "subcommand": "resume",
     },
     "pi": {
@@ -1663,6 +1667,7 @@ SPEC = {
         # it is kept: without it an id would be looked up in the wrong place.
         "keep_value": {"--model", "-m", "--name", "-n", "--system", "--tools",
                        "--session-dir", "--meta-agent-role", "--startup-context-mode"},
+        "bool_flags": {"--verbose", "--quiet"},
         "subcommand": None,
     },
 }
@@ -1684,6 +1689,9 @@ def selected(tok):
         return None
     return tok
 
+def is_bool_flag(tok):
+    return tok.startswith("--no-") or tok in spec.get("bool_flags", set())
+
 kept = []
 prior = None                 # conversation the recorded command line resumed
 rest = launch[1:] if launch else []
@@ -1691,13 +1699,17 @@ i = 0
 while i < len(rest):
     tok, f = rest[i], flag(rest[i])
     inline = "=" in tok and tok.startswith("-")
+    if tok == "--":
+        break                    # everything after -- is the prompt: drop it
     if f in spec["drop_value"] or f in spec["drop_opt"]:
         if inline:
-            prior = selected(tok.split("=", 1)[1]) or prior
+            if f in ("--resume", "-r"):
+                prior = selected(tok.split("=", 1)[1]) or prior
             i += 1
         elif i + 1 < len(rest) and (f in spec["drop_value"]
                                     or not rest[i + 1].startswith("-")):
-            prior = selected(rest[i + 1]) or prior
+            if f in ("--resume", "-r", "--session", "--session-id"):
+                prior = selected(rest[i + 1]) or prior
             i += 2
         else:
             i += 1               # optional value, and none was given
@@ -1712,6 +1724,15 @@ while i < len(rest):
     elif f in spec["keep_value"] and not inline:
         kept += rest[i:i + 2]
         i += 2
+    elif not tok.startswith("-"):
+        # A bare positional is the original prompt, and replaying it would
+        # send that prompt again as a new message. Drop it -- unless the
+        # previous kept token is a flag still waiting for its value
+        # (--effort high), in which case it is a value, not a prompt.
+        prev = kept[-1] if kept else None
+        if prev is not None and prev.startswith("-") and "=" not in prev and not is_bool_flag(prev):
+            kept.append(tok)
+        i += 1
     else:
         kept.append(tok)
         i += 1

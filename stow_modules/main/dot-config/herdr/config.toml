@@ -240,23 +240,23 @@ type = "shell"
 command = "~/.config/herdr/scripts/even-layout.sh"
 description = "even out all pane sizes"
 
-# prefix+c: open a new vertical split (40% of width) running Claude Code.
+# prefix+c: open a new vertical split (40% of width) running Pi.
 [[keys.command]]
 key = "prefix+c"
 type = "shell"
-command = "~/.config/herdr/scripts/claude-split.sh"
-description = "claude in 40% vertical split"
+command = "~/.config/herdr/scripts/pi-split.sh"
+description = "pi in 40% vertical split"
 
-# prefix+shift+c: prompt for a tab name, then open a new tab running Claude Code.
-# type = "popup" so the name prompt runs in a herdr-rendered PTY where
-# interactive input works (a detached type = "shell" command has no terminal).
+# prefix+shift+c: prompt for a tab name, then open a new tab running Pi.
+# A plugin popup (prompt-popups/pi-tab, via open-popup.sh) so the name
+# prompt runs in a herdr-rendered PTY where interactive input works, and the
+# border reads 'New Pi Tab' instead of 'popup'. (prefix+c is the Pi split;
+# both used to launch Claude and switched to Pi.)
 [[keys.command]]
 key = "prefix+shift+c"
-type = "popup"
-command = "~/.config/herdr/scripts/claude-tab.sh"
-description = "claude in new tab (prompts for name)"
-width = "40%"
-height = 3
+type = "shell"
+command = "~/.config/herdr/scripts/open-popup.sh prompt-popups pi-tab 40% 3"
+description = "pi in new tab (prompts for name)"
 
 # prefix+a: "ask" -- type a question, have ask-agent classify it, and drop the
 # chosen agent into the right workspace/directory. Quick questions reuse the qq
@@ -277,11 +277,9 @@ height = 3
 # span multiple lines.
 [[keys.command]]
 key = "prefix+a"
-type = "popup"
-command = "~/.config/herdr/scripts/ask-agent.sh"
+type = "shell"
+command = "~/.config/herdr/scripts/open-popup.sh prompt-popups ask-agent 70% 15"
 description = "ask an agent in qq/src/prototype/project workspace"
-width = "70%"
-height = 15
 
 # ctrl+alt+shift+semicolon (ctrl+meta+shift+:): prompt for a shell command in a
 # popup, then eval it there. type = "popup" so the prompt runs in a herdr-rendered
@@ -291,11 +289,9 @@ height = 15
 # open-file-with-fallback` splits off the pane you were in, not the popup.
 [[keys.command]]
 key = "ctrl+alt+shift+semicolon"
-type = "popup"
-command = "~/.config/herdr/scripts/run-command.sh"
+type = "shell"
+command = "~/.config/herdr/scripts/open-popup.sh prompt-popups run-command 60% 40%"
 description = "prompt for a command and run it"
-width = "60%"
-height = "40%"
 
 # Open the live config.toml for editing in a zoomed vertical split. The script
 # reloads the config when the editor exits, so no manual prefix+shift+r needed.
@@ -315,11 +311,9 @@ description = "edit herdr config"
 # The popup emits the escape and exits immediately, so it just flickers closed.
 [[keys.command]]
 key = "prefix+shift+b"
-type = "popup"
-command = "~/.config/herdr/scripts/copy-last-output.sh"
+type = "shell"
+command = "~/.config/herdr/scripts/open-popup.sh prompt-popups copy-last-output 20 1"
 description = "copy last command output"
-width = 20
-height = 1
 
 # prefix+o / prefix+y: interactively pick files, urls, and configured custom ids
 # out of the focused pane's recent output. prefix+o opens
@@ -350,39 +344,34 @@ description = "pick from pane output and copy"
 # sequence is forwarded to the attached client -- works over `herdr --remote`.
 [[keys.command]]
 key = "prefix+shift+y"
-type = "popup"
-command = "~/.config/herdr/scripts/copy-pane-id.sh"
+type = "shell"
+command = "~/.config/herdr/scripts/open-popup.sh prompt-popups copy-pane-id 20 1"
 description = "copy pane id"
-width = 20
-height = 1
 
 # prefix+shift+m: break the focused pane out of its split and into a new tab of
 # the same workspace (tmux parity: `break-pane`). herdr has no native action for
 # this, so the script drives the `pane move` CLI. When the pane is already alone
 # in its tab a new tab would be indistinguishable from what you have, so it
 # moves to a new workspace instead.
-# type = "popup" so the name prompt runs in a herdr-rendered PTY where
-# interactive input works (same as claude-tab.sh). The prompt comes prefilled
+# A plugin popup (prompt-popups/break-pane, via open-popup.sh) so the name
+# prompt runs in a herdr-rendered PTY where interactive input works (same as
+# pi-tab.sh), with a 'Move Pane to New Tab' border. The prompt comes prefilled
 # with the pane's (or, for the workspace case, the tab's) current name, so it is
-# wider than claude-tab.sh's to fit one. Esc cancels without moving.
+# wider than pi-tab.sh's to fit one. Esc cancels without moving.
 [[keys.command]]
 key = "prefix+shift+m"
-type = "popup"
-command = "~/.config/herdr/scripts/break-pane.sh"
+type = "shell"
+command = "~/.config/herdr/scripts/open-popup.sh prompt-popups break-pane 60% 3"
 description = "move pane to a new tab (new workspace if alone; prompts for name)"
-width = "60%"
-height = 3
 
 # Copy the focused tab's id to the clipboard and show a notification.
 # Popup for the same reason as copy-pane-id.sh: OSC 52 needs a herdr-rendered PTY
 # so the copy reaches the attached client over `herdr --remote`.
 [[keys.command]]
 key = "prefix+ctrl+y"
-type = "popup"
-command = "~/.config/herdr/scripts/copy-tab-id.sh"
+type = "shell"
+command = "~/.config/herdr/scripts/open-popup.sh prompt-popups copy-tab-id 20 1"
 description = "copy tab id"
-width = 20
-height = 1
 
 # prefix+alt+l: repaint everything (tmux parity: `bind r refresh-client`). For
 # the host-surface corruption that ui.redraw_on_focus_gained clears on focus --
@@ -515,21 +504,22 @@ command = "~/.config/herdr/scripts/confirm-close.py close"
 description = "close pane (confirm if busy)"
 
 # herdr-recap (scripts/herdr-recap.py): every agent's status and recap in one
-# popup. prefix+i opens it. Recaps are scheduled by local-plugins/herdr-recap
-# when an agent finishes or blocks. resize mode stays on prefix+r.
+# popup. prefix+i opens it (via `action open`, the plugin pane, so the border
+# reads 'Recap' instead of 'popup'). Recaps are scheduled by
+# local-plugins/herdr-recap when an agent finishes or blocks. resize mode
+# stays on prefix+r.
 [[keys.command]]
 key = "prefix+i"
-type = "popup"
-command = "~/.config/herdr/scripts/herdr-recap.py picker"
+type = "shell"
+command = "~/.config/herdr/scripts/herdr-recap.py action open"
 description = "recap: every agent, where it got to"
-width = "80%"
-height = "75%"
 
 # herdr-snooze (scripts/herdr-snooze.py): hide an agent or space from the
 # Agents panel until a time, until done/merged, or until it needs you.
 # prefix+shift+z snoozes/wakes the focused agent; prefix+alt+shift+z does the
 # same for its whole space; prefix+alt+z lists every agent; prefix+ctrl+z
-# steps the Agents panel through priority -> grouped -> snoozed only.
+# steps the Agents panel through priority -> grouped -> snoozed only -> all
+# (unfiltered: pinned, snoozed, blocked, working, done in one list).
 [[keys.command]]
 key = "prefix+shift+z"
 type = "shell"
@@ -542,19 +532,58 @@ type = "shell"
 command = "~/.config/herdr/scripts/herdr-snooze.py action workspace"
 description = "snooze or wake space"
 
+# Via open-popup.sh and the herdr-snooze plugin pane, so the border reads
+# 'Snooze' instead of 'popup' (SCREEN=list asks its picker for the list view).
 [[keys.command]]
 key = "prefix+alt+z"
-type = "popup"
-command = "~/.config/herdr/scripts/herdr-snooze.py picker --list"
+type = "shell"
+command = "~/.config/herdr/scripts/open-popup.sh herdr-snooze picker 72% 70% HERDR_SNOOZE_SCREEN=list SNOOZE_SCREEN=list"
 description = "snooze: every agent"
-width = "72%"
-height = "70%"
 
 [[keys.command]]
 key = "prefix+ctrl+z"
 type = "shell"
 command = "~/.config/herdr/scripts/herdr-snooze.py toggle"
-description = "agents panel: priority -> grouped -> snoozed"
+description = "agents panel: priority -> grouped -> snoozed -> all"
+
+# prefix+alt+w: toggle working agents in the Agents panel. Part of snooze,
+# not a separate view owner -- herdr has ONE agent view, so snooze composes
+# "not working" into the filter it already holds (and holds the view for it
+# even when nothing is snoozed). Blocked/done/idle/pinned are unaffected:
+# when a working agent blocks or finishes it reappears on its own.
+[[keys.command]]
+key = "prefix+alt+w"
+type = "shell"
+command = "~/.config/herdr/scripts/herdr-snooze.py toggle-working"
+description = "agents panel: show/hide working agents"
+
+# herdr-settled (scripts/herdr-settled.py): the T3 Code inbox, as a popup.
+# Every section in one list -- Pinned, Blocked, Working, Done, Active,
+# Snoozed (live) and Settled (closed sessions, captured by the herdr-settled
+# plugin whenever a pane closes). A settled row previews its last messages
+# from the transcript tail without starting the agent; enter reopens it in a
+# new tab in its recorded workspace (recreating that workspace under the
+# same label if it is gone). s settles a live agent (freeze + close pane),
+# u reopens the most recently settled one (T3's cmd-Z), z snoozes/wakes,
+# p pins, space multi-selects for bulk s/z, backspace forgets a settled
+# entry. Inside the popup: tab/shift+tab cycle filters (all, pinned,
+# blocked, done/idle, working, snoozed, settled), shift+A/P/S/W/D/Z jump to a
+# filter (S = settled, Z = snoozed),
+# filter, / searches every agent, alt+z hands off to the snooze list. The
+# shortcuts cheatsheet is a fixed sidebar on the right of the popup (a herdr
+# popup cannot cover herdr's own sidebar; overlay is just a zoomed pane);
+# the bottom of the popup is exclusively the last-messages preview in a
+# fixed-height block, and the header is fixed while the list scrolls.
+# prefix+alt+s sits next to prefix+alt+z (snooze) on purpose: settled/snoozed.
+# type = "shell" + the script's `open`, not type = "popup": a keys.command
+# popup is titled 'popup' in the border and cannot be renamed, while opening
+# through the plugin registry gives the popup the manifest's 'Agent Sessions'
+# title.
+[[keys.command]]
+key = "prefix+alt+s"
+type = "shell"
+command = "~/.config/herdr/scripts/herdr-settled.py open"
+description = "agent sessions: every section, live + settled"
 
 # prefix+alt+d: settle review (scripts/settle-review.sh). Opens a Pi session
 # in the reused settle-review workspace (new tab per press) that scans every

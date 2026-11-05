@@ -449,6 +449,33 @@ class PlanView(unittest.TestCase):
         self.assertEqual(snooze.plan_view(st, {"active": True, "source": snooze.SOURCE}, 0), ("clear", {"source": snooze.SOURCE}))
         self.assertEqual(st["view"], {})
 
+    # Local additions (prefix+alt+w): hide_working composes into snooze's view.
+    def test_hide_working_holds_a_view_with_nothing_snoozed(self):
+        st = state()
+        st["hide_working"] = True
+        kind, params = snooze.plan_view(st, {"active": False}, 0, badge="z", mode="priority")
+        self.assertEqual(kind, "set")
+        self.assertEqual(params["filter"], snooze.NOT_WORKING_FILTER)
+        self.assertEqual(params["label"], "priority working hidden")
+        self.assertFalse(snooze.is_idle(st))
+
+    def test_hide_working_composes_with_the_snoozed_filter(self):
+        st = state(dict(self.snoozed))
+        st["hide_working"] = True
+        _kind, params = snooze.plan_view(st, {"active": False}, 1, badge="z")
+        self.assertEqual(params["filter"], {"op": "all", "filters": [snooze.VIEW_FILTER, snooze.NOT_WORKING_FILTER]})
+
+    def test_hide_working_replaces_the_all_filter(self):
+        st = state(dict(self.snoozed))
+        st["hide_working"] = True
+        st["view"] = {"showing": "all"}
+        _kind, params = snooze.plan_view(st, {"active": False}, 1, badge="z")
+        self.assertEqual(params["filter"], snooze.NOT_WORKING_FILTER)
+
+    def test_hide_working_off_leaves_the_plain_clear_alone(self):
+        st = state()
+        self.assertEqual(snooze.plan_view(st, {"active": True, "source": snooze.SOURCE}, 0), ("clear", {"source": snooze.SOURCE}))
+
     def test_keeps_herdrs_own_order_and_label_on_a_free_view(self):
         for mode, label in (("priority", "priority z 1"), ("spaces", "grouped z 1")):
             st = state(dict(self.snoozed))
@@ -1174,6 +1201,10 @@ class Commands(unittest.TestCase):
         self.assertEqual(snooze.main(["toggle"]), 0)
         self.assertEqual(self.herdr.view_params["filter"], snooze.SNOOZED_LIST_FILTER)
         self.assertEqual(snooze.read_state()["view"]["from_pane"], "work")  # where it was opened from
+        # Local adaptation: the ring gained an all-live stop (herdr-settled),
+        # so the way back from snoozed passes through unfiltered first.
+        self.assertEqual(snooze.main(["toggle"]), 0)
+        self.assertIsNone(self.herdr.view_params["filter"])
         self.assertEqual(snooze.main(["toggle"]), 0)
         self.assertEqual(self.herdr.view_params["filter"], snooze.VIEW_FILTER)
         self.notify.assert_not_called()
@@ -1184,18 +1215,37 @@ class Commands(unittest.TestCase):
         snooze.main(["tick"])  # herdr's own here is spaces (an empty home)
         self.assertEqual(self.herdr.view_params["label"], "grouped z 1")
         seen = []
-        for _ in range(6):
+        for _ in range(8):
             self.assertEqual(snooze.main(["toggle"]), 0)
             seen.append((self.herdr.view_params["label"], self.herdr.view_params["filter"] == snooze.SNOOZED_LIST_FILTER))
-        lap = [("snoozed only · 1", True), ("priority* z 1", False), ("grouped z 1", False)]
+        # Local adaptation: the lap is four stops since the ring gained the
+        # all-live stop (herdr-settled): snoozed -> all -> priority -> grouped.
+        lap = [("snoozed only · 1", True), ("grouped z all · 1 snoozed", False), ("priority* z 1", False), ("grouped z 1", False)]
         self.assertEqual([(label.split(" ", 1)[1] if snoozed else label, snoozed) for label, snoozed in seen], lap * 2)
         self.assertEqual(self.herdr.view_params["sort"], snooze.PANEL_MODES["spaces"][1])
         self.notify.assert_not_called()
 
+    def test_toggle_reverse_walks_the_ring_backwards(self):
+        # Local addition (herdr-settled): tab/shift+tab in the settled viewer
+        # cycle the panel, so toggle needs a backwards walk too.
+        self.herdr.view = {"active": False}
+        self.snoozed(snooze.now_ms() + HOUR)
+        snooze.main(["tick"])  # grouped (spaces), snooze's own order
+        self.assertEqual(snooze.main(["toggle", "--reverse"]), 0)
+        self.assertEqual(self.herdr.view_params["label"], "priority* z 1")
+        self.assertEqual(snooze.main(["toggle", "--reverse"]), 0)
+        self.assertIsNone(self.herdr.view_params["filter"])  # all live
+        self.assertEqual(snooze.main(["toggle", "--reverse"]), 0)
+        self.assertEqual(self.herdr.view_params["filter"], snooze.SNOOZED_LIST_FILTER)
+        self.assertEqual(snooze.main(["toggle"]), 0)  # forward again: all live
+        self.assertIsNone(self.herdr.view_params["filter"])
+
     def test_toggle_skips_the_orders_when_they_are_not_ours(self):
         self.snoozed(snooze.now_ms() + HOUR)
         snooze.main(["tick"])  # borrows the radar's view
-        for snoozed in (True, False, True, False):
+        # Local adaptation: borrowed views skip the orders but still walk
+        # active -> snoozed -> all, so the snoozed filter shows on stops 1 and 4.
+        for snoozed in (True, False, False, True):
             self.assertEqual(snooze.main(["toggle"]), 0)
             self.assertEqual(self.herdr.view_params["filter"] == snooze.SNOOZED_LIST_FILTER, snoozed)
             self.assertEqual(self.herdr.view_params["sort"], snooze.KNOWN_VIEWS[RADAR]["sorts"]["active"])

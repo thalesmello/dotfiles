@@ -63,6 +63,27 @@ SNOOZED_LIST_FILTER = {"op": "any", "filters": [
     {"op": "eq", "field": "status", "value": "blocked"},
 ]}
 
+# toggle-working (unbound): keep working agents out of the Agents panel --
+# except the focused one, which agent-handler marks with its um_active
+# token (the filter language has no "focused" field); it stays visible
+# until focus moves on. Mirrors agent-handler's NOT_WORKING_FILTER, used by
+# its working-hidden panel mode. Composed into whatever filter snooze
+# already holds (never a second view owner -- herdr has one agent view,
+# and two plugins setting it fight).
+NOT_WORKING_FILTER = {"op": "any", "filters": [
+    {"op": "not", "filter": {"op": "eq", "field": "status", "value": "working"}},
+    {"op": "exists", "field": {"token": "um_active"}},
+]}
+
+
+def _all_of(*filters):
+    filters = [f for f in filters if f]
+    if not filters:
+        return None
+    if len(filters) == 1:
+        return filters[0]
+    return {"op": "all", "filters": filters}
+
 # herdr has a single agent view and its query is not readable: the only thing
 # a caller can learn is the owner's `source` and `label`. So borrowing the view
 # from a plugin that sorts the panel means re-stating its sort ourselves, and
@@ -598,7 +619,7 @@ def from_ms(ms):
 
 
 def empty_state():
-    return {"v": 1, "panes": {}, "workspaces": {}, "view": {}, "timer": None, "timer_pid": None, "woke": {}}
+    return {"v": 1, "panes": {}, "workspaces": {}, "view": {}, "timer": None, "timer_pid": None, "woke": {}, "hide_working": False}
 
 
 # A view record meaning "we may hold the view, but don't know what we set":
@@ -658,6 +679,8 @@ def read_state():
                 state["view"] = view
             else:
                 damaged = True  # its fields would crash planning: recover instead
+        if isinstance(data.get("hide_working"), bool):
+            state["hide_working"] = data["hide_working"]
         if isinstance(data.get("timer"), int):
             state["timer"] = data["timer"]
         if isinstance(data.get("timer_pid"), int):
@@ -673,7 +696,7 @@ def read_state():
 
 
 def is_idle(state):
-    return not state["panes"] and not state["workspaces"] and not state["view"] and not state.get("woke")
+    return not state["panes"] and not state["workspaces"] and not state["view"] and not state.get("woke") and not state.get("hide_working")
 
 
 @contextlib.contextmanager
@@ -1237,8 +1260,10 @@ def plan_view(state, owner, count, sort_override=None, badge=DEFAULT_BADGE, owne
 
     # `count`, not state["panes"]: a record with no agent behind it (a shell, an
     # agent that exited) hides nothing, and a filter held for it would make the
-    # snoozed list an empty panel.
-    if count:
+    # snoozed list an empty panel. hide_working also holds the view on its own:
+    # with nothing snoozed, filtering working agents out is still a view.
+    hide_working = bool(state.get("hide_working"))
+    if count or hide_working:
         # `order` is the `order` command's flip of herdr's own order: herdr
         # won't let its label be clicked while we hold the view. It lasts
         # only while we do (herdr keeps its own mode in the client), so the
@@ -1252,14 +1277,30 @@ def plan_view(state, owner, count, sort_override=None, badge=DEFAULT_BADGE, owne
         # snoozed. The two labels must not be confusable — one means "N are
         # hidden from this list", the other "this list IS the hidden ones".
         showing_snoozed = view.get("showing") == "snoozed"
+        showing_all = view.get("showing") == "all"
         if showing_snoozed:
             label = badged(badge, "snoozed only · %d" % count) + (" + %d blocked" % blocked if blocked else "")
+            want_filter = SNOOZED_LIST_FILTER
+        elif showing_all:
+            # The settled viewer's sidebar half: everything live in one list,
+            # snoozed included, nothing filtered away. The count stays in the
+            # label so "all" is never mistaken for "nothing is hidden".
+            label = "%s %s" % (base, badged(badge, "all · %d snoozed" % count)) if base else badged(badge, "all · %d snoozed" % count)
+            want_filter = NOT_WORKING_FILTER if hide_working else None
+        elif not count:
+            # Just the words, no badge: 💤 means snoozed, and a hidden
+            # working agent is not snoozed.
+            label = "%s working hidden" % base if base else "working hidden"
+            want_filter = NOT_WORKING_FILTER
         else:
             label = "%s %s" % (base, badged(badge, str(count))) if base else badged(badge, str(count))
+            if hide_working:
+                label += " · working hidden"
+            want_filter = _all_of(VIEW_FILTER, NOT_WORKING_FILTER if hide_working else None)
         want = {
             "source": SOURCE,
             "label": label.strip(),
-            "filter": SNOOZED_LIST_FILTER if showing_snoozed else VIEW_FILTER,
+            "filter": want_filter,
             "sort": sort_override or known_sort(inherited, views) or native_sort or [],
         }
         fingerprint = json.dumps(want, sort_keys=True)
@@ -1269,6 +1310,8 @@ def plan_view(state, owner, count, sort_override=None, badge=DEFAULT_BADGE, owne
         if showing_snoozed:
             state["view"]["showing"] = "snoozed"
             state["view"]["from_pane"] = view.get("from_pane")
+        if showing_all:
+            state["view"]["showing"] = "all"
         if mine and view.get("applied") == fingerprint:
             return None
         return ("set", want)
@@ -2231,7 +2274,8 @@ USAGE = """usage: herdr-snooze.py <command>
                                   what the herdr actions run
   picker [--demo]                 the popup itself
   tick [--force|--detected|--timer]  reconcile tokens and the agent view
-  toggle                          Agents panel: priority -> grouped -> only snoozed, round again
+  toggle [--reverse]              Agents panel: priority -> grouped -> only snoozed -> all live, round again (--reverse walks back)
+  toggle-working                  show/hide working agents in the Agents panel (unbound; agent-handler's prefix+w cycle-panel supersedes it)
   order                           Agents panel: priority <-> grouped, while anything is snoozed
   snooze <pane_id|workspace:ID> <duration|done|merged>
   wake --all | <pane_id|workspace:ID>...
@@ -2376,6 +2420,16 @@ def main(argv):
                     return 1
                 time.sleep(0.06)
 
+    if command == "toggle-working":
+        config = load_config()
+        with locked_state() as state:
+            state["hide_working"] = not state.get("hide_working")
+            sync(state, config)
+            hidden = state["hide_working"]
+        notify("Agents panel", "Working agents hidden" if hidden else "Working agents shown")
+        log("toggle-working: hide_working =", hidden)
+        return 0
+
     if command == "tick":
         return tick(args)
 
@@ -2384,21 +2438,25 @@ def main(argv):
         with locked_state() as state:
             view = state["view"]
             # One key walks the whole panel: herdr's two orders, then the
-            # snoozed list. The orders are only ours to step through while
-            # nobody else orders the panel (see `order`); otherwise it is
-            # plain active <-> snoozed.
+            # snoozed list, then all live (nothing filtered away). The orders
+            # are only ours to step through while nobody else orders the
+            # panel (see `order`); otherwise it is plain active -> snoozed
+            # -> all. Both extra stops only exist while something is
+            # snoozed: with nothing snoozed the native panel already is "all".
             own_order = not view.get("inherited") and not config["sort"]
-            ring = (["priority", "spaces"] if own_order else ["active"]) + ["snoozed"]
-            if view.get("showing") == "snoozed":
-                here = "snoozed"
+            ring = (["priority", "spaces"] if own_order else ["active"]) + ["snoozed", "all"]
+            if view.get("showing") in ("snoozed", "all"):
+                here = view["showing"]
             else:
                 here = (_mode_name(view.get("order")) or panel_mode()) if own_order else "active"
-            there = ring[(ring.index(here) + 1) % len(ring)]
-            if there == "snoozed" and state["panes"]:
-                view["showing"] = "snoozed"
-                view["from_pane"] = invocation_context().get("focused_pane_id") or focused_pane(
-                    call("pane.list").get("panes", [])
-                )
+            step = -1 if "--reverse" in args else 1
+            there = ring[(ring.index(here) + step) % len(ring)]
+            if there in ("snoozed", "all") and state["panes"]:
+                view["showing"] = there
+                if there == "snoozed":
+                    view["from_pane"] = invocation_context().get("focused_pane_id") or focused_pane(
+                        call("pane.list").get("panes", [])
+                    )
             else:
                 view.pop("showing", None)
                 view.pop("from_pane", None)

@@ -1,0 +1,42 @@
+# Settled: capture closed agent sessions into an archive registry, and
+# provide the Settled picker popup entrypoint.
+#
+# The picker itself is bound directly in config.toml as a type = "popup"
+# command (prefix+alt+s -> scripts/herdr-settled.py picker), so it works
+# without `herdr plugin install`. This local plugin supplies the picker pane
+# registration (for plugin-to-plugin handoffs) and the tick hooks: when a
+# pane closes, and on every agent status change (which also refreshes the
+# remembered titles settled entries keep), the registry is reconciled
+# against the agent-sessions store and the live pane list. Any recorded
+# conversation with no live pane is settled; a settled conversation that
+# is live again leaves the registry.
+#
+# Re-link after editing with:
+#
+#   herdr-preset install-local-plugins
+
+id = "herdr-settled"
+name = "Settled"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Archive of closed agent sessions: preview a settled conversation from its transcript tail, reopen it in a new tab with Enter"
+platforms = ["macos", "linux"]
+
+[[panes]]
+id = "picker"
+title = "Agent Sessions"
+placement = "popup"
+width = "80%"
+height = "75%"
+command = ["python3", "../../scripts/herdr-settled.py", "picker"]
+
+[[startup]]
+command = ["python3", "../../scripts/herdr-settled.py", "tick"]
+
+[[events]]
+on = "pane.closed"
+command = ["python3", "../../scripts/herdr-settled.py", "tick"]
+
+[[events]]
+on = "pane.agent_status_changed"
+command = ["python3", "../../scripts/herdr-settled.py", "tick"]

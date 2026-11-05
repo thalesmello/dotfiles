@@ -20,6 +20,9 @@ python3 -m unittest discover -s tests -t .
 - `test_herdr_recap.py`: translated from mrolafsson/herdr-recap's Go
   tests (ticket/title rules, stages, search, meta, recap parsing) plus
   tests for this port's Pi addition.
+- `test_settled.py`: local tests for herdr-settled.py (capture of closed
+  sessions, bounded transcript-tail preview, resume-command flag swap,
+  section rows, reopen/settle flows).
 
 ## Local adaptations
 
@@ -38,5 +41,8 @@ differs, and each change is marked "Local adaptation" in place:
   no launcher; Herdr hooks call `herdr-snooze.py` directly.
 - Snooze assertions that predate the Just woke list were updated where an
   expired agent now lands on that list (and announces its wake).
+- Three snooze toggle assertions were updated when the panel ring gained
+  the all-live stop (priority -> grouped -> snoozed -> all), each marked
+  "Local adaptation" in place.
 - Two snooze duration assertions allow an extra hour in DST fall-back
   weeks (elapsed time vs wall clock).
