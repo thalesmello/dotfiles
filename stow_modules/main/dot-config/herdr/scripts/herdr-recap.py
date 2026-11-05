@@ -367,6 +367,140 @@ def focus_agent(pane_id: str) -> None:
     herdr_call("agent.focus", {"target": pane_id})
 
 
+def close_agent(pane_id: str) -> None:
+    herdr_call("pane.close", {"pane_id": pane_id})
+
+
+# ── snooze (embedded overlay; execution delegated to herdr-snooze.py) ──
+
+SNOOZE_DURATIONS = ["15m", "1h", "3h", "6h", "1d", "3d", "1w"]
+_SNOOZE_UNITS = {"s": 1, "sec": 1, "secs": 1, "second": 1, "seconds": 1, "m": 60, "min": 60, "mins": 60, "minute": 60, "minutes": 60, "h": 3600, "hr": 3600, "hrs": 3600, "hour": 3600, "hours": 3600, "d": 86400, "day": 86400, "days": 86400, "w": 604800, "wk": 604800, "wks": 604800, "week": 604800, "weeks": 604800}
+_SNOOZE_UNIT_NAMES = [(604800, "week"), (86400, "day"), (3600, "hour"), (60, "minute"), (1, "second")]
+_SNOOZE_PART = re.compile(r"\s*(\d+(?:\.\d+)?)\s*([a-z]*)")
+_SNOOZE_CLOCK = re.compile(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$")
+
+
+def snooze_script_path() -> Path:
+    return Path(os.path.abspath(__file__)).with_name("herdr-snooze.py")
+
+
+def run_snooze_cli(*args: str) -> None:
+    script = snooze_script_path()
+    if not script.is_file():
+        raise RuntimeError("herdr-snooze is not installed")
+    env = {k: v for k, v in os.environ.items()
+           if not k.startswith(("HERDR_PLUGIN_", "HERDR_SNOOZE_", "SNOOZE_"))}
+    env["HERDR_PLUGIN_ID"] = "herdr-snooze"
+    out = subprocess.run([sys.executable, str(script), *args], capture_output=True, text=True, timeout=15, env=env)
+    if out.returncode:
+        lines = (out.stderr or out.stdout).strip().splitlines()
+        raise RuntimeError((lines[-1] if lines else "herdr-snooze failed").removeprefix("snooze: "))
+
+
+def apply_snooze_agent(pane_id: str, spec: str) -> None:
+    run_snooze_cli("snooze", pane_id, spec)
+
+
+def wake_snooze_agent(pane_id: str) -> None:
+    run_snooze_cli("wake", pane_id)
+
+
+def snooze_durations() -> list[str]:
+    path = config_dir().parent / "herdr-snooze" / "config.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        durations = [d for d in data.get("durations", []) if isinstance(d, str) and d.strip()]
+        if durations:
+            return durations
+    except Exception:
+        pass
+    return list(SNOOZE_DURATIONS)
+
+
+def _snooze_clock(text: str) -> tuple[int, int] | None:
+    match = _SNOOZE_CLOCK.match(text)
+    if not match or (match.group(2) is None and match.group(3) is None):
+        return None
+    hour, minute = int(match.group(1)), int(match.group(2) or 0)
+    if match.group(3):
+        if not 1 <= hour <= 12:
+            return None
+        hour = hour % 12 + (12 if match.group(3) == "pm" else 0)
+    return (hour, minute) if hour <= 23 and minute <= 59 else None
+
+
+def parse_snooze_until(text: str, now: _dt.datetime | None = None) -> _dt.datetime:
+    """Mirror of herdr-snooze's parse_until, for menu hints/validation.
+
+    The snooze CLI re-parses (and is authoritative) when it executes."""
+    now = now or _dt.datetime.now()
+    text = (text or "").strip().lower()
+    if not text:
+        raise ValueError("enter a duration like 45m, 2h, 3d or a time like 17:30")
+    if text.startswith("tomorrow"):
+        clock = _snooze_clock(text[len("tomorrow"):].strip() or "9:00")
+        if not clock:
+            raise ValueError("try 'tomorrow' or 'tomorrow 14:00'")
+        return (now + _dt.timedelta(days=1)).replace(hour=clock[0], minute=clock[1], second=0, microsecond=0)
+    clock = _snooze_clock(text)
+    if clock:
+        until = now.replace(hour=clock[0], minute=clock[1], second=0, microsecond=0)
+        return until if until > now else until + _dt.timedelta(days=1)
+    seconds, pos = 0.0, 0
+    while pos < len(text):
+        match = _SNOOZE_PART.match(text, pos)
+        if not match or match.end() == pos:
+            raise ValueError(f"can't read '{text}' \u2014 try 45m, 2h, 3d, 1w or 17:30")
+        unit = match.group(2) or "m"
+        if unit not in _SNOOZE_UNITS:
+            raise ValueError(f"unknown unit '{unit}' \u2014 use s, m, h, d or w")
+        seconds += float(match.group(1)) * _SNOOZE_UNITS[unit]
+        pos = match.end()
+    if seconds <= 0:
+        raise ValueError("duration must be more than zero")
+    if seconds > 366 * 86400:
+        raise ValueError("that's more than a year \u2014 close the pane instead?")
+    return _dt.datetime.fromtimestamp(now.timestamp() + seconds)
+
+
+def describe_snooze_spec(spec: str) -> str:
+    text = str(spec).strip().lower()
+    if text.startswith("tomorrow") or _snooze_clock(text):
+        return text if text.startswith("tomorrow") else "until " + text
+    try:
+        total = int((parse_snooze_until(text, _dt.datetime(2000, 1, 1)) - _dt.datetime(2000, 1, 1)).total_seconds())
+    except ValueError:
+        return text
+    parts = []
+    for size, name in _SNOOZE_UNIT_NAMES:
+        count, total = divmod(total, size)
+        if count:
+            parts.append(f"{count} {name}" + ("" if count == 1 else "s"))
+    return " ".join(parts)
+
+
+def format_snooze_until(until: _dt.datetime, now: _dt.datetime | None = None) -> str:
+    now = now or _dt.datetime.now()
+    if until.date() == now.date():
+        return until.strftime("%H:%M")
+    if until - now < _dt.timedelta(days=6):
+        return until.strftime("%a %H:%M")
+    return until.strftime("%d %b %H:%M").lstrip("0")
+
+
+def toggle_pin_agent(pane_id: str) -> None:
+    # Pin state is owned by agent-handler.py (pinned.json + the um_pin
+    # token + the Agents-panel sort), the same script config.toml's
+    # prefix+p runs. Shell out to it rather than duplicating that state.
+    script = Path(os.path.abspath(__file__)).with_name("agent-handler.py")
+    if not script.is_file():
+        raise RuntimeError("agent-handler is not installed")
+    out = subprocess.run([sys.executable, str(script), "pin", "--pane", pane_id], capture_output=True, text=True, timeout=10)
+    if out.returncode:
+        lines = (out.stderr or out.stdout).strip().splitlines()
+        raise RuntimeError(lines[-1] if lines else "agent-handler failed")
+
+
 def send_agent_reply(pane_id: str, text: str) -> None:
     wait = {"until": ["working", "blocked", "done"], "timeout_ms": 7000}
     try:
@@ -1402,11 +1536,17 @@ def settle_title(session_id: str) -> None:
 STAGES = ["needs-you", "done", "fixing", "idle", "working", "review", "merged", "snoozed"]
 STAGE_LABELS = {"needs-you": "Needs you", "done": "Done", "fixing": "Needs fixing", "idle": "Idle", "working": "Working", "review": "In review", "merged": "Merged", "snoozed": "Snoozed", "woke": "Just woke", "all": "All"}
 SNOOZE_MARK, SNOOZE_BADGE, SNOOZE_WOKE = "herdr_snooze", "snoozed", "snooze_woke"
+# Pin token/glyph owned by agent-handler.py (see toggle_pin_agent).
+PIN_TOKEN, PIN_GLYPH = "um_pin", "\U000f0403"  # nf-md-pin, as in agent-handler.py
 PAST_PRS = "prs_past"
 
 
 def snoozed(agent: AgentInfo) -> bool:
     return bool(agent.tokens.get(SNOOZE_MARK))
+
+
+def pinned(agent: AgentInfo) -> bool:
+    return bool(agent.tokens.get(PIN_TOKEN))
 
 
 def just_woke(agent: AgentInfo) -> bool:
@@ -1863,6 +2003,9 @@ class DemoState:
         self.titles: dict[str, str] = {}
         self.spaces: dict[str, str] = {}
         self.woken: set[str] = set()
+        self.snoozed: dict[str, str] = {}
+        self.pinned: set[str] = set()
+        self.closed: set[str] = set()
         self.recaps: dict[str, Recap] = {}
         self.current: dict[str, bool] = {}
         for item in DEMO_AGENTS:
@@ -2371,6 +2514,21 @@ class Model:
         self.detail_spans: dict[str, list[tuple[str, int, int]]] = {}
         self.last_spin = 0.0
         self.reply_popup_rect: tuple[int, int, int, int] | None = None  # x, y, w, h
+        self.confirm_close_pane = ""  # pane alt+s asked to close, awaiting y/enter
+        self.snoozing = False
+        self.snooze_pane = ""
+        self.snooze_cursor = 0
+        self.snooze_custom = False
+        self.snooze_text = ""
+        self.snooze_text_cursor = 0
+        self.snooze_error = ""
+        self.snooze_sending = False
+        self.snooze_pending: tuple[str, str, str] = ("", "", "")  # pane, spec, done-flash
+        self.modal_popup_rect: tuple[int, int, int, int] | None = None
+        self.snooze_row_ranges: list[tuple[int, int]] = []  # absolute y, option index
+        self.confirm_row_ranges: list[tuple[int, str]] = []  # absolute y, confirm|cancel
+        self._confirm_rows: list[tuple[int, str]] = []  # box-relative, set by _confirm_box
+        self._snooze_rows: list[tuple[int, int]] = []  # box-relative, set by _snooze_box
 
     def ui_state(self) -> dict[str, Any]:
         return {"tab": self.show, "cursor": self.cursor}
@@ -2461,6 +2619,10 @@ class Model:
         for pane in list(self.entries):
             if pane not in seen:
                 del self.entries[pane]
+        if self.confirm_close_pane and self.confirm_close_pane not in self.entries:
+            self.confirm_close_pane = ""
+        if self.snooze_pane and self.snooze_pane not in self.entries:
+            self.close_snooze()
         self.resort(selected)
         self.last_poll = time.monotonic()
 
@@ -2469,10 +2631,17 @@ class Model:
         agents = []
         for item in DEMO_AGENTS:
             agent = dataclasses.replace(item["agent"], tokens=dict(item["agent"].tokens))
+            if agent.pane_id in self.demo_state.closed:
+                continue
             if agent.pane_id in self.demo_state.titles:
                 agent.title = self.demo_state.titles[agent.pane_id]
             if agent.pane_id in self.demo_state.woken:
                 agent.tokens = {k: v for k, v in agent.tokens.items() if k not in (SNOOZE_MARK, SNOOZE_BADGE)}
+            if agent.pane_id in self.demo_state.pinned:
+                agent.tokens[PIN_TOKEN] = PIN_GLYPH
+            if agent.pane_id in self.demo_state.snoozed:
+                agent.tokens[SNOOZE_MARK] = "1"
+                agent.tokens[SNOOZE_BADGE] = "\U0001f4a4  " + self.demo_state.snoozed[agent.pane_id]
             agents.append(agent)
         workspaces = [WorkspaceInfo(w.workspace_id, self.demo_state.spaces.get(w.workspace_id, w.label)) for w in DEMO_WORKSPACES]
         return agents, workspaces
@@ -2573,6 +2742,9 @@ class Model:
             if job.kind == "reply":
                 self.handle_action_result(job.kind, entry, result, error)
                 continue
+            if job.kind in ("close", "pin", "snooze"):
+                self.handle_action_result(job.kind, entry, result, error)
+                continue
             if job.kind == "search":
                 if job.session_id != self.filter:
                     continue
@@ -2642,7 +2814,44 @@ class Model:
                 self.handle_action_result(job.kind, entry, result, error)
         self.jobs = pending
 
-    def handle_action_result(self, kind: str, entry: Entry, result, error):
+    def handle_action_result(self, kind: str, entry: Entry | None, result, error):
+        if kind == "close":
+            if error is not None:
+                self.err = "Couldn't close that agent: " + str(error)
+            else:
+                title = shorten(agent_title(entry.agent), 40) if entry is not None else "agent"
+                if entry is not None:
+                    self.entries.pop(entry.agent.pane_id, None)
+                    self.resort("")
+                self.flash = "Closed " + title + "."
+            return
+        if kind == "snooze":
+            self.snooze_sending = False
+            if error is not None:
+                # Keep the overlay open so the reason can be read/fixed.
+                self.snooze_error = str(error)
+            else:
+                pane, spec, done_flash = self.snooze_pending
+                if entry is not None and spec == "wake":
+                    entry.agent.tokens.pop(SNOOZE_MARK, None)
+                    entry.agent.tokens.pop(SNOOZE_BADGE, None)
+                elif entry is not None:
+                    entry.agent.tokens[SNOOZE_MARK] = "1"
+                self.close_snooze()
+                self.flash = done_flash
+            return
+        if kind == "pin":
+            if error is not None:
+                # Undo the optimistic token toggle in toggle_pin().
+                if entry is not None:
+                    if pinned(entry.agent):
+                        entry.agent.tokens.pop(PIN_TOKEN, None)
+                    else:
+                        entry.agent.tokens[PIN_TOKEN] = PIN_GLYPH
+                self.err = "Couldn't pin that agent: " + str(error)
+            return
+        if entry is None:
+            return
         if kind == "focus":
             if error is None:
                 raise SystemExit(0)
@@ -3063,7 +3272,26 @@ class Model:
             # exactly as it was. Tiny terminals fall back to the
             # full-frame editor in reply_popup.
             return self.reply_popup(self._list_view(header))
-        return self._list_view(header)
+        base = self._list_view(header)
+        if self.confirm_close_pane and self.confirm_close_pane in self.entries:
+            # Close confirmation is an overlay over the list, not a
+            # question in the footer/status rows at the bottom.
+            popup_w = max(20, min(self.width - 2, 62)) if self.width > 21 else max(1, self.width)
+            popup_h = max(5, min(self.height - 1, 11))
+            lines = self.composite_box(base, self._confirm_box(popup_w, popup_h), popup_w, popup_h)
+            y0 = self.modal_popup_rect[1] if self.modal_popup_rect else 0
+            self.confirm_row_ranges = [(y0 + row, action) for row, action in self._confirm_rows]
+            return lines
+        if self.snoozing and self.snooze_pane in self.entries:
+            # The snooze menu renders in this same window too: no
+            # second terminal popup is opened for it any more.
+            popup_w = max(20, min(self.width - 2, 68)) if self.width > 21 else max(1, self.width)
+            popup_h = max(5, min(self.height - 1, len(self.snooze_options()) + 8))
+            lines = self.composite_box(base, self._snooze_box(popup_w, popup_h), popup_w, popup_h)
+            y0 = self.modal_popup_rect[1] if self.modal_popup_rect else 0
+            self.snooze_row_ranges = [(y0 + row, index) for row, index in self._snooze_rows]
+            return lines
+        return base
     def _list_view(self, header: str) -> list[str]:
         lines = [header, "", self.filter_line(), self.found_line()][:self.height - 2]
         height = self.list_height()
@@ -3127,10 +3355,13 @@ class Model:
             return self.reply_view()
         popup_w = max(46, min(self.width - 4, int(self.width * 0.82)))
         popup_h = max(10, min(self.height - 3, int(self.height * 0.72)))
-        x0 = max(1, (self.width - popup_w) // 2)
-        y0 = max(1, (self.height - popup_h) // 2)
-        self.reply_popup_rect = (x0, y0, popup_w, popup_h)
-        box = self._reply_box(popup_w, popup_h)
+        self.reply_popup_rect = (max(1, (self.width - popup_w) // 2), max(1, (self.height - popup_h) // 2), popup_w, popup_h)
+        return self.composite_box(base, self._reply_box(popup_w, popup_h), popup_w, popup_h)
+    def composite_box(self, base: list[str], box: list[str], popup_w: int, popup_h: int) -> list[str]:
+        """Composite a bordered box over the centre of a list frame."""
+        x0 = max(1, (self.width - popup_w) // 2) if self.width > popup_w else 0
+        y0 = max(1, (self.height - popup_h) // 2) if self.height > popup_h else 0
+        self.modal_popup_rect = (x0, y0, popup_w, popup_h)
         lines = (list(base) + [""] * self.height)[:self.height]
         for j, box_line in enumerate(box):
             y = y0 + j
@@ -3141,6 +3372,99 @@ class Model:
             right = drop_styled_cells(lines[y], x0 + popup_w)
             lines[y] = left + box_line + right
         return lines
+    def modal_box(self, popup_w: int, popup_h: int, title: str, body: list[str], hint: str) -> list[str]:
+        inner = max(1, popup_w - 4)
+        border = THEME.paint("accent", "\u2500" * max(1, popup_w - 2))
+        def boxed(content: str = "") -> str:
+            content = truncate_styled(content, inner)
+            pad = " " * max(0, inner - display_width(content))
+            return THEME.paint("accent", "\u2502 ") + content + pad + THEME.paint("accent", " \u2502")
+        rows = [THEME.paint("accent", "\u256d") + border + THEME.paint("accent", "\u256e"),
+                boxed(THEME.paint("accent", title, bold=True))]
+        rows.extend(boxed(line) for line in body)
+        while len(rows) < popup_h - 2:
+            rows.append(boxed())
+        rows.append(boxed(THEME.paint("dim", hint)))
+        rows.append(THEME.paint("accent", "\u2570") + border + THEME.paint("accent", "\u256f"))
+        rows = rows[:popup_h]
+        if rows:
+            rows[-1] = THEME.paint("accent", "\u2570") + border + THEME.paint("accent", "\u256f")
+        return rows
+    def _confirm_box(self, popup_w: int, popup_h: int) -> list[str]:
+        entry = self.entries.get(self.confirm_close_pane)
+        name = shorten(agent_title(entry.agent), 40) if entry is not None else "agent"
+        body = [THEME.paint("text", name, bold=True)]
+        if entry is not None:
+            agent = entry.agent
+            body.append(THEME.paint("dim", shorten(" \u00b7 ".join([agent.agent or "agent", agent.status or "unknown", agent.pane_id]), max(1, popup_w - 4))))
+        body.append("")
+        body.extend(THEME.paint("text", line) for line in wrap_text("This closes its pane and ends the agent running in it.", max(1, popup_w - 4), 2))
+        body.append("")
+        first_action = 2 + len(body)  # border + title precede body
+        body.append(THEME.paint("green", "  y / enter    close agent"))
+        body.append(THEME.paint("dim", "  n / esc      keep it"))
+        self._confirm_rows = [(first_action, "confirm"), (first_action + 1, "cancel")]
+        return self.modal_box(popup_w, popup_h, "Close agent?", body, "y/enter close \u00b7 n/esc keep")
+    def snooze_options(self, entry: Entry | None = None) -> list[tuple[str, str, str, str]]:
+        """(hotkey, label, hint, spec) mirroring herdr-snooze's picker."""
+        entry = entry or self.entries.get(self.snooze_pane) or self.selected()
+        if entry is None:
+            return []
+        now = _dt.datetime.now()
+        options: list[tuple[str, str, str, str]] = []
+        for i, spec in enumerate(snooze_durations()[:9]):
+            try:
+                until = parse_snooze_until(spec, now)
+            except ValueError:
+                continue
+            options.append((str(i + 1), describe_snooze_spec(spec), format_snooze_until(until, now), spec))
+        options.append(("c", "Custom\u2026", "", "custom"))
+        cap = format_snooze_until(parse_snooze_until("tomorrow", now), now)
+        if entry.agent.status == "working":
+            options.append(("d", "until done", "or " + cap, "done"))
+        tokens = entry.agent.tokens
+        if tokens.get("pr") and tokens.get("pr_state") in ("open", "draft"):
+            options.append(("m", f"until {tokens['pr']} is merged", "or " + cap, "merged"))
+        if snoozed(entry.agent):
+            options.append(("w", "Wake now", "", "wake"))
+        return options
+    def _snooze_box(self, popup_w: int, popup_h: int) -> list[str]:
+        entry = self.entries.get(self.snooze_pane)
+        inner = max(1, popup_w - 4)
+        name = shorten(agent_title(entry.agent), inner - 8) if entry is not None else "agent"
+        body: list[str] = []
+        if entry is not None:
+            agent = entry.agent
+            body.append(THEME.paint("dim", shorten(" \u00b7 ".join([agent.agent or "agent", agent.status or "unknown", agent.pane_id]), inner)))
+        body.append("")
+        self._snooze_rows = []
+        if self.snooze_custom:
+            body.append(THEME.paint("text", "Snooze for how long, or until when?"))
+            text = self.snooze_text
+            cursor = max(0, min(self.snooze_text_cursor, len(text)))
+            under = text[cursor:cursor + 1] or " "
+            shown = text[:cursor] + "\x1b[7m" + under + "\x1b[27m" + text[cursor + 1:]
+            body.append(" \u203a " + shown)
+            body.append(THEME.paint("dim", "45m \u00b7 2h \u00b7 3d \u00b7 1w \u00b7 17:30 \u00b7 tomorrow 9am"))
+            hint = "enter snooze \u00b7 esc back to options"
+        elif self.snooze_sending:
+            body.append(THEME.paint("accent", "Working\u2026"))
+            hint = "esc cancel"
+        else:
+            options = self.snooze_options(entry)
+            self.snooze_cursor = max(0, min(self.snooze_cursor, max(0, len(options) - 1)))
+            first_row = 2 + len(body)  # border + title precede body
+            for index, (hotkey, label, hint_text, _spec) in enumerate(options):
+                marker = "\u203a" if index == self.snooze_cursor else " "
+                row = f" {marker} {hotkey}  " + label.ljust(22)[:22] + (" " + hint_text if hint_text else "")
+                if index == self.snooze_cursor:
+                    row = "\x1b[7m" + row + "\x1b[27m"
+                body.append(row)
+                self._snooze_rows.append((first_row + index, index))
+            hint = "\u2191\u2193 move \u00b7 enter select \u00b7 hotkey jumps \u00b7 esc cancel"
+        if self.snooze_error:
+            body.append(THEME.paint("red", shorten(clean(self.snooze_error), inner)))
+        return self.modal_box(popup_w, popup_h, "Snooze " + name, body, hint)
     def _reply_box(self, popup_w: int, popup_h: int) -> list[str]:
         entry = self.entries.get(self.reply_to)
         inner = max(1, popup_w - 4)
@@ -3317,7 +3641,7 @@ class Model:
         elif wake:
             right_rendered = wake
         mark = THEME.mark(entry.agent.status) if entry.agent.status != "working" else THEME.paint("peach", "\u25d4" if int(time.time() * 3) % 2 == 0 else "\u25d5")
-        left = " " + mark + " "
+        left = " " + mark + " " + (THEME.paint("accent", PIN_GLYPH + " ") if pinned(entry.agent) else "")
         title = agent_title(entry.agent)
         room = max(1, width - display_width(left) - display_width(right_plain) - (display_width(entry.agent.tokens.get(SNOOZE_WOKE, "")) if False else 0) - 2)
         title_rendered = THEME.paint("peach" if entry.agent.status == "working" else "text", shorten(title, room), bold=entry.agent.status == "working")
@@ -3397,6 +3721,8 @@ class Model:
             entry = self.entries.get(self.reply_to)
             name = shorten(agent_title(entry.agent), 30) if entry else "agent"
             return " " + THEME.paint("accent", "Reply to " + name + ":", bold=True) + THEME.paint("dim", "  shift/alt+enter new line")
+        if self.confirm_close_pane or self.snoozing:
+            return ""  # the overlay in the centre is asking, not this row
         if self.err:
             return " " + THEME.paint("red", shorten(clean(self.err), max(10, self.width - 2)))
         if self.flash:
@@ -3446,13 +3772,19 @@ class Model:
     def footer(self):
         if self.replying:
             return [("enter send", "enter", "go"), ("esc cancel", "esc", "quiet")]
+        if self.confirm_close_pane or self.snoozing:
+            # The question/menu lives in the overlay box, not down here.
+            return [("esc cancel", "esc", "quiet")]
         esc = "esc close"
         hints = [("enter go to agent", "enter", "go"), ("tab reply", "tab", "act")]
         entry = self.selected()
-        if SNOOZE_PLUGIN in self.links and entry is not None:
+        if entry is not None and (SNOOZE_PLUGIN in self.links or self.demo or snooze_script_path().is_file()):
             if snoozed(entry.agent):
                 hints.append(("^w wake", "ctrl+w", "act"))
-            hints.append(("^s snooze", "ctrl+s", "act"))
+            hints.append(("alt+z snooze", "alt+z", "act"))
+        if entry is not None:
+            hints.append(("alt+s close", "alt+s", "act"))
+            hints.append(("alt+p unpin" if pinned(entry.agent) else "alt+p pin", "alt+p", "act"))
         if entry is not None and not entry.renaming and self.suggestion(entry):
             hints += [("^r rename", "ctrl+r", "act"), ("^x ignore", "ctrl+x", "view")]
         else:
@@ -3563,20 +3895,187 @@ class Model:
         spawn_handoff(ref)
         return "quit"
     def open_snooze(self):
+        # Render the snooze menu as an overlay in this window (see
+        # _snooze_box/view) instead of handing off to the Snooze
+        # plugin's own terminal popup; only execution is delegated,
+        # to herdr-snooze.py's CLI (apply_snooze_agent).
         entry = self.selected()
         if entry is None:
             return None
-        target = self.links.get(SNOOZE_PLUGIN)
-        if target is None:
+        if not self.demo and not snooze_script_path().is_file():
             self.flash = f"Snoozing is the Snooze plugin's ({SNOOZE_PLUGIN}), which isn't installed."
             return None
-        ref = dict(target)
-        ref["env"] = {"HERDR_SNOOZE_PANE": entry.agent.pane_id, RETURN_ENV: json.dumps(self.here_ref(entry.agent.pane_id))}
+        self.picked = True
+        self.snoozing, self.snooze_pane = True, entry.agent.pane_id
+        self.snooze_cursor, self.snooze_custom = 0, False
+        self.snooze_text, self.snooze_text_cursor, self.snooze_error = "", 0, ""
+        self.snooze_sending = False
+        self.flash, self.err = "", ""
+        self.dirty = True
+        return None
+    def close_snooze(self):
+        self.snoozing, self.snooze_pane, self.snooze_custom = False, "", False
+        self.snooze_text, self.snooze_text_cursor, self.snooze_error = "", 0, ""
+        self.snooze_sending = False
+        self.snooze_row_ranges = []
+        self.dirty = True
+    def choose_snooze(self, index: int | None = None):
+        if self.snooze_sending:
+            return
+        options = self.snooze_options()
+        if not options:
+            return
+        index = self.snooze_cursor if index is None else max(0, min(index, len(options) - 1))
+        self.snooze_cursor = index
+        spec = options[index][3]
+        if spec == "custom":
+            self.snooze_custom, self.snooze_error = True, ""
+            self.dirty = True
+            return
+        self.execute_snooze(spec)
+    def execute_snooze(self, spec: str):
+        pane = self.snooze_pane
+        entry = self.entries.get(pane)
+        if entry is None:
+            self.close_snooze()
+            return
+        spec = spec.strip()
+        if spec not in ("wake", "done", "merged"):
+            try:
+                until = parse_snooze_until(spec)
+            except ValueError as exc:
+                self.snooze_error = str(exc)
+                self.dirty = True
+                return
+            done = f"Snoozed {shorten(agent_title(entry.agent), 40)} until {format_snooze_until(until)}."
+        elif spec == "wake":
+            done = f"Woke {shorten(agent_title(entry.agent), 40)}."
+        else:
+            done = f"Snoozed {shorten(agent_title(entry.agent), 40)} till {spec}."
+        self.snooze_pending = (pane, spec, done)
+        self.snooze_error = ""
         if self.demo:
-            self.flash = "In the demo that's as far as it goes."
+            assert self.demo_state is not None
+            if spec == "wake":
+                self.demo_state.snoozed.pop(pane, None)
+                self.demo_state.woken.add(pane)
+            else:
+                self.demo_state.snoozed[pane] = spec
+                self.demo_state.woken.discard(pane)
+            self.snooze_pending = (pane, spec, done)
+            self.handle_action_result("snooze", entry, None, None)
+            self.load()
+            return
+        self.snooze_sending = True
+        if spec == "wake":
+            self.submit("snooze", pane, lambda p=pane: wake_snooze_agent(p))
+        else:
+            self.submit("snooze", pane, lambda p=pane, s=spec: apply_snooze_agent(p, s))
+        self.dirty = True
+    def handle_snooze_key(self, name: str, text: str = ""):
+        if self.snooze_sending:
             return None
-        spawn_handoff(ref)
-        return "quit"
+        if self.snooze_custom:
+            if name == "esc":
+                self.snooze_custom, self.snooze_error = False, ""
+            elif name == "enter":
+                self.execute_snooze(self.snooze_text)
+            elif name == "backspace":
+                if self.snooze_text_cursor > 0:
+                    self.snooze_text = self.snooze_text[:self.snooze_text_cursor - 1] + self.snooze_text[self.snooze_text_cursor:]
+                    self.snooze_text_cursor -= 1
+            elif name == "delete":
+                if self.snooze_text_cursor < len(self.snooze_text):
+                    self.snooze_text = self.snooze_text[:self.snooze_text_cursor] + self.snooze_text[self.snooze_text_cursor + 1:]
+            elif name == "ctrl+u":
+                self.snooze_text, self.snooze_text_cursor = "", 0
+            elif name == "left":
+                self.snooze_text_cursor = max(0, self.snooze_text_cursor - 1)
+            elif name == "right":
+                self.snooze_text_cursor = min(len(self.snooze_text), self.snooze_text_cursor + 1)
+            elif text:
+                text = clean(text, keep_breaks=False)
+                self.snooze_text = self.snooze_text[:self.snooze_text_cursor] + text + self.snooze_text[self.snooze_text_cursor:]
+                self.snooze_text_cursor += len(text)
+            self.dirty = True
+            return None
+        if name == "esc":
+            self.close_snooze()
+            return None
+        if name in ("up", "ctrl+p", "ctrl+k") or text == "k":
+            options = self.snooze_options()
+            if options:
+                self.snooze_cursor = (self.snooze_cursor - 1) % len(options)
+        elif name in ("down", "ctrl+n", "ctrl+j") or text == "j":
+            options = self.snooze_options()
+            if options:
+                self.snooze_cursor = (self.snooze_cursor + 1) % len(options)
+        elif name == "enter":
+            self.choose_snooze()
+        elif text:
+            for index, (hotkey, *_rest) in enumerate(self.snooze_options()):
+                if text.lower() == hotkey:
+                    self.choose_snooze(index)
+                    break
+        self.dirty = True
+        return None
+    def request_close(self):
+        # alt+s only asks; closing a pane kills the agent in it, so it
+        # never executes without the y/enter confirmation in handle_key.
+        entry = self.selected()
+        if entry is None:
+            return
+        self.confirm_close_pane = entry.agent.pane_id
+        # The question itself is the overlay (see _confirm_box/view);
+        # nothing about it is asked in the footer/status rows.
+        self.flash, self.err = "", ""
+        self.dirty = True
+    def cancel_close(self):
+        entry = self.entries.get(self.confirm_close_pane)
+        self.confirm_close_pane = ""
+        self.flash = "Kept " + (shorten(agent_title(entry.agent), 40) if entry is not None else "agent") + "."
+        self.dirty = True
+    def confirm_close(self):
+        pane, self.confirm_close_pane = self.confirm_close_pane, ""
+        entry = self.entries.get(pane)
+        if entry is None:
+            return None
+        title = shorten(agent_title(entry.agent), 40)
+        if self.demo:
+            assert self.demo_state is not None
+            self.demo_state.closed.add(pane)
+            self.flash = "Closed " + title + "."
+            self.load()
+            return None
+        self.submit("close", pane, lambda p=pane: close_agent(p))
+        self.flash = "Closing " + title + "\u2026"
+        self.dirty = True
+        return None
+    def toggle_pin(self):
+        entry = self.selected()
+        if entry is None:
+            return
+        pane = entry.agent.pane_id
+        want = not pinned(entry.agent)
+        title = shorten(agent_title(entry.agent), 40)
+        if self.demo:
+            assert self.demo_state is not None
+            if want:
+                self.demo_state.pinned.add(pane)
+            else:
+                self.demo_state.pinned.discard(pane)
+            self.flash = ("Pinned " if want else "Unpinned ") + title + "."
+            self.load()
+            return
+        # Optimistic: the token refresh lands on the next poll; a failed
+        # job flips it back in handle_action_result.
+        if want:
+            entry.agent.tokens[PIN_TOKEN] = PIN_GLYPH
+        else:
+            entry.agent.tokens.pop(PIN_TOKEN, None)
+        self.flash = ("Pinned " if want else "Unpinned ") + title + "."
+        self.submit("pin", pane, lambda p=pane: toggle_pin_agent(p))
+        self.dirty = True
     def wake_selected(self):
         entry = self.selected()
         if entry is None:
@@ -3584,42 +4083,27 @@ class Model:
         if self.demo:
             assert self.demo_state is not None
             self.demo_state.woken.add(entry.agent.pane_id)
+            self.demo_state.snoozed.pop(entry.agent.pane_id, None)
             self.flash = "Woke " + shorten(agent_title(entry.agent), 40)
             self.load()
             return
         pane = entry.agent.pane_id
-        def run_wake():
-            result = herdr_call("plugin.list", {})
-            for plugin in result.get("plugins", []):
-                if plugin.get("plugin_id") == SNOOZE_PLUGIN:
-                    root = Path(str(plugin.get("plugin_root") or ""))
-                    script = (root / ".." / ".." / "scripts" / "herdr-snooze.py").resolve()
-                    if script.is_file():
-                        out = subprocess.run([sys.executable, str(script), "wake", pane], capture_output=True, text=True, timeout=10)
-                        if out.returncode:
-                            raise RuntimeError((out.stderr or out.stdout).strip())
-                        return None
-                    for pane_entry in plugin.get("panes") or []:
-                        command = pane_entry.get("command") or []
-                        if command:
-                            cmd = list(command)
-                            if cmd[-1] == "picker":
-                                cmd = cmd[:-1] + ["wake", pane]
-                            else:
-                                cmd += ["wake", pane]
-                            path = cmd[0]
-                            if "/" in path and not os.path.isabs(path):
-                                cmd[0] = str(root / path)
-                            out = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True, timeout=10)
-                            if out.returncode:
-                                raise RuntimeError((out.stderr or out.stdout).strip())
-                            return None
-            raise RuntimeError("herdr-snooze is not installed")
-        self.submit("prompt", pane, run_wake)
+        self.submit("prompt", pane, lambda p=pane: wake_snooze_agent(p))
         self.flash = "Woke " + shorten(agent_title(entry.agent), 40)
     def handle_key(self, name: str):
         if self.replying:
             return self.handle_reply_key(name, "")
+        if self.snoozing:
+            return self.handle_snooze_key(name, "")
+        if self.confirm_close_pane:
+            # Awaiting close confirmation in the overlay: y/enter
+            # executes, anything else (n, esc, ctrl+c, navigation, \u2026)
+            # keeps the agent and is swallowed, mirroring
+            # confirm-close.py's prompt.
+            if name in ("enter", "y"):
+                return self.confirm_close()
+            self.cancel_close()
+            return None
         self.flash = ""
         if name == "ctrl+c":
             return "quit"
@@ -3676,8 +4160,14 @@ class Model:
             return self.open_link(GITHUB_PLUGIN)
         if name == "ctrl+l":
             return self.open_link(LINEAR_PLUGIN)
-        if name == "ctrl+s":
+        if name == "alt+z":
             return self.open_snooze()
+        if name == "alt+s":
+            self.request_close()
+            return None
+        if name == "alt+p":
+            self.toggle_pin()
+            return None
         if name == "ctrl+w":
             entry = self.selected()
             if entry is not None and snoozed(entry.agent) and SNOOZE_PLUGIN in self.links:
@@ -3788,6 +4278,21 @@ class Model:
                     return self.dispatch_hint(key)
                 pos += width + 1
             return None
+        if self.snoozing:
+            # Overlay: an option row chooses it; anything else is
+            # swallowed so clicks never activate the hidden list.
+            if not self.snooze_custom and not self.snooze_sending:
+                for row_y, index in list(self.snooze_row_ranges):
+                    if row_y == y:
+                        self.snooze_cursor = index
+                        self.choose_snooze(index)
+                        return None
+            return None
+        if self.confirm_close_pane:
+            for row_y, action_name in list(self.confirm_row_ranges):
+                if row_y == y:
+                    return self.confirm_close() if action_name == "confirm" else self.cancel_close()
+            return None
         if self.replying:
             # The prompt popup covers the list: clicks must not fall
             # through to (and activate) an agent hidden underneath it.
@@ -3815,6 +4320,12 @@ class Model:
             return self.activate()
         return None
     def dispatch_hint(self, key: str):
+        if self.snoozing:
+            return self.handle_key(key)
+        if self.confirm_close_pane:
+            # Footer pills read y/enter vs n/esc here; enter must confirm
+            # the close, not activate (go to) the agent.
+            return self.handle_key(key)
         if key == "enter":
             return self.activate()
         return self.handle_key(key)
@@ -3864,12 +4375,26 @@ class Model:
                     if event[0] == "key":
                         outcome = self.handle_key(event[1]) or outcome
                     elif event[0] == "char":
-                        if self.replying:
+                        if self.snoozing and not self.replying:
+                            # Menu hotkeys / custom-duration text arrive
+                            # as chars, not keys; the overlay gets them,
+                            # never the filter behind it.
+                            outcome = self.handle_snooze_key("", event[1]) or outcome
+                        elif self.confirm_close_pane and not self.replying:
+                            # y/n arrive as chars, not keys; route them
+                            # to the close confirmation instead of the filter.
+                            outcome = self.handle_key(event[1]) or outcome
+                        elif self.replying:
                             self.handle_reply_key("", event[1])
                         else:
                             self.insert_filter(event[1])
                     elif event[0] == "paste":
-                        if self.replying:
+                        if self.snoozing and not self.replying:
+                            if self.snooze_custom:
+                                self.handle_snooze_key("", " ".join(event[1].split()))
+                        elif self.confirm_close_pane and not self.replying:
+                            pass  # swallowed: the overlay is modal
+                        elif self.replying:
                             self.handle_reply_key("", event[1])
                         else:
                             self.insert_filter(event[1], pasted=True)

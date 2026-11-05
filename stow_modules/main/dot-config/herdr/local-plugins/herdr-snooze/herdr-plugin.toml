@@ -4,7 +4,7 @@
 # type = "popup" commands (prefix+shift+z, prefix+alt+z, prefix+ctrl+z ->
 # scripts/herdr-snooze.py), so snoozing works without `herdr plugin
 # install`. This local plugin supplies the picker pane registration (for
-# Recap's ctrl+s handoff) and tick hooks: token TTL refresh, view repair
+# Recap's alt+z handoff) and tick hooks: token TTL refresh, view repair
 # after restarts/other plugins, conditional wakes (done/merged/blocked),
 # and the Just woke list.
 #

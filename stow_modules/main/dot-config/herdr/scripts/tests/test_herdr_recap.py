@@ -524,7 +524,7 @@ class PopupStateAndScrollTest(unittest.TestCase):
         model.resort("")
         return model
 
-    def test_snooze_return_restores_tab_and_number_not_pane(self):
+    def test_snooze_overlay_keeps_tab_and_selection_in_same_window(self):
         from unittest import mock
         model = self.make_model()
         model.move(1)
@@ -532,21 +532,17 @@ class PopupStateAndScrollTest(unittest.TestCase):
         model.links[rc.SNOOZE_PLUGIN] = {"plugin_id": rc.SNOOZE_PLUGIN, "entrypoint": "picker"}
         old_pane = model.selected_pane()
         with mock.patch.object(rc, "spawn_handoff") as handoff:
-            self.assertEqual(model.handle_key("ctrl+s"), "quit")
-        outgoing = handoff.call_args.args[0]
-        back = json.loads(outgoing["env"][rc.RETURN_ENV])
-        self.assertEqual(json.loads(back["env"][rc.UI_STATE_ENV]), model.ui_state())
-        self.assertNotIn(rc.SELECT_ENV, back["env"])
-        restored = self.make_model()
-        restored.entries[old_pane].agent.tokens[rc.SNOOZE_MARK] = "1"
-        with mock.patch.dict(rc.os.environ, back["env"]):
-            restored.restore_ui_state()
-        restored.resort("")
-        self.assertEqual(restored.show, "idle")
-        self.assertEqual(restored.cursor, 1)
-        self.assertEqual(restored.selected_pane(), "w1:p2")
-        self.assertNotEqual(restored.selected_pane(), old_pane)
-        self.assertEqual(restored.offset, 0)
+            # No second terminal popup: the menu opens over this list.
+            self.assertIsNone(model.handle_key("alt+z"))
+            handoff.assert_not_called()
+        self.assertTrue(model.snoozing)
+        self.assertEqual(model.snooze_pane, old_pane)
+        self.assertEqual(model.ui_state(), {"tab": "idle", "cursor": 1})
+        model.handle_key("esc")
+        self.assertFalse(model.snoozing)
+        self.assertEqual(model.show, "idle")
+        self.assertEqual(model.cursor, 1)
+        self.assertEqual(model.selected_pane(), old_pane)
 
     def test_restore_ignores_legacy_filter_and_offset(self):
         from unittest import mock
@@ -1270,3 +1266,228 @@ class PickerExitTest(unittest.TestCase):
             [sys.executable, "-c", script, os.path.abspath(path)],
             capture_output=True, text=True, timeout=10)
         self.assertEqual(proc.returncode, 0, proc.stderr)
+
+
+class RecapKeyBindingTest(unittest.TestCase):
+    def make_model(self):
+        model = rc.Model(rc.Config())
+        self.addCleanup(model.executor.shutdown, wait=False)
+        model.width, model.height, model.loaded = 100, 24, True
+        entry = rc.Entry(agent=rc.AgentInfo(pane_id="w1:p1", agent="pi", title="Test agent"))
+        model.entries, model.order = {"w1:p1": entry}, ["w1:p1"]
+        return model, entry
+
+    def test_decoder_names_for_new_bindings(self):
+        self.assertEqual(rc.Decoder().feed(b"\x1bz"), [("key", "alt+z")])
+        self.assertEqual(rc.Decoder().feed(b"\x1b[122;3u"), [("key", "alt+z")])
+        self.assertEqual(rc.Decoder().feed(b"\x1bs"), [("key", "alt+s")])
+        self.assertEqual(rc.Decoder().feed(b"\x1b[115;3u"), [("key", "alt+s")])
+        self.assertEqual(rc.Decoder().feed(b"\x1bp"), [("key", "alt+p")])
+        self.assertEqual(rc.Decoder().feed(b"\x1b[112;3u"), [("key", "alt+p")])
+
+    def test_alt_z_snoozes_and_alt_s_does_not(self):
+        from unittest import mock
+        model, _entry = self.make_model()
+        model.links[rc.SNOOZE_PLUGIN] = {"plugin_id": rc.SNOOZE_PLUGIN, "entrypoint": "picker"}
+        with mock.patch.object(rc, "spawn_handoff") as handoff:
+            self.assertIsNone(model.handle_key("alt+z"))
+            handoff.assert_not_called()
+            self.assertTrue(model.snoozing)
+            self.assertEqual(model.snooze_pane, "w1:p1")
+            model.handle_key("esc")
+            # The old ctrl+ bindings are inert.
+            self.assertIsNone(model.handle_key("ctrl+z"))
+            self.assertIsNone(model.handle_key("ctrl+s"))
+            self.assertEqual(model.confirm_close_pane, "")
+        model.handle_key("alt+s")  # asks in the overlay, so no close yet
+        self.assertEqual(model.confirm_close_pane, "w1:p1")
+
+    def test_alt_s_close_requires_confirmation(self):
+        from unittest import mock
+        model, entry = self.make_model()
+        with mock.patch.object(rc, "close_agent") as close:
+            self.assertIsNone(model.handle_key("alt+s"))
+            close.assert_not_called()
+            self.assertEqual(model.footer(), [("esc cancel", "esc", "quiet")])
+            # n keeps the agent and swallows the key.
+            self.assertIsNone(model.handle_key("n"))
+            self.assertEqual(model.confirm_close_pane, "")
+            close.assert_not_called()
+            # alt+s then y executes exactly once, via the submitted job.
+            model.handle_key("alt+s")
+            with mock.patch.object(model, "submit") as submit:
+                model.handle_key("y")
+            submit.assert_called_once()
+            self.assertEqual(submit.call_args.args[:2], ("close", "w1:p1"))
+            submit.call_args.args[2]()
+            close.assert_called_once_with("w1:p1")
+        model.handle_action_result("close", entry, None, None)
+        self.assertNotIn("w1:p1", model.entries)
+        self.assertIn("Closed", model.flash)
+
+    def test_close_confirmation_esc_and_other_keys_keep_agent(self):
+        from unittest import mock
+        model, _entry = self.make_model()
+        with mock.patch.object(rc, "close_agent") as close:
+            for cancel in ("esc", "x", "down"):
+                model.handle_key("alt+s")
+                self.assertIsNone(model.handle_key(cancel))
+                self.assertEqual(model.confirm_close_pane, "")
+            close.assert_not_called()
+            self.assertIn("w1:p1", model.entries)
+
+    def test_alt_p_pins_and_unpins(self):
+        from unittest import mock
+        model, entry = self.make_model()
+        self.assertFalse(rc.pinned(entry.agent))
+        with mock.patch.object(model, "submit") as submit:
+            model.handle_key("alt+p")
+        self.assertTrue(rc.pinned(entry.agent))
+        self.assertEqual(submit.call_args.args[:2], ("pin", "w1:p1"))
+        with mock.patch.object(rc, "toggle_pin_agent") as toggle:
+            submit.call_args.args[2]()
+        toggle.assert_called_once_with("w1:p1")
+        with mock.patch.object(model, "submit"):
+            model.handle_key("alt+p")
+        self.assertFalse(rc.pinned(entry.agent))
+
+    def test_footer_advertises_new_bindings(self):
+        model, _entry = self.make_model()
+        model.links[rc.SNOOZE_PLUGIN] = {"plugin_id": rc.SNOOZE_PLUGIN, "entrypoint": "picker"}
+        labels = [label for label, _key, _kind in model.footer()]
+        self.assertIn("alt+z snooze", labels)
+        self.assertIn("alt+s close", labels)
+        self.assertIn("alt+p pin", labels)
+        self.assertNotIn("^z snooze", labels)
+        self.assertNotIn("^s close", labels)
+
+
+class OverlayPopupTest(unittest.TestCase):
+    def make_model(self):
+        model = rc.Model(rc.Config())
+        self.addCleanup(model.executor.shutdown, wait=False)
+        model.width, model.height, model.loaded = 100, 24, True
+        entry = rc.Entry(agent=rc.AgentInfo(pane_id="w1:p1", agent="pi", status="working", title="Test agent",
+                                            tokens={"pr": "#9", "pr_state": "open"}))
+        model.entries, model.order = {"w1:p1": entry}, ["w1:p1"]
+        return model, entry
+
+    def plain_view(self, model):
+        return [_plain(line) for line in model.view()]
+
+    def test_close_confirmation_is_an_overlay_not_the_footer(self):
+        from unittest import mock
+        model, _entry = self.make_model()
+        model.handle_key("alt+s")
+        lines = self.plain_view(model)
+        self.assertEqual(len(lines), 24)
+        joined = "\n".join(lines)
+        # A bordered box composited over the centre of the list...
+        self.assertIn("\u256d", joined)
+        self.assertIn("\u2570", joined)
+        self.assertIn("Close agent?", joined)
+        self.assertIn("y / enter    close agent", joined)
+        box_rows = [i for i, line in enumerate(lines) if "Close agent?" in line]
+        self.assertTrue(0 < box_rows[0] < 23)  # ...not the bottom rows
+        # ...while the footer/status rows carry no confirmation question.
+        self.assertNotIn("close agent", lines[-1].lower())
+        self.assertEqual(model.status_line(), "")
+        self.assertIsNotNone(model.modal_popup_rect)
+        # Clicks on the list underneath do not fall through.
+        with mock.patch.object(model, "activate") as activate:
+            model.handle_mouse(("mouse", "press", 5, 5, "M"))
+        activate.assert_not_called()
+        # Clicking the overlay's keep row cancels without closing.
+        cancel_y = next(y for y, action in model.confirm_row_ranges if action == "cancel")
+        with mock.patch.object(rc, "close_agent") as close:
+            model.handle_mouse(("mouse", "press", 5, cancel_y, "M"))
+        close.assert_not_called()
+        self.assertEqual(model.confirm_close_pane, "")
+
+    def test_snooze_menu_is_an_overlay_in_the_same_window(self):
+        from unittest import mock
+        model, _entry = self.make_model()
+        with mock.patch.object(rc, "spawn_handoff") as handoff:
+            self.assertIsNone(model.handle_key("alt+z"))
+        handoff.assert_not_called()  # no new terminal popup
+        lines = self.plain_view(model)
+        self.assertEqual(len(lines), 24)
+        joined = "\n".join(lines)
+        self.assertIn("Snooze Test agent", joined)
+        self.assertIn("15 minutes", joined)
+        self.assertIn("Custom\u2026", joined)
+        self.assertIn("until done", joined)          # working agent
+        self.assertIn("until #9 is merged", joined)  # open PR
+        self.assertIn("\u256d", joined)
+        # The filter behind the overlay never sees menu keystrokes.
+        model.handle_snooze_key("", "z")
+        self.assertEqual(model.filter, "")
+        self.assertTrue(model.snoozing)
+
+    def test_snooze_overlay_executes_chosen_duration(self):
+        from unittest import mock
+        model, entry = self.make_model()
+        model.handle_key("alt+z")
+        with mock.patch.object(model, "submit") as submit:
+            model.handle_key("down")  # 1h
+            model.handle_key("enter")
+        self.assertEqual(submit.call_args.args[:2], ("snooze", "w1:p1"))
+        with mock.patch.object(rc, "apply_snooze_agent") as apply_snooze:
+            submit.call_args.args[2]()
+        apply_snooze.assert_called_once_with("w1:p1", "1h")
+        model.handle_action_result("snooze", entry, None, None)
+        self.assertFalse(model.snoozing)
+        self.assertTrue(rc.snoozed(entry.agent))
+        self.assertIn("Snoozed Test agent until", model.flash)
+
+    def test_snooze_overlay_hotkey_and_custom_duration(self):
+        from unittest import mock
+        model, _entry = self.make_model()
+        model.handle_key("alt+z")
+        # 'c' jumps to Custom..., typing edits, a bad spec stays open.
+        model.handle_snooze_key("", "c")
+        self.assertTrue(model.snooze_custom)
+        for char in "bogus":
+            model.handle_snooze_key("", char)
+        with mock.patch.object(model, "submit") as submit:
+            model.handle_snooze_key("enter")
+        submit.assert_not_called()
+        self.assertTrue(model.snoozing)
+        self.assertIn("can't read", model.snooze_error)
+        # Fix it and enter executes with the typed spec.
+        model.handle_snooze_key("ctrl+u")
+        for char in "2h":
+            model.handle_snooze_key("", char)
+        with mock.patch.object(model, "submit") as submit:
+            model.handle_snooze_key("enter")
+        submit.assert_called_once()
+        with mock.patch.object(rc, "apply_snooze_agent") as apply_snooze:
+            submit.call_args.args[2]()
+        apply_snooze.assert_called_once_with("w1:p1", "2h")
+
+    def test_snooze_overlay_esc_cancels_and_click_chooses(self):
+        from unittest import mock
+        model, _entry = self.make_model()
+        model.handle_key("alt+z")
+        model.view()
+        row_y, index = model.snooze_row_ranges[1]
+        with mock.patch.object(model, "choose_snooze") as choose:
+            model.handle_mouse(("mouse", "press", 5, row_y, "M"))
+        choose.assert_called_once_with(index)
+        with mock.patch.object(model, "submit") as submit:
+            model.handle_key("esc")
+        submit.assert_not_called()
+        self.assertFalse(model.snoozing)
+
+    def test_snooze_parse_and_describe(self):
+        import datetime as _dt
+        now = _dt.datetime(2026, 1, 5, 10, 0)  # a Monday
+        self.assertEqual(rc.parse_snooze_until("1h30m", now), now + _dt.timedelta(minutes=90))
+        self.assertEqual(rc.parse_snooze_until("17:30", now), now.replace(hour=17, minute=30))
+        self.assertEqual(rc.parse_snooze_until("9am", now), now.replace(hour=9) + _dt.timedelta(days=1))
+        self.assertEqual(rc.parse_snooze_until("tomorrow", now), now.replace(hour=9) + _dt.timedelta(days=1))
+        with self.assertRaises(ValueError):
+            rc.parse_snooze_until("bogus", now)
+        self.assertEqual(rc.describe_snooze_spec("15m"), "15 minutes")
+        self.assertEqual(rc.describe_snooze_spec("1w"), "1 week")
+        self.assertEqual(rc.describe_snooze_spec("17:30"), "until 17:30")
