@@ -28,6 +28,13 @@ _prompt_temp_file() {
 #                      DIR's subdirectories, filtered by the text after T;
 #                      Tab/Enter picks, Up/Down or ctrl-n/ctrl-p move, Esc
 #                      closes the menu, e.g. --complete "project:=$HOME/src"
+#   --submit-dir DIR   Ctrl+Enter writes the current buffer to a new
+#                      *.prompt file in DIR (atomically, one per press),
+#                      clears it, and keeps editing instead of returning,
+#                      so the caller can act on each file in the background
+#                      while a new prompt is typed in the same popup.
+#                      Plain Enter still returns the final buffer as usual.
+#                      Without this option Ctrl+Enter is just Enter.
 # Sets PROMPT_LINE to the edited buffer. Returns 0 when accepted with Enter,
 # 1 when cancelled (Esc, ctrl+g, ctrl+d on an empty line, or ctrl+c on one).
 # History is stored under ~/.local/state/prompt-lib/<history-name>/ unless
@@ -38,7 +45,7 @@ prompt_line() {
 
   while [ "$#" -gt 0 ]; do
     case $1 in
-      --highlight|--complete)
+      --highlight|--complete|--submit-dir)
         [ "$#" -ge 2 ] || { printf 'prompt_line: %s needs a value\n' "$1" >&2; return 2; }
         _opts+=("$1" "$2")
         shift 2

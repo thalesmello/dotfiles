@@ -16,6 +16,19 @@
 # where interactive input works -- a detached `type = "shell"` command has no
 # terminal. Esc (or an empty question) cancels and creates nothing.
 #
+# Enter creates one agent from the typed question and closes the popup, as
+# before. Ctrl+Enter instead hands the current question to a background
+# re-exec of this script (`--dispatch`), clears the prompt, and keeps the
+# same popup open so another question can be typed immediately; repeat to
+# queue several agents, then finish with Enter (one last, foreground agent)
+# or Esc (nothing more). Questions already dispatched with Ctrl+Enter keep
+# running either way -- their output goes to the background log below, and
+# failures surface as herdr notifications, since the popup terminal belongs
+# to the prompt editor while they run. They are also created with
+# --no-focus (see section 5): the new tab/workspace must not steal focus
+# from the still-open popup, nor from wherever the user has moved on to by
+# the time a background creation finishes.
+#
 # PRIVACY: routing shows the question to small models. With apfel
 # that call is on-device and the question does not leave the machine at all;
 # only the fallback sends it out. Nothing else leaves except what the agent you
@@ -101,14 +114,78 @@ herdr=$(herdr_bin) || herdr_die 'ask' 'herdr CLI not found'
 
 # --- 1. the question -------------------------------------------------------
 
-# Highlight the words that steer routing below, and complete project:NAME from
-# the directories under ~/src.
-prompt_line \
-  --highlight pi,codex,claude,prototype,qq,config \
-  --complete "project:=$HOME/src" \
-  'Ask: ' '' ask || exit 0
-question=$PROMPT_LINE
-[ -n "${question// /}" ] || exit 0
+# Ctrl+Enter submissions land here, one *.prompt file per press, and a
+# watcher re-execs this script with --dispatch for each of them, detached
+# (nohup, stdin/out/err redirected) so agent creation proceeds in the
+# background while the popup stays open for the next question. Detaching
+# also means a dispatched creation survives the popup closing. Its output
+# cannot go to the popup terminal -- the prompt editor owns that in raw
+# mode -- so it is appended to this log instead.
+background_log=${ASK_AGENT_BACKGROUND_LOG:-$HOME/.local/state/ask-agent/background.log}
+
+_watch_background_queue() {
+  local _queue=$1 _f _claimed _pending
+  while :; do
+    for _f in "$_queue"/*.prompt; do
+      [ -e "$_f" ] || continue
+      _claimed=$_f.dispatch
+      mv "$_f" "$_claimed" 2>/dev/null || continue
+      mkdir -p "${background_log%/*}" 2>/dev/null || true
+      # HERDR_DIE_HOLD_CHARS huge: a dispatched creation has no terminal of
+      # its own, so herdr_die must notify instead of trying to hold on the
+      # popup's tty (which would steal a keypress from the prompt editor).
+      HERDR_DIE_HOLD_CHARS=999999 nohup "$here/ask-agent.sh" --dispatch "$_claimed" \
+        >>"$background_log" 2>&1 </dev/null &
+    done
+    if [ -e "$_queue/.done" ]; then
+      _pending=0
+      for _f in "$_queue"/*.prompt; do
+        [ -e "$_f" ] && _pending=1
+      done
+      [ "$_pending" -eq 0 ] && break
+    fi
+    sleep 0.2
+  done
+}
+
+# Only the foreground (Enter) creation takes focus. A background dispatch
+# must leave focus alone -- on the popup while it is open, and on whatever
+# is focused when it finishes if the popup has already closed.
+create_focus=--focus
+if [ "${1:-}" = --dispatch ]; then
+  create_focus=--no-focus
+  # Background re-exec for one Ctrl+Enter question. The file holds the exact
+  # prompt buffer (newlines included); remove it once read.
+  dispatch_file=${2:-}
+  [ -n "$dispatch_file" ] && [ -f "$dispatch_file" ] \
+    || herdr_die 'ask' "missing dispatch question file: ${dispatch_file:-none}"
+  IFS= read -r -d '' question <"$dispatch_file" || true
+  rm -f "$dispatch_file"
+  [ -n "${question// /}" ] || exit 0
+else
+  # Highlight the words that steer routing below, and complete project:NAME from
+  # the directories under ~/src.
+  background_queue_dir=$(mktemp -d "${TMPDIR:-/tmp}/ask-agent-queue.XXXXXX") \
+    || herdr_die 'ask' 'could not create the Ctrl+Enter queue directory'
+  _watch_background_queue "$background_queue_dir" &
+  background_watcher_pid=$!
+  prompt_status=0
+  prompt_line \
+    --submit-dir "$background_queue_dir" \
+    --highlight pi,codex,claude,prototype,qq,config \
+    --complete "project:=$HOME/src" \
+    'Ask: ' '' ask || prompt_status=$?
+  # Stop the watcher once the prompt returns: it launches anything queued
+  # just before Enter/Esc and then exits, so no Ctrl+Enter question is lost
+  # with the popup. Already-launched creations are detached and unaffected.
+  : >"$background_queue_dir/.done"
+  wait "$background_watcher_pid" 2>/dev/null || true
+  rm -f "$background_queue_dir/.done"
+  rmdir "$background_queue_dir" 2>/dev/null || true
+  [ "$prompt_status" -eq 0 ] || exit 0
+  question=$PROMPT_LINE
+  [ -n "${question// /}" ] || exit 0
+fi
 
 # --- 1b. the project ------------------------------------------------------
 
@@ -491,11 +568,11 @@ fi
 
 if [ -n "$workspace" ]; then
   created=$("$herdr" tab create --workspace "$workspace" --cwd "$dir" \
-    --label "$slug" --env "PATH=$ASK_PATH" --focus) \
+    --label "$slug" --env "PATH=$ASK_PATH" "$create_focus") \
     || herdr_die 'ask' "could not create tab in the $workspace_label workspace"
 else
   created=$("$herdr" workspace create --label "$workspace_label" --cwd "$dir" \
-    --env "PATH=$ASK_PATH" --focus) \
+    --env "PATH=$ASK_PATH" "$create_focus") \
     || herdr_die 'ask' "could not create the $workspace_label workspace"
 fi
 

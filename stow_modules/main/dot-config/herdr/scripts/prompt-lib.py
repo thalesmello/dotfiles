@@ -43,6 +43,16 @@ They do not mock the edit operations; they only replace the TTY byte source.
 (0, 'a\nb ')
 >>> _edit_for_doctest(b"a\x1b[13;2ub\r")
 (0, 'a\nb')
+>>> _edit_for_doctest(b"hi\x1b[13;5uignored\r")
+(0, 'hi')
+>>> _edit_with_submit_for_doctest(b"one\x1b[13;5utwo\r")
+(0, 'two', ['one'])
+>>> _edit_with_submit_for_doctest(b"one\x1b[13;5u\x1b[13;5utwo\r")
+(0, 'two', ['one'])
+>>> _edit_with_submit_for_doctest(b"one\x1b[13;5utwo\x1b[13;5u\r")
+(0, '', ['one', 'two'])
+>>> _edit_submit_files_for_doctest(b"one\ntwo\x1b[13;5uthree\r")
+(0, 'three', ['one\ntwo'])
 >>> _edit_for_doctest(b"\x1b[Hstart \x1b[F end\r", initial="middle")
 (0, 'start middle end')
 >>> _edit_for_doctest(b"\x1b[D\x1b[3~\r", initial="ab")
@@ -85,9 +95,9 @@ completion token is a whitespace-delimited word that starts with its trigger.
 >>> with _dir_tree_for_doctest("movida-modify-book", "beta") as d:
 ...     _edit_for_doctest(b"project:mmb\r\r", complete=[f"project:={d}"])
 (0, 'project:movida-modify-book ')
->>> hl, comp, rest = parse_line_options(["--highlight", "pi,qq", "--complete", "p:=/x", "--", "--label"])
->>> sorted(hl), comp, rest
-(['pi', 'qq'], [('p:', '/x')], ['--label'])
+>>> hl, comp, submit_dir, rest = parse_line_options(["--highlight", "pi,qq", "--complete", "p:=/x", "--submit-dir", "/tmp/q", "--", "--label"])
+>>> sorted(hl), comp, submit_dir, rest
+(['pi', 'qq'], [('p:', '/x')], '/tmp/q', ['--label'])
 """
 
 from __future__ import annotations
@@ -420,8 +430,18 @@ class Prompt:
         history_name: str,
         highlight: Optional[set[str]] = None,
         complete: Optional[list[tuple[str, str]]] = None,
+        submit_dir: Optional[str] = None,
+        submit_enabled: bool = False,
     ) -> None:
         self.term = term
+        self.submit_dir = submit_dir
+        # Ctrl+Enter submits-and-continues only for callers that opt in
+        # (directly, for tests, or by naming a queue directory to hand each
+        # submission to the calling script through).  Other callers keep
+        # the historical behaviour, where Ctrl+Enter is just Enter.
+        self.submit_enabled = submit_enabled or submit_dir is not None
+        self.submitted: list[str] = []
+        self.submit_count = 0
         self.highlight = {w.lower() for w in (highlight or ())}
         self.completions = [(trig, DirSource(path)) for trig, path in (complete or [])]
         self.menu_sel = 0
@@ -596,6 +616,41 @@ class Prompt:
         self.buf = self.buf[:value_at] + choice + sep + tail
         self.pos = value_at + len(choice) + len(sep)
         self.menu_dismissed = start
+        return True
+
+    def submit_continue(self) -> bool:
+        """Hand the current buffer to the caller and start a fresh one.
+
+        Used by Ctrl+Enter in opt-in prompts: the submission is recorded
+        (and, with a submit_dir, atomically written as a new *.prompt file
+        there for the calling script to pick up in the background), saved
+        to history like an accepted line, and the editor clears so a new
+        prompt can be typed at once in the same popup.  A blank buffer is
+        a no-op.  Returns True when the key was consumed as a submission
+        attempt, False when this prompt did not opt in.
+        """
+        if not self.submit_enabled:
+            return False
+        text = self.buf
+        if not text.strip():
+            return True
+        self.submitted.append(text)
+        if self.submit_dir is not None:
+            self.submit_count += 1
+            directory = Path(self.submit_dir)
+            directory.mkdir(parents=True, exist_ok=True)
+            name = f"{time.time_ns()}.{os.getpid()}.{self.submit_count}.prompt"
+            tmp = directory / (name + ".tmp")
+            tmp.write_text(text, encoding="utf-8")
+            os.replace(tmp, directory / name)
+        self.history.save(text)
+        self.buf = ""
+        self.pos = 0
+        self.undo = []
+        self.menu_dismissed = None
+        self.menu_query = None
+        self.top_line = 0
+        self.edit_mode()
         return True
 
     def escape(self) -> None:
@@ -850,7 +905,14 @@ class Prompt:
                     self.backspace()
                 return True
             if code in (13, 57414):
-                if mod_bits & 3:
+                if mod_bits & 4 and self.submit_enabled:
+                    # Ctrl+Enter: dispatch in the background, keep editing.
+                    # An open completion menu still gets first claim, as
+                    # with plain Enter.  Ctrl+Shift+Enter lands here too:
+                    # Ctrl is the dispatch modifier.
+                    if not self.menu_accept():
+                        self.submit_continue()
+                elif mod_bits & 3:
                     self.insert("\n")
                 elif not self.menu_accept():
                     self.accepted = True
@@ -1287,13 +1349,15 @@ class _DoctestTerminal:
         return "".join(ch for ch in text if ch == "\n" or (ord(ch) >= 32 and ord(ch) != 127))
 
 
-def _edit_for_doctest(
+def _run_for_doctest(
     data: bytes,
     initial: str = "",
     label: str = "P: ",
     highlight: Optional[list[str]] = None,
     complete: Optional[list[str]] = None,
-) -> tuple[int, str]:
+    submit_dir: Optional[str] = None,
+    submit_enabled: bool = False,
+) -> Prompt:
     old_history = os.environ.get("PROMPT_LIB_HISTORY")
     os.environ["PROMPT_LIB_HISTORY"] = "0"
     try:
@@ -1302,6 +1366,8 @@ def _edit_for_doctest(
             term, label, initial, "doctest",
             highlight=set(highlight or ()),
             complete=[_parse_complete(c) for c in (complete or [])],
+            submit_dir=submit_dir,
+            submit_enabled=submit_enabled,
         )
         while True:
             b = term.read_byte()
@@ -1310,12 +1376,35 @@ def _edit_for_doctest(
                 break
             if prompt.handle_byte(b):
                 break
-        return (1 if prompt.cancelled else 0, prompt.buf)
+        return prompt
     finally:
         if old_history is None:
             os.environ.pop("PROMPT_LIB_HISTORY", None)
         else:
             os.environ["PROMPT_LIB_HISTORY"] = old_history
+
+
+def _edit_for_doctest(
+    data: bytes,
+    initial: str = "",
+    label: str = "P: ",
+    highlight: Optional[list[str]] = None,
+    complete: Optional[list[str]] = None,
+) -> tuple[int, str]:
+    prompt = _run_for_doctest(data, initial, label, highlight, complete)
+    return (1 if prompt.cancelled else 0, prompt.buf)
+
+
+def _edit_with_submit_for_doctest(data: bytes) -> tuple[int, str, list[str]]:
+    prompt = _run_for_doctest(data, submit_enabled=True)
+    return (1 if prompt.cancelled else 0, prompt.buf, prompt.submitted)
+
+
+def _edit_submit_files_for_doctest(data: bytes) -> tuple[int, str, list[str]]:
+    with tempfile.TemporaryDirectory() as queue:
+        prompt = _run_for_doctest(data, submit_dir=queue)
+        files = [p.read_text(encoding="utf-8") for p in sorted(Path(queue).glob("*.prompt"))]
+        return (1 if prompt.cancelled else 0, prompt.buf, files)
 
 
 def _styles_for_doctest(text: str, highlight: list[str]) -> str:
@@ -1360,39 +1449,46 @@ def _parse_complete(spec: str) -> tuple[str, str]:
     return trigger, path
 
 
-def parse_line_options(argv: list[str]) -> tuple[set[str], list[tuple[str, str]], list[str]]:
+def parse_line_options(argv: list[str]) -> tuple[set[str], list[tuple[str, str]], Optional[str], list[str]]:
     """Split leading options from the positional `line` arguments.
 
     --highlight WORDS   comma-separated words to highlight (repeatable)
     --complete T=DIR    a word starting with T opens a menu of DIR's
                         subdirectories, filtered by what follows T (repeatable)
+    --submit-dir DIR    Ctrl+Enter writes the current buffer to a new file
+                        in DIR and clears it instead of accepting, so the
+                        caller can act on it in the background while a new
+                        prompt is typed in the same popup
     --                  end of options
     """
     highlight: set[str] = set()
     complete: list[tuple[str, str]] = []
+    submit_dir: Optional[str] = None
     i = 0
     while i < len(argv):
         arg = argv[i]
         if arg == "--":
             i += 1
             break
-        if arg in ("--highlight", "--complete"):
+        if arg in ("--highlight", "--complete", "--submit-dir"):
             if i + 1 >= len(argv):
                 raise ValueError(f"{arg} needs a value")
             value = argv[i + 1]
             if arg == "--highlight":
                 highlight.update(w.strip().lower() for w in value.split(",") if w.strip())
-            else:
+            elif arg == "--complete":
                 complete.append(_parse_complete(value))
+            else:
+                submit_dir = value
             i += 2
             continue
         break
-    return highlight, complete, argv[i:]
+    return highlight, complete, submit_dir, argv[i:]
 
 
 def prompt_line(argv: list[str]) -> int:
     try:
-        highlight, complete, argv = parse_line_options(argv)
+        highlight, complete, submit_dir, argv = parse_line_options(argv)
     except ValueError as e:
         print(f"prompt-lib: {e}", file=sys.stderr)
         return 2
@@ -1405,7 +1501,7 @@ def prompt_line(argv: list[str]) -> int:
     else:
         history_name = label
     term = Terminal()
-    prompt = Prompt(term, label, prefill, history_name, highlight=highlight, complete=complete)
+    prompt = Prompt(term, label, prefill, history_name, highlight=highlight, complete=complete, submit_dir=submit_dir)
     status = prompt.run()
     result_file = os.environ.get("PROMPT_LIB_RESULT_FILE")
     if status == 0 and result_file:

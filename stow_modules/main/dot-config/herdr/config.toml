@@ -267,6 +267,10 @@ height = 3
 # the pane into a fresh slug-named workspace and creates a fresh try directory.
 # A `project:NAME` word overrides the classification: the agent starts in
 # ~/src/NAME (created if missing) in a slug-named tab of the NAME workspace.
+# Ctrl+Enter creates an agent from the current prompt in the background
+# (without focusing its new tab/workspace), clears the prompt, and keeps
+# this popup open and focused for the next question; Enter creates one
+# last agent and closes, Esc closes without another.
 # Typing project: opens a filtered menu of ~/src directories under the prompt,
 # so the popup is tall enough for the prompt plus 8 menu rows.
 # The prompt still runs in a popup PTY, while the actual agent session starts
