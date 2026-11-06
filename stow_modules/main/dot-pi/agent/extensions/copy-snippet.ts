@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { CustomEditor } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { matchesKey } from "@earendil-works/pi-tui";
 
 type TextContent = {
 	type?: string;
@@ -227,24 +228,62 @@ function populateEditorHistory(editor: CustomEditor, ctx: ExtensionContext): voi
 	}
 }
 
+const STASH_STATUS_KEY = "prompt-stash";
+
 function installSnippetCopyEditor(
 	ctx: ExtensionContext,
 	onEditorCreated: (editor: CustomEditor) => void,
 ): void {
 	if (ctx.mode !== "tui") return;
 
+	let stashedPrompt: string | undefined;
+
+	const updateStashStatus = (): void => {
+		if (stashedPrompt !== undefined) {
+			ctx.ui.setStatus(STASH_STATUS_KEY, ctx.ui.theme.fg("muted", "stashed · ctrl+s to restore"));
+		} else {
+			ctx.ui.setStatus(STASH_STATUS_KEY, undefined);
+		}
+	};
+
 	ctx.ui.setEditorComponent((tui, theme, keybindings) => {
 		class SnippetCopyEditor extends CustomEditor {
 			override handleInput(data: string): void {
-				// Ctrl+C (`app.clear`): never exit the harness. Stop a running agent
-				// (like Escape) and/or clear the prompt if populated.
+				// Ctrl+C (`app.clear`): never exit the harness.
+				// - If the prompt has text: only clear the prompt (do not abort a running operation).
+				// - If the prompt is empty and the agent is running: abort the operation (like Escape).
 				if (keybindings.matches(data, "app.clear")) {
 					if (this.getText().length > 0) {
 						this.setText("");
 						this.onChange?.("");
+						return;
 					}
 					if (!ctx.isIdle()) {
 						this.onEscape?.();
+					}
+					return;
+				}
+
+				// Ctrl+S (`chat:stash` in Claude Code):
+				// - Non-empty prompt -> stash text and clear the editor.
+				// - Empty prompt with a stashed prompt -> pop and restore it.
+				if (matchesKey(data, "ctrl+s") || data === "\x13") {
+					const current = this.getText();
+					if (current.trim() !== "") {
+						stashedPrompt = current;
+						this.setText("");
+						this.onChange?.("");
+						updateStashStatus();
+						ctx.ui.notify("stashed · ctrl+s to restore", "info");
+						return;
+					}
+					if (current.trim() === "" && stashedPrompt !== undefined) {
+						const restored = stashedPrompt;
+						stashedPrompt = undefined;
+						this.setText(restored);
+						this.onChange?.(restored);
+						updateStashStatus();
+						return;
 					}
 					return;
 				}
