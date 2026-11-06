@@ -1,10 +1,5 @@
-import {
-  existsSync,
-  mkdirSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync } from "node:fs";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, normalize } from "node:path";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { DebugReviewLogger } from "../logging/session-logger.ts";
@@ -60,7 +55,7 @@ export interface CommandConfigStore extends ConfigReader {
   save(
     next: PermissionSystemExtensionConfig,
     ctx: ExtensionCommandContext,
-  ): void;
+  ): Promise<void>;
 }
 
 /** Narrow view of the manager's resolved policy paths (for `logResolvedPaths`). */
@@ -182,31 +177,42 @@ export class ConfigStore
    *
    * Equivalent to `saveExtensionConfig(runtime, next, ctx)`.
    */
-  save(
+  async save(
     next: PermissionSystemExtensionConfig,
     ctx: ExtensionCommandContext,
-  ): void {
+  ): Promise<void> {
     const normalized = normalizePermissionSystemConfig(next);
     const globalPath = getGlobalConfigPath(this.deps.agentDir);
 
     const existing = loadUnifiedConfig(globalPath);
+    let rawOnDisk: Record<string, unknown> = { ...existing.config };
+    try {
+      const parsed = JSON.parse(await readFile(globalPath, "utf-8"));
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        rawOnDisk = { ...(parsed as Record<string, unknown>) };
+      }
+    } catch {
+      // Fall back to existing.config if raw JSON read fails.
+    }
     const merged = {
-      ...existing.config,
+      ...rawOnDisk,
       debugLog: normalized.debugLog,
       permissionReviewLog: normalized.permissionReviewLog,
       yoloMode: normalized.yoloMode,
+      doublePressToConfirm: normalized.doublePressToConfirm,
+      ...(normalized.authorizerChain !== undefined
+        ? { authorizerChain: normalized.authorizerChain }
+        : {}),
     };
 
     const tmpPath = `${globalPath}.tmp`;
     try {
-      mkdirSync(dirname(globalPath), { recursive: true });
-      writeFileSync(tmpPath, `${JSON.stringify(merged, null, 2)}\n`, "utf-8");
-      renameSync(tmpPath, globalPath);
+      await mkdir(dirname(globalPath), { recursive: true });
+      await writeFile(tmpPath, `${JSON.stringify(merged, null, 2)}\n`, "utf-8");
+      await rename(tmpPath, globalPath);
     } catch (error) {
       try {
-        if (existsSync(tmpPath)) {
-          unlinkSync(tmpPath);
-        }
+        await unlink(tmpPath);
       } catch {
         // Ignore cleanup failures.
       }

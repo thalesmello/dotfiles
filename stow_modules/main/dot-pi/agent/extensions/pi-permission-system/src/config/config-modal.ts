@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import {
   type ExtensionAPI,
@@ -12,6 +12,11 @@ import {
   DEFAULT_EXTENSION_CONFIG,
   type PermissionSystemExtensionConfig,
 } from "./extension-config.ts";
+import {
+  type EffectivePermissionMode,
+  getEffectivePermissionMode,
+  getPermissionSystemStatus,
+} from "./status.ts";
 
 interface PermissionSystemConfigController {
   config: CommandConfigStore;
@@ -41,16 +46,18 @@ const KNOWN_SURFACES = new Set([
   "ls",
 ]);
 
-export function mutateGlobalPermissionRule(
+export async function mutateGlobalPermissionRule(
   configPath: string,
   grants: ReadonlyArray<{ surface: string; pattern: string }>,
   action: "allow" | "ask" | "deny" | "remove",
   reloadConfig?: () => void,
-): { ok: boolean; message: string } {
+): Promise<{ ok: boolean; message: string }> {
   try {
     let raw: Record<string, any> = {};
-    if (existsSync(configPath)) {
-      raw = JSON.parse(readFileSync(configPath, "utf8"));
+    try {
+      raw = JSON.parse(await readFile(configPath, "utf8"));
+    } catch (readErr: any) {
+      if (readErr?.code !== "ENOENT") throw readErr;
     }
     if (!raw.permission || typeof raw.permission !== "object") {
       raw.permission = { "*": "allow" };
@@ -74,8 +81,8 @@ export function mutateGlobalPermissionRule(
       raw.permission[surface][pattern] = action;
       updated.push(`${surface}["${pattern}"] = ${action}`);
     }
-    mkdirSync(dirname(configPath), { recursive: true });
-    writeFileSync(configPath, `${JSON.stringify(raw, null, 2)}\n`, "utf8");
+    await mkdir(dirname(configPath), { recursive: true });
+    await writeFile(configPath, `${JSON.stringify(raw, null, 2)}\n`, "utf8");
     reloadConfig?.();
     return { ok: true, message: updated.join(", ") };
   } catch (err) {
@@ -88,6 +95,11 @@ export function mutateGlobalPermissionRule(
 
 const ON_OFF = ["on", "off"];
 const COMMAND_ARGUMENTS = [
+  {
+    value: "mode",
+    label: "Switch permission mode",
+    description: "/permission mode [auto|ask|bypassPermissions] (or Shift+Tab to cycle)",
+  },
   {
     value: "allow",
     label: "Allow a command or path globally",
@@ -260,38 +272,122 @@ function getArgumentCompletions(
   return filtered.length > 0 ? [...filtered] : null;
 }
 
+const PERMISSION_MODES: readonly EffectivePermissionMode[] = [
+  "auto",
+  "ask",
+  "bypassPermissions",
+];
+
+function applyPermissionMode(
+  config: PermissionSystemExtensionConfig,
+  mode: EffectivePermissionMode,
+): PermissionSystemExtensionConfig {
+  if (mode === "bypassPermissions") {
+    return {
+      ...config,
+      yoloMode: true,
+      authorizerChain: ["auto-review"],
+    };
+  }
+  if (mode === "auto") {
+    return {
+      ...config,
+      yoloMode: false,
+      authorizerChain: ["auto-review"],
+    };
+  }
+  return {
+    ...config,
+    yoloMode: false,
+    authorizerChain: [],
+  };
+}
+
+function nextPermissionMode(
+  current: EffectivePermissionMode,
+): EffectivePermissionMode {
+  const idx = PERMISSION_MODES.indexOf(current);
+  return PERMISSION_MODES[(idx + 1) % PERMISSION_MODES.length] ?? "auto";
+}
+
 async function openSettingsModal(
   ctx: ExtensionCommandContext,
   controller: PermissionSystemConfigController,
 ): Promise<void> {
-  const overlayOptions = {
-    anchor: "center" as const,
-    width: 82,
-    maxHeight: "85%" as const,
-    margin: 1,
-  };
+  // Use ctx.ui.select (inline selector) instead of an unframed overlay SettingsList
+  // so the menu never bleeds over the transcript.
+  for (;;) {
+    const current = controller.config.current();
+    const mode = getEffectivePermissionMode(current);
+    const modeItem = `Permission mode: ${mode} (press Enter or Shift+Tab to cycle)`;
+    const doublePressItem = `Double-press to confirm: ${toOnOff(current.doublePressToConfirm)}`;
+    const reviewLogItem = `Permission review log: ${toOnOff(current.permissionReviewLog)}`;
+    const debugLogItem = `Debug logging: ${toOnOff(current.debugLog)}`;
+    const showRulesItem = "Show active rules";
+    const doneItem = "Done";
 
-  // eslint-disable-next-line @typescript-eslint/no-invalid-void-type -- ctx.ui.custom<void> is valid; rule does not allow void in generic fn call type args
-  await ctx.ui.custom<void>(
-    (_tui, _theme, _keybindings, done) => {
-      let current = controller.config.current();
-      const settingsList = new SettingsList(
-        buildSettingItems(current),
-        10,
-        getSettingsListTheme(),
-        (id, newValue) => {
-          current = applySetting(current, id, newValue);
-          controller.config.save(current, ctx);
-          current = controller.config.current();
-          syncSettingValues(settingsList, current);
-        },
-        () => done(),
+    const choice = await ctx.ui.select("Permission settings", [
+      modeItem,
+      doublePressItem,
+      reviewLogItem,
+      debugLogItem,
+      showRulesItem,
+      doneItem,
+    ]);
+
+    if (!choice || choice === doneItem) {
+      return;
+    }
+
+    if (choice === modeItem) {
+      const nextMode = nextPermissionMode(mode);
+      const updated = applyPermissionMode(current, nextMode);
+      await controller.config.save(updated, ctx);
+      controller.reloadConfig?.();
+      continue;
+    }
+
+    if (choice === doublePressItem) {
+      const updated = applySetting(
+        current,
+        "doublePressToConfirm",
+        toOnOff(!current.doublePressToConfirm),
       );
+      await controller.config.save(updated, ctx);
+      controller.reloadConfig?.();
+      continue;
+    }
 
-      return settingsList;
-    },
-    { overlay: true, overlayOptions },
-  );
+    if (choice === reviewLogItem) {
+      const updated = applySetting(
+        current,
+        "permissionReviewLog",
+        toOnOff(!current.permissionReviewLog),
+      );
+      await controller.config.save(updated, ctx);
+      controller.reloadConfig?.();
+      continue;
+    }
+
+    if (choice === debugLogItem) {
+      const updated = applySetting(
+        current,
+        "debugLog",
+        toOnOff(!current.debugLog),
+      );
+      await controller.config.save(updated, ctx);
+      controller.reloadConfig?.();
+      continue;
+    }
+
+    if (choice === showRulesItem) {
+      const rules = controller.getActiveAgentConfigRules();
+      ctx.ui.notify(
+        `permission-system: ${summarizeConfig(controller.config.current(), rules)}`,
+        "info",
+      );
+    }
+  }
 }
 
 function parseRuleArgs(rest: string): { surface: string; pattern: string } | null {
@@ -308,15 +404,49 @@ function parseRuleArgs(rest: string): { surface: string; pattern: string } | nul
   return { surface: "bash", pattern: trimmed.replace(/^["']|["']$/g, "") };
 }
 
-function handleArgs(
+async function handleArgs(
   args: string,
   ctx: ExtensionCommandContext,
   controller: PermissionSystemConfigController,
-): boolean {
+): Promise<boolean> {
   const raw = args.trim();
   const normalized = raw.toLowerCase();
   if (!normalized) {
     return false;
+  }
+
+  if (normalized === "mode" || normalized.startsWith("mode ")) {
+    const requested = raw.slice(4).trim().toLowerCase();
+    const current = controller.config.current();
+    const currentMode = getEffectivePermissionMode(current);
+    let nextMode: EffectivePermissionMode;
+    if (!requested) {
+      nextMode = nextPermissionMode(currentMode);
+    } else if (requested === "auto") {
+      nextMode = "auto";
+    } else if (requested === "ask" || requested === "default") {
+      nextMode = "ask";
+    } else if (
+      requested === "bypass" ||
+      requested === "bypasspermissions" ||
+      requested === "yolo"
+    ) {
+      nextMode = "bypassPermissions";
+    } else {
+      ctx.ui.notify(
+        "Usage: /permission mode [auto|ask|bypassPermissions]",
+        "warning",
+      );
+      return true;
+    }
+    const updated = applyPermissionMode(current, nextMode);
+    await controller.config.save(updated, ctx);
+    controller.reloadConfig?.();
+    ctx.ui.notify(
+      `Permission mode: ${getPermissionSystemStatus(updated) ?? nextMode}`,
+      "info",
+    );
+    return true;
   }
 
   for (const verb of ["allow", "ask", "deny", "rm", "remove"] as const) {
@@ -328,7 +458,7 @@ function handleArgs(
         return true;
       }
       const action = verb === "rm" || verb === "remove" ? "remove" : verb;
-      const res = mutateGlobalPermissionRule(
+      const res = await mutateGlobalPermissionRule(
         controller.configPath,
         [parsed],
         action,
@@ -359,7 +489,7 @@ function handleArgs(
   }
 
   if (normalized === "reset") {
-    controller.config.save(cloneDefaultConfig(), ctx);
+    await controller.config.save(cloneDefaultConfig(), ctx);
     ctx.ui.notify("Permission system settings reset to defaults.", "info");
     return true;
   }
@@ -378,7 +508,7 @@ export function registerPermissionSystemCommand(
   controller: PermissionSystemConfigController,
 ): void {
   const handler = async (args: string, ctx: ExtensionCommandContext) => {
-    if (handleArgs(args, ctx, controller)) {
+    if (await handleArgs(args, ctx, controller)) {
       return;
     }
 
@@ -402,8 +532,23 @@ export function registerPermissionSystemCommand(
 
   pi.registerCommand("permission", {
     description:
-      "Manage global permission rules (/permission allow|ask|deny|rm [surface] <pattern> | show)",
+      "Manage global permission rules (/permission mode|allow|ask|deny|rm [surface] <pattern> | show)",
     getArgumentCompletions,
     handler,
+  });
+
+  pi.registerShortcut("shift+tab", {
+    description: "Cycle permission mode (auto -> ask -> bypassPermissions)",
+    handler: async (ctx) => {
+      const current = controller.config.current();
+      const nextMode = nextPermissionMode(getEffectivePermissionMode(current));
+      const updated = applyPermissionMode(current, nextMode);
+      await controller.config.save(updated, ctx as unknown as ExtensionCommandContext);
+      controller.reloadConfig?.();
+      ctx.ui.notify(
+        `Permission mode: ${getPermissionSystemStatus(updated) ?? nextMode}`,
+        "info",
+      );
+    },
   });
 }

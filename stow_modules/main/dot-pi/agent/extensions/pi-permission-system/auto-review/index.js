@@ -1,5 +1,5 @@
 import { A as RULE_LISTS, C as DEFAULTS_ENTRY, D as PRESET_DEFAULTS, E as FOLLOW_UP_REVIEW_MODES, M as parseConfigFile, N as validateConfigFile, O as PRESET_NAMES, P as approximateTokens, S as CONFIG_SCHEMA_URL, T as EXTENSION_ID, _ as BUILT_IN_RULES, a as buildUserPrompt, b as CODEX_AUTO_REVIEW_MODEL, c as POLICY_REVISION$1, d as parseVerdict, f as renderTranscript, g as buildReviewMessage, h as buildFollowUpMessage, j as mergeConfig, k as REASONING_LEVELS, l as buildSystemPrompt$1, m as THINKING_PROMPT, n as renderTranscript$1, o as BUILT_IN_RULES$1, p as findToolCallInput, r as buildFollowUpPrompt, t as parseReviewAssessment, u as parseFastVerdict, v as POLICY_REVISION, w as DEFAULT_CONFIG, x as CODEX_PROVIDER, y as buildSystemPrompt } from "./verdict-qZO-VQH0.js";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { access, mkdir, readFile, rename, rm, unlink, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { calculateContextTokens, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { PERMISSIONS_READY_CHANNEL, getPermissionsService } from "../src/service.ts";
@@ -380,19 +380,19 @@ function describeError$1(error) {
 function configPath(cwd, scope) {
 	return scope === "global" ? join(getAgentDir(), "extensions", EXTENSION_ID, "config.json") : join(cwd, ".pi", "extensions", EXTENSION_ID, "config.json");
 }
-function readSource(path) {
+async function readSource(path) {
 	try {
-		return readFileSync(path, "utf8");
+		return await readFile(path, "utf8");
 	} catch (error) {
 		if (error.code === "ENOENT") return;
 		throw error;
 	}
 }
-function readScope(cwd, scope) {
+async function readScope(cwd, scope) {
 	const path = configPath(cwd, scope);
 	let source;
 	try {
-		source = readSource(path);
+		source = await readSource(path);
 	} catch (error) {
 		return {
 			scope,
@@ -429,7 +429,7 @@ function readScope(cwd, scope) {
 	};
 }
 /** The scope as it takes part in the merge: an untrusted project's file is left unread, so it can neither loosen nor break the config */
-function readActiveScope(cwd, scope, projectTrusted) {
+async function readActiveScope(cwd, scope, projectTrusted) {
 	return scope === "project" && !projectTrusted ? {
 		scope,
 		cwd,
@@ -437,7 +437,7 @@ function readActiveScope(cwd, scope, projectTrusted) {
 		source: void 0,
 		valid: true,
 		config: {}
-	} : readScope(cwd, scope);
+	} : await readScope(cwd, scope);
 }
 function merge(global, project) {
 	if (!global.valid || !project.valid) return {
@@ -449,19 +449,23 @@ function merge(global, project) {
 		issues: []
 	};
 }
-function loadConfig(cwd, projectTrusted) {
-	return merge(readScope(cwd, "global"), readActiveScope(cwd, "project", projectTrusted));
+async function loadConfig(cwd, projectTrusted) {
+	const [global, project] = await Promise.all([
+		readScope(cwd, "global"),
+		readActiveScope(cwd, "project", projectTrusted)
+	]);
+	return merge(global, project);
 }
-function checkForConflict(snapshot) {
+async function checkForConflict(snapshot) {
 	let current;
 	try {
-		current = readSource(snapshot.path);
+		current = await readSource(snapshot.path);
 	} catch (error) {
 		return `Failed to re-read config at '${snapshot.path}': ${describeError$1(error)}`;
 	}
 	return current === snapshot.source ? void 0 : `Config at '${snapshot.path}' changed while it was being edited; reopen the command and try again.`;
 }
-function saveScope(snapshot, draft, projectTrusted) {
+async function saveScope(snapshot, draft, projectTrusted) {
 	if (!snapshot.valid) return {
 		ok: false,
 		message: `Cannot save invalid config at '${snapshot.path}': ${snapshot.issue}`
@@ -482,25 +486,25 @@ function saveScope(snapshot, draft, projectTrusted) {
 		source,
 		config
 	};
-	const other = readActiveScope(snapshot.cwd, snapshot.scope === "global" ? "project" : "global", projectTrusted);
+	const other = await readActiveScope(snapshot.cwd, snapshot.scope === "global" ? "project" : "global", projectTrusted);
 	const loadResult = snapshot.scope === "global" ? merge(replacement, other) : merge(other, replacement);
 	if (loadResult.config === void 0) return {
 		ok: false,
 		message: loadResult.issues.join("\n")
 	};
-	const conflict = checkForConflict(snapshot);
+	const conflict = await checkForConflict(snapshot);
 	if (conflict !== void 0) return {
 		ok: false,
 		message: conflict
 	};
 	const temporary = `${snapshot.path}.tmp`;
 	try {
-		mkdirSync(dirname(snapshot.path), { recursive: true });
-		writeFileSync(temporary, source, "utf8");
-		renameSync(temporary, snapshot.path);
+		await mkdir(dirname(snapshot.path), { recursive: true });
+		await writeFile(temporary, source, "utf8");
+		await rename(temporary, snapshot.path);
 	} catch (error) {
 		try {
-			rmSync(temporary, { force: true });
+			await rm(temporary, { force: true });
 		} catch {}
 		return {
 			ok: false,
@@ -512,18 +516,18 @@ function saveScope(snapshot, draft, projectTrusted) {
 		loadResult
 	};
 }
-function resetScope(snapshot, projectTrusted) {
+async function resetScope(snapshot, projectTrusted) {
 	if (!snapshot.valid && snapshot.source === void 0) return {
 		ok: false,
 		message: `Cannot reset unreadable config at '${snapshot.path}': ${snapshot.issue}`
 	};
-	const conflict = checkForConflict(snapshot);
+	const conflict = await checkForConflict(snapshot);
 	if (conflict !== void 0) return {
 		ok: false,
 		message: conflict
 	};
 	if (snapshot.source !== void 0) try {
-		unlinkSync(snapshot.path);
+		await unlink(snapshot.path);
 	} catch (error) {
 		return {
 			ok: false,
@@ -532,7 +536,7 @@ function resetScope(snapshot, projectTrusted) {
 	}
 	return {
 		ok: true,
-		loadResult: loadConfig(snapshot.cwd, projectTrusted)
+		loadResult: await loadConfig(snapshot.cwd, projectTrusted)
 	};
 }
 
@@ -694,8 +698,8 @@ async function openSettingsMenu(ctx, controller) {
 		ctx.ui.notify("Project config is ignored until Pi trusts this project.", "warning");
 		return;
 	}
-	const selected = readScope(ctx.cwd, scope);
-	const other = readActiveScope(ctx.cwd, scope === "global" ? "project" : "global", projectTrusted);
+	const selected = await readScope(ctx.cwd, scope);
+	const other = await readActiveScope(ctx.cwd, scope === "global" ? "project" : "global", projectTrusted);
 	const cannotEdit = (snapshot) => {
 		ctx.ui.notify(`Cannot edit config at '${snapshot.path}': ${snapshot.issue}. Use reset to remove it or fix it manually.`, "error");
 	};
@@ -728,7 +732,7 @@ async function openSettingsMenu(ctx, controller) {
 		]);
 		if (choice === void 0 || choice === CANCEL) return;
 		if (choice === SAVE) {
-			const saved = saveScope(selected, draft, projectTrusted);
+			const saved = await saveScope(selected, draft, projectTrusted);
 			if (!saved.ok) {
 				ctx.ui.notify(saved.message, "error");
 				continue;
@@ -744,12 +748,15 @@ async function openSettingsMenu(ctx, controller) {
 		if (setting !== void 0) draft = await setting.edit(ctx, draft, effective);
 	}
 }
-function showConfig(ctx, active) {
+async function showConfig(ctx, active) {
 	const projectTrusted = ctx.isProjectTrusted();
-	const global = readScope(ctx.cwd, "global");
-	const project = readActiveScope(ctx.cwd, "project", projectTrusted);
+	const [global, project] = await Promise.all([
+		readScope(ctx.cwd, "global"),
+		readActiveScope(ctx.cwd, "project", projectTrusted)
+	]);
 	if (active === void 0 || !global.valid || !project.valid) {
-		const issues = loadConfig(ctx.cwd, projectTrusted).issues.map((issue) => `\n${issue}`).join("");
+		const loaded = await loadConfig(ctx.cwd, projectTrusted);
+		const issues = loaded.issues.map((issue) => `\n${issue}`).join("");
 		ctx.ui.notify(`Automatic review is disabled because the active config is invalid.${issues}`, "warning");
 		return;
 	}
@@ -779,9 +786,9 @@ async function resetConfig(ctx, controller, requested) {
 	}
 	const scope = requested ?? await chooseScope(ctx, "Select configuration scope to reset");
 	if (scope === void 0) return;
-	const snapshot = readScope(ctx.cwd, scope);
+	const snapshot = await readScope(ctx.cwd, scope);
 	if (!await ctx.ui.confirm(`Reset ${scope} auto-review config?`, `Delete '${snapshot.path}' and immediately apply inherited values?`)) return;
-	const reset = resetScope(snapshot, ctx.isProjectTrusted());
+	const reset = await resetScope(snapshot, ctx.isProjectTrusted());
 	if (!reset.ok) {
 		ctx.ui.notify(reset.message, "error");
 		return;
@@ -839,7 +846,7 @@ function registerAutoReviewCommand(pi, controller) {
 		async handler(args, ctx) {
 			const normalized = args.trim().toLowerCase();
 			if (normalized === "") await openSettingsMenu(ctx, controller);
-			else if (normalized === "show") showConfig(ctx, controller.getActiveConfig());
+			else if (normalized === "show") await showConfig(ctx, controller.getActiveConfig());
 			else if (normalized === "path") ctx.ui.notify(`permission-auto-review config paths:\nglobal=${configPath(ctx.cwd, "global")}\nproject=${configPath(ctx.cwd, "project")}`, "info");
 			else if (normalized === "defaults") showDefaults(ctx, controller.getActiveConfig());
 			else if (normalized === "help") ctx.ui.notify(USAGE, "info");
@@ -1180,13 +1187,18 @@ function permissionAutoReview(pi) {
 		}
 		return { kind: "active" };
 	}
-	pi.on("session_start", (_event, ctx) => {
+	pi.on("session_start", async (_event, ctx) => {
 		retire(generation);
 		const projectTrusted = ctx.isProjectTrusted();
-		const result = loadConfig(ctx.cwd, projectTrusted);
+		const result = await loadConfig(ctx.cwd, projectTrusted);
 		reportIssues(result.issues);
 		const projectPath = configPath(ctx.cwd, "project");
-		if (!projectTrusted && existsSync(projectPath)) warn(`${projectPath} is ignored until Pi trusts this project`);
+		if (!projectTrusted) {
+			try {
+				await access(projectPath);
+				warn(`${projectPath} is ignored until Pi trusts this project`);
+			} catch {}
+		}
 		tally = {
 			allow: 0,
 			deny: 0,
@@ -1194,6 +1206,14 @@ function permissionAutoReview(pi) {
 		};
 		contextFiles = [];
 		generation = createGeneration(ctx, result.config);
+		const service = sessionId === void 0 ? void 0 : getPermissionsService(sessionId);
+		if (service !== void 0) {
+			try {
+				register(generation, service);
+			} catch (error) {
+				warn(`failed to register ${AUTHORIZER_NAME}: ${describeError(error)}`);
+			}
+		}
 		renderStatus(generation);
 	});
 	pi.events.on(PERMISSIONS_READY_CHANNEL, (data) => {

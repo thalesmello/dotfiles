@@ -8435,12 +8435,8 @@ class ConfigIssueReporter {
 }
 
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/pi-permission-system/src/config/config-modal.ts
-import { existsSync as existsSync4, mkdirSync as mkdirSync3, readFileSync as readFileSync3, writeFileSync as writeFileSync2 } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname as dirname3 } from "node:path";
-import {
-  getSettingsListTheme
-} from "@earendil-works/pi-coding-agent";
-import { SettingsList } from "@earendil-works/pi-tui";
 
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/pi-permission-system/src/config/extension-config.ts
 import { mkdirSync as mkdirSync2 } from "node:fs";
@@ -8519,6 +8515,27 @@ function ensurePermissionSystemLogsDirectory(logsDir) {
   }
 }
 
+// dotfiles/stow_modules/main/dot-pi/agent/extensions/pi-permission-system/src/config/status.ts
+var PERMISSION_SYSTEM_STATUS_KEY = EXTENSION_ID;
+function getEffectivePermissionMode(config) {
+  if (isYoloModeEnabled(config))
+    return "bypassPermissions";
+  if ((config.authorizerChain ?? []).includes("auto-review"))
+    return "auto";
+  return "ask";
+}
+function getPermissionSystemStatus(config) {
+  const mode = getEffectivePermissionMode(config);
+  if (mode === "bypassPermissions")
+    return "⏵⏵ bypass permissions";
+  if (mode === "auto")
+    return "⏵⏵ auto mode";
+  return "⏸ ask mode";
+}
+function syncPermissionSystemStatus(ctx, config) {
+  ctx.ui.setStatus(PERMISSION_SYSTEM_STATUS_KEY, getPermissionSystemStatus(config));
+}
+
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/pi-permission-system/src/config/config-modal.ts
 var KNOWN_SURFACES = new Set([
   "bash",
@@ -8537,11 +8554,14 @@ var KNOWN_SURFACES = new Set([
   "find",
   "ls"
 ]);
-function mutateGlobalPermissionRule(configPath, grants, action, reloadConfig) {
+async function mutateGlobalPermissionRule(configPath, grants, action, reloadConfig) {
   try {
     let raw = {};
-    if (existsSync4(configPath)) {
-      raw = JSON.parse(readFileSync3(configPath, "utf8"));
+    try {
+      raw = JSON.parse(await readFile(configPath, "utf8"));
+    } catch (readErr) {
+      if (readErr?.code !== "ENOENT")
+        throw readErr;
     }
     if (!raw.permission || typeof raw.permission !== "object") {
       raw.permission = { "*": "allow" };
@@ -8564,8 +8584,8 @@ function mutateGlobalPermissionRule(configPath, grants, action, reloadConfig) {
       raw.permission[surface][pattern] = action;
       updated.push(`${surface}["${pattern}"] = ${action}`);
     }
-    mkdirSync3(dirname3(configPath), { recursive: true });
-    writeFileSync2(configPath, `${JSON.stringify(raw, null, 2)}
+    await mkdir(dirname3(configPath), { recursive: true });
+    await writeFile(configPath, `${JSON.stringify(raw, null, 2)}
 `, "utf8");
     reloadConfig?.();
     return { ok: true, message: updated.join(", ") };
@@ -8576,8 +8596,12 @@ function mutateGlobalPermissionRule(configPath, grants, action, reloadConfig) {
     };
   }
 }
-var ON_OFF = ["on", "off"];
 var COMMAND_ARGUMENTS = [
+  {
+    value: "mode",
+    label: "Switch permission mode",
+    description: "/permission mode [auto|ask|bypassPermissions] (or Shift+Tab to cycle)"
+  },
   {
     value: "allow",
     label: "Allow a command or path globally",
@@ -8651,38 +8675,6 @@ function summarizeConfig(config, rules) {
   const rulesSuffix = rules ? formatRulesSummary(rules) : "";
   return `${knobs}${rulesSuffix}`;
 }
-function buildSettingItems(config) {
-  return [
-    {
-      id: "yoloMode",
-      label: "YOLO mode",
-      description: "Auto-approve ask-state permission checks, including subagent approval forwarding",
-      currentValue: toOnOff(config.yoloMode),
-      values: ON_OFF
-    },
-    {
-      id: "permissionReviewLog",
-      label: "Permission review log",
-      description: "Write permission request and decision audit events to the extension logs directory",
-      currentValue: toOnOff(config.permissionReviewLog),
-      values: ON_OFF
-    },
-    {
-      id: "debugLog",
-      label: "Debug logging",
-      description: "Write verbose permission-system diagnostics to the extension logs directory",
-      currentValue: toOnOff(config.debugLog),
-      values: ON_OFF
-    },
-    {
-      id: "doublePressToConfirm",
-      label: "Double-press to confirm",
-      description: "Require a confirming second press of a decision hotkey in the inline TUI permission dialog",
-      currentValue: toOnOff(config.doublePressToConfirm),
-      values: ON_OFF
-    }
-  ];
-}
 function applySetting(config, id, value) {
   switch (id) {
     case "yoloMode":
@@ -8697,12 +8689,6 @@ function applySetting(config, id, value) {
       return config;
   }
 }
-function syncSettingValues(settingsList, config) {
-  settingsList.updateValue("yoloMode", toOnOff(config.yoloMode));
-  settingsList.updateValue("permissionReviewLog", toOnOff(config.permissionReviewLog));
-  settingsList.updateValue("debugLog", toOnOff(config.debugLog));
-  settingsList.updateValue("doublePressToConfirm", toOnOff(config.doublePressToConfirm));
-}
 function getArgumentCompletions(argumentPrefix) {
   const normalized = argumentPrefix.trim().toLowerCase();
   if (normalized.includes(" ")) {
@@ -8711,23 +8697,87 @@ function getArgumentCompletions(argumentPrefix) {
   const filtered = COMMAND_ARGUMENTS.filter((item) => item.value.startsWith(normalized));
   return filtered.length > 0 ? [...filtered] : null;
 }
-async function openSettingsModal(ctx, controller) {
-  const overlayOptions = {
-    anchor: "center",
-    width: 82,
-    maxHeight: "85%",
-    margin: 1
+var PERMISSION_MODES = [
+  "auto",
+  "ask",
+  "bypassPermissions"
+];
+function applyPermissionMode(config, mode) {
+  if (mode === "bypassPermissions") {
+    return {
+      ...config,
+      yoloMode: true,
+      authorizerChain: ["auto-review"]
+    };
+  }
+  if (mode === "auto") {
+    return {
+      ...config,
+      yoloMode: false,
+      authorizerChain: ["auto-review"]
+    };
+  }
+  return {
+    ...config,
+    yoloMode: false,
+    authorizerChain: []
   };
-  await ctx.ui.custom((_tui, _theme, _keybindings, done) => {
-    let current = controller.config.current();
-    const settingsList = new SettingsList(buildSettingItems(current), 10, getSettingsListTheme(), (id, newValue) => {
-      current = applySetting(current, id, newValue);
-      controller.config.save(current, ctx);
-      current = controller.config.current();
-      syncSettingValues(settingsList, current);
-    }, () => done());
-    return settingsList;
-  }, { overlay: true, overlayOptions });
+}
+function nextPermissionMode(current) {
+  const idx = PERMISSION_MODES.indexOf(current);
+  return PERMISSION_MODES[(idx + 1) % PERMISSION_MODES.length] ?? "auto";
+}
+async function openSettingsModal(ctx, controller) {
+  for (;; ) {
+    const current = controller.config.current();
+    const mode = getEffectivePermissionMode(current);
+    const modeItem = `Permission mode: ${mode} (press Enter or Shift+Tab to cycle)`;
+    const doublePressItem = `Double-press to confirm: ${toOnOff(current.doublePressToConfirm)}`;
+    const reviewLogItem = `Permission review log: ${toOnOff(current.permissionReviewLog)}`;
+    const debugLogItem = `Debug logging: ${toOnOff(current.debugLog)}`;
+    const showRulesItem = "Show active rules";
+    const doneItem = "Done";
+    const choice = await ctx.ui.select("Permission settings", [
+      modeItem,
+      doublePressItem,
+      reviewLogItem,
+      debugLogItem,
+      showRulesItem,
+      doneItem
+    ]);
+    if (!choice || choice === doneItem) {
+      return;
+    }
+    if (choice === modeItem) {
+      const nextMode = nextPermissionMode(mode);
+      const updated = applyPermissionMode(current, nextMode);
+      await controller.config.save(updated, ctx);
+      controller.reloadConfig?.();
+      continue;
+    }
+    if (choice === doublePressItem) {
+      const updated = applySetting(current, "doublePressToConfirm", toOnOff(!current.doublePressToConfirm));
+      await controller.config.save(updated, ctx);
+      controller.reloadConfig?.();
+      continue;
+    }
+    if (choice === reviewLogItem) {
+      const updated = applySetting(current, "permissionReviewLog", toOnOff(!current.permissionReviewLog));
+      await controller.config.save(updated, ctx);
+      controller.reloadConfig?.();
+      continue;
+    }
+    if (choice === debugLogItem) {
+      const updated = applySetting(current, "debugLog", toOnOff(!current.debugLog));
+      await controller.config.save(updated, ctx);
+      controller.reloadConfig?.();
+      continue;
+    }
+    if (choice === showRulesItem) {
+      const rules = controller.getActiveAgentConfigRules();
+      ctx.ui.notify(`permission-system: ${summarizeConfig(controller.config.current(), rules)}`, "info");
+    }
+  }
 }
 function parseRuleArgs(rest) {
   const trimmed = rest.trim();
@@ -8743,11 +8793,34 @@ function parseRuleArgs(rest) {
   }
   return { surface: "bash", pattern: trimmed.replace(/^["']|["']$/g, "") };
 }
-function handleArgs(args2, ctx, controller) {
+async function handleArgs(args2, ctx, controller) {
   const raw = args2.trim();
   const normalized = raw.toLowerCase();
   if (!normalized) {
     return false;
+  }
+  if (normalized === "mode" || normalized.startsWith("mode ")) {
+    const requested = raw.slice(4).trim().toLowerCase();
+    const current = controller.config.current();
+    const currentMode = getEffectivePermissionMode(current);
+    let nextMode;
+    if (!requested) {
+      nextMode = nextPermissionMode(currentMode);
+    } else if (requested === "auto") {
+      nextMode = "auto";
+    } else if (requested === "ask" || requested === "default") {
+      nextMode = "ask";
+    } else if (requested === "bypass" || requested === "bypasspermissions" || requested === "yolo") {
+      nextMode = "bypassPermissions";
+    } else {
+      ctx.ui.notify("Usage: /permission mode [auto|ask|bypassPermissions]", "warning");
+      return true;
+    }
+    const updated = applyPermissionMode(current, nextMode);
+    await controller.config.save(updated, ctx);
+    controller.reloadConfig?.();
+    ctx.ui.notify(`Permission mode: ${getPermissionSystemStatus(updated) ?? nextMode}`, "info");
+    return true;
   }
   for (const verb of ["allow", "ask", "deny", "rm", "remove"]) {
     if (normalized === verb || normalized.startsWith(`${verb} `)) {
@@ -8758,7 +8831,7 @@ function handleArgs(args2, ctx, controller) {
         return true;
       }
       const action = verb === "rm" || verb === "remove" ? "remove" : verb;
-      const res = mutateGlobalPermissionRule(controller.configPath, [parsed], action, controller.reloadConfig);
+      const res = await mutateGlobalPermissionRule(controller.configPath, [parsed], action, controller.reloadConfig);
       ctx.ui.notify(res.ok ? `Saved global rule: ${res.message}` : `Failed to update global rule: ${res.message}`, res.ok ? "info" : "error");
       return true;
     }
@@ -8773,7 +8846,7 @@ function handleArgs(args2, ctx, controller) {
     return true;
   }
   if (normalized === "reset") {
-    controller.config.save(cloneDefaultConfig(), ctx);
+    await controller.config.save(cloneDefaultConfig(), ctx);
     ctx.ui.notify("Permission system settings reset to defaults.", "info");
     return true;
   }
@@ -8786,7 +8859,7 @@ function handleArgs(args2, ctx, controller) {
 }
 function registerPermissionSystemCommand(pi, controller) {
   const handler = async (args2, ctx) => {
-    if (handleArgs(args2, ctx, controller)) {
+    if (await handleArgs(args2, ctx, controller)) {
       return;
     }
     if (!ctx.hasUI) {
@@ -8801,9 +8874,20 @@ function registerPermissionSystemCommand(pi, controller) {
     handler
   });
   pi.registerCommand("permission", {
-    description: "Manage global permission rules (/permission allow|ask|deny|rm [surface] <pattern> | show)",
+    description: "Manage global permission rules (/permission mode|allow|ask|deny|rm [surface] <pattern> | show)",
     getArgumentCompletions,
     handler
+  });
+  pi.registerShortcut("shift+tab", {
+    description: "Cycle permission mode (auto -> ask -> bypassPermissions)",
+    handler: async (ctx) => {
+      const current = controller.config.current();
+      const nextMode = nextPermissionMode(getEffectivePermissionMode(current));
+      const updated = applyPermissionMode(current, nextMode);
+      await controller.config.save(updated, ctx);
+      controller.reloadConfig?.();
+      ctx.ui.notify(`Permission mode: ${getPermissionSystemStatus(updated) ?? nextMode}`, "info");
+    }
   });
 }
 
@@ -8838,13 +8922,8 @@ function getLegacyExtensionConfigPath(extensionRoot) {
 }
 
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/pi-permission-system/src/config/config-store.ts
-import {
-  existsSync as existsSync6,
-  mkdirSync as mkdirSync4,
-  renameSync as renameSync2,
-  unlinkSync as unlinkSync2,
-  writeFileSync as writeFileSync3
-} from "node:fs";
+import { existsSync as existsSync5 } from "node:fs";
+import { mkdir as mkdir2, readFile as readFile2, rename, unlink, writeFile as writeFile2 } from "node:fs/promises";
 import { dirname as dirname4, normalize as normalize2 } from "node:path";
 
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/pi-permission-system/src/config/command-effects-config.ts
@@ -8880,7 +8959,7 @@ function quotedList(commands) {
 }
 
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/pi-permission-system/src/config/config-loader.ts
-import { existsSync as existsSync5, readFileSync as readFileSync4 } from "node:fs";
+import { existsSync as existsSync4, readFileSync as readFileSync3 } from "node:fs";
 import { normalize } from "node:path";
 
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/pi-permission-system/src/policy/permission-merge.ts
@@ -20738,7 +20817,7 @@ function loadAndMergeConfigs(agentDir, cwd, extensionRoot, options = {}) {
   const foldDeclared = (config, scope) => {
     declared = foldDeclaredCommandEffects(declared, config.commandEffects, scope);
   };
-  if (existsSync5(legacyGlobalPolicyPath)) {
+  if (existsSync4(legacyGlobalPolicyPath)) {
     const legacy = loadUnifiedConfig(legacyGlobalPolicyPath);
     allIssues.push(`Legacy global policy found at '${legacyGlobalPolicyPath}'. ` + `Move it to '${newGlobalPath}':
 ` + `  mv '${legacyGlobalPolicyPath}' '${newGlobalPath}'`);
@@ -20747,7 +20826,7 @@ function loadAndMergeConfigs(agentDir, cwd, extensionRoot, options = {}) {
   }
   const normalizedLegacyExt = normalize(legacyExtConfigPath);
   const normalizedNewGlobal = normalize(newGlobalPath);
-  if (normalizedLegacyExt !== normalizedNewGlobal && existsSync5(legacyExtConfigPath)) {
+  if (normalizedLegacyExt !== normalizedNewGlobal && existsSync4(legacyExtConfigPath)) {
     const legacy = loadUnifiedConfig(legacyExtConfigPath);
     allIssues.push(`Legacy extension config found at '${legacyExtConfigPath}'. ` + `Move runtime settings to '${newGlobalPath}':
 ` + `  mv '${legacyExtConfigPath}' '${newGlobalPath}'`);
@@ -20759,7 +20838,7 @@ function loadAndMergeConfigs(agentDir, cwd, extensionRoot, options = {}) {
   const globalConfig = globalResult.config;
   merged = mergeUnifiedConfigs(merged, globalConfig);
   foldDeclared(globalConfig, "global");
-  if (includeProjectScope && existsSync5(legacyProjectPolicyPath)) {
+  if (includeProjectScope && existsSync4(legacyProjectPolicyPath)) {
     const legacy = loadUnifiedConfig(legacyProjectPolicyPath);
     allIssues.push(`Legacy project policy found at '${legacyProjectPolicyPath}'. ` + `Move it to '${newProjectPath}':
 ` + `  mv '${legacyProjectPolicyPath}' '${newProjectPath}'`);
@@ -20810,11 +20889,11 @@ function detectUnusableDialogKeys(config) {
   return issues.length === 0 ? undefined : issues.join(" ");
 }
 function loadUnifiedConfig(path) {
-  if (!existsSync5(path)) {
+  if (!existsSync4(path)) {
     return { config: {}, issues: [] };
   }
   try {
-    const raw = readFileSync4(path, "utf-8");
+    const raw = readFileSync3(path, "utf-8");
     const parsed = JSON.parse(stripJsonComments(raw));
     return validateUnifiedConfig(parsed);
   } catch (error) {
@@ -20834,16 +20913,6 @@ function buildResolvedConfigLogEntry(options) {
     legacyProjectPolicyDetected: options.legacyProjectPolicyDetected ?? false,
     legacyExtensionConfigDetected: options.legacyExtensionConfigDetected ?? false
   };
-}
-
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/pi-permission-system/src/config/status.ts
-var PERMISSION_SYSTEM_STATUS_KEY = EXTENSION_ID;
-var PERMISSION_SYSTEM_YOLO_STATUS_VALUE = "yolo";
-function getPermissionSystemStatus(config) {
-  return isYoloModeEnabled(config) ? PERMISSION_SYSTEM_YOLO_STATUS_VALUE : undefined;
-}
-function syncPermissionSystemStatus(ctx, config) {
-  ctx.ui.setStatus(PERMISSION_SYSTEM_STATUS_KEY, getPermissionSystemStatus(config));
 }
 
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/pi-permission-system/src/config/config-store.ts
@@ -20885,27 +20954,34 @@ class ConfigStore {
       projectTrusted
     });
   }
-  save(next, ctx) {
+  async save(next, ctx) {
     const normalized = normalizePermissionSystemConfig(next);
     const globalPath = getGlobalConfigPath(this.deps.agentDir);
     const existing = loadUnifiedConfig(globalPath);
+    let rawOnDisk = { ...existing.config };
+    try {
+      const parsed = JSON.parse(await readFile2(globalPath, "utf-8"));
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        rawOnDisk = { ...parsed };
+      }
+    } catch {}
     const merged = {
-      ...existing.config,
+      ...rawOnDisk,
       debugLog: normalized.debugLog,
       permissionReviewLog: normalized.permissionReviewLog,
-      yoloMode: normalized.yoloMode
+      yoloMode: normalized.yoloMode,
+      doublePressToConfirm: normalized.doublePressToConfirm,
+      ...normalized.authorizerChain !== undefined ? { authorizerChain: normalized.authorizerChain } : {}
     };
     const tmpPath = `${globalPath}.tmp`;
     try {
-      mkdirSync4(dirname4(globalPath), { recursive: true });
-      writeFileSync3(tmpPath, `${JSON.stringify(merged, null, 2)}
+      await mkdir2(dirname4(globalPath), { recursive: true });
+      await writeFile2(tmpPath, `${JSON.stringify(merged, null, 2)}
 `, "utf-8");
-      renameSync2(tmpPath, globalPath);
+      await rename(tmpPath, globalPath);
     } catch (error) {
       try {
-        if (existsSync6(tmpPath)) {
-          unlinkSync2(tmpPath);
-        }
+        await unlink(tmpPath);
       } catch {}
       const message = error instanceof Error ? error.message : String(error);
       ctx.ui.notify(`Failed to save permission-system config at '${globalPath}': ${message}`, "error");
@@ -20922,11 +20998,11 @@ class ConfigStore {
   logResolvedPaths(cwd) {
     const policyPaths = this.deps.policyPaths.getResolvedPolicyPaths();
     const { agentDir } = this.deps;
-    const legacyGlobalPolicyDetected = existsSync6(getLegacyGlobalPolicyPath(agentDir));
-    const legacyProjectPolicyDetected = cwd ? existsSync6(getLegacyProjectPolicyPath(cwd)) : false;
+    const legacyGlobalPolicyDetected = existsSync5(getLegacyGlobalPolicyPath(agentDir));
+    const legacyProjectPolicyDetected = cwd ? existsSync5(getLegacyProjectPolicyPath(cwd)) : false;
     const legacyExtConfigPath = getLegacyExtensionConfigPath(EXTENSION_ROOT);
     const newGlobalPath = getGlobalConfigPath(agentDir);
-    const legacyExtensionConfigDetected = normalize2(legacyExtConfigPath) !== normalize2(newGlobalPath) && existsSync6(legacyExtConfigPath);
+    const legacyExtensionConfigDetected = normalize2(legacyExtConfigPath) !== normalize2(newGlobalPath) && existsSync5(legacyExtConfigPath);
     const entry = buildResolvedConfigLogEntry({
       policyPaths,
       legacyGlobalPolicyDetected,
@@ -25292,7 +25368,7 @@ function normalizeBashCommand(command, spellings) {
 }
 
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/pi-permission-system/src/config/policy-loader.ts
-import { existsSync as existsSync7, readFileSync as readFileSync5, statSync } from "node:fs";
+import { existsSync as existsSync6, readFileSync as readFileSync4, statSync } from "node:fs";
 import { join as join12 } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
@@ -25356,7 +25432,7 @@ function getFileStamp(path) {
 }
 function readConfiguredMcpServerNamesFromConfigPath(configPath) {
   try {
-    const raw = readFileSync5(configPath, "utf-8");
+    const raw = readFileSync4(configPath, "utf-8");
     const parsed = JSON.parse(stripJsonComments(raw));
     const root = toRecord(parsed);
     const serverRecord = toRecord(root.mcpServers ?? root["mcp-servers"]);
@@ -25453,7 +25529,7 @@ class FilePolicyLoader {
     }
     let value;
     try {
-      const markdown = readFileSync5(filePath, "utf-8");
+      const markdown = readFileSync4(filePath, "utf-8");
       const frontmatter = extractFrontmatter(markdown);
       if (!frontmatter) {
         value = {};
@@ -25497,13 +25573,13 @@ class FilePolicyLoader {
   getResolvedPolicyPaths() {
     return {
       globalConfigPath: this.globalConfigPath,
-      globalConfigExists: existsSync7(this.globalConfigPath),
+      globalConfigExists: existsSync6(this.globalConfigPath),
       projectConfigPath: this.projectGlobalConfigPath,
-      projectConfigExists: this.projectGlobalConfigPath ? existsSync7(this.projectGlobalConfigPath) : false,
+      projectConfigExists: this.projectGlobalConfigPath ? existsSync6(this.projectGlobalConfigPath) : false,
       agentsDir: this.agentsDir,
-      agentsDirExists: existsSync7(this.agentsDir),
+      agentsDirExists: existsSync6(this.agentsDir),
       projectAgentsDir: this.projectAgentsDir,
-      projectAgentsDirExists: this.projectAgentsDir ? existsSync7(this.projectAgentsDir) : false
+      projectAgentsDirExists: this.projectAgentsDir ? existsSync6(this.projectAgentsDir) : false
     };
   }
 }
@@ -26178,7 +26254,7 @@ function holdsExactly(set, members) {
 }
 
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/pi-permission-system/src/path/path-normalizer.ts
-import { existsSync as existsSync8, lstatSync, statSync as statSync2 } from "node:fs";
+import { existsSync as existsSync7, lstatSync, statSync as statSync2 } from "node:fs";
 
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/pi-permission-system/src/access-intent/access-path.ts
 class AccessPath {
@@ -26377,7 +26453,7 @@ class PathNormalizer {
       cwd: this.cwd,
       flavor: this.flavor,
       readFallbacks: toolName.trim() === "read",
-      exists: (absolutePath) => existsSync8(absolutePath)
+      exists: (absolutePath) => existsSync7(absolutePath)
     });
     return AccessPath.forNativeTarget(native, {
       cwd: this.cwd,
@@ -28791,7 +28867,7 @@ function parseReviewAssessment(text) {
 }
 
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/pi-permission-system/auto-review/index.js
-import { existsSync as existsSync9, mkdirSync as mkdirSync5, readFileSync as readFileSync6, renameSync as renameSync3, rmSync, unlinkSync as unlinkSync3, writeFileSync as writeFileSync4 } from "node:fs";
+import { access, mkdir as mkdir3, readFile as readFile3, rename as rename2, rm, unlink as unlink2, writeFile as writeFile3 } from "node:fs/promises";
 import { dirname as dirname7, join as join15, resolve } from "node:path";
 import { calculateContextTokens, getAgentDir as getAgentDir2 } from "@earendil-works/pi-coding-agent";
 import { clampThinkingLevel, isRetryableAssistantError } from "@earendil-works/pi-ai";
@@ -29162,20 +29238,20 @@ function describeError$1(error) {
 function configPath(cwd, scope) {
   return scope === "global" ? join15(getAgentDir2(), "extensions", EXTENSION_ID3, "config.json") : join15(cwd, ".pi", "extensions", EXTENSION_ID3, "config.json");
 }
-function readSource(path) {
+async function readSource(path) {
   try {
-    return readFileSync6(path, "utf8");
+    return await readFile3(path, "utf8");
   } catch (error) {
     if (error.code === "ENOENT")
       return;
     throw error;
   }
 }
-function readScope(cwd, scope) {
+async function readScope(cwd, scope) {
   const path = configPath(cwd, scope);
   let source;
   try {
-    source = readSource(path);
+    source = await readSource(path);
   } catch (error) {
     return {
       scope,
@@ -29212,7 +29288,7 @@ function readScope(cwd, scope) {
     issue: parsed.issue
   };
 }
-function readActiveScope(cwd, scope, projectTrusted) {
+async function readActiveScope(cwd, scope, projectTrusted) {
   return scope === "project" && !projectTrusted ? {
     scope,
     cwd,
@@ -29220,7 +29296,7 @@ function readActiveScope(cwd, scope, projectTrusted) {
     source: undefined,
     valid: true,
     config: {}
-  } : readScope(cwd, scope);
+  } : await readScope(cwd, scope);
 }
 function merge(global, project) {
   if (!global.valid || !project.valid)
@@ -29233,19 +29309,23 @@ function merge(global, project) {
     issues: []
   };
 }
-function loadConfig(cwd, projectTrusted) {
-  return merge(readScope(cwd, "global"), readActiveScope(cwd, "project", projectTrusted));
+async function loadConfig(cwd, projectTrusted) {
+  const [global, project] = await Promise.all([
+    readScope(cwd, "global"),
+    readActiveScope(cwd, "project", projectTrusted)
+  ]);
+  return merge(global, project);
 }
-function checkForConflict(snapshot) {
+async function checkForConflict(snapshot) {
   let current;
   try {
-    current = readSource(snapshot.path);
+    current = await readSource(snapshot.path);
   } catch (error) {
     return `Failed to re-read config at '${snapshot.path}': ${describeError$1(error)}`;
   }
   return current === snapshot.source ? undefined : `Config at '${snapshot.path}' changed while it was being edited; reopen the command and try again.`;
 }
-function saveScope(snapshot, draft, projectTrusted) {
+async function saveScope(snapshot, draft, projectTrusted) {
   if (!snapshot.valid)
     return {
       ok: false,
@@ -29269,7 +29349,7 @@ function saveScope(snapshot, draft, projectTrusted) {
     source,
     config
   };
-  const other = readActiveScope(snapshot.cwd, snapshot.scope === "global" ? "project" : "global", projectTrusted);
+  const other = await readActiveScope(snapshot.cwd, snapshot.scope === "global" ? "project" : "global", projectTrusted);
   const loadResult = snapshot.scope === "global" ? merge(replacement, other) : merge(other, replacement);
   if (loadResult.config === undefined)
     return {
@@ -29277,7 +29357,7 @@ function saveScope(snapshot, draft, projectTrusted) {
       message: loadResult.issues.join(`
 `)
     };
-  const conflict = checkForConflict(snapshot);
+  const conflict = await checkForConflict(snapshot);
   if (conflict !== undefined)
     return {
       ok: false,
@@ -29285,12 +29365,12 @@ function saveScope(snapshot, draft, projectTrusted) {
     };
   const temporary = `${snapshot.path}.tmp`;
   try {
-    mkdirSync5(dirname7(snapshot.path), { recursive: true });
-    writeFileSync4(temporary, source, "utf8");
-    renameSync3(temporary, snapshot.path);
+    await mkdir3(dirname7(snapshot.path), { recursive: true });
+    await writeFile3(temporary, source, "utf8");
+    await rename2(temporary, snapshot.path);
   } catch (error) {
     try {
-      rmSync(temporary, { force: true });
+      await rm(temporary, { force: true });
     } catch {}
     return {
       ok: false,
@@ -29302,13 +29382,13 @@ function saveScope(snapshot, draft, projectTrusted) {
     loadResult
   };
 }
-function resetScope(snapshot, projectTrusted) {
+async function resetScope(snapshot, projectTrusted) {
   if (!snapshot.valid && snapshot.source === undefined)
     return {
       ok: false,
       message: `Cannot reset unreadable config at '${snapshot.path}': ${snapshot.issue}`
     };
-  const conflict = checkForConflict(snapshot);
+  const conflict = await checkForConflict(snapshot);
   if (conflict !== undefined)
     return {
       ok: false,
@@ -29316,7 +29396,7 @@ function resetScope(snapshot, projectTrusted) {
     };
   if (snapshot.source !== undefined)
     try {
-      unlinkSync3(snapshot.path);
+      await unlink2(snapshot.path);
     } catch (error) {
       return {
         ok: false,
@@ -29325,7 +29405,7 @@ function resetScope(snapshot, projectTrusted) {
     }
   return {
     ok: true,
-    loadResult: loadConfig(snapshot.cwd, projectTrusted)
+    loadResult: await loadConfig(snapshot.cwd, projectTrusted)
   };
 }
 var COMMAND_NAME = "permission-auto-review";
@@ -29498,8 +29578,8 @@ async function openSettingsMenu(ctx, controller) {
     ctx.ui.notify("Project config is ignored until Pi trusts this project.", "warning");
     return;
   }
-  const selected = readScope(ctx.cwd, scope);
-  const other = readActiveScope(ctx.cwd, scope === "global" ? "project" : "global", projectTrusted);
+  const selected = await readScope(ctx.cwd, scope);
+  const other = await readActiveScope(ctx.cwd, scope === "global" ? "project" : "global", projectTrusted);
   const cannotEdit = (snapshot) => {
     ctx.ui.notify(`Cannot edit config at '${snapshot.path}': ${snapshot.issue}. Use reset to remove it or fix it manually.`, "error");
   };
@@ -29533,7 +29613,7 @@ async function openSettingsMenu(ctx, controller) {
     if (choice === undefined || choice === CANCEL)
       return;
     if (choice === SAVE) {
-      const saved = saveScope(selected, draft, projectTrusted);
+      const saved = await saveScope(selected, draft, projectTrusted);
       if (!saved.ok) {
         ctx.ui.notify(saved.message, "error");
         continue;
@@ -29550,12 +29630,15 @@ async function openSettingsMenu(ctx, controller) {
       draft = await setting.edit(ctx, draft, effective);
   }
 }
-function showConfig(ctx, active) {
+async function showConfig(ctx, active) {
   const projectTrusted = ctx.isProjectTrusted();
-  const global = readScope(ctx.cwd, "global");
-  const project = readActiveScope(ctx.cwd, "project", projectTrusted);
+  const [global, project] = await Promise.all([
+    readScope(ctx.cwd, "global"),
+    readActiveScope(ctx.cwd, "project", projectTrusted)
+  ]);
   if (active === undefined || !global.valid || !project.valid) {
-    const issues = loadConfig(ctx.cwd, projectTrusted).issues.map((issue) => `
+    const loaded = await loadConfig(ctx.cwd, projectTrusted);
+    const issues = loaded.issues.map((issue) => `
 ${issue}`).join("");
     ctx.ui.notify(`Automatic review is disabled because the active config is invalid.${issues}`, "warning");
     return;
@@ -29593,10 +29676,10 @@ async function resetConfig(ctx, controller, requested) {
   const scope = requested ?? await chooseScope(ctx, "Select configuration scope to reset");
   if (scope === undefined)
     return;
-  const snapshot = readScope(ctx.cwd, scope);
+  const snapshot = await readScope(ctx.cwd, scope);
   if (!await ctx.ui.confirm(`Reset ${scope} auto-review config?`, `Delete '${snapshot.path}' and immediately apply inherited values?`))
     return;
-  const reset = resetScope(snapshot, ctx.isProjectTrusted());
+  const reset = await resetScope(snapshot, ctx.isProjectTrusted());
   if (!reset.ok) {
     ctx.ui.notify(reset.message, "error");
     return;
@@ -29656,7 +29739,7 @@ function registerAutoReviewCommand(pi2, controller) {
       if (normalized === "")
         await openSettingsMenu(ctx, controller);
       else if (normalized === "show")
-        showConfig(ctx, controller.getActiveConfig());
+        await showConfig(ctx, controller.getActiveConfig());
       else if (normalized === "path")
         ctx.ui.notify(`permission-auto-review config paths:
 global=${configPath(ctx.cwd, "global")}
@@ -30009,14 +30092,18 @@ function permissionAutoReview(pi2) {
     }
     return { kind: "active" };
   }
-  pi2.on("session_start", (_event, ctx) => {
+  pi2.on("session_start", async (_event, ctx) => {
     retire(generation);
     const projectTrusted = ctx.isProjectTrusted();
-    const result = loadConfig(ctx.cwd, projectTrusted);
+    const result = await loadConfig(ctx.cwd, projectTrusted);
     reportIssues(result.issues);
     const projectPath = configPath(ctx.cwd, "project");
-    if (!projectTrusted && existsSync9(projectPath))
-      warn(`${projectPath} is ignored until Pi trusts this project`);
+    if (!projectTrusted) {
+      try {
+        await access(projectPath);
+        warn(`${projectPath} is ignored until Pi trusts this project`);
+      } catch {}
+    }
     tally = {
       allow: 0,
       deny: 0,
@@ -30024,6 +30111,14 @@ function permissionAutoReview(pi2) {
     };
     contextFiles = [];
     generation = createGeneration(ctx, result.config);
+    const service = sessionId === undefined ? undefined : getPermissionsService(sessionId);
+    if (service !== undefined) {
+      try {
+        register(generation, service);
+      } catch (error) {
+        warn(`failed to register ${AUTHORIZER_NAME}: ${describeError(error)}`);
+      }
+    }
     renderStatus(generation);
   });
   pi2.events.on(PERMISSIONS_READY_CHANNEL, (data) => {
@@ -30159,10 +30254,11 @@ function piPermissionSystemExtension(pi2) {
     configStore.refresh(session.cwd, session.isProjectTrusted);
   };
   sessionRules.setGlobalPersister((grants) => {
-    const res = mutateGlobalPermissionRule(configPath2, grants, "allow", reloadGlobalConfig);
-    if (res.ok) {
-      session.notify(`Saved globally to config.json: ${res.message}`);
-    }
+    mutateGlobalPermissionRule(configPath2, grants, "allow", reloadGlobalConfig).then((res) => {
+      if (res.ok) {
+        session.notify(`Saved globally to config.json: ${res.message}`);
+      }
+    });
   });
   registerPermissionSystemCommand(pi2, {
     config: configStore,

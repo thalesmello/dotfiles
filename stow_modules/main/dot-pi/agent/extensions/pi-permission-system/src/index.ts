@@ -254,10 +254,11 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
     configStore.refresh(session.cwd, session.isProjectTrusted);
   };
   sessionRules.setGlobalPersister((grants) => {
-    const res = mutateGlobalPermissionRule(configPath, grants, "allow", reloadGlobalConfig);
-    if (res.ok) {
-      session.notify(`Saved globally to config.json: ${res.message}`);
-    }
+    void mutateGlobalPermissionRule(configPath, grants, "allow", reloadGlobalConfig).then((res) => {
+      if (res.ok) {
+        session.notify(`Saved globally to config.json: ${res.message}`);
+      }
+    });
   });
   registerPermissionSystemCommand(pi, {
     config: configStore,
