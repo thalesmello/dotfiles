@@ -109,6 +109,40 @@ class ParseUntil(unittest.TestCase):
             snooze.time.tzset()
 
 
+# Local addition: weekday phrases, fixed presets, full return rendering
+# (snooze-agent-revamp; not part of the upstream suite).
+class WeekdayUntil(unittest.TestCase):
+    def test_weekday_with_clock(self):
+        self.assertEqual(snooze.parse_until("monday 9am", NOON), datetime(2026, 9, 21, 9, 0))
+        self.assertEqual(snooze.parse_until("monday 6am", NOON), datetime(2026, 9, 21, 6, 0))
+        self.assertEqual(snooze.parse_until("next monday 9am", NOON), datetime(2026, 9, 21, 9, 0))
+        self.assertEqual(snooze.parse_until("fri 17:30", NOON), datetime(2026, 9, 25, 17, 30))
+
+    def test_weekday_defaults_to_9am_and_today_counts_if_ahead(self):
+        self.assertEqual(snooze.parse_until("monday", NOON), datetime(2026, 9, 21, 9, 0))
+        self.assertEqual(snooze.parse_until("sunday 17:00", NOON), datetime(2026, 9, 20, 17, 0))  # NOON is Sunday
+
+    def test_weekday_rolls_a_full_week_once_passed(self):
+        self.assertEqual(snooze.parse_until("sunday 9am", NOON), datetime(2026, 9, 27, 9, 0))
+        self.assertEqual(snooze.parse_until("monday 9am", datetime(2026, 9, 21, 10, 0)), datetime(2026, 9, 28, 9, 0))
+
+    def test_weekday_rejects_a_bad_clock(self):
+        for text in ("monday 25:00", "monday soon"):
+            with self.assertRaises(ValueError, msg=text):
+                snooze.parse_until(text, NOON)
+
+    def test_fixed_presets(self):
+        presets = snooze.fixed_presets(NOON)
+        self.assertEqual([(label, hotkey) for label, hotkey, _spec, _until in presets],
+                         [("Next 6pm", "e"), ("Next 6am", "a"), ("Monday 9am", "n")])
+        self.assertEqual([until for _l, _h, _s, until in presets],
+                         [datetime(2026, 9, 20, 18, 0), datetime(2026, 9, 21, 6, 0), datetime(2026, 9, 21, 9, 0)])
+
+    def test_format_return_shows_date_time_and_delta(self):
+        self.assertEqual(snooze.format_return(datetime(2026, 9, 21, 6, 0), NOON), "Mon 21 Sep at 06:00 \u00b7 in 18h")
+        self.assertEqual(snooze.format_return(datetime(2026, 9, 20, 18, 0), NOON), "Sun 20 Sep at 18:00 \u00b7 in 6h")
+
+
 class Formatting(unittest.TestCase):
     def test_badged(self):
         # an emoji badge covers one space in herdr's sidebar, so it gets two
@@ -1917,6 +1951,20 @@ class Menu(unittest.TestCase):
         self.assertIn("13:00", selected[0])
 
 
+    # Local addition: section headers are skipped, preview follows selection.
+    def test_sections_are_not_selectable_and_preview_tracks_selection(self):
+        items = [(None, "Short delays", "", ""), ("1", "15 minutes", "12:15", "\u2192 back first"),
+                 (None, "Fixed times", "", ""), ("e", "Next 6pm", "18:00", "\u2192 back second")]
+        self.assertEqual(snooze.menu(FakeTerminal(ENTER), [], items, ""), 1)  # lands past the header
+        self.assertEqual(snooze.menu(FakeTerminal(DOWN, ENTER), [], items, ""), 3)  # skips the second header
+        self.assertEqual(snooze.menu(FakeTerminal(UP, ENTER), [], items, ""), 3)  # wraps to last selectable
+        term = FakeTerminal(DOWN, ESC)
+        snooze.menu(term, [], items, "")
+        self.assertIn("Short delays", term.frames[0])
+        self.assertIn("\u2192 back first", term.frames[0])
+        self.assertIn("\u2192 back second", term.frames[1])
+
+
 class Prompt(unittest.TestCase):
     def seconds(self, until):
         return round((until - datetime.now()).total_seconds())
@@ -1995,6 +2043,19 @@ class PickerSnooze(unittest.TestCase):
         self.assertIsNone(outcome)
         do_snooze.assert_not_called()
 
+    # Local addition: fixed-time presets sit under their own section.
+    def test_fixed_preset_next_6pm(self):
+        term, outcome, do_snooze, _ = self.run_picker("e")
+        until = do_snooze.call_args[0][2]
+        self.assertEqual((until.hour, until.minute), (18, 0))
+        self.assertAlmostEqual((until - snooze.parse_until("6pm")).total_seconds(), 0, delta=2)
+        self.assertIn("Fixed times", term.frames[0])
+        self.assertIn("Next 6pm", term.frames[0])
+        self.assertIn("Monday 9am", term.frames[0])
+        self.assertNotIn("Monday 6am", term.frames[0])
+        self.assertIn("\u2192 back", term.frames[0])
+        self.assertIn("in ", term.frames[0])
+
     def test_picker_has_no_wake_row(self):
         # waking is the same key on a snoozed agent; the picker only ever snoozes
         term, _, _, _ = self.run_picker(ESC)
@@ -2007,6 +2068,18 @@ class PickerSnooze(unittest.TestCase):
             for line in frame.split("\n"):
                 visible = re.sub(r"\x1b\[[0-9;]*m", "", line)
                 self.assertLessEqual(len(visible), inner, repr(visible))
+
+
+# Local addition: the manage list renders its restyled sections in demo mode.
+class ManageList(unittest.TestCase):
+    def test_demo_list_shows_sections_and_colours(self):
+        term = FakeTerminal(ESC)
+        self.assertIsNone(snooze.picker_manage(term, {}, demo=True))
+        frame = term.frames[0]
+        for text in ("Snooze", "Just woke", "Snoozed", "Awake", "Fix the login bug", "Release notes"):
+            self.assertIn(text, frame)
+        self.assertIn(snooze.CYAN, frame)
+        self.assertIn(snooze.YELLOW, frame)  # snoozed row's return time
 
 
 class PanelMode(unittest.TestCase):

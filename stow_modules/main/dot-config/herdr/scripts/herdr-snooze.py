@@ -389,6 +389,12 @@ _UNITS = {
 _UNIT_NAMES = [(604800, "week"), (86400, "day"), (3600, "hour"), (60, "minute"), (1, "second")]
 _PART = re.compile(r"\s*(\d+(?:\.\d+)?)\s*([a-z]*)")
 _CLOCK = re.compile(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$")
+_WEEKDAYS = {
+    "monday": 0, "mon": 0, "tuesday": 1, "tue": 1, "tues": 1,
+    "wednesday": 2, "wed": 2, "thursday": 3, "thu": 3, "thur": 3, "thurs": 3,
+    "friday": 4, "fri": 4, "saturday": 5, "sat": 5, "sunday": 6, "sun": 6,
+}
+_WEEKDAY = re.compile(r"(?:next\s+)?([a-z]+)(?:\s+(.*))?$")
 
 
 def _parse_clock(text):
@@ -407,9 +413,10 @@ def _parse_clock(text):
 
 
 def parse_until(text, now=None):
-    """Turn '15m', '1h30m', '2 days', '90' (minutes), '17:30', '9am' or
-    'tomorrow [9am]' into a deadline. Raises ValueError with a user-facing
-    message."""
+    """Turn '15m', '1h30m', '2 days', '90' (minutes), '17:30', '9am',
+    'tomorrow [9am]' or 'monday [9am]' into a deadline. A weekday names its
+    next occurrence at that clock time (today counts, if still ahead).
+    Raises ValueError with a user-facing message."""
     now = now or datetime.now()
     text = (text or "").strip().lower()
     if not text:
@@ -421,6 +428,16 @@ def parse_until(text, now=None):
             raise ValueError("try 'tomorrow' or 'tomorrow 14:00'")
         day = now + timedelta(days=1)
         return day.replace(hour=clock[0], minute=clock[1], second=0, microsecond=0)
+
+    weekday = _WEEKDAY.match(text)
+    if weekday and weekday.group(1) in _WEEKDAYS:
+        clock = _parse_clock((weekday.group(2) or "").strip() or "9:00")
+        if not clock:
+            raise ValueError("try 'monday' or 'monday 9am'")
+        ahead = (_WEEKDAYS[weekday.group(1)] - now.weekday()) % 7
+        day = now + timedelta(days=ahead)
+        until = day.replace(hour=clock[0], minute=clock[1], second=0, microsecond=0)
+        return until if until > now else until + timedelta(days=7)
 
     clock = _parse_clock(text)
     if clock:
@@ -464,6 +481,21 @@ def describe(spec):
     return " ".join(parts)
 
 
+# Fixed-time presets for the picker: (label, hotkey, spec). Each spec goes
+# through parse_until, so a preset and the same words typed in Custom agree.
+FIXED_PRESETS = [
+    ("Next 6pm", "e", "6pm"),
+    ("Next 6am", "a", "6am"),
+    ("Monday 9am", "n", "monday 9am"),
+]
+
+
+def fixed_presets(now=None):
+    """(label, hotkey, spec, until) for FIXED_PRESETS, resolved at `now`."""
+    now = now or datetime.now()
+    return [(label, hotkey, spec, parse_until(spec, now)) for label, hotkey, spec in FIXED_PRESETS]
+
+
 def format_until(until, now=None):
     now = now or datetime.now()
     if until.date() == now.date():
@@ -486,6 +518,13 @@ def format_left(ms):
         return "%dh %dm" % (hours, minutes) if minutes else "%dh" % hours
     days, hours = divmod(hours, 24)
     return "%dd %dh" % (days, hours) if hours else "%dd" % days
+
+
+def format_return(until, now=None):
+    """Full return moment for a selected snooze: 'Mon 21 Sep at 06:00 · in 18h'."""
+    now = now or datetime.now()
+    when = until.strftime("%a ") + str(until.day) + until.strftime(" %b at %H:%M")
+    return "%s \u00b7 in %s" % (when, format_left(to_ms(until) - to_ms(now)))
 
 
 def badged(badge, text):
@@ -1688,6 +1727,7 @@ def wake(config, pane_ids=(), workspace_ids=(), everything=False):
 # ── TUI (the popup) ──────────────────────────────────────────────────────────
 
 BOLD, DIM, REVERSE, RESET = "\x1b[1m", "\x1b[2m", "\x1b[7m", "\x1b[0m"
+CYAN, GREEN, YELLOW, RED = "\x1b[36m", "\x1b[32m", "\x1b[33m", "\x1b[31m"
 _KEYS = {
     b"\x1b[A": "up", b"\x1bOA": "up", b"k": "up", b"\x10": "up",
     b"\x1b[B": "down", b"\x1bOB": "down", b"j": "down", b"\x0e": "down",
@@ -1772,34 +1812,58 @@ def clip(text, width):
     return text if len(text) <= width else text[: max(0, width - 1)] + "…"
 
 
+def _item_parts(item):
+    """(hotkey, label, hint, preview) from a 3- or 4-tuple item. A hotkey of
+    None marks a section header: drawn, never selectable. Preview is a
+    string, or a callable returning one (re-read every frame, so a clock
+    preset's return time stays true while the popup sits open)."""
+    hotkey, label, hint = item[0], item[1], item[2]
+    preview = item[3] if len(item) > 3 else ""
+    return hotkey, label, hint, preview() if callable(preview) else preview
+
+
 def menu(term, header, items, footer, selected=0):
-    """items: (hotkey, label, hint). Returns the chosen index, or None."""
+    """items: (hotkey, label, hint[, preview]). Returns the chosen index
+    (into `items`, headers included), or None."""
+    selectable = [i for i, item in enumerate(items) if item[0] is not None]
+    if not selectable:
+        return None
+    if selected not in selectable:
+        selected = selectable[0]
     while True:
         # Keep the selection on screen when there are more rows than the popup
         # has lines; the blank lines above and below double as "more" markers.
-        room = max(3, getattr(term, "rows", 100) - len(header) - 4)
+        room = max(3, getattr(term, "rows", 100) - len(header) - 5)
         top = 0 if len(items) <= room else min(max(0, selected - room // 2), len(items) - room)
         above, below = top, max(0, len(items) - top - room)
         lines = [""] + header + ["  " + DIM + "↑ %d more" % above + RESET if above else ""]
-        for index, (hotkey, label, hint) in list(enumerate(items))[top:top + room]:
+        for index, item in list(enumerate(items))[top:top + room]:
+            hotkey, label, hint, _preview = _item_parts(item)
+            if hotkey is None:
+                lines.append("  " + BOLD + CYAN + clip(label, 40) + RESET)
+                continue
             row = " %s  %-20s " % (hotkey or " ", clip(label, 20))
-            lines.append(" " + REVERSE + row + hint + " " + RESET if index == selected else " " + row + DIM + hint + RESET)
-        lines += ["  " + DIM + "↓ %d more" % below + RESET if below else "", "  " + DIM + footer + RESET]
+            lines.append(" " + REVERSE + row + hint + " " + RESET if index == selected else " " + CYAN + (hotkey or " ") + RESET + row[2:] + DIM + hint + RESET)
+        preview = _item_parts(items[selected])[3]
+        lines += ["  " + DIM + "↓ %d more" % below + RESET if below else "",
+                  "  " + BOLD + GREEN + clip(preview, 46) + RESET if preview else "",
+                  "  " + DIM + footer + RESET]
         term.draw(lines)
 
         name, raw = term.key()
         if name in ("esc", "eof"):
             return None
+        pos = selectable.index(selected)
         if name == "up":
-            selected = (selected - 1) % len(items)
+            selected = selectable[(pos - 1) % len(selectable)]
         elif name == "down":
-            selected = (selected + 1) % len(items)
+            selected = selectable[(pos + 1) % len(selectable)]
         elif name == "enter":
             return selected
         else:
             typed = raw.decode("utf-8", "ignore").lower()
-            for index, item in enumerate(items):
-                if typed and typed == item[0]:
+            for index in selectable:
+                if typed and typed == items[index][0]:
                     return index
 
 
@@ -1808,8 +1872,8 @@ def prompt(term, header, question):
     text, error = "", ""
     while True:
         term.draw(
-            [""] + header + ["", "  " + question, "", "  " + BOLD + "› " + RESET + text + "▏", "",
-             "  " + (error or DIM + "45m · 2h · 3d · 1w · 17:30 · tomorrow 9am" + RESET), "",
+            [""] + header + ["", "  " + question, "", "  " + BOLD + CYAN + "› " + RESET + text + "▏", "",
+             "  " + (RED + error + RESET if error else DIM + "45m · 2h · 17:30 · mon 6am · tomorrow 6pm" + RESET), "",
              "  " + DIM + "enter confirm · esc back" + RESET]
         )
         name, raw = term.key()
@@ -1870,46 +1934,64 @@ def _return_ref():
 
 
 def picker_for_target(term, config, kind, target, label, detail, expect=None, status="", pr="", snoozed=False):
-    header = ["  " + BOLD + clip(label or target, 42) + RESET]
+    header = ["  " + BOLD + CYAN + "💤 " + RESET + BOLD + clip(label or target, 39) + RESET]
     if detail:
         header.append("  " + DIM + clip(detail, 42) + RESET)
     now = datetime.now()
-    choices = []
+    items, actions = [], []
+
+    def add(item, action):
+        items.append(item)
+        actions.append(action)
+
+    def back_preview(spec):
+        return lambda: "\u2192 back " + format_return(parse_until(spec, datetime.now()))
+
+    add((None, "Short delays", "", ""), None)
+    number = 0
     for spec in config["durations"][:9]:
+        spec = str(spec)
         try:
-            choices.append((describe(spec), str(spec), parse_until(str(spec), now)))
+            until = parse_until(spec, now)
         except ValueError:
             continue
-    items = [(str(i + 1), text, format_until(until, now)) for i, (text, _spec, until) in enumerate(choices)]
-    items.append(("c", "Custom\u2026", ""))
+        number += 1
+        add((str(number), describe(spec), format_until(until, now), back_preview(spec)), ("until", spec))
+    add((None, "Fixed times", "", ""), None)
+    for text, hotkey, spec, until in fixed_presets(now):
+        hint = "%s \u00b7 in %s" % (format_until(until, now), format_left(to_ms(until) - to_ms(now)))
+        add((hotkey, text, hint, back_preview(spec)), ("until", spec))
+    add(("c", "Custom\u2026", "", "\u2192 45m \u00b7 2h \u00b7 17:30 \u00b7 mon 6am \u00b7 tomorrow 6pm"), ("custom", ""))
     conditions = []
     if kind == "pane" and status == "working":
         conditions.append((WHEN_DONE, "d", "until done"))
     if kind == "pane" and pr:
         conditions.append((WHEN_MERGED, "m", "until " + pr + " is merged"))
-    for when, hotkey, text in conditions:
-        items.append((hotkey, text, "or " + format_until(condition_cap(now), now)))
+    if conditions:
+        add((None, "Or wait for", "", ""), None)
+        for when, hotkey, text in conditions:
+            preview = "\u2192 back when %s \u00b7 by %s" % ("done" if when == WHEN_DONE else "merged", format_return(condition_cap(now), now))
+            add((hotkey, text, "or " + format_until(condition_cap(now), now), preview), ("condition", when))
     if snoozed:
-        items.append(("w", "Wake now", ""))
-    index = 0
+        add(("w", "Wake now", "", "\u2192 bring it back right now"), ("wake", ""))
+    index = next(i for i, action in enumerate(actions) if action is not None)
     while True:
         index = menu(term, header, items, "\u2191\u2193 move \u00b7 enter select \u00b7 esc cancel", selected=index)
         if index is None:
             return None
-        if snoozed and index == len(items) - 1:
+        action, value = actions[index]
+        if action == "wake":
             if kind == "workspace":
                 wake(config, workspace_ids=[target])
             else:
                 wake(config, pane_ids=[target])
             return "woke %s" % (label or target)
-        cond_index = index - len(choices) - 1
-        if 0 <= cond_index < len(conditions):
-            when = conditions[cond_index][0]
+        if action == "condition":
             until = condition_cap(datetime.now())
-            covered = snooze(kind, target, until, config, expect_agent=expect if isinstance(expect, dict) else None, when=when)
-            return "snoozed %s %s (%d pane(s)) %s" % (kind, target, covered, condition_label(when))
-        if index < len(choices):
-            until = parse_until(choices[index][1])
+            covered = snooze(kind, target, until, config, expect_agent=expect if isinstance(expect, dict) else None, when=value)
+            return "snoozed %s %s (%d pane(s)) %s" % (kind, target, covered, condition_label(value))
+        if action == "until":
+            until = parse_until(value)
         else:
             until = prompt(term, header, "Snooze for how long, or until when?")
         if until is None:
@@ -2022,29 +2104,38 @@ def picker_manage(term, config, demo=False):
         if selectable and selected not in selectable:
             selected = selectable[0]
         now = now_ms()
-        lines = ["  " + BOLD + "Snooze" + RESET, ""]
+        lines = ["  " + BOLD + CYAN + "💤 Snooze" + RESET, ""]
         if not rows:
             lines.append("  " + DIM + "No agents running." + RESET)
         for i, row in enumerate(rows):
             if row["kind"] == "header":
-                lines.append(" " + BOLD + row["title"] + RESET + DIM + " %d" % row["count"] + RESET)
+                lines.append(" " + BOLD + CYAN + row["title"] + RESET + DIM + " %d" % row["count"] + RESET)
                 continue
             if row["kind"] == "space":
+                marker, colour = "▦", CYAN
                 text = "space " + row["title"] + "  %d agent(s)" % row.get("count", 0)
                 right = format_left(row.get("until", 0) - now)
             else:
                 text = row["title"] + "  " + (row["pane"].get("agent") or "") + " \u00b7 " + (labels.get(row.get("space")) or "")
                 if row.get("snoozed") and row.get("when"):
+                    marker, colour = "💤", YELLOW
                     right = condition_label(row["when"])
                 elif row.get("snoozed"):
+                    marker, colour = "💤", YELLOW
                     right = format_left(row.get("until", 0) - now) + " \u00b7 " + format_until(from_ms(row.get("until", 0)), from_ms(now))
                 elif row.get("woke"):
+                    marker, colour = "⏰", GREEN
                     right = "woke " + format_until(from_ms(row["woke"].get("at", now)), from_ms(now))
                 else:
+                    marker = "●"
+                    colour = RED if row.get("status") == "blocked" else GREEN if row.get("status") == "working" else DIM
                     right = row.get("status") or ""
-            line = " %-48s %s" % (clip(text, 48), right)
-            lines.append(" " + REVERSE + line + RESET if i == selected else " " + line)
-        lines += ["", "  " + DIM + clip(flash, 64) + RESET, "  " + DIM + "\u2191\u2193 move \u00b7 enter go \u00b7 s snooze \u00b7 w wake \u00b7 S space \u00b7 r recap \u00b7 W wake all \u00b7 esc close" + RESET]
+            line = " %s %-46s %s" % (marker, clip(text, 46), right)
+            if i == selected:
+                lines.append(" " + REVERSE + line + " " + RESET)
+            else:
+                lines.append(" " + colour + marker + RESET + " %-46s " % clip(text, 46) + colour + right + RESET)
+        lines += ["", "  " + (BOLD + YELLOW + clip(flash, 64) + RESET if flash else ""), "  " + DIM + "\u2191\u2193 move \u00b7 enter go \u00b7 s snooze \u00b7 w wake \u00b7 S space \u00b7 r recap \u00b7 W wake all \u00b7 esc close" + RESET]
         term.draw(lines)
         name, raw = term.key()
         if name in ("esc", "eof"):
@@ -2297,8 +2388,9 @@ def run_action(name):
     context = invocation_context()
     log("action", name, "via", context.get("invocation_source"), "pane", context.get("focused_pane_id"), "workspace", context.get("workspace_id"))
     config = load_config()
-    # durations + Custom + chrome, and never less than the Custom prompt needs
-    height = max(min(len(config["durations"]), 9) + 10, 13)
+    # durations + fixed presets + section headers + Custom + preview/chrome,
+    # and never less than the Custom prompt needs
+    height = max(min(len(config["durations"]), 9) + 17, 20)
 
     if name == "wake":
         # The one-step way out, for the snoozed list: no popup to get through.
