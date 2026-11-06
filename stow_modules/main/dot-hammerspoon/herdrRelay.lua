@@ -11,6 +11,8 @@ local GhosttyPreset = require("ghosttyPreset")
 -- any agent of ours running on the server, so two things ride it:
 --
 --   herdr-open  a URL to open here (`bin/herdr-open`), confirmed by a dialog
+--               unless it matches an "always allow" glob pattern saved from
+--               that dialog (see the herdr-open section below)
 --   herdr-copy  text to put on the clipboard (`bin/herdr-copy`), split across
 --               several writes when it is too big for one OSC 52 sequence
 --   herdr-paste the clipboard sent the OTHER way (`bin/herdr-paste`), which
@@ -166,23 +168,275 @@ local function decodeOpenRequest(contents)
   return url
 end
 
+-- Patterns the user has chosen to open without asking again, as glob
+-- patterns (`*` matches any run of characters, `?` any single one) over the
+-- whole URL. Stored one pattern per line in
+-- `~/.local_dotfiles/hammerspoon/allowed_url_patterns`, which is stowed from
+-- the `local` stow module (`meta-dotfiles` on work machines, `dotfiles` on
+-- personal machines) so each environment tracks its own allowlist in version
+-- control. Because it is not a `.lua` file, `filewatcher.lua` does not reload
+-- Hammerspoon when a pattern is added.
+local OPEN_ALLOWLIST_PATH = os.getenv("HOME")
+  .. "/.local_dotfiles/hammerspoon/allowed_url_patterns"
+
+local function loadAllowedUrlPatterns()
+  local patterns = {}
+  local file = io.open(OPEN_ALLOWLIST_PATH, "r")
+  if not file then return patterns end
+  for line in file:lines() do
+    local pattern = line:match("^%s*(.-)%s*$")
+    if pattern ~= "" and pattern:sub(1, 1) ~= "#" then
+      patterns[#patterns + 1] = pattern
+    end
+  end
+  file:close()
+  return patterns
+end
+
+local function saveAllowedUrlPattern(pattern)
+  pattern = type(pattern) == "string" and pattern:match("^%s*(.-)%s*$") or nil
+  if not pattern or pattern == "" or pattern:find("[\r\n]") then return end
+  local patterns = loadAllowedUrlPatterns()
+  for _, saved in ipairs(patterns) do
+    if saved == pattern then return end
+  end
+  patterns[#patterns + 1] = pattern
+
+  local parent = OPEN_ALLOWLIST_PATH:match("^(.*)/[^/]+$")
+  if parent then hs.fs.mkdir(parent) end
+
+  local file, err = io.open(OPEN_ALLOWLIST_PATH, "w")
+  if not file then
+    util.log("herdrRelay: failed to write allowlist:", tostring(err))
+    return
+  end
+  for _, entry in ipairs(patterns) do
+    file:write(entry, "\n")
+  end
+  file:close()
+  util.log("herdrRelay: always allowing URLs matching", pattern)
+end
+
+-- Glob match over the whole URL: `*` and `?` are the only wildcards, every
+-- other Lua-pattern character is literal.
+local LUA_PATTERN_MAGIC = {}
+for _, char in ipairs({ "^", "$", "(", ")", "%", ".", "[", "]", "+", "-", }) do
+  LUA_PATTERN_MAGIC[char] = true
+end
+
+local function globMatches(glob, value)
+  local luaPattern = { "^" }
+  for i = 1, #glob do
+    local char = glob:sub(i, i)
+    if char == "*" then
+      luaPattern[#luaPattern + 1] = ".*"
+    elseif char == "?" then
+      luaPattern[#luaPattern + 1] = "."
+    elseif LUA_PATTERN_MAGIC[char] then
+      luaPattern[#luaPattern + 1] = "%" .. char
+    else
+      luaPattern[#luaPattern + 1] = char
+    end
+  end
+  luaPattern[#luaPattern + 1] = "$"
+  return value:match(table.concat(luaPattern)) ~= nil
+end
+
+local function isAllowedUrl(url)
+  for _, pattern in ipairs(loadAllowedUrlPatterns()) do
+    if globMatches(pattern, url) then return true end
+  end
+  return false
+end
+
+-- A URL component is treated as the variable part -- the bit a future URL of
+-- the same kind would differ in -- when it looks like an id, a date, a hash or
+-- a token rather than a word: pure digits, a UUID, a long hex string, or a
+-- long digit-bearing token. Words, slugs and short version-ish components
+-- stay literal.
+local function looksVariable(component)
+  if component == "" then return false end
+  if component:match("^%d+$") then return true end
+  if component:match("^%d[%d%-%._]*$") and #component >= 6 then return true end
+  if component:match("^%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x$") then
+    return true
+  end
+  if component:match("^%x+$") and #component >= 16 then return true end
+  if #component >= 12 and component:match("^[A-Za-z0-9%%_~%-%+%.]+$")
+      and component:find("%d") and component:find("%a") then
+    return true
+  end
+  if #component >= 24 and component:match("^[A-Za-z0-9_~%-%+%.]+$")
+      and component:find("%u") and component:find("%l") then
+    return true
+  end
+  return false
+end
+
+-- Replace only the variable-looking component of one path segment, keeping a
+-- trailing ".ext" so `1234.json` proposes `*.json`, not a bare `*`.
+local function invariantSegment(segment)
+  local stem, extension = segment:match("^(.-)(%.[A-Za-z0-9]+)$")
+  if stem and looksVariable(stem) then return "*" .. extension end
+  if looksVariable(segment) then return "*" end
+  return segment
+end
+
+-- The invariant form of a URL offered as the default "always allow" glob:
+-- scheme, host and every fixed component verbatim, each variable-looking
+-- path segment and query value replaced by `*`. A URL with nothing variable
+-- in it proposes itself, i.e. always-allow for exactly that URL. The user
+-- can edit the proposal before saving it, so this only has to be a good
+-- starting point, not a proof.
+local function defaultUrlPattern(url)
+  local scheme, rest = url:match("^(https?://)(.*)$")
+  if not scheme then return url end
+
+  local fragment
+  local hashAt = rest:find("#", 1, true)
+  if hashAt then
+    fragment = rest:sub(hashAt + 1)
+    rest = rest:sub(1, hashAt - 1)
+  end
+
+  local query
+  local queryAt = rest:find("?", 1, true)
+  if queryAt then
+    query = rest:sub(queryAt + 1)
+    rest = rest:sub(1, queryAt - 1)
+  end
+
+  local authority, path = rest, ""
+  local slashAt = rest:find("/", 1, true)
+  if slashAt then
+    authority = rest:sub(1, slashAt - 1)
+    path = rest:sub(slashAt)
+  end
+  path = path:gsub("[^/]+", invariantSegment)
+
+  if query then
+    local pairs = {}
+    for pair in (query .. "&"):gmatch("([^&]*)&") do
+      local key, value = pair:match("^([^=]*)=(.*)$")
+      if key and looksVariable(value) then
+        pairs[#pairs + 1] = key .. "=*"
+      else
+        pairs[#pairs + 1] = pair
+      end
+    end
+    query = table.concat(pairs, "&")
+  end
+
+  if fragment and looksVariable(fragment) then fragment = "*" end
+
+  return scheme .. authority .. path
+    .. (query and ("?" .. query) or "")
+    .. (fragment and ("#" .. fragment) or "")
+end
+
 local function showOpenDialog(url)
   local previousApp = hs.application.frontmostApplication()
 
-  -- blockAlert is backed directly by NSAlert rather than by the hidden webview
-  -- used by hs.dialog.alert. Focus Hammerspoon first so the native modal is the
-  -- foreground key window. NSAlert makes its first button the default, so both
-  -- Return and Enter choose Open; Escape chooses Cancel.
-  hs.focus()
-  local button = hs.dialog.blockAlert(
-    "Open URL from Herdr?",
-    url,
-    "Open",
-    "Cancel",
-    "informational"
-  )
+  -- Always-allowed URLs skip the dialog entirely: asking again is exactly
+  -- what the checkbox in the dialog below promises not to do.
+  if isAllowedUrl(url) then
+    util.log("herdrRelay: opening always-allowed URL", url)
+    if not hs.urlevent.openURL(url) and previousApp then previousApp:activate(true) end
+    return
+  end
 
-  if button == "Open" then
+  local suggestedPattern = defaultUrlPattern(url)
+  local params = hs.json.encode({ url = url, pattern = suggestedPattern })
+
+  -- hs.dialog.blockAlert is backed by NSAlert but exposes no accessoryView for
+  -- the checkbox and editable pattern field. hs.osascript.javascript runs
+  -- in-process on the main thread with the AppKit bridge, so we can build a
+  -- real native NSAlert with an NSButton checkbox and NSTextField accessory.
+  hs.focus()
+  local ok, result = hs.osascript.javascript(string.format([=[
+    ObjC.import("AppKit");
+    if ($.NSClassFromString("HerdrOpenUrlAlertTarget").isNil()) {
+      ObjC.registerSubclass({
+        name: "HerdrOpenUrlAlertTarget",
+        superclass: "NSObject",
+        protocols: ["NSTextFieldDelegate"],
+        properties: {
+          field: "id",
+          checkbox: "id"
+        },
+        methods: {
+          "controlTextDidChange:": {
+            types: ["void", ["id"]],
+            implementation: function(notification) {
+              if (!this.checkbox.isNil()) {
+                this.checkbox.state = $.NSControlStateValueOn;
+              }
+            }
+          }
+        }
+      });
+    }
+
+    const params = %s;
+    const alert = $.NSAlert.alloc.init;
+    alert.messageText = "Open URL from Herdr?";
+    alert.informativeText = params.url;
+    alert.alertStyle = $.NSAlertStyleInformational;
+    alert.addButtonWithTitle("Open");
+    alert.addButtonWithTitle("Cancel");
+
+    const width = 440;
+    const container = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, width, 70));
+    const target = $.HerdrOpenUrlAlertTarget.alloc.init;
+
+    const field = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 20, width, 24));
+    field.stringValue = params.pattern;
+    field.editable = true;
+    field.selectable = true;
+    field.bezeled = true;
+    field.bezelStyle = $.NSTextFieldSquareBezel;
+    field.usesSingleLineMode = true;
+    field.cell.wraps = false;
+    field.cell.scrollable = true;
+    field.font = $.NSFont.monospacedSystemFontOfSizeWeight(12, $.NSFontWeightRegular);
+    field.delegate = target;
+
+    const checkbox = $.NSButton.checkboxWithTitleTargetAction(
+      "Always allow URLs in the format:",
+      null,
+      null
+    );
+    checkbox.frame = $.NSMakeRect(0, 48, width, 20);
+    checkbox.nextKeyView = field;
+
+    target.field = field;
+    target.checkbox = checkbox;
+
+    const hint = $.NSTextField.labelWithString("Glob pattern: * matches any characters, ? matches one.");
+    hint.frame = $.NSMakeRect(0, 0, width, 15);
+    hint.font = $.NSFont.systemFontOfSize(11);
+    hint.textColor = $.NSColor.secondaryLabelColor;
+
+    container.addSubview(checkbox);
+    container.addSubview(field);
+    container.addSubview(hint);
+    alert.accessoryView = container;
+    alert.layout;
+    alert.window.initialFirstResponder = checkbox;
+    alert.window.makeFirstResponder(checkbox);
+
+    const response = alert.runModal;
+    alert.window.endEditingFor($());
+
+    ({
+      confirmed: response === $.NSAlertFirstButtonReturn,
+      alwaysAllow: checkbox.state === $.NSControlStateValueOn,
+      pattern: ObjC.unwrap(field.stringValue)
+    });
+  ]=], params))
+
+  if ok and type(result) == "table" and result.confirmed then
+    if result.alwaysAllow then saveAllowedUrlPattern(result.pattern) end
     if not hs.urlevent.openURL(url) and previousApp then previousApp:activate(true) end
   elseif previousApp then
     previousApp:activate(true)
@@ -636,6 +890,12 @@ function M.setup()
   if _G._HerdrOpenClipboardWatcher then
     _G._HerdrOpenClipboardWatcher:stop()
     _G._HerdrOpenClipboardWatcher = nil
+  end
+  -- Same for an open-URL dialog left up by the previous config state: its
+  -- message handler belonged to Lua state that no longer exists.
+  if _G._HerdrOpenURLDialog then
+    _G._HerdrOpenURLDialog:delete()
+    _G._HerdrOpenURLDialog = nil
   end
 
   snapshotClipboard()
