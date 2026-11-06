@@ -107,12 +107,6 @@ function errorResult(
 	};
 }
 
-export function shouldAdvanceAfterEditorSubmit(multiple: boolean): boolean {
-	// A multiple-choice question is not finished when one typed entry/context
-	// is accepted: stay on the question so another option can be selected.
-	return !multiple;
-}
-
 export function parseCustomEntries(value: string): string[] {
 	const entries = value
 		.split(/\r?\n|,/)
@@ -149,10 +143,6 @@ export function formatAnswerEntriesForText(entries: AnswerEntry[]): string {
 		return `${primary[0]} ${context.join(" ")}`;
 	}
 	return [...primary, ...context.map((entry) => `additional context: ${entry}`)].join("; ");
-}
-
-function isTextInput(data: string): boolean {
-	return data.length > 0 && !data.includes("\x1b") && !/^[\x00-\x1f\x7f]+$/.test(data);
 }
 
 export function joinInlineText(label: string, inlineText: string[]): string {
@@ -264,7 +254,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 					if (!question) return [];
 					const opts: RenderOption[] = [...question.options];
 					if (question.allowOther) {
-						opts.push({ value: "__other__", label: "Type something (start typing).", isOther: true });
+						opts.push({ value: "__other__", label: "Type something.", isOther: true });
 					}
 					return opts;
 				}
@@ -446,7 +436,8 @@ export default function questionnaire(pi: ExtensionAPI) {
 
 				function toggleMultipleOption(question: Question, optionIndex: number) {
 					if (optionIndex >= question.options.length) {
-						openCustomInput(question, "answer", optionIndex);
+						// "Type something." is not toggleable, and only Tab enters
+						// editing mode (Space/Enter never open the editor).
 						return;
 					}
 					const selected = new Set(selectedOptionIndexes(question));
@@ -467,19 +458,23 @@ export default function questionnaire(pi: ExtensionAPI) {
 					const optionIndex = getOptionIndex(question);
 					const opt = opts[optionIndex];
 					if (!opt) return;
-					if (question.multiple) {
-						if (opt.isOther) {
-							openCustomInput(question, "answer", optionIndex);
-							return;
+					if (opt.isOther) {
+						// Enter never enters editing mode (only Tab does). On
+						// "Type something." Enter only confirms this question, and
+						// only when an answer already exists to confirm.
+						const hasAnswer = question.multiple
+							? hasMultipleEntries(question)
+							: answers.get(question.id)?.entries.some((entry) => entry.kind === "custom") === true;
+						if (hasAnswer) {
+							advanceAfterAnswer();
 						}
+						return;
+					}
+					if (question.multiple) {
 						if (!hasMultipleEntries(question)) {
 							toggleMultipleOption(question, optionIndex);
 						}
 						advanceAfterAnswer();
-						return;
-					}
-					if (opt.isOther) {
-						openCustomInput(question, "answer", optionIndex);
 						return;
 					}
 					saveSingleAnswer(question, opt.value, opt.label, false, optionIndex + 1);
@@ -545,11 +540,10 @@ export default function questionnaire(pi: ExtensionAPI) {
 					inputOptionIndex = null;
 					clearCancelArmed();
 					editor.setText("");
-					if (shouldAdvanceAfterEditorSubmit(question.multiple)) {
-						advanceAfterAnswer();
-					} else {
-						refresh();
-					}
+					// Accepting edited text always returns to this question's
+					// option list (never advances/submits). Enter outside
+					// editing mode is what confirms the question.
+					refresh();
 				};
 
 				function handleInput(data: string) {
@@ -560,9 +554,9 @@ export default function questionnaire(pi: ExtensionAPI) {
 					if (inputMode) {
 						if (matchesKey(data, Key.tab)) {
 							// Tab accepts the typed text exactly like Enter (editor
-							// submit) instead of being passed to the editor. For
-							// multiple-choice questions the submit handler stays
-							// on the question, so another option can be selected.
+							// submit) instead of being passed to the editor. The
+							// submit handler returns to this question's option
+							// list, so another option can be selected.
 							editor.onSubmit?.(editor.getText());
 							refresh();
 							return;
@@ -626,20 +620,12 @@ export default function questionnaire(pi: ExtensionAPI) {
 						return;
 					}
 
-					const opt = question ? currentOptions()[getOptionIndex(question)] : undefined;
 					if (matchesKey(data, Key.space) && question) {
 						if (question.multiple) {
 							toggleMultipleOption(question, getOptionIndex(question));
 						} else {
 							confirmCurrentQuestion();
 						}
-						return;
-					}
-
-					if (question && opt?.isOther && isTextInput(data)) {
-						openCustomInput(question, "answer", getOptionIndex(question));
-						editor.handleInput(data);
-						refresh();
 						return;
 					}
 
@@ -799,10 +785,10 @@ export default function questionnaire(pi: ExtensionAPI) {
 					} else {
 						const activeQuestion = currentQuestion();
 						const help = activeQuestion?.multiple
-							? "←→ change question • ↑↓ move • Space toggle • Tab edit selected option • Type on Other • Enter confirm/submit • Esc then Esc cancel"
+							? "←→ change question • ↑↓ move • Space toggle • Tab edit selected option • Enter confirm/submit • Esc then Esc cancel"
 							: isMulti
-								? "←→ change question • ↑↓ move • Type on Other • Tab edit selected option • Enter select/submit • Esc then Esc cancel"
-								: "↑↓ navigate • Type on Other • Tab edit selected option • Enter select • Esc then Esc cancel";
+								? "←→ change question • ↑↓ move • Tab edit selected option • Enter select/submit • Esc then Esc cancel"
+								: "↑↓ navigate • Tab edit selected option • Enter select • Esc then Esc cancel";
 						addWrappedWithPrefix(" ", theme.fg("dim", help));
 					}
 					lines.push(theme.fg("accent", "─".repeat(renderWidth)));

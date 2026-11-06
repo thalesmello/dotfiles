@@ -63,7 +63,6 @@ const {
 	optionMarker,
 	parseContextEntry,
 	parseCustomEntries,
-	shouldAdvanceAfterEditorSubmit,
 } = await import("../extensions/questionnaire.ts");
 const questionnaire = (await import("../extensions/questionnaire.ts")).default;
 
@@ -122,11 +121,6 @@ describe("questionnaire helpers", () => {
 		expect(optionMarker(true, false, true)).toBe("[x]");
 		expect(optionMarker(true, true, false)).toBe("[ ]");
 		expect(optionMarker(true, false, false)).toBe("[ ]");
-	});
-
-	test("editor submit only advances for single-select questions", () => {
-		expect(shouldAdvanceAfterEditorSubmit(false)).toBe(true);
-		expect(shouldAdvanceAfterEditorSubmit(true)).toBe(false);
 	});
 
 	test("parses typed entries", () => {
@@ -239,15 +233,61 @@ describe("questionnaire multiple-choice inline context", () => {
 		expect(result.details.answers[0].entries.map((entry: any) => entry.label)).toEqual(["custom one", "custom two"]);
 	});
 
-	test("Enter still submits after context on a single-select question", async () => {
+	test("accepting context returns to the option list on a single-select question too", async () => {
 		const harness = createHarness([{ id: "q1", prompt: "Pick", options, multiple: false }]);
 
 		harness.input("tab");
 		harness.input(" with tests");
 		harness.input("enter");
+		expect(harness.getSubmitted()).toBeUndefined();
 
+		// Enter outside editing mode confirms the question.
+		harness.input("enter");
 		const result = await harness.resultPromise;
 		expect(result.details.cancelled).toBe(false);
 		expect(result.details.answers[0].entries.map((entry: any) => entry.label)).toEqual(["A with tests"]);
+	});
+
+	test("Enter on Type something never enters editing; it only confirms an existing answer", async () => {
+		const harness = createHarness([{ id: "q1", prompt: "Pick", options, multiple: true }]);
+
+		// No answer yet: typing and Enter on "Type something." do nothing
+		// (only Tab enters editing mode).
+		harness.input("down");
+		harness.input("down");
+		harness.input("x");
+		harness.input("enter");
+		expect(harness.getSubmitted()).toBeUndefined();
+
+		// Tab enters editing; Enter accepts and returns to the option list.
+		harness.input("tab");
+		harness.input("custom one");
+		harness.input("enter");
+		expect(harness.getSubmitted()).toBeUndefined();
+
+		// Enter on "Type something." now confirms this question.
+		harness.input("enter");
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(false);
+		expect(result.details.answers[0].entries.map((entry: any) => entry.label)).toEqual(["custom one"]);
+	});
+
+	test("Enter on Type something confirms an existing custom answer on a single-select question", async () => {
+		const harness = createHarness([{ id: "q1", prompt: "Pick", options, multiple: false }]);
+
+		harness.input("down");
+		harness.input("down");
+		harness.input("enter");
+		expect(harness.getSubmitted()).toBeUndefined();
+
+		harness.input("tab");
+		harness.input("custom one");
+		harness.input("enter");
+		expect(harness.getSubmitted()).toBeUndefined();
+
+		harness.input("enter");
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(false);
+		expect(result.details.answers[0].entries.map((entry: any) => entry.label)).toEqual(["custom one"]);
 	});
 });
