@@ -85,6 +85,13 @@ SORT_TOKEN = "um_sort"
 # no "focused" field, so this token is how working-hidden mode exempts the
 # focused agent (see NOT_WORKING_FILTER below).
 ACTIVE_TOKEN = "um_active"
+# Virtual display label for workspaces whose automatic cwd-derived label is
+# "~" ($HOME). config.toml hides the built-in "workspace" token when it equals
+# "~" and renders $um_home / $um_home_active in its place, keeping the
+# underlying workspace custom_name unset so the label stays virtual.
+HOME_TOKEN = "um_home"
+HOME_ACTIVE_TOKEN = "um_home_active"
+HOME_DISPLAY = "home"
 STATUS_RANK = {
     "blocked": "0",
     "done": "1",
@@ -361,6 +368,7 @@ def token_patch(
     frame: int = 0,
     sort_value: str | None = None,
     active: bool = False,
+    in_home: bool = False,
 ) -> dict[str, str | None]:
     tokens: dict[str, str | None] = {name: None for name in VISIBLE_TOKENS.values()}
     # Clear the first version of this script too.
@@ -371,6 +379,7 @@ def token_patch(
         sort_value = sort_token(status, 0)
     tokens[SORT_TOKEN] = sort_value
     tokens[ACTIVE_TOKEN] = "1" if active else None
+    tokens[HOME_TOKEN] = HOME_DISPLAY if in_home else None
     # The rank digit of the (possibly frozen) sort token; kept for readers
     # that only need the effective category.
     tokens[RANK_TOKEN] = sort_value[:1]
@@ -418,6 +427,7 @@ def report(
             frame,
             existing,
             (pane.get("tokens") or {}).get(ACTIVE_TOKEN) == "1",
+            (pane.get("tokens") or {}).get(HOME_TOKEN) == HOME_DISPLAY,
         ),
     )
 
@@ -529,6 +539,43 @@ def fetch_agents() -> list[dict[str, Any]] | None:
     return [agent for agent in agents if isinstance(agent, dict)]
 
 
+def fetch_workspaces() -> list[dict[str, Any]] | None:
+    response = request("workspace.list", {})
+    workspaces = (response.get("result") or {}).get("workspaces")
+    if not isinstance(workspaces, list):
+        return None
+    return [ws for ws in workspaces if isinstance(ws, dict)]
+
+
+def sync_workspaces(workspaces: list[dict[str, Any]] | None) -> set[str]:
+    home_workspaces: set[str] = set()
+    if not workspaces:
+        return home_workspaces
+    for ws in workspaces:
+        wid = ws.get("workspace_id")
+        if not isinstance(wid, str) or not wid:
+            continue
+        is_home = ws.get("label") == "~"
+        if is_home:
+            home_workspaces.add(wid)
+        focused = bool(ws.get("focused"))
+        want = {
+            HOME_TOKEN: HOME_DISPLAY if (is_home and not focused) else None,
+            HOME_ACTIVE_TOKEN: HOME_DISPLAY if (is_home and focused) else None,
+        }
+        live = ws.get("tokens") or {}
+        if live.get(HOME_TOKEN) != want[HOME_TOKEN] or live.get(HOME_ACTIVE_TOKEN) != want[HOME_ACTIVE_TOKEN]:
+            request(
+                "workspace.report_metadata",
+                {
+                    "workspace_id": wid,
+                    "source": SOURCE,
+                    "tokens": want,
+                },
+            )
+    return home_workspaces
+
+
 def fetch_pane_keys() -> set[str] | None:
     response = request("pane.list", {})
     panes = (response.get("result") or {}).get("panes")
@@ -551,9 +598,12 @@ def sync_agents(
     frame: int = 0,
     cache: dict[str, dict[str, str | None]] | None = None,
     frozen: dict[str, str] | None = None,
+    home_workspaces: set[str] | None = None,
 ) -> tuple[set[str], set[str], dict[str, str], bool, bool]:
     if frozen is None:
         frozen = {}
+    if home_workspaces is None:
+        home_workspaces = set()
     live_keys: set[str] = set()
     live_panes: set[str] = set()
     has_working = False
@@ -583,8 +633,15 @@ def sync_agents(
         else:
             effective_sort = live_sort
             frozen.pop(key, None)
+        in_home = agent.get("workspace_id") in home_workspaces
         tokens = token_patch(
-            status, is_marked, is_pinned, frame, effective_sort, bool(agent.get("focused"))
+            status,
+            is_marked,
+            is_pinned,
+            frame,
+            effective_sort,
+            bool(agent.get("focused")),
+            in_home,
         )
         live_tokens = agent.get("tokens") or {}
         if not any(live_tokens.get(name) for name in VISIBLE_TOKENS.values()):
@@ -595,6 +652,7 @@ def sync_agents(
             or live_tokens.get(PIN_TOKEN) != tokens[PIN_TOKEN]
             or live_tokens.get(MARK_TOKEN) != tokens[MARK_TOKEN]
             or live_tokens.get(SORT_TOKEN) != tokens[SORT_TOKEN]
+            or live_tokens.get(HOME_TOKEN) != tokens[HOME_TOKEN]
             or server_unsynced
         ):
             report_tokens(pane_id, tokens)
@@ -630,13 +688,14 @@ def sync_all(
     frame: int = 0,
     cache: dict[str, dict[str, str | None]] | None = None,
 ) -> tuple[set[str], set[str]]:
+    home_workspaces = sync_workspaces(fetch_workspaces())
     agents = fetch_agents()
     if agents is None:
         return marked, pinned
     frozen = load_frozen()
     frozen_before = dict(frozen)
     pruned_marked, pruned_pinned, pruned_frozen, _, _ = sync_agents(
-        agents, marked, pinned, frame, cache, frozen
+        agents, marked, pinned, frame, cache, frozen, home_workspaces
     )
     if pruned_frozen != frozen_before:
         save_frozen(pruned_frozen)
@@ -784,6 +843,7 @@ def daemon_loop() -> int:
     panel_mode_mtime: int | None = -1
     view_active: bool | None = None
     agents: list[dict[str, Any]] | None = None
+    home_workspaces: set[str] = set()
     last_fetch_at = 0.0
     force_refresh = True
     frame = 0
@@ -832,6 +892,7 @@ def daemon_loop() -> int:
             )
             check_view = force_refresh
             if refreshing:
+                home_workspaces = sync_workspaces(fetch_workspaces())
                 fetched = fetch_agents()
                 if fetched is not None:
                     agents = fetched
@@ -845,7 +906,7 @@ def daemon_loop() -> int:
             if agents is not None:
                 frozen_before = dict(frozen)
                 pruned_marked, pruned_pinned, pruned_frozen, has_working, server_unsynced = sync_agents(
-                    agents, marked, pinned, frame, cache, frozen
+                    agents, marked, pinned, frame, cache, frozen, home_workspaces
                 )
                 if pruned_marked != marked:
                     marked = pruned_marked
@@ -881,8 +942,10 @@ def daemon_loop() -> int:
                     drain_fd(wakeup_r)
                     force_refresh = True
         else:
-            time.sleep(ANIMATION_SECS if has_working else 1.0)
-            drain_fd(wakeup_r)
+            rlist, _, _ = select.select([wakeup_r], [], [], ANIMATION_SECS if has_working else 1.0)
+            if rlist:
+                drain_fd(wakeup_r)
+                force_refresh = True
 
 
 def main(argv: list[str]) -> int:

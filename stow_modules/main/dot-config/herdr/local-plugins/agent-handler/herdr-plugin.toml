@@ -46,3 +46,19 @@ command = ["python3", "../../scripts/agent-handler.py", "sync"]
 [[events]]
 on = "pane.agent_status_changed"
 command = ["python3", "../../scripts/agent-handler.py", "sync"]
+
+[[events]]
+on = "workspace.created"
+command = ["python3", "../../scripts/agent-handler.py", "sync"]
+
+[[events]]
+on = "workspace.updated"
+command = ["python3", "../../scripts/agent-handler.py", "sync"]
+
+[[events]]
+on = "workspace.renamed"
+command = ["python3", "../../scripts/agent-handler.py", "sync"]
+
+[[events]]
+on = "workspace.focused"
+command = ["python3", "../../scripts/agent-handler.py", "sync"]
