@@ -291,25 +291,29 @@ def tail_messages(path, count=PREVIEW_MESSAGES, tail_bytes=TAIL_BYTES):
 
 
 def transcript_title(path):
-    """A Pi session's own name from its session_info line, which sits at the
-    head of the file -- the one bounded head read, mirroring the tail read."""
+    """A Pi session's own name from its session_info lines. Pi appends a
+    fresh session_info whenever the session is named or renamed, so the
+    title lives anywhere in the file and the LATEST one wins -- scan the
+    whole transcript (only session_info lines are parsed), mirroring
+    restore-agent-titles.py's latest_pi_title."""
     if not path or not os.path.isfile(path):
         return ""
+    title = ""
     try:
         with open(path, "rb") as handle:
-            data = handle.read(64 * 1024).decode("utf-8", "replace")
+            for line in handle:
+                if b'"session_info"' not in line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except ValueError:
+                    continue
+                if entry.get("type") == "session_info" and isinstance(entry.get("name"), str):
+                    if entry["name"].strip():
+                        title = entry["name"].strip()
     except OSError:
         return ""
-    for line in data.splitlines():
-        if '"session_info"' not in line:
-            continue
-        try:
-            entry = json.loads(line)
-        except ValueError:
-            continue
-        if entry.get("type") == "session_info" and isinstance(entry.get("name"), str):
-            return entry["name"].strip()
-    return ""
+    return title
 
 
 # ── capture (tick) ───────────────────────────────────────────────────────────
@@ -352,7 +356,11 @@ def capture(state, store, live_panes, workspaces, now):
     labels = {w.get("workspace_id"): w.get("label") or "" for w in workspaces}
     live_ids = set()
     live_convs = set()
-    seen = {}
+    # Seed from the remembered titles: on the pane.closed tick the pane is
+    # already gone from live_panes, and rebuilding `seen` from live panes
+    # alone would discard its title at the one moment entry_from_record
+    # needs it, falling back to the tab label. Live panes overlay below.
+    seen = dict(state.get("seen") or {})
     for pane in live_panes:
         live_ids.add(pane.get("pane_id"))
         conv = pane_conversation(pane)
@@ -378,6 +386,16 @@ def capture(state, store, live_panes, workspaces, now):
         if key in settled:
             continue  # already settled: the first capture froze it
         settled[key] = entry_from_record(pane_id, record, seen, now)
+    # Prune remembered titles to conversations that are live, settled, or
+    # still recorded in the store, so `seen` cannot grow without bound now
+    # that it survives pane closes.
+    keep = live_convs | set(settled)
+    for record in store.values():
+        if isinstance(record, dict):
+            conv = conversation_of(record.get("session"))
+            if conv:
+                keep.add(conv)
+    seen = {conv: info for conv, info in seen.items() if conv in keep}
     return {"settled": settled, "seen": seen}
 
 

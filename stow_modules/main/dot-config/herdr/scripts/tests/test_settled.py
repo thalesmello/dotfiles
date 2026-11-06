@@ -82,6 +82,19 @@ class CaptureTest(unittest.TestCase):
         entry = settled.entry_from_record("w1:p1", record(tab="Tab name"), seen, 5.0)
         self.assertEqual(entry["title"], "Real title")
 
+    def test_closed_session_keeps_remembered_title_from_prior_state(self):
+        # The pane.closed tick runs with the pane already gone from the
+        # live list; the title remembered by earlier ticks must survive
+        # capture() instead of falling back to the tab label.
+        prior = {"settled": {}, "seen": {"/tmp/a.jsonl": {"title": "Real title", "workspace_label": "web", "tab_label": ""}}}
+        state = settled.capture(prior, {"w1:p1": record(tab="tab-slug")}, [], WORKSPACES, 100.0)
+        self.assertEqual(state["settled"]["/tmp/a.jsonl"]["title"], "Real title")
+
+    def test_live_title_overlays_remembered_title(self):
+        prior = {"settled": {}, "seen": {"/tmp/a.jsonl": {"title": "Old title", "workspace_label": "web", "tab_label": ""}}}
+        state = settled.capture(prior, {"w1:p1": record()}, [pane(title="New title")], WORKSPACES, 100.0)
+        self.assertEqual(state["seen"]["/tmp/a.jsonl"]["title"], "New title")
+
 
 class TailMessagesTest(unittest.TestCase):
     def write(self, lines):
@@ -115,6 +128,16 @@ class TailMessagesTest(unittest.TestCase):
 
     def test_missing_file(self):
         self.assertEqual(settled.tail_messages("/no/such/file.jsonl"), [])
+
+    def test_transcript_title_uses_latest_session_info_beyond_head(self):
+        # Pi appends a fresh session_info on every (re)name, well past the
+        # first 64 KB; the latest name is the title, not the first.
+        path = self.write([
+            json.dumps({"type": "session_info", "name": "Early title"}),
+            "x" * 70000,
+            json.dumps({"type": "session_info", "name": "Later title"}),
+        ])
+        self.assertEqual(settled.transcript_title(path), "Later title")
 
 
 class ResumeCommandTest(unittest.TestCase):
