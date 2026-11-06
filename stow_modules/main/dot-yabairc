@@ -14,8 +14,6 @@ set configs
 
 set -a configs menubar_opacity              1.0
 set -a configs mouse_follows_focus          off
-# # Config should be used in case an external bar is used again
-# set -a configs external_bar all:$(sketchybar --query bar | jq .height):0 \
 set -a configs focus_follows_mouse          off
 set -a configs display_arrangement_order    default
 set -a configs window_origin_display        default

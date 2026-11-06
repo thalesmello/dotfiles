@@ -24,7 +24,7 @@ local createModal = mode.createModal
 local registerBinding = palette.registerBinding
 local showCommandPalette = palette.showCommandPalette
 
--- Modifier shorthands (matching skhd's ctrl + alt + cmd)
+-- Modifier shorthands (ctrl + alt + cmd)
 local hyper = {"ctrl", "alt", "cmd"}
 local hyperShift = {"ctrl", "alt", "cmd", "shift"}
 

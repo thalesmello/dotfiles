@@ -41,7 +41,6 @@ vim.keymap.set({"n", "t"}, "<c-space><bs>", '<c-\\><C-n><c-w>q', { noremap = tru
 
 -- Edit and load vimrc
 vim.keymap.set("n", "<leader>ev", ":edit $MYVIMRC<cr>", { noremap = true })
-vim.keymap.set("n", "<leader>esk", ":edit ~/.skhdrc_main<cr>", { noremap = true })
 vim.keymap.set("n", "<leader>ehs", ":edit ~/.hammerspoon/init.lua<cr>", { noremap = true })
 vim.keymap.set("n", "<leader>ekb", ":edit ~/.hammerspoon/keybindings.lua<cr>", { noremap = true })
 vim.keymap.set("n", "<leader>el", ":edit ~/.local_dotfiles/nvim/init.lua<cr>", { noremap = true })

@@ -233,8 +233,7 @@ function btt-preset
             else if set -q _flag_minimize
                 yabai-preset minimize
             else
-                # We use skhd -k here because btt-preset will conflict with other mapppings
-                skhd -k "cmd - tab"
+                hs-preset send-keys cmd tab
             end
         else if test -n "$_flag_cmd"
             eval "$_flag_cmd"

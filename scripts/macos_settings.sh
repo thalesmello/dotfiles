@@ -45,10 +45,6 @@ defaults write com.apple.spaces "spans-displays" -bool "false"
 defaults write NSGlobalDomain _HIHideMenuBar -bool false
 defaults write NSGlobalDomain AppleMenuBarVisibleInFullscreen -bool false
 
-# Set top hight of rectangle pro to have space for Sketchy bar
-defaults write com.knollsoft.Rectangle screenEdgeGapTop -int 30
-defaults write com.knollsoft.Hookshot screenEdgeGapTop -int 30
-
 # Enable Keyboard navigation
 defaults write NSGlobalDomain AppleKeyboardUIMode -int 2
 

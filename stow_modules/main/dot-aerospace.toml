@@ -69,7 +69,7 @@ outer.bottom =     10
 outer.top =        10
 outer.right =      10
 
-# Keybindings are handled by skhd - these sections must remain but are empty
+# Keybindings are handled by Hammerspoon - these sections must remain but are empty
 [mode.main.binding]
 
 [mode.service.binding]

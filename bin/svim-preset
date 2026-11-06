@@ -8,8 +8,8 @@ function svim-preset
     switch "$mode"
     case "enter"
         svim > /tmp/svim.log &
-        skhd -k "cmd - tab"
-        skhd -k "cmd - tab"
+        hs-preset send-keys cmd tab
+        hs-preset send-keys cmd tab
     case "exit"
         killall svim
     end
