@@ -236,6 +236,35 @@ function installSnippetCopyEditor(
 	ctx.ui.setEditorComponent((tui, theme, keybindings) => {
 		class SnippetCopyEditor extends CustomEditor {
 			override handleInput(data: string): void {
+				// Ctrl+C (`app.clear`): never exit the harness. Stop a running agent
+				// (like Escape) and/or clear the prompt if populated.
+				if (keybindings.matches(data, "app.clear")) {
+					if (this.getText().length > 0) {
+						this.setText("");
+						this.onChange?.("");
+					}
+					if (!ctx.isIdle()) {
+						this.onEscape?.();
+					}
+					return;
+				}
+
+				// Ctrl+D (`app.exit`): only exit when the agent is idle AND the prompt
+				// is empty. When the prompt has text, fall through to deleteCharForward.
+				if (keybindings.matches(data, "app.exit")) {
+					if (this.getText().length === 0) {
+						if (ctx.isIdle()) {
+							const exitHandler =
+								this.onCtrlD ??
+								(this as unknown as { actionHandlers?: Map<string, () => void> }).actionHandlers?.get(
+									"app.exit",
+								);
+							exitHandler?.();
+						}
+						return;
+					}
+				}
+
 				const isSubmit = keybindings.matches(data, "tui.input.submit");
 				const isCopyShortcut = keybindings.matches(data, "app.message.copy");
 				const selectedCommand = selectedAutocompleteValue(this);
