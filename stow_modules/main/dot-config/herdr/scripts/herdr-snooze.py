@@ -1359,6 +1359,12 @@ def plan_view(state, owner, count, sort_override=None, badge=DEFAULT_BADGE, owne
             # working agent is not snoozed.
             label = "%s working hidden" % base if base else "working hidden"
             want_filter = NOT_WORKING_FILTER
+        elif cycle and cycle["mode"] == "grouped":
+            # No snoozed count: in grouped mode snoozed agents are in
+            # the list (no snooze filter), so the badge would count
+            # conversations you can already see.
+            label = base
+            want_filter = _all_of(cycle["filter"], NOT_WORKING_FILTER if hide_working else None)
         else:
             label = "%s %s" % (base, badged(badge, str(count))) if base else badged(badge, str(count))
             if hide_working and (not cycle or cycle["mode"] != "hidden"):

@@ -483,7 +483,7 @@ class PlanView(unittest.TestCase):
         sorts = snooze.KNOWN_VIEWS["agent-handler"]["sorts"]
         with mock.patch.object(snooze, "agent_handler_panel_mode", return_value="grouped"):
             _kind, params = snooze.plan_view(state(dict(self.snoozed)), owner, 1, badge="z")
-            self.assertEqual((params["label"], params["filter"], params["sort"]), ("grouped z 1", None, sorts["grouped"]))
+            self.assertEqual((params["label"], params["filter"], params["sort"]), ("grouped", None, sorts["grouped"]))
         with mock.patch.object(snooze, "agent_handler_panel_mode", return_value="smart"):
             _kind, params = snooze.plan_view(state(dict(self.snoozed)), owner, 1, badge="z")
             self.assertEqual((params["label"], params["filter"], params["sort"]), ("smart priority z 1", snooze.VIEW_FILTER, sorts["smart priority"]))
