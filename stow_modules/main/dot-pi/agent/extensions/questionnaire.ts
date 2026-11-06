@@ -691,7 +691,13 @@ export default function questionnaire(pi: ExtensionAPI) {
 								isOther && (custom.length > 0 || (!question.multiple && answer?.entries.some((entry) => entry.kind === "custom") === true));
 							const selectedOption = question.multiple ? selected.has(i) || selectedOther : selectedSingle || selectedOther;
 							const marker = optionMarker(question.multiple, activeQuestion, selectedOption);
-							const suffix = isOther && inputMode && inputQuestionId === question.id ? " ✎" : "";
+							const editingThisOther =
+								isOther &&
+								inputMode &&
+								inputPurpose === "answer" &&
+								inputQuestionId === question.id &&
+								inputOptionIndex === i;
+							const suffix = editingThisOther ? " ✎" : "";
 							const cursorText = `${editor.getText()}${CURSOR_MARKER}${theme.inverse(" ")}`;
 							const context = !isOther && selectedOption ? contextValues(question, i).join(" ") : "";
 							const contextInput =
@@ -714,7 +720,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 							const label = question.multiple
 								? `${marker} ${opt.label}${labelContext}${suffix}`
 								: `${marker} ${i + 1}. ${opt.label}${labelContext}${suffix}`;
-							const color = activeOption || (isOther && inputMode && inputQuestionId === question.id) ? "accent" : "text";
+							const color = activeOption ? "accent" : "text";
 
 							addWrappedWithPrefix(prefix, theme.fg(color, label));
 							if (opt.description) {

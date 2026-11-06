@@ -144,7 +144,8 @@ describe("questionnaire multiple-choice inline context", () => {
 		};
 		questionnaire(pi);
 		const theme: any = {
-			fg: (_style: string, text: string) => text,
+			// Encode the style so render tests can tell which lines are highlighted.
+			fg: (style: string, text: string) => `[${style}]${text}[/${style}]`,
 			bg: (_style: string, text: string) => text,
 			bold: (text: string) => text,
 			inverse: (text: string) => text,
@@ -166,6 +167,7 @@ describe("questionnaire multiple-choice inline context", () => {
 		return {
 			resultPromise,
 			input: (data: string) => component.handleInput(data),
+			render: (width = 80) => component.render(width) as string[],
 			getSubmitted: () => submitted,
 		};
 	}
@@ -270,6 +272,46 @@ describe("questionnaire multiple-choice inline context", () => {
 		const result = await harness.resultPromise;
 		expect(result.details.cancelled).toBe(false);
 		expect(result.details.answers[0].entries.map((entry: any) => entry.label)).toEqual(["custom one"]);
+	});
+
+	test("Tab editing a regular option highlights only that option, not Type something", async () => {
+		const harness = createHarness([{ id: "q1", prompt: "Pick", options, multiple: false }]);
+
+		// Tab adds inline text to the selected option (A).
+		harness.input("tab");
+		const lines = harness.render();
+		const optionLine = lines.find((line) => line.includes("1. A"));
+		const otherLine = lines.find((line) => line.includes("Type something"));
+		expect(optionLine).toContain("[accent]");
+		expect(otherLine).not.toContain("[accent]");
+		expect(otherLine).not.toContain("✎");
+
+		// Esc leaves input mode; Esc, Esc cancels the questionnaire.
+		harness.input("escape");
+		harness.input("escape");
+		harness.input("escape");
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(true);
+	});
+
+	test("Tab editing Type something highlights only Type something", async () => {
+		const harness = createHarness([{ id: "q1", prompt: "Pick", options, multiple: false }]);
+
+		harness.input("down");
+		harness.input("down");
+		harness.input("tab");
+		const lines = harness.render();
+		const optionLine = lines.find((line) => line.includes("1. A"));
+		const otherLine = lines.find((line) => line.includes("Type something"));
+		expect(otherLine).toContain("[accent]");
+		expect(otherLine).toContain("✎");
+		expect(optionLine).not.toContain("[accent]");
+
+		harness.input("escape");
+		harness.input("escape");
+		harness.input("escape");
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(true);
 	});
 
 	test("Enter on Type something confirms an existing custom answer on a single-select question", async () => {
