@@ -199,6 +199,7 @@ const DEFAULT_SESSION_LABEL = "Yes, for this session";
 const OPTION_LABELS: Record<PromptAction, string> = {
   approve: "Yes",
   approveSession: DEFAULT_SESSION_LABEL,
+  approveGlobal: "Yes, always allow globally",
   approveSessionBoth: "Yes, for this session in both directions",
   deny: "No",
   denyWithReason: "No, provide reason",
@@ -504,6 +505,11 @@ class PermissionPromptComponent implements Component {
    */
   private labelFor(action: PromptAction): string {
     if (action === "approveSession") return this.config.sessionLabel;
+    if (action === "approveGlobal") {
+      return this.config.sessionLabel.includes("for this session")
+        ? this.config.sessionLabel.replace("for this session", "always allow globally")
+        : `${OPTION_LABELS.approveGlobal}`;
+    }
     if (action === "approveSessionBoth") {
       return this.config.widthLabel ?? OPTION_LABELS.approveSessionBoth;
     }

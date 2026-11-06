@@ -15,6 +15,7 @@
 export type PromptAction =
   | "approve"
   | "approveSession"
+  | "approveGlobal"
   | "approveSessionBoth"
   | "deny"
   | "denyWithReason";
@@ -41,6 +42,7 @@ export interface DialogKeyResolution {
 const ACTION_ORDER: readonly PromptAction[] = [
   "approve",
   "approveSession",
+  "approveGlobal",
   "approveSessionBoth",
   "deny",
   "denyWithReason",
@@ -50,6 +52,7 @@ const ACTION_ORDER: readonly PromptAction[] = [
 export const DEFAULT_DIALOG_KEYS: DialogKeyBindings = {
   approve: "y",
   approveSession: "s",
+  approveGlobal: "g",
   approveSessionBoth: "b",
   deny: "n",
   denyWithReason: "r",

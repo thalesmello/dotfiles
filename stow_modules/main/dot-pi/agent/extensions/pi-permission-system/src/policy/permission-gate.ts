@@ -22,7 +22,7 @@ export type PermissionGateResult =
        * meaningless without the grant, and two optional fields could represent
        * a width for a grant that never happened.
        */
-      sessionGrant?: { width: SessionGrantWidth };
+      sessionGrant?: { width: SessionGrantWidth; persistGlobal?: boolean };
     }
   | { action: "block"; decidedBy: DecisionSource; reason: string };
 
@@ -124,7 +124,10 @@ export async function applyPermissionGate(
         action: "allow",
         decidedBy,
         // Absent means the width every producer chose before #813.
-        sessionGrant: { width: decision.sessionGrantWidth ?? "proven" },
+        sessionGrant: {
+          width: decision.sessionGrantWidth ?? "proven",
+          ...(decision.persistGlobal ? { persistGlobal: true } : {}),
+        },
       };
     }
     return { action: "allow", decidedBy };

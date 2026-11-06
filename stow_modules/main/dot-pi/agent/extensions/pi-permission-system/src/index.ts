@@ -33,7 +33,10 @@ import { SubagentDetection } from "./authority/subagent-detection.ts";
 import { subscribeSubagentLifecycle } from "./authority/subagent-lifecycle-events.ts";
 import { getSubagentSessionRegistry } from "./authority/subagent-registry.ts";
 import { ConfigIssueReporter } from "./config/config-issue-reporter.ts";
-import { registerPermissionSystemCommand } from "./config/config-modal.ts";
+import {
+  mutateGlobalPermissionRule,
+  registerPermissionSystemCommand,
+} from "./config/config-modal.ts";
 import { getGlobalConfigPath } from "./config/config-paths.ts";
 import { ConfigStore } from "./config/config-store.ts";
 import { resolveDialogKeys } from "./config/dialog-keys.ts";
@@ -65,6 +68,7 @@ import {
   SessionLifecycleHandler,
   SessionTurnPrep,
 } from "./handlers/index.ts";
+import permissionAutoReview from "../auto-review/index.js";
 import { getPermissionsService, type PermissionsService } from "./service.ts";
 
 export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
@@ -246,9 +250,19 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
   configStore.refresh(undefined, false);
 
   const configPath = getGlobalConfigPath(agentDir);
+  const reloadGlobalConfig = (): void => {
+    configStore.refresh(session.cwd, session.isProjectTrusted);
+  };
+  sessionRules.setGlobalPersister((grants) => {
+    const res = mutateGlobalPermissionRule(configPath, grants, "allow", reloadGlobalConfig);
+    if (res.ok) {
+      session.notify(`Saved globally to config.json: ${res.message}`);
+    }
+  });
   registerPermissionSystemCommand(pi, {
     config: configStore,
     configPath,
+    reloadConfig: reloadGlobalConfig,
     getActiveAgentConfigRules: () =>
       permissionManager.getComposedConfigRules(
         session.lastKnownActiveAgentName ?? undefined,
@@ -400,4 +414,7 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
       logger,
     ),
   );
+
+  // Register the bundled Claude Code-style auto-review authorizer ("auto-review").
+  permissionAutoReview(pi);
 }

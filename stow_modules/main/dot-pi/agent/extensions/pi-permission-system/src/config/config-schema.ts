@@ -271,6 +271,10 @@ const dialogKeysSchema = z
     approveSession: z.string().optional().meta({
       description: "Key that approves for the rest of the session. Default: s.",
     }),
+    approveGlobal: z.string().optional().meta({
+      description:
+        "Key that approves and saves the pattern globally to config.json. Default: g.",
+    }),
     approveSessionBoth: z.string().optional().meta({
       description:
         "Key that approves for the session in both directions. Default: b.",

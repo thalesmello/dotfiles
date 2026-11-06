@@ -1,3 +1,5 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import {
   type ExtensionAPI,
   type ExtensionCommandContext,
@@ -17,10 +19,95 @@ interface PermissionSystemConfigController {
   configPath: string;
   /** Returns the composed config-layer ruleset for the active agent scope. */
   getActiveAgentConfigRules(): Ruleset;
+  /** Reload configStore after writing global config.json. */
+  reloadConfig?: () => void;
+}
+
+const KNOWN_SURFACES = new Set([
+  "bash",
+  "path",
+  "path_read",
+  "path_write",
+  "external_directory",
+  "external_directory_read",
+  "external_directory_write",
+  "mcp",
+  "skill",
+  "read",
+  "write",
+  "edit",
+  "grep",
+  "find",
+  "ls",
+]);
+
+export function mutateGlobalPermissionRule(
+  configPath: string,
+  grants: ReadonlyArray<{ surface: string; pattern: string }>,
+  action: "allow" | "ask" | "deny" | "remove",
+  reloadConfig?: () => void,
+): { ok: boolean; message: string } {
+  try {
+    let raw: Record<string, any> = {};
+    if (existsSync(configPath)) {
+      raw = JSON.parse(readFileSync(configPath, "utf8"));
+    }
+    if (!raw.permission || typeof raw.permission !== "object") {
+      raw.permission = { "*": "allow" };
+    }
+    const updated: string[] = [];
+    for (const { surface, pattern } of grants) {
+      const currentSurface = raw.permission[surface];
+      if (action === "remove") {
+        if (currentSurface && typeof currentSurface === "object") {
+          delete currentSurface[pattern];
+          updated.push(`removed ${surface}["${pattern}"]`);
+        }
+        continue;
+      }
+      if (!currentSurface || typeof currentSurface !== "object") {
+        const fallback = typeof currentSurface === "string" ? currentSurface : "ask";
+        raw.permission[surface] = { "*": fallback };
+      }
+      // Delete and re-insert so the new rule sits at the end (last-match-wins).
+      delete raw.permission[surface][pattern];
+      raw.permission[surface][pattern] = action;
+      updated.push(`${surface}["${pattern}"] = ${action}`);
+    }
+    mkdirSync(dirname(configPath), { recursive: true });
+    writeFileSync(configPath, `${JSON.stringify(raw, null, 2)}\n`, "utf8");
+    reloadConfig?.();
+    return { ok: true, message: updated.join(", ") };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
 
 const ON_OFF = ["on", "off"];
 const COMMAND_ARGUMENTS = [
+  {
+    value: "allow",
+    label: "Allow a command or path globally",
+    description: "/permission allow [surface] <pattern> (default surface: bash)",
+  },
+  {
+    value: "ask",
+    label: "Ask on a command or path globally",
+    description: "/permission ask [surface] <pattern> (default surface: bash)",
+  },
+  {
+    value: "deny",
+    label: "Deny a command or path globally",
+    description: "/permission deny [surface] <pattern> (default surface: bash)",
+  },
+  {
+    value: "rm",
+    label: "Remove a global rule",
+    description: "/permission rm [surface] <pattern> (default surface: bash)",
+  },
   {
     value: "show",
     label: "Show active settings",
@@ -43,7 +130,7 @@ const COMMAND_ARGUMENTS = [
   },
 ] as const;
 const USAGE_TEXT =
-  "Usage: /permission-system [show|path|reset|help] (or run /permission-system with no args to open settings modal)";
+  "Usage: /permission [allow|ask|deny|rm [surface] <pattern> | show | path | reset | help]";
 
 function cloneDefaultConfig(): PermissionSystemExtensionConfig {
   return {
@@ -207,17 +294,57 @@ async function openSettingsModal(
   );
 }
 
+function parseRuleArgs(rest: string): { surface: string; pattern: string } | null {
+  const trimmed = rest.trim();
+  if (!trimmed) return null;
+  const firstSpace = trimmed.indexOf(" ");
+  if (firstSpace > 0) {
+    const maybeSurface = trimmed.slice(0, firstSpace).trim();
+    const remainder = trimmed.slice(firstSpace + 1).trim();
+    if (KNOWN_SURFACES.has(maybeSurface) && remainder) {
+      return { surface: maybeSurface, pattern: remainder.replace(/^["']|["']$/g, "") };
+    }
+  }
+  return { surface: "bash", pattern: trimmed.replace(/^["']|["']$/g, "") };
+}
+
 function handleArgs(
   args: string,
   ctx: ExtensionCommandContext,
   controller: PermissionSystemConfigController,
 ): boolean {
-  const normalized = args.trim().toLowerCase();
+  const raw = args.trim();
+  const normalized = raw.toLowerCase();
   if (!normalized) {
     return false;
   }
 
-  if (normalized === "show") {
+  for (const verb of ["allow", "ask", "deny", "rm", "remove"] as const) {
+    if (normalized === verb || normalized.startsWith(`${verb} `)) {
+      const rest = raw.slice(verb.length).trim();
+      const parsed = parseRuleArgs(rest);
+      if (!parsed) {
+        ctx.ui.notify(`Usage: /permission ${verb} [surface] <pattern>`, "warning");
+        return true;
+      }
+      const action = verb === "rm" || verb === "remove" ? "remove" : verb;
+      const res = mutateGlobalPermissionRule(
+        controller.configPath,
+        [parsed],
+        action,
+        controller.reloadConfig,
+      );
+      ctx.ui.notify(
+        res.ok
+          ? `Saved global rule: ${res.message}`
+          : `Failed to update global rule: ${res.message}`,
+        res.ok ? "info" : "error",
+      );
+      return true;
+    }
+  }
+
+  if (normalized === "show" || normalized === "list") {
     const rules = controller.getActiveAgentConfigRules();
     ctx.ui.notify(
       `permission-system: ${summarizeConfig(controller.config.current(), rules)}`,
@@ -250,24 +377,33 @@ export function registerPermissionSystemCommand(
   pi: ExtensionAPI,
   controller: PermissionSystemConfigController,
 ): void {
+  const handler = async (args: string, ctx: ExtensionCommandContext) => {
+    if (handleArgs(args, ctx, controller)) {
+      return;
+    }
+
+    if (!ctx.hasUI) {
+      ctx.ui.notify(
+        "/permission requires interactive TUI mode.",
+        "warning",
+      );
+      return;
+    }
+
+    await openSettingsModal(ctx, controller);
+  };
+
   pi.registerCommand("permission-system", {
     description:
-      "Configure pi-permission-system logging and yolo-mode behavior",
+      "Configure pi-permission-system rules (/permission allow|ask|deny|rm <pattern>) and settings",
     getArgumentCompletions,
-    handler: async (args, ctx) => {
-      if (handleArgs(args, ctx, controller)) {
-        return;
-      }
+    handler,
+  });
 
-      if (!ctx.hasUI) {
-        ctx.ui.notify(
-          "/permission-system requires interactive TUI mode.",
-          "warning",
-        );
-        return;
-      }
-
-      await openSettingsModal(ctx, controller);
-    },
+  pi.registerCommand("permission", {
+    description:
+      "Manage global permission rules (/permission allow|ask|deny|rm [surface] <pattern> | show)",
+    getArgumentCompletions,
+    handler,
   });
 }

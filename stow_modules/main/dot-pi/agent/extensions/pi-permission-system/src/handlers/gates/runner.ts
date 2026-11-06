@@ -244,6 +244,7 @@ export class GateRunner {
     if (sessionGrant && descriptor.sessionApproval) {
       this.recorder.recordSessionApproval(
         descriptor.sessionApproval.atWidth(sessionGrant.width),
+        sessionGrant.persistGlobal,
       );
     }
 

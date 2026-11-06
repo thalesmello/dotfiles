@@ -30,6 +30,7 @@ export type PromptStep = "decision" | "reason" | "scope";
 const OPTION_ORDER: readonly PromptAction[] = [
   "approve",
   "approveSession",
+  "approveGlobal",
   "approveSessionBoth",
   "deny",
   "denyWithReason",
@@ -59,6 +60,7 @@ export function visibleActions(
 const OPTION_VERBS: Record<PromptAction, string> = {
   approve: "approve",
   approveSession: "approve for this session",
+  approveGlobal: "always allow globally",
   approveSessionBoth: "approve both directions for this session",
   deny: "deny",
   denyWithReason: "deny with a reason",
@@ -233,6 +235,14 @@ function commit(
         hint: "",
         reasonError: undefined,
       });
+    case "approveGlobal":
+      return {
+        kind: "decision",
+        decision: {
+          ...sessionDecision("approved_for_session", "proven"),
+          persistGlobal: true,
+        },
+      };
     case "approveSession":
     case "approveSessionBoth": {
       // The two session options differ only in the width they grant; which

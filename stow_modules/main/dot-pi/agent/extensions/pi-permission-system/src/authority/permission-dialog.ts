@@ -35,6 +35,8 @@ export type PermissionPromptDecision = {
    * direction the gate named, which is what every producer chose before #813.
    */
   sessionGrantWidth?: SessionGrantWidth;
+  /** When true, also persist the session approval pattern to global config.json. */
+  persistGlobal?: boolean;
   /**
    * What decided this request, stamped by the site that decided it.
    *

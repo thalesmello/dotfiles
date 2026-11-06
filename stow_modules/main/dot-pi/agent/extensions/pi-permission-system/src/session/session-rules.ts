@@ -13,6 +13,13 @@ import type { SessionApprovalRecorder } from "./session-approval-recorder.ts";
  */
 export class SessionRules implements SessionApprovalRecorder {
   private rules: Ruleset = [];
+  private onPersistGlobal?: (grants: ReadonlyArray<{ surface: string; pattern: string }>) => void;
+
+  setGlobalPersister(
+    fn: (grants: ReadonlyArray<{ surface: string; pattern: string }>) => void,
+  ): void {
+    this.onPersistGlobal = fn;
+  }
 
   /**
    * Record a wildcard pattern as approved for the given surface.
@@ -48,9 +55,12 @@ export class SessionRules implements SessionApprovalRecorder {
    * recorded on the surface it names, so an ask whose paths proved different
    * directions grants each path only its own (#810).
    */
-  recordSessionApproval(approval: SessionApproval): void {
+  recordSessionApproval(approval: SessionApproval, persistGlobal?: boolean): void {
     for (const { surface, pattern } of approval.grants) {
       this.approve(surface, pattern);
+    }
+    if (persistGlobal) {
+      this.onPersistGlobal?.(approval.grants);
     }
   }
 
