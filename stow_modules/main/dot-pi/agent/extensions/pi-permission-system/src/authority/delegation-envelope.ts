@@ -32,7 +32,6 @@ import type { PromptPermissionDetails } from "./permission-prompter.ts";
 
 /** Surface families on which a link may never grant an `allow` unlicensed. */
 export const DELEGATION_EXCLUDED_SURFACES: ReadonlySet<string> = new Set([
-  "external_directory",
   "path",
 ]);
 

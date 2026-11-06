@@ -417,5 +417,5 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
   );
 
   // Register the bundled Claude Code-style auto-review authorizer ("auto-review").
-  permissionAutoReview(pi);
+  permissionAutoReview(pi, authorizerRegistry);
 }
