@@ -553,7 +553,7 @@ description = "agents panel: priority -> grouped -> snoozed -> all"
 # owns the one agent view in every mode (there is no click handler on the
 # panel's label button while a plugin view is active, so the cycle lives on
 # this key), and the view label -- the button's text -- names the mode in
-# plain words ("working hidden" gets no snooze 💤; hidden is not snoozed).
+# plain words ("working hidden" gets no snooze sleep glyph; hidden is not snoozed).
 # Snooze's old toggle-working still exists as a CLI command but is unbound;
 # the hidden mode here supersedes it.
 [[keys.command]]

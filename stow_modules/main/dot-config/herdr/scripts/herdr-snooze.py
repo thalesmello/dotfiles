@@ -46,7 +46,7 @@ REFRESH_MARGIN_MS = 12 * 3600 * 1000  # re-report long snoozes this far before t
 MAX_SNOOZE_S = 366 * 86400
 
 DEFAULT_DURATIONS = ["15m", "1h", "3h", "6h", "1d", "3d", "1w"]
-DEFAULT_BADGE = "\U0001F4A4"  # 💤
+DEFAULT_BADGE = "\U000F00A0"  # nf-md-sleep (Nerd Font; replaces the 💤 emoji)
 
 # Token names aren't owned in herdr: any plugin could write `snoozed`. So every
 # snoozed pane carries two: `snoozed`, the badge text people show in their
@@ -1355,19 +1355,13 @@ def plan_view(state, owner, count, sort_override=None, badge=DEFAULT_BADGE, owne
             label = "%s %s" % (base, badged(badge, "all · %d snoozed" % count)) if base else badged(badge, "all · %d snoozed" % count)
             want_filter = NOT_WORKING_FILTER if hide_working else None
         elif not count:
-            # Just the words, no badge: 💤 means snoozed, and a hidden
+            # Just the words, no badge: the sleep glyph means snoozed, and a hidden
             # working agent is not snoozed.
             label = "%s working hidden" % base if base else "working hidden"
             want_filter = NOT_WORKING_FILTER
-        elif cycle and cycle["mode"] == "hidden":
-            # The 💤 belongs to the snoozed count (as in the other modes'
-            # labels), kept after the "·" so it cannot read as part of
-            # "working hidden" itself.
-            label = "working hidden · " + badged(badge, str(count))
-            want_filter = cycle["filter"]
         else:
             label = "%s %s" % (base, badged(badge, str(count))) if base else badged(badge, str(count))
-            if hide_working:
+            if hide_working and (not cycle or cycle["mode"] != "hidden"):
                 label += " · working hidden"
             if cycle:
                 want_filter = _all_of(cycle["filter"], NOT_WORKING_FILTER if hide_working and cycle["mode"] != "hidden" else None)

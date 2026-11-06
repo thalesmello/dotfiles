@@ -129,7 +129,7 @@ def usable_sort(value: Any) -> str | None:
 # out) -> grouped... The mode is a file in the state dir so the daemon, the
 # cycle-panel op, and restarts agree. The view's label is the panel button's
 # text, so labels are plain words: in particular "working hidden" carries no
-# snooze badge -- the 💤 is snooze's, and a hidden working agent is not snoozed.
+# snooze badge -- the sleep glyph is snooze's, and a hidden working agent is not snoozed.
 PANEL_MODES = ("grouped", "smart", "hidden")
 PANEL_LABELS = {
     "grouped": "grouped",
