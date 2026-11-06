@@ -56,6 +56,10 @@ export interface CommandConfigStore extends ConfigReader {
     next: PermissionSystemExtensionConfig,
     ctx: ExtensionCommandContext,
   ): Promise<void>;
+  setInMemory(
+    next: PermissionSystemExtensionConfig,
+    ctx: ExtensionCommandContext,
+  ): void;
 }
 
 /** Narrow view of the manager's resolved policy paths (for `logResolvedPaths`). */
@@ -232,6 +236,15 @@ export class ConfigStore
       permissionReviewLog: normalized.permissionReviewLog,
       yoloMode: normalized.yoloMode,
     });
+  }
+
+  setInMemory(
+    next: PermissionSystemExtensionConfig,
+    ctx: ExtensionCommandContext,
+  ): void {
+    const normalized = normalizePermissionSystemConfig(next);
+    this.config = normalized;
+    syncPermissionSystemStatus(ctx, normalized);
   }
 
   /**

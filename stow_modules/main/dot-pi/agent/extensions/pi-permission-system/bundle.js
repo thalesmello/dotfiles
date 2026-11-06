@@ -8884,8 +8884,7 @@ function registerPermissionSystemCommand(pi, controller) {
       const current = controller.config.current();
       const nextMode = nextPermissionMode(getEffectivePermissionMode(current));
       const updated = applyPermissionMode(current, nextMode);
-      await controller.config.save(updated, ctx);
-      controller.reloadConfig?.();
+      controller.config.setInMemory(updated, ctx);
       ctx.ui.notify(`Permission mode: ${getPermissionSystemStatus(updated) ?? nextMode}`, "info");
     }
   });
@@ -20994,6 +20993,11 @@ class ConfigStore {
       permissionReviewLog: normalized.permissionReviewLog,
       yoloMode: normalized.yoloMode
     });
+  }
+  setInMemory(next, ctx) {
+    const normalized = normalizePermissionSystemConfig(next);
+    this.config = normalized;
+    syncPermissionSystemStatus(ctx, normalized);
   }
   logResolvedPaths(cwd) {
     const policyPaths = this.deps.policyPaths.getResolvedPolicyPaths();

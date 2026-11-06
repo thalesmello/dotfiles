@@ -543,8 +543,7 @@ export function registerPermissionSystemCommand(
       const current = controller.config.current();
       const nextMode = nextPermissionMode(getEffectivePermissionMode(current));
       const updated = applyPermissionMode(current, nextMode);
-      await controller.config.save(updated, ctx as unknown as ExtensionCommandContext);
-      controller.reloadConfig?.();
+      controller.config.setInMemory(updated, ctx as unknown as ExtensionCommandContext);
       ctx.ui.notify(
         `Permission mode: ${getPermissionSystemStatus(updated) ?? nextMode}`,
         "info",
