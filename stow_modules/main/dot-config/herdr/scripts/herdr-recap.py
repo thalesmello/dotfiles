@@ -1630,7 +1630,11 @@ def shown_tokens(tokens: dict[str, str], only: list[str]) -> list[tuple[str, str
     else:
         names = []
         for key in tokens:
-            if (key == "pr" and tokens.get("prs")) or (key.startswith("pr_") and (tokens.get("pr") or tokens.get("prs"))) or (key.startswith("issue_") and tokens.get("issue")) or key in (PAST_PRS, SNOOZE_MARK, SNOOZE_BADGE, SNOOZE_WOKE, "woke"):
+            # um_* are agent-handler's internal tokens: status glyphs
+            # (already the row mark), the um_rank digit, the um_active
+            # flag, and um_sort -- the "4:999999999561" sort key, whose
+            # raw value is meaningless next to an agent. Never display.
+            if key.startswith("um_") or (key == "pr" and tokens.get("prs")) or (key.startswith("pr_") and (tokens.get("pr") or tokens.get("prs"))) or (key.startswith("issue_") and tokens.get("issue")) or key in (PAST_PRS, SNOOZE_MARK, SNOOZE_BADGE, SNOOZE_WOKE, "woke"):
                 continue
             names.append(key)
         names.sort()
@@ -2004,6 +2008,16 @@ RESET = "\x1b[0m"
 BOLD = "\x1b[1m"
 DIMSEQ = "\x1b[2m"
 UNDERLINE = "\x1b[4m"
+
+
+# Working spinner: the same rotating half-circle frames and 80ms cadence
+# as agent-handler.py (which matches Herdr's symbols-mode working glyph).
+# The frame is a counter advanced by the run loop's spin tick, NOT a
+# wall-clock sample: sampling time.time() at redraw moments aliases --
+# successive redraws can land on the same frame -- and a two-frame toggle
+# reads as a blink, not a spin.
+WORKING_FRAMES = ["\u25d0", "\u25d3", "\u25d1", "\u25d2"]
+SPIN_SECS = 0.08
 
 
 class Theme:
@@ -2568,6 +2582,7 @@ class Model:
         self.suggestion_ranges: dict[str, tuple[tuple[int, int], tuple[int, int]]] = {}
         self.detail_spans: dict[str, list[tuple[str, int, int]]] = {}
         self.last_spin = 0.0
+        self.spin_frame = 0
         self.reply_popup_rect: tuple[int, int, int, int] | None = None  # x, y, w, h
         self.confirm_close_pane = ""  # pane alt+s asked to close, awaiting y/enter
         self.snoozing = False
@@ -3698,7 +3713,7 @@ class Model:
             right_rendered += THEME.paint("dim", " \u00b7 ") + wake
         elif wake:
             right_rendered = wake
-        mark = THEME.mark(entry.agent.status) if entry.agent.status != "working" else THEME.paint("peach", "\u25d4" if int(time.time() * 3) % 2 == 0 else "\u25d5")
+        mark = THEME.mark(entry.agent.status) if entry.agent.status != "working" else THEME.paint("peach", WORKING_FRAMES[self.spin_frame % len(WORKING_FRAMES)])
         left = " " + mark + " " + (THEME.paint("accent", PIN_GLYPH + " ") if pinned(entry.agent) else "")
         title = agent_title(entry.agent)
         room = max(1, width - display_width(left) - display_width(right_plain) - (display_width(entry.agent.tokens.get(SNOOZE_WOKE, "")) if False else 0) - 2)
@@ -4404,9 +4419,11 @@ class Model:
             if self.seek_due and now >= self.seek_due and not self.order and not self.seeking:
                 self.seek_due = 0.0
                 self.start_search()
-            if now - self.last_spin >= 0.33:
+            if now - self.last_spin >= SPIN_SECS:
                 self.last_spin = now
-                self.dirty = True
+                self.spin_frame += 1
+                if any(entry.agent.status == "working" for entry in self.entries.values()):
+                    self.dirty = True
             size = term.size()
             if size != (self.width, self.height):
                 self.width, self.height = size

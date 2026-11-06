@@ -102,6 +102,18 @@ class StageTest(unittest.TestCase):
         self.assertEqual(rc.bucket_of(entry), "snoozed")
 
 
+class ShownTokensTest(unittest.TestCase):
+    def test_internal_um_tokens_are_hidden(self):
+        tokens = {"um_sort": "4:999999999561", "um_rank": "4", "um_active": "1",
+                  "um_working": "\u25d0", "um_pin": "pin", "branch": "main"}
+        shown = rc.shown_tokens(tokens, [])
+        self.assertEqual(shown, [("branch", "main")])
+
+    def test_explicit_token_list_still_shows(self):
+        self.assertEqual(rc.shown_tokens({"um_sort": "4:999999999561"}, ["um_sort"]),
+                         [("um_sort", "4:999999999561")])
+
+
 class PiSummarizerTest(unittest.TestCase):
     def session(self, provider):
         session = rc.AgentSession(agent="pi", transcript="/tmp/x.jsonl")
@@ -514,6 +526,19 @@ class LayoutRegressionTest(ViewHeightTest):
         self.assertEqual(term.draw.call_count, 2)
         self.assertEqual(term.draw.call_args.args[1:], (60, 8))
         self.assertEqual(len(term.draw.call_args.args[0]), 8)
+
+    def test_working_spinner_cycles_herdr_frames(self):
+        import re as _re
+        model = self.make_model()
+        model.width, model.height = 100, 24
+        entry = next(e for e in model.entries.values() if e.agent.status == "working")
+        frames = []
+        for frame in range(len(rc.WORKING_FRAMES)):
+            model.spin_frame = frame
+            plain = _re.sub(r"\x1b\[[0-9;:]*[A-Za-z]", "", model.entry_lines(entry, False, 0)[0])
+            frames.append(next(g for g in rc.WORKING_FRAMES if g in plain))
+        self.assertEqual(frames, rc.WORKING_FRAMES)
+        self.assertEqual(rc.WORKING_FRAMES, ["\u25d0", "\u25d3", "\u25d1", "\u25d2"])
 
 
 class TerminalRegressionTest(unittest.TestCase):
