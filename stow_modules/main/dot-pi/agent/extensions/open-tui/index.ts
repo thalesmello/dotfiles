@@ -236,6 +236,13 @@ export default function (pi: ExtensionAPI) {
 		configLoaded = true;
 		clearPeekLabel(ctx);
 
+		if (isTuiContext(ctx)) {
+			const currentThemeName = (ctx.ui.theme as { name?: string } | undefined)?.name;
+			if (!currentThemeName || currentThemeName === "system" || currentThemeName === "dark") {
+				ctx.ui.setTheme("catppuccin-frappe");
+			}
+		}
+
 		applyUi(ctx);
 
 		refreshInteractiveState(ctx, true);

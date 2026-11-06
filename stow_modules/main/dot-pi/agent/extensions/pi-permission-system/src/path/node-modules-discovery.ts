@@ -70,7 +70,5 @@ function discoverGlobalNodeModulesViaSubprocess(): string | null {
 export function discoverGlobalNodeModulesRoot(
   fromUrl = import.meta.url,
 ): string | null {
-  const fromSelf = walkUpToNodeModules(fromUrl);
-  if (fromSelf) return fromSelf;
-  return discoverGlobalNodeModulesViaSubprocess();
+  return walkUpToNodeModules(fromUrl);
 }

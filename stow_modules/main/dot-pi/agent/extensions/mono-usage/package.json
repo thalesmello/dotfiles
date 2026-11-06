@@ -1,0 +1,8 @@
+{
+  "name": "mono-usage",
+  "private": true,
+  "type": "module",
+  "pi": {
+    "extensions": ["./bundle.js"]
+  }
+}

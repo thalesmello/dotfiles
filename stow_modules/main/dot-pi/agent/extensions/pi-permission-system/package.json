@@ -1,0 +1,8 @@
+{
+  "name": "pi-permission-system",
+  "private": true,
+  "type": "module",
+  "pi": {
+    "extensions": ["./bundle.js"]
+  }
+}

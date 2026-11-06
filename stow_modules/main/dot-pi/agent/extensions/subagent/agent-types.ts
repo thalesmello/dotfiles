@@ -18,7 +18,13 @@ import type { AgentConfig } from "./types.js";
  * operations we never invoke here — we read each tool's `.name` and discard it.
  */
 export const BUILTIN_TOOL_NAMES: string[] = [
-  ...new Set([...createCodingTools("."), ...createReadOnlyTools(".")].map((t) => t.name)),
+  "read",
+  "bash",
+  "edit",
+  "write",
+  "grep",
+  "find",
+  "ls",
 ];
 
 /** Unified runtime registry of all agents (defaults + user-defined). */

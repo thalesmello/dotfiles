@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { memoizeAsyncWithRetry } from "./async-cache.ts";
@@ -53,7 +54,10 @@ interface TSParser extends BashReparser {
 async function initParser(): Promise<TSParser> {
   // Use named imports — web-tree-sitter exports Parser as a named class.
   const { Parser, Language } = (await import("../../../vendor/web-tree-sitter.js")) as any;
-  const vendorDir = join(dirname(fileURLToPath(import.meta.url)), "../../../vendor");
+  const selfDir = dirname(fileURLToPath(import.meta.url));
+  const vendorDir = existsSync(join(selfDir, "vendor", "web-tree-sitter.wasm"))
+    ? join(selfDir, "vendor")
+    : join(selfDir, "../../../vendor");
   const treeSitterWasm = join(vendorDir, "web-tree-sitter.wasm");
   await Parser.init({ locateFile: () => treeSitterWasm });
 
