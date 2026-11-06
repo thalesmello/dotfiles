@@ -189,23 +189,23 @@ describe("selection-manager extension", () => {
 		editorText = "";
 		const screen = startScreen(BASIC_TABLE);
 
-		// Complete a multi-cell selection; the popup paints at its end.
+		// Complete a multi-cell selection; the popup paints on the row below its end.
 		screen.setSelection({ row: 1, col: 2 }, { row: 3, col: 12 });
 		expect(screen.getActiveSelectionText()).toBe("| Name | Role |\n| --- | --- |\n| Alice | Admin |");
 		let painted = screen.applySelection([...BASIC_TABLE]);
-		expect(painted[3]).toContain("⇥ reference");
+		expect(painted[4]).toContain("⇥ reference");
 
 		// Tab inserts only the one-line reference and leaves the cursor on the next line.
 		expect(screen.emitInput("\t")).toEqual({ consume: true });
 		expect(editorText).toBe("> | Name | Role | ...\n");
 		painted = screen.applySelection([...BASIC_TABLE]);
-		expect(painted[3]).not.toContain("⇥ reference");
+		expect(painted[4]).not.toContain("⇥ reference");
 
-		// Repeat the selection, then click the popup instead of pressing Tab.
+		// Repeat the selection, then click the popup on the row below instead of pressing Tab.
 		screen.setSelection({ row: 1, col: 2 }, { row: 3, col: 12 });
 		screen.getActiveSelectionText();
 		screen.applySelection([...BASIC_TABLE]);
-		screen.handleMouseEvent({ button: 0, x: 16, y: 3, release: false });
+		screen.handleMouseEvent({ button: 0, x: 16, y: 4, release: false });
 		expect(screen.mouseEvents).toEqual([]);
 		expect(editorText).toBe("> | Name | Role | ...\n> | Name | Role | ...\n");
 
@@ -277,5 +277,52 @@ describe("selection-manager extension", () => {
 		screen.setSelection({ row: 0, col: 0 }, { row: 1, col: 3 });
 
 		expect(screen.getActiveSelectionText()).toBe("alpha\nbeta");
+	});
+
+	test("copies only inner code lines from an open-tui framed code block and themes the reference popup", () => {
+		const framedCode = [
+			"╭─ bash ─────────── [Copy] ╮",
+			"│ ls -la                   │",
+			"│ echo \"a │ b\"             │",
+			"╰──────────────────────────╯",
+		];
+		const screen = startScreen(framedCode);
+
+		// Selection spanning from the top border through the bottom border
+		// copies only the inner code lines (preserving `│` inside the code)
+		// without borders, trailing padding, or `[Copy]`.
+		screen.setSelection({ row: 0, col: 0 }, { row: 3, col: 27 });
+		expect(screen.getActiveSelectionText()).toBe("ls -la\necho \"a │ b\"");
+
+		// Simulate an active Pi theme where string tokens in `bg` only accept
+		// `*Bg` tokens and concrete Color objects must be passed for `accent`.
+		const fgColor = { kind: "rgb", r: 65, g: 69, b: 89 };
+		const bgColor = { kind: "rgb", r: 202, g: 158, b: 230 };
+		tuiCtx.ui.theme = {
+			colors: {
+				userMessageBg: fgColor,
+				accent: bgColor,
+			},
+			style(text: string, opts: { fg?: unknown; bg?: unknown; bold?: boolean }) {
+				if (typeof opts.bg === "string") {
+					throw new Error(`Unknown theme color: ${opts.bg}`);
+				}
+				expect(opts.fg).toBe(fgColor);
+				expect(opts.bg).toBe(bgColor);
+				return `\x1b[1;38;2;65;69;89;48;2;202;158;230m${text}\x1b[22;49;39m`;
+			},
+		};
+		try {
+			const painted = screen.applySelection([...framedCode]);
+			// Top border gets no selection highlight; the themed popup sits on the row below the last body row (row 3).
+			expect(painted[0]).not.toContain("\x1b[7m");
+			expect(painted[3]).not.toContain("\x1b[7m");
+			// Body lines highlight only the code content.
+			expect(painted[1]).toContain("\x1b[7mls -la\x1b[27m");
+			expect(painted[2]).toContain("\x1b[7mecho \"a │ b\"\x1b[27m");
+			expect(painted[3]).toContain("\x1b[1;38;2;65;69;89;48;2;202;158;230m ⇥ reference ");
+		} finally {
+			delete tuiCtx.ui.theme;
+		}
 	});
 });

@@ -1,0 +1,1251 @@
+/**
+ * Wrapper interpretation for a bash command unit: what kind of wrapper it is,
+ * what it actually runs, and whether its floor still has a reason to hold.
+ *
+ * Pure and word-based; the AST walk that produces the words lives in
+ * `command-enumeration.ts`. The questions live here together deliberately:
+ * the shape that floors a unit to `ask`, the shape that names its inner
+ * command, the shape that exempts it, and how far a session approval may
+ * generalize past it must agree, and separate classifiers over the same
+ * vocabulary would drift.
+ */
+
+import type { FloorExemption } from "../../types.ts";
+import { proveCommandEffect } from "./command-effects.ts";
+import type { ArgWord } from "./node-text.ts";
+
+/**
+ * One word of a command unit: its source text and its offset into the unit's
+ * text, beside the value the program receives once the shell removes quotes.
+ *
+ * The source text is what unwrapping and slicing read; the value is what a
+ * capability proof reads, since `'-o'` reaches `sort` as `-o`.
+ */
+export interface CommandWord extends ArgWord {
+  readonly text: string;
+  readonly offset: number;
+}
+
+/**
+ * Why a command unit's decision is floored to at least `ask`.
+ * `"opaque-payload"` — an inline-shell payload (`bash -c`/`eval`) whose inner
+ * program is not re-parsed (#481).
+ * `"indirection"` — a prefix/exec wrapper (`sudo`/`env`/`xargs`/`find -exec`/…)
+ * whose inner command is a visible argument but is not gated on its own (#490).
+ * The kind selects the audit sentinel; both floor identically.
+ */
+export type WrapperKind = "opaque-payload" | "indirection";
+
+/**
+ * Classify a command unit's words as a floored wrapper, or `undefined` for an
+ * ordinary command. `words[0]` is the command name; a leading
+ * `variable_assignment` prefix is already stripped by the caller. The command
+ * name is matched on its basename, so `/bin/bash -c …` counts.
+ *
+ * `"opaque-payload"`: `eval`, or a shell (`bash`/`sh`/`dash`/`zsh`/`ksh`) with a
+ * `-c` short-flag cluster (`-c`, `-ec`, `-xc`) — the inner program is a quoted
+ * argument the enumerator does not re-parse (#481).
+ *
+ * `"indirection"`: an always-invoking prefix/exec wrapper
+ * ({@link INDIRECTION_WRAPPER_NAMES}), or a search tool
+ * ({@link EXEC_CONDITIONAL_WRAPPERS}, `find`/`fd`) carrying a per-result exec
+ * flag — the inner command is a visible argument that a `<cmd> *` rule would
+ * otherwise never match (#490). A bare `find`/`fd` search runs no subcommand and
+ * is not flagged.
+ */
+export function classifyWrapperWords(
+  words: readonly CommandWord[],
+): WrapperKind | undefined {
+  const commandName = wrapperName(words);
+  if (commandName === undefined) return undefined;
+  const args = words.slice(1).map((word) => word.text);
+  if (commandName === "eval") return "opaque-payload";
+  if (SHELL_WRAPPER_NAMES.has(commandName) && hasShortFlagC(args)) {
+    return "opaque-payload";
+  }
+  if (INDIRECTION_WRAPPER_NAMES.has(commandName)) return "indirection";
+  if (execFlagIndex(commandName, args) !== -1) return "indirection";
+  return undefined;
+}
+
+/**
+ * Index within `words` of the inline-shell payload — the inner program a shell or
+ * `eval` runs — or `-1` when the unit carries none.
+ *
+ * Indirection layers are peeled first, so `sudo bash -c '…'` answers the
+ * payload's index rather than `-1`. That is not a convenience:
+ * {@link executedUnitOf} peels them too, so a consumer that did not would mask a
+ * secret under `executedUnit` and write it verbatim under `command` — the
+ * inconsistency #923 reports, reintroduced one wrapper layer up.
+ *
+ * The index names the payload's *position*, which a vacant one still has
+ * (`bash -c`), so each caller decides for itself what reading past the end of
+ * `words` is worth.
+ */
+export function inlineShellPayloadIndex(words: readonly CommandWord[]): number {
+  let base = 0;
+  let current = words;
+
+  for (let depth = 0; depth < MAX_UNWRAP_DEPTH; depth++) {
+    const direct = directPayloadIndex(current);
+    if (direct !== -1) return base + direct;
+    if (classifyWrapperWords(current) !== "indirection") return -1;
+
+    const start = innerCommandIndex(current);
+    if (start === -1 || start >= current.length) return -1;
+    const end = execTerminatorIndex(current, start);
+    base += start;
+    current = current.slice(start, end);
+  }
+  return -1;
+}
+
+/**
+ * The payload index of a unit that is *already* the shell or `eval` running it.
+ *
+ * `eval` takes its program as the first argument (no `-c`, so the flag scan
+ * answers -1 and the index falls out as 1); a shell takes it after the `-c`
+ * cluster. Any other command name carries no inline program at all, which is
+ * what keeps an interpreter (`python3 -c`, `node -e`) out: its payload is
+ * another language, not shell.
+ */
+function directPayloadIndex(words: readonly CommandWord[]): number {
+  const commandName = wrapperName(words);
+  if (commandName === undefined) return -1;
+  const isShell = SHELL_WRAPPER_NAMES.has(commandName);
+  if (commandName !== "eval" && !isShell) return -1;
+  const flagIndex = shortFlagCIndex(words.slice(1).map((word) => word.text));
+  if (isShell && flagIndex === -1) return -1;
+  return flagIndex + 2;
+}
+
+// ── Wrapper vocabulary ───────────────────────────────────────────────────────
+
+/**
+ * The command a wrapper unit actually runs, or `null` when it cannot be
+ * established or adds nothing over the unit itself.
+ *
+ * Display-only (ADR 0011 §3.5, #713): the result names what runs, including
+ * the payload of an inline shell, so it deliberately looks *past* a `sh -c`
+ * layer that the gate must not look past. Because it is shown on a decision
+ * surface, the rule is to fail to `null` rather than to a guess — an
+ * unrecognized option shape yields nothing rather than a remainder that might
+ * name the wrong command.
+ *
+ * Nested wrappers unwrap to the innermost command (`sudo timeout 5 xargs grep
+ * foo` → `grep foo`), bounded by {@link MAX_UNWRAP_DEPTH}.
+ */
+export function executedUnitOf(
+  unitText: string,
+  words: readonly CommandWord[],
+): string | null {
+  const unwrapped = unwrapIndirection(words, unitText);
+  const text = unwrapped.kind === "opaque" ? unwrapped.payload : unwrapped.text;
+  return nothingNew(text, unitText);
+}
+
+/**
+ * Why a wrapper unit's floor has no reason left to hold, or `undefined` when it
+ * still does.
+ *
+ * `"core-reader"`: the command it runs is in the pure-reader core, so its
+ * *direction* is provable however unknown its argument feed is (ADR 0013 §11,
+ * #803).
+ *
+ * The floor exists because a wrapper hides the command that should be gated,
+ * and the unknowability it guards is unknowability of scope — which stays the
+ * projection's and the path surfaces' job, for wrapped and unwrapped commands
+ * alike. Argument-independence is the core's admission bar, so there are no
+ * arguments that make `grep` write a file.
+ *
+ * Five things must hold for it, and each is a way the reason could still hold:
+ *
+ * 1. The unit is an indirection wrapper — an ordinary command has no floor.
+ * 2. Unwrapping reached the inner command without passing through an opaque
+ *    payload. `sh -c '…'` carries an unparsed program whose first word says
+ *    nothing about the rest of it, which is why this cannot consult
+ *    {@link executedUnitOf}'s string. A wrapper that hands its whole command
+ *    line to a shell or builds it from a template
+ *    ({@link OPAQUE_COMMAND_LINE_WRAPPERS}) is that payload in another shape:
+ *    `watch cat x \; rm y` runs `rm`, so no layer may be one.
+ * 3. Every word a peeled layer passes its wrapper is literal: each option,
+ *    value, operand, and `NAME=value` word. The shell splits or expands a
+ *    computed one before the wrapper runs, so one of the words it becomes may
+ *    be the command that really runs — `sudo -u $U cat x` with
+ *    `U="root rm y"` runs `rm y cat x` as root.
+ * 4. The inner command *proves* a read — bare-basename core word, retraction
+ *    guards applied, so `xargs sort -o /tmp/x` and `xargs find . -delete` are
+ *    not transparent.
+ * 5. The unit writes no file through a redirect, which the caller reads off
+ *    the parse tree and this module never sees.
+ *
+ * `"execution-modifier"`: every wrapper layer only changes *how* the visible
+ * inner command runs, so the unit resolves by that command's own rule whatever
+ * it does (see {@link onlyModifiesExecution}). The first three conditions
+ * above hold for it too; the core-reader reason is preferred when both apply.
+ *
+ * `"no-command"`: the unit's own wrapper names no command, and its bare form
+ * runs nothing (see {@link namesNoCommand}), so there is no command to hide and
+ * the unit resolves by its own rule. It reads the outermost layer only, and it
+ * carries no redirect refusal: like the execution-modifier reason it classifies
+ * nothing, so `env > /tmp/x` is decided as `printenv > /tmp/x` is. It cannot
+ * collide with the other two, which both need an inner command.
+ */
+export function floorExemptionOf(
+  words: readonly CommandWord[],
+  statement: { readonly writesViaRedirect: boolean },
+): FloorExemption | undefined {
+  if (classifyWrapperWords(words) !== "indirection") return undefined;
+  if (namesNoCommand(words)) return "no-command";
+
+  // Only the peeled words matter here, so the walk is handed no source span to
+  // cut from — the text slice is `executedUnitOf`'s product, not this one's.
+  const unwrapped = unwrapIndirection(words, "");
+  if (
+    unwrapped.kind === "opaque" ||
+    unwrapped.peeled.length === 0 ||
+    unwrapped.peeled.some(runsOpaqueCommandLine) ||
+    unwrapped.peeled.some(carriesComputedWord)
+  ) {
+    return undefined;
+  }
+
+  const head = unwrapped.words.at(0)?.text ?? "";
+  const provesRead =
+    proveCommandEffect(head, unwrapped.words.slice(1)).effect === "read";
+  if (provesRead && !statement.writesViaRedirect) return "core-reader";
+  return onlyModifiesExecution(unwrapped.peeled, unwrapped.words)
+    ? "execution-modifier"
+    : undefined;
+}
+
+/**
+ * True when a wrapper unit names no command and its wrapper runs nothing so.
+ *
+ * Three things must hold, and each is a way a command could still run:
+ *
+ * 1. The wrapper's grammar says its bare form runs nothing
+ *    ({@link GetoptGrammar.bareFormRunsNothing}): bare `xargs` runs `echo`.
+ * 2. The option walk ends exactly on the last word, so every word was an
+ *    option, a value, or an assignment. A refused option is a mode the walk
+ *    cannot vouch for, and a value-taking option that runs out of words ends
+ *    past the end.
+ * 3. Every word after the wrapper name is literal: `env -u $X` with
+ *    `X="FOO rm"` runs `rm`, which is {@link carriesComputedWord}'s rule.
+ */
+function namesNoCommand(words: readonly CommandWord[]): boolean {
+  const name = wrapperName(words);
+  const grammar = name === undefined ? undefined : GETOPT_GRAMMARS.get(name);
+  return (
+    grammar?.bareFormRunsNothing === true &&
+    getoptWalkEnd(words, grammar) === words.length &&
+    !carriesComputedWord(words)
+  );
+}
+
+/** True when a peeled layer's wrapper does not run the words the peel sees. */
+function runsOpaqueCommandLine(layer: readonly CommandWord[]): boolean {
+  const name = wrapperName(layer);
+  return name !== undefined && OPAQUE_COMMAND_LINE_WRAPPERS.has(name);
+}
+
+/**
+ * True when the shell may rewrite a word a peeled layer passes its wrapper.
+ *
+ * The wrapper name is skipped: it is matched by its text against a fixed
+ * vocabulary, so a computed spelling never classifies as a wrapper, and the
+ * word adapter reads a `command_name` node as computed whatever it spells.
+ */
+function carriesComputedWord(layer: readonly CommandWord[]): boolean {
+  return layer.slice(1).some((word) => word.computed);
+}
+
+/**
+ * True when every peeled layer only changes *how* the inner command runs, and
+ * that command is a literal name the gate can resolve by its own rule.
+ *
+ * The floor's reason (a wrapper hides the command that should be gated) is
+ * false for an execution modifier whatever the inner command does: every
+ * operand is on the command line, and the wrapper adds no privilege,
+ * environment, or argument feed. So the unit inherits the inner verdict rather
+ * than being classified a read, which is why no redirect refusal applies —
+ * the destination is gated by the path surfaces exactly as for the bare
+ * command.
+ *
+ * Each condition is a way the inherited verdict could name the wrong command:
+ *
+ * 1. Every layer is a modifier. The peel looks through `sudo` and `env` too,
+ *    so `time sudo rm` would otherwise inherit `rm`'s verdict.
+ * 2. Every option in every layer is on that modifier's allowlist. The real
+ *    tools accept abbreviations (`timeout --sig KILL 5 rm`) the inner-command
+ *    search does not know, and one of them misplaces where the command starts.
+ *    That every word is also literal is {@link floorExemptionOf}'s condition,
+ *    shared with the core-reader reason: the shell splits `timeout $D pnpm` or
+ *    expands `timeout {5,sudo} rm` into extra words before the modifier runs.
+ * 3. The peel ended at an ordinary command, not a wrapper it could not see
+ *    past.
+ * 4. The inner head is a literal command name. The grammar has no `time`
+ *    keyword, so `time { …; }` and `time ( … )` reach here with shell syntax
+ *    where the command name should be. A word list cannot tell whether that
+ *    syntax was enumerated, so both keep the floor here; the command
+ *    enumerator, which descends a `time ( … )` subshell, exempts that shape
+ *    itself.
+ */
+function onlyModifiesExecution(
+  peeled: readonly (readonly CommandWord[])[],
+  inner: readonly CommandWord[],
+): boolean {
+  return peeled.every(isAdmittedModifierLayer) && reachedLiteralCommand(inner);
+}
+
+/**
+ * True when a peel ended at an ordinary command spelled as a literal name: not
+ * a wrapper it could not see past, and not shell syntax standing where the
+ * command name should be.
+ */
+function reachedLiteralCommand(inner: readonly CommandWord[]): boolean {
+  return (
+    classifyWrapperWords(inner) === undefined &&
+    isLiteralCommandName(inner.at(0)?.text ?? "")
+  );
+}
+
+/**
+ * True when a peeled layer is an execution modifier whose every word before
+ * the inner command is one it admits.
+ *
+ * Walks the words with the same value-taking table {@link innerCommandIndex}
+ * skips by, so an admitted option's value can never be taken for the command.
+ * It reads option shapes only: each caller refuses a computed word before it
+ * gets here ({@link floorExemptionOf}'s literal-layer condition, and
+ * {@link sessionCommandIndex}'s refusal of any token with shell syntax).
+ */
+function isAdmittedModifierLayer(layer: readonly CommandWord[]): boolean {
+  const name = wrapperName(layer);
+  const flags =
+    name === undefined ? undefined : EXECUTION_MODIFIER_FLAGS.get(name);
+  if (name === undefined || flags === undefined) return false;
+
+  const valueTaking = admittedValueTaking(name);
+  for (let index = 1; index < layer.length; index++) {
+    const word = layer[index].text;
+    if (isEnvironmentAssignment(word)) continue;
+    if (word === "--") continue;
+    if (!word.startsWith("-")) continue;
+    if (flags.has(word)) continue;
+    if (valueTaking.has(word)) {
+      index++;
+      continue;
+    }
+    if (!hasAttachedValue(word, valueTaking)) return false;
+  }
+  return true;
+}
+
+/** A modifier's value-taking options, less any that write a file. */
+function admittedValueTaking(name: string): ReadonlySet<string> {
+  const valueTaking = VALUE_TAKING_FLAGS.get(name) ?? EMPTY_FLAGS;
+  const writing = WRITING_OPTIONS.get(name) ?? EMPTY_FLAGS;
+  return new Set([...valueTaking].filter((flag) => !writing.has(flag)));
+}
+
+/** `--long=value`, or a short option with its value attached (`-sKILL`). */
+function hasAttachedValue(
+  word: string,
+  valueTaking: ReadonlySet<string>,
+): boolean {
+  if (word.startsWith("--")) {
+    const equals = word.indexOf("=");
+    return equals !== -1 && valueTaking.has(word.slice(0, equals));
+  }
+  return word.length > 2 && valueTaking.has(word.slice(0, 2));
+}
+
+/** A command name spelled literally: no quoting, expansion, or shell syntax. */
+function isLiteralCommandName(text: string): boolean {
+  return LITERAL_COMMAND_NAME.test(text) && !RESERVED_WORDS.has(text);
+}
+
+// ── Session patterns ─────────────────────────────────────────────────────────
+
+/**
+ * Where the inner command starts for a session-approval pattern: `0` for an
+ * ordinary command, the count of peeled wrapper words when every layer may be
+ * generalized past, or `null` to keep the whole command.
+ *
+ * A session grant skips the wrapper floor, so the pattern built from this
+ * index is the grant's whole width: everything before the index stays literal,
+ * and only the inner command's arguments may vary. Each `null` is a shape where
+ * a pattern ending in a wildcard could name a command the human never saw —
+ * shell syntax the whitespace split cannot read, an opaque payload, a peel
+ * that stopped short, or a layer {@link generalizesLayer} refuses.
+ *
+ * The count is summed over the peeled layers rather than taken from the inner
+ * command's length, since the walk trims an exec terminator off the end.
+ */
+export function sessionCommandIndex(tokens: readonly string[]): number | null {
+  const words = literalWordsOf(tokens);
+  if (classifyWrapperWords(words) === undefined) return 0;
+  if (words.some((word) => word.computed)) return null;
+  const unwrapped = unwrapIndirection(words, "");
+  if (unwrapped.kind === "opaque") return null;
+  if (!unwrapped.peeled.every(generalizesLayer)) return null;
+  if (!reachedLiteralCommand(unwrapped.words)) return null;
+  return unwrapped.peeled.reduce((count, layer) => count + layer.length, 0);
+}
+
+/**
+ * True when a session pattern may keep a peeled layer literal and vary what
+ * follows its inner command.
+ *
+ * A getopt-read wrapper's peel already refuses an unlisted or mode-changing
+ * option. A table-read wrapper skips an unknown option as a flag, so it is
+ * admitted only by the floor exemption's own admission or with no option at
+ * all; that also refuses a `find`/`fd` exec flag, after which `find`'s own
+ * options may follow the inner command.
+ */
+function generalizesLayer(layer: readonly CommandWord[]): boolean {
+  const name = wrapperName(layer);
+  if (name === undefined || runsOpaqueCommandLine(layer)) return false;
+  if (name === "xargs") return !mayReplaceArguments(layer);
+  if (GETOPT_GRAMMARS.has(name)) return true;
+  return (
+    isAdmittedModifierLayer(layer) ||
+    layer.slice(1).every((word) => !word.text.startsWith("-"))
+  );
+}
+
+/**
+ * True when an `xargs` layer may carry a replacement option (`-I`, `-i`,
+ * `--replace`), which lets standard input rewrite the inner command's
+ * arguments, a nested wrapper's executable included.
+ *
+ * Deliberately wider than the grammar: any short cluster holding `I` or `i`
+ * and any long option opening `--r` counts, since a false positive only keeps
+ * the whole command.
+ */
+function mayReplaceArguments(layer: readonly CommandWord[]): boolean {
+  return layer
+    .slice(1)
+    .some(({ text }) => /^-[^-]*[Ii]/.test(text) || text.startsWith("--r"));
+}
+
+/**
+ * A command's whitespace tokens as command words, each marked `computed` when
+ * it carries shell syntax the split cannot read: quoting, expansion, a glob,
+ * grouping, an operator, or a comment.
+ */
+function literalWordsOf(tokens: readonly string[]): CommandWord[] {
+  let offset = 0;
+  return tokens.map((text) => {
+    const word: CommandWord = {
+      text,
+      value: text,
+      computed: SHELL_SYNTAX.test(text),
+      mayLeadWithDash: text.startsWith("-"),
+      offset,
+    };
+    offset += text.length + 1;
+    return word;
+  });
+}
+
+// ── Unwrapping ───────────────────────────────────────────────────────────────
+
+/**
+ * How an unwrap ended: at the innermost command reachable by peeling
+ * indirection layers, or at an inline-shell payload.
+ *
+ * The two are kept apart because they are different kinds of answer. A peeled
+ * result is a slice of this command line, with words the caller can inspect;
+ * a payload is an inner *program* the enumerator never parsed, so it has text
+ * and nothing else. Collapsing them is how a core-looking first word inside
+ * `sh -c '…'` would come to stand for the whole payload (#803).
+ */
+type UnwrapResult =
+  | { readonly kind: "opaque"; readonly payload: string | null }
+  | {
+      readonly kind: "peeled";
+      readonly text: string;
+      readonly words: readonly CommandWord[];
+      /**
+       * Each peeled layer's words before its inner command: the wrapper name,
+       * its options, and any leading operand. Empty when none came off.
+       */
+      readonly peeled: readonly (readonly CommandWord[])[];
+    };
+
+/**
+ * Peel indirection layers off a command unit until an ordinary command, an
+ * opaque payload, or an unrecognized option shape stops the walk.
+ *
+ * Stopping early is not an error: the words peeled so far are returned, and
+ * each caller decides what an incomplete peel is worth — `executedUnitOf`
+ * shows it, {@link floorExemptionOf} declines it because the head word it
+ * would judge is the wrapper's own.
+ *
+ * `unitText` is the span the peeled `text` is cut from; a caller that wants
+ * only the words passes the empty string and ignores it.
+ */
+function unwrapIndirection(
+  words: readonly CommandWord[],
+  unitText: string,
+): UnwrapResult {
+  let text = unitText;
+  let current = words;
+  const peeled: (readonly CommandWord[])[] = [];
+
+  for (let depth = 0; depth < MAX_UNWRAP_DEPTH; depth++) {
+    const kind = classifyWrapperWords(current);
+    if (kind === undefined) break;
+
+    if (kind === "opaque-payload") {
+      // The payload is an inner *program*, not a slice of this command line, so
+      // it is unquoted and terminal — unwrapping it further would need a parse.
+      return { kind: "opaque", payload: opaquePayload(current) };
+    }
+
+    const start = innerCommandIndex(current);
+    if (start === -1 || start >= current.length) break;
+    const end = execTerminatorIndex(current, start);
+    text = sliceWords(text, current, start, end).trimEnd();
+    peeled.push(current.slice(0, start));
+    current = rebase(current, start, end);
+  }
+
+  return { kind: "peeled", text, words: current, peeled };
+}
+
+/** How many wrapper layers to unwrap before giving up. */
+const MAX_UNWRAP_DEPTH = 4;
+
+/**
+ * The extracted text, or `null` when it establishes nothing new — it is absent
+ * or empty, it still begins with an option (so the inner command was never
+ * reached), or it simply repeats the unit.
+ */
+function nothingNew(text: string | null, unitText: string): string | null {
+  if (text === null || text === "" || text === unitText) return null;
+  return text.startsWith("-") ? null : text;
+}
+
+/**
+ * The inline-shell payload argument, unquoted; `null` when absent.
+ *
+ * Reads the **direct** index: {@link unwrapIndirection} has already peeled every
+ * wrapper layer by the time it reaches its opaque branch, so peeling again would
+ * look past a shell that is itself an outer wrapper's payload.
+ */
+function opaquePayload(words: readonly CommandWord[]): string | null {
+  const index = directPayloadIndex(words);
+  const payload = index === -1 ? undefined : words.at(index);
+  return payload === undefined ? null : unquote(payload.text);
+}
+
+/** Strip one matching pair of surrounding quotes. */
+function unquote(text: string): string {
+  const first = text.at(0);
+  const quoted =
+    (first === "'" || first === '"') &&
+    text.length >= 2 &&
+    text.endsWith(first);
+  return quoted ? text.slice(1, -1) : text;
+}
+
+/**
+ * Index of the word beginning the inner command, or `-1` when the wrapper's own
+ * options run out first.
+ *
+ * An exec-conditional wrapper starts immediately after its exec flag. A wrapper
+ * with a {@link GETOPT_GRAMMARS} entry is read as getopt reads it, and answers
+ * `-1` for any option its grammar refuses; every other wrapper is read by the
+ * per-wrapper tables.
+ */
+function innerCommandIndex(words: readonly CommandWord[]): number {
+  const name = wrapperName(words);
+  if (name === undefined) return -1;
+
+  const argTexts = words.slice(1).map((word) => word.text);
+  const execFlag = execFlagIndex(name, argTexts);
+  if (execFlag !== -1) return execFlag + 2;
+
+  const grammar = GETOPT_GRAMMARS.get(name);
+  return grammar === undefined
+    ? tableInnerIndex(words, name)
+    : getoptInnerIndex(words, grammar);
+}
+
+/**
+ * {@link innerCommandIndex} for a wrapper read as getopt_long reads it: where
+ * {@link getoptWalkEnd} stops, or `-1` when an option is refused or the words
+ * run out first.
+ */
+function getoptInnerIndex(
+  words: readonly CommandWord[],
+  grammar: GetoptGrammar,
+): number {
+  const end = getoptWalkEnd(words, grammar);
+  return end !== -1 && end < words.length ? end : -1;
+}
+
+/**
+ * Where a wrapper's own words end, read as getopt_long reads them, with
+ * options permuted no further than the first non-option, as every grammar here
+ * does (a `+` optstring, or BSD getopt, which never permutes).
+ *
+ * Options come first, then — for a wrapper that takes them — the `NAME=value`
+ * assignments it passes to the command. The answer is the index of the word
+ * after them: the command's, `words.length` when every word was the wrapper's
+ * own, or past the end when a value-taking option ran out of words. `-1` when
+ * an option is refused, unlisted, or an ambiguous abbreviation.
+ */
+function getoptWalkEnd(
+  words: readonly CommandWord[],
+  grammar: GetoptGrammar,
+): number {
+  let index = 1;
+  while (index < words.length) {
+    const word = words[index].text;
+    if (word === "--" || (word === "-" && grammar.loneDashEndsOptions)) {
+      index++;
+      break;
+    }
+    if (!word.startsWith("-") || word === "-") break;
+    const consumed = word.startsWith("--")
+      ? longOptionWords(word.slice(2), grammar.long)
+      : shortClusterWords(word.slice(1), grammar.short);
+    if (consumed === undefined) return -1;
+    index += consumed;
+  }
+  while (
+    grammar.assignments &&
+    index < words.length &&
+    isEnvironmentAssignment(words[index].text)
+  ) {
+    index++;
+  }
+  return index;
+}
+
+/**
+ * How many words a short-option cluster spans (`-nu root` is two), or
+ * `undefined` when a letter in it is refused or unlisted.
+ *
+ * A value-taking letter ends the cluster: the rest of the cluster is its value
+ * (`-uedward`), or the following word when nothing is left (`-nu root`). An
+ * optional-argument letter ends it too, but its value is only ever the rest of
+ * the cluster (`-i{}`), never the following word (`-i rm cat x` runs `rm`).
+ */
+function shortClusterWords(
+  letters: string,
+  table: ReadonlyMap<string, OptionArity>,
+): number | undefined {
+  for (let position = 0; position < letters.length; position++) {
+    const arity = table.get(letters[position]);
+    if (arity === undefined || arity === "refuse" || arity === "attached") {
+      return undefined;
+    }
+    if (arity === "optional") return 1;
+    if (arity === "value") return position + 1 < letters.length ? 1 : 2;
+  }
+  return 1;
+}
+
+/**
+ * How many words a long option spans (`--user root` is two, `--user=root`
+ * one), or `undefined` when it is refused, unlisted, or ambiguous. A flag or an
+ * optional argument (`--replace[=R]`) never takes the following word.
+ */
+function longOptionWords(
+  body: string,
+  table: ReadonlyMap<string, OptionArity>,
+): number | undefined {
+  const equals = body.indexOf("=");
+  const name = equals === -1 ? body : body.slice(0, equals);
+  const arity = resolveLongOption(name, table);
+  if (arity === undefined || arity === "refuse") return undefined;
+  if (arity === "attached" && equals === -1) return undefined;
+  return arity === "value" && equals === -1 ? 2 : 1;
+}
+
+/**
+ * A long option's arity by its exact name, or by the one key it abbreviates.
+ *
+ * Abbreviations resolve against every key, refusing ones included, as
+ * getopt_long does: `--l` is ambiguous between `--list` and `--login`, and
+ * resolving against the admitted keys alone would read it as `--list`.
+ */
+function resolveLongOption(
+  name: string,
+  table: ReadonlyMap<string, OptionArity>,
+): OptionArity | undefined {
+  const exact = table.get(name);
+  if (exact !== undefined) return exact;
+  const matches = [...table.keys()].filter((key) => key.startsWith(name));
+  return matches.length === 1 ? table.get(matches[0]) : undefined;
+}
+
+/**
+ * {@link innerCommandIndex} for a wrapper described by the per-wrapper tables:
+ * its value-taking options ({@link VALUE_TAKING_FLAGS}) and whether it takes a
+ * leading operand ({@link LEADING_OPERAND_WRAPPERS}).
+ */
+function tableInnerIndex(words: readonly CommandWord[], name: string): number {
+  const valueTaking = VALUE_TAKING_FLAGS.get(name) ?? EMPTY_FLAGS;
+  let operandPending = LEADING_OPERAND_WRAPPERS.has(name);
+  let index = 1;
+
+  while (index < words.length) {
+    const word = words[index].text;
+    if (word === "--") {
+      // The end of options, not of operands: `timeout -- 5 cmd` still takes
+      // its duration before the command.
+      return operandPending ? index + 2 : index + 1;
+    }
+    if (isEnvironmentAssignment(word)) {
+      index++;
+      continue;
+    }
+    if (word.startsWith("-")) {
+      index += valueTaking.has(word) ? 2 : 1;
+      continue;
+    }
+    if (operandPending) {
+      operandPending = false;
+      index++;
+      continue;
+    }
+    return index;
+  }
+  return -1;
+}
+
+/**
+ * Index of an exec wrapper's `;`/`+` terminator, or `words.length` — the
+ * terminator belongs to `find`, not to the command it runs.
+ */
+function execTerminatorIndex(
+  words: readonly CommandWord[],
+  start: number,
+): number {
+  const terminator = words.findIndex(
+    (word, index) =>
+      index >= start && EXEC_TERMINATORS.has(word.text.replace(/^\\/, "")),
+  );
+  return terminator === -1 ? words.length : terminator;
+}
+
+/** The unit text spanned by `words[start..end)`. */
+function sliceWords(
+  unitText: string,
+  words: readonly CommandWord[],
+  start: number,
+  end: number,
+): string {
+  const from = words[start].offset;
+  return end < words.length
+    ? unitText.slice(from, words[end].offset)
+    : unitText.slice(from);
+}
+
+/** `words[start..end)` with offsets rebased onto the sliced text. */
+function rebase(
+  words: readonly CommandWord[],
+  start: number,
+  end: number,
+): CommandWord[] {
+  const origin = words[start].offset;
+  return words
+    .slice(start, end)
+    .map((word) => ({ ...word, offset: word.offset - origin }));
+}
+
+/** True for a `NAME=value` environment prefix. */
+function isEnvironmentAssignment(word: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*=/.test(word);
+}
+
+/**
+ * Shell command names whose `-c` flag introduces an opaque inline program.
+ */
+const SHELL_WRAPPER_NAMES = new Set(["bash", "sh", "dash", "zsh", "ksh"]);
+
+/**
+ * Indirection wrappers that always invoke a following command, so the wrapper
+ * (not the inner command) is what a bash rule matches. Floored by command-name
+ * basename alone. Extend this set to cover another always-invoking wrapper.
+ */
+const INDIRECTION_WRAPPER_NAMES = new Set([
+  "sudo",
+  "env",
+  "xargs",
+  "time",
+  "nohup",
+  "timeout",
+  "nice",
+  // Exec-capable rewrites and prefix wrappers surveyed in #575: parallelizers
+  // (parallel/rust-parallel/rush), a sudo rewrite (doas), and prefix wrappers
+  // (setsid/stdbuf/watch/flock) that all always invoke a following command.
+  "parallel",
+  "rust-parallel",
+  "rush",
+  "doas",
+  "setsid",
+  "stdbuf",
+  "watch",
+  "flock",
+]);
+
+/**
+ * Every command name whose unit the wrapper floor can apply to by name: `eval`,
+ * the shells, and the indirection wrappers.
+ *
+ * A user's `commandEffects` declaration never describes one (ADR 0013 §11): its
+ * arguments carry the command it runs, so a declared `xargs` or `sudo` would
+ * attribute, or withdraw, the inner command's operands.
+ */
+export const WRAPPER_COMMAND_NAMES: ReadonlySet<string> = new Set([
+  "eval",
+  ...SHELL_WRAPPER_NAMES,
+  ...INDIRECTION_WRAPPER_NAMES,
+]);
+
+/**
+ * Search tools that invoke a command per result only when an exec flag is
+ * present; a bare search runs no subcommand. Floored only when an argument
+ * exactly matches one of the tool's exec flags. Extend by adding a tool with
+ * its exec-flag set.
+ */
+const EXEC_CONDITIONAL_WRAPPERS = new Map<string, ReadonlySet<string>>([
+  ["find", new Set(["-exec", "-execdir", "-ok", "-okdir"])],
+  ["fd", new Set(["-x", "--exec", "-X", "--exec-batch"])],
+]);
+
+/**
+ * Curated per-wrapper options that consume the following word, so skipping a
+ * wrapper's own arguments does not mistake an option's value for the inner
+ * command. Attached forms (`-I{}`, `--user=root`) need no entry — they are one
+ * word.
+ *
+ * This table decides the gate, not only the display: {@link floorExemptionOf}
+ * judges the command it locates, so a missing entry can name a pure reader that
+ * is really an option's value (GNU `time --out cat rm x`, #1057), and the
+ * execution-modifier clause admits value-taking options from it. A wrapper
+ * read by a {@link GETOPT_GRAMMARS} entry has no row here.
+ */
+const VALUE_TAKING_FLAGS = new Map<string, ReadonlySet<string>>([
+  ["timeout", new Set(["-s", "-k", "--signal", "--kill-after"])],
+  ["nice", new Set(["-n", "--adjustment"])],
+  ["time", new Set(["-o", "-f", "--output", "--format"])],
+  ["stdbuf", new Set(["-i", "-o", "-e", "--input", "--output", "--error"])],
+  ["watch", new Set(["-n", "--interval"])],
+  ["flock", new Set(["-w", "-E", "--timeout", "--conflict-exit-code"])],
+]);
+
+const EMPTY_FLAGS: ReadonlySet<string> = new Set<string>();
+
+/**
+ * How a getopt-parsed wrapper treats one of its options: a flag, an option
+ * taking a value, an option whose value is optional and so only ever attached
+ * (getopt's `::`), a long option whose value is admitted only attached
+ * (`--unset=FOO`) because another implementation reads the detached form as a
+ * different command line, or a mode in which the command the peel would name
+ * is not the one that runs, which refuses the peel. A short-option table never
+ * holds `"attached"`; a cluster reads it as a refusal.
+ */
+type OptionArity = "flag" | "value" | "optional" | "attached" | "refuse";
+
+/**
+ * A wrapper's options as getopt_long reads them, keyed by short letter and by
+ * full long name. Anything absent refuses, so a missing row costs a prompt and
+ * never misplaces the inner command.
+ */
+interface GetoptGrammar {
+  readonly short: ReadonlyMap<string, OptionArity>;
+  readonly long: ReadonlyMap<string, OptionArity>;
+  /**
+   * Whether `NAME=value` words after the options are assignments the wrapper
+   * passes to the command. `xargs` and `doas` run such a word as the command.
+   */
+  readonly assignments: boolean;
+  /**
+   * Whether a lone `-` is an option that ends the option walk, as `env -`
+   * (clear the environment) is; otherwise it is the command, which names
+   * nothing.
+   */
+  readonly loneDashEndsOptions: boolean;
+  /**
+   * Whether the wrapper given no command runs nothing, as `env` (which prints
+   * the environment) does. Set only where that is verified: bare `xargs` runs
+   * `echo`, so a wrapper whose bare form invokes anything must leave it unset.
+   */
+  readonly bareFormRunsNothing: boolean;
+}
+
+/**
+ * `sudo`'s options, verified against `man sudo` (1.9.17p2). The SELinux
+ * `-r`/`-t` (`--role`/`--type`) are absent from that page, so they are left
+ * unlisted and refuse.
+ *
+ * Each refusing mode is one where the command the peel would name is not what
+ * runs as named: `-e` (sudoedit) opens each operand in an editor and writes it
+ * back as root; `-s` and `-i` hand the operand to a shell, which still expands
+ * `$`; `-i`, `-D`, and `-R` move where its relative operands resolve, so the
+ * path surfaces would judge the wrong file; and `-h` is help alone but a remote
+ * host with a value, an arity the page does not settle.
+ */
+const SUDO_GRAMMAR: GetoptGrammar = {
+  short: new Map<string, OptionArity>([
+    ["A", "flag"],
+    ["B", "flag"],
+    ["b", "flag"],
+    ["E", "flag"],
+    ["H", "flag"],
+    ["K", "flag"],
+    ["k", "flag"],
+    ["l", "flag"],
+    ["N", "flag"],
+    ["n", "flag"],
+    ["P", "flag"],
+    ["S", "flag"],
+    ["V", "flag"],
+    ["v", "flag"],
+    ["C", "value"],
+    ["g", "value"],
+    ["p", "value"],
+    ["T", "value"],
+    ["U", "value"],
+    ["u", "value"],
+    ["D", "refuse"],
+    ["e", "refuse"],
+    ["h", "refuse"],
+    ["i", "refuse"],
+    ["R", "refuse"],
+    ["s", "refuse"],
+  ]),
+  long: new Map<string, OptionArity>([
+    ["askpass", "flag"],
+    ["background", "flag"],
+    ["bell", "flag"],
+    ["help", "flag"],
+    ["list", "flag"],
+    ["no-update", "flag"],
+    ["non-interactive", "flag"],
+    // Its value is attached only (`--preserve-env=list`), which a flag accepts.
+    ["preserve-env", "flag"],
+    ["preserve-groups", "flag"],
+    ["remove-timestamp", "flag"],
+    ["reset-timestamp", "flag"],
+    ["set-home", "flag"],
+    ["stdin", "flag"],
+    ["validate", "flag"],
+    ["version", "flag"],
+    ["close-from", "value"],
+    ["command-timeout", "value"],
+    ["group", "value"],
+    ["other-user", "value"],
+    ["prompt", "value"],
+    ["user", "value"],
+    ["chdir", "refuse"],
+    ["chroot", "refuse"],
+    ["edit", "refuse"],
+    ["host", "refuse"],
+    ["login", "refuse"],
+    ["shell", "refuse"],
+  ]),
+  assignments: true,
+  loneDashEndsOptions: false,
+  bareFormRunsNothing: false,
+};
+
+/**
+ * `env`'s options: the union of BSD `env` (optstring `-0C:iP:S:u:v`, no long
+ * options) and GNU coreutils 9.12 (`env --help`). No letter has different
+ * arities on the two.
+ *
+ * BSD reads a long option as a cluster after its `-` option, and the two
+ * readings part only at `--unset`: BSD takes `--unset FOO cat` as `-`, then
+ * `-u nset`, and runs `FOO`, where GNU unsets `FOO` and runs `cat`. So
+ * `--unset` and its abbreviations admit a value only attached
+ * (`--unset=FOO`), which neither reads as a command. Every other long option
+ * either refuses here or is a usage error on BSD, which runs nothing.
+ *
+ * Each refusing option is one where the command the peel would name is not
+ * what runs as named: `-C`/`--chdir` move where its relative operands
+ * resolve, so the path surfaces would judge the wrong file; `-S`/
+ * `--split-string` split one word into several, so the command is built at
+ * run time; and `-P` (a search path), `-a`/`--argv0` (the argv0 a multi-call
+ * binary dispatches on), and `--env0-from` (an environment that may set
+ * `PATH`) choose which binary the named command is.
+ *
+ * A lone `-` clears the environment and, as GNU reads it, ends the options;
+ * BSD keeps parsing after it, so ending there only ever names less.
+ *
+ * Given no command, `env` prints the environment and runs nothing, on BSD and
+ * GNU alike; that is its bare form, read by this same grammar.
+ */
+const ENV_GRAMMAR: GetoptGrammar = {
+  short: new Map<string, OptionArity>([
+    ["0", "flag"],
+    ["i", "flag"],
+    ["v", "flag"],
+    ["u", "value"],
+    ["a", "refuse"],
+    ["C", "refuse"],
+    ["P", "refuse"],
+    ["S", "refuse"],
+  ]),
+  long: new Map<string, OptionArity>([
+    ["debug", "flag"],
+    ["help", "flag"],
+    ["ignore-environment", "flag"],
+    ["list-signal-handling", "flag"],
+    ["null", "flag"],
+    ["version", "flag"],
+    ["unset", "attached"],
+    ["block-signal", "optional"],
+    ["default-signal", "optional"],
+    ["ignore-signal", "optional"],
+    ["argv0", "refuse"],
+    ["chdir", "refuse"],
+    ["env0-from", "refuse"],
+    ["split-string", "refuse"],
+  ]),
+  assignments: true,
+  loneDashEndsOptions: true,
+  bareFormRunsNothing: true,
+};
+
+/**
+ * `xargs`'s options: the union of BSD `xargs` (optstring
+ * `+0E:I:J:L:n:oP:pR:S:s:rtx`) and GNU findutils 4.9 (`xargs --help`). No
+ * letter has different arities on the two, and BSD's long names are a subset
+ * of GNU's, so an option one platform rejects only makes it run nothing.
+ *
+ * GNU's `-i`, `-l`, and `-e` take an optional value, attached only, so
+ * `xargs -i rm cat x` runs `rm`. So does `--max-lines`, though its `--help`
+ * line reads as required and its short form `-L` does take the next word:
+ * `xargs --max-lines echo A B` runs `echo`. BSD's `-J` refuses: it puts input
+ * in the utility position when the utility equals its replstr
+ * (`xargs -J % % x`).
+ */
+const XARGS_GRAMMAR: GetoptGrammar = {
+  short: new Map<string, OptionArity>([
+    ["0", "flag"],
+    ["o", "flag"],
+    ["p", "flag"],
+    ["r", "flag"],
+    ["t", "flag"],
+    ["x", "flag"],
+    ["a", "value"],
+    ["d", "value"],
+    ["E", "value"],
+    ["I", "value"],
+    ["L", "value"],
+    ["n", "value"],
+    ["P", "value"],
+    ["R", "value"],
+    ["S", "value"],
+    ["s", "value"],
+    ["e", "optional"],
+    ["i", "optional"],
+    ["l", "optional"],
+    ["J", "refuse"],
+  ]),
+  long: new Map<string, OptionArity>([
+    ["exit", "flag"],
+    ["help", "flag"],
+    ["interactive", "flag"],
+    ["no-run-if-empty", "flag"],
+    ["null", "flag"],
+    ["open-tty", "flag"],
+    ["show-limits", "flag"],
+    ["verbose", "flag"],
+    ["version", "flag"],
+    ["arg-file", "value"],
+    ["delimiter", "value"],
+    ["max-args", "value"],
+    ["max-chars", "value"],
+    ["max-procs", "value"],
+    ["process-slot-var", "value"],
+    ["eof", "optional"],
+    ["max-lines", "optional"],
+    ["replace", "optional"],
+  ]),
+  assignments: false,
+  loneDashEndsOptions: false,
+  bareFormRunsNothing: false,
+};
+
+/**
+ * `doas`'s options, verified against `opendoas`
+ * (`usage: doas [-Lns] [-C config] [-u user] command [args]`); it takes no
+ * long options and never permutes. OpenBSD's `-a style` is absent there, so
+ * it is left unlisted and refuses rather than admitted unverified.
+ *
+ * `-C` checks a config and runs nothing, so the command it would name never
+ * runs as named; `-s` runs a shell.
+ */
+const DOAS_GRAMMAR: GetoptGrammar = {
+  short: new Map<string, OptionArity>([
+    ["L", "flag"],
+    ["n", "flag"],
+    ["u", "value"],
+    ["C", "refuse"],
+    ["s", "refuse"],
+  ]),
+  long: new Map<string, OptionArity>(),
+  assignments: false,
+  loneDashEndsOptions: false,
+  bareFormRunsNothing: false,
+};
+
+/** Wrappers whose inner command is located by a getopt grammar. */
+const GETOPT_GRAMMARS = new Map<string, GetoptGrammar>([
+  ["sudo", SUDO_GRAMMAR],
+  ["env", ENV_GRAMMAR],
+  ["xargs", XARGS_GRAMMAR],
+  ["doas", DOAS_GRAMMAR],
+]);
+
+/**
+ * Wrappers that change only *how* the same visible command runs — timing, kill
+ * deadline, scheduling, buffering, session — each with the flags (options
+ * taking no value) it admits. Value-taking options are admitted from
+ * {@link VALUE_TAKING_FLAGS}, less {@link WRITING_OPTIONS}, so the two tables
+ * cannot disagree about where the inner command starts. Any other option
+ * refuses the exemption.
+ */
+const EXECUTION_MODIFIER_FLAGS = new Map<string, ReadonlySet<string>>([
+  // BSD `man 1 time`: `time [-al] [-h | -p] [-o file]`; `-p` is also the bash
+  // keyword's only option. `-a` appends to the `-o` file, so it is not listed.
+  ["time", new Set(["-p", "-l", "-h"])],
+  // GNU coreutils `timeout --help`.
+  [
+    "timeout",
+    new Set([
+      "-f",
+      "--foreground",
+      "-p",
+      "--preserve-status",
+      "-v",
+      "--verbose",
+    ]),
+  ],
+  // `nice` and `stdbuf` take only value options; util-linux `setsid`'s flags
+  // are unverified on this host, so none is admitted.
+  ["nice", EMPTY_FLAGS],
+  ["stdbuf", EMPTY_FLAGS],
+  ["setsid", EMPTY_FLAGS],
+]);
+
+/**
+ * Each modifier's value-taking options that write a file, never admitted.
+ * Per wrapper: `time -o` names an output file, while `stdbuf -o` sets a mode.
+ */
+const WRITING_OPTIONS = new Map<string, ReadonlySet<string>>([
+  ["time", new Set(["-o", "--output"])],
+]);
+
+/**
+ * A command name with no quoting, expansion, glob, or grouping character, and
+ * not an option: a name led by `-` is one {@link executedUnitOf} declines to
+ * name, so it could never be resolved.
+ */
+const LITERAL_COMMAND_NAME = /^[A-Za-z0-9_./+@%,:][A-Za-z0-9_./+@%,:-]*$/;
+
+/**
+ * A character that makes a whitespace token something other than the literal
+ * word a program receives.
+ */
+const SHELL_SYNTAX = /['"\\$`|&;<>(){}[\]*?!~#]/;
+
+/** Bash reserved words, which open syntax rather than name a command. */
+const RESERVED_WORDS: ReadonlySet<string> = new Set([
+  "!",
+  "{",
+  "}",
+  "[[",
+  "]]",
+  "case",
+  "coproc",
+  "do",
+  "done",
+  "elif",
+  "else",
+  "esac",
+  "fi",
+  "for",
+  "function",
+  "if",
+  "in",
+  "select",
+  "then",
+  "time",
+  "until",
+  "while",
+]);
+
+/**
+ * Wrappers whose first bare word is an operand (a duration, a lock file) rather
+ * than the start of the inner command.
+ */
+const LEADING_OPERAND_WRAPPERS = new Set(["timeout", "flock"]);
+
+/**
+ * Wrappers whose executed command line is not the words the peel sees, so a
+ * core-looking first word says nothing about what runs. `watch` (without
+ * `-x`) passes its words to `sh -c`, and GNU `parallel` runs its command
+ * through a shell; both verified, where `watch cat x \; rm y` runs `rm`.
+ * `rush` and `rust-parallel` build command lines from templates and have no
+ * local binary to verify how, so they are refused rather than admitted.
+ */
+const OPAQUE_COMMAND_LINE_WRAPPERS: ReadonlySet<string> = new Set([
+  "watch",
+  "parallel",
+  "rush",
+  "rust-parallel",
+]);
+
+/** Words ending a `find -exec` clause; they belong to `find`, not its command. */
+const EXEC_TERMINATORS = new Set([";", "+"]);
+
+// ── Shared helpers ───────────────────────────────────────────────────────────
+
+/** The wrapper's command-name basename, or `undefined` for an empty unit. */
+function wrapperName(words: readonly CommandWord[]): string | undefined {
+  return words.length === 0 ? undefined : basename(words[0].text);
+}
+
+/**
+ * True when an argument list has a short-flag cluster containing `c` before any
+ * `--` end-of-options marker (`-c`, `-ec`, `-xc`) — the inline-shell payload
+ * flag for `bash`/`sh`/`dash`/`zsh`/`ksh`.
+ */
+function hasShortFlagC(args: readonly string[]): boolean {
+  return shortFlagCIndex(args) !== -1;
+}
+
+/** Index within `args` of the `-c` short-flag cluster, or `-1`. */
+function shortFlagCIndex(args: readonly string[]): number {
+  for (const [index, arg] of args.entries()) {
+    if (arg === "--") return -1;
+    if (arg.startsWith("-") && !arg.startsWith("--") && arg.includes("c")) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+/** Index within `args` of a matched per-result exec flag, or `-1`. */
+function execFlagIndex(commandName: string, args: readonly string[]): number {
+  const execFlags = EXEC_CONDITIONAL_WRAPPERS.get(commandName);
+  if (!execFlags) return -1;
+  return args.findIndex((arg) => execFlags.has(arg));
+}
+
+/** The final path segment of a command name (`/bin/bash` → `bash`). */
+function basename(name: string): string {
+  const slash = name.lastIndexOf("/");
+  return slash === -1 ? name : name.slice(slash + 1);
+}

@@ -217,8 +217,11 @@ describe("subagent model selection", () => {
 		expect(prompt).toContain("resume: \"<sessionId>\"");
 		expect(prompt).toContain("google/gemini-3.8-flash");
 
-		const agentsMd = fs.readFileSync(path.resolve(import.meta.dir, "../AGENTS.md"), "utf-8");
-		expect(agentsMd).not.toContain("Subagent delegation");
+		const agentsMdPath = path.resolve(import.meta.dir, "../AGENTS.md");
+		if (fs.existsSync(agentsMdPath)) {
+			const agentsMd = fs.readFileSync(agentsMdPath, "utf-8");
+			expect(agentsMd).not.toContain("Subagent delegation");
+		}
 	});
 
 	test("persists and resolves subagent session metadata for resume", async () => {

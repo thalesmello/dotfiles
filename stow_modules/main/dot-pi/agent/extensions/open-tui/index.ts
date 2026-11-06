@@ -1,0 +1,442 @@
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { type OpenTuiConfig, DEFAULT_CONFIG, ensureConfigExists, loadConfig, saveConfig } from "./config.ts";
+import { installCopyButtons, markCopyScope } from "./copy-buttons.ts";
+import { installEditor } from "./editor.ts";
+import { installFooter } from "./footer.ts";
+import { createFooterSegments } from "./footer-segments.ts";
+import { installHeader } from "./header.ts";
+import { emptyGitStatus, readGitStatus } from "./git.ts";
+import { readRuntimeInfo } from "./runtime.ts";
+import { SessionLifecycle } from "./session-lifecycle.ts";
+import { registerSettingsCommand } from "./settings-command.ts";
+import { formatTurnTelemetry, TurnTelemetryTracker } from "./telemetry.ts";
+import { registerToolView } from "./tool-view.ts";
+import { registerRoundedTools } from "../rounded-tools.ts";
+import {
+	createInitialState,
+	getModelMeta,
+	invalidateUsageCache,
+	type FooterState,
+} from "./state.ts";
+import { resolveGlyphs } from "./icons.ts";
+import {
+	buildPeekLabel,
+	collectPeekParts,
+	createPeekState,
+	reducePeek,
+	type PeekState,
+} from "./peek.ts";
+
+type PendingUiChange = "install" | "uninstall";
+
+export function getPendingUiChange(enabled: boolean, active: boolean): PendingUiChange | undefined {
+	if (enabled === active) return undefined;
+	return enabled ? "install" : "uninstall";
+}
+
+function isTuiContext(ctx: ExtensionContext): boolean {
+	return ctx.hasUI && ctx.mode === "tui";
+}
+
+export default function (pi: ExtensionAPI) {
+	const sessionLifecycle = new SessionLifecycle();
+	const state: FooterState = createInitialState();
+	const turnTelemetry = new TurnTelemetryTracker();
+
+	let config: OpenTuiConfig = structuredClone(DEFAULT_CONFIG);
+	let configLoaded = false;
+	let active = false;
+	let lastCtx: ExtensionContext | undefined;
+	let requestFooterRender: (() => void) | undefined;
+	let workingTimer: ReturnType<typeof setInterval> | undefined;
+	let cleanupHeader: (() => void) | undefined;
+	let cleanupFooter: (() => void) | undefined;
+	let editor: ReturnType<typeof installEditor> | undefined;
+	let copyButtons: ReturnType<typeof installCopyButtons> | undefined;
+	let pendingUiChange: PendingUiChange | undefined;
+	const footerSegments = createFooterSegments(pi.events, () => requestFooterRender?.());
+
+	// thinking-peek state (rendered by Pi inside its hidden-thinking block)
+	const peek: PeekState = createPeekState();
+	let peekFrame = 0;
+	let peekSettleTimer: ReturnType<typeof setTimeout> | undefined;
+	let peekTaskEpoch = 0; // bumped at every agent task boundary
+	let peekLabelActive = false;
+
+	const getThinkingLevel = () => (sessionLifecycle.isCurrent() ? pi.getThinkingLevel() : "off");
+
+	/** Pi decides whether this label is visible; our toggle only controls updates. */
+	const isPeekEnabled = () => sessionLifecycle.isCurrent() && config.enabled && config.thinkingPeek.lines > 0 && active;
+
+	const setPeekLabel = (ctx?: ExtensionContext): void => {
+		if (!isPeekEnabled() || peek.phase === "idle") return;
+		const target = ctx ?? lastCtx;
+		if (!target || !isTuiContext(target)) return;
+		if (!editor) throw new Error("Open TUI editor is not installed");
+		const snapshot = { ...peek };
+		const frame = peekFrame;
+		const glyphs = resolveGlyphs(config.icons.mode);
+		const lines = config.thinkingPeek.lines;
+		editor.setLatestHiddenThinkingLabel((width) => buildPeekLabel(snapshot, frame, glyphs, width, lines));
+		peekLabelActive = true;
+	};
+
+	const clearPeekLabel = (ctx?: ExtensionContext): void => {
+		if (!peekLabelActive) return;
+		const target = ctx ?? lastCtx;
+		if (!target || !isTuiContext(target)) return;
+		// The global reset is safe here: every completed message returns to Pi's native label.
+		target.ui.setHiddenThinkingLabel();
+		peekLabelActive = false;
+	};
+
+	/** Reset peek state to idle and cancel any scheduled cleanup. */
+	const resetPeek = () => {
+		peek.phase = "idle";
+		peek.tail = "";
+		editor?.resetHiddenThinkingLabelTarget();
+		if (peekSettleTimer) {
+			clearTimeout(peekSettleTimer);
+			peekSettleTimer = undefined;
+		}
+	};
+	const applyUi = (ctx: ExtensionContext) => {
+		if (!isTuiContext(ctx)) return;
+		if (!config.enabled) {
+			uninstallUi(ctx);
+			return;
+		}
+		if (!active) {
+			// Leave the header slot alone when disabled so another extension's header survives.
+			if (config.header) cleanupHeader = installHeader(pi, ctx);
+			const footer = installFooter(
+				ctx,
+				() => state,
+				() => config,
+				() => getModelMeta(ctx, getThinkingLevel, config.footerSegments.capitalizeProviderName),
+				{
+					setRequestRender: (fn) => {
+						requestFooterRender = fn ?? undefined;
+						if (!fn) footerSegments.deactivate();
+						else if (active && sessionLifecycle.isCurrent()) footerSegments.activate();
+					},
+					scheduleGitRefresh: () => {
+						void scheduleGitRefresh(ctx);
+					},
+					getLiveTps: () => turnTelemetry.getLiveTps(),
+					getExtensionSegments: footerSegments.getSegments,
+					canEmbedInEditor: () => editor?.isFramed() ?? false,
+				},
+			);
+			cleanupFooter = footer.cleanup;
+			editor = installEditor(
+				pi,
+				ctx,
+				config.cursorStyle,
+				{
+					enabled: () => config.inlineFooter,
+					render: footer.renderInline,
+				},
+			);
+			copyButtons = installCopyButtons({
+				getTui: editor.getTui,
+				getTheme: () => ctx.ui.theme,
+				isEnabled: () => config.copyButtons,
+			});
+			active = true;
+			if (requestFooterRender) footerSegments.activate();
+		}
+	};
+
+	const uninstallUi = (ctx: ExtensionContext) => {
+		if (!isTuiContext(ctx)) return;
+		if (active) {
+			cleanupHeader?.();
+			cleanupFooter?.();
+			copyButtons?.cleanup();
+			editor?.cleanup();
+			cleanupHeader = undefined;
+			cleanupFooter = undefined;
+			copyButtons = undefined;
+			editor = undefined;
+			requestFooterRender = undefined;
+			resetPeek();
+			clearPeekLabel(ctx);
+			active = false;
+		}
+	};
+
+	const scheduleGitRefresh = async (ctx: ExtensionContext) => {
+		if (!sessionLifecycle.isCurrent()) return;
+		const segs = config.footerSegments;
+		// gitCommit only appends a tag to the gitBranch segment, so it never needs git on its own.
+		if (!segs.gitBranch && !segs.gitStatus) {
+			state.git = emptyGitStatus();
+			requestFooterRender?.();
+			return;
+		}
+		const generation = sessionLifecycle.currentGeneration();
+		const cwd = ctx.cwd;
+		const git = await readGitStatus(cwd, {
+			readCommit: segs.gitBranch,
+			readTag: segs.gitBranch && segs.gitCommit,
+			readCounts: segs.gitStatus,
+		});
+		if (!sessionLifecycle.isCurrent(generation)) return;
+		state.git = git;
+		requestFooterRender?.();
+	};
+
+	const refreshRuntime = async (ctx: ExtensionContext) => {
+		if (!sessionLifecycle.isCurrent()) return;
+		const generation = sessionLifecycle.currentGeneration();
+		const cwd = ctx.cwd;
+		const runtime = await readRuntimeInfo(cwd);
+		if (!sessionLifecycle.isCurrent(generation)) return;
+		state.runtime = runtime;
+		requestFooterRender?.();
+	};
+
+	const refreshInteractiveState = (ctx: ExtensionContext, project = false) => {
+		if (!sessionLifecycle.isCurrent() || !ctx.hasUI) return;
+		if (project) {
+			void scheduleGitRefresh(ctx);
+			void refreshRuntime(ctx);
+		}
+		requestFooterRender?.();
+	};
+
+	const startWorkingTimer = () => {
+		stopWorkingTimer();
+		const tick = () => {
+			if (!sessionLifecycle.isCurrent() || !active) return;
+			requestFooterRender?.();
+		};
+		tick();
+		workingTimer = setInterval(tick, 250);
+		workingTimer.unref?.();
+	};
+
+	const stopWorkingTimer = () => {
+		if (workingTimer) {
+			clearInterval(workingTimer);
+			workingTimer = undefined;
+		}
+	};
+
+	pi.on("session_start", async (_event, ctx) => {
+		sessionLifecycle.start();
+		lastCtx = ctx;
+		state.workingSince = undefined;
+		state.lastDoneIn = undefined;
+		invalidateUsageCache();
+
+		ensureConfigExists();
+		config = loadConfig((msg, level) => ctx.ui.notify(msg, level));
+		configLoaded = true;
+		clearPeekLabel(ctx);
+
+		applyUi(ctx);
+
+		refreshInteractiveState(ctx, true);
+	});
+
+	pi.on("session_shutdown", async (_event, ctx) => {
+		sessionLifecycle.shutdown();
+		stopWorkingTimer();
+		footerSegments.deactivate();
+		if (active) {
+			uninstallUi(ctx);
+		}
+		lastCtx = undefined;
+	});
+
+	pi.on("agent_start", (event, _ctx) => {
+		turnTelemetry.handle(event);
+		if (!sessionLifecycle.isCurrent()) return;
+		// agent_start also covers custom-message and continuation-triggered tasks
+		// that do not emit a user message_start event.
+		peekTaskEpoch++;
+		state.workingSince = Date.now();
+		state.lastDoneIn = undefined;
+		startWorkingTimer();
+	});
+
+	pi.on("agent_end", (_event, _ctx) => {
+		if (!sessionLifecycle.isCurrent()) return;
+		stopWorkingTimer();
+		if (state.workingSince !== undefined) {
+			state.lastDoneIn = Date.now() - state.workingSince;
+			state.workingSince = undefined;
+		}
+		requestFooterRender?.();
+	});
+
+	pi.on("turn_start", (event) => {
+		turnTelemetry.handle(event);
+	});
+
+	pi.on("message_start", (event, ctx) => {
+		turnTelemetry.handle(event);
+		if (!sessionLifecycle.isCurrent() || ctx.isIdle()) return;
+		const role = event.message?.role;
+		if (role === "user") {
+			// Restore Pi's native label until real thinking arrives. The task epoch is
+			// advanced by agent_start so custom/no-user tasks are covered too.
+			resetPeek();
+			clearPeekLabel(ctx);
+		} else if (role === "assistant") {
+			resetPeek();
+			clearPeekLabel(ctx);
+		}
+	});
+
+	pi.on("message_update", (event, ctx) => {
+		turnTelemetry.handle(event);
+		if (!sessionLifecycle.isCurrent() || ctx.isIdle()) return;
+		if (!isPeekEnabled()) return;
+		const message = event.message;
+		if (!message || message.role !== "assistant") return;
+		if (peek.phase === "done") return;
+		const parts = collectPeekParts(message.content);
+		const next = reducePeek(peek, parts);
+		const changed = next.phase !== peek.phase || next.tail !== peek.tail;
+		peek.phase = next.phase;
+		peek.tail = next.tail;
+		if (!changed) return;
+		if (peek.phase === "thinking") {
+			peekFrame++;
+			setPeekLabel(ctx);
+		} else if (peek.phase === "done") {
+			setPeekLabel(ctx);
+		}
+	});
+
+	pi.on("tool_execution_start", (event) => {
+		turnTelemetry.handle(event);
+	});
+
+	pi.on("turn_end", (event) => {
+		turnTelemetry.handle(event);
+	});
+
+	pi.on("agent_settled", (event, ctx) => {
+		const telemetry = turnTelemetry.handle(event);
+		if (telemetry && config.enabled && config.telemetry.enabled && isTuiContext(ctx)) {
+			const message = formatTurnTelemetry(telemetry, ctx.ui.theme, config.telemetry, config.icons.mode);
+			if (message) ctx.ui.notify(message, "info");
+		}
+		// Only clear the peek label when this task is still the current one.
+		const settleEpoch = peekTaskEpoch;
+		if (peekSettleTimer) clearTimeout(peekSettleTimer);
+		peekSettleTimer = setTimeout(() => {
+			peekSettleTimer = undefined;
+			if (!sessionLifecycle.isCurrent() || peekTaskEpoch !== settleEpoch) return;
+			resetPeek();
+			clearPeekLabel(ctx);
+		}, 300);
+	});
+
+	pi.on("model_select", (_event, ctx) => {
+		refreshInteractiveState(ctx);
+	});
+
+	pi.on("thinking_level_select", (_event, ctx) => {
+		refreshInteractiveState(ctx);
+	});
+
+	pi.on("message_end", (event, ctx) => {
+		turnTelemetry.handle(event);
+		if (!sessionLifecycle.isCurrent()) return;
+		if (event.message?.role === "assistant" && peek.phase === "thinking") {
+			// Sub-message finished (answer text or a tool call): freeze the peek line.
+			peek.phase = "done";
+			setPeekLabel(ctx);
+		}
+		invalidateUsageCache();
+		refreshInteractiveState(ctx);
+	});
+
+	pi.on("tool_execution_end", (_event, ctx) => {
+		refreshInteractiveState(ctx);
+	});
+
+	pi.on("session_compact", (_event, ctx) => {
+		if (!sessionLifecycle.isCurrent()) return;
+		invalidateUsageCache();
+		refreshInteractiveState(ctx);
+	});
+
+	pi.on("session_tree", (_event, ctx) => {
+		if (!sessionLifecycle.isCurrent()) return;
+		invalidateUsageCache();
+		refreshInteractiveState(ctx);
+	});
+
+	registerRoundedTools(pi);
+	registerToolView(
+		pi,
+		() => {
+			// Resumed sessions rebuild their rows before session_start fires, so read the file once here.
+			if (!configLoaded) {
+				config = loadConfig();
+				configLoaded = true;
+			}
+			return config.enabled ? config.toolView : { ...config.toolView, mode: "native" };
+		},
+		() => resolveGlyphs(config.icons.mode),
+	);
+
+	pi.registerMarkdownTransformer(markCopyScope);
+
+	registerSettingsCommand(pi, {
+		getConfig: () => config,
+		onConfigChanged: (newConfig) => {
+			const cursorStyleChanged = config.cursorStyle !== newConfig.cursorStyle;
+			const headerChanged = config.header !== newConfig.header;
+			const copyButtonsChanged = config.copyButtons !== newConfig.copyButtons;
+			const thinkingPeekLinesChanged = config.thinkingPeek.lines !== newConfig.thinkingPeek.lines;
+			if (!saveConfig(newConfig)) {
+				lastCtx?.ui.notify(
+					"open-tui settings apply for this session but could not be saved. Check configuration directory permissions and free space.",
+					"warning",
+				);
+			}
+			config = newConfig;
+			if (newConfig.thinkingPeek.lines === 0 || !newConfig.enabled) {
+				resetPeek();
+				clearPeekLabel(lastCtx);
+			} else if (thinkingPeekLinesChanged && peekLabelActive) {
+				setPeekLabel(lastCtx);
+			}
+			if (cursorStyleChanged && active && editor) {
+				editor.setCursorStyle(newConfig.cursorStyle);
+			}
+			if (headerChanged && active && lastCtx) {
+				cleanupHeader?.();
+				cleanupHeader = newConfig.header ? installHeader(pi, lastCtx) : undefined;
+			}
+			if (copyButtonsChanged) copyButtons?.refresh();
+			if (lastCtx) {
+				pendingUiChange = getPendingUiChange(newConfig.enabled, active);
+			}
+			const gitNeeded = newConfig.footerSegments.gitBranch || newConfig.footerSegments.gitStatus;
+			if (lastCtx && gitNeeded) {
+				void scheduleGitRefresh(lastCtx);
+			} else {
+				state.git = emptyGitStatus();
+			}
+			requestFooterRender?.();
+		},
+		onOverlayClosed: () => {
+			if (!lastCtx || pendingUiChange === undefined) return;
+			const change = pendingUiChange;
+			pendingUiChange = undefined;
+			if (!config.enabled || change === "uninstall") {
+				uninstallUi(lastCtx);
+			} else {
+				applyUi(lastCtx);
+			}
+		},
+	});
+}

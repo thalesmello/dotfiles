@@ -314,4 +314,54 @@ describe("code-block-copy extension", () => {
 
 		expect(screen.getActiveSelectionText()).toBe("alpha\nbeta");
 	});
+
+	test("reuses open-tui's [Copy] frame button instead of adding a second ⧉ Copy button", async () => {
+		const markdownPrototype: any = Markdown.prototype;
+		const prevRenderToken = markdownPrototype.renderToken;
+		// Simulate open-tui's framed code block renderer sitting underneath.
+		await emit("session_shutdown");
+		markdownPrototype.renderToken = function (token: any) {
+			if (token?.type === "code") {
+				return [
+					"╭─ ts ─────────────── [Copy] ╮",
+					"│ const x = 1;               │",
+					"│ console.log(x);            │",
+					"╰────────────────────────────╯",
+				];
+			}
+			return prevRenderToken.call(this, token);
+		};
+		try {
+			await emit("session_start");
+			const markdown = new Markdown("```ts\n" + CODE + "\n```", plainTheme);
+			const lines = markdown.render(40);
+			const plain = lines.map((l: string) => strip(l));
+
+			// Only the 4 framed lines exist: no extra `⧉ Copy` row below the
+			// frame and no `\x1b[48;5;236m` dark-grey panel override, while
+			// the top border's `[Copy]` is rewritten to `⧉ Copy` (with logo).
+			expect(plain).toHaveLength(4);
+			expect(plain[0]!.replace(/[\u200b\u200c\u2060]/g, "")).toBe("╭─ ts ─────────────── ⧉ Copy ╮");
+			expect(plain.slice(1).some((l: string) => l.includes("⧉ Copy"))).toBe(false);
+			expect(lines[0]).not.toContain("\x1b[48;5;236m");
+
+			// Clicking `⧉ Copy` on the top border copies the raw code and
+			// swaps `⧉ Copy` -> `Copied` without changing the border width.
+			const screen = new FakeAltScreen();
+			screen.setTranscript(lines);
+			const copyCol = plain[0]!.indexOf("⧉ Copy") + 1;
+			screen.handleSelectionMouseEvent({ button: 0, x: copyCol, y: 0 });
+			screen.handleSelectionMouseEvent({ button: 3, x: copyCol + 1, y: 0, release: true });
+			expect(screen.clipboard).toEqual([CODE]);
+
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			const duringFeedback = markdown.render(40);
+			expect(strip(duringFeedback[0]!).replace(/[\u200b\u200c\u2060]/g, "")).toBe("╭─ ts ─────────────── Copied ╮");
+			expect(visibleWidth(duringFeedback[0]!)).toBe(visibleWidth(lines[0]!));
+		} finally {
+			await emit("session_shutdown");
+			markdownPrototype.renderToken = prevRenderToken;
+			await emit("session_start");
+		}
+	});
 });

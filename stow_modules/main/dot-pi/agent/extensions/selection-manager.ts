@@ -281,6 +281,160 @@ function escapeMarkdownTableCell(text: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Framed code-block parsing (`╭─ lang ─── [Copy] ╮` ... `╰───╯` from open-tui)
+// ---------------------------------------------------------------------------
+
+interface CodeFrameRowBounds {
+	contentStart: number;
+	contentEnd: number;
+	trimmedEnd: number;
+}
+
+interface CodeFrameBlock {
+	startRow: number;
+	endRow: number;
+	bodyStartRow: number;
+	bodyEndRow: number;
+}
+
+function isCodeFrameTopBorder(line: string): boolean {
+	const trimmed = stripTerminalSequences(line).trim();
+	return trimmed.startsWith("╭─") && trimmed.endsWith("╮");
+}
+
+function isCodeFrameBottomBorder(line: string): boolean {
+	const trimmed = stripTerminalSequences(line).trim();
+	return trimmed.length >= 2 && trimmed.startsWith("╰") && trimmed.endsWith("╯") && [...trimmed.slice(1, -1)].every((c) => c === "─");
+}
+
+function getCodeFrameRowBounds(line: string): CodeFrameRowBounds | undefined {
+	const plain = stripTerminalSequences(line);
+	const trimmed = plain.trim();
+	if (!trimmed.startsWith("│") || !trimmed.endsWith("│")) return undefined;
+	let firstBorder = -1;
+	let lastBorder = -1;
+	let column = 0;
+	for (const character of plain) {
+		if (character === "│") {
+			if (firstBorder < 0) firstBorder = column;
+			lastBorder = column;
+		}
+		column += visibleWidth(character);
+	}
+	if (firstBorder < 0 || lastBorder <= firstBorder) return undefined;
+	let contentStart = firstBorder + 1;
+	let contentEnd = lastBorder;
+	if (sliceByColumn(plain, contentStart, 1, true) === " ") contentStart += 1;
+	if (contentEnd > contentStart && sliceByColumn(plain, contentEnd - 1, 1, true) === " ") contentEnd -= 1;
+	let trimmedEnd = contentEnd;
+	while (trimmedEnd > contentStart && sliceByColumn(plain, trimmedEnd - 1, 1, true) === " ") {
+		trimmedEnd -= 1;
+	}
+	return { contentStart, contentEnd, trimmedEnd };
+}
+
+function parseCodeFrameBlocks(plainLines: readonly string[]): CodeFrameBlock[] {
+	const blocks: CodeFrameBlock[] = [];
+	let startRow: number | undefined;
+	let bodyStartRow: number | undefined;
+	let bodyEndRow: number | undefined;
+
+	for (let row = 0; row < plainLines.length; row += 1) {
+		const line = plainLines[row] ?? "";
+		if (isCodeFrameTopBorder(line)) {
+			if (startRow !== undefined && bodyStartRow !== undefined && bodyEndRow !== undefined) {
+				blocks.push({ startRow, endRow: bodyEndRow, bodyStartRow, bodyEndRow });
+			}
+			startRow = row;
+			bodyStartRow = undefined;
+			bodyEndRow = undefined;
+			continue;
+		}
+		if (startRow !== undefined && isCodeFrameBottomBorder(line)) {
+			if (bodyStartRow !== undefined && bodyEndRow !== undefined) {
+				blocks.push({ startRow, endRow: row, bodyStartRow, bodyEndRow });
+			}
+			startRow = undefined;
+			bodyStartRow = undefined;
+			bodyEndRow = undefined;
+			continue;
+		}
+		if (startRow !== undefined && getCodeFrameRowBounds(line)) {
+			bodyStartRow ??= row;
+			bodyEndRow = row;
+			continue;
+		}
+		if (startRow !== undefined) {
+			if (bodyStartRow !== undefined && bodyEndRow !== undefined) {
+				blocks.push({ startRow, endRow: bodyEndRow, bodyStartRow, bodyEndRow });
+			}
+			startRow = undefined;
+			bodyStartRow = undefined;
+			bodyEndRow = undefined;
+		}
+	}
+	if (startRow !== undefined && bodyStartRow !== undefined && bodyEndRow !== undefined) {
+		blocks.push({ startRow, endRow: bodyEndRow, bodyStartRow, bodyEndRow });
+	}
+	return blocks;
+}
+
+function getCodeFrameSelectionText(
+	internals: AltScreenInternals,
+	selection: SelectionLike,
+	sourceLines: readonly string[],
+): string | undefined {
+	const plainLines = sourceLines.map((line) => stripTerminalSequences(line));
+	const frame = parseCodeFrameBlocks(plainLines).find(
+		(candidate) => selection.start.row >= candidate.startRow && selection.end.row <= candidate.endRow,
+	);
+	if (!frame) return undefined;
+	const firstRow = Math.max(selection.start.row, frame.bodyStartRow);
+	const lastRow = Math.min(selection.end.row, frame.bodyEndRow);
+	if (lastRow < firstRow) return undefined;
+	const out: string[] = [];
+	for (let row = firstRow; row <= lastRow; row += 1) {
+		const bounds = getCodeFrameRowBounds(plainLines[row] ?? "");
+		if (!bounds) continue;
+		const columns = internals.getSelectionColumns(sourceLines[row] ?? "", row, selection);
+		const start = Math.max(columns.start, bounds.contentStart);
+		const end = Math.min(columns.end, bounds.trimmedEnd);
+		out.push(end > start ? sliceByColumn(plainLines[row] ?? "", start, end - start, true) : "");
+	}
+	const joined = out.join("\n");
+	return joined.trim().length > 0 ? joined : undefined;
+}
+
+function getCodeFrameHighlightSegments(
+	internals: AltScreenInternals,
+	screen: string[],
+	selection: SelectionLike,
+	minColumn: number,
+	maxColumn: number,
+): { segments: Map<number, Array<{ start: number; end: number }>>; lastBodyRow: number; highlightEnd: number } | undefined {
+	const plainLines = screen.map((line) => stripTerminalSequences(line));
+	const frame = parseCodeFrameBlocks(plainLines).find(
+		(candidate) => selection.start.row >= candidate.startRow && selection.end.row <= candidate.endRow,
+	);
+	if (!frame) return undefined;
+	const firstRow = Math.max(selection.start.row, frame.bodyStartRow);
+	const lastRow = Math.min(selection.end.row, frame.bodyEndRow);
+	if (lastRow < firstRow) return undefined;
+	const segments = new Map<number, Array<{ start: number; end: number }>>();
+	let highlightEnd = selection.end.col + (selection.end.boundary ? 0 : 1);
+	for (let row = firstRow; row <= lastRow; row += 1) {
+		const bounds = getCodeFrameRowBounds(plainLines[row] ?? "");
+		if (!bounds) continue;
+		const columns = internals.getSelectionColumns(screen[row] ?? "", row, selection, minColumn, maxColumn);
+		const start = Math.max(columns.start, bounds.contentStart);
+		const end = Math.min(columns.end, bounds.trimmedEnd);
+		segments.set(row, end > start ? [{ start, end }] : []);
+		if (row === lastRow && end > start) highlightEnd = end;
+	}
+	return { segments, lastBodyRow: lastRow, highlightEnd };
+}
+
+// ---------------------------------------------------------------------------
 // TuiAltScreen internals, reached through runtime properties
 // ---------------------------------------------------------------------------
 
@@ -424,7 +578,7 @@ function handleReferenceInput(data: string): { consume: boolean } | undefined {
 	return { consume: true };
 }
 
-/** Paint the reference popup at the end of the selection and remember its rectangle. */
+/** Paint the reference popup on the row below the end of the selection (same column) and remember its rectangle. */
 function drawReferencePopup(
 	screen: string[],
 	screenSelection: SelectionLike,
@@ -433,7 +587,8 @@ function drawReferencePopup(
 ): string[] {
 	popupRect = undefined;
 	if (!armedSnapshot) return screen;
-	const row = screenSelection.end.row;
+	const preferredRow = screenSelection.end.row + 1;
+	const row = preferredRow < screen.length ? preferredRow : screenSelection.end.row;
 	if (row < 0 || row >= screen.length || isImageLine(screen[row] ?? "")) return screen;
 	const labelWidth = visibleWidth(REFERENCE_POPUP_LABEL);
 	const start = Math.max(0, Math.min(highlightEnd, terminalWidth - labelWidth));
@@ -445,9 +600,27 @@ function drawReferencePopup(
 	// If a highlight still ends open at the cut, close it before the popup.
 	let before = sliceByColumn(line, 0, start);
 	if (before.lastIndexOf("\x1b[7m") > before.lastIndexOf("\x1b[27m")) before += "\x1b[27m";
+	const beforeWidth = visibleWidth(before);
+	if (beforeWidth < start) {
+		before += " ".repeat(start - beforeWidth);
+	}
 	const after = sliceByColumn(line, start + labelWidth, Math.max(0, lineWidth - (start + labelWidth)));
 	const result = [...screen];
-	result[row] = `${before}\x1b[1;30;106m${REFERENCE_POPUP_LABEL}\x1b[0m${after}`;
+	// Style from the active theme (accent background, message-panel foreground)
+	// so the popup matches the current palette instead of a fixed bright cyan.
+	// `accent` is a foreground token, so pass the concrete Color objects from `theme.colors`.
+	const theme = activeCtx?.ui.theme;
+	const fgColor = theme?.colors?.userMessageBg;
+	const bgColor = theme?.colors?.accent;
+	const popupLabel =
+		theme && fgColor && bgColor && typeof fgColor === "object" && typeof bgColor === "object"
+			? `${theme.style(REFERENCE_POPUP_LABEL, {
+					fg: fgColor,
+					bg: bgColor,
+					bold: true,
+				})}\x1b[0m`
+			: `\x1b[1;30;106m${REFERENCE_POPUP_LABEL}\x1b[0m`;
+	result[row] = `${before}${popupLabel}${after}`;
 	return result;
 }
 
@@ -855,7 +1028,7 @@ function patchedGetActiveSelectionText(this: AltScreenInternals): string | undef
 	const sourceLines = getSelectionSourceLines(this, selection);
 	let result: string | undefined;
 	if (sourceLines) {
-		result = getTableSelectionText(this, selection, sourceLines);
+		result = getCodeFrameSelectionText(this, selection, sourceLines) ?? getTableSelectionText(this, selection, sourceLines);
 	}
 	result ??= originals!.getActiveSelectionText.call(this);
 	// A completed selection arms the reference popup until it is used or a
@@ -907,7 +1080,7 @@ function patchedApplySelection(this: AltScreenInternals, screen: string[], layou
 		withInput.addInputListener?.(handleReferenceInput);
 	}
 	const selection = internals.getSelectionBounds();
-	if (!selection) return screen;
+	if (!selection) return originals!.applySelection.call(internals, screen, layout);
 
 	let screenSelection = selection;
 	let minRow = 0;
@@ -936,14 +1109,13 @@ function patchedApplySelection(this: AltScreenInternals, screen: string[], layou
 		};
 	}
 
-	// Paint the same cell rectangle that the copy path returns for a
-	// multi-cell table selection. Single-cell and non-table selections keep
-	// the built-in screen-range highlight, except that a single-cell
-	// highlight is clipped to the cell below.
-	const tableSegments = getTableHighlightSegments(screen, screenSelection);
+	// Framed code blocks (`╭─ lang ─── [Copy] ╮` ... `╰───╯`) highlight only
+	// the inner code lines and never their borders or padding.
+	const codeFrameHighlight = getCodeFrameHighlightSegments(internals, screen, screenSelection, minColumn, maxColumn);
+	const tableSegments = codeFrameHighlight ? undefined : getTableHighlightSegments(screen, screenSelection);
 	let singleCellIndex: number | undefined;
-	const startCells = getTableRowCells(screen[screenSelection.start.row] ?? "");
-	const endCells = getTableRowCells(screen[screenSelection.end.row] ?? "");
+	const startCells = codeFrameHighlight ? undefined : getTableRowCells(screen[screenSelection.start.row] ?? "");
+	const endCells = codeFrameHighlight ? undefined : getTableRowCells(screen[screenSelection.end.row] ?? "");
 	if (startCells && endCells) {
 		const startCellIndex = getTableCellIndexAtColumn(startCells, screenSelection.start.col, "start");
 		const endCellIndex = getTableCellIndexAtColumn(endCells, screenSelection.end.col, "end");
@@ -955,7 +1127,14 @@ function patchedApplySelection(this: AltScreenInternals, screen: string[], layou
 	// The popup sits after the painted highlight, which for a table
 	// selection can extend past the pointer to the end of the last cell.
 	let highlightEnd = screenSelection.end.col + (screenSelection.end.boundary ? 0 : 1);
-	if (tableSegments) {
+	let popupSelection = screenSelection;
+	if (codeFrameHighlight) {
+		highlightEnd = codeFrameHighlight.highlightEnd;
+		popupSelection = {
+			...screenSelection,
+			end: { ...screenSelection.end, row: codeFrameHighlight.lastBodyRow },
+		};
+	} else if (tableSegments) {
 		const endSegments = tableSegments.get(screenSelection.end.row) ?? [];
 		if (endSegments.length > 0) highlightEnd = Math.max(...endSegments.map((segment) => segment.end));
 	} else if (singleCellIndex !== undefined) {
@@ -963,10 +1142,11 @@ function patchedApplySelection(this: AltScreenInternals, screen: string[], layou
 		if (cell) highlightEnd = Math.max(highlightEnd, cell.contentEnd);
 	}
 
+	const activeSegments = codeFrameHighlight?.segments ?? tableSegments;
 	let painted: string[];
-	if (!tableSegments && singleCellIndex === undefined) {
+	if (!activeSegments && singleCellIndex === undefined) {
 		painted = originals!.applySelection.call(internals, screen, layout);
-		return drawReferencePopup(painted, screenSelection, internals.terminal.columns, highlightEnd);
+		return drawReferencePopup(painted, popupSelection, internals.terminal.columns, highlightEnd);
 	}
 
 	painted = screen.map((line, row) => {
@@ -980,8 +1160,8 @@ function patchedApplySelection(this: AltScreenInternals, screen: string[], layou
 			return line;
 		}
 		const lineWidth = visibleWidth(line);
-		if (tableSegments) {
-			const segments = tableSegments.get(row) ?? [];
+		if (activeSegments) {
+			const segments = activeSegments.get(row) ?? [];
 			if (segments.length === 0) return line;
 			let result = line;
 			for (const segment of [...segments].sort((a, b) => b.start - a.start)) {
@@ -1006,7 +1186,7 @@ function patchedApplySelection(this: AltScreenInternals, screen: string[], layou
 		const after = sliceByColumn(line, columns.end, Math.max(0, lineWidth - columns.end), true);
 		return `${before}${applySelectionHighlight(selected)}${after}`;
 	});
-	return drawReferencePopup(painted, screenSelection, internals.terminal.columns, highlightEnd);
+	return drawReferencePopup(painted, popupSelection, internals.terminal.columns, highlightEnd);
 }
 
 function installTableSelection(): boolean {

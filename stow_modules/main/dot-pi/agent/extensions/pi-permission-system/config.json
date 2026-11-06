@@ -1,0 +1,80 @@
+{
+  "debugLog": false,
+  "permissionReviewLog": false,
+  "yoloMode": false,
+  "doublePressToConfirm": true,
+  "permissionDialogKeys": {
+    "approve": "y",
+    "approveSession": "s",
+    "approveSessionBoth": "b",
+    "deny": "n",
+    "denyWithReason": "r"
+  },
+  "promptNotifications": ["bell"],
+  "commandEffects": {
+    "git": {
+      "unlessOption": ["--output"],
+      "subcommands": { "log": "read", "status": "read", "diff": "read", "show": "read", "branch": "read", "remote": "read" }
+    },
+    "sl": {
+      "subcommands": { "log": "read", "status": "read", "diff": "read", "show": "read" }
+    }
+  },
+  "permission": {
+    "*": "allow",
+    "path": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.env.example": "allow",
+      "~/.ssh/*": "deny"
+    },
+    "path_write": {
+      "~/.ssh/*": "deny"
+    },
+    "read": "allow",
+    "write": "allow",
+    "edit": "allow",
+    "grep": "allow",
+    "find": "allow",
+    "ls": "allow",
+    "skill": {
+      "*": "allow"
+    },
+    "external_directory_read": {
+      "*": "allow"
+    },
+    "external_directory": {
+      "*": "ask",
+      "/tmp/*": "allow",
+      "~/src/*": "allow",
+      "~/fbsource/*": "allow",
+      "~/www/*": "allow",
+      "~/notes/*": "allow",
+      "~/.pi/*": "allow",
+      "~/.claude/*": "allow"
+    },
+    "bash": {
+      "*": "allow",
+      "sudo *": "deny",
+      "rm -rf /": "deny",
+      "rm -rf ~*": "deny",
+      "rm -rf *": "ask",
+      "sl commit*": "ask",
+      "sl amend*": "ask",
+      "git commit*": "ask",
+      "git push*": "ask",
+      "jf submit*": "ask",
+      "./nbackfill*": "ask",
+      "dataswarm-cli *nbackfill*": "ask",
+      "chronos ckill*": "ask",
+      "curl *-X POST*": "ask",
+      "curl *--request POST*": "ask",
+      "curl *-d *": "ask",
+      "curl *--data*": "ask",
+      "curl *-F *": "ask",
+      "curl *--form*": "ask",
+      "wget *--post*": "ask"
+    }
+  }
+}

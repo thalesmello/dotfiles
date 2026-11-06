@@ -75,8 +75,8 @@ const PROVIDER_TIER_CANDIDATES: Record<string, Record<ModelTier, string[]>> = {
 		deep: ["gpt-6.1-sol", "gpt-6-sol", "gpt-5.6-sol"],
 	},
 	meta: {
-		fast: ["muse-spark-1.3-internal", "muse-latest"],
-		balanced: ["muse-latest", "muse-spark-1.3-internal"],
+		fast: ["muse-spark-1.4-internal", "muse-spark-1.3-internal", "muse-latest"],
+		balanced: ["muse-latest", "muse-spark-1.4-internal", "muse-spark-1.3-internal"],
 		deep: ["muse-wonder-1.0-internal", "muse-latest"],
 	},
 };
