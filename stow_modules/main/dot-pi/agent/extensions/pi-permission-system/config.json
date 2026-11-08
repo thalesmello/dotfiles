@@ -94,7 +94,6 @@
       "sl log*": "allow",
       "sl diff*": "allow",
       "sl show*": "allow",
-      "rm -rf /tmp/*": "allow",
       "mkdir -p /tmp/*": "allow",
       "sudo *": "deny",
       "rm -rf /": "deny",
