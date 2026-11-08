@@ -17,6 +17,9 @@ import {
 import { stripAnsi } from "./utils.ts";
 
 const LABEL = "⧉ Copy";
+const COPIED_LABEL = "Copied";
+/** How long a copy button reads "Copied" after a successful click (mirrors code-block-copy.ts). */
+export const COPIED_FEEDBACK_MS = 2_000;
 // Below this width a frame plus label would crowd the code, so Pi's plain fences are kept.
 const MIN_FRAME_WIDTH = 8;
 // Zero-width APC sequence: survives wrapping and padding, and marks the label column before we strip it.
@@ -37,7 +40,7 @@ interface Press {
 	region: CopyRegion;
 	x: number;
 	y: number;
-	onCopy: (text: string) => void;
+	onCopy: (text: string, region: CopyRegion) => void;
 }
 
 interface RawMouseEvent {
@@ -79,6 +82,8 @@ interface MarkdownState {
 	regions: CopyRegion[];
 	descriptors: Map<number, { text: string; label: boolean }>;
 	nextId: number;
+	copiedUntil: Map<string, number>;
+	copiedTimers: Map<string, ReturnType<typeof setTimeout>>;
 }
 
 /** Set by our Markdown transformer while a transcript Markdown renders. */
@@ -139,7 +144,7 @@ export function handleCopyMouse(
 	owner: object,
 	regions: readonly CopyRegion[],
 	event: TuiMouseEvent,
-	onCopy: (text: string) => void,
+	onCopy: (text: string, region: CopyRegion) => void,
 ): TuiMouseEventResult | undefined {
 	if (event.type === "press") {
 		if (press?.owner === owner) press = undefined;
@@ -158,7 +163,7 @@ export function handleCopyMouse(
 	}
 	if (event.type === "drag") return undefined;
 	press = undefined;
-	pending.onCopy(pending.region.text);
+	pending.onCopy(pending.region.text, pending.region);
 	return { handled: true, render: false };
 }
 
@@ -262,14 +267,85 @@ export function installCopyButtons(options: {
 	const active = () => installed && options.isEnabled() && options.getTui()?.mode === "fullscreen";
 	let markdownRegions = new WeakMap<object, MarkdownState>();
 	let userRegions = new WeakMap<object, { region: CopyRegion; source: string; label: string; width: number; line: string }>();
+	let userCopiedUntil = new WeakMap<object, number>();
+	let userCopiedTimers = new WeakMap<object, ReturnType<typeof setTimeout>>();
+	const liveCopiedTimers = new Set<ReturnType<typeof setTimeout>>();
 	const markerPrefix = `${MARKER_PREFIX}${randomUUID()}:`;
 	const markerPattern = new RegExp(`${markerPrefix}(\\d+):([01])\x07`, "g");
-	const copy = (text: string) => {
+	const copy = (text: string, onCopied?: () => void) => {
 		const tui = options.getTui();
 		const flash = (message: string) => {
 			if (installed && tui === options.getTui() && tui instanceof TuiAltScreen) tui.flash(message);
 		};
-		copyToClipboard(text).then(() => flash("Copied!"), () => flash("Copy failed"));
+		copyToClipboard(text).then(() => {
+			onCopied?.();
+			flash("Copied!");
+		}, () => flash("Copy failed"));
+	};
+	// "Copied" is exactly as wide as "⧉ Copy", so swapping the label in the
+	// code-block top border or user-message bottom row keeps its column and
+	// width. The timer requests one more render when the window expires so it
+	// reverts promptly.
+	const markUserCopied = (owner: object) => {
+		userCopiedUntil.set(owner, Date.now() + COPIED_FEEDBACK_MS);
+		const previous = userCopiedTimers.get(owner);
+		if (previous) {
+			clearTimeout(previous);
+			liveCopiedTimers.delete(previous);
+		}
+		const timer = setTimeout(() => {
+			liveCopiedTimers.delete(timer);
+			userCopiedTimers.delete(owner);
+			userCopiedUntil.delete(owner);
+			if (installed) options.getTui()?.requestRender();
+		}, COPIED_FEEDBACK_MS);
+		timer.unref?.();
+		userCopiedTimers.set(owner, timer);
+		liveCopiedTimers.add(timer);
+		options.getTui()?.requestRender();
+	};
+	const markMarkdownCopied = (owner: object, region: CopyRegion) => {
+		const state = markdownRegions.get(owner);
+		const target = regionTargets.get(region);
+		if (!state || !target) return;
+		state.copiedUntil.set(target, Date.now() + COPIED_FEEDBACK_MS);
+		const previous = state.copiedTimers.get(target);
+		if (previous) {
+			clearTimeout(previous);
+			liveCopiedTimers.delete(previous);
+		}
+		const timer = setTimeout(() => {
+			liveCopiedTimers.delete(timer);
+			state.copiedTimers.delete(target);
+			state.copiedUntil.delete(target);
+			if (installed) options.getTui()?.requestRender();
+		}, COPIED_FEEDBACK_MS);
+		timer.unref?.();
+		state.copiedTimers.set(target, timer);
+		liveCopiedTimers.add(timer);
+		options.getTui()?.requestRender();
+	};
+	const applyMarkdownCopied = (state: MarkdownState, lines: string[]): string[] => {
+		if (state.copiedUntil.size === 0 || state.regions.length === 0) return lines;
+		const now = Date.now();
+		let out: string[] | undefined;
+		for (const region of state.regions) {
+			const target = regionTargets.get(region);
+			if (!target) continue;
+			const until = state.copiedUntil.get(target);
+			if (until === undefined) continue;
+			if (until <= now) {
+				state.copiedUntil.delete(target);
+				continue;
+			}
+			const line = (out ?? lines)[region.row];
+			if (line === undefined) continue;
+			const idx = line.lastIndexOf(LABEL);
+			if (idx < 0) continue;
+			out ??= lines.slice();
+			out[region.row] = line.slice(0, idx) + COPIED_LABEL + line.slice(idx + LABEL.length);
+		}
+		return out ?? lines;
 	};
 	const label = () => options.getTheme().fg("muted", LABEL);
 
@@ -282,6 +358,7 @@ export function installCopyButtons(options: {
 
 	const restores = [
 		patch(altScreenProto, "handleMouseEvent", function (this: AltScreenInternals, raw) {
+			if (!installed) return originalAltScreenMouse.call(this, raw);
 			const currentTui = options.getTui() as { terminal?: unknown } | undefined;
 			const sameTui = this === (currentTui as unknown) || (this.terminal !== undefined && this.terminal === currentTui?.terminal);
 			if (!active() || !sameTui) {
@@ -290,10 +367,7 @@ export function installCopyButtons(options: {
 			}
 			const motion = (raw.button & 32) !== 0;
 			if (!raw.release && !motion) press = undefined;
-			// Leave Markdown code-block [Copy] clicks to code-block-copy.ts so the
-			// 2-second `[Copy]` -> `Copied` border feedback runs; handle user-message
-			// `[Copy]` clicks here using Pi 1.5.0's `clearTextSelection`.
-			if (press && !(press.owner instanceof Markdown) && (raw.release || motion)) {
+			if (press && (raw.release || motion)) {
 				const event = this.createMouseEvent(raw.release ? "release" : "drag", raw.button, raw.x, raw.y);
 				if (handleCopyMouse(press.owner, [], event, press.onCopy)) {
 					this.clearTextSelection?.();
@@ -331,7 +405,14 @@ export function installCopyButtons(options: {
 			if (!installed) return originalRender.call(this, width);
 			const enabled = active();
 			const previous = markdownRegions.get(this);
-			const state: MarkdownState = previous ?? { active: enabled, regions: [], descriptors: new Map(), nextId: 0 };
+			const state: MarkdownState = previous ?? {
+				active: enabled,
+				regions: [],
+				descriptors: new Map(),
+				nextId: 0,
+				copiedUntil: new Map(),
+				copiedTimers: new Map(),
+			};
 			if (!previous) {
 				markdownRegions.set(this, state);
 				// A component may already have cached native fences before this installation.
@@ -339,6 +420,12 @@ export function installCopyButtons(options: {
 			} else if (state.active !== enabled) {
 				this.invalidate();
 				cancelStalePress(this, []);
+				for (const timer of state.copiedTimers.values()) {
+					clearTimeout(timer);
+					liveCopiedTimers.delete(timer);
+				}
+				state.copiedTimers.clear();
+				state.copiedUntil.clear();
 				state.active = enabled;
 				state.policy = undefined;
 			}
@@ -350,7 +437,10 @@ export function installCopyButtons(options: {
 			};
 			try {
 				let lines = run();
-				if (state.lines === lines) return lines;
+				if (state.lines === lines) return applyMarkdownCopied(state, lines);
+				if (state.lines !== undefined && state.descriptors.size > 0 && !lines.some((line) => line.includes(markerPrefix))) {
+					return applyMarkdownCopied(state, lines);
+				}
 				// A retained native block can outlive its description after a renderer change.
 				const missing = lines.some((line) => [...line.matchAll(markerPattern)].some((match) => !state.descriptors.has(Number(match[1]))));
 				if (missing) {
@@ -394,7 +484,7 @@ export function installCopyButtons(options: {
 				cancelStalePress(this, regions);
 				state.lines = lines;
 				state.regions = regions;
-				return lines;
+				return applyMarkdownCopied(state, lines);
 			} catch (error) {
 				cancelStalePress(this, []);
 				state.lines = undefined;
@@ -411,7 +501,8 @@ export function installCopyButtons(options: {
 				return originalMarkdownMouse?.call(this, event);
 			}
 			const regions = markdownRegions.get(this)?.regions ?? [];
-			return handleCopyMouse(this, regions, event, copy) ?? originalMarkdownMouse?.call(this, event);
+			return handleCopyMouse(this, regions, event, (text, region) => copy(text, () => markMarkdownCopied(this, region)))
+				?? originalMarkdownMouse?.call(this, event);
 		}),
 		patch(userProto, "render", function (this: UserMessageInternals, width) {
 			if (!installed) return originalUserRender.call(this, width);
@@ -426,7 +517,8 @@ export function installCopyButtons(options: {
 			// The last row is the bubble's bottom padding, so the label never shares a row with a code-block label.
 			const row = lines.length - 1;
 			const theme = options.getTheme();
-			const button = theme.bg("userMessageBg", label());
+			const copied = (userCopiedUntil.get(this) ?? 0) > Date.now();
+			const button = theme.bg("userMessageBg", theme.fg("muted", copied ? COPIED_LABEL : LABEL));
 			const cached = userRegions.get(this);
 			// UserMessage.render returns a fresh array, so compare its undecorated bottom row instead.
 			if (cached && cached.source === lines[row] && cached.label === button && cached.width === width
@@ -450,7 +542,7 @@ export function installCopyButtons(options: {
 				return originalUserMouse?.call(this, event);
 			}
 			const region = userRegions.get(this)?.region;
-			return handleCopyMouse(this, region ? [region] : [], event, copy) ?? originalUserMouse?.call(this, event);
+			return handleCopyMouse(this, region ? [region] : [], event, (text) => copy(text, () => markUserCopied(this))) ?? originalUserMouse?.call(this, event);
 		}),
 	];
 	markdownProto[PATCH_KEY] = true;
@@ -460,6 +552,10 @@ export function installCopyButtons(options: {
 		cleanup: () => {
 			if (!installed) return;
 			installed = false;
+			for (const timer of liveCopiedTimers) clearTimeout(timer);
+			liveCopiedTimers.clear();
+			userCopiedUntil = new WeakMap();
+			userCopiedTimers = new WeakMap();
 			for (const restore of restores) restore();
 			delete markdownProto[PATCH_KEY];
 			press = undefined;

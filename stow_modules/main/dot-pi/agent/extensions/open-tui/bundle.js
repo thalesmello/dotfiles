@@ -527,6 +527,8 @@ function headerColumnWidths(innerWidth, minTipsWidth = MIN_TIPS_WIDTH, maxTipsWi
 
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/copy-buttons.ts
 var LABEL = "⧉ Copy";
+var COPIED_LABEL = "Copied";
+var COPIED_FEEDBACK_MS = 2000;
 var MIN_FRAME_WIDTH = 8;
 var MARKER_PREFIX = "\x1B_open-tui:cb:";
 var PATCH_KEY = Symbol.for("pi-open-tui.copy-buttons");
@@ -587,7 +589,7 @@ function handleCopyMouse(owner, regions, event, onCopy) {
   if (event.type === "drag")
     return;
   press = undefined;
-  pending.onCopy(pending.region.text);
+  pending.onCopy(pending.region.text, pending.region);
   return { handled: true, render: false };
 }
 function cancelStalePress(owner, regions) {
@@ -693,15 +695,90 @@ function installCopyButtons(options) {
   const active = () => installed && options.isEnabled() && options.getTui()?.mode === "fullscreen";
   let markdownRegions = new WeakMap;
   let userRegions = new WeakMap;
+  let userCopiedUntil = new WeakMap;
+  let userCopiedTimers = new WeakMap;
+  const liveCopiedTimers = new Set;
   const markerPrefix = `${MARKER_PREFIX}${randomUUID()}:`;
   const markerPattern = new RegExp(`${markerPrefix}(\\d+):([01])\x07`, "g");
-  const copy = (text) => {
+  const copy = (text, onCopied) => {
     const tui = options.getTui();
     const flash = (message) => {
       if (installed && tui === options.getTui() && tui instanceof TuiAltScreen)
         tui.flash(message);
     };
-    copyToClipboard(text).then(() => flash("Copied!"), () => flash("Copy failed"));
+    copyToClipboard(text).then(() => {
+      onCopied?.();
+      flash("Copied!");
+    }, () => flash("Copy failed"));
+  };
+  const markUserCopied = (owner) => {
+    userCopiedUntil.set(owner, Date.now() + COPIED_FEEDBACK_MS);
+    const previous = userCopiedTimers.get(owner);
+    if (previous) {
+      clearTimeout(previous);
+      liveCopiedTimers.delete(previous);
+    }
+    const timer = setTimeout(() => {
+      liveCopiedTimers.delete(timer);
+      userCopiedTimers.delete(owner);
+      userCopiedUntil.delete(owner);
+      if (installed)
+        options.getTui()?.requestRender();
+    }, COPIED_FEEDBACK_MS);
+    timer.unref?.();
+    userCopiedTimers.set(owner, timer);
+    liveCopiedTimers.add(timer);
+    options.getTui()?.requestRender();
+  };
+  const markMarkdownCopied = (owner, region) => {
+    const state = markdownRegions.get(owner);
+    const target = regionTargets.get(region);
+    if (!state || !target)
+      return;
+    state.copiedUntil.set(target, Date.now() + COPIED_FEEDBACK_MS);
+    const previous = state.copiedTimers.get(target);
+    if (previous) {
+      clearTimeout(previous);
+      liveCopiedTimers.delete(previous);
+    }
+    const timer = setTimeout(() => {
+      liveCopiedTimers.delete(timer);
+      state.copiedTimers.delete(target);
+      state.copiedUntil.delete(target);
+      if (installed)
+        options.getTui()?.requestRender();
+    }, COPIED_FEEDBACK_MS);
+    timer.unref?.();
+    state.copiedTimers.set(target, timer);
+    liveCopiedTimers.add(timer);
+    options.getTui()?.requestRender();
+  };
+  const applyMarkdownCopied = (state, lines) => {
+    if (state.copiedUntil.size === 0 || state.regions.length === 0)
+      return lines;
+    const now = Date.now();
+    let out;
+    for (const region of state.regions) {
+      const target = regionTargets.get(region);
+      if (!target)
+        continue;
+      const until = state.copiedUntil.get(target);
+      if (until === undefined)
+        continue;
+      if (until <= now) {
+        state.copiedUntil.delete(target);
+        continue;
+      }
+      const line = (out ?? lines)[region.row];
+      if (line === undefined)
+        continue;
+      const idx = line.lastIndexOf(LABEL);
+      if (idx < 0)
+        continue;
+      out ??= lines.slice();
+      out[region.row] = line.slice(0, idx) + COPIED_LABEL + line.slice(idx + LABEL.length);
+    }
+    return out ?? lines;
   };
   const label = () => options.getTheme().fg("muted", LABEL);
   const originalRender = markdownProto.render;
@@ -712,6 +789,8 @@ function installCopyButtons(options) {
   const originalAltScreenMouse = altScreenProto.handleMouseEvent;
   const restores = [
     patch(altScreenProto, "handleMouseEvent", function(raw) {
+      if (!installed)
+        return originalAltScreenMouse.call(this, raw);
       const currentTui = options.getTui();
       const sameTui = this === currentTui || this.terminal !== undefined && this.terminal === currentTui?.terminal;
       if (!active() || !sameTui) {
@@ -721,7 +800,7 @@ function installCopyButtons(options) {
       const motion = (raw.button & 32) !== 0;
       if (!raw.release && !motion)
         press = undefined;
-      if (press && !(press.owner instanceof Markdown) && (raw.release || motion)) {
+      if (press && (raw.release || motion)) {
         const event = this.createMouseEvent(raw.release ? "release" : "drag", raw.button, raw.x, raw.y);
         if (handleCopyMouse(press.owner, [], event, press.onCopy)) {
           this.clearTextSelection?.();
@@ -758,13 +837,26 @@ function installCopyButtons(options) {
         return originalRender.call(this, width);
       const enabled = active();
       const previous = markdownRegions.get(this);
-      const state = previous ?? { active: enabled, regions: [], descriptors: new Map, nextId: 0 };
+      const state = previous ?? {
+        active: enabled,
+        regions: [],
+        descriptors: new Map,
+        nextId: 0,
+        copiedUntil: new Map,
+        copiedTimers: new Map
+      };
       if (!previous) {
         markdownRegions.set(this, state);
         this.invalidate();
       } else if (state.active !== enabled) {
         this.invalidate();
         cancelStalePress(this, []);
+        for (const timer of state.copiedTimers.values()) {
+          clearTimeout(timer);
+          liveCopiedTimers.delete(timer);
+        }
+        state.copiedTimers.clear();
+        state.copiedUntil.clear();
         state.active = enabled;
         state.policy = undefined;
       }
@@ -780,7 +872,10 @@ function installCopyButtons(options) {
       try {
         let lines = run();
         if (state.lines === lines)
-          return lines;
+          return applyMarkdownCopied(state, lines);
+        if (state.lines !== undefined && state.descriptors.size > 0 && !lines.some((line) => line.includes(markerPrefix))) {
+          return applyMarkdownCopied(state, lines);
+        }
         const missing = lines.some((line) => [...line.matchAll(markerPattern)].some((match) => !state.descriptors.has(Number(match[1]))));
         if (missing) {
           this.invalidate();
@@ -830,7 +925,7 @@ function installCopyButtons(options) {
         cancelStalePress(this, regions);
         state.lines = lines;
         state.regions = regions;
-        return lines;
+        return applyMarkdownCopied(state, lines);
       } catch (error) {
         cancelStalePress(this, []);
         state.lines = undefined;
@@ -847,7 +942,7 @@ function installCopyButtons(options) {
         return originalMarkdownMouse?.call(this, event);
       }
       const regions = markdownRegions.get(this)?.regions ?? [];
-      return handleCopyMouse(this, regions, event, copy) ?? originalMarkdownMouse?.call(this, event);
+      return handleCopyMouse(this, regions, event, (text, region) => copy(text, () => markMarkdownCopied(this, region))) ?? originalMarkdownMouse?.call(this, event);
     }),
     patch(userProto, "render", function(width) {
       if (!installed)
@@ -862,7 +957,8 @@ function installCopyButtons(options) {
       }
       const row = lines.length - 1;
       const theme = options.getTheme();
-      const button = theme.bg("userMessageBg", label());
+      const copied = (userCopiedUntil.get(this) ?? 0) > Date.now();
+      const button = theme.bg("userMessageBg", theme.fg("muted", copied ? COPIED_LABEL : LABEL));
       const cached = userRegions.get(this);
       if (cached && cached.source === lines[row] && cached.label === button && cached.width === width && cached.region.row === row && cached.region.col === col && cached.region.text === this.text) {
         lines[row] = cached.line;
@@ -887,7 +983,7 @@ function installCopyButtons(options) {
         return originalUserMouse?.call(this, event);
       }
       const region = userRegions.get(this)?.region;
-      return handleCopyMouse(this, region ? [region] : [], event, copy) ?? originalUserMouse?.call(this, event);
+      return handleCopyMouse(this, region ? [region] : [], event, (text) => copy(text, () => markUserCopied(this))) ?? originalUserMouse?.call(this, event);
     })
   ];
   markdownProto[PATCH_KEY] = true;
@@ -897,6 +993,11 @@ function installCopyButtons(options) {
       if (!installed)
         return;
       installed = false;
+      for (const timer of liveCopiedTimers)
+        clearTimeout(timer);
+      liveCopiedTimers.clear();
+      userCopiedUntil = new WeakMap;
+      userCopiedTimers = new WeakMap;
       for (const restore of restores)
         restore();
       delete markdownProto[PATCH_KEY];

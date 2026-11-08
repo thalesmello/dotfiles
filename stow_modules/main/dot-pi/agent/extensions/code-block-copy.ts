@@ -996,36 +996,50 @@ function installCodeBlockCopy(): { markdown: boolean; altScreen: boolean } {
 		state.patchedRenderToken = patchedRenderToken as RenderTokenFn;
 		markdownPrototype.renderToken = state.patchedRenderToken;
 		state.markdownInstalled = true;
-	} else if (state.markdownInstalled) {
-		replaceStalePatch(
-			markdownPrototype.renderToken,
-			state.patchedRenderToken,
-			patchedRenderToken as RenderTokenFn,
-			(fn) => {
-				markdownPrototype.renderToken = fn;
-			},
-			(fn) => {
-				state.patchedRenderToken = fn;
-			},
-		);
+	} else if (state.markdownInstalled && typeof markdownPrototype.renderToken === "function") {
+		if (markdownPrototype.renderToken === state.patchedRenderToken) {
+			replaceStalePatch(
+				markdownPrototype.renderToken,
+				state.patchedRenderToken,
+				patchedRenderToken as RenderTokenFn,
+				(fn) => {
+					markdownPrototype.renderToken = fn;
+				},
+				(fn) => {
+					state.patchedRenderToken = fn;
+				},
+			);
+		} else if (!state.wrappedRenderToken) {
+			// Another extension (e.g. osc8-links at module load time on /reload)
+			// replaced Markdown.prototype.renderToken after session_shutdown.
+			state.origRenderToken = markdownPrototype.renderToken as RenderTokenFn;
+			state.patchedRenderToken = patchedRenderToken as RenderTokenFn;
+			markdownPrototype.renderToken = state.patchedRenderToken;
+		}
 	}
 	if (!state.markdownRenderInstalled && typeof markdownPrototype.render === "function") {
 		state.origRender = markdownPrototype.render as RenderFn;
 		state.patchedRender = patchedRender as RenderFn;
 		markdownPrototype.render = state.patchedRender;
 		state.markdownRenderInstalled = true;
-	} else if (state.markdownRenderInstalled) {
-		replaceStalePatch(
-			markdownPrototype.render,
-			state.patchedRender,
-			patchedRender as RenderFn,
-			(fn) => {
-				markdownPrototype.render = fn;
-			},
-			(fn) => {
-				state.patchedRender = fn;
-			},
-		);
+	} else if (state.markdownRenderInstalled && typeof markdownPrototype.render === "function") {
+		if (markdownPrototype.render === state.patchedRender) {
+			replaceStalePatch(
+				markdownPrototype.render,
+				state.patchedRender,
+				patchedRender as RenderFn,
+				(fn) => {
+					markdownPrototype.render = fn;
+				},
+				(fn) => {
+					state.patchedRender = fn;
+				},
+			);
+		} else if (!state.wrappedRender) {
+			state.origRender = markdownPrototype.render as RenderFn;
+			state.patchedRender = patchedRender as RenderFn;
+			markdownPrototype.render = state.patchedRender;
+		}
 	}
 	const markdown = state.markdownInstalled && state.markdownRenderInstalled;
 
