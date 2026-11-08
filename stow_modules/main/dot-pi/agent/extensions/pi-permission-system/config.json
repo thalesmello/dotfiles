@@ -1,7 +1,7 @@
 {
   "debugLog": false,
   "permissionReviewLog": false,
-  "yoloMode": false,
+  "yoloMode": true,
   "doublePressToConfirm": true,
   "permissionDialogKeys": {
     "approve": "y",
@@ -11,15 +11,33 @@
     "deny": "n",
     "denyWithReason": "r"
   },
-  "promptNotifications": ["bell"],
-  "authorizerChain": ["auto-review"],
+  "promptNotifications": [
+    "bell"
+  ],
+  "authorizerChain": [
+    "auto-review"
+  ],
   "commandEffects": {
     "git": {
-      "unlessOption": ["--output"],
-      "subcommands": { "log": "read", "status": "read", "diff": "read", "show": "read", "branch": "read", "remote": "read" }
+      "unlessOption": [
+        "--output"
+      ],
+      "subcommands": {
+        "log": "read",
+        "status": "read",
+        "diff": "read",
+        "show": "read",
+        "branch": "read",
+        "remote": "read"
+      }
     },
     "sl": {
-      "subcommands": { "log": "read", "status": "read", "diff": "read", "show": "read" }
+      "subcommands": {
+        "log": "read",
+        "status": "read",
+        "diff": "read",
+        "show": "read"
+      }
     }
   },
   "permission": {
