@@ -47,6 +47,7 @@ MAX_SNOOZE_S = 366 * 86400
 
 DEFAULT_DURATIONS = ["15m", "1h", "3h", "6h", "1d", "3d", "1w"]
 DEFAULT_BADGE = "\U000F00A0"  # nf-md-sleep (Nerd Font; replaces the 💤 emoji)
+WOKE_BADGE = "\U000F0020"  # nf-md-alarm (Nerd Font; replaces the ⏰ emoji)
 
 # Token names aren't owned in herdr: any plugin could write `snoozed`. So every
 # snoozed pane carries two: `snoozed`, the badge text people show in their
@@ -305,7 +306,7 @@ CONFIG_SCHEMA = {
     "auto_return": (lambda: True, lambda v: isinstance(v, bool)),
     "wake_when_blocked": (lambda: True, lambda v: isinstance(v, bool)),
     "notify_wake": (lambda: True, lambda v: isinstance(v, bool)),
-    "woke_badge": (lambda: "\u23f0", lambda v: isinstance(v, str)),
+    "woke_badge": (lambda: WOKE_BADGE, lambda v: isinstance(v, str)),
     "theme": (lambda: "", lambda v: isinstance(v, str) and v in ("", "dark", "light")),
 }
 
@@ -610,7 +611,7 @@ def woke_text(entry, now):
     return text
 
 
-def track_woke(state, panes, now, force=False, badge="\u23f0"):
+def track_woke(state, panes, now, force=False, badge=WOKE_BADGE):
     live = {pane.get("pane_id"): pane for pane in panes}
     for item in state.pop("_woken", []):
         pid = item.get("pane_id")
@@ -1587,7 +1588,7 @@ def sync(state, config, force=False, strict=False):
     now = now_ms()
     wake_on_change(state, panes, wake_blocked=config.get("wake_when_blocked", True))
     ops = reconcile(state, panes, now, force=force, badge=config["badge"])
-    ops += track_woke(state, panes, now, force=force, badge=config.get("woke_badge", "\u23f0"))
+    ops += track_woke(state, panes, now, force=force, badge=config.get("woke_badge", WOKE_BADGE))
     failed = send_token_ops(ops)
     for op in failed:
         # Workspace tokens can't be read back, so nothing else would notice.
@@ -1934,7 +1935,7 @@ def _return_ref():
 
 
 def picker_for_target(term, config, kind, target, label, detail, expect=None, status="", pr="", snoozed=False):
-    header = ["  " + BOLD + CYAN + "💤 " + RESET + BOLD + clip(label or target, 39) + RESET]
+    header = ["  " + BOLD + CYAN + DEFAULT_BADGE + " " + RESET + BOLD + clip(label or target, 39) + RESET]
     if detail:
         header.append("  " + DIM + clip(detail, 42) + RESET)
     now = datetime.now()
@@ -2104,7 +2105,7 @@ def picker_manage(term, config, demo=False):
         if selectable and selected not in selectable:
             selected = selectable[0]
         now = now_ms()
-        lines = ["  " + BOLD + CYAN + "💤 Snooze" + RESET, ""]
+        lines = ["  " + BOLD + CYAN + DEFAULT_BADGE + " Snooze" + RESET, ""]
         if not rows:
             lines.append("  " + DIM + "No agents running." + RESET)
         for i, row in enumerate(rows):
@@ -2118,13 +2119,13 @@ def picker_manage(term, config, demo=False):
             else:
                 text = row["title"] + "  " + (row["pane"].get("agent") or "") + " \u00b7 " + (labels.get(row.get("space")) or "")
                 if row.get("snoozed") and row.get("when"):
-                    marker, colour = "💤", YELLOW
+                    marker, colour = DEFAULT_BADGE, YELLOW
                     right = condition_label(row["when"])
                 elif row.get("snoozed"):
-                    marker, colour = "💤", YELLOW
+                    marker, colour = DEFAULT_BADGE, YELLOW
                     right = format_left(row.get("until", 0) - now) + " \u00b7 " + format_until(from_ms(row.get("until", 0)), from_ms(now))
                 elif row.get("woke"):
-                    marker, colour = "⏰", GREEN
+                    marker, colour = WOKE_BADGE, GREEN
                     right = "woke " + format_until(from_ms(row["woke"].get("at", now)), from_ms(now))
                 else:
                     marker = "●"

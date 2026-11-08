@@ -21,6 +21,21 @@ snooze = importlib.util.module_from_spec(_spec)
 sys.modules["herdr_snooze"] = snooze
 _spec.loader.exec_module(snooze)
 
+
+class WokeBadgeTest(unittest.TestCase):
+    def test_woke_badge_is_nerd_font_not_emoji(self):
+        # A snoozed conversation that comes back is badged with the woke
+        # badge; it must be the Nerd Font alarm glyph, not the ⏰ emoji
+        # (same treatment DEFAULT_BADGE already gives the snooze badge).
+        self.assertEqual(snooze.WOKE_BADGE, "\U000F0020")
+        self.assertEqual(snooze.load_config()["woke_badge"], snooze.WOKE_BADGE)
+        ops = snooze.track_woke({"_woken": [{"pane_id": "w1:p1", "reason": "it's done"}]},
+                                PANES, snooze.now_ms())
+        report = [op for op in ops if op[0] == "woke_report"]
+        self.assertEqual(len(report), 1)
+        self.assertEqual(report[0][4], snooze.WOKE_BADGE)
+
+
 PANES = [
     {"pane_id": "w1:p1", "workspace_id": "w1", "agent": "claude",
      "agent_status": "working", "terminal_id": "t1", "title": "Fix it", "tokens": {}},
