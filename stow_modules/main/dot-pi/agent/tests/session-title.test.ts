@@ -150,4 +150,33 @@ describe("session-title extension", () => {
 		expect(attempts).toBe(2);
 		expect(harness.getSessionName()).toBe("Recovered Title");
 	});
+
+	test("session_shutdown on /new awaits an in-flight title so the outgoing session is named", async () => {
+		let resolveSummary!: (title: string | undefined) => void;
+		const summarize = () =>
+			new Promise<string | undefined>((resolve) => {
+				resolveSummary = resolve;
+			});
+
+		const harness = createHarness(summarize);
+
+		await harness.emit("message_end", {
+			message: { role: "user", content: "Settle previous conversation on /new" },
+		});
+		expect(harness.getSessionName()).toBeUndefined();
+
+		let shutdownDone = false;
+		const shutdownPromise = harness.emit("session_shutdown", { reason: "new" }).then(() => {
+			shutdownDone = true;
+		});
+
+		await Promise.resolve();
+		expect(shutdownDone).toBe(false);
+
+		resolveSummary("Settle Previous Conversation");
+		await shutdownPromise;
+
+		expect(shutdownDone).toBe(true);
+		expect(harness.getSessionName()).toBe("Settle Previous Conversation");
+	});
 });

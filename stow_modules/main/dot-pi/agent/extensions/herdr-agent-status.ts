@@ -29,11 +29,20 @@
  * `git add . && git commit` books on success while `git commit && ./tester`
  * does not (the tester is further work after the commit).
  *
+ * When `/new` creates a fresh session (`session_start` with `reason: "new"`),
+ * the previous conversation (`previousSessionFile`, when persisted on disk)
+ * is settled into `herdr-settled`'s registry without closing the pane, and
+ * the notebook mark is cleared for the new session.
+ *
  * Only the root TUI session reports: print/RPC children (subagents, title
  * summarizers) share the pane but are not the session being settled.
  */
 
+import { spawn } from "node:child_process";
+import * as fs from "node:fs";
 import net from "node:net";
+import * as os from "node:os";
+import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const HERDR_ENV = process.env.HERDR_ENV;
@@ -88,6 +97,44 @@ async function reportBook(booked: boolean): Promise<void> {
 	};
 	if (await sendRequestAttempt(request, 500)) return;
 	await sendRequestAttempt(request, 1500);
+}
+
+function settledScriptPath(): string {
+	const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
+	return path.join(xdgConfig, "herdr", "scripts", "herdr-settled.py");
+}
+
+export function settlePreviousSession(
+	sessionFile: string,
+	targetPane: string | undefined = paneId ?? process.env.HERDR_PANE_ID,
+): Promise<boolean> {
+	if (!targetPane) return Promise.resolve(false);
+	const script = settledScriptPath();
+	return new Promise((resolve) => {
+		let done = false;
+		const finish = (ok: boolean) => {
+			if (done) return;
+			done = true;
+			clearTimeout(timer);
+			resolve(ok);
+		};
+		let child: ReturnType<typeof spawn>;
+		try {
+			child = spawn("python3", [script, "settle-session", targetPane, sessionFile], {
+				stdio: "ignore",
+			});
+		} catch {
+			finish(false);
+			return;
+		}
+		const timer = setTimeout(() => {
+			child.kill("SIGKILL");
+			finish(false);
+		}, 5000);
+		timer.unref?.();
+		child.on("error", () => finish(false));
+		child.on("close", (code) => finish(code === 0));
+	});
 }
 
 // ---------------------------------------------------------------------------
@@ -210,11 +257,16 @@ export function classifyBash(command: string, cwd: string): BashVerdict {
 
 type Deps = {
 	report?: (booked: boolean) => Promise<void>;
+	settle?: (sessionFile: string) => Promise<unknown>;
+	sessionExists?: (sessionFile: string) => boolean;
 	enabled?: boolean;
 };
 
 export default function (pi: ExtensionAPI, deps: Deps = {}) {
 	const report = deps.report ?? reportBook;
+	const settle = deps.settle ?? settlePreviousSession;
+	const sessionExists =
+		deps.sessionExists ?? (deps.settle ? () => true : (file: string) => fs.existsSync(file));
 	if (!(deps.enabled ?? enabled())) return;
 
 	let rootSession = false;
@@ -230,12 +282,22 @@ export default function (pi: ExtensionAPI, deps: Deps = {}) {
 		if (rootSession) setBooked(true);
 	});
 
-	pi.on("session_start", (event, ctx) => {
+	pi.on("session_start", async (event, ctx) => {
 		// TUI only: RPC/print children have no Herdr row of their own.
 		if (ctx?.mode !== "tui") return;
 		rootSession = true;
 		// A brand-new session is new work; a reload/resume keeps the mark.
-		if ((event as { reason?: string })?.reason === "new") setBooked(false);
+		if ((event as { reason?: string })?.reason === "new") {
+			setBooked(false);
+			const previousSessionFile = (event as { previousSessionFile?: unknown })?.previousSessionFile;
+			if (
+				typeof previousSessionFile === "string" &&
+				previousSessionFile.length > 0 &&
+				sessionExists(previousSessionFile)
+			) {
+				await settle(previousSessionFile);
+			}
+		}
 	});
 
 	pi.on("tool_call", (event, ctx) => {

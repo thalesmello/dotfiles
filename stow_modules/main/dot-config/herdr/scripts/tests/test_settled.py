@@ -306,6 +306,51 @@ class SettlePaneTest(unittest.TestCase):
         with mock.patch.object(settled, "call", return_value={"panes": [shell]}):
             self.assertIn("no agent", settled.settle_pane("w1:p1"))
 
+    def test_settle_session_freezes_previous_conversation_without_closing_pane(self):
+        calls = []
+        # The pane is already on the new session (/tmp/new.jsonl), while its
+        # terminal title still shows the previous session's title before reset.
+        live_pane = pane(conv="/tmp/new.jsonl", title="Previous Conversation Title")
+
+        def fake(method, params=None, timeout=5.0):
+            calls.append((method, params or {}))
+            if method == "pane.list":
+                return {"panes": [live_pane]}
+            if method == "workspace.list":
+                return {"workspaces": WORKSPACES}
+            raise AssertionError(method)
+
+        written = {}
+        with mock.patch.object(settled, "call", fake), \
+                mock.patch.object(settled, "read_store", return_value={"w1:p1": record(conv="/tmp/new.jsonl")}), \
+                mock.patch.object(settled, "read_registry", return_value={"settled": {}, "seen": {}}), \
+                mock.patch.object(settled, "write_registry", side_effect=lambda s: written.update(s)):
+            outcome = settled.settle_session("w1:p1", "/tmp/old.jsonl")
+        self.assertTrue(outcome.startswith("settled"))
+        self.assertIn("/tmp/old.jsonl", written["settled"])
+        self.assertNotIn("/tmp/new.jsonl", written["settled"])
+        self.assertNotIn("/tmp/new.jsonl", written["seen"])
+        entry = written["settled"]["/tmp/old.jsonl"]
+        self.assertEqual(entry["title"], "Previous Conversation Title")
+        self.assertEqual(entry["workspace_label"], "web")
+        self.assertEqual(entry["session"]["value"], "/tmp/old.jsonl")
+        self.assertFalse(any(m == "pane.close" for m, _p in calls))
+
+    def test_settle_session_survives_subsequent_tick(self):
+        live_pane = pane(conv="/tmp/new.jsonl", title="π - repo")
+        state = {"settled": {}, "seen": {"/tmp/old.jsonl": {"title": "Old Work", "workspace_label": "web", "tab_label": ""}}}
+        with mock.patch.object(settled, "call", side_effect=lambda m, p=None, timeout=5.0: {"panes": [live_pane]} if m == "pane.list" else {"workspaces": WORKSPACES}), \
+                mock.patch.object(settled, "read_store", return_value={"w1:p1": record(conv="/tmp/old.jsonl")}), \
+                mock.patch.object(settled, "read_registry", return_value=state), \
+                mock.patch.object(settled, "write_registry", side_effect=lambda s: state.update(s)):
+            settled.settle_session("w1:p1", "/tmp/old.jsonl")
+        self.assertIn("/tmp/old.jsonl", state["settled"])
+        self.assertEqual(state["settled"]["/tmp/old.jsonl"]["title"], "Old Work")
+        # A subsequent tick with the pane now on /tmp/new.jsonl keeps /tmp/old.jsonl settled.
+        after_tick = settled.capture(state, {"w1:p1": record(conv="/tmp/new.jsonl")}, [live_pane], WORKSPACES, 999.0)
+        self.assertIn("/tmp/old.jsonl", after_tick["settled"])
+        self.assertEqual(after_tick["settled"]["/tmp/old.jsonl"]["title"], "Old Work")
+
 
 class PickerDrawTest(unittest.TestCase):
     class FakeTerm:

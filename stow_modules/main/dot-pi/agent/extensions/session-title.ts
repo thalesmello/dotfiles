@@ -259,6 +259,7 @@ export default function (pi: ExtensionAPI, options: SessionTitleOptions = {}) {
 	let titledAtUserTurnCount = -1;
 	let manualTitleLocked = false; // latest transcript name was set by someone else
 	let running = false;
+	let inFlight: Promise<string | undefined> | undefined;
 
 	const rememberUserTurn = (content: unknown) => {
 		const text = cleanDigest(textOf(content));
@@ -349,32 +350,39 @@ export default function (pi: ExtensionAPI, options: SessionTitleOptions = {}) {
 		return userTurns.length - titledAtUserTurnCount >= RETITLE_EVERY;
 	};
 
-	const retitle = async (
+	const retitle = (
 		ctx: { hasUI?: boolean; ui?: { setTitle(title: string): void } },
 	): Promise<string | undefined> => {
 		running = true;
 		const startingName = pi.getSessionName();
 		const turnCount = userTurns.length;
 		const text = digest(userTurns);
-		try {
-			const title = await runSummarize(text);
-			if (!title) return undefined;
-			// Re-check: /name may have been typed or cleared while we waited.
-			const current = pi.getSessionName();
-			if (current !== startingName) return undefined;
-			if (current && current !== ourName) return undefined;
-			pi.setSessionName(title);
-			ourName = title;
-			manualTitleLocked = false;
-			titledAtUserTurnCount = turnCount;
-			pi.appendEntry(STATE_ENTRY, { name: title, userTurnCount: titledAtUserTurnCount });
-			// pi does not put the session name in the terminal title, and the
-			// terminal title is what a multiplexer reads.
-			if (ctx.hasUI) ctx.ui?.setTitle(title);
-			return title;
-		} finally {
-			running = false;
-		}
+		const run = (async () => {
+			try {
+				const title = await runSummarize(text);
+				if (!title) return undefined;
+				// Re-check: /name may have been typed or cleared while we waited.
+				const current = pi.getSessionName();
+				if (current !== startingName) return undefined;
+				if (current && current !== ourName) return undefined;
+				pi.setSessionName(title);
+				ourName = title;
+				manualTitleLocked = false;
+				titledAtUserTurnCount = turnCount;
+				pi.appendEntry(STATE_ENTRY, { name: title, userTurnCount: titledAtUserTurnCount });
+				// pi does not put the session name in the terminal title, and the
+				// terminal title is what a multiplexer reads.
+				if (ctx.hasUI) ctx.ui?.setTitle(title);
+				return title;
+			} catch {
+				return undefined;
+			} finally {
+				running = false;
+				if (inFlight === run) inFlight = undefined;
+			}
+		})();
+		inFlight = run;
+		return run;
 	};
 
 	const maybeRetitle = (ctx: { hasUI?: boolean; ui?: { setTitle(title: string): void } }) => {
@@ -446,6 +454,16 @@ export default function (pi: ExtensionAPI, options: SessionTitleOptions = {}) {
 
 	pi.on("turn_end", async (_event, ctx) => {
 		maybeRetitle(ctx);
+	});
+
+	pi.on("session_shutdown", async (event) => {
+		// Finish an in-flight title before /new or /resume tears down the
+		// session so the outgoing transcript carries its title into the
+		// settled store and the old run cannot write to a disposed session.
+		const reason = (event as { reason?: string })?.reason;
+		if (inFlight && (reason === "new" || reason === "resume" || reason === "fork")) {
+			await inFlight;
+		}
 	});
 
 	pi.registerCommand("retitle", {

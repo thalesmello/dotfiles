@@ -316,6 +316,26 @@ def transcript_title(path):
     return title
 
 
+def transcript_cwd(path):
+    """The working directory recorded in a Pi transcript's session header."""
+    if not path or not os.path.isfile(path):
+        return ""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            first = handle.readline()
+        entry = json.loads(first)
+        if isinstance(entry, dict) and isinstance(entry.get("cwd"), str):
+            return entry["cwd"]
+    except (OSError, ValueError):
+        pass
+    return ""
+
+
+def _is_default_pi_title(title):
+    text = (title or "").strip()
+    return text == "π" or text.startswith("π - ")
+
+
 # ── capture (tick) ───────────────────────────────────────────────────────────
 
 
@@ -337,11 +357,20 @@ def entry_from_record(pane_id, record, seen, now):
         "last_status": "",
     }
     remembered = seen.get(conversation_of(session)) or {}
-    entry["title"] = remembered.get("title") or ""
+    remembered_title = (remembered.get("title") or "").strip()
+    from_transcript = transcript_title(transcript_path(entry))
+    if from_transcript:
+        entry["title"] = from_transcript
+    elif remembered_title and not _is_default_pi_title(remembered_title):
+        entry["title"] = remembered_title
     if not entry["title"]:
-        entry["title"] = transcript_title(transcript_path(entry))
-    if not entry["title"]:
-        entry["title"] = entry["tab_label"] or entry["workspace_label"] or os.path.basename(entry["cwd"]) or entry["agent"]
+        entry["title"] = (
+            entry["tab_label"]
+            or remembered_title
+            or entry["workspace_label"]
+            or os.path.basename(entry["cwd"])
+            or entry["agent"]
+        )
     return entry
 
 
@@ -372,6 +401,7 @@ def capture(state, store, live_panes, workspaces, now):
             "workspace_label": labels.get(pane.get("workspace_id"), ""),
             "tab_label": "",
         }
+    remembered_seen = {**(state.get("seen") or {}), **seen}
     settled = {}
     for key, entry in (state.get("settled") or {}).items():
         if key not in live_convs:
@@ -388,7 +418,9 @@ def capture(state, store, live_panes, workspaces, now):
         settled[key] = entry_from_record(pane_id, record, seen, now)
     # Prune remembered titles to conversations that are live, settled, or
     # still recorded in the store, so `seen` cannot grow without bound now
-    # that it survives pane closes.
+    # that it survives pane closes. (`seen` here is seeded from the prior
+    # state's seen and overlaid with live panes -- i.e. it already is the
+    # remembered-plus-live map entry_from_record needs.)
     keep = live_convs | set(settled)
     for record in store.values():
         if isinstance(record, dict):
@@ -624,6 +656,76 @@ def settle_pane(pane_id):
     write_registry(state)
     call("pane.close", {"pane_id": pane_id})
     return "settled %s" % (state["settled"][key].get("title") or key)
+
+
+def settle_session(pane_id, conv):
+    """Settle a finished conversation in a pane that stays open (e.g. Pi's /new):
+    freeze the previous conversation into the registry without closing the pane."""
+    if not conv:
+        return "no conversation to settle"
+    try:
+        panes = call("pane.list").get("panes", [])
+        workspaces = call("workspace.list").get("workspaces", [])
+    except (OSError, ValueError, HerdrError):
+        panes, workspaces = [], []
+    pane = next((p for p in panes if p.get("pane_id") == pane_id), None)
+    labels = {w.get("workspace_id"): w.get("label") or "" for w in workspaces}
+    store = read_store()
+    before = read_registry()
+    now = time.time()
+    # Keep pane_id in live_ids so capture does not settle the replacement
+    # session, while masking its agent_session so conv is neither treated as
+    # still live nor has its old terminal title attributed to the new session.
+    masked_panes = [
+        {**p, "agent_session": None} if p.get("pane_id") == pane_id else p
+        for p in panes
+    ]
+    state = capture(before, store, masked_panes, workspaces, now)
+    stored = store.get(pane_id) if isinstance(store.get(pane_id), dict) else {}
+    stored_identity = stored.get("identity") if isinstance(stored.get("identity"), dict) else {}
+    ws_id = (
+        stored_identity.get("workspace_id")
+        or (pane or {}).get("workspace_id")
+        or os.environ.get("HERDR_WORKSPACE_ID")
+        or ""
+    )
+    tab_id = (
+        stored_identity.get("tab_id")
+        or (pane or {}).get("tab_id")
+        or os.environ.get("HERDR_TAB_ID")
+        or ""
+    )
+    agent = stored.get("agent") or (pane or {}).get("agent") or "pi"
+    session = (
+        stored.get("session")
+        if conversation_of(stored.get("session")) == conv
+        else {"kind": "path" if conv.startswith("/") else "id", "value": conv, "source": "herdr:" + agent}
+    )
+    record = {
+        "agent": agent,
+        "cwd": stored.get("cwd") or (pane or {}).get("cwd") or transcript_cwd(conv) or "",
+        "argv": stored.get("argv") or [],
+        "session": session,
+        "identity": {
+            "workspace_id": ws_id,
+            "workspace_label": stored_identity.get("workspace_label") or labels.get(ws_id, ""),
+            "tab_id": tab_id,
+            "tab_label": stored_identity.get("tab_label") or "",
+        },
+    }
+    seen = {**(before.get("seen") or {}), **(state.get("seen") or {})}
+    if conv not in seen and pane:
+        pane_title = (pane.get("terminal_title_stripped") or pane.get("terminal_title") or "").strip()
+        if pane_title and not _is_default_pi_title(pane_title):
+            seen[conv] = {
+                "title": pane_title,
+                "workspace_label": record["identity"]["workspace_label"],
+                "tab_label": record["identity"]["tab_label"],
+            }
+    if conv not in state["settled"]:
+        state["settled"][conv] = entry_from_record(pane_id, record, seen, now)
+    write_registry(state)
+    return "settled %s" % (state["settled"][conv].get("title") or conv)
 
 
 def forget(key):
@@ -1403,6 +1505,8 @@ USAGE = """usage: herdr-settled.py <command>
   list                          settled sessions, one per line
   reopen <conversation>         reopen a settled session in a new tab
   settle <pane_id>              settle a live agent: freeze it, then close its pane
+  settle-session <pane_id> <conversation>
+                                settle a finished conversation in a pane that stays open (e.g. pi /new)
   forget <conversation>         drop a settled entry (never touches the transcript)
   resume-cmd <conversation>     print the command reopen would run
   handoff-snooze                (internal) open the snooze picker after this popup closes"""
@@ -1433,6 +1537,9 @@ def main(argv):
         return 0
     if command == "settle" and len(args) == 1:
         print(settle_pane(args[0]))
+        return 0
+    if command == "settle-session" and len(args) == 2:
+        print(settle_session(args[0], args[1]))
         return 0
     if command == "forget" and len(args) == 1:
         print(forget(args[0]))

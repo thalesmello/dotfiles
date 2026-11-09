@@ -1,12 +1,16 @@
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { describe, expect, test } from "bun:test";
-import herdrAgentStatus, { classifyBash } from "../extensions/herdr-agent-status.ts";
+import herdrAgentStatus, { classifyBash, settlePreviousSession } from "../extensions/herdr-agent-status.ts";
 
 type Handler = (event: any, ctx: any) => Promise<void> | void;
 
-function createHarness() {
+function createHarness(options: { sessionExists?: (file: string) => boolean } = {}) {
 	const handlers = new Map<string, Handler[]>();
 	const bus = new Map<string, Array<(data: unknown) => void>>();
 	const reports: boolean[] = [];
+	const settled: string[] = [];
 
 	const pi: any = {
 		on(event: string, handler: Handler) {
@@ -31,6 +35,10 @@ function createHarness() {
 		report: async (booked: boolean) => {
 			reports.push(booked);
 		},
+		settle: async (sessionFile: string) => {
+			settled.push(sessionFile);
+		},
+		sessionExists: options.sessionExists,
 	});
 
 	const ctx = { cwd: "/home/user/src/dotfiles", mode: "tui" };
@@ -41,7 +49,7 @@ function createHarness() {
 		}
 	}
 
-	return { emit, reports, ctx, busEmit: pi.events.emit as (n: string, d: unknown) => void };
+	return { emit, reports, settled, ctx, busEmit: pi.events.emit as (n: string, d: unknown) => void };
 }
 
 const bashCall = (command: string) => ({ toolName: "bash", input: { command } });
@@ -130,5 +138,96 @@ describe("herdr-agent-status extension", () => {
 		await h.emit("tool_result", bashResult("git commit -m 'x'"));
 		h.busEmit("herdr-agent-status:settled", { via: "jf submit" });
 		expect(h.reports).toEqual([]);
+	});
+
+	test("/new settles the previous conversation and clears the book mark", async () => {
+		const h = createHarness();
+		await h.emit("session_start", { reason: "startup" });
+		await h.emit("tool_result", bashResult("git commit -m 'x'"));
+		expect(h.reports).toEqual([true]);
+
+		await h.emit("session_start", {
+			reason: "new",
+			previousSessionFile: "/tmp/prev-session.jsonl",
+		});
+		expect(h.reports).toEqual([true, false]);
+		expect(h.settled).toEqual(["/tmp/prev-session.jsonl"]);
+	});
+
+	test("/new skips settling when the previous session was never flushed to disk", async () => {
+		const h = createHarness({ sessionExists: () => false });
+		await h.emit("session_start", {
+			reason: "new",
+			previousSessionFile: "/tmp/empty-session.jsonl",
+		});
+		expect(h.settled).toEqual([]);
+	});
+
+	test("/resume and /reload do not settle the previous session", async () => {
+		const h = createHarness();
+		await h.emit("session_start", {
+			reason: "resume",
+			previousSessionFile: "/tmp/prev-session.jsonl",
+		});
+		await h.emit("session_start", {
+			reason: "reload",
+		});
+		expect(h.settled).toEqual([]);
+	});
+
+	test("settlePreviousSession writes the outgoing transcript into the settle store", async () => {
+		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-settle-test-"));
+		try {
+			const transcript = path.join(tmpDir, "prev.jsonl");
+			fs.writeFileSync(
+				transcript,
+				[
+					JSON.stringify({ type: "session", version: 3, id: "abc", cwd: "/tmp/repo" }),
+					JSON.stringify({ type: "message", message: { role: "user", content: "hello" } }),
+					JSON.stringify({ type: "session_info", name: "Fix Auth Flow" }),
+				].join("\n") + "\n",
+			);
+			const storeFile = path.join(tmpDir, "agent-sessions.json");
+			fs.writeFileSync(
+				storeFile,
+				JSON.stringify({
+					panes: {
+						"w1:p1": {
+							agent: "pi",
+							cwd: "/tmp/repo",
+							argv: ["pi"],
+							session: { kind: "path", value: transcript, source: "herdr:pi" },
+							identity: { workspace_id: "w1", workspace_label: "web", tab_id: "w1:t1", tab_label: "auth" },
+						},
+					},
+				}),
+			);
+
+			const prevStateDir = process.env.SETTLED_STATE_DIR;
+			const prevStore = process.env.SETTLED_AGENT_SESSIONS;
+			const prevSocket = process.env.HERDR_SOCKET_PATH;
+			process.env.SETTLED_STATE_DIR = tmpDir;
+			process.env.SETTLED_AGENT_SESSIONS = storeFile;
+			process.env.HERDR_SOCKET_PATH = path.join(tmpDir, "missing.sock");
+			try {
+				const ok = await settlePreviousSession(transcript, "w1:p1");
+				expect(ok).toBe(true);
+			} finally {
+				if (prevStateDir === undefined) delete process.env.SETTLED_STATE_DIR;
+				else process.env.SETTLED_STATE_DIR = prevStateDir;
+				if (prevStore === undefined) delete process.env.SETTLED_AGENT_SESSIONS;
+				else process.env.SETTLED_AGENT_SESSIONS = prevStore;
+				if (prevSocket === undefined) delete process.env.HERDR_SOCKET_PATH;
+				else process.env.HERDR_SOCKET_PATH = prevSocket;
+			}
+
+			const registry = JSON.parse(fs.readFileSync(path.join(tmpDir, "default.json"), "utf8"));
+			expect(registry.settled[transcript]).toBeDefined();
+			expect(registry.settled[transcript].title).toBe("Fix Auth Flow");
+			expect(registry.settled[transcript].workspace_label).toBe("web");
+			expect(registry.settled[transcript].cwd).toBe("/tmp/repo");
+		} finally {
+			fs.rmSync(tmpDir, { recursive: true, force: true });
+		}
 	});
 });
