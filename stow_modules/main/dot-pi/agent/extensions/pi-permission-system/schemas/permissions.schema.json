@@ -42,8 +42,16 @@
           "description": "Key that approves for the rest of the session. Default: s.",
           "type": "string"
         },
+        "approveGlobal": {
+          "description": "Key that approves and saves the pattern globally to config.json. Default: g.",
+          "type": "string"
+        },
         "approveSessionBoth": {
           "description": "Key that approves for the session in both directions. Default: b.",
+          "type": "string"
+        },
+        "explainAllow": {
+          "description": "Key that opens the natural-language rule proposer to add safe commands. Default: e.",
           "type": "string"
         },
         "deny": {

@@ -22,12 +22,15 @@ import type { SubagentSessionRegistry } from "./subagent-registry.ts";
 /**
  * A non-terminal chain link's ruling on an `ask`: decide (`allow`/`deny`) or
  * pass the ask on to the next link (`defer`). A `deny` carries an optional
- * teaching `reason` the invoking model sees, so it can self-correct.
+ * teaching `reason` the invoking model sees, so it can self-correct. A
+ * `defer` carries an optional `reason` explaining why the link thinks a
+ * human needs to decide; the chain surfaces it on the prompt shown to that
+ * human (as a model-generated annotation), never as a verdict of its own.
  */
 export type AuthorizerVerdict =
   | { kind: "allow" }
   | { kind: "deny"; reason?: string }
-  | { kind: "defer" };
+  | { kind: "defer"; reason?: string };
 
 /**
  * A non-terminal link in the live-authority chain: reviews an `ask` and may

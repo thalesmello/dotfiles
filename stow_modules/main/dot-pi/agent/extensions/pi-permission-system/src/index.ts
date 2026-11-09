@@ -158,6 +158,11 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
     heartbeats: servingHeartbeats,
   });
 
+  // Register the bundled Claude Code-style auto-review authorizer ("auto-review")
+  // and obtain its natural-language rule proposer for the permission dialog and
+  // `/permission explain`.
+  const autoReview = permissionAutoReview(pi, authorizerRegistry);
+
   const authorizerSelection = new AuthorizerSelection({
     detection: subagentDetection,
     events: pi.events,
@@ -168,6 +173,7 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
       dialogKeys: resolveDialogKeys(configStore.current()).keys,
       promptNotifications: configStore.current().promptNotifications ?? [],
       promptTimeoutMs: configStore.current().promptTimeoutMs,
+      proposeRules: autoReview?.proposeRules,
     }),
     requestPermissionDecision,
     forwardingDir: paths.forwardingDir,
@@ -264,6 +270,11 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
     config: configStore,
     configPath,
     reloadConfig: reloadGlobalConfig,
+    proposeRules: autoReview?.proposeRules
+      ? (instruction) => autoReview.proposeRules(instruction, undefined)
+      : undefined,
+    recordSessionApproval: (approval, persistGlobal) =>
+      sessionRules.recordSessionApproval(approval, persistGlobal),
     getActiveAgentConfigRules: () =>
       permissionManager.getComposedConfigRules(
         session.lastKnownActiveAgentName ?? undefined,
@@ -415,7 +426,4 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
       logger,
     ),
   );
-
-  // Register the bundled Claude Code-style auto-review authorizer ("auto-review").
-  permissionAutoReview(pi, authorizerRegistry);
 }

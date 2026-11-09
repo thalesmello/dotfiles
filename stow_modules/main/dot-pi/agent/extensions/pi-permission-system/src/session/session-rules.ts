@@ -1,5 +1,6 @@
 import { surfaceFamilyMembers } from "../access-intent/path-surfaces.ts";
 import type { Ruleset } from "../policy/rule.ts";
+import type { ApprovalGrant } from "./approval-grant.ts";
 import type { SessionApproval } from "./session-approval.ts";
 import type { SessionApprovalRecorder } from "./session-approval-recorder.ts";
 
@@ -13,10 +14,10 @@ import type { SessionApprovalRecorder } from "./session-approval-recorder.ts";
  */
 export class SessionRules implements SessionApprovalRecorder {
   private rules: Ruleset = [];
-  private onPersistGlobal?: (grants: ReadonlyArray<{ surface: string; pattern: string }>) => void;
+  private onPersistGlobal?: (grants: ReadonlyArray<ApprovalGrant>) => void;
 
   setGlobalPersister(
-    fn: (grants: ReadonlyArray<{ surface: string; pattern: string }>) => void,
+    fn: (grants: ReadonlyArray<ApprovalGrant>) => void,
   ): void {
     this.onPersistGlobal = fn;
   }
@@ -56,8 +57,10 @@ export class SessionRules implements SessionApprovalRecorder {
    * directions grants each path only its own (#810).
    */
   recordSessionApproval(approval: SessionApproval, persistGlobal?: boolean): void {
-    for (const { surface, pattern } of approval.grants) {
-      this.approve(surface, pattern);
+    for (const { surface, pattern, action } of approval.grants) {
+      if (!action || action === "allow") {
+        this.approve(surface, pattern);
+      }
     }
     if (persistGlobal) {
       this.onPersistGlobal?.(approval.grants);

@@ -38,15 +38,31 @@ export function composeAuthorizerChain(
   }
   return {
     async authorize(details) {
+      const deferAnnotations: { source: string; text: string }[] = [];
       for (const link of links) {
         const verdict = await link.authorize(details, query, log);
         const decision = decideFromVerdict(link.name, verdict);
         if (decision) {
           return decision;
         }
-        // `defer` — try the next link.
+        // `defer` — try the next link, keeping the link's reason (if any)
+        // so the human who is ultimately asked can see why a link that
+        // could have decided instead thought they needed to be asked.
+        const reason = verdict.kind === "defer" ? verdict.reason?.trim() : "";
+        if (reason) {
+          deferAnnotations.push({ source: link.name, text: reason });
+        }
       }
-      return terminal.authorize(details);
+      if (deferAnnotations.length === 0) {
+        return terminal.authorize(details);
+      }
+      return terminal.authorize({
+        ...details,
+        payload: {
+          ...details.payload,
+          annotations: [...details.payload.annotations, ...deferAnnotations],
+        },
+      });
     },
   };
 }

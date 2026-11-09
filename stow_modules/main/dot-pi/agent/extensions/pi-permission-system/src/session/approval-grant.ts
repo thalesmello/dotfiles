@@ -16,6 +16,7 @@ import {
 export interface ApprovalGrant {
   readonly surface: string;
   readonly pattern: string;
+  readonly action?: "allow" | "ask" | "deny";
 }
 
 /**

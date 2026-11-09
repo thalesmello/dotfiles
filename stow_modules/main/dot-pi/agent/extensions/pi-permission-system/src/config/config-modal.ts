@@ -6,7 +6,10 @@ import {
   getSettingsListTheme,
 } from "@earendil-works/pi-coding-agent";
 import { type SettingItem, SettingsList } from "@earendil-works/pi-tui";
+import type { RuleProposal } from "../authority/permission-dialog.ts";
 import type { Ruleset } from "../policy/rule.ts";
+import type { ApprovalGrant } from "../session/approval-grant.ts";
+import { SessionApproval } from "../session/session-approval.ts";
 import type { CommandConfigStore } from "./config-store.ts";
 import {
   DEFAULT_EXTENSION_CONFIG,
@@ -26,6 +29,13 @@ interface PermissionSystemConfigController {
   getActiveAgentConfigRules(): Ruleset;
   /** Reload configStore after writing global config.json. */
   reloadConfig?: () => void;
+  /** Interpret natural-language description into proposed permission rule(s). */
+  proposeRules?: (instruction: string) => Promise<RuleProposal>;
+  /** Record a session-scoped (and optionally global) approval. */
+  recordSessionApproval?: (
+    approval: SessionApproval,
+    persistGlobal?: boolean,
+  ) => void;
 }
 
 const KNOWN_SURFACES = new Set([
@@ -48,7 +58,7 @@ const KNOWN_SURFACES = new Set([
 
 export async function mutateGlobalPermissionRule(
   configPath: string,
-  grants: ReadonlyArray<{ surface: string; pattern: string }>,
+  grants: ReadonlyArray<ApprovalGrant>,
   action: "allow" | "ask" | "deny" | "remove",
   reloadConfig?: () => void,
 ): Promise<{ ok: boolean; message: string }> {
@@ -60,10 +70,10 @@ export async function mutateGlobalPermissionRule(
       if (readErr?.code !== "ENOENT") throw readErr;
     }
     if (!raw.permission || typeof raw.permission !== "object") {
-      raw.permission = { "*": "allow" };
+      raw.permission = {};
     }
     const updated: string[] = [];
-    for (const { surface, pattern } of grants) {
+    for (const { surface, pattern, action: grantAction } of grants) {
       const currentSurface = raw.permission[surface];
       if (action === "remove") {
         if (currentSurface && typeof currentSurface === "object") {
@@ -72,14 +82,15 @@ export async function mutateGlobalPermissionRule(
         }
         continue;
       }
+      const effectiveAction = grantAction ?? action;
       if (!currentSurface || typeof currentSurface !== "object") {
         const fallback = typeof currentSurface === "string" ? currentSurface : "ask";
         raw.permission[surface] = { "*": fallback };
       }
       // Delete and re-insert so the new rule sits at the end (last-match-wins).
       delete raw.permission[surface][pattern];
-      raw.permission[surface][pattern] = action;
-      updated.push(`${surface}["${pattern}"] = ${action}`);
+      raw.permission[surface][pattern] = effectiveAction;
+      updated.push(`${surface}["${pattern}"] = ${effectiveAction}`);
     }
     await mkdir(dirname(configPath), { recursive: true });
     await writeFile(configPath, `${JSON.stringify(raw, null, 2)}\n`, "utf8");
@@ -99,6 +110,11 @@ const COMMAND_ARGUMENTS = [
     value: "mode",
     label: "Switch permission mode",
     description: "/permission mode [auto|ask|bypassPermissions] (or Shift+Tab to cycle)",
+  },
+  {
+    value: "explain",
+    label: "Explain in natural language what to allow (AI proposes safe rule)",
+    description: "/permission explain <natural-language description>",
   },
   {
     value: "allow",
@@ -142,7 +158,7 @@ const COMMAND_ARGUMENTS = [
   },
 ] as const;
 const USAGE_TEXT =
-  "Usage: /permission [allow|ask|deny|rm [surface] <pattern> | show | path | reset | help]";
+  "Usage: /permission [explain <description> | allow|ask|deny|rm [surface] <pattern> | mode | show | path | reset | help]";
 
 function cloneDefaultConfig(): PermissionSystemExtensionConfig {
   return {
@@ -310,6 +326,129 @@ function nextPermissionMode(
   return PERMISSION_MODES[(idx + 1) % PERMISSION_MODES.length] ?? "auto";
 }
 
+async function proposeAndApplyNaturalLanguageRule(
+  ctx: ExtensionCommandContext,
+  controller: PermissionSystemConfigController,
+  initialInstruction?: string,
+): Promise<void> {
+  if (!controller.proposeRules) {
+    ctx.ui.notify("Auto-review rule proposer is unavailable.", "warning");
+    return;
+  }
+  let instruction = initialInstruction?.trim() ?? "";
+  for (;;) {
+    if (!instruction) {
+      if (!ctx.hasUI) {
+        ctx.ui.notify(
+          "Usage: /permission explain <natural-language description>",
+          "warning",
+        );
+        return;
+      }
+      const typed = await ctx.ui.input(
+        "Explain in natural language what commands or paths should be allowed:",
+        "e.g. allow running bun test or editing ~/src/dotfiles/*",
+      );
+      instruction = typed?.trim() ?? "";
+      if (!instruction) {
+        return;
+      }
+    }
+
+    let proposal: RuleProposal;
+    try {
+      proposal = await controller.proposeRules(instruction);
+    } catch (err) {
+      ctx.ui.notify(
+        `Failed to propose rule: ${err instanceof Error ? err.message : String(err)}`,
+        "error",
+      );
+      return;
+    }
+
+    if (proposal.grants.length === 0) {
+      ctx.ui.notify(
+        "Could not derive a rule from that description. Try being more specific.",
+        "warning",
+      );
+      instruction = "";
+      continue;
+    }
+
+    const rulesSummary = proposal.grants
+      .map((g) => `${g.surface}["${g.pattern}"] = ${g.action ?? "allow"}`)
+      .join(", ");
+
+    if (!ctx.hasUI) {
+      const res = await mutateGlobalPermissionRule(
+        controller.configPath,
+        proposal.grants,
+        "allow",
+        controller.reloadConfig,
+      );
+      ctx.ui.notify(
+        res.ok
+          ? `Saved proposed safe rule: ${res.message}`
+          : `Failed to save rule: ${res.message}`,
+        res.ok ? "info" : "error",
+      );
+      return;
+    }
+
+    const saveGlobalItem = `Add to safe commands (config.json): ${rulesSummary}`;
+    const saveSessionItem = `Allow for this session only: ${rulesSummary}`;
+    const reviseItem = "Revise explanation";
+    const cancelItem = "Cancel";
+    const promptTitle = proposal.summary
+      ? `Proposed safe rule (AI) — ${proposal.summary}`
+      : "Proposed safe rule (AI)";
+    const choice = await ctx.ui.select(promptTitle, [
+      saveGlobalItem,
+      saveSessionItem,
+      reviseItem,
+      cancelItem,
+    ]);
+
+    if (!choice || choice === cancelItem) {
+      return;
+    }
+    if (choice === reviseItem) {
+      instruction = "";
+      continue;
+    }
+    if (choice === saveSessionItem) {
+      controller.recordSessionApproval?.(
+        SessionApproval.forGrants(proposal.grants),
+        false,
+      );
+      ctx.ui.notify(`Added rule for this session: ${rulesSummary}`, "info");
+      return;
+    }
+    if (choice === saveGlobalItem) {
+      if (controller.recordSessionApproval) {
+        controller.recordSessionApproval(
+          SessionApproval.forGrants(proposal.grants),
+          true,
+        );
+      } else {
+        const res = await mutateGlobalPermissionRule(
+          controller.configPath,
+          proposal.grants,
+          "allow",
+          controller.reloadConfig,
+        );
+        ctx.ui.notify(
+          res.ok
+            ? `Saved global rule: ${res.message}`
+            : `Failed to update global rule: ${res.message}`,
+          res.ok ? "info" : "error",
+        );
+      }
+      return;
+    }
+  }
+}
+
 async function openSettingsModal(
   ctx: ExtensionCommandContext,
   controller: PermissionSystemConfigController,
@@ -320,6 +459,8 @@ async function openSettingsModal(
     const current = controller.config.current();
     const mode = getEffectivePermissionMode(current);
     const modeItem = `Permission mode: ${mode} (press Enter or Shift+Tab to cycle)`;
+    const explainItem =
+      "Explain what to allow in natural language (AI proposes safe rule)";
     const doublePressItem = `Double-press to confirm: ${toOnOff(current.doublePressToConfirm)}`;
     const reviewLogItem = `Permission review log: ${toOnOff(current.permissionReviewLog)}`;
     const debugLogItem = `Debug logging: ${toOnOff(current.debugLog)}`;
@@ -328,6 +469,7 @@ async function openSettingsModal(
 
     const choice = await ctx.ui.select("Permission settings", [
       modeItem,
+      explainItem,
       doublePressItem,
       reviewLogItem,
       debugLogItem,
@@ -337,6 +479,11 @@ async function openSettingsModal(
 
     if (!choice || choice === doneItem) {
       return;
+    }
+
+    if (choice === explainItem) {
+      await proposeAndApplyNaturalLanguageRule(ctx, controller);
+      continue;
     }
 
     if (choice === modeItem) {
@@ -447,6 +594,14 @@ async function handleArgs(
       "info",
     );
     return true;
+  }
+
+  for (const verb of ["explain", "propose"] as const) {
+    if (normalized === verb || normalized.startsWith(`${verb} `)) {
+      const rest = raw.slice(verb.length).trim();
+      await proposeAndApplyNaturalLanguageRule(ctx, controller, rest);
+      return true;
+    }
   }
 
   for (const verb of ["allow", "ask", "deny", "rm", "remove"] as const) {

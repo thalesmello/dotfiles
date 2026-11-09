@@ -355,7 +355,23 @@ export class ForwardedRequestServer implements InboxProcessor {
     decision: PermissionPromptDecision,
     logDetails: Record<string, unknown>,
   ): PermissionPromptDecision {
-    if (decision.state !== "approved_for_serving_session") {
+    if (decision.customGrants && decision.customGrants.length > 0) {
+      const approval = SessionApproval.forGrants(decision.customGrants);
+      this.recorder.recordSessionApproval(approval, decision.persistGlobal);
+      this.logger.review("forwarded_permission.session_recorded", {
+        ...logDetails,
+        grants: approval.grants,
+      });
+      return {
+        approved: true,
+        state: "approved",
+        decidedBy: decision.decidedBy,
+      };
+    }
+    if (
+      decision.state !== "approved_for_serving_session" &&
+      !decision.persistGlobal
+    ) {
       return decision;
     }
     if (request.sessionApproval) {
@@ -363,7 +379,7 @@ export class ForwardedRequestServer implements InboxProcessor {
       const approval = SessionApproval.forGrants(grants).atWidth(
         decision.sessionGrantWidth ?? "proven",
       );
-      this.recorder.recordSessionApproval(approval);
+      this.recorder.recordSessionApproval(approval, decision.persistGlobal);
       this.logger.review("forwarded_permission.session_recorded", {
         ...logDetails,
         grants: approval.grants,

@@ -4,6 +4,7 @@ import {
   createDeniedPermissionDecision,
   normalizePermissionDenialReason,
   type RequestPermissionOptions,
+  type RuleProposal,
   type UnattributedDecision,
 } from "./permission-dialog.ts";
 
@@ -18,7 +19,22 @@ import {
  */
 
 /** Which sub-view the dialog is showing. */
-export type PromptStep = "decision" | "reason" | "scope";
+export type PromptStep =
+  | "decision"
+  | "reason"
+  | "scope"
+  | "explain"
+  | "proposing"
+  | "proposal";
+
+export type ProposalChoice = "saveGlobal" | "saveSession" | "revise" | "back";
+
+export const PROPOSAL_CHOICES: readonly ProposalChoice[] = [
+  "saveGlobal",
+  "saveSession",
+  "revise",
+  "back",
+];
 
 /**
  * The decisions in display order.
@@ -32,13 +48,10 @@ const OPTION_ORDER: readonly PromptAction[] = [
   "approveSession",
   "approveGlobal",
   "approveSessionBoth",
+  "explainAllow",
   "deny",
   "denyWithReason",
 ];
-
-const NARROW_OPTION_ORDER: readonly PromptAction[] = OPTION_ORDER.filter(
-  (action) => action !== "approveSessionBoth",
-);
 
 /**
  * The decision step's options, in display order.
@@ -54,7 +67,13 @@ const NARROW_OPTION_ORDER: readonly PromptAction[] = OPTION_ORDER.filter(
 export function visibleActions(
   config: PromptModelConfig,
 ): readonly PromptAction[] {
-  return config.widthLabel ? OPTION_ORDER : NARROW_OPTION_ORDER;
+  return OPTION_ORDER.filter((action) => {
+    if (action === "approveSessionBoth" && !config.widthLabel) return false;
+    if (action === "explainAllow" && config.canProposeRules === false) {
+      return false;
+    }
+    return true;
+  });
 }
 
 const OPTION_VERBS: Record<PromptAction, string> = {
@@ -62,6 +81,7 @@ const OPTION_VERBS: Record<PromptAction, string> = {
   approveSession: "approve for this session",
   approveGlobal: "always allow globally",
   approveSessionBoth: "approve both directions for this session",
+  explainAllow: "explain what should be allowed",
   deny: "deny",
   denyWithReason: "deny with a reason",
 };
@@ -92,6 +112,8 @@ export interface PromptModelConfig {
    * default) or the whole serving session.
    */
   sessionScope?: NonNullable<RequestPermissionOptions["sessionScope"]>;
+  /** Whether the natural-language rule proposer is available (default: true). */
+  canProposeRules?: boolean;
 }
 
 /** The re-render view state the component draws from. */
@@ -104,6 +126,11 @@ export interface PromptViewState {
   hint: string;
   /** Set when an empty reason submit is rejected. */
   reasonError?: string;
+  /** Natural-language rule explanation draft, error, and proposed rule state. */
+  explainDraft?: string;
+  explainError?: string;
+  proposal?: RuleProposal;
+  proposalChoice?: ProposalChoice;
   /** Scope step: false = subagent-only (default), true = whole serving session. */
   scopeServing: boolean;
   /**
@@ -123,7 +150,11 @@ export type PromptEvent =
   | { type: "hotkey"; action: PromptAction }
   | { type: "confirm" }
   | { type: "cancel" }
-  | { type: "submitReason"; draft: string };
+  | { type: "submitReason"; draft: string }
+  | { type: "submitExplain"; draft: string }
+  | { type: "proposalReady"; proposal: RuleProposal }
+  | { type: "proposalFailed"; error: string }
+  | { type: "proposalHotkey"; choice: ProposalChoice };
 
 /** Either a re-render or a terminal decision. */
 export type PromptOutcome =
@@ -164,6 +195,12 @@ export function reducePrompt(
       return reduceReasonStep(state, event);
     case "scope":
       return reduceScopeStep(state, event);
+    case "explain":
+      return reduceExplainStep(config, state, event);
+    case "proposing":
+      return reduceProposingStep(state, event);
+    case "proposal":
+      return reduceProposalStep(state, event);
   }
 }
 
@@ -193,6 +230,10 @@ function reduceDecisionStep(
     case "cancel":
       return { kind: "decision", decision: createDeniedPermissionDecision() };
     case "submitReason":
+    case "submitExplain":
+    case "proposalReady":
+    case "proposalFailed":
+    case "proposalHotkey":
       return render(state);
   }
 }
@@ -202,7 +243,13 @@ function pressHotkey(
   state: PromptViewState,
   action: PromptAction,
 ): PromptOutcome {
-  if (!config.doublePressToConfirm || state.armedAction === action) {
+  // Opening the natural-language explain editor does not commit an allow/deny
+  // decision on its own, so enter the editor on the first press.
+  if (
+    action === "explainAllow" ||
+    !config.doublePressToConfirm ||
+    state.armedAction === action
+  ) {
     return commit(config, state, action);
   }
   return render({
@@ -234,6 +281,15 @@ function commit(
         armedAction: undefined,
         hint: "",
         reasonError: undefined,
+      });
+    case "explainAllow":
+      return render({
+        ...state,
+        step: "explain",
+        highlightedAction: "explainAllow",
+        armedAction: undefined,
+        hint: "",
+        explainError: undefined,
       });
     case "approveGlobal":
       return {
@@ -315,6 +371,159 @@ function reduceReasonStep(
     };
   }
   return render(state);
+}
+
+function reduceExplainStep(
+  config: PromptModelConfig,
+  state: PromptViewState,
+  event: PromptEvent,
+): PromptOutcome {
+  if (event.type === "cancel") {
+    return render({
+      ...state,
+      step: "decision",
+      armedAction: undefined,
+      hint: "",
+      explainError: undefined,
+      grantWidth: "proven",
+    });
+  }
+  if (event.type === "submitExplain") {
+    const draft = event.draft.trim();
+    if (!draft) {
+      return render({
+        ...state,
+        explainError: "Describe in natural language what should be allowed.",
+      });
+    }
+    if (config.canProposeRules === false) {
+      return render({
+        ...state,
+        explainError: "Auto-review rule proposer is unavailable.",
+      });
+    }
+    return render({
+      ...state,
+      step: "proposing",
+      explainDraft: draft,
+      explainError: undefined,
+      proposal: undefined,
+    });
+  }
+  return render(state);
+}
+
+function reduceProposingStep(
+  state: PromptViewState,
+  event: PromptEvent,
+): PromptOutcome {
+  if (event.type === "cancel") {
+    return render({
+      ...state,
+      step: "explain",
+      explainError: undefined,
+    });
+  }
+  if (event.type === "proposalReady") {
+    if (event.proposal.grants.length === 0) {
+      return render({
+        ...state,
+        step: "explain",
+        explainError: "Could not derive a rule from that description. Try being more specific.",
+      });
+    }
+    return render({
+      ...state,
+      step: "proposal",
+      proposal: event.proposal,
+      proposalChoice: "saveGlobal",
+      explainError: undefined,
+    });
+  }
+  if (event.type === "proposalFailed") {
+    return render({
+      ...state,
+      step: "explain",
+      explainError: event.error || "Failed to propose a rule.",
+    });
+  }
+  return render(state);
+}
+
+function reduceProposalStep(
+  state: PromptViewState,
+  event: PromptEvent,
+): PromptOutcome {
+  const currentChoice = state.proposalChoice ?? "saveGlobal";
+  switch (event.type) {
+    case "nav": {
+      const idx = PROPOSAL_CHOICES.indexOf(currentChoice);
+      const delta = event.direction === "down" ? 1 : -1;
+      const next =
+        PROPOSAL_CHOICES[
+          (idx + delta + PROPOSAL_CHOICES.length) % PROPOSAL_CHOICES.length
+        ] ?? "saveGlobal";
+      return render({ ...state, proposalChoice: next });
+    }
+    case "proposalHotkey":
+      return commitProposalChoice(state, event.choice);
+    case "confirm":
+      return commitProposalChoice(state, currentChoice);
+    case "cancel":
+      return render({
+        ...state,
+        step: "decision",
+        armedAction: undefined,
+        hint: "",
+        explainError: undefined,
+        grantWidth: "proven",
+      });
+    default:
+      return render(state);
+  }
+}
+
+function commitProposalChoice(
+  state: PromptViewState,
+  choice: ProposalChoice,
+): PromptOutcome {
+  const grants = state.proposal?.grants ?? [];
+  switch (choice) {
+    case "saveGlobal":
+      return {
+        kind: "decision",
+        decision: {
+          approved: true,
+          state: "approved_for_session",
+          persistGlobal: true,
+          customGrants: grants,
+        },
+      };
+    case "saveSession":
+      return {
+        kind: "decision",
+        decision: {
+          approved: true,
+          state: "approved_for_session",
+          customGrants: grants,
+        },
+      };
+    case "revise":
+      return render({
+        ...state,
+        step: "explain",
+        explainError: undefined,
+      });
+    case "back":
+      return render({
+        ...state,
+        step: "decision",
+        armedAction: undefined,
+        hint: "",
+        explainError: undefined,
+        grantWidth: "proven",
+      });
+  }
 }
 
 function reduceScopeStep(

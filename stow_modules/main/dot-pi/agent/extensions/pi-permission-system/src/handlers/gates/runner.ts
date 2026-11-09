@@ -11,6 +11,7 @@ import {
   renderRefusal,
 } from "../../presentation/agent-renderer.ts";
 import { renderReviewLogFacts } from "../../presentation/review-log-renderer.ts";
+import { SessionApproval } from "../../session/session-approval.ts";
 import type { SessionApprovalRecorder } from "../../session/session-approval-recorder.ts";
 import type {
   DecisionEventFacts,
@@ -241,11 +242,18 @@ export class GateRunner {
 
     // 6. Record session approval — tell the store; it owns the per-pattern loop
     // A present grant already implies gateResult.action === "allow".
-    if (sessionGrant && descriptor.sessionApproval) {
-      this.recorder.recordSessionApproval(
-        descriptor.sessionApproval.atWidth(sessionGrant.width),
-        sessionGrant.persistGlobal,
-      );
+    if (sessionGrant) {
+      if (sessionGrant.customGrants && sessionGrant.customGrants.length > 0) {
+        this.recorder.recordSessionApproval(
+          SessionApproval.forGrants(sessionGrant.customGrants),
+          sessionGrant.persistGlobal,
+        );
+      } else if (descriptor.sessionApproval) {
+        this.recorder.recordSessionApproval(
+          descriptor.sessionApproval.atWidth(sessionGrant.width),
+          sessionGrant.persistGlobal,
+        );
+      }
     }
 
     if (gateResult.action === "block") {

@@ -279,6 +279,10 @@ const dialogKeysSchema = z
       description:
         "Key that approves for the session in both directions. Default: b.",
     }),
+    explainAllow: z.string().optional().meta({
+      description:
+        "Key that opens the natural-language rule proposer to add safe commands. Default: e.",
+    }),
     deny: z.string().optional().meta({
       description: "Key that denies the pending call. Default: n.",
     }),

@@ -1,6 +1,9 @@
 import type { DecisionSource } from "../authority/decision-source.ts";
 import type { PermissionPromptDecision } from "../authority/permission-dialog.ts";
-import type { SessionGrantWidth } from "../session/approval-grant.ts";
+import type {
+  ApprovalGrant,
+  SessionGrantWidth,
+} from "../session/approval-grant.ts";
 
 /**
  * Result of applying the permission gate.
@@ -22,7 +25,11 @@ export type PermissionGateResult =
        * meaningless without the grant, and two optional fields could represent
        * a width for a grant that never happened.
        */
-      sessionGrant?: { width: SessionGrantWidth; persistGlobal?: boolean };
+      sessionGrant?: {
+        width: SessionGrantWidth;
+        persistGlobal?: boolean;
+        customGrants?: readonly ApprovalGrant[];
+      };
     }
   | { action: "block"; decidedBy: DecisionSource; reason: string };
 
@@ -116,9 +123,11 @@ export async function applyPermissionGate(
         reason: messages.refusedReason(decision),
       };
     }
+    const hasCustomGrants =
+      decision.customGrants !== undefined && decision.customGrants.length > 0;
     if (
       decision.state === "approved_for_session" &&
-      params.canGrantForSession
+      (params.canGrantForSession || hasCustomGrants)
     ) {
       return {
         action: "allow",
@@ -127,6 +136,7 @@ export async function applyPermissionGate(
         sessionGrant: {
           width: decision.sessionGrantWidth ?? "proven",
           ...(decision.persistGlobal ? { persistGlobal: true } : {}),
+          ...(hasCustomGrants ? { customGrants: decision.customGrants } : {}),
         },
       };
     }

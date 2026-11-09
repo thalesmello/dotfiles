@@ -1,5 +1,22 @@
-import type { SessionGrantWidth } from "../session/approval-grant.ts";
+import type {
+  ApprovalGrant,
+  SessionGrantWidth,
+} from "../session/approval-grant.ts";
 import type { DecisionSource } from "./decision-source.ts";
+
+/**
+ * A rule proposal produced by the AI rule interpreter from the user's
+ * natural-language description of what commands or paths should be allowed.
+ */
+export interface RuleProposal {
+  readonly grants: readonly ApprovalGrant[];
+  readonly summary: string;
+}
+
+export type RuleProposer = (
+  instruction: string,
+  signal?: AbortSignal,
+) => Promise<RuleProposal>;
 
 export type PermissionDecisionState =
   | "approved"
@@ -37,6 +54,11 @@ export type PermissionPromptDecision = {
   sessionGrantWidth?: SessionGrantWidth;
   /** When true, also persist the session approval pattern to global config.json. */
   persistGlobal?: boolean;
+  /**
+   * Explicit rule grants proposed from a natural-language explanation,
+   * overriding the gate's default single-command sessionApproval suggestion.
+   */
+  customGrants?: readonly ApprovalGrant[];
   /**
    * What decided this request, stamped by the site that decided it.
    *
@@ -78,6 +100,8 @@ export interface PermissionDecisionUi {
 
 const APPROVE_OPTION = "Yes";
 const APPROVE_FOR_SESSION_OPTION = "Yes, for this session";
+const EXPLAIN_ALLOW_OPTION =
+  "Explain what to allow (AI proposes safe rule)";
 const DENY_OPTION = "No";
 const DENY_WITH_REASON_OPTION = "No, provide reason";
 
@@ -154,6 +178,11 @@ export interface RequestPermissionOptions {
     subagentLabel: string;
     servingSessionLabel: string;
   };
+  /**
+   * Optional AI rule proposer that interprets a natural-language description
+   * of allowed commands/paths into concrete permission grants.
+   */
+  proposeRules?: RuleProposer;
 }
 
 /**
@@ -181,6 +210,7 @@ export async function requestPermissionDecisionFromUi(
     APPROVE_OPTION,
     sessionOption,
     ...(widthOption ? [widthOption] : []),
+    ...(options?.proposeRules ? [EXPLAIN_ALLOW_OPTION] : []),
     DENY_OPTION,
     DENY_WITH_REASON_OPTION,
   ];
@@ -199,6 +229,69 @@ export async function requestPermissionDecisionFromUi(
       approved: true,
       state: "approved",
     };
+  }
+
+  if (selected === EXPLAIN_ALLOW_OPTION && options?.proposeRules) {
+    for (;;) {
+      const typed = await ui.input(
+        `${title}\nExplain in natural language what commands or paths should be allowed:`,
+        "e.g. allow running bun test or editing ~/src/dotfiles/*",
+        dialogOptions,
+      );
+      if (dismissed(typed)) {
+        return undefined;
+      }
+      const instruction = typed?.trim();
+      if (!instruction) {
+        return createDeniedPermissionDecision();
+      }
+      let proposal: RuleProposal;
+      try {
+        proposal = await options.proposeRules(instruction, signal);
+      } catch {
+        return createDeniedPermissionDecision();
+      }
+      if (signal?.aborted) {
+        return undefined;
+      }
+      if (proposal.grants.length === 0) {
+        continue;
+      }
+      const rulesSummary = proposal.grants
+        .map((g) => `${g.surface}["${g.pattern}"] = ${g.action ?? "allow"}`)
+        .join(", ");
+      const saveGlobalLabel = "Approve & add rule to safe commands (config.json)";
+      const saveSessionLabel = "Approve & add rule for this session only";
+      const reviseLabel = "Revise explanation";
+      const cancelLabel = "Cancel";
+      const choice = await ui.select(
+        `${title}\nProposed safe rule (AI): ${rulesSummary}${proposal.summary ? `\nWhy: ${proposal.summary}` : ""}`,
+        [saveGlobalLabel, saveSessionLabel, reviseLabel, cancelLabel],
+        dialogOptions,
+      );
+      if (dismissed(choice)) {
+        return undefined;
+      }
+      if (choice === saveGlobalLabel) {
+        return {
+          approved: true,
+          state: "approved_for_session",
+          persistGlobal: true,
+          customGrants: proposal.grants,
+        };
+      }
+      if (choice === saveSessionLabel) {
+        return {
+          approved: true,
+          state: "approved_for_session",
+          customGrants: proposal.grants,
+        };
+      }
+      if (choice === reviseLabel) {
+        continue;
+      }
+      return createDeniedPermissionDecision();
+    }
   }
 
   if (selected === sessionOption || (widthOption && selected === widthOption)) {

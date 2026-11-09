@@ -28,17 +28,23 @@ export function renderPromptDialog(
   const core = coreFacts(payload).map((fact) =>
     capField(fact, budget.fieldMaxWidth),
   );
+  const annotations = annotationFacts(payload).map((fact) =>
+    capField(fact, budget.fieldMaxWidth),
+  );
   const evidence = evidenceFacts(payload).map((fact) =>
     capField(fact, budget.fieldMaxWidth),
   );
   const blocks = layout(
-    [...core, ...evidence],
+    [...core, ...annotations, ...evidence],
     flaggedElements(payload),
     paint,
   ).map((block) => fitLinesToWidth(block, budget.width));
+  // Annotations ride with the core, not the evidence: a deferring judge's
+  // reason for asking is why the human is being asked at all, so the row
+  // budget must not elide it the way it elides supporting evidence.
   const fitted = fitToRows(
-    blocks.slice(0, core.length).flat(),
-    blocks.slice(core.length),
+    blocks.slice(0, core.length + annotations.length).flat(),
+    blocks.slice(core.length + annotations.length),
     budget.maxRows,
   );
   return {
@@ -241,6 +247,21 @@ function coreFacts(payload: PromptPayload): Fact[] {
     facts.push({ label: "context", text: context });
   }
   return facts;
+}
+
+/**
+ * Model-generated annotations, in payload order (ADR 0011 §8).
+ *
+ * The `(AI)` suffix on the source label is the model-generated marking the
+ * annotation slot promises: an annotation is advisory text a model wrote
+ * (e.g. the auto-review judge explaining why it deferred to a human), never
+ * a request fact, and the render must not let it pass for one.
+ */
+function annotationFacts(payload: PromptPayload): Fact[] {
+  return payload.annotations.map((annotation) => ({
+    label: `${annotation.source} (AI)`,
+    text: annotation.text,
+  }));
 }
 
 /**

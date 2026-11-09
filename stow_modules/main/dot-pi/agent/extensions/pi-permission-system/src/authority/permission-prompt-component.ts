@@ -29,6 +29,8 @@ import type { DecisionSource, UserDecisionSurface } from "./decision-source.ts";
 import {
   type PermissionPromptDecision,
   type RequestPermissionOptions,
+  type RuleProposal,
+  type RuleProposer,
   requestPermissionDecisionFromUi,
   type UnattributedDecision,
 } from "./permission-dialog.ts";
@@ -37,6 +39,7 @@ import {
   type PromptEvent,
   type PromptModelConfig,
   type PromptViewState,
+  type ProposalChoice,
   reducePrompt,
   visibleActions,
 } from "./permission-prompt-decision.ts";
@@ -79,6 +82,12 @@ export interface PromptPreferences {
   promptNotifications: readonly PromptNotificationChannel[];
   /** How long a shown prompt waits for an answer before it denies; absent for no timer. */
   promptTimeoutMs?: number;
+  /** Optional AI rule proposer that interprets natural-language allow explanations. */
+  proposeRules?: (
+    instruction: string,
+    payload: PromptPayload,
+    signal?: AbortSignal,
+  ) => Promise<RuleProposal>;
 }
 
 /**
@@ -169,11 +178,20 @@ function askThroughFallback(
     ...view.budget,
     width: FALLBACK_RENDER_WIDTH,
   });
+  const proposeRules: RuleProposer | undefined =
+    options?.proposeRules ??
+    (view.proposeRules
+      ? (instruction, s) => view.proposeRules!(instruction, payload, s)
+      : undefined);
+  const effectiveOptions: RequestPermissionOptions | undefined =
+    proposeRules && !options?.proposeRules
+      ? { ...options, proposeRules }
+      : options;
   return requestPermissionDecisionFromUi(
     view.ui,
     title,
     rendered.lines.join("\n"),
-    options,
+    effectiveOptions,
     signal,
   );
 }
@@ -201,6 +219,7 @@ const OPTION_LABELS: Record<PromptAction, string> = {
   approveSession: DEFAULT_SESSION_LABEL,
   approveGlobal: "Yes, always allow globally",
   approveSessionBoth: "Yes, for this session in both directions",
+  explainAllow: "Explain what to allow (AI proposes safe rule)",
   deny: "No",
   denyWithReason: "No, provide reason",
 };
@@ -217,12 +236,18 @@ export function presentInlinePermissionPrompt(
   options?: RequestPermissionOptions,
   clock?: DialogClock,
 ): Promise<UnattributedDecision | undefined> {
+  const proposeRules: RuleProposer | undefined =
+    options?.proposeRules ??
+    (view.proposeRules
+      ? (instruction, s) => view.proposeRules!(instruction, payload, s)
+      : undefined);
   const config: PromptModelConfig = {
     doublePressToConfirm: view.doublePressToConfirm,
     sessionLabel: options?.sessionLabel ?? DEFAULT_SESSION_LABEL,
     widthLabel: options?.sessionWidth?.label,
     sessionScope: options?.sessionScope,
     keys: view.dialogKeys,
+    canProposeRules: proposeRules !== undefined,
   };
   return view.ui.custom<UnattributedDecision | undefined>(
     (tui, theme, keybindings, done) => {
@@ -256,6 +281,7 @@ export function presentInlinePermissionPrompt(
         },
         done,
         clock,
+        proposeRules,
       );
     },
     { overlay: false },
@@ -291,6 +317,10 @@ class PermissionPromptComponent implements Component {
   private state: PromptViewState;
   /** The denial-reason line editor, rebuilt each time the step is entered. */
   private reason: Input;
+  /** The natural-language allow-rule explanation editor. */
+  private explain: Input;
+  /** Abort controller for an in-flight AI rule proposal. */
+  private proposalAbort?: AbortController;
   /** Whether the operator asked to see the complete request (ADR 0011 §4). */
   private expanded = false;
 
@@ -304,9 +334,11 @@ class PermissionPromptComponent implements Component {
     private readonly requestRender: () => void,
     private readonly done: (decision: UnattributedDecision) => void,
     private readonly clock: DialogClock | undefined,
+    private readonly proposeRules?: RuleProposer,
   ) {
     this.state = initialPromptState(config);
     this.reason = this.createReasonEditor();
+    this.explain = this.createExplainEditor();
   }
 
   /**
@@ -330,6 +362,18 @@ class PermissionPromptComponent implements Component {
     return editor;
   }
 
+  private createExplainEditor(): Input {
+    const editor = new Input();
+    editor.focused = true;
+    editor.onSubmit = (draft) => {
+      this.apply({ type: "submitExplain", draft });
+    };
+    editor.onEscape = () => {
+      this.apply({ type: "cancel" });
+    };
+    return editor;
+  }
+
   invalidate(): void {
     // No cached rendering state to clear.
   }
@@ -346,6 +390,12 @@ class PermissionPromptComponent implements Component {
         return this.renderReason(width);
       case "scope":
         return this.renderScope();
+      case "explain":
+        return this.renderExplain(width);
+      case "proposing":
+        return this.renderProposing(width);
+      case "proposal":
+        return this.renderProposal(width);
     }
   }
 
@@ -395,6 +445,10 @@ class PermissionPromptComponent implements Component {
       this.handleReasonInput(data);
       return;
     }
+    if (this.state.step === "explain") {
+      this.handleExplainInput(data);
+      return;
+    }
     if (this.handleAppAction(data)) {
       // One "expand" for the operator: the host expands its pending tool call
       // and the dialog expands its own render, on the same keystroke.
@@ -437,6 +491,11 @@ class PermissionPromptComponent implements Component {
     this.requestRender();
   }
 
+  private handleExplainInput(data: string): void {
+    this.explain.handleInput(collapsePastedNewlines(data));
+    this.requestRender();
+  }
+
   private toEvent(data: string): PromptEvent | undefined {
     if (matchesKey(data, "up") || matchesKey(data, "k")) {
       return { type: "nav", direction: "up" };
@@ -458,20 +517,71 @@ class PermissionPromptComponent implements Component {
         return { type: "hotkey", action };
       }
     }
+    if (this.state.step === "proposal") {
+      if (matchesKey(data, "y")) {
+        return { type: "proposalHotkey", choice: "saveGlobal" };
+      }
+      if (matchesKey(data, "s")) {
+        return { type: "proposalHotkey", choice: "saveSession" };
+      }
+      if (matchesKey(data, "e")) {
+        return { type: "proposalHotkey", choice: "revise" };
+      }
+      if (matchesKey(data, "n")) {
+        return { type: "proposalHotkey", choice: "back" };
+      }
+    }
     return undefined;
   }
 
   private apply(event: PromptEvent): void {
+    const prevStep = this.state.step;
     const outcome = reducePrompt(this.config, this.state, event);
+    if (prevStep === "proposing" && (outcome.kind === "decision" || outcome.state.step !== "proposing")) {
+      this.proposalAbort?.abort();
+      this.proposalAbort = undefined;
+    }
     if (outcome.kind === "decision") {
       this.done(outcome.decision);
       return;
     }
-    if (outcome.state.step === "reason" && this.state.step !== "reason") {
+    if (outcome.state.step === "reason" && prevStep !== "reason") {
       this.reason = this.createReasonEditor();
+    }
+    if (outcome.state.step === "explain" && prevStep === "decision") {
+      this.explain = this.createExplainEditor();
     }
     this.state = outcome.state;
     this.requestRender();
+    if (outcome.state.step === "proposing" && prevStep !== "proposing") {
+      this.startRuleProposal(outcome.state.explainDraft ?? "");
+    }
+  }
+
+  private startRuleProposal(draft: string): void {
+    if (!this.proposeRules) {
+      this.apply({
+        type: "proposalFailed",
+        error: "Auto-review rule proposer is unavailable.",
+      });
+      return;
+    }
+    this.proposalAbort?.abort();
+    const controller = new AbortController();
+    this.proposalAbort = controller;
+    void this.proposeRules(draft, controller.signal).then(
+      (proposal) => {
+        if (controller.signal.aborted) return;
+        this.apply({ type: "proposalReady", proposal });
+      },
+      (err) => {
+        if (controller.signal.aborted) return;
+        this.apply({
+          type: "proposalFailed",
+          error: err instanceof Error ? err.message : String(err),
+        });
+      },
+    );
   }
 
   private renderDecision(width: number): string[] {
@@ -554,6 +664,89 @@ class PermissionPromptComponent implements Component {
     }
     lines.push("");
     lines.push(this.theme.fg("muted", "↑/↓ move · enter confirm · esc back"));
+    return lines;
+  }
+
+  private renderExplain(width: number): string[] {
+    const lines = [
+      this.theme.fg("accent", this.title),
+      ...this.renderAsk(width).lines,
+      "",
+      "Explain in natural language what commands or paths should be allowed:",
+      ...this.explain.render(width),
+    ];
+    if (this.state.explainError) {
+      lines.push(this.theme.fg("error", this.state.explainError));
+    }
+    lines.push("");
+    lines.push(this.theme.fg("muted", "enter propose safe rule · esc back"));
+    return lines;
+  }
+
+  private renderProposing(width: number): string[] {
+    return [
+      this.theme.fg("accent", this.title),
+      ...this.renderAsk(width).lines,
+      "",
+      `Explanation: ${this.state.explainDraft ?? ""}`,
+      this.theme.fg("warning", "Auto-mode AI is interpreting your rule…"),
+      "",
+      this.theme.fg("muted", "esc cancel"),
+    ];
+  }
+
+  private renderProposal(width: number): string[] {
+    const proposal = this.state.proposal;
+    const ruleLines = (proposal?.grants ?? []).map((g) => {
+      const ruleText = `${g.surface}["${g.pattern}"] = ${g.action ?? "allow"}`;
+      return `  rule : ${this.theme.fg("warning", ruleText)}`;
+    });
+    const lines = [
+      this.theme.fg("accent", this.title),
+      ...this.renderAsk(width).lines,
+      "",
+      this.theme.fg("accent", "Proposed safe rule (AI):"),
+      ...ruleLines,
+      ...(proposal?.summary ? [`  why  : ${proposal.summary}`] : []),
+      "",
+    ];
+    const currentChoice = this.state.proposalChoice ?? "saveGlobal";
+    const choices: Array<{
+      choice: ProposalChoice;
+      key: string;
+      label: string;
+    }> = [
+      {
+        choice: "saveGlobal",
+        key: "y",
+        label: "Approve & add rule to safe commands (config.json)",
+      },
+      {
+        choice: "saveSession",
+        key: "s",
+        label: "Approve & add rule for this session only",
+      },
+      {
+        choice: "revise",
+        key: "e",
+        label: "Revise explanation",
+      },
+      {
+        choice: "back",
+        key: "n",
+        label: "Back",
+      },
+    ];
+    for (const item of choices) {
+      const selected = currentChoice === item.choice;
+      const marker = selected ? "▶" : " ";
+      const row = `${marker} (${item.key}) ${item.label}`;
+      lines.push(selected ? this.theme.fg("accent", row) : row);
+    }
+    lines.push("");
+    lines.push(
+      this.theme.fg("muted", "↑/↓ move · enter/key confirm · esc back"),
+    );
     return lines;
   }
 }
