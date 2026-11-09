@@ -92,6 +92,17 @@ export class ConfigStore
   implements SessionConfigStore, CommandConfigStore, ConfigIssueSource
 {
   private config: PermissionSystemExtensionConfig;
+  // Session-scoped permission-mode override set by Shift+Tab cycling
+  // (setInMemory). The global config is only the *startup default*:
+  // refresh() reloads it from disk on every turn, and without this the
+  // reload would clobber the session mode back to the global default
+  // (e.g. yoloMode:true -> bypassPermissions) on the next turn. Held as
+  // just the mode fields -- refresh still picks up every other on-disk
+  // change mid-session. Cleared by save(), which persists the mode.
+  private sessionModeOverride: {
+    yoloMode: boolean;
+    authorizerChain: string[] | undefined;
+  } | null = null;
   private configIssues: readonly string[] = [];
   // Held beside the runtime config rather than on it: `save()` rebuilds the
   // config through `normalizePermissionSystemConfig`, which would drop it.
@@ -153,7 +164,17 @@ export class ConfigStore
       EXTENSION_ROOT,
       { includeProjectScope: projectTrusted },
     );
-    const runtimeConfig = normalizePermissionSystemConfig(mergeResult.merged);
+    const loadedConfig = normalizePermissionSystemConfig(mergeResult.merged);
+    // Re-apply the session mode (see sessionModeOverride): within a
+    // session, the mode the user cycled to wins over the on-disk default
+    // until they persist a new default with save().
+    const runtimeConfig = this.sessionModeOverride
+      ? {
+          ...loadedConfig,
+          yoloMode: this.sessionModeOverride.yoloMode,
+          authorizerChain: this.sessionModeOverride.authorizerChain,
+        }
+      : loadedConfig;
     this.config = runtimeConfig;
     this.declared = mergeResult.declaredCommandEffects;
 
@@ -186,6 +207,9 @@ export class ConfigStore
     ctx: ExtensionCommandContext,
   ): Promise<void> {
     const normalized = normalizePermissionSystemConfig(next);
+    // Persisting a mode makes it the new global default; the session no
+    // longer needs (or should keep) an override shadowing it.
+    this.sessionModeOverride = null;
     const globalPath = getGlobalConfigPath(this.deps.agentDir);
 
     const existing = loadUnifiedConfig(globalPath);
@@ -243,6 +267,12 @@ export class ConfigStore
     ctx: ExtensionCommandContext,
   ): void {
     const normalized = normalizePermissionSystemConfig(next);
+    // Remember the session mode so the per-turn refresh() reload cannot
+    // silently revert it to the global startup default.
+    this.sessionModeOverride = {
+      yoloMode: normalized.yoloMode,
+      authorizerChain: normalized.authorizerChain,
+    };
     this.config = normalized;
     syncPermissionSystemStatus(ctx, normalized);
   }

@@ -20917,6 +20917,7 @@ function buildResolvedConfigLogEntry(options) {
 class ConfigStore {
   deps;
   config;
+  sessionModeOverride = null;
   configIssues = [];
   declared = NO_DECLARED_COMMAND_EFFECTS;
   constructor(deps) {
@@ -20934,7 +20935,12 @@ class ConfigStore {
   }
   refresh(cwd, projectTrusted) {
     const mergeResult = loadAndMergeConfigs(this.deps.agentDir, cwd ?? "", EXTENSION_ROOT, { includeProjectScope: projectTrusted });
-    const runtimeConfig = normalizePermissionSystemConfig(mergeResult.merged);
+    const loadedConfig = normalizePermissionSystemConfig(mergeResult.merged);
+    const runtimeConfig = this.sessionModeOverride ? {
+      ...loadedConfig,
+      yoloMode: this.sessionModeOverride.yoloMode,
+      authorizerChain: this.sessionModeOverride.authorizerChain
+    } : loadedConfig;
     this.config = runtimeConfig;
     this.declared = mergeResult.declaredCommandEffects;
     const ignoredDeclarations = [
@@ -20954,6 +20960,7 @@ class ConfigStore {
   }
   async save(next, ctx) {
     const normalized = normalizePermissionSystemConfig(next);
+    this.sessionModeOverride = null;
     const globalPath = getGlobalConfigPath(this.deps.agentDir);
     const existing = loadUnifiedConfig(globalPath);
     let rawOnDisk = { ...existing.config };
@@ -20995,6 +21002,10 @@ class ConfigStore {
   }
   setInMemory(next, ctx) {
     const normalized = normalizePermissionSystemConfig(next);
+    this.sessionModeOverride = {
+      yoloMode: normalized.yoloMode,
+      authorizerChain: normalized.authorizerChain
+    };
     this.config = normalized;
     syncPermissionSystemStatus(ctx, normalized);
   }
