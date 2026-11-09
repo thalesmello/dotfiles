@@ -14,9 +14,11 @@ set -x PATH /opt/homebrew/bin (status dirname) $PATH
 # Hammerspoon.
 
 # Run a Lua boolean predicate and map it to this process's exit code, so the
-# `case is-*` predicates keep working in `if` / `and` / `or`.
+# `case is-*` predicates keep working in `if` / `and` / `or`. Match the final
+# line rather than the whole stdout because `hs -c` prints `-- Loading
+# extension: ...` to stdout the first time a module lazy-loads a C extension.
 function __gp_bool
-    test "$(hs -c "if $argv[1] then print('yes') end")" = yes
+    string match -qr '(^|\n)yes$' -- (hs -c "if $argv[1] then print('yes') end" | string collect)
 end
 
 function ghostty-preset
@@ -131,12 +133,11 @@ function ghostty-preset
         #
         # The session may be a remote one (`herdr --remote <host>`), where its
         # socket is unreachable from this machine. What does reach it is herdr's
-        # own run-command popup (ctrl+alt+shift+semicolon), and what comes back
+        # own callback command popup (ctrl+alt+shift+backslash), and what comes back
         # is OSC 52: herdr intercepts the escape from a pane it renders and puts
         # the payload on the ATTACHED CLIENT's clipboard, i.e. ours. So the
-        # clipboard carries the command in (pasting beats synthesizing a chord
-        # per character, which made the keyboard klack on every letter) and the
-        # answer out.
+        # popup signals readiness via an OSC 52 token, Hammerspoon pastes the
+        # command in, and the command's answer comes back out over OSC 52.
         #
         # <cmd> is wrapped so it reports itself: stdout+stderr and exit status
         # come back in one OSC 52 payload. The wrapper always exits 0 even when

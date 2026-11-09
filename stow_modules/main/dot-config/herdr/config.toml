@@ -295,6 +295,20 @@ type = "shell"
 command = "~/.config/herdr/scripts/open-popup.sh prompt-popups run-command 60% 40%"
 description = "prompt for a command and run it"
 
+# ctrl+alt+shift+backslash (ctrl+meta+shift+|): automated counterpart to
+# ctrl+alt+shift+semicolon for Hammerspoon's executeAndForgetHerdrCommand.
+# Opens directly as `type = "popup"` (no open-popup.sh / CLI round trip) and
+# runs `run-command.sh --callback`, which skips prompt-lib.py, puts the tty into
+# non-canonical no-echo mode immediately, and emits an OSC 52 readiness token
+# that Hammerspoon waits for before pasting the command and pressing Enter.
+[[keys.command]]
+key = "ctrl+alt+shift+backslash"
+type = "popup"
+command = "~/.config/herdr/scripts/run-command.sh --callback"
+description = "run automated command via OSC 52 ready callback"
+width = "60%"
+height = "40%"
+
 # Open the live config.toml for editing in a zoomed vertical split. The script
 # reloads the config when the editor exits, so no manual prefix+shift+r needed.
 # type = "shell" (not "popup"): a full-screen popup is session-modal and eats the

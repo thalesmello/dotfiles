@@ -533,52 +533,146 @@ function M.iterateWindows(opts)
 end
 
 ---------------------------------------------------------------
--- herdr run-command popup
+-- herdr run-command popup (callback-driven)
 ---------------------------------------------------------------
 
--- Run <cmd> in herdr's run-command prompt (ctrl+alt+shift+semicolon ->
--- run-command.sh popup) and return without waiting for it: open the popup,
--- paste, Enter. run-command.sh evals in the popup, which carries the HERDR_* env
--- of the pane that was focused, so the command targets the right pane/tab. The
--- popup closes on a zero exit and stays up showing the output otherwise.
+-- Must match `run-command.sh --callback`. Framed with RS/US and a 128-bit
+-- namespace token (same convention as herdrRelay.lua) so ordinary clipboard
+-- text never matches by accident.
+M.CMD_READY_TOKEN = "\30HERDR_RUN_CMD_READY_V1:e4a91c7d3b6048f291c5d0a87e3b6f12\31"
+
+local CMD_READY_POLL = 0.015
+local CMD_READY_TIMEOUT = 5.0
+local CMD_PASTE_SETTLE = 0.05
+local CMD_RETURN_SETTLE = 0.05
+local CMD_RESTORE_DELAY = 0.15
+
+local pendingHerdrCmd = nil
+local stagedHerdrCmd = nil
+
+local function restoreHerdrClipboard(saved)
+  if saved ~= nil then
+    hs.pasteboard.setContents(saved)
+  else
+    hs.pasteboard.clearContents()
+  end
+end
+
+-- True when `contents` is an internal clipboard value owned by the herdr
+-- command runner (the popup's READY sentinel, the staged command about to be
+-- pasted, or an `execute-herdr-command` reply), so herdrRelay does not mistake
+-- it for a user copy and overwrite its clipboard snapshot.
+function M.isHerdrCommandClipboard(contents)
+  if type(contents) ~= "string" then return false end
+  if contents == M.CMD_READY_TOKEN then return true end
+  if stagedHerdrCmd ~= nil and contents == stagedHerdrCmd then return true end
+  if contents:sub(1, 26) == "ghostty-preset:herdr-exec:" then return true end
+  return false
+end
+
+-- Called when `M.CMD_READY_TOKEN` lands on the pasteboard (either from our own
+-- fast poll timer below or from herdrRelay's pasteboard watcher). Stages the
+-- pending command onto the clipboard, pastes it, submits with Return, and
+-- restores the original clipboard once Ghostty has consumed the paste.
+-- Returns true if a pending command consumed the ready signal, false otherwise.
+function M.onHerdrCommandReady()
+  if not pendingHerdrCmd or pendingHerdrCmd.dispatched then
+    return false
+  end
+
+  local req = pendingHerdrCmd
+  req.dispatched = true
+  if req.timer then
+    req.timer:stop()
+    req.timer = nil
+  end
+  pendingHerdrCmd = nil
+
+  local cmd = req.cmd
+  local saved = req.saved
+  stagedHerdrCmd = cmd
+  hs.pasteboard.setContents(cmd)
+
+  hs.timer.doAfter(CMD_PASTE_SETTLE, function()
+    Preset.sendKeys({"cmd", "v"})
+    hs.timer.doAfter(CMD_RETURN_SETTLE, function()
+      Preset.sendKeys({"return"})
+      hs.timer.doAfter(CMD_RESTORE_DELAY, function()
+        if stagedHerdrCmd == cmd then
+          stagedHerdrCmd = nil
+        end
+        -- Only put it back if it is still ours to put back. By now the command
+        -- may have answered on the clipboard (execute-herdr-command's replies
+        -- come in that way), or another run may have staged its own command
+        -- there -- and restoring over either loses it.
+        local current = hs.pasteboard.getContents()
+        if current ~= cmd and current ~= M.CMD_READY_TOKEN then return end
+        restoreHerdrClipboard(saved)
+      end)
+    end)
+  end)
+
+  return true
+end
+
+-- Run <cmd> in herdr's callback command prompt (ctrl+alt+shift+backslash ->
+-- `run-command.sh --callback` popup) and return without waiting for it:
+-- send the chord to open the popup, wait for the popup to signal readiness via
+-- an OSC 52 token (`M.CMD_READY_TOKEN`), then stage <cmd> on the clipboard,
+-- paste, and press Enter.
 --
--- The command travels via the clipboard, pasted rather than typed out: synthesizing
--- a chord per character made the keyboard klack on every letter. The clipboard is
--- saved and put back here, so callers never see it move.
---
--- Both delays are about that clipboard, not about the popup. The write has to be
--- visible before cmd+v, or the prompt gets the PREVIOUS clipboard; and posting
--- the paste is not the same as Ghostty having read the pasteboard, so restoring
--- on the next line is the same race in reverse -- that one is what puts a stray
--- "Command: <some path you copied earlier>" in the popup. If a slow popup ever
--- starts swallowing the chords themselves, this is where those delays go too.
+-- Waiting for the popup's OSC 52 ready token eliminates guessing how long
+-- herdr (local or over ssh/et) takes to open the popup and prepare its tty.
 -- Returns nothing on purpose: `hs -c` prints whatever the chunk evaluates to, so
 -- a `true` here would show up on the shim's stdout and end up mixed into the
 -- output execute-herdr-command hands back to its caller.
 function M.executeAndForgetHerdrCommand(cmd)
   if not cmd or cmd == "" then return end
 
-  local saved = hs.pasteboard.getContents()
-  hs.pasteboard.setContents(cmd)
+  local saved
+  if pendingHerdrCmd then
+    if pendingHerdrCmd.timer then
+      pendingHerdrCmd.timer:stop()
+      pendingHerdrCmd.timer = nil
+    end
+    saved = pendingHerdrCmd.saved
+  else
+    saved = hs.pasteboard.getContents()
+    if saved == M.CMD_READY_TOKEN then
+      saved = nil
+      hs.pasteboard.clearContents()
+    end
+  end
 
-  Preset.sendKeys({"ctrl", "alt", "shift", "semicolon"})
-  hs.timer.doAfter(0.05, function()
-    Preset.sendKeys({"cmd", "v"})
-    Preset.sendKeys({"return"})
-    hs.timer.doAfter(0.15, function()
-      -- Only put it back if it is still ours to put back. By now the command may
-      -- have answered on the clipboard (execute-herdr-command's replies come in
-      -- that way), or another run may have staged its own command there -- and
-      -- restoring over either loses it.
-      if hs.pasteboard.getContents() ~= cmd then return end
+  local req = {
+    cmd = cmd,
+    saved = saved,
+    dispatched = false,
+    deadline = hs.timer.secondsSinceEpoch() + CMD_READY_TIMEOUT,
+  }
+  pendingHerdrCmd = req
 
-      if saved ~= nil then
-        hs.pasteboard.setContents(saved)
-      else
-        hs.pasteboard.clearContents()
+  req.timer = hs.timer.doEvery(CMD_READY_POLL, function()
+    if pendingHerdrCmd ~= req or req.dispatched then
+      if req.timer then req.timer:stop(); req.timer = nil end
+      return
+    end
+    if hs.pasteboard.getContents() == M.CMD_READY_TOKEN then
+      M.onHerdrCommandReady()
+      return
+    end
+    if hs.timer.secondsSinceEpoch() >= req.deadline then
+      req.timer:stop()
+      req.timer = nil
+      pendingHerdrCmd = nil
+      log("executeAndForgetHerdrCommand: timed out waiting for herdr callback popup")
+      if hs.pasteboard.getContents() == M.CMD_READY_TOKEN then
+        restoreHerdrClipboard(saved)
       end
-    end)
+    end
   end)
+
+  Preset.sendKeys({"ctrl", "alt", "shift", "backslash"})
 end
 
 ---------------------------------------------------------------

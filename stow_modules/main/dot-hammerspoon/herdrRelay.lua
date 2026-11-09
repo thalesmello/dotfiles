@@ -840,6 +840,17 @@ local function onPasteboardChange(contents)
     return
   end
 
+  if contents == GhosttyPreset.CMD_READY_TOKEN then
+    if not GhosttyPreset.onHerdrCommandReady() then
+      restoreClipboard()
+    end
+    return
+  end
+
+  if GhosttyPreset.isHerdrCommandClipboard(contents) then
+    return
+  end
+
   local record = parseFramedRecord(contents, COPY_PREFIX, COPY_SUFFIX)
   if record then
     handleCopyRecord(record)
