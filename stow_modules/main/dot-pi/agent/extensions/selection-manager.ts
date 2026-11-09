@@ -1,5 +1,5 @@
 /**
- * selection-manager.ts -- table-aware mouse selection in fullscreen mode.
+ * selection-manager.ts -- Markdown-aware mouse selection in fullscreen mode.
  *
  * Why this exists
  * ---------------
@@ -38,6 +38,22 @@
  *   column edge joins with nothing, a word-boundary wrap joins with one
  *   space, and an authored break (list item, colon label, a break the
  *   wrapper would not have taken) stays a break.
+ * - Outside tables and code frames, a selection copies as Markdown. When
+ *   it touches one of pi's Markdown components, the original source of the
+ *   touched blocks is recovered from the layout tree — the component keeps
+ *   its source text and lexed blocks, and each block's rendered rows say
+ *   which blocks the selection touches — so bold, inline code, links, and
+ *   headings copy as authored, and no wrap survives inside a block. Lists
+ *   are sliced per item, and a partially selected code block is re-fenced
+ *   around the touched code lines.
+ * - When no Markdown source is reachable, the rendered rows are instead
+ *   reconstructed as Markdown: each list item joins its wrapped
+ *   continuation rows into one continuous line with its marker and
+ *   nesting intact, paragraph wraps rejoin (a long path split as
+ *   `pi-permissio` / `n-system/config.json` copies as one token, a
+ *   word-boundary wrap with one space), blockquotes become `> ` lines,
+ *   fenced code is kept verbatim, and a break the wrapper would not have
+ *   taken (a short line, a blank line, a structural line) stays a newline.
  *
  * Requires fullscreen mode (`tuiMode: "fullscreen"`) with copy on select, so
  * pi captures the mouse at all. In regular mode the terminal owns selection
@@ -201,6 +217,412 @@ function joinWrappedCellText(fragments: readonly string[], columnWidth: number, 
 		previous = fragment;
 	}
 	return text;
+}
+
+// ---------------------------------------------------------------------------
+// Plain-text unwrapping (soft wraps outside tables and code frames)
+// ---------------------------------------------------------------------------
+
+/**
+ * Width, in selection-source columns, at which plain text wraps.
+ *
+ * For a scroll view this is the width of the scroll box that carries the
+ * transcript lines; otherwise it is the terminal width. Rendered lines are
+ * padded to that width, and a line that wraps fills it (minus at most a
+ * right padding column), which is the evidence the break classifier below
+ * relies on. Without a known width there is no safe way to tell a wrap
+ * from an authored break, so callers must leave the text alone.
+ */
+function getPlainTextWrapWidth(internals: AltScreenInternals, selection: SelectionLike): number {
+	if (selection.start.scrollView) {
+		const box = findScrollViewBox(internals.currentLayout?.root, selection.start.scrollView);
+		if (box && box.rect.width > 0) return box.rect.width;
+	}
+	return internals.terminal?.columns ?? 0;
+}
+
+/**
+ * Classify the break between two physical lines of plain text.
+ *
+ * This mirrors the table-cell rules, with the wrap width taken from the
+ * rendered screen instead of a cell. A break is a soft wrap when the
+ * wrapper would have had to take it: a line that fills the width and is
+ * followed by a lowercase or digit continuation was split inside a word
+ * (join with nothing), and a line whose next word did not fit was wrapped
+ * at a word boundary (join with one space). Anything else — a short line,
+ * a line that could have held the next word, a structural next line — is
+ * an authored break. A line that fills the width exactly stays ambiguous
+ * (a word-boundary wrap can also fill it); like the cell rules, this
+ * prefers rejoining a split word over inserting a space into one.
+ */
+function getPlainFragmentBreak(previous: string, next: string, wrapWidth: number): CellFragmentBreak {
+	if (/^(?:[-*+•]\s|\d+[.)]\s|#{1,6}\s|>+\s|```|~~~|[│┌├└┐┤┘─])/.test(next)) return "newline";
+	const previousWidth = visibleWidth(previous);
+	const fillsWidth = previousWidth >= wrapWidth - 1;
+	if (fillsWidth && /[\p{L}\p{N}]$/u.test(previous) && /^[\p{Ll}\p{N}]/u.test(next)) return "none";
+	if (fillsWidth && (previous.endsWith("-") || previous.endsWith("/")) && /^[\p{L}\p{N}]/u.test(next)) return "none";
+	if (fillsWidth && /^[\p{L}\p{N}._~/-]/u.test(next) && /[\p{L}\p{N}._~/-]$/u.test(previous)) return "none";
+	const firstWord = next.split(/\s+/)[0] ?? "";
+	if (previousWidth + 1 + visibleWidth(firstWord) <= wrapWidth) return "newline";
+	return "space";
+}
+
+const LIST_ITEM_AT = /^(\s*)([-*+•]|\d+[.)])(\s+)(.*)$/;
+
+/** Join two fragments of one logical line, choosing only between a space and nothing. */
+function joinContinuation(previous: string, next: string, wrapWidth: number): string {
+	return getPlainFragmentBreak(previous, next, wrapWidth) === "none" ? next : ` ${next}`;
+}
+
+/**
+ * Selection text reconstructed as Markdown from rendered lines.
+ *
+ * This is the fallback for text whose original Markdown source is not
+ * reachable through the layout tree, and for non-Markdown text. Physical
+ * rows are grouped into logical Markdown lines first, because structure
+ * is stronger evidence than width: a rendered list item wraps at the
+ * item's own (narrower) width, so its continuation rows — indented to the
+ * item's content column — always belong to that item even when the next
+ * word would have fit on a full-width line. Each list item therefore
+ * copies as one continuous line with its marker and nesting intact.
+ * Wrapped paragraph rows rejoin with the width-based rules, blockquote
+ * rows (`│ ` in the render) become `> ` lines, fenced code rows are kept
+ * verbatim, and every other break keeps the built-in behavior.
+ *
+ * Returns undefined for a single-row selection or when the wrap width is
+ * unknown, so the caller falls back to the built-in behavior.
+ */
+function getPlainSelectionText(
+	internals: AltScreenInternals,
+	selection: SelectionLike,
+	sourceLines: readonly string[],
+): string | undefined {
+	if (selection.end.row <= selection.start.row) return undefined;
+	return getRenderedSelectionText(internals, selection, sourceLines, selection.start.row, selection.end.row);
+}
+
+/** Reconstruct Markdown for the inclusive row range of a selection. */
+function getRenderedSelectionText(
+	internals: AltScreenInternals,
+	selection: SelectionLike,
+	sourceLines: readonly string[],
+	firstRow: number,
+	lastRow: number,
+): string | undefined {
+	if (lastRow < firstRow) return undefined;
+	const viewportWidth = getPlainTextWrapWidth(internals, selection);
+	if (viewportWidth <= 1) return undefined;
+	const plainLines = sourceLines.map((line) => stripTerminalSequences(line));
+	// The rightmost content column reached by the selected rows is the
+	// effective wrap width when it reaches the edge of the viewport: it
+	// already excludes any right padding the renderer added. For narrower
+	// selections (short authored lines) the viewport width is the width a
+	// wrapper would have had available, so a break it would not have taken
+	// still reads as authored.
+	let edgeWidth = 0;
+	for (let row = firstRow; row <= lastRow; row++) {
+		edgeWidth = Math.max(edgeWidth, visibleWidth((plainLines[row] ?? "").trimEnd()));
+	}
+	const wrapWidth = edgeWidth >= viewportWidth - 2 ? edgeWidth : viewportWidth - 1;
+
+	const out: string[] = [];
+	// The logical line currently being accumulated, when rows can join it.
+	let current: { outIndex: number; kind: "list" | "paragraph" | "quote"; contentIndent: number; last: string } | undefined;
+	let inFence = false;
+
+	const appendJoined = (next: string) => {
+		if (!current) return;
+		out[current.outIndex] += joinContinuation(current.last, next, wrapWidth);
+		current.last = next;
+	};
+
+	for (let row = firstRow; row <= lastRow; row++) {
+		const plainLine = plainLines[row] ?? "";
+		const columns = internals.getSelectionColumns(sourceLines[row] ?? "", row, selection);
+		const fragment = sliceByColumn(plainLine, columns.start, Math.max(0, columns.end - columns.start), true).trimEnd();
+		const trimmed = fragment.trim();
+		const indent = fragment.length - fragment.trimStart().length;
+
+		if (inFence) {
+			out.push(fragment);
+			if (trimmed.startsWith("```") || trimmed.startsWith("~~~")) inFence = false;
+			current = undefined;
+			continue;
+		}
+		if (!trimmed) {
+			out.push("");
+			current = undefined;
+			continue;
+		}
+		if (trimmed.startsWith("```") || trimmed.startsWith("~~~")) {
+			out.push(fragment.trimStart());
+			inFence = true;
+			current = undefined;
+			continue;
+		}
+
+		// Blockquote rows carry a `│ ` (or authored `> `) prefix on every
+		// physical row; strip it, join the wrapped text, and re-emit `> `.
+		const quoteMatch = /^(│|>)\s(.*)$/.exec(trimmed);
+		// A trailing `│` means a table or framed row, not a blockquote.
+		if (quoteMatch && !trimmed.endsWith("│") && (trimmed.startsWith("│") || current?.kind === "quote" || /^>\s/.test(trimmed))) {
+			const inner = quoteMatch[2]!.trim();
+			if (current?.kind === "quote") {
+				appendJoined(inner);
+			} else {
+				out.push(`> ${inner}`);
+				current = { outIndex: out.length - 1, kind: "quote", contentIndent: indent, last: inner };
+			}
+			continue;
+		}
+
+		const listMatch = LIST_ITEM_AT.exec(fragment);
+		if (listMatch) {
+			const markerIndent = visibleWidth(listMatch[1]!);
+			const markerWidth = visibleWidth(listMatch[2]!) + visibleWidth(listMatch[3]!);
+			out.push(fragment);
+			current = {
+				outIndex: out.length - 1,
+				kind: "list",
+				contentIndent: markerIndent + markerWidth,
+				last: trimmed,
+			};
+			continue;
+		}
+
+		// A row indented to (or past) the current list item's content column
+		// is that item's continuation — a wrapped line or an indented block
+		// of the item — never a new logical line. Join it onto the item.
+		if (current?.kind === "list" && indent >= current.contentIndent) {
+			appendJoined(trimmed);
+			continue;
+		}
+
+		if (current?.kind === "quote") current = undefined;
+		if (!current || current.kind === "list") {
+			out.push(fragment);
+			current = { outIndex: out.length - 1, kind: "paragraph", contentIndent: indent, last: trimmed };
+			continue;
+		}
+		// Ordinary paragraph rows: rejoin only a break the wrapper took.
+		if (getPlainFragmentBreak(current.last, trimmed, wrapWidth) === "newline") {
+			out.push(fragment);
+			current = { outIndex: out.length - 1, kind: "paragraph", contentIndent: indent, last: trimmed };
+		} else {
+			appendJoined(trimmed);
+		}
+	}
+	const text = out.join("\n");
+	return text.length > 0 ? text : undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Original-Markdown recovery (pi's Markdown components retain their source)
+// ---------------------------------------------------------------------------
+
+interface MarkdownTokenLike {
+	type?: string;
+	raw?: string;
+	text?: string;
+	lang?: string;
+	items?: Array<{ raw?: string }>;
+}
+
+interface MarkdownComponentLike {
+	text: string;
+	paddingY?: number;
+	cachedTokens?: { deref?: () => { tokens?: MarkdownTokenLike[] } | undefined };
+	blocks?: { deref?: () => Map<string, { lines?: readonly string[] }> | undefined };
+}
+
+interface MarkdownSource {
+	component: MarkdownComponentLike;
+	startRow: number;
+	endRow: number;
+}
+
+/**
+ * A Markdown component keeps its (pre-transform) source in `text`, the
+ * lexed blocks in a `cachedTokens` WeakRef, and each block's rendered
+ * lines in a `blocks` WeakRef, so duck-typing those fields finds it
+ * without depending on the class name surviving bundling. Plain `Text`
+ * components have none of `defaultTextStyle`/`cachedTokens`, which keeps
+ * styled labels out of this path.
+ */
+function asMarkdownComponent(component: unknown): MarkdownComponentLike | undefined {
+	if (!component || typeof component !== "object") return undefined;
+	const candidate = component as Record<string, unknown>;
+	if (typeof candidate.text !== "string") return undefined;
+	if (!("defaultTextStyle" in candidate) && !("cachedTokens" in candidate)) return undefined;
+	return candidate as unknown as MarkdownComponentLike;
+}
+
+/** Collect Markdown components whose rendered rows intersect the selection, in row order. */
+function collectMarkdownSources(internals: AltScreenInternals, selection: SelectionLike): MarkdownSource[] {
+	const root = internals.currentLayout?.root;
+	if (!root) return [];
+	const scrollBox = selection.start.scrollView ? findScrollViewBox(root, selection.start.scrollView) : undefined;
+	const sources: MarkdownSource[] = [];
+	const visit = (box: LayoutBoxLike) => {
+		const component = asMarkdownComponent(box.component);
+		if (component) {
+			const lineCount = box.lines?.length ?? box.rect.height;
+			if (lineCount > 0) {
+				const startRow = selection.start.scrollView
+					? box.rect.y - (scrollBox?.rect.y ?? 0) + (selection.start.scrollView.scrollTop ?? 0)
+					: box.rect.y;
+				const endRow = startRow + lineCount - 1;
+				if (endRow >= selection.start.row && startRow <= selection.end.row) {
+					sources.push({ component, startRow, endRow });
+				}
+			}
+		}
+		for (const child of box.children ?? []) visit(child);
+	};
+	visit(root);
+	return sources.sort((a, b) => a.startRow - b.startRow);
+}
+
+/** Rendered row starts of each top-level list item, or undefined when the shape is unexpected. */
+function getListItemRenderedStarts(renderedLines: readonly string[]): number[] | undefined {
+	const plain = renderedLines.map((line) => stripTerminalSequences(line).trimEnd());
+	let baseIndent: number | undefined;
+	const starts: number[] = [];
+	for (let row = 0; row < plain.length; row++) {
+		const match = LIST_ITEM_AT.exec(plain[row] ?? "");
+		if (!match) continue;
+		const indent = visibleWidth(match[1]!);
+		if (baseIndent === undefined) baseIndent = indent;
+		if (indent === baseIndent) starts.push(row);
+	}
+	return starts.length > 0 ? starts : undefined;
+}
+
+/**
+ * Markdown for the part of one component that the selection touches.
+ *
+ * Blocks are recovered whole: a selection that touches any rendered row
+ * of a paragraph, heading, blockquote, or list item copies that block's
+ * original source — formatting, inline code, and links intact, and with
+ * no wrap inside it. Code blocks are the exception: their rendered rows
+ * line up with code lines, so a partial selection copies only the touched
+ * code lines, re-fenced. Returns undefined when the component's block
+ * map is unavailable and the selection covers only part of it, so the
+ * caller can reconstruct those rows from the render instead.
+ */
+function getMarkdownComponentSlice(source: MarkdownSource, selection: SelectionLike): string | undefined {
+	const { component } = source;
+	const relStart = Math.max(selection.start.row, source.startRow) - source.startRow;
+	const relEnd = Math.min(selection.end.row, source.endRow) - source.startRow;
+	const tokens = component.cachedTokens?.deref?.()?.tokens;
+	const blocks = component.blocks?.deref?.();
+	if (!tokens || !blocks) {
+		const lineCount = source.endRow - source.startRow + 1;
+		const padding = component.paddingY ?? 0;
+		if (relStart <= padding && relEnd >= lineCount - 1 - padding) return component.text.trim() || undefined;
+		return undefined;
+	}
+	const parts: string[] = [];
+	let rowCursor = component.paddingY ?? 0;
+	for (const token of tokens) {
+		const block = token.raw !== undefined ? blocks.get(token.raw) : undefined;
+		if (!block?.lines) return undefined;
+		const blockStart = rowCursor;
+		const blockEnd = rowCursor + block.lines.length - 1;
+		rowCursor = blockEnd + 1;
+		if (blockEnd < relStart || blockStart > relEnd || token.type === "space") continue;
+		if (token.type === "list" && token.items && token.items.length > 0) {
+			const starts = getListItemRenderedStarts(block.lines);
+			if (starts && starts.length === token.items.length) {
+				const itemRaws: string[] = [];
+				for (let index = 0; index < starts.length; index++) {
+					const itemStart = blockStart + starts[index]!;
+					const itemEnd = blockStart + (starts[index + 1] ?? block.lines.length) - 1;
+					if (itemEnd < relStart || itemStart > relEnd) continue;
+					const raw = token.items[index]?.raw?.trim();
+					if (raw) itemRaws.push(raw);
+				}
+				if (itemRaws.length > 0) {
+					parts.push(itemRaws.join("\n"));
+					continue;
+				}
+			}
+			const raw = token.raw?.trim();
+			if (raw) parts.push(raw);
+			continue;
+		}
+		if (token.type === "code" && typeof token.text === "string" && block.lines.length > 2) {
+			const codeLines = token.text.split("\n");
+			// Rendered rows are fence, code lines, fence; only slice when
+			// they still line up (a wrapped long code line breaks the map).
+			if (block.lines.length === codeLines.length + 2 && (relStart > blockStart || relEnd < blockEnd)) {
+				const first = Math.max(relStart, blockStart + 1) - (blockStart + 1);
+				const last = Math.min(relEnd, blockEnd - 1) - (blockStart + 1);
+				if (last >= first) {
+					parts.push(`\`\`\`${token.lang ?? ""}\n${codeLines.slice(first, last + 1).join("\n")}\n\`\`\``);
+					continue;
+				}
+			}
+			const raw = token.raw?.trim();
+			if (raw) parts.push(raw);
+			continue;
+		}
+		const raw = token.raw?.trim();
+		if (raw) parts.push(raw);
+	}
+	const joined = parts.join("\n\n");
+	return joined.length > 0 ? joined : undefined;
+}
+
+/**
+ * Selection text from the original Markdown of the components it touches.
+ *
+ * Rows between Markdown components (other messages, tool output, spacers)
+ * are reconstructed from the render, so a selection that spans messages
+ * still copies in order. Returns undefined when no Markdown component is
+ * in the selection or none of them can be sliced.
+ */
+function getSourceMarkdownSelectionText(
+	internals: AltScreenInternals,
+	selection: SelectionLike,
+	sourceLines: readonly string[],
+): string | undefined {
+	// Block-granular recovery is for multi-row selections; a single-row
+	// selection (a dragged word or phrase) keeps pi's exact built-in slice.
+	if (selection.end.row <= selection.start.row) return undefined;
+	const sources = collectMarkdownSources(internals, selection);
+	if (sources.length === 0) return undefined;
+	const parts: string[] = [];
+	let cursor = selection.start.row;
+	let usedSource = false;
+	for (const source of sources) {
+		if (source.startRow > cursor) {
+			const gap = getRenderedSelectionText(internals, selection, sourceLines, cursor, Math.min(source.startRow - 1, selection.end.row));
+			if (gap?.trim()) parts.push(gap.trim());
+		}
+		const slice = getMarkdownComponentSlice(source, selection);
+		if (slice) {
+			parts.push(slice);
+			usedSource = true;
+		} else {
+			const rendered = getRenderedSelectionText(
+				internals,
+				selection,
+				sourceLines,
+				Math.max(cursor, source.startRow),
+				Math.min(source.endRow, selection.end.row),
+			);
+			if (rendered?.trim()) parts.push(rendered.trim());
+		}
+		cursor = Math.max(cursor, source.endRow + 1);
+	}
+	if (cursor <= selection.end.row) {
+		const tail = getRenderedSelectionText(internals, selection, sourceLines, cursor, selection.end.row);
+		if (tail?.trim()) parts.push(tail.trim());
+	}
+	if (!usedSource) return undefined;
+	const joined = parts.join("\n\n");
+	return joined.length > 0 ? joined : undefined;
 }
 
 /** Group rendered table lines into logical rows. Wrapped cells span physical lines without a separator. */
@@ -458,6 +880,8 @@ interface LayoutRectLike {
 }
 
 interface LayoutBoxLike {
+	component?: unknown;
+	lines?: readonly string[];
 	rect: LayoutRectLike;
 	clip: LayoutRectLike;
 	children?: LayoutBoxLike[];
@@ -1028,7 +1452,11 @@ function patchedGetActiveSelectionText(this: AltScreenInternals): string | undef
 	const sourceLines = getSelectionSourceLines(this, selection);
 	let result: string | undefined;
 	if (sourceLines) {
-		result = getCodeFrameSelectionText(this, selection, sourceLines) ?? getTableSelectionText(this, selection, sourceLines);
+		result =
+			getCodeFrameSelectionText(this, selection, sourceLines) ??
+			getTableSelectionText(this, selection, sourceLines) ??
+			getSourceMarkdownSelectionText(this, selection, sourceLines) ??
+			getPlainSelectionText(this, selection, sourceLines);
 	}
 	result ??= originals!.getActiveSelectionText.call(this);
 	// A completed selection arms the reference popup until it is used or a
@@ -1255,11 +1683,11 @@ export default function selectionManagerExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("selection-manager", {
-		description: "Report whether table-aware mouse selection is active",
+		description: "Report whether Markdown-aware mouse selection is active",
 		handler: async (_args, ctx) => {
 			ctx.ui.notify(
 				installed
-					? "selection-manager: active (fullscreen table cells copy as Markdown)"
+					? "selection-manager: active (fullscreen selections copy as Markdown)"
 					: "selection-manager: inactive (patch not installed)",
 				installed ? "info" : "warning",
 			);

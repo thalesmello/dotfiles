@@ -279,6 +279,110 @@ describe("selection-manager extension", () => {
 		expect(screen.getActiveSelectionText()).toBe("alpha\nbeta");
 	});
 
+	test("unwraps a word split across physical lines in plain text", () => {
+		// The fake screen is 30 columns wide, so a wrapped token fills the
+		// first row and continues at the start of the next one.
+		const screen = startScreen([
+			"~/.pi/extensions/pi-permissio",
+			"n-system/config.json is here",
+		]);
+
+		screen.setSelection({ row: 0, col: 0 }, { row: 1, col: 28 });
+
+		expect(screen.getActiveSelectionText()).toBe("~/.pi/extensions/pi-permission-system/config.json is here");
+	});
+
+	test("rejoins a word-boundary wrap in plain text with one space", () => {
+		const screen = startScreen(["alpha beta gamma delta epsi", "zeta theta"]);
+
+		screen.setSelection({ row: 0, col: 0 }, { row: 1, col: 9 });
+
+		expect(screen.getActiveSelectionText()).toBe("alpha beta gamma delta epsi zeta theta");
+	});
+
+	test("keeps authored breaks in plain text around wrapped lines", () => {
+		const screen = startScreen([
+			"alpha beta gamma delta epsilo",
+			"- zeta theta iota kappa",
+			"",
+			"short line",
+			"next authored line",
+		]);
+
+		// A list item after a full line, a blank line, and short authored
+		// lines whose next word would have fit all stay real newlines.
+		screen.setSelection({ row: 0, col: 0 }, { row: 4, col: 17 });
+		expect(screen.getActiveSelectionText()).toBe(
+			"alpha beta gamma delta epsilo\n- zeta theta iota kappa\n\nshort line\nnext authored line",
+		);
+	});
+
+	test("copies the original Markdown source of the touched blocks", () => {
+		const screen = startScreen([]);
+		screen.setMarkdownTranscript([
+			{
+				type: "paragraph",
+				raw: "**Changes** (in the dotfiles repo, live via the `~/.pi/agent` symlinks):",
+				renderedLines: [" Changes in the dotfiles repo, live", " via the agent symlinks folder now"],
+			},
+			{
+				type: "list",
+				raw: "- `stow/extensions/selection-manager.ts` handles the copying behavior\n- Tests cover the behavior well",
+				items: [
+					{ raw: "- `stow/extensions/selection-manager.ts` handles the copying behavior" },
+					{ raw: "- Tests cover the behavior well" },
+				],
+				renderedLines: [
+					" - stow/extensions/selection-manager.ts",
+					"   handles the copying behavior",
+					" - Tests cover the behavior well",
+				],
+			},
+		]);
+
+		// The whole rendered range copies as the authored Markdown: bold and
+		// inline code intact, and each bullet a single line.
+		screen.setSelection({ row: 0, col: 0 }, { row: 4, col: 20 });
+		expect(screen.getActiveSelectionText()).toBe(
+			"**Changes** (in the dotfiles repo, live via the `~/.pi/agent` symlinks):\n\n" +
+				"- `stow/extensions/selection-manager.ts` handles the copying behavior\n- Tests cover the behavior well",
+		);
+
+		// A selection touching only the first list item copies just that item,
+		// as one line even though it renders on two rows.
+		screen.setSelection({ row: 2, col: 2 }, { row: 3, col: 20 });
+		expect(screen.getActiveSelectionText()).toBe("- `stow/extensions/selection-manager.ts` handles the copying behavior");
+	});
+
+	test("joins rendered list items into single continuous Markdown lines without source", () => {
+		const screen = startScreen([
+			"Intro paragraph line is here",
+			" - Alpha bullet wraps a",
+			"   more text and continues",
+			"   onward to the end here",
+			" - Beta bullet is short",
+			"short tail",
+			"next line",
+		]);
+
+		screen.setSelection({ row: 0, col: 0 }, { row: 6, col: 8 });
+
+		expect(screen.getActiveSelectionText()).toBe(
+			"Intro paragraph line is here\n" +
+				" - Alpha bullet wraps a more text and continues onward to the end here\n" +
+				" - Beta bullet is short\n" +
+				"short tail\nnext line",
+		);
+	});
+
+	test("reconstructs blockquote rows as Markdown quote lines", () => {
+		const screen = startScreen(["│ quoted text wraps onto a", "│ second physical row here", "plain after"]);
+
+		screen.setSelection({ row: 0, col: 0 }, { row: 2, col: 10 });
+
+		expect(screen.getActiveSelectionText()).toBe("> quoted text wraps onto a second physical row here\nplain after");
+	});
+
 	test("copies only inner code lines from an open-tui framed code block and themes the reference popup", () => {
 		const framedCode = [
 			"╭─ bash ─────────── [Copy] ╮",

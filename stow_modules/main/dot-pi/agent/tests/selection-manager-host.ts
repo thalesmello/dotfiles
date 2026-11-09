@@ -63,11 +63,22 @@ export interface Selection {
 }
 
 export interface LayoutBox {
+	component?: unknown;
+	lines?: readonly string[];
 	rect: { x: number; y: number; width: number; height: number };
 	clip: { x: number; y: number; width: number; height: number };
 	children?: LayoutBox[];
 	scrollView?: { scrollTop: number };
 	scrollContentLines?: readonly string[];
+}
+
+export interface FakeMarkdownBlock {
+	type: string;
+	raw: string;
+	renderedLines: string[];
+	items?: Array<{ raw: string }>;
+	text?: string;
+	lang?: string;
 }
 
 function findBox(box: LayoutBox | undefined, scrollView: unknown): LayoutBox | undefined {
@@ -113,6 +124,42 @@ export class FakeAltScreen {
 
 	requestRender(): void {
 		this.renderRequests += 1;
+	}
+
+	/**
+	 * Show `blocks` as one Markdown component in the transcript: the rendered
+	 * lines become the screen, and the component box in the layout tree
+	 * carries the original source (`text`), its lexed tokens, and each
+	 * block's rendered lines, the way pi's real Markdown component does.
+	 */
+	setMarkdownTranscript(blocks: FakeMarkdownBlock[]): void {
+		const lines = blocks.flatMap((block) => block.renderedLines);
+		this.previousScreen = [...lines];
+		const rect = { x: 0, y: 0, width: this.terminal.columns, height: this.terminal.rows };
+		const component = {
+			text: blocks.map((block) => block.raw).join("\n\n"),
+			paddingY: 0,
+			defaultTextStyle: undefined,
+			options: {},
+			cachedTokens: {
+				deref: () => ({
+					tokens: blocks.map((block) => ({
+						type: block.type,
+						raw: block.raw,
+						items: block.items,
+						text: block.text,
+						lang: block.lang,
+					})),
+				}),
+			},
+			blocks: {
+				deref: () => new Map(blocks.map((block) => [block.raw, { lines: block.renderedLines }])),
+			},
+		};
+		const markdownBox: LayoutBox = { rect, clip: rect, children: [], component, lines };
+		this.currentLayout = {
+			root: { rect, clip: rect, children: [markdownBox], scrollView: this.scrollView, scrollContentLines: lines },
+		};
 	}
 
 	/** Show `lines` as the transcript of a primary scroll view at the origin. */
