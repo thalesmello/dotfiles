@@ -27,6 +27,308 @@ function sq-escape
     string replace -a "'" "''" $argv
 end
 
+# The invariant substring used to re-identify a preset app's window: the URL
+# with its query/hash parameters, scheme, optional "www." prefix, trailing
+# conversation UUID path segment, and trailing slashes removed. Which
+# conversation a window is showing lives in those parameters or path segments,
+# so a relaunched window still contains this substring even though its exact
+# URL has moved on, and launch URLs without "www." (https://internalfb.com/...)
+# still match Chrome's canonical "https://www.internalfb.com/..." URL:
+#   https://muse.ai/?chat=abc                                -> muse.ai
+#   https://internalfb.com/calendar                          -> internalfb.com/calendar
+#   https://agentcloud.internalmeta.com/6bf8b410-1c95-...    -> agentcloud.internalmeta.com
+#   https://www.internalfb.com/intern/bunny?metamate3        -> agentcloud.internalmeta.com
+function url-invariant
+    set -l raw "$argv[1]"
+    test -n "$raw"; or return 0
+
+    # Bunnylol launch aliases carry the target app in the query string and
+    # redirect to a different host/path once opened. Map known preset aliases
+    # to their destination invariant before stripping query parameters.
+    if string match -qr 'intern/bunny\?metamate3(\b|$)' -- "$raw"
+        echo "agentcloud.internalmeta.com"
+        return 0
+    else if string match -qr 'intern/bunny\?metamate(\b|%20|\+|$)' -- "$raw"
+        echo "internalfb.com/metamate"
+        return 0
+    end
+
+    string replace -r '[?#].*$' '' -- "$raw" \
+        | string replace -r '^https?://(www\.)?' '' \
+        | string replace -r '/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(/.*)?$' '' \
+        | string replace -r '/+$' ''
+    return 0
+end
+
+# Echo the yabai window id of a preset app whose stored id no longer exists,
+# adopting the matching pre-existing window into the DB, or return 1 when no
+# live window matches. This covers a Chrome restart (e.g. for an update):
+# Chrome relaunches its app-mode windows, but under new yabai window ids, so
+# the DB id goes stale and a bare lookup would spawn a duplicate window.
+#
+# Candidates are single-tab Chrome windows whose normalized URL contains the
+# invariant substring of the app's URL -- both the URL the caller asked for
+# and the one captured in the DB when the app was created, since launch URLs
+# can be aliases that redirect elsewhere. A candidate only counts once it is
+# correlated with a yabai *app-mode* Chrome window (browser windows carry
+# "- Google Chrome -" in their title, app windows don't -- see close-apps),
+# so an ordinary browser tab on the same site is never adopted as the preset
+# app.
+function rediscover-app-window
+    argparse profile= -- $argv
+    or return 1
+
+    set -l appname $argv[1]
+    set -l url $argv[2]
+
+    # Without a running Chrome there is nothing to rediscover -- and JXA
+    # references to it would launch it. Callers fall back to create-app.
+    test -n "$(get-main-chrome-pid)"; or return 1
+    test -n "$url"; or return 1
+
+    set -l needles
+    set -l stored_info (app-db-query "SELECT chrome_info FROM apps WHERE app_name = '$(sq-escape $appname)';" | string collect)
+    set -l stored_url (echo "$stored_info" | jq -r '.url // empty' 2>/dev/null)
+    # Prefer the stored post-redirect URL first (when it isn't still an
+    # un-redirected bunny alias), then the caller's launch URL, then both
+    # MetaMate domains when launched through a bunny metamate alias.
+    set -l candidate_urls
+    if test -n "$stored_url"; and not string match -qr 'intern/bunny\?' -- "$stored_url"
+        set -a candidate_urls "$stored_url"
+    end
+    set -a candidate_urls "$url"
+    if test -n "$stored_url"
+        set -a candidate_urls "$stored_url"
+    end
+    if string match -qr 'intern/bunny\?metamate' -- "$url"
+        set -a candidate_urls "https://agentcloud.internalmeta.com/" "https://www.internalfb.com/metamate"
+    end
+    for candidate_url in $candidate_urls
+        set -l needle (url-invariant "$candidate_url")
+        test -n "$needle"; or continue
+        contains -- "$needle" $needles; or set -a needles "$needle"
+    end
+    test (count $needles) -gt 0; or return 1
+
+    set -l tabs_json (chrome-preset list-tabs-json | string collect)
+    test -n "$tabs_json"; or return 1
+
+    set -l profile_name ""
+    if test -n "$_flag_profile"
+        set profile_name (chrome-preset get-profile-name "$_flag_profile" 2>/dev/null)
+    end
+
+    # Fetch all Chrome windows from yabai once. Filter to real AXWindow /
+    # AXStandardWindow entries with non-empty titles so Chrome's hidden
+    # AXHelpTag tooltip surfaces (title == "") are never mistaken for app
+    # windows. Default role/subrole to AXWindow/AXStandardWindow so minimal
+    # test fixtures with only {id, title} still work.
+    set -l all_yabai_json (yabai-preset list-windows --all --app '^Google Chrome$' 2>/dev/null \
+        | jq -s -c '[.[] | select(((.role // "AXWindow") == "AXWindow")
+                                  and ((.subrole // "AXStandardWindow") == "AXStandardWindow")
+                                  and ((.title // "") != ""))]' 2>/dev/null)
+    test -n "$all_yabai_json"; or return 1
+    test "$all_yabai_json" != "[]"; or return 1
+
+    set -l claimed_json (app-db-query "SELECT window_id FROM apps WHERE app_name != '$(sq-escape $appname)';" \
+        | jq -R . | jq -sc 'map(select(. != ""))')
+    set -l needles_json (printf '%s\n' $needles | jq -R . | jq -sc 'map(select(. != ""))')
+
+    # Correlate Chrome tabs with yabai app-mode windows in a single jq pass:
+    # - Keep only single-tab Chrome windows ((.tabCount // 1) == 1), since
+    #   Chrome --app windows never have a tab strip or multiple tabs.
+    # - Normalize URLs the same way url-invariant does (strip query/hash,
+    #   scheme, leading www., and trailing slashes) so https://internalfb.com/...
+    #   matches https://www.internalfb.com/...
+    # - After a Chrome restart, restored background app windows often have
+    #   w.tabs.title()[0] == "" until focused, while yabai's window title is
+    #   already "<window.name()> - <profile>" or "<url host> - <profile>"
+    #   (e.g. "web.whatsapp.com - Thales (Personal)"). Match against tab
+    #   title, windowTitle (w.name()), middle-ellipsis windowTitle, and URL
+    #   host, plus window bounds when available.
+    set -l match_plan (echo "$tabs_json" | jq -c \
+        --argjson needles "$needles_json" \
+        --argjson yabai_wins "$all_yabai_json" \
+        --argjson claimed "$claimed_json" \
+        --arg profile "$profile_name" '
+        def norm:
+            sub("[?#].*$"; "")
+            | sub("^https?://(www[.])?"; "")
+            | sub("/+$"; "");
+        def url_host:
+            sub("^https?://"; "")
+            | sub("[/?#].*$"; "")
+            | ascii_downcase;
+        def is_browser_title($t):
+            ($t | test(" - Google Chrome( - .*)?$"));
+        def strip_memory($t):
+            ($t | sub(" - High memory usage - [0-9.]+ [KMGT]?B$"; ""));
+        def app_base_title($t):
+            if ($profile != "" and ($t | endswith(" - " + $profile))) then
+                strip_memory($t | rtrimstr(" - " + $profile))
+            else
+                strip_memory($t | sub(" - [^-]+$"; ""))
+            end;
+        def browser_base_title($t):
+            strip_memory($t | sub(" - Google Chrome( - .*)?$"; ""));
+
+        ([$yabai_wins[] | select(is_browser_title(.title)) | browser_base_title(.title)]) as $browser_titles
+        | ([$yabai_wins[] | select(is_browser_title(.title) | not)
+            | . + {
+                base_title: app_base_title(.title),
+                profile_ok: ($profile == "" or (.title | endswith(" - " + $profile))),
+                is_claimed: ((.id | tostring) as $id | ($claimed | index($id)) != null)
+            }]) as $all_app_wins
+        | (if ($profile != "" and ($all_app_wins | any(.profile_ok))) then
+              [$all_app_wins[] | select(.profile_ok)]
+           else
+              $all_app_wins
+           end) as $app_wins
+        | if ($app_wins | length) == 0 then
+              {picked: null, candidates: []}
+          else
+              ([ .tabs[]?
+                 | select(((.tabCount // 1) == 1) and .url != null and .url != "")
+                 | (.url | norm) as $u_norm
+                 | ([$needles[] | select(. as $n | $u_norm | contains($n))]) as $matched
+                 | select(($matched | length) > 0)
+                 | (.title // "") as $tt
+                 | (.windowTitle // "") as $wt
+                 | (if $tt != "" then $tt else $wt end) as $eff_t
+                 | (.url | url_host) as $host
+                 | ($host | ltrimstr("www.")) as $host_nowww
+                 | (($eff_t != "")
+                    and ($browser_titles | index($eff_t) != null)
+                    and ([$app_wins[] | select(.base_title == $eff_t or .title == $eff_t)] | length == 0)) as $only_browser
+                 | {
+                     id,
+                     url,
+                     title: $tt,
+                     windowTitle: $wt,
+                     eff_title: $eff_t,
+                     host: $host,
+                     host_nowww: $host_nowww,
+                     windowId,
+                     minimized: (.minimized // false),
+                     bounds: (.bounds // null),
+                     only_browser: $only_browser,
+                     needle_idx: ([$matched[] | . as $m | $needles | index($m)] | min),
+                     tier: (if ($matched | index($u_norm)) != null then 0 else 1 end),
+                     specificity: ($matched | map(length) | max),
+                     stripped_len: ($u_norm | length)
+                   }
+               ] | sort_by([(if .only_browser then 1 else 0 end), .needle_idx, .tier, -.specificity, .stripped_len])) as $cands
+              | (
+                  [ $cands[]
+                    | select(.only_browser | not)
+                    | . as $c
+                    | (
+                        [ $app_wins[]
+                          | . as $yw
+                          | (if ($c.bounds != null and $yw.frame != null
+                                 and (($c.minimized // false) == ($yw."is-minimized" // false))
+                                 and ((($c.bounds.x - $yw.frame.x) | fabs) <= 10)
+                                 and ((($c.bounds.y - $yw.frame.y) | fabs) <= 40)
+                                 and ((($c.bounds.width - $yw.frame.w) | fabs) <= 10)
+                                 and ((($c.bounds.height - $yw.frame.h) | fabs) <= 40))
+                             then 0 else 1 end) as $bounds_rank
+                          | (if ($c.title != "" and ($yw.base_title == $c.title or $yw.title == $c.title)) then 1
+                             elif ($c.windowTitle != "" and ($yw.base_title == $c.windowTitle or $yw.title == $c.windowTitle)) then 2
+                             elif ($c.title != "" and ($yw.base_title | startswith($c.title))) then 3
+                             elif ($c.windowTitle != "" and ($yw.base_title | startswith($c.windowTitle))) then 4
+                             elif ($c.windowTitle != "" and ($c.windowTitle | contains("…")) and (
+                                   ($c.windowTitle | split("…")) as $parts
+                                   | ($parts | length) == 2
+                                     and ($yw.base_title | startswith($parts[0]))
+                                     and ($yw.base_title | endswith($parts[1])))) then 5
+                             elif ($c.title == "" and $c.host != "" and (
+                                   ($yw.base_title | ascii_downcase) as $bt
+                                   | $bt == $c.host or $bt == $c.host_nowww
+                                     or ($bt | startswith($c.host)) or ($bt | startswith($c.host_nowww)))) then 6
+                             elif ($c.title != "" and ($yw.base_title | contains($c.title))) then 7
+                             elif ($c.windowTitle != "" and ($yw.base_title | contains($c.windowTitle))) then 8
+                             else null end) as $match_tier
+                          | select($match_tier != null)
+                          | {yw: $yw, match_tier: $match_tier, claim_rank: (if $yw.is_claimed then 1 else 0 end), bounds_rank: $bounds_rank}
+                        ]
+                        | sort_by([.match_tier, .claim_rank, .bounds_rank])
+                        | first
+                      ) as $best_yw
+                    | select($best_yw != null)
+                    | {candidate: $c, window_id: $best_yw.yw.id}
+                  ] | first
+                ) as $direct_pick
+              | if $direct_pick != null then
+                    {picked: $direct_pick, candidates: $cands, app_wins: $app_wins}
+                else
+                    # Fallback when the tab has no usable title yet: if exactly
+                    # one unclaimed app-mode window exists in this profile and
+                    # we have a non-browser candidate with an empty title, adopt
+                    # it without stealing a titled window from another app.
+                    ([$app_wins[] | select(.is_claimed | not)]) as $unclaimed
+                    | ([$cands[] | select((.only_browser | not) and .eff_title == "")] | first) as $blank_cand
+                    | if ($blank_cand != null and ($unclaimed | length) == 1) then
+                          {picked: {candidate: $blank_cand, window_id: $unclaimed[0].id}, candidates: $cands, app_wins: $app_wins}
+                      else
+                          {picked: null, candidates: [ $cands[] | select(.only_browser | not) ], app_wins: $app_wins}
+                      end
+                end
+          end')
+    test -n "$match_plan"; or return 1
+
+    set -l picked (echo "$match_plan" | jq -r '.picked.window_id // empty')
+    set -l picked_candidate (echo "$match_plan" | jq -c '.picked.candidate // empty')
+
+    if test -z "$picked"
+        # Last resort: iterate through the non-browser candidates, focus each
+        # Chrome window, and read back which yabai window surfaced, accepting
+        # it only if that window is one of the app-mode windows above.
+        set -l fallback_candidates (echo "$match_plan" | jq -c '.candidates[]?')
+        test (count $fallback_candidates) -gt 0; or return 1
+
+        for cand in $fallback_candidates
+            set -l chrome_window_id (echo "$cand" | jq -r '.windowId // empty')
+            test -n "$chrome_window_id"; or continue
+            chrome-preset focus-window "$chrome_window_id" >/dev/null 2>&1; or continue
+            set -l focused_id (yabai-preset get-focused-window-id 2>/dev/null)
+            test -n "$focused_id"; or continue
+            if echo "$match_plan" | jq -e --argjson id "$focused_id" 'any(.app_wins[]?; .id == $id)' >/dev/null 2>&1
+                set picked "$focused_id"
+                set picked_candidate "$cand"
+                break
+            end
+        end
+    end
+
+    test -n "$picked"; or return 1
+
+    # Record the adoption, with chrome_info rebuilt from the matched tab in
+    # the shape chrome-cli info produced at create time ({id = tab id,
+    # windowId = Chrome window id}), so open-in-app / enforce-url callers
+    # that re-read it keep working against the relaunched window.
+    set -l chrome_info (echo "$picked_candidate" | jq -c '{id: (.id | tostring), title: (if (.title // "") != "" then .title else (.windowTitle // "") end), url, windowId: (.windowId | tostring)}')
+    app-db-exec "INSERT OR REPLACE INTO apps (app_name, window_id, chrome_info) VALUES ('$(sq-escape $appname)', '$(sq-escape $picked)', '$(sq-escape $chrome_info)');"
+    echo "$picked"
+end
+
+# Echo the app's live yabai window id: the stored one when it still exists,
+# otherwise a rediscovered pre-existing window (see rediscover-app-window),
+# otherwise return 1 so the caller launches a fresh window.
+function resolve-app-window
+    argparse profile= -- $argv
+    or return 1
+
+    set -l appname $argv[1]
+    set -l url $argv[2]
+
+    set -l window (app-db-query "SELECT window_id FROM apps WHERE app_name = '$(sq-escape $appname)';")
+    if test -n "$window"; and yabai-preset get-window-info "$window" >/dev/null
+        echo "$window"
+        return 0
+    end
+    rediscover-app-window --profile="$_flag_profile" "$appname" "$url"
+end
+
 function is-browser-window
     set title (yabai-preset query-windows --window | jq -r '.title')
     or return 1
@@ -90,12 +392,18 @@ function chrome-preset
         # JXA array-property calls (`w.tabs.id()` etc.) return every value for a
         # whole window in a single Apple Event, keeping this to a handful of
         # round-trips regardless of tab count. Output matches chrome-cli's JSON
-        # shape for the fields callers consume: {tabs: [{id, url, title, windowId}]}.
+        # shape for the fields callers consume: {tabs: [{id, url, title, windowId}]},
+        # plus window-level metadata (windowTitle, tabCount, minimized, bounds)
+        # used by rediscover-app-window to correlate single-tab app windows even
+        # when a restored tab's DOM title is still empty after a Chrome restart.
         osascript -l JavaScript -e '
             const chrome = Application("Google Chrome");
             const wins = chrome.windows;
-            let wids;
+            let wids, wnames, wmins, wbounds;
             try { wids = wins.id(); } catch (e) { wids = []; }
+            try { wnames = wins.name(); } catch (e) { wnames = []; }
+            try { wmins = wins.minimized(); } catch (e) { wmins = []; }
+            try { wbounds = wins.bounds(); } catch (e) { wbounds = []; }
             const tabs = [];
             for (let i = 0; i < wids.length; i++) {
                 const w = wins[i];
@@ -105,8 +413,21 @@ function chrome-preset
                     urls = w.tabs.url();
                     titles = w.tabs.title();
                 } catch (e) { continue; }
-                for (let j = 0; j < ids.length; j++) {
-                    tabs.push({id: ids[j], url: urls[j] || "", title: titles[j] || "", windowId: wids[i]});
+                const tabCount = ids.length;
+                const windowTitle = (wnames && wnames[i]) || "";
+                const minimized = !!(wmins && wmins[i]);
+                const bounds = (wbounds && wbounds[i]) || null;
+                for (let j = 0; j < tabCount; j++) {
+                    tabs.push({
+                        id: ids[j],
+                        url: urls[j] || "",
+                        title: titles[j] || "",
+                        windowId: wids[i],
+                        windowTitle: windowTitle,
+                        tabCount: tabCount,
+                        minimized: minimized,
+                        bounds: bounds,
+                    });
                 }
             }
             JSON.stringify({tabs: tabs});
@@ -593,6 +914,26 @@ function chrome-preset
 
         set chrome_info (env OUTPUT_FORMAT=json chrome-cli info | string collect)
         app-db-exec "INSERT OR REPLACE INTO apps (app_name, window_id, chrome_info) VALUES ('$(sq-escape $appname)', '$window_id', '$(sq-escape $chrome_info)');"
+
+        # window_created fires while the new tab is still loading (and before
+        # redirect aliases like intern/bunny?... reach their destination URL).
+        # Poll briefly in the background so chrome_info records the settled
+        # destination URL and title for future rediscovery.
+        set -l tab_id (echo "$chrome_info" | jq -r '.id // empty' 2>/dev/null)
+        if test -n "$tab_id"; and echo "$chrome_info" | jq -e '.loading == true or ((.url // "") | test("intern/bunny|^$|^about:blank"))' >/dev/null 2>&1
+            fish -c "
+                for i in (seq 25)
+                    sleep 0.2
+                    set info (env OUTPUT_FORMAT=json chrome-cli info -t '$tab_id' 2>/dev/null | string collect)
+                    test -n \"\$info\"; or break
+                    if echo \"\$info\" | jq -e '.loading == false and ((.url // \"\") | test(\"intern/bunny|^\\\$|^about:blank\") | not)' >/dev/null 2>&1
+                        sqlite3 '$CHROME_PRESET_DB' \"UPDATE apps SET chrome_info = '\$(string replace -a \"'\" \"''\" -- \$info)' WHERE app_name = '$(sq-escape $appname)' AND window_id = '$(sq-escape $window_id)';\"
+                        break
+                    end
+                end
+            " >/dev/null 2>&1 &
+            disown
+        end
     case "open-in-app"
         argparse profile= -- $argv
 
@@ -602,9 +943,7 @@ function chrome-preset
         set url $argv[1]
         set -e argv[1]
 
-        set window (app-db-query "SELECT window_id FROM apps WHERE app_name = '$(sq-escape $appname)';")
-
-        if test -n "$window"; and yabai-preset get-window-info "$window" >/dev/null
+        if set window (resolve-app-window --profile="$_flag_profile" "$appname" "$url")
             set chrome_info (app-db-query "SELECT chrome_info FROM apps WHERE app_name = '$(sq-escape $appname)';")
 
             chrome-cli open "$url" -t "$(jq -nr --argjson app "$chrome_info" '$app.id')"
@@ -619,6 +958,32 @@ function chrome-preset
         set window_id (app-db-query "SELECT window_id FROM apps WHERE app_name = '$(sq-escape $appname)';")
         test -n "$window_id"; or return 1
         echo "$window_id"
+    case "url-invariant"
+        # The parameter-stripped form of a URL used as the rediscovery
+        # search substring (see url-invariant above).
+        url-invariant $argv[1]
+    case "find-app-window"
+        # Rediscover a pre-existing preset window for <appname> whose URL
+        # matches <url>'s invariant substring, adopt it into the DB, and
+        # print its (new) yabai window id. Returns 1 when nothing matches,
+        # leaving window creation to the caller.
+        argparse profile= -- $argv
+        or return 1
+
+        set appname $argv[1]
+        set -e argv[1]
+
+        rediscover-app-window --profile="$_flag_profile" "$appname" $argv[1]
+    case "resolve-app-window"
+        # The stored window id when it still exists, else a rediscovered
+        # one (find-app-window); returns 1 when the app has no live window.
+        argparse profile= -- $argv
+        or return 1
+
+        set appname $argv[1]
+        set -e argv[1]
+
+        resolve-app-window --profile="$_flag_profile" "$appname" $argv[1]
     case "close-apps"
         if test -z "$(get-main-chrome-pid)"
             echo 0
@@ -631,7 +996,10 @@ function chrome-preset
         # " - Google Chrome - ..." in their title; app-mode windows do not.
         set app_title_regex (get-profile-regex --app-only "")
         set window_ids (yabai-preset list-windows --all --app '^Google Chrome$' --regex "$app_title_regex" \
-            | jq -r 'select(.title | test(" - Google Chrome$") | not) | .id')
+            | jq -r 'select(((.role // "AXWindow") == "AXWindow")
+                            and ((.subrole // "AXStandardWindow") == "AXStandardWindow")
+                            and ((.title // "") != "")
+                            and (.title | test(" - Google Chrome$") | not)) | .id')
         or return 1
 
         if test (count $window_ids) -eq 0
@@ -661,7 +1029,7 @@ function chrome-preset
         set url $argv[1]
         set -e argv[1]
 
-        if set window (chrome-preset get-app-window-id "$appname"); and yabai-preset get-window-info "$window" >/dev/null
+        if set window (resolve-app-window --profile="$_flag_profile" "$appname" "$url")
             if set -q _flag_enforce_url
                 set chrome_info (app-db-query "SELECT chrome_info FROM apps WHERE app_name = '$(sq-escape $appname)';")
                 set tab_id (jq -nr --argjson app "$chrome_info" '$app.id')
@@ -682,14 +1050,24 @@ function chrome-preset
 
         set fallback
 
-        set app_window_id (app-db-query "SELECT window_id FROM apps WHERE app_name = '$(sq-escape $app)';")
+        set -l app_url ""
+        test (count $argv) -ge 1; and set app_url $argv[1]
+
+        # Read the focused window id before resolving: rediscovery's last
+        # resort focuses the candidate window, which would otherwise make a
+        # window the user is already on look unfocused (and vice versa).
+        # hs sees the floating terminal, which yabai doesn't.
+        set active_id (hs-preset get-floatingterm-or-focused-window-id)
+
+        # Resolve rather than reading the DB directly, so a window relaunched
+        # under a new id by a Chrome restart is re-adopted here too --
+        # including for the toggle-off below, not just the focus path.
+        set app_window_id (resolve-app-window --profile="$_flag_profile" "$app" "$app_url")
 
         if test -n "$app_window_id"
 
-            # Read the focused window id first (hs sees the floating terminal,
-            # which yabai doesn't), then collapse the floating terminal in the
-            # background so it doesn't hover in front of the app we focus next.
-            set active_id (hs-preset get-floatingterm-or-focused-window-id)
+            # Collapse the floating terminal in the background so it doesn't
+            # hover in front of the app we focus next.
             term-preset hide-floating-terminal &
             disown
             if test "$active_id" = "$app_window_id"
