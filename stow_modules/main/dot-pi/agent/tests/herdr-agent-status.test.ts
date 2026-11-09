@@ -163,12 +163,22 @@ describe("herdr-agent-status extension", () => {
 		expect(h.settled).toEqual([]);
 	});
 
-	test("/resume and /reload do not settle the previous session", async () => {
+	test("/resume settles the previous conversation and clears the book mark", async () => {
 		const h = createHarness();
+		await h.emit("session_start", { reason: "startup" });
+		await h.emit("tool_result", bashResult("git commit -m 'x'"));
+		expect(h.reports).toEqual([true]);
+
 		await h.emit("session_start", {
 			reason: "resume",
 			previousSessionFile: "/tmp/prev-session.jsonl",
 		});
+		expect(h.reports).toEqual([true, false]);
+		expect(h.settled).toEqual(["/tmp/prev-session.jsonl"]);
+	});
+
+	test("/reload does not settle the current session", async () => {
+		const h = createHarness();
 		await h.emit("session_start", {
 			reason: "reload",
 		});

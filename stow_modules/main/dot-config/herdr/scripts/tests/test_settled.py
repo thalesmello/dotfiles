@@ -329,12 +329,30 @@ class SettlePaneTest(unittest.TestCase):
         self.assertTrue(outcome.startswith("settled"))
         self.assertIn("/tmp/old.jsonl", written["settled"])
         self.assertNotIn("/tmp/new.jsonl", written["settled"])
-        self.assertNotIn("/tmp/new.jsonl", written["seen"])
+        self.assertEqual(written["seen"].get("/tmp/new.jsonl", {}).get("title"), "")
         entry = written["settled"]["/tmp/old.jsonl"]
         self.assertEqual(entry["title"], "Previous Conversation Title")
         self.assertEqual(entry["workspace_label"], "web")
         self.assertEqual(entry["session"]["value"], "/tmp/old.jsonl")
         self.assertFalse(any(m == "pane.close" for m, _p in calls))
+
+    def test_settle_session_on_resume_un_settles_the_resumed_conversation(self):
+        # Resuming /tmp/resumed.jsonl from /tmp/current.jsonl: /tmp/current.jsonl
+        # enters settled, and /tmp/resumed.jsonl leaves settled since it is now live.
+        live_pane = pane(conv="/tmp/resumed.jsonl", title="Current Title")
+        prior_state = {
+            "settled": {"/tmp/resumed.jsonl": {"title": "Resumed Work", "settled_at": 10.0}},
+            "seen": {},
+        }
+        written = {}
+        with mock.patch.object(settled, "call", side_effect=lambda m, p=None, timeout=5.0: {"panes": [live_pane]} if m == "pane.list" else {"workspaces": WORKSPACES}), \
+                mock.patch.object(settled, "read_store", return_value={"w1:p1": record(conv="/tmp/resumed.jsonl")}), \
+                mock.patch.object(settled, "read_registry", return_value=prior_state), \
+                mock.patch.object(settled, "write_registry", side_effect=lambda s: written.update(s)):
+            settled.settle_session("w1:p1", "/tmp/current.jsonl")
+        self.assertIn("/tmp/current.jsonl", written["settled"])
+        self.assertNotIn("/tmp/resumed.jsonl", written["settled"])
+        self.assertEqual(written["settled"]["/tmp/current.jsonl"]["title"], "Current Title")
 
     def test_settle_session_survives_subsequent_tick(self):
         live_pane = pane(conv="/tmp/new.jsonl", title="π - repo")

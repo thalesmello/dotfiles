@@ -674,10 +674,19 @@ def settle_session(pane_id, conv):
     before = read_registry()
     now = time.time()
     # Keep pane_id in live_ids so capture does not settle the replacement
-    # session, while masking its agent_session so conv is neither treated as
-    # still live nor has its old terminal title attributed to the new session.
+    # session. If Herdr still reports conv on pane_id, mask agent_session so
+    # conv is not treated as live; if Herdr already reports the replacement
+    # session (e.g. /resume into a settled session), keep its agent_session so
+    # it leaves `settled`, while blanking the pane's terminal title so conv's
+    # outgoing title is not recorded under the replacement session in `seen`.
     masked_panes = [
-        {**p, "agent_session": None} if p.get("pane_id") == pane_id else p
+        (
+            {**p, "agent_session": None}
+            if pane_conversation(p) == conv
+            else {**p, "terminal_title": "", "terminal_title_stripped": ""}
+        )
+        if p.get("pane_id") == pane_id
+        else p
         for p in panes
     ]
     state = capture(before, store, masked_panes, workspaces, now)

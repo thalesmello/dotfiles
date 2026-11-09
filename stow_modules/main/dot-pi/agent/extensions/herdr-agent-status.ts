@@ -29,10 +29,11 @@
  * `git add . && git commit` books on success while `git commit && ./tester`
  * does not (the tester is further work after the commit).
  *
- * When `/new` creates a fresh session (`session_start` with `reason: "new"`),
- * the previous conversation (`previousSessionFile`, when persisted on disk)
- * is settled into `herdr-settled`'s registry without closing the pane, and
- * the notebook mark is cleared for the new session.
+ * When `/new` or `/resume` switches away from a session (`session_start`
+ * with `reason: "new" | "resume"`), the outgoing conversation
+ * (`previousSessionFile`, when persisted on disk) is settled into
+ * `herdr-settled`'s registry without closing the pane, and the notebook mark
+ * is cleared for the incoming session.
  *
  * Only the root TUI session reports: print/RPC children (subagents, title
  * summarizers) share the pane but are not the session being settled.
@@ -286,13 +287,19 @@ export default function (pi: ExtensionAPI, deps: Deps = {}) {
 		// TUI only: RPC/print children have no Herdr row of their own.
 		if (ctx?.mode !== "tui") return;
 		rootSession = true;
-		// A brand-new session is new work; a reload/resume keeps the mark.
-		if ((event as { reason?: string })?.reason === "new") {
+		const reason = (event as { reason?: string })?.reason;
+		// Switching sessions (/new or /resume) settles the outgoing conversation
+		// and clears the mark; an in-place /reload keeps it.
+		if (reason === "new" || reason === "resume") {
 			setBooked(false);
 			const previousSessionFile = (event as { previousSessionFile?: unknown })?.previousSessionFile;
+			const currentSessionFile = (
+				ctx as { sessionManager?: { getSessionFile?: () => string | undefined } }
+			)?.sessionManager?.getSessionFile?.();
 			if (
 				typeof previousSessionFile === "string" &&
 				previousSessionFile.length > 0 &&
+				previousSessionFile !== currentSessionFile &&
 				sessionExists(previousSessionFile)
 			) {
 				await settle(previousSessionFile);
