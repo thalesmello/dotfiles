@@ -10,7 +10,7 @@ import { pathToFileURL } from "node:url";
 // avoids a process-wide pi-tui mock, which would fight the questionnaire
 // and osc8-links tests' mocks when the whole suite runs in one Bun process.
 const hostPath = join(import.meta.dir, "follow-on-send-host.ts");
-const { FakeScrollView } = await import(pathToFileURL(hostPath).href);
+const { FakeEditor, FakeScrollView } = await import(pathToFileURL(hostPath).href);
 
 const extensionPath = join(import.meta.dir, "../extensions/follow-on-send.ts");
 const extensionSource = fs.readFileSync(extensionPath, "utf8");
@@ -27,7 +27,12 @@ afterAll(() => {
 	fs.rmSync(redirectedPath, { force: true });
 });
 
-const { default: followOnSend, NEAR_END_LINES, snapToEndIfNearEnd } = await import(pathToFileURL(redirectedPath).href);
+const {
+	default: followOnSend,
+	NEAR_END_LINES,
+	findLastMessageStartRow,
+	snapToEndIfNearEnd,
+} = await import(pathToFileURL(redirectedPath).href);
 
 // ---------------------------------------------------------------------------
 // Extension harness: capture the handlers the extension registers on `pi`.
@@ -141,18 +146,123 @@ describe("snapToEndIfNearEnd", () => {
 		expect(snapToEndIfNearEnd(view, { contentHeight: 30, viewportHeight: 5 })).toBe(true);
 		expect(scrollToEndCalls).toBe(0);
 	});
+	test("snaps when viewing the top of a long recent message", () => {
+		let snapped = false;
+		const view = {
+			primary: true,
+			followEnd: true,
+			// 80 lines of recent message (rows 120..200) in a 35-line viewport;
+			// user scrolled up to row 120 to read the top of the latest message.
+			scrollTop: 120,
+			isFollowingEnd: false,
+			scrollToEnd() {
+				snapped = true;
+				this.scrollTop = 165;
+				this.isFollowingEnd = true;
+			},
+		};
+		expect(
+			snapToEndIfNearEnd(view, {
+				contentHeight: 200,
+				viewportHeight: 35,
+				lastMessageStartRow: 120,
+			}),
+		).toBe(true);
+		expect(snapped).toBe(true);
+		expect(view.scrollTop).toBe(165);
+	});
+
+	test("keeps position when scrolled more than one viewport above the latest message", () => {
+		const view = {
+			primary: true,
+			followEnd: true,
+			// Viewport shows rows 20..55 (viewportBottom = 55), while the latest
+			// message starts at row 120 (65 lines below the viewport > 35).
+			scrollTop: 20,
+			isFollowingEnd: false,
+			scrollToEnd() {
+				throw new Error("must not snap");
+			},
+		};
+		expect(
+			snapToEndIfNearEnd(view, {
+				contentHeight: 200,
+				viewportHeight: 35,
+				lastMessageStartRow: 120,
+			}),
+		).toBe(false);
+		expect(view.scrollTop).toBe(20);
+	});
+});
+
+describe("findLastMessageStartRow", () => {
+	class UserMessageComponent {}
+	class AssistantMessageComponent {
+		hasToolCalls: boolean;
+		isStreaming: boolean;
+		constructor(hasToolCalls = false, isStreaming = false) {
+			this.hasToolCalls = hasToolCalls;
+			this.isStreaming = isStreaming;
+		}
+	}
+	class ToolExecutionComponent {}
+	class Spacer {}
+	class ThemedText {}
+
+	test("locates the start of the most recent turn across nested containers, tool calls, and trailing status", () => {
+		const headerContainer = {
+			mouseLayout: { width: 80, children: [{ component: new Spacer(), height: 4 }] },
+		};
+		const loadedResourcesContainer = {
+			mouseLayout: { width: 80, children: [{ component: new ThemedText(), height: 6 }] },
+		};
+		const chatContainer = {
+			mouseLayout: {
+				width: 80,
+				children: [
+					// Turn 1: rows 10..42
+					{ component: new UserMessageComponent(), height: 2 },
+					{ component: new AssistantMessageComponent(false), height: 30 },
+					// Turn 2: starts after 1-line spacer at row 43
+					{ component: new Spacer(), height: 1 },
+					{ component: new UserMessageComponent(), height: 3 },
+					{ component: new AssistantMessageComponent(true), height: 8 },
+					{ component: new ToolExecutionComponent(), height: 4 },
+					{ component: new AssistantMessageComponent(false), height: 50 },
+					// Trailing telemetry status lines
+					{ component: new Spacer(), height: 1 },
+					{ component: new ThemedText(), height: 1 },
+				],
+			},
+		};
+		const documentContainer = {
+			mouseLayout: {
+				width: 80,
+				children: [
+					{ component: headerContainer, height: 4 },
+					{ component: loadedResourcesContainer, height: 6 },
+					{ component: chatContainer, height: 100 },
+				],
+			},
+		};
+		expect(findLastMessageStartRow(documentContainer)).toBe(43);
+	});
 });
 
 describe("follow-on-send extension", () => {
 	test("installs the patch on session_start and restores it on session_shutdown", async () => {
-		const prototype: any = FakeScrollView.prototype;
-		const original = prototype.updateLayout;
+		const scrollProto: any = FakeScrollView.prototype;
+		const editorProto: any = FakeEditor.prototype;
+		const originalUpdateLayout = scrollProto.updateLayout;
+		const originalHandleInput = editorProto.handleInput;
 
 		await emit("session_start");
-		expect(prototype.updateLayout).not.toBe(original);
+		expect(scrollProto.updateLayout).not.toBe(originalUpdateLayout);
+		expect(editorProto.handleInput).not.toBe(originalHandleInput);
 
 		await emit("session_shutdown");
-		expect(prototype.updateLayout).toBe(original);
+		expect(scrollProto.updateLayout).toBe(originalUpdateLayout);
+		expect(editorProto.handleInput).toBe(originalHandleInput);
 	});
 
 	test("does not install outside tui mode", async () => {
@@ -239,6 +349,68 @@ describe("follow-on-send extension", () => {
 		transcript.updateLayout(30, 5, () => {});
 		await emit("input", { text: "hello", source: "interactive" });
 		expect(transcript.isFollowingEnd).toBe(true);
+		await emit("session_shutdown");
+	});
+
+	test("typing in the prompt editor snaps to the end when near the latest message", async () => {
+		await emit("session_start");
+		const view = startTranscript(100, 20);
+		// Scroll up 15 lines (within one viewportHeight of 20).
+		view.scrollBy(-15);
+		view.updateLayout(100, 20, () => {});
+		expect(view.isFollowingEnd).toBe(false);
+
+		const editor = new FakeEditor();
+		// Non-editing key (Escape) must not snap.
+		editor.handleInput("\x1b");
+		expect(view.isFollowingEnd).toBe(false);
+
+		// Typing a character snaps immediately.
+		editor.handleInput("a");
+		expect(view.isFollowingEnd).toBe(true);
+		expect(view.scrollTop).toBe(80);
+		await emit("session_shutdown");
+	});
+
+	test("typing in the prompt editor keeps the scroll position when far up in history", async () => {
+		await emit("session_start");
+		const documentContainer = {
+			mouseLayout: {
+				width: 80,
+				children: [
+					{ component: { role: "user" }, height: 2 },
+					{ component: { role: "assistant" }, height: 80 },
+					{ component: { role: "user" }, height: 2 },
+					{ component: { role: "assistant" }, height: 60 },
+				],
+			},
+		};
+		const view = new FakeScrollView(documentContainer, { follow: "end", primary: true });
+		view.updateLayout(144, 20, () => {});
+		// Latest turn starts at row 82. Scroll all the way to row 10 (viewportBottom = 30,
+		// 52 lines above row 82 > viewportHeight 20).
+		view.scrollBy(-114);
+		view.updateLayout(144, 20, () => {});
+		expect(view.scrollTop).toBe(10);
+		expect(view.isFollowingEnd).toBe(false);
+
+		const editor = new FakeEditor();
+		editor.handleInput("h");
+		expect(view.isFollowingEnd).toBe(false);
+		expect(view.scrollTop).toBe(10);
+		await emit("session_shutdown");
+	});
+
+	test("typing in an overlay editor does not snap the transcript", async () => {
+		await emit("session_start");
+		const view = startTranscript(30, 5);
+		view.scrollBy(-3);
+		view.updateLayout(30, 5, () => {});
+		expect(view.isFollowingEnd).toBe(false);
+
+		const overlayEditor = new FakeEditor({ hasOverlay: () => true });
+		overlayEditor.handleInput("q");
+		expect(view.isFollowingEnd).toBe(false);
 		await emit("session_shutdown");
 	});
 

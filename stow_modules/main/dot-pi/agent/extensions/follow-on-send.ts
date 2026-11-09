@@ -1,32 +1,34 @@
 /**
- * follow-on-send.ts -- follow the transcript end after sending a message.
+ * follow-on-send.ts -- follow the transcript end when typing or sending a prompt.
  *
  * Why this exists
  * ---------------
  * In fullscreen mode the transcript follows new output only while it sits at
- * the exact end. Scroll up a few lines to read the last answer and follow
- * mode turns off, so a new message and its response grow below the fold and
- * the view stays behind.
+ * the exact end. Scroll up to read the last answer and follow mode turns off,
+ * so the `↓ Jump to latest message` indicator stays up and a new message and
+ * its response grow below the fold while the view stays behind.
  *
  * pi has no extension hook for transcript scrolling, so this extension
- * patches one `ScrollView` prototype method for the life of a TUI session:
+ * patches two prototypes for the life of a TUI session:
  *
- * - `updateLayout` runs on every layout. The patch only records the primary
- *   follow-end view (the transcript) and its last content and viewport
- *   heights, then calls the original method. It never moves the view, so
- *   manual scrolling keeps the built-in exact-end rule.
+ * - `ScrollView.prototype.updateLayout` runs on every layout. The patch
+ *   records the primary follow-end view (the transcript), its content and
+ *   viewport heights, and the start row of the most recent message/turn from
+ *   the container's `mouseLayout`, then calls the original method. It never
+ *   moves the view, so manual scrolling keeps the built-in exact-end rule.
+ * - `Editor.prototype.handleInput` runs when typing or submitting in the
+ *   prompt editor. When an edit changes the prompt text (and no overlay is
+ *   open), it snaps the transcript back to the end if it is reasonably close
+ *   to the most recent message.
  *
- * On the `input` event (a new user message) and on `user_bash` (a `!`
- * command), the extension checks the recorded view: when the lines hidden
- * below the viewport number at most `NEAR_END_LINES`, it calls the view's
- * own `scrollToEnd()`, which snaps to the end and re-enables follow mode for
- * the output that follows. Farther up, it changes nothing.
- *
- * TypeScript `private` members are runtime properties, but this patch only
- * touches the public surface (`primary`, `followEnd`, `scrollTop`,
- * `isFollowingEnd`, `scrollToEnd`). If `updateLayout` is not present, the
- * extension reports itself inactive and leaves the built-in behavior
- * untouched.
+ * On `Editor.handleInput` text edits, on the `input` event (a new user
+ * message), and on `user_bash` (a `!` command), the extension checks the
+ * recorded view: when the most recent message/turn is still on screen or
+ * starts at most `max(NEAR_END_LINES, viewportHeight)` lines below the
+ * viewport (or, when message bounds are unavailable, when the hidden tail is
+ * within that threshold), it calls the view's own `scrollToEnd()`, which snaps
+ * to the end and re-enables follow mode. Farther up in history, it changes
+ * nothing.
  *
  * Requires fullscreen mode (`tuiMode: "fullscreen"`), which owns the
  * transcript scroll view. In regular mode the terminal owns scrolling and
@@ -34,10 +36,24 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { ScrollView } from "@earendil-works/pi-tui";
+import { Editor, ScrollView } from "@earendil-works/pi-tui";
 
-/** Lines hidden below the viewport that still count as near the end. */
+/** Minimum lines hidden below the viewport that still count as near the end. */
 export const NEAR_END_LINES = 10;
+
+/** Layout entry recorded by pi-tui's `Container.render`. */
+export interface MouseLayoutChild {
+	readonly component: unknown;
+	readonly height: number;
+}
+
+/** Container-like child with `mouseLayout` from the last render pass. */
+export interface TranscriptDocumentLike {
+	readonly mouseLayout?: {
+		readonly width: number;
+		readonly children: readonly MouseLayoutChild[];
+	};
+}
 
 /** The public ScrollView surface this extension relies on. */
 export interface TranscriptViewLike {
@@ -45,6 +61,9 @@ export interface TranscriptViewLike {
 	readonly followEnd: boolean;
 	readonly scrollTop: number;
 	readonly isFollowingEnd: boolean;
+	readonly child?: unknown;
+	readonly contentHeight?: number;
+	readonly viewportHeight?: number;
 	scrollToEnd(): void;
 }
 
@@ -52,26 +71,146 @@ export interface TranscriptViewLike {
 export interface TranscriptMetrics {
 	contentHeight: number;
 	viewportHeight: number;
+	/** Start row of the most recent message or turn, when known. */
+	lastMessageStartRow?: number;
+}
+
+type TranscriptComponentKind =
+	| "container"
+	| "skill"
+	| "user"
+	| "standalone"
+	| "assistant"
+	| "tool"
+	| "spacer"
+	| "other";
+
+function classifyTranscriptComponent(component: unknown): TranscriptComponentKind {
+	if (!component || typeof component !== "object") return "other";
+	const candidate = component as Record<string, unknown>;
+	const name = (component as { constructor?: { name?: string } }).constructor?.name ?? "";
+
+	if (name === "SkillInvocationMessageComponent" || candidate.role === "skill") return "skill";
+	if (
+		name === "UserMessageComponent" ||
+		candidate.role === "user" ||
+		("text" in candidate && "markdownTransformers" in candidate && !("lastMessage" in candidate))
+	) {
+		return "user";
+	}
+	if (
+		name === "BashExecutionComponent" ||
+		name === "CustomMessageComponent" ||
+		name === "CustomEntryComponent" ||
+		name === "CompactionSummaryMessageComponent" ||
+		name === "BranchSummaryMessageComponent" ||
+		candidate.role === "custom" ||
+		candidate.role === "bashExecution"
+	) {
+		return "standalone";
+	}
+	if (
+		name === "AssistantMessageComponent" ||
+		candidate.role === "assistant" ||
+		("lastMessage" in candidate && "contentContainer" in candidate)
+	) {
+		return "assistant";
+	}
+	if (name === "ToolExecutionComponent" || candidate.role === "tool" || ("toolName" in candidate && "toolCallId" in candidate)) {
+		return "tool";
+	}
+	if (name === "Spacer") return "spacer";
+	if (Array.isArray((component as TranscriptDocumentLike).mouseLayout?.children)) return "container";
+	return "other";
 }
 
 /**
- * Snap a transcript view to its end when it sits near the end.
+ * Find the start row of the most recent message or turn in a rendered
+ * transcript document container.
+ */
+export function findLastMessageStartRow(root: unknown): number | undefined {
+	if (!root || typeof root !== "object") return undefined;
+	let rowOffset = 0;
+	let lastTurnStartRow: number | undefined;
+	let inTurn = false;
+	let afterSkillBlock = false;
+
+	const visit = (node: unknown): void => {
+		if (!node || typeof node !== "object") return;
+		const children = (node as TranscriptDocumentLike).mouseLayout?.children;
+		if (!Array.isArray(children)) return;
+		for (const entry of children) {
+			const height = Number.isFinite(entry?.height) ? Math.max(0, Math.trunc(entry.height)) : 0;
+			const comp = entry?.component;
+			const kind = classifyTranscriptComponent(comp);
+			if (kind === "container") {
+				visit(comp);
+				continue;
+			}
+			if (height > 0) {
+				if (kind === "skill") {
+					lastTurnStartRow = rowOffset;
+					inTurn = true;
+					afterSkillBlock = true;
+				} else if (kind === "user") {
+					if (!afterSkillBlock) lastTurnStartRow = rowOffset;
+					inTurn = true;
+					afterSkillBlock = false;
+				} else if (kind === "standalone") {
+					lastTurnStartRow = rowOffset;
+					inTurn = false;
+					afterSkillBlock = false;
+				} else if (kind === "assistant") {
+					afterSkillBlock = false;
+					if (!inTurn) lastTurnStartRow = rowOffset;
+					const assistant = comp as { hasToolCalls?: boolean; isStreaming?: boolean };
+					inTurn = Boolean(assistant.hasToolCalls || assistant.isStreaming);
+				} else if (kind === "tool") {
+					afterSkillBlock = false;
+					if (!inTurn) lastTurnStartRow = rowOffset;
+					inTurn = true;
+				} else if (kind !== "spacer") {
+					afterSkillBlock = false;
+				}
+			}
+			rowOffset += height;
+		}
+	};
+
+	visit(root);
+	return lastTurnStartRow;
+}
+
+/**
+ * Snap a transcript view to its end when it sits near the most recent message
+ * or near the end of the transcript.
  *
  * @param view The transcript scroll view.
- * @param metrics Content and viewport heights from its last layout.
- * @param withinLines Lines hidden below the viewport that count as near.
+ * @param metrics Content and viewport heights (and optional last message start) from its last layout.
+ * @param withinLines Lines hidden below the viewport that count as near (defaults to `max(NEAR_END_LINES, viewportHeight)`).
  * @returns Whether the view now sits at and follows the end.
  */
 export function snapToEndIfNearEnd(
 	view: TranscriptViewLike,
 	metrics: TranscriptMetrics,
-	withinLines: number = NEAR_END_LINES,
+	withinLines?: number,
 ): boolean {
 	if (!view.followEnd) return false;
 	if (view.isFollowingEnd) return true;
-	const threshold = Number.isFinite(withinLines) ? Math.max(0, Math.trunc(withinLines)) : 0;
-	const maxScrollTop = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
-	if (maxScrollTop - view.scrollTop > threshold) return false;
+	const threshold =
+		withinLines === undefined
+			? Math.max(NEAR_END_LINES, Math.max(0, Math.trunc(metrics.viewportHeight)))
+			: Number.isFinite(withinLines)
+				? Math.max(0, Math.trunc(withinLines))
+				: 0;
+	if (metrics.lastMessageStartRow !== undefined && Number.isFinite(metrics.lastMessageStartRow)) {
+		const targetRow = Math.max(0, Math.min(metrics.contentHeight, Math.trunc(metrics.lastMessageStartRow)));
+		const viewportBottom = view.scrollTop + metrics.viewportHeight;
+		if (targetRow - viewportBottom > threshold) return false;
+	} else {
+		const maxScrollTop = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
+		if (maxScrollTop - view.scrollTop > threshold) return false;
+	}
 	view.scrollToEnd();
 	return true;
 }
@@ -91,10 +230,36 @@ interface ScrollViewPrototype {
 	updateLayout?: UpdateLayoutFn;
 }
 
+interface EditorLike {
+	tui?: {
+		hasOverlay?: () => boolean;
+		getPrimaryScrollView?: () => TranscriptViewLike | undefined;
+	};
+	getText?(): string;
+	handleInput?(data: string): void;
+}
+
+type HandleInputFn = (this: EditorLike, data: string) => void;
+
+interface EditorPrototype {
+	handleInput?: HandleInputFn;
+}
+
 let installed = false;
 let originalUpdateLayout: UpdateLayoutFn | undefined;
+let originalHandleInput: HandleInputFn | undefined;
 let transcriptView: WeakRef<TranscriptViewLike> | undefined;
 let transcriptMetrics: TranscriptMetrics | undefined;
+
+function recordTranscriptLayout(view: TranscriptViewLike, contentHeight: number, viewportHeight: number): void {
+	transcriptView = new WeakRef(view);
+	const lastMessageStartRow = findLastMessageStartRow(view.child);
+	transcriptMetrics = {
+		contentHeight,
+		viewportHeight,
+		...(lastMessageStartRow === undefined ? {} : { lastMessageStartRow }),
+	};
+}
 
 function patchedUpdateLayout(
 	this: TranscriptViewLike,
@@ -104,13 +269,32 @@ function patchedUpdateLayout(
 ): void {
 	originalUpdateLayout!.call(this, contentHeight, viewportHeight, requestRender);
 	if (this.primary && this.followEnd) {
-		transcriptView = new WeakRef(this);
-		transcriptMetrics = { contentHeight, viewportHeight };
+		recordTranscriptLayout(this, contentHeight, viewportHeight);
 	}
 }
 
-/** Snap the recorded transcript to its end when it sits near the end. */
-export function followTranscriptOnSend(withinLines: number = NEAR_END_LINES): boolean {
+function patchedHandleInput(this: EditorLike, data: string): void {
+	const beforeText = typeof this.getText === "function" ? this.getText() : undefined;
+	originalHandleInput!.call(this, data);
+	if (this.tui?.hasOverlay?.()) return;
+	const afterText = typeof this.getText === "function" ? this.getText() : undefined;
+	if (beforeText !== undefined && afterText !== beforeText) {
+		if (!transcriptView?.deref()) {
+			const primary = this.tui?.getPrimaryScrollView?.();
+			if (primary && primary.primary && primary.followEnd) {
+				recordTranscriptLayout(
+					primary,
+					primary.contentHeight ?? 0,
+					primary.viewportHeight ?? 0,
+				);
+			}
+		}
+		followTranscriptOnSend();
+	}
+}
+
+/** Snap the recorded transcript to its end when it sits near the most recent message. */
+export function followTranscriptOnSend(withinLines?: number): boolean {
 	const view = transcriptView?.deref();
 	if (!view || !transcriptMetrics) return false;
 	return snapToEndIfNearEnd(view, transcriptMetrics, withinLines);
@@ -118,20 +302,32 @@ export function followTranscriptOnSend(withinLines: number = NEAR_END_LINES): bo
 
 function installFollowOnSend(): boolean {
 	if (installed) return true;
-	const prototype = ScrollView.prototype as unknown as ScrollViewPrototype;
-	if (typeof prototype.updateLayout !== "function") return false;
-	originalUpdateLayout = prototype.updateLayout;
-	prototype.updateLayout = patchedUpdateLayout;
+	const scrollPrototype = ScrollView.prototype as unknown as ScrollViewPrototype;
+	if (typeof scrollPrototype.updateLayout !== "function") return false;
+	originalUpdateLayout = scrollPrototype.updateLayout;
+	scrollPrototype.updateLayout = patchedUpdateLayout;
+
+	const editorPrototype = Editor.prototype as unknown as EditorPrototype;
+	if (typeof editorPrototype.handleInput === "function") {
+		originalHandleInput = editorPrototype.handleInput;
+		editorPrototype.handleInput = patchedHandleInput;
+	}
+
 	installed = true;
 	return true;
 }
 
 function uninstallFollowOnSend(): void {
 	if (installed && originalUpdateLayout) {
-		const prototype = ScrollView.prototype as unknown as ScrollViewPrototype;
-		prototype.updateLayout = originalUpdateLayout;
+		const scrollPrototype = ScrollView.prototype as unknown as ScrollViewPrototype;
+		scrollPrototype.updateLayout = originalUpdateLayout;
+	}
+	if (installed && originalHandleInput) {
+		const editorPrototype = Editor.prototype as unknown as EditorPrototype;
+		editorPrototype.handleInput = originalHandleInput;
 	}
 	originalUpdateLayout = undefined;
+	originalHandleInput = undefined;
 	installed = false;
 	transcriptView = undefined;
 	transcriptMetrics = undefined;
@@ -169,7 +365,7 @@ export default function followOnSendExtension(pi: ExtensionAPI): void {
 		handler: async (_args, ctx) => {
 			ctx.ui.notify(
 				installed
-					? `follow-on-send: active (sending snaps to the end within ${NEAR_END_LINES} lines of it)`
+					? `follow-on-send: active (typing or sending snaps to the end when near the latest message)`
 					: "follow-on-send: inactive (patch not installed)",
 				installed ? "info" : "warning",
 			);

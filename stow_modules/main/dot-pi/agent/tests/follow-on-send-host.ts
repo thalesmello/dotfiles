@@ -10,6 +10,7 @@
  * extension's "@earendil-works/pi-tui" import here.
  */
 export class FakeScrollView {
+	readonly child: unknown;
 	readonly followEnd: boolean;
 	readonly primary: boolean;
 	currentScrollTop = 0;
@@ -18,7 +19,17 @@ export class FakeScrollView {
 	followingEnd: boolean;
 	private requestRenderCallback: (() => void) | undefined;
 
-	constructor(options: { follow?: "none" | "end"; primary?: boolean } = {}) {
+	constructor(
+		childOrOptions: unknown = {},
+		maybeOptions?: { follow?: "none" | "end"; primary?: boolean; child?: unknown },
+	) {
+		const hasExplicitChild = maybeOptions !== undefined;
+		const options = (hasExplicitChild ? maybeOptions : childOrOptions) as {
+			follow?: "none" | "end";
+			primary?: boolean;
+			child?: unknown;
+		} ?? {};
+		this.child = hasExplicitChild ? childOrOptions : options.child;
 		this.followEnd = (options.follow ?? "none") === "end";
 		this.followingEnd = this.followEnd;
 		this.primary = options.primary ?? false;
@@ -62,5 +73,37 @@ export class FakeScrollView {
 	}
 }
 
+export class FakeEditor {
+	tui: { hasOverlay?: () => boolean; getPrimaryScrollView?: () => FakeScrollView | undefined } | undefined;
+	private text = "";
+
+	constructor(tui?: { hasOverlay?: () => boolean; getPrimaryScrollView?: () => FakeScrollView | undefined }) {
+		this.tui = tui;
+	}
+
+	getText(): string {
+		return this.text;
+	}
+
+	setText(text: string): void {
+		this.text = text;
+	}
+
+	handleInput(data: string): void {
+		if (data === "\r" || data === "\n") {
+			this.text = "";
+			return;
+		}
+		if (data === "\x7f") {
+			this.text = this.text.slice(0, -1);
+			return;
+		}
+		if (!data.startsWith("\x1b")) {
+			this.text += data;
+		}
+	}
+}
+
 // The pi-tui surface the extension imports.
 export const ScrollView = FakeScrollView;
+export const Editor = FakeEditor;
