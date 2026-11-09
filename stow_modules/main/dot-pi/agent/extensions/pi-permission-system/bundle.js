@@ -27759,9 +27759,21 @@ var REVIEW_TIMEOUT_MS = 15000;
 var FAMILY_FAST_CANDIDATES = {
   meta: ["muse-spark-1.4-internal", "muse-spark-1.3-internal", "muse-latest"],
   anthropic: ["claude-haiku-5-5", "claude-haiku-4-5", "claude-sonnet-5-5", "claude-sonnet-5"],
-  google: ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"],
+  google: ["gemini-3-flash-preview", "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"],
   openai: ["gpt-6-luna", "gpt-5.6-luna", "gpt-5.4-mini"]
 };
+async function completeFast(registry, model, context, signal) {
+  if (typeof registry.streamSimple === "function") {
+    const stream = registry.streamSimple(model, context, {
+      signal,
+      reasoning: "low"
+    });
+    if (stream && typeof stream.result === "function") {
+      return stream.result();
+    }
+  }
+  return registry.complete(model, context, { signal });
+}
 var JUDGE_SYSTEM_PROMPT = `You are the automatic permission safety judge for a coding agent (Claude Code / Pi auto mode).
 Decide whether the pending tool call is SAFE to run automatically ("allow"), NEEDS human confirmation ("defer"), or is CATASTROPHIC/MALICIOUS ("deny").
 
@@ -27965,7 +27977,7 @@ function permissionAutoReview(pi2, authorizerRegistry) {
     const signals = [timeoutController.signal, ...ctx.signal ? [ctx.signal] : []];
     const signal = AbortSignal.any(signals);
     try {
-      const response = await ctx.modelRegistry.complete(model, {
+      const response = await completeFast(ctx.modelRegistry, model, {
         systemPrompt: JUDGE_SYSTEM_PROMPT,
         messages: [
           {
@@ -27975,7 +27987,32 @@ function permissionAutoReview(pi2, authorizerRegistry) {
             timestamp: Date.now()
           }
         ]
-      }, { signal });
+      }, signal);
+      if (response?.stopReason === "aborted" || timeoutController.signal.aborted) {
+        tally.defer += 1;
+        renderStatus();
+        log.debug("auto_review.timeout", {
+          requestId: details.requestId,
+          model: `${model.provider}/${model.id}`
+        });
+        return {
+          kind: "defer",
+          reason: `Auto-review judge (${model.provider}/${model.id}) timed out, so asking you instead.`
+        };
+      }
+      if (response?.stopReason === "error" || response?.errorMessage) {
+        tally.defer += 1;
+        renderStatus();
+        log.debug("auto_review.error", {
+          requestId: details.requestId,
+          model: `${model.provider}/${model.id}`,
+          error: response.errorMessage
+        });
+        return {
+          kind: "defer",
+          reason: `Auto-review judge (${model.provider}/${model.id}) failed (${response.errorMessage ?? "API error"}), so asking you instead.`
+        };
+      }
       const replyText = extractText(response?.content);
       const parsed = parseJudgeReply(replyText);
       if (!parsed) {
@@ -28050,7 +28087,7 @@ function permissionAutoReview(pi2, authorizerRegistry) {
     ];
     const signal = AbortSignal.any(signals);
     try {
-      const response = await ctx.modelRegistry.complete(model, {
+      const response = await completeFast(ctx.modelRegistry, model, {
         systemPrompt: RULE_PROPOSER_SYSTEM_PROMPT,
         messages: [
           {
@@ -28060,7 +28097,13 @@ function permissionAutoReview(pi2, authorizerRegistry) {
             timestamp: Date.now()
           }
         ]
-      }, { signal });
+      }, signal);
+      if (response?.stopReason === "aborted" || timeoutController.signal.aborted) {
+        throw new Error(`Rule proposer (${model.provider}/${model.id}) timed out.`);
+      }
+      if (response?.stopReason === "error" || response?.errorMessage) {
+        throw new Error(response.errorMessage || "Rule proposer model returned an error.");
+      }
       const replyText = extractText(response?.content);
       const parsed = parseProposedRulesReply(replyText);
       if (!parsed) {
