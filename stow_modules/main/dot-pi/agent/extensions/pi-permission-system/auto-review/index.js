@@ -15,9 +15,44 @@ const REVIEW_TIMEOUT_MS = 15_000;
 const FAMILY_FAST_CANDIDATES = {
 	meta: ["muse-spark-1.4-internal", "muse-spark-1.3-internal", "muse-latest"],
 	anthropic: ["claude-haiku-5-5", "claude-haiku-4-5", "claude-sonnet-5-5", "claude-sonnet-5"],
-	google: ["gemini-3-flash-preview", "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"],
-	openai: ["gpt-6-luna", "gpt-5.6-luna", "gpt-5.4-mini"],
+	google: ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3-flash-preview", "gemini-3.5-flash-lite", "gemini-2.5-flash"],
+	openai: ["gpt-6-luna", "gpt-5.6-luna", "gpt-5.4-mini", "gpt-5.5"],
 };
+
+const FAMILY_LIGHT_PATTERN = {
+	meta: /spark/i,
+	openai: /luna|mini/i,
+	anthropic: /haiku/i,
+	google: /flash/i,
+};
+
+function inferModelFamily(model) {
+	const prov = typeof model?.provider === "string" ? model.provider.toLowerCase().trim() : "";
+	if (prov in FAMILY_FAST_CANDIDATES) return prov;
+	const id = typeof model?.id === "string" ? model.id.toLowerCase().trim() : "";
+	if (id.startsWith("muse") || prov.includes("meta") || prov.includes("muse")) return "meta";
+	if (id.startsWith("gpt-") || id.includes("luna") || id.includes("sol") || prov.includes("openai")) return "openai";
+	if (
+		id.startsWith("claude") ||
+		id.includes("haiku") ||
+		id.includes("sonnet") ||
+		id.includes("opus") ||
+		id.includes("fable") ||
+		prov.includes("anthropic")
+	) {
+		return "anthropic";
+	}
+	if (id.startsWith("gemini") || prov.includes("google")) return "google";
+	return undefined;
+}
+
+function isModelUsable(registry, model) {
+	if (!model) return false;
+	if (typeof registry?.hasConfiguredAuth === "function") {
+		return registry.hasConfiguredAuth(model);
+	}
+	return true;
+}
 
 async function completeFast(registry, model, context, signal) {
 	if (typeof registry.streamSimple === "function") {
@@ -97,22 +132,35 @@ const VALID_RULE_SURFACES = new Set([
 	"ls",
 ]);
 
-function resolveJudgeModel(registry, fallbackModel) {
+export function resolveJudgeModel(registry, fallbackModel) {
 	if (!registry) return fallbackModel;
-	const preferredProvider = fallbackModel?.provider;
+	const preferredFamily = inferModelFamily(fallbackModel);
 	const providerOrder = [
-		...(preferredProvider && preferredProvider in FAMILY_FAST_CANDIDATES ? [preferredProvider] : []),
-		...Object.keys(FAMILY_FAST_CANDIDATES).filter((p) => p !== preferredProvider),
+		...(preferredFamily ? [preferredFamily] : []),
+		...Object.keys(FAMILY_FAST_CANDIDATES).filter((p) => p !== preferredFamily),
 	];
 	for (const prov of providerOrder) {
 		for (const id of FAMILY_FAST_CANDIDATES[prov] ?? []) {
-			const found = registry.find(prov, id);
-			if (
-				found !== undefined &&
-				(typeof registry.hasConfiguredAuth !== "function" || registry.hasConfiguredAuth(found))
-			) {
+			const found = registry.find?.(prov, id);
+			if (found !== undefined && isModelUsable(registry, found)) {
 				return found;
 			}
+		}
+		// Dynamic fallback within the same provider family if model IDs were updated
+		const lightPattern = FAMILY_LIGHT_PATTERN[prov];
+		if (lightPattern && typeof registry.getAll === "function") {
+			const match = (registry.getAll() ?? []).find(
+				(m) =>
+					m?.provider === prov &&
+					typeof m?.id === "string" &&
+					lightPattern.test(m.id) &&
+					isModelUsable(registry, m),
+			);
+			if (match) return match;
+		}
+		// Keep the active session's model if it belongs to this family before crossing families
+		if (prov === preferredFamily && isModelUsable(registry, fallbackModel)) {
+			return fallbackModel;
 		}
 	}
 	return fallbackModel;
@@ -442,6 +490,14 @@ export default function permissionAutoReview(pi, authorizerRegistry) {
 		activeCtx = ctx;
 		tally = { allow: 0, deny: 0, defer: 0 };
 		renderStatus();
+	});
+
+	pi.on("before_agent_start", (_event, ctx) => {
+		activeCtx = ctx;
+	});
+
+	pi.on("model_select", (_event, ctx) => {
+		activeCtx = ctx;
 	});
 
 	pi.on("session_shutdown", (_event, ctx) => {

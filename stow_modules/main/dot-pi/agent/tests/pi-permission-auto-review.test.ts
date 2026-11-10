@@ -2,7 +2,9 @@ import { describe, expect, mock, test } from "bun:test";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import permissionAutoReview from "../extensions/pi-permission-system/auto-review/index.js";
+import permissionAutoReview, {
+	resolveJudgeModel,
+} from "../extensions/pi-permission-system/auto-review/index.js";
 import { composeAuthorizerChain } from "../extensions/pi-permission-system/src/authority/authorizer-chain.ts";
 import {
 	initialPromptState,
@@ -197,6 +199,41 @@ describe("auto-review judge & natural-language rule proposer", () => {
 		});
 		expect(getCapturedUserPrompt()).toContain("git push origin main");
 		expect(getCapturedUserPrompt()).toContain("allow running bun test with any arguments");
+	});
+
+	test("resolveJudgeModel always prefers the light model of the active family", () => {
+		const catalog = [
+			{ provider: "meta", id: "muse-wonder-1.0-internal" },
+			{ provider: "meta", id: "muse-spark-1.4-internal" },
+			{ provider: "openai", id: "gpt-6.1-sol" },
+			{ provider: "openai", id: "gpt-6-luna" },
+			{ provider: "anthropic", id: "claude-opus-5-5" },
+			{ provider: "anthropic", id: "claude-haiku-5-5" },
+			{ provider: "google", id: "gemini-4-argon" },
+			{ provider: "google", id: "gemini-3.8-flash" },
+		];
+		const registry = {
+			find: (p: string, id: string) => catalog.find((m) => m.provider === p && m.id === id),
+			getAll: () => catalog,
+			hasConfiguredAuth: () => true,
+		};
+
+		expect(resolveJudgeModel(registry, { provider: "meta", id: "muse-wonder-1.0-internal" })).toEqual({
+			provider: "meta",
+			id: "muse-spark-1.4-internal",
+		});
+		expect(resolveJudgeModel(registry, { provider: "openai", id: "gpt-6.1-sol" })).toEqual({
+			provider: "openai",
+			id: "gpt-6-luna",
+		});
+		expect(resolveJudgeModel(registry, { provider: "anthropic", id: "claude-opus-5-5" })).toEqual({
+			provider: "anthropic",
+			id: "claude-haiku-5-5",
+		});
+		expect(resolveJudgeModel(registry, { provider: "google", id: "gemini-4-argon" })).toEqual({
+			provider: "google",
+			id: "gemini-3.8-flash",
+		});
 	});
 });
 
