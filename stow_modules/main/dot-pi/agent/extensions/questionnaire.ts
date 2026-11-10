@@ -156,6 +156,37 @@ export function optionMarker(multiple: boolean, activeQuestion: boolean, selecte
 	return activeQuestion ? "○" : " ";
 }
 
+const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+export function formatEditorCursorText(
+	editor: Pick<Editor, "getText"> & Partial<Pick<Editor, "getLines" | "getCursor">>,
+	inverse: (text: string) => string,
+): string {
+	const rawLines = editor.getLines?.() ?? editor.getText().split("\n");
+	const lines = rawLines.length > 0 ? rawLines : [""];
+	const fallbackLine = lines.length - 1;
+	const cursor = editor.getCursor?.() ?? {
+		line: fallbackLine,
+		col: (lines[fallbackLine] ?? "").length,
+	};
+	const cursorLine = Math.max(0, Math.min(lines.length - 1, cursor.line));
+	return lines
+		.map((lineText, lineIndex) => {
+			if (lineIndex !== cursorLine) return lineText;
+			const col = Math.max(0, Math.min(lineText.length, cursor.col));
+			const before = lineText.slice(0, col);
+			const after = lineText.slice(col);
+			if (after.length === 0) {
+				return `${before}${CURSOR_MARKER}${inverse(" ")}`;
+			}
+			const firstGrapheme =
+				graphemeSegmenter.segment(after)[Symbol.iterator]().next().value?.segment ?? after[0] ?? " ";
+			const restAfter = after.slice(firstGrapheme.length);
+			return `${before}${CURSOR_MARKER}${inverse(firstGrapheme)}${restAfter}`;
+		})
+		.join(" ");
+}
+
 export default function questionnaire(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "questionnaire",
@@ -691,6 +722,12 @@ export default function questionnaire(pi: ExtensionAPI) {
 								isOther && (custom.length > 0 || (!question.multiple && answer?.entries.some((entry) => entry.kind === "custom") === true));
 							const selectedOption = question.multiple ? selected.has(i) || selectedOther : selectedSingle || selectedOther;
 							const marker = optionMarker(question.multiple, activeQuestion, selectedOption);
+							const editingThisContext =
+								!isOther &&
+								inputMode &&
+								inputPurpose === "context" &&
+								inputQuestionId === question.id &&
+								inputOptionIndex === i;
 							const editingThisOther =
 								isOther &&
 								inputMode &&
@@ -698,21 +735,16 @@ export default function questionnaire(pi: ExtensionAPI) {
 								inputQuestionId === question.id &&
 								inputOptionIndex === i;
 							const suffix = editingThisOther ? " ✎" : "";
-							const cursorText = `${editor.getText()}${CURSOR_MARKER}${theme.inverse(" ")}`;
-							const context = !isOther && selectedOption ? contextValues(question, i).join(" ") : "";
-							const contextInput =
-								!isOther && inputMode && inputPurpose === "context" && inputQuestionId === question.id && inputOptionIndex === i
-									? cursorText
+							const cursorText = formatEditorCursorText(editor, (text) => theme.inverse(text));
+							const context = !isOther && selectedOption && !editingThisContext ? contextValues(question, i).join(" ") : "";
+							const contextInput = editingThisContext ? cursorText : "";
+							const customText =
+								isOther && !editingThisOther
+									? question.multiple
+										? custom.join(", ")
+										: (answer?.entries.filter((entry) => entry.kind === "custom").map((entry) => entry.label).join(", ") ?? "")
 									: "";
-							const customText = isOther
-								? question.multiple
-									? custom.join(", ")
-									: (answer?.entries.filter((entry) => entry.kind === "custom").map((entry) => entry.label).join(", ") ?? "")
-								: "";
-							const customInput =
-								isOther && inputMode && inputPurpose === "answer" && inputQuestionId === question.id && inputOptionIndex === i
-									? cursorText
-									: "";
+							const customInput = editingThisOther ? cursorText : "";
 							const extraDisplay = [context, contextInput, customText, customInput]
 								.filter((text) => text.length > 0)
 								.join(" ");

@@ -1,23 +1,56 @@
 import { describe, expect, mock, test } from "bun:test";
 
 mock.module("@earendil-works/pi-tui", () => ({
-	CURSOR_MARKER: "",
+	CURSOR_MARKER: "<CURSOR>",
 	Editor: class {
 		private text = "";
+		private cursorCol = 0;
 		onSubmit?: (value: string) => void;
 		setText(value: string) {
 			this.text = value;
+			this.cursorCol = value.length;
 		}
 		getText() {
 			return this.text;
 		}
+		getLines() {
+			return [this.text];
+		}
+		getCursor() {
+			return { line: 0, col: this.cursorCol };
+		}
 		handleInput(value: string) {
-			// Mirror the real Editor: Enter submits, other input is appended.
+			// Mirror the real Editor: Enter submits, navigation moves cursor, other input inserts at cursor.
 			if (value === "enter") {
 				this.onSubmit?.(this.text);
 				return;
 			}
-			this.text += value;
+			if (value === "left") {
+				this.cursorCol = Math.max(0, this.cursorCol - 1);
+				return;
+			}
+			if (value === "right") {
+				this.cursorCol = Math.min(this.text.length, this.cursorCol + 1);
+				return;
+			}
+			if (value === "word-left") {
+				while (this.cursorCol > 0 && this.text[this.cursorCol - 1] === " ") {
+					this.cursorCol--;
+				}
+				while (this.cursorCol > 0 && this.text[this.cursorCol - 1] !== " ") {
+					this.cursorCol--;
+				}
+				return;
+			}
+			if (value === "backspace") {
+				if (this.cursorCol > 0) {
+					this.text = this.text.slice(0, this.cursorCol - 1) + this.text.slice(this.cursorCol);
+					this.cursorCol--;
+				}
+				return;
+			}
+			this.text = this.text.slice(0, this.cursorCol) + value + this.text.slice(this.cursorCol);
+			this.cursorCol += value.length;
 		}
 		render() {
 			return [this.text];
@@ -60,6 +93,7 @@ mock.module("typebox", () => ({
 
 const {
 	formatAnswerEntriesForText,
+	formatEditorCursorText,
 	formatEntryLabels,
 	joinInlineText,
 	optionMarker,
@@ -131,6 +165,30 @@ describe("questionnaire helpers", () => {
 		expect(parseContextEntry(" with tests ")).toEqual(["with tests"]);
 		expect(parseContextEntry("   ")).toEqual([]);
 	});
+
+	test("formats editor text with cursor at the active character or end of line", () => {
+		const inv = (text: string) => `[inv]${text}[/inv]`;
+		expect(
+			formatEditorCursorText(
+				{
+					getText: () => "with old tests",
+					getLines: () => ["with old tests"],
+					getCursor: () => ({ line: 0, col: 5 }),
+				},
+				inv,
+			),
+		).toBe("with <CURSOR>[inv]o[/inv]ld tests");
+		expect(
+			formatEditorCursorText(
+				{
+					getText: () => "with old tests",
+					getLines: () => ["with old tests"],
+					getCursor: () => ({ line: 0, col: 14 }),
+				},
+				inv,
+			),
+		).toBe("with old tests<CURSOR>[inv] [/inv]");
+	});
 });
 
 describe("questionnaire multiple-choice inline context", () => {
@@ -150,7 +208,7 @@ describe("questionnaire multiple-choice inline context", () => {
 			fg: (style: string, text: string) => `[${style}]${text}[/${style}]`,
 			bg: (_style: string, text: string) => text,
 			bold: (text: string) => text,
-			inverse: (text: string) => text,
+			inverse: (text: string) => `[inv]${text}[/inv]`,
 		};
 		const tui: any = { requestRender() {}, terminal: { rows: 50 } };
 		const ctx: any = {
@@ -333,5 +391,46 @@ describe("questionnaire multiple-choice inline context", () => {
 		const result = await harness.resultPromise;
 		expect(result.details.cancelled).toBe(false);
 		expect(result.details.answers[0].entries.map((entry: any) => entry.label)).toEqual(["custom one"]);
+	});
+
+	test("navigating back to a previous word shows the cursor at that word and previews live edits in place", async () => {
+		const harness = createHarness([{ id: "q1", prompt: "Pick", options, multiple: false }]);
+
+		harness.input("tab");
+		harness.input("with old tests");
+
+		// At the end of input, cursor sits on the trailing space.
+		let optionLine = harness.render().find((line) => line.includes("1. A"));
+		expect(optionLine).toContain("1. A with old tests<CURSOR>[inv] [/inv]");
+
+		// Navigate back two words to "old": cursor highlights "o" in "old".
+		harness.input("word-left");
+		optionLine = harness.render().find((line) => line.includes("1. A"));
+		expect(optionLine).toContain("1. A with old <CURSOR>[inv]t[/inv]ests");
+
+		harness.input("word-left");
+		optionLine = harness.render().find((line) => line.includes("1. A"));
+		expect(optionLine).toContain("1. A with <CURSOR>[inv]o[/inv]ld tests");
+
+		// Insert "very " before "old" and watch the live preview update in place.
+		harness.input("very ");
+		optionLine = harness.render().find((line) => line.includes("1. A"));
+		expect(optionLine).toContain("1. A with very <CURSOR>[inv]o[/inv]ld tests");
+
+		// Accept with Tab, then reopen with Tab: preview must not duplicate saved context.
+		harness.input("tab");
+		optionLine = harness.render().find((line) => line.includes("1. A"));
+		expect(optionLine).toContain("1. A with very old tests");
+
+		harness.input("tab");
+		optionLine = harness.render().find((line) => line.includes("1. A"));
+		expect(optionLine).toContain("1. A with very old tests<CURSOR>[inv] [/inv]");
+		expect(optionLine).not.toContain("with very old tests with very old tests");
+
+		harness.input("enter");
+		harness.input("enter");
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(false);
+		expect(result.details.answers[0].entries.map((entry: any) => entry.label)).toEqual(["A with very old tests"]);
 	});
 });
