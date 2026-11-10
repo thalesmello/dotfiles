@@ -283,6 +283,15 @@ type = "shell"
 command = "~/.config/herdr/scripts/open-popup.sh prompt-popups ask-agent 70% 15"
 description = "ask an agent in qq/src/prototype/project workspace"
 
+# prefix+shift+a: same as prefix+a, but prefill the prompt from the focused
+# pane's cwd under ~/src (`config `, `qq `, `project:tries/<try> `, or
+# `project:<name> `), falling back to a plain ask-agent prompt outside ~/src.
+[[keys.command]]
+key = "prefix+shift+a"
+type = "shell"
+command = "~/.config/herdr/scripts/open-popup.sh prompt-popups ask-agent 70% 15 ASK_AGENT_CONTEXT=1"
+description = "ask an agent in the current ~/src workspace/project"
+
 # ctrl+alt+shift+semicolon (ctrl+meta+shift+:): prompt for a shell command in a
 # popup, then eval it there. type = "popup" so the prompt runs in a herdr-rendered
 # PTY where interactive line editing works, and so command output can stay on

@@ -51,6 +51,8 @@ They do not mock the edit operations; they only replace the TTY byte source.
 (0, 'two', ['one'])
 >>> _edit_with_submit_for_doctest(b"one\x1b[13;5utwo\x1b[13;5u\r")
 (0, '', ['one', 'two'])
+>>> _edit_with_submit_for_doctest(b"one\x1b[13;5u\x1b[13;5utwo\r", initial="project:samsclub ")
+(0, 'project:samsclub two', ['project:samsclub one'])
 >>> _edit_submit_files_for_doctest(b"one\ntwo\x1b[13;5uthree\r")
 (0, 'three', ['one\ntwo'])
 >>> _edit_for_doctest(b"\x1b[Hstart \x1b[F end\r", initial="middle")
@@ -453,6 +455,7 @@ class Prompt:
         self.label = label
         self.label_width = display_width(label)
         self.label_spaces = " " * self.label_width
+        self.prefill = prefill
         self.buf = prefill
         self.pos = len(prefill)
         self.kill = ""
@@ -632,7 +635,7 @@ class Prompt:
         if not self.submit_enabled:
             return False
         text = self.buf
-        if not text.strip():
+        if not text.strip() or (self.prefill and text.strip() == self.prefill.strip()):
             return True
         self.submitted.append(text)
         if self.submit_dir is not None:
@@ -644,8 +647,8 @@ class Prompt:
             tmp.write_text(text, encoding="utf-8")
             os.replace(tmp, directory / name)
         self.history.save(text)
-        self.buf = ""
-        self.pos = 0
+        self.buf = self.prefill
+        self.pos = len(self.prefill)
         self.undo = []
         self.menu_dismissed = None
         self.menu_query = None
@@ -1395,8 +1398,8 @@ def _edit_for_doctest(
     return (1 if prompt.cancelled else 0, prompt.buf)
 
 
-def _edit_with_submit_for_doctest(data: bytes) -> tuple[int, str, list[str]]:
-    prompt = _run_for_doctest(data, submit_enabled=True)
+def _edit_with_submit_for_doctest(data: bytes, initial: str = "") -> tuple[int, str, list[str]]:
+    prompt = _run_for_doctest(data, initial=initial, submit_enabled=True)
     return (1 if prompt.cancelled else 0, prompt.buf, prompt.submitted)
 
 

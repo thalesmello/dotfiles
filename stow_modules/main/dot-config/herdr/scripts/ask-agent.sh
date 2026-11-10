@@ -151,6 +151,55 @@ _watch_background_queue() {
 # Only the foreground (Enter) creation takes focus. A background dispatch
 # must leave focus alone -- on the popup while it is open, and on whatever
 # is focused when it finishes if the popup has already closed.
+active_pane_cwd() {
+  local _pane=${HERDR_ACTIVE_PANE_ID:-}
+  [ -n "$_pane" ] || return 0
+  "$herdr" pane get "$_pane" 2>/dev/null | python3 -c '
+import json, sys
+try:
+    pane = json.load(sys.stdin)["result"]["pane"]
+    print(pane.get("foreground_cwd") or pane.get("cwd") or "")
+except Exception:
+    print("")
+'
+}
+
+context_prefill_for_cwd() {
+  python3 - "${1:-}" "$HOME/src" <<'PY'
+import os
+import sys
+
+raw_cwd, raw_src = sys.argv[1], sys.argv[2]
+if not raw_cwd:
+    raise SystemExit(0)
+
+for norm in (os.path.abspath, os.path.realpath):
+    cwd = norm(os.path.expanduser(raw_cwd))
+    src = norm(os.path.expanduser(raw_src))
+    if cwd == src:
+        print("config ")
+        raise SystemExit(0)
+    prefix = src.rstrip(os.sep) + os.sep
+    if cwd.startswith(prefix):
+        parts = [p for p in cwd[len(prefix) :].split(os.sep) if p]
+        if not parts or parts[0].startswith("."):
+            raise SystemExit(0)
+        first = parts[0]
+        if first == "qq":
+            print("qq ")
+        elif first == "tries":
+            if len(parts) >= 2 and not parts[1].startswith("."):
+                print(f"project:tries/{parts[1]} ")
+        else:
+            print(f"project:{first} ")
+        raise SystemExit(0)
+PY
+}
+
+trim_whitespace() {
+  printf '%s' "$1" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//'
+}
+
 create_focus=--focus
 if [ "${1:-}" = --dispatch ]; then
   create_focus=--no-focus
@@ -163,8 +212,13 @@ if [ "${1:-}" = --dispatch ]; then
   rm -f "$dispatch_file"
   [ -n "${question// /}" ] || exit 0
 else
+  prefill=''
+  if [ "${ASK_AGENT_CONTEXT:-0}" = 1 ]; then
+    prefill=$(context_prefill_for_cwd "${ASK_AGENT_CWD:-$(active_pane_cwd)}")
+    [ -n "$prefill" ] && prefill="${prefill% } "
+  fi
   # Highlight the words that steer routing below, and complete project:NAME from
-  # the directories under ~/src.
+  # the directories under ~/src (plus project:tries/NAME from ~/src/tries).
   background_queue_dir=$(mktemp -d "${TMPDIR:-/tmp}/ask-agent-queue.XXXXXX") \
     || herdr_die 'ask' 'could not create the Ctrl+Enter queue directory'
   _watch_background_queue "$background_queue_dir" &
@@ -173,8 +227,9 @@ else
   prompt_line \
     --submit-dir "$background_queue_dir" \
     --highlight pi,codex,claude,prototype,qq,config \
+    --complete "project:tries/=$HOME/src/tries" \
     --complete "project:=$HOME/src" \
-    'Ask: ' '' ask || prompt_status=$?
+    'Ask: ' "$prefill" ask || prompt_status=$?
   # Stop the watcher once the prompt returns: it launches anything queued
   # just before Enter/Esc and then exits, so no Ctrl+Enter question is lost
   # with the popup. Already-launched creations are detached and unaffected.
@@ -185,25 +240,30 @@ else
   [ "$prompt_status" -eq 0 ] || exit 0
   question=$PROMPT_LINE
   [ -n "${question// /}" ] || exit 0
+  if [ -n "$prefill" ] && [ "$(trim_whitespace "$question")" = "$(trim_whitespace "$prefill")" ]; then
+    exit 0
+  fi
 fi
 
 # --- 1b. the project ------------------------------------------------------
 
-# A `project:NAME` word pins the session to ~/src/NAME and the NAME workspace.
+# A `project:NAME` (or `project:tries/NAME`) word pins the session to
+# ~/src/NAME (or ~/src/tries/NAME) and its workspace.
 # The word is removed from the question before agent detection and routing, so
 # `project:pi` does not pick the pi agent and NAME does not leak into the slug.
 # Trailing dots/hyphens are dropped so "see project:foo." means foo.
 project=''
-project_re='(^|[[:space:]])project:([A-Za-z0-9._-]+)'
+project_re='(^|[[:space:]])project:(tries/[A-Za-z0-9._-]+|[A-Za-z0-9._-]+)'
 if [[ "$question" =~ $project_re ]]; then
   project=$(printf '%s' "${BASH_REMATCH[2]}" | sed -E 's/[.-]+$//')
   case "$project" in
-    ''|.*) herdr_die 'ask' "invalid project name: ${BASH_REMATCH[2]}" ;;
+    ''|.*|tries/|tries/.*) herdr_die 'ask' "invalid project name: ${BASH_REMATCH[2]}" ;;
   esac
   stripped_question=$(printf '%s\n' "$question" \
-    | sed -E 's/(^|[[:space:]])project:[A-Za-z0-9._-]+/\1/' \
+    | sed -E 's/(^|[[:space:]])project:(tries\/[A-Za-z0-9._-]+|[A-Za-z0-9._-]+)/\1/' \
     | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
-  [ -n "${stripped_question// /}" ] && question=$stripped_question
+  [ -n "${stripped_question// /}" ] || exit 0
+  question=$stripped_question
 fi
 
 # --- 2. the agent ----------------------------------------------------------
@@ -455,9 +515,19 @@ case "$category" in
     reuse_workspace=1
     ;;
   project)
-    workspace_label=$project
     dir="$HOME/src/$project"
     mkdir -p "$dir" || herdr_die 'ask' "could not create $dir"
+    try_base=''
+    case "$project" in
+      tries/*)
+        try_base=${project#tries/}
+        workspace_label=$(printf '%s' "$try_base" | sed -E 's/^[0-9]{4}-[0-9]{2}-[0-9]{2}-//')
+        [ -n "$workspace_label" ] || workspace_label=$try_base
+        ;;
+      *)
+        workspace_label=$project
+        ;;
+    esac
     reuse_workspace=1
     ;;
   *)
@@ -564,6 +634,9 @@ wait_for_shell_pane() {
 workspace=''
 if [ "$reuse_workspace" = 1 ]; then
   workspace=$(workspace_with_label "$workspace_label")
+  if [ -z "$workspace" ] && [ -n "${try_base:-}" ] && [ "$try_base" != "$workspace_label" ]; then
+    workspace=$(workspace_with_label "$try_base")
+  fi
 fi
 
 if [ -n "$workspace" ]; then
