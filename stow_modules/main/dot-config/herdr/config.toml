@@ -845,7 +845,11 @@ rows = [
 [ui.sidebar.spaces]
 rows = [
     [
-        "state_icon",
+        { token = "$um_blocked", fg = "#e78284", bold = true },
+        { token = "$um_working", fg = "#e5c890", bold = true },
+        { token = "$um_done", fg = "#81c8be", bold = true },
+        { token = "$um_idle", fg = "#a6d189", bold = false },
+        { token = "$um_unknown", fg = "#737994", bold = false, dim = true },
         { token = "workspace", rules = [{ equals = "~", hide = true }] },
         { token = "$um_home_active", fg = "#c6d0f5", bold = true },
         { token = "$um_home", fg = "#a5adce", bold = false },
