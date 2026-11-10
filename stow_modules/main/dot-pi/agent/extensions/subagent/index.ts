@@ -1169,6 +1169,7 @@ export default function (pi: ExtensionAPI) {
     widget.dispose();
     outbox.dispose();
     fleet.dispose();
+    unsubPermissionPrompt();
     unsubHandoffKey?.();
     unsubHandoffKey = undefined;
     handoffKeyUi = undefined;
@@ -1285,6 +1286,9 @@ export default function (pi: ExtensionAPI) {
   const fleet = new FleetList(manager, agentActivity, isShowCostEnabled, getViewerMarkdown,
     (mode) => chooseViewerMarkdown(mode, currentCtx as unknown as ExtensionCommandContext | undefined),
     getFullscreenScrollbar, backgroundActionFor);
+  const unsubPermissionPrompt = pi.events.on("permissions:ui_prompt", () => {
+    fleet.closeViewerIfOpen();
+  });
   let fleetViewEnabled = true;
   function isFleetViewEnabled(): boolean { return fleetViewEnabled; }
   function setFleetViewEnabled(b: boolean): void { fleetViewEnabled = b; fleet.setEnabled(b); }

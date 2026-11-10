@@ -77,6 +77,28 @@ export interface ConfigStoreDeps {
   wrapperCommandWords: ReadonlySet<string>;
 }
 
+interface SessionModeOverride {
+  yoloMode: boolean;
+  authorizerChain: string[] | undefined;
+}
+
+const SESSION_MODE_OVERRIDES_KEY = Symbol.for(
+  "@gotgenes/pi-permission-system:session-mode-overrides",
+);
+
+function getSessionModeOverrides(): Map<string, SessionModeOverride> {
+  const store = globalThis as Record<symbol, unknown>;
+  const existing = store[SESSION_MODE_OVERRIDES_KEY] as
+    | Map<string, SessionModeOverride>
+    | undefined;
+  if (existing) {
+    return existing;
+  }
+  const map = new Map<string, SessionModeOverride>();
+  store[SESSION_MODE_OVERRIDES_KEY] = map;
+  return map;
+}
+
 /**
  * Owns the mutable extension config and the operations that read/write it.
  *
@@ -92,17 +114,6 @@ export class ConfigStore
   implements SessionConfigStore, CommandConfigStore, ConfigIssueSource
 {
   private config: PermissionSystemExtensionConfig;
-  // Session-scoped permission-mode override set by Shift+Tab cycling
-  // (setInMemory). The global config is only the *startup default*:
-  // refresh() reloads it from disk on every turn, and without this the
-  // reload would clobber the session mode back to the global default
-  // (e.g. yoloMode:true -> bypassPermissions) on the next turn. Held as
-  // just the mode fields -- refresh still picks up every other on-disk
-  // change mid-session. Cleared by save(), which persists the mode.
-  private sessionModeOverride: {
-    yoloMode: boolean;
-    authorizerChain: string[] | undefined;
-  } | null = null;
   private configIssues: readonly string[] = [];
   // Held beside the runtime config rather than on it: `save()` rebuilds the
   // config through `normalizePermissionSystemConfig`, which would drop it.
@@ -112,9 +123,37 @@ export class ConfigStore
     this.config = { ...DEFAULT_EXTENSION_CONFIG };
   }
 
+  private get sessionModeOverride(): SessionModeOverride | null {
+    return getSessionModeOverrides().get(normalize(this.deps.agentDir)) ?? null;
+  }
+
+  private set sessionModeOverride(value: SessionModeOverride | null) {
+    const key = normalize(this.deps.agentDir);
+    const overrides = getSessionModeOverrides();
+    if (value === null) {
+      overrides.delete(key);
+    } else {
+      overrides.set(key, value);
+    }
+  }
+
+  private applySessionMode(
+    base: PermissionSystemExtensionConfig,
+  ): PermissionSystemExtensionConfig {
+    const override = this.sessionModeOverride;
+    if (!override) {
+      return base;
+    }
+    return {
+      ...base,
+      yoloMode: override.yoloMode,
+      authorizerChain: override.authorizerChain,
+    };
+  }
+
   /** Return the current extension config. */
   current(): PermissionSystemExtensionConfig {
-    return this.config;
+    return this.applySessionMode(this.config);
   }
 
   /**
@@ -168,13 +207,7 @@ export class ConfigStore
     // Re-apply the session mode (see sessionModeOverride): within a
     // session, the mode the user cycled to wins over the on-disk default
     // until they persist a new default with save().
-    const runtimeConfig = this.sessionModeOverride
-      ? {
-          ...loadedConfig,
-          yoloMode: this.sessionModeOverride.yoloMode,
-          authorizerChain: this.sessionModeOverride.authorizerChain,
-        }
-      : loadedConfig;
+    const runtimeConfig = this.applySessionMode(loadedConfig);
     this.config = runtimeConfig;
     this.declared = mergeResult.declaredCommandEffects;
 

@@ -185,6 +185,14 @@ export class FleetList {
     this.update();
   }
 
+  /** Close any open conversation viewer overlay so an inline prompt in the main thread is visible. */
+  closeViewerIfOpen(): void {
+    if (this.viewerClose) {
+      this.viewerClose();
+      this.viewerClose = undefined;
+    }
+  }
+
   dispose(): void {
     if (this.timer) { clearInterval(this.timer); this.timer = undefined; }
     this.inputUnsub?.();

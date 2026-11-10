@@ -67,4 +67,52 @@ describe("ConfigStore session mode", () => {
 		store.refresh(undefined, false);
 		expect(getEffectivePermissionMode(store.current())).toBe("bypassPermissions");
 	});
+
+	test("subagent ConfigStore shares the main thread permission mode immediately", () => {
+		const agentDir = mkdtempSync(join(tmpdir(), "perm-shared-mode-"));
+		const configDir = join(agentDir, "extensions", "pi-permission-system");
+		mkdirSync(configDir, { recursive: true });
+		writeFileSync(join(configDir, "config.json"), JSON.stringify(BYPASS_GLOBAL));
+
+		const makeStoreForDir = () =>
+			new ConfigStore({
+				agentDir,
+				policyPaths: { getResolvedPolicyPaths: () => ({}) as never },
+				logger: { debug() {}, review() {} } as never,
+				coreCommandWords: new Set<string>(),
+				wrapperCommandWords: new Set<string>(),
+			});
+
+		const mainStore = makeStoreForDir();
+		const subagentStore = makeStoreForDir();
+		const ctx = { ui: { setStatus() {} } } as never;
+
+		mainStore.refresh(undefined, false);
+		subagentStore.refresh(undefined, false);
+		expect(getEffectivePermissionMode(mainStore.current())).toBe("bypassPermissions");
+		expect(getEffectivePermissionMode(subagentStore.current())).toBe("bypassPermissions");
+
+		// Main thread cycles to "auto"
+		mainStore.setInMemory(
+			{ ...mainStore.current(), yoloMode: false, authorizerChain: ["auto-review"] },
+			ctx,
+		);
+		expect(getEffectivePermissionMode(subagentStore.current())).toBe("auto");
+		subagentStore.refresh(undefined, false);
+		expect(getEffectivePermissionMode(subagentStore.current())).toBe("auto");
+
+		// Main thread cycles to "ask"
+		mainStore.setInMemory(
+			{ ...mainStore.current(), yoloMode: false, authorizerChain: [] },
+			ctx,
+		);
+		expect(getEffectivePermissionMode(subagentStore.current())).toBe("ask");
+
+		// Main thread cycles to "bypassPermissions"
+		mainStore.setInMemory(
+			{ ...mainStore.current(), yoloMode: true, authorizerChain: ["auto-review"] },
+			ctx,
+		);
+		expect(getEffectivePermissionMode(subagentStore.current())).toBe("bypassPermissions");
+	});
 });

@@ -61,9 +61,13 @@ const EXCLUDED_TOOL_NAMES: string[] = Object.values(SUBAGENT_TOOL_NAMES);
  */
 export function extensionCanonicalName(extPath: string): string {
   const base = basename(extPath);
-  const name = base === "index.ts" || base === "index.js"
-    ? basename(dirname(extPath))
-    : base.replace(/\.(ts|js)$/, "");
+  const name =
+    base === "index.ts" ||
+    base === "index.js" ||
+    base === "bundle.ts" ||
+    base === "bundle.js"
+      ? basename(dirname(extPath))
+      : base.replace(/\.(ts|js)$/, "");
   return name.toLowerCase();
 }
 
@@ -507,6 +511,8 @@ export interface ToolActivity {
 export interface RunOptions {
   /** ExtensionAPI instance — used for pi.exec() instead of execSync. */
   pi: ExtensionAPI;
+  /** Root session ID (main thread) for permission forwarding and transcript grouping. */
+  rootSessionId?: string;
   /** Manager-assigned id; suffixes session name to disambiguate parallel spawns (e.g. `Explore#a1b2c3d4`). */
   agentId?: string;
   model?: Model<any>;
@@ -930,15 +936,20 @@ export async function runAgent(
   // must compare against this, not the surviving set (absence from survivors is
   // an exclude *succeeding*).
   let discoveredNames: Set<string> | undefined;
+  const PERMISSION_EXTENSION_NAME = "pi-permission-system";
+  const isMandatorySecurityExtension = (extPath: string): boolean =>
+    extPath === `<inline:${SCOPE_GATE_NAME}>` ||
+    extensionCanonicalNames(extPath).includes(PERMISSION_EXTENSION_NAME);
   const extensionsOverride: ((base: LoadExtensionsResult) => LoadExtensionsResult) | undefined =
-    noExtensions || (loadAll && !hasExcludes)
+    loadAll && !hasExcludes && !noExtensions
       ? undefined
       : (base) => {
           discoveredNames = new Set(base.extensions.flatMap((e) => extensionCanonicalNames(e.path)));
           return {
             ...base,
             extensions: base.extensions.filter((e) => {
-              if (e.path === `<inline:${SCOPE_GATE_NAME}>`) return true; // ours, not the agent's
+              if (isMandatorySecurityExtension(e.path)) return true; // security gate always stays loaded
+              if (noExtensions) return false;
               const canons = extensionCanonicalNames(e.path);
               if (canons.some((n) => excludeNames.has(n))) return false; // exclude wins
               return loadAll || canons.some((n) => keepNames.has(n));
@@ -981,14 +992,15 @@ export async function runAgent(
     ],
     // Mirrors pi's CLI: `--no-mcp` keeps MCP out of subagents too, and `--no-extensions`
     // keeps all the built-ins out. Discovered extensions still follow `extensions:`.
-    disabledBuiltinExtensions: process.argv.some((a) => a === "--no-extensions" || a === "-ne")
-      ? ["codemode", "tool-search", "mcp"]
-      : process.argv.includes("--no-mcp")
-        ? ["mcp"]
-        : undefined,
+    disabledBuiltinExtensions:
+      noExtensions || process.argv.some((a) => a === "--no-extensions" || a === "-ne")
+        ? ["codemode", "tool-search", "mcp"]
+        : process.argv.includes("--no-mcp")
+          ? ["mcp"]
+          : undefined,
     cwd: configCwd,
     agentDir,
-    noExtensions,
+    noExtensions: false,
     additionalExtensionPaths,
     extensionsOverride,
     noSkills,
@@ -1145,7 +1157,7 @@ export async function runAgent(
   const loadedNames = new Set(
     loader
       .getExtensions()
-      .extensions.filter((e) => e.path !== `<inline:${SCOPE_GATE_NAME}>`)
+      .extensions.filter((e) => !isMandatorySecurityExtension(e.path))
       .flatMap((e) => extensionCanonicalNames(e.path)),
   );
   const unrecognized = agentConfig?.builtinToolNames?.filter((n) => !BUILTIN_TOOL_NAMES.includes(n)) ?? [];
@@ -1297,18 +1309,57 @@ export async function runAgent(
     options.agentId ? `${baseSessionName}#${options.agentId.slice(0, 8)}` : baseSessionName,
   );
 
+  // Register the child session with pi-permission-system before bindExtensions()
+  // so the child's session_start selects ParentAuthorizer (forwarding asks to the
+  // main thread) instead of DenyingAuthorizer. Keep the registration alive until
+  // session.dispose() runs so resumed turns also forward asks to the main thread.
+  const childSessionId = session.sessionManager?.getSessionId?.();
+  const parentSessionId = options.rootSessionId ?? ctx.sessionManager?.getSessionId?.();
+  if (childSessionId) {
+    let disposedEmitted = false;
+    const origDispose = session.dispose.bind(session);
+    session.dispose = () => {
+      try {
+        return origDispose();
+      } finally {
+        if (!disposedEmitted) {
+          disposedEmitted = true;
+          options.pi.events.emit("subagents:child:disposed", {
+            sessionId: childSessionId,
+          });
+        }
+      }
+    };
+    options.pi.events.emit("subagents:child:session-created", {
+      sessionId: childSessionId,
+      parentSessionId,
+    });
+  }
+
   // Bind extensions so that session_start fires and extensions can initialize
   // (e.g. loading credentials, setting up state). Tool gating already happened
   // at session construction via the `tools:` allowlist above — no separate
   // post-bind filter is needed. All ExtensionBindings fields are optional.
-  await session.bindExtensions({
-    onError: (err) => {
-      options.onToolActivity?.({
-        type: "end",
-        toolName: `extension-error:${err.extensionPath}`,
-      });
-    },
-  });
+  try {
+    await session.bindExtensions({
+      onError: (err) => {
+        options.onToolActivity?.({
+          type: "end",
+          toolName: `extension-error:${err.extensionPath}`,
+        });
+      },
+    });
+  } catch (err) {
+    try { session.dispose(); } catch { /* ignore */ }
+    throw err;
+  }
+
+  if (childSessionId) {
+    options.pi.events.emit("subagents:child:bound", {
+      sessionId: childSessionId,
+      parentSessionId,
+    });
+  }
 
   // With `allowedToolNames` unset, the registry is scoped by `excludeTools` but
   // the ACTIVE set still needs managing: pi activates only its four default

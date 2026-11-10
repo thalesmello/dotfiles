@@ -9,7 +9,13 @@ import permissionAutoReview, {
 	resolveJudgeModels,
 } from "../extensions/pi-permission-system/auto-review/index.js";
 import { composeAuthorizerChain } from "../extensions/pi-permission-system/src/authority/authorizer-chain.ts";
+import { selectAuthorizer } from "../extensions/pi-permission-system/src/authority/authorizer.ts";
 import { LocalUserAuthorizer } from "../extensions/pi-permission-system/src/authority/local-user-authorizer.ts";
+import { resolvePermissionForwardingTarget } from "../extensions/pi-permission-system/src/authority/permission-forwarding.ts";
+import { SubagentDetection } from "../extensions/pi-permission-system/src/authority/subagent-detection.ts";
+import { subscribeSubagentLifecycle } from "../extensions/pi-permission-system/src/authority/subagent-lifecycle-events.ts";
+import { getSubagentSessionRegistry } from "../extensions/pi-permission-system/src/authority/subagent-registry.ts";
+import { posixPathFlavor } from "../extensions/pi-permission-system/src/path/path-flavor.ts";
 import {
 	initialPromptState,
 	type PromptModelConfig,
@@ -180,6 +186,27 @@ describe("auto-review judge & natural-language rule proposer", () => {
 			kind: "defer",
 			reason: "Pushes to remote main, which you did not ask for.",
 		});
+	});
+
+	test("deny verdict from AI judge defers to main thread prompt with reason and includes subagent name", async () => {
+		const { authorize, getCapturedUserPrompt } = makeAutoReview(
+			'{"verdict":"deny","reason":"Destructive deletion outside /tmp requires confirmation."}',
+		);
+		const verdict = await authorize(
+			{
+				requestId: "r-sub",
+				agentName: "worker",
+				payload: { request: { surface: "bash" } },
+				command: "rm -rf build",
+			},
+			{},
+			log,
+		);
+		expect(verdict).toEqual({
+			kind: "defer",
+			reason: "Destructive deletion outside /tmp requires confirmation.",
+		});
+		expect(getCapturedUserPrompt()).toContain("Requesting subagent: worker");
 	});
 
 	test("allow still allows without a dialog reason", async () => {
@@ -678,6 +705,101 @@ describe("LocalUserAuthorizer Herdr blocked status", () => {
 				data: { active: false },
 			},
 		]);
+	});
+
+	test("subagent lifecycle events register child session so selectAuthorizer forwards asks to main thread", () => {
+		const handlers = new Map<string, Array<(data: unknown) => void>>();
+		const events = {
+			on(channel: string, fn: (data: unknown) => void) {
+				const list = handlers.get(channel) ?? [];
+				list.push(fn);
+				handlers.set(channel, list);
+				return () => {};
+			},
+			emit(channel: string, data: unknown) {
+				for (const fn of handlers.get(channel) ?? []) fn(data);
+			},
+		};
+
+		const registry = getSubagentSessionRegistry();
+		const audited: unknown[] = [];
+		const unsub = subscribeSubagentLifecycle(events, registry, {
+			auditBoundChild: (child) => audited.push(child),
+		});
+
+		const detection = new SubagentDetection({
+			subagentSessionsDir: "/tmp/subagent-sessions",
+			flavor: posixPathFlavor,
+			registry,
+		});
+
+		const childCtx = {
+			hasUI: false,
+			cwd: "/home/thalesmello/src",
+			sessionManager: {
+				getSessionId: () => "child-session-123",
+				getSessionDir: () => "/home/thalesmello/.pi/agent/sessions/src",
+				getEntries: () => [],
+			},
+		} as never;
+
+		// Before emitting session-created, child is not detected as a subagent
+		expect(detection.isSubagent(childCtx)).toBe(false);
+
+		// Emit session-created as runAgent now does before bindExtensions()
+		events.emit("subagents:child:session-created", {
+			sessionId: "child-session-123",
+			parentSessionId: "main-session-root",
+		});
+
+		expect(detection.isSubagent(childCtx)).toBe(true);
+		const target = resolvePermissionForwardingTarget({
+			isSubagent: true,
+			currentSessionId: "child-session-123",
+			sessionId: "child-session-123",
+			registry,
+		});
+		expect(target).toEqual({
+			sessionId: "main-session-root",
+			source: "registry",
+		});
+
+		const selected = selectAuthorizer(childCtx, {
+			detection,
+			events: events as never,
+			dialogs: { run: <T>(task: () => Promise<T>) => task() },
+			getPromptPreferences: () => ({
+				doublePressToConfirm: true,
+				budget: { maxRows: 24, fieldMaxWidth: 400 },
+				dialogKeys: DEFAULT_DIALOG_KEYS,
+				promptNotifications: [],
+			}),
+			requestPermissionDecision: (() => Promise.resolve()) as never,
+			forwardingDir: "/tmp/perm-forward",
+			registry,
+			serving: {
+				isServing: () => true,
+				describe: () => ({ channel: "registry", state: null, servingIds: ["main-session-root"] }),
+			},
+			getForwardingTimeoutMs: () => 600_000,
+			logger: log,
+		});
+		expect(selected.adjudicatesLocally).toBe(false);
+
+		events.emit("subagents:child:bound", {
+			sessionId: "child-session-123",
+			parentSessionId: "main-session-root",
+		});
+		expect(audited).toEqual([
+			{ sessionId: "child-session-123", parentSessionId: "main-session-root" },
+		]);
+
+		// Disposing unregisters the child session
+		events.emit("subagents:child:disposed", {
+			sessionId: "child-session-123",
+		});
+		expect(detection.isSubagent(childCtx)).toBe(false);
+		unsub();
 	});
 });
 

@@ -12,7 +12,7 @@ var __export = (target, all) => {
 var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
 var __require = /* @__PURE__ */ createRequire(import.meta.url);
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/abortable.ts
+// abortable.ts
 function abortable(promise, signal) {
   if (!signal)
     return promise;
@@ -45,13 +45,13 @@ function abortable(promise, signal) {
   });
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/default-agents.ts
+// default-agents.ts
 var DEFAULT_AGENTS;
 var init_default_agents = __esm(() => {
   DEFAULT_AGENTS = new Map;
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/agent-types.ts
+// agent-types.ts
 function isDefaultsDisabled() {
   return disableDefaults;
 }
@@ -232,7 +232,7 @@ var init_agent_types = __esm(() => {
   READONLY_MEMORY_TOOL_NAMES = ["read"];
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/agent-color.ts
+// agent-color.ts
 function resolveAgentColor(value) {
   if (!value)
     return;
@@ -328,7 +328,7 @@ var init_agent_color = __esm(() => {
   WHITE = { r: 255, g: 255, b: 255 };
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/package-resources.ts
+// package-resources.ts
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { DefaultPackageManager, getAgentDir, ProjectTrustStore, SettingsManager } from "@earendil-works/pi-coding-agent";
@@ -583,7 +583,7 @@ var init_package_resources = __esm(() => {
   cache = new Map;
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/custom-agents.ts
+// custom-agents.ts
 import { existsSync as existsSync2, readdirSync, readFileSync as readFileSync2, statSync as statSync2 } from "node:fs";
 import { basename as basename2, join as join2 } from "node:path";
 import { getAgentDir as getAgentDir2, parseFrontmatter } from "@earendil-works/pi-coding-agent";
@@ -792,7 +792,7 @@ var init_custom_agents = __esm(() => {
   CLAUDE_CODE_TOOL_ALIASES = { glob: "find", multiedit: "edit" };
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/agent-record-entry.ts
+// agent-record-entry.ts
 import { existsSync as existsSync4 } from "node:fs";
 function worktreeLost(record) {
   return record.worktree !== undefined && record.worktreeResult?.hasChanges !== false;
@@ -856,7 +856,7 @@ var init_agent_record_entry = __esm(() => {
   init_agent_types();
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/child-context.ts
+// child-context.ts
 import { AsyncLocalStorage } from "node:async_hooks";
 function inChildSessionContext() {
   return childSessionContext.getStore() === true;
@@ -869,7 +869,7 @@ var init_child_context = __esm(() => {
   childSessionContext = new AsyncLocalStorage;
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/context.ts
+// context.ts
 function extractText(content) {
   return content.filter((c) => c.type === "text").map((c) => c.text ?? "").join(`
 `);
@@ -912,7 +912,7 @@ ${parts.join(`
 `;
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/model-resolver.ts
+// model-resolver.ts
 function parseTierSelector(spec) {
   const normalized = spec.trim().toLowerCase();
   if (normalized in CLAUDE_ALIAS_TO_TIER) {
@@ -1061,7 +1061,7 @@ var init_model_resolver = __esm(() => {
   };
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/env.ts
+// env.ts
 async function detectEnv(pi, cwd) {
   let isGitRepo = false;
   let branch = "";
@@ -1084,7 +1084,7 @@ async function detectEnv(pi, cwd) {
   };
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/memory.ts
+// memory.ts
 import { existsSync as existsSync5, lstatSync, mkdirSync, readFileSync as readFileSync3 } from "node:fs";
 import { homedir } from "node:os";
 import { join as join4 } from "node:path";
@@ -1208,7 +1208,7 @@ No memory is available yet. Other agents or sessions with write access can creat
 var MAX_MEMORY_LINES = 200;
 var init_memory = () => {};
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/invocation-config.ts
+// invocation-config.ts
 import { Type } from "typebox";
 function isolationParam(enabled) {
   return enabled ? isolationParamShape : {};
@@ -1242,7 +1242,7 @@ var init_invocation_config = __esm(() => {
   };
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/enabled-models.ts
+// enabled-models.ts
 import { existsSync as existsSync6, readFileSync as readFileSync4, statSync as statSync3 } from "node:fs";
 import { join as join5 } from "node:path";
 import { getAgentDir as getAgentDir5 } from "@earendil-works/pi-coding-agent";
@@ -1321,7 +1321,7 @@ function resolveExact(pattern, available, allowed) {
 var cachedAllowed, cachedHash = "", cachedPatternsKey = "";
 var init_enabled_models = () => {};
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/model-scope.ts
+// model-scope.ts
 function isScopeModelsEnabled() {
   return scopeModelsEnabled;
 }
@@ -1357,7 +1357,7 @@ var init_model_scope = __esm(() => {
   init_enabled_models();
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/output-file.ts
+// output-file.ts
 import { appendFileSync, chmodSync, mkdirSync as mkdirSync2, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join as join6 } from "node:path";
@@ -1451,7 +1451,7 @@ function streamToOutputFile(session, path, agentId, cwd, startIndex) {
 var outputTranscriptDefault = true;
 var init_output_file = () => {};
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/status-note.ts
+// status-note.ts
 function getStatusNote(status) {
   switch (status) {
     case "stopped":
@@ -1484,7 +1484,7 @@ Partial output before the failure:
 ${partial}` : "";
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/usage.ts
+// usage.ts
 function getLifetimeTotal(u) {
   return u ? u.input + u.output + u.cacheWrite : 0;
 }
@@ -1540,7 +1540,7 @@ function getSessionContextPercent(session) {
   }
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/worktree.ts
+// worktree.ts
 import { randomUUID } from "node:crypto";
 import { existsSync as existsSync7, realpathSync as realpathSync2 } from "node:fs";
 import { tmpdir as tmpdir2 } from "node:os";
@@ -1635,7 +1635,7 @@ async function pruneWorktrees(pi, cwd) {
 var worktreeIsolationEnabled = true;
 var init_worktree = () => {};
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/nested-tools.ts
+// nested-tools.ts
 import {
   defineTool
 } from "@earendil-works/pi-coding-agent";
@@ -1872,7 +1872,7 @@ var init_nested_tools = __esm(() => {
   NESTED_TOOL_NAMES = ["Agent", "get_subagent_result", "steer_subagent"];
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/prompts.ts
+// prompts.ts
 function buildAgentPrompt(config, cwd, env, parentSystemPrompt, extras) {
   const activeAgentTag = `<active_agent name="${config.name}"/>
 
@@ -1965,7 +1965,7 @@ You are a general-purpose coding agent for complex, multi-step tasks.
 You have full access to read, write, edit files, and execute commands.
 Do what has been asked; nothing more, nothing less.`;
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/skill-loader.ts
+// skill-loader.ts
 import { existsSync as existsSync8, readdirSync as readdirSync2 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { join as join8 } from "node:path";
@@ -2039,7 +2039,7 @@ var init_skill_loader = __esm(() => {
   init_memory();
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/structured-output.ts
+// structured-output.ts
 import { defineTool as defineTool2 } from "@earendil-works/pi-coding-agent";
 function createStructuredCapture() {
   return { called: false };
@@ -2095,7 +2095,7 @@ Call ${STRUCTURED_OUTPUT_TOOL_NAME} now with your complete final answer. Do not 
 var STRUCTURED_OUTPUT_TOOL_NAME = "StructuredOutput";
 var init_structured_output = () => {};
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/agent-runner.ts
+// agent-runner.ts
 import { readFileSync as readFileSync5 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import { basename as basename3, dirname as dirname2, isAbsolute as isAbsolute2, join as join9, resolve as resolve2, sep as sep3 } from "node:path";
@@ -2111,7 +2111,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 function extensionCanonicalName(extPath) {
   const base = basename3(extPath);
-  const name = base === "index.ts" || base === "index.js" ? basename3(dirname2(extPath)) : base.replace(/\.(ts|js)$/, "");
+  const name = base === "index.ts" || base === "index.js" || base === "bundle.ts" || base === "bundle.js" ? basename3(dirname2(extPath)) : base.replace(/\.(ts|js)$/, "");
   return name.toLowerCase();
 }
 function extensionPackageName(extPath) {
@@ -2514,13 +2514,17 @@ async function runAgent(ctx, type, prompt, options) {
   const loadAll = extensions === true || extensionsSpec?.wildcard === true;
   const additionalExtensionPaths = extensionsSpec?.paths.length ? extensionsSpec.paths : undefined;
   let discoveredNames;
-  const extensionsOverride = noExtensions || loadAll && !hasExcludes ? undefined : (base) => {
+  const PERMISSION_EXTENSION_NAME = "pi-permission-system";
+  const isMandatorySecurityExtension = (extPath) => extPath === `<inline:${SCOPE_GATE_NAME}>` || extensionCanonicalNames(extPath).includes(PERMISSION_EXTENSION_NAME);
+  const extensionsOverride = loadAll && !hasExcludes && !noExtensions ? undefined : (base) => {
     discoveredNames = new Set(base.extensions.flatMap((e) => extensionCanonicalNames(e.path)));
     return {
       ...base,
       extensions: base.extensions.filter((e) => {
-        if (e.path === `<inline:${SCOPE_GATE_NAME}>`)
+        if (isMandatorySecurityExtension(e.path))
           return true;
+        if (noExtensions)
+          return false;
         const canons = extensionCanonicalNames(e.path);
         if (canons.some((n) => excludeNames.has(n)))
           return false;
@@ -2542,10 +2546,10 @@ async function runAgent(ctx, type, prompt, options) {
       { name: "mcp", factory: createMcpExtension(), builtin: true, replaceable: true },
       ...noExtensions ? [] : [scopeGateExtension(nestedCallGate)]
     ],
-    disabledBuiltinExtensions: process.argv.some((a) => a === "--no-extensions" || a === "-ne") ? ["codemode", "tool-search", "mcp"] : process.argv.includes("--no-mcp") ? ["mcp"] : undefined,
+    disabledBuiltinExtensions: noExtensions || process.argv.some((a) => a === "--no-extensions" || a === "-ne") ? ["codemode", "tool-search", "mcp"] : process.argv.includes("--no-mcp") ? ["mcp"] : undefined,
     cwd: configCwd,
     agentDir,
-    noExtensions,
+    noExtensions: false,
     additionalExtensionPaths,
     extensionsOverride,
     noSkills,
@@ -2630,7 +2634,7 @@ async function runAgent(ctx, type, prompt, options) {
     ...[...nestedToolNames].filter((name) => !disallowedSet?.has(name)),
     ...structuredToolNames
   ]);
-  const loadedNames = new Set(loader.getExtensions().extensions.filter((e) => e.path !== `<inline:${SCOPE_GATE_NAME}>`).flatMap((e) => extensionCanonicalNames(e.path)));
+  const loadedNames = new Set(loader.getExtensions().extensions.filter((e) => !isMandatorySecurityExtension(e.path)).flatMap((e) => extensionCanonicalNames(e.path)));
   const unrecognized = agentConfig?.builtinToolNames?.filter((n) => !BUILTIN_TOOL_NAMES.includes(n)) ?? [];
   const unmatched = [...extNames].filter((n) => !loadedNames.has(n));
   const extensionToolsPossible = loadedNames.size > 0 && (extNames.size === 0 || unmatched.length < extNames.size || !!agentConfig?.mcpToolPatterns);
@@ -2693,14 +2697,49 @@ async function runAgent(ctx, type, prompt, options) {
   const { session } = await runInChildSessionContext(() => createAgentSession(sessionOpts));
   const baseSessionName = agentConfig?.name ?? type;
   session.setSessionName(options.agentId ? `${baseSessionName}#${options.agentId.slice(0, 8)}` : baseSessionName);
-  await session.bindExtensions({
-    onError: (err) => {
-      options.onToolActivity?.({
-        type: "end",
-        toolName: `extension-error:${err.extensionPath}`
-      });
-    }
-  });
+  const childSessionId = session.sessionManager?.getSessionId?.();
+  const parentSessionId = options.rootSessionId ?? ctx.sessionManager?.getSessionId?.();
+  if (childSessionId) {
+    let disposedEmitted = false;
+    const origDispose = session.dispose.bind(session);
+    session.dispose = () => {
+      try {
+        return origDispose();
+      } finally {
+        if (!disposedEmitted) {
+          disposedEmitted = true;
+          options.pi.events.emit("subagents:child:disposed", {
+            sessionId: childSessionId
+          });
+        }
+      }
+    };
+    options.pi.events.emit("subagents:child:session-created", {
+      sessionId: childSessionId,
+      parentSessionId
+    });
+  }
+  try {
+    await session.bindExtensions({
+      onError: (err) => {
+        options.onToolActivity?.({
+          type: "end",
+          toolName: `extension-error:${err.extensionPath}`
+        });
+      }
+    });
+  } catch (err) {
+    try {
+      session.dispose();
+    } catch {}
+    throw err;
+  }
+  if (childSessionId) {
+    options.pi.events.emit("subagents:child:bound", {
+      sessionId: childSessionId,
+      parentSessionId
+    });
+  }
   if (!noExtensions) {
     installExtensionToolScope(session, {
       loader,
@@ -2827,7 +2866,7 @@ var init_agent_runner = __esm(() => {
   MCP_BRIDGE_TOOL_NAMES = new Set(["codemode", "tool_search"]);
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/mention.ts
+// mention.ts
 function isReservedHandle(handle) {
   return RESERVED_HANDLES.has(handle.toLowerCase());
 }
@@ -2878,7 +2917,7 @@ var init_mention = __esm(() => {
   RESERVED_HANDLES = new Set(["main"]);
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/agent-manager.ts
+// agent-manager.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
 import { statSync as statSync4 } from "node:fs";
 import { isAbsolute as isAbsolute3 } from "node:path";
@@ -2998,7 +3037,7 @@ class AgentManager {
       parentAgentId: options.parentAgentId,
       workflowId: options.workflowId,
       maxSubagentDepth: options.maxSubagentDepth,
-      rootSessionId: options.rootSessionId,
+      rootSessionId: options.rootSessionId ?? ctx.sessionManager?.getSessionId?.(),
       sessionFile: options.resumeSessionFile
     };
     this.agents.set(id, record);
@@ -3122,6 +3161,7 @@ class AgentManager {
     const detach = () => this.detachParentAbort(record);
     const promise = runAgent(ctx, type, prompt, {
       pi,
+      rootSessionId: record.rootSessionId,
       agentId: id,
       model: options.model,
       maxTurns: options.maxTurns,
@@ -3693,7 +3733,7 @@ var init_agent_manager = __esm(() => {
   init_worktree();
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/ui/agent-widget.ts
+// ui/agent-widget.ts
 import { truncateToWidth } from "@earendil-works/pi-tui";
 function fgPreservingNestedStyles(theme, color, text) {
   const styledEmpty = theme.fg(color, "");
@@ -4114,7 +4154,7 @@ var init_agent_widget = __esm(() => {
   };
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/ui/viewer-keys.ts
+// ui/viewer-keys.ts
 import { matchesKey } from "@earendil-works/pi-tui";
 function createViewerKeys(keybindings) {
   const matches = (data, id, fallback) => keybindings ? keybindings.matches(data, id) : matchesKey(data, fallback);
@@ -4128,7 +4168,7 @@ function createViewerKeys(keybindings) {
 }
 var init_viewer_keys = () => {};
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/ui/conversation-viewer.ts
+// ui/conversation-viewer.ts
 var exports_conversation_viewer = {};
 __export(exports_conversation_viewer, {
   getConversationOverlayOptions: () => getConversationOverlayOptions,
@@ -4780,7 +4820,7 @@ var init_conversation_viewer = __esm(() => {
   };
 });
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/index.ts
+// index.ts
 init_agent_color();
 import { existsSync as existsSync13, mkdirSync as mkdirSync5, readFileSync as readFileSync10, unlinkSync as unlinkSync2, writeFileSync as writeFileSync4 } from "node:fs";
 import { isAbsolute as isAbsolute5, join as join13 } from "node:path";
@@ -4788,7 +4828,7 @@ import { defineTool as defineTool3, getAgentDir as getAgentDir11, getSettingsLis
 import { Container, isKeyRelease as isKeyRelease2, Key as Key2, matchesKey as matchesKey5, SettingsList, Spacer, Text as Text2 } from "@earendil-works/pi-tui";
 import { Type as Type3 } from "typebox";
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/agent-file-toggle.ts
+// agent-file-toggle.ts
 init_custom_agents();
 import { existsSync as existsSync3 } from "node:fs";
 import { join as join3, sep as sep2 } from "node:path";
@@ -4947,12 +4987,12 @@ ${cfg.systemPrompt}
 `;
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/index.ts
+// index.ts
 init_agent_manager();
 init_agent_record_entry();
 init_agent_runner();
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/agent-source-badge.ts
+// agent-source-badge.ts
 function sourceIndicator(cfg) {
   const disabled = cfg?.enabled === false;
   if (cfg?.source === "project")
@@ -4982,11 +5022,11 @@ function rowDescription(name, cfg, packageName) {
   return packageName ? `${packageName} · ${base}` : base;
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/index.ts
+// index.ts
 init_agent_types();
 init_child_context();
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/completion-outbox.ts
+// completion-outbox.ts
 var NOTIFICATION_HOLD_MS = 200;
 
 class CompletionOutbox {
@@ -5058,7 +5098,7 @@ ${messages.map((m) => m.content).join(`
   };
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/cross-extension-rpc.ts
+// cross-extension-rpc.ts
 init_agent_manager();
 init_model_resolver();
 init_model_scope();
@@ -5147,10 +5187,10 @@ function registerRpcHandlers(deps) {
   return { unsubPing, unsubSpawn, unsubStop, unsubConsume, unsubSteer };
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/index.ts
+// index.ts
 init_custom_agents();
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/group-join.ts
+// group-join.ts
 var DEFAULT_TIMEOUT = 30000;
 var STRAGGLER_TIMEOUT = 15000;
 
@@ -5244,11 +5284,11 @@ class GroupJoinManager {
   }
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/index.ts
+// index.ts
 init_invocation_config();
 init_mention();
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/mention-clone.ts
+// mention-clone.ts
 init_child_context();
 init_mention();
 import {
@@ -5314,17 +5354,17 @@ ${agentMentionReminder(type)}`);
   return spawned ? { spawned: true } : { spawned: false, error: "the conversation clone did not start it" };
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/index.ts
+// index.ts
 init_model_resolver();
 init_model_scope();
 init_nested_tools();
 init_output_file();
 init_package_resources();
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/schedule.ts
+// schedule.ts
 import { randomBytes } from "node:crypto";
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/vendor/croner.js
+// vendor/croner.js
 function T(s) {
   return Date.UTC(s.y, s.m - 1, s.d, s.h, s.i, s.s);
 }
@@ -6098,7 +6138,7 @@ var E = class {
   }
 };
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/schedule.ts
+// schedule.ts
 init_agent_runner();
 init_agent_types();
 init_model_resolver();
@@ -6376,7 +6416,7 @@ class SubagentScheduler {
   }
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/schedule-store.ts
+// schedule-store.ts
 import { existsSync as existsSync9, mkdirSync as mkdirSync3, readFileSync as readFileSync6, renameSync, unlinkSync, writeFileSync as writeFileSync2 } from "node:fs";
 import { dirname as dirname3, join as join10 } from "node:path";
 var LOCK_RETRY_MS = 50;
@@ -6505,7 +6545,7 @@ class ScheduleStore {
   }
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/settings.ts
+// settings.ts
 init_agent_types();
 import { existsSync as existsSync10, mkdirSync as mkdirSync4, readFileSync as readFileSync7, writeFileSync as writeFileSync3 } from "node:fs";
 import { dirname as dirname4, join as join11 } from "node:path";
@@ -6716,7 +6756,7 @@ function saveAndEmitChanged(snapshot, successMsg, emit, cwd = process.cwd()) {
   emit("subagents:settings_changed", { settings: snapshot, persisted });
   return persistToastFor(successMsg, persisted);
 }
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/ui/agent-mention.ts
+// ui/agent-mention.ts
 init_mention();
 function mentionRoster(manager, types, displayNameOf = (type) => type) {
   const live = (r) => r.status === "running" || r.status === "queued";
@@ -6806,11 +6846,11 @@ function summarize(description) {
   return first.length > 60 ? `${first.slice(0, 59).trimEnd()}…` : first;
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/index.ts
+// index.ts
 init_agent_widget();
 init_conversation_viewer();
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/ui/fleet-list.ts
+// ui/fleet-list.ts
 init_agent_color();
 init_agent_manager();
 init_agent_widget();
@@ -6894,6 +6934,12 @@ class FleetList {
   }
   onAgentFinished(_id) {
     this.update();
+  }
+  closeViewerIfOpen() {
+    if (this.viewerClose) {
+      this.viewerClose();
+      this.viewerClose = undefined;
+    }
   }
   dispose() {
     if (this.timer) {
@@ -7137,7 +7183,7 @@ class FleetList {
   }
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/ui/select-item.ts
+// ui/select-item.ts
 async function selectItem(ui, title, items, format) {
   const width = String(items.length).length;
   const rows = items.map((item, i) => ({
@@ -7150,7 +7196,7 @@ async function selectItem(ui, title, items, format) {
   return rows.find((r) => r.label === choice)?.item;
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/ui/schedule-menu.ts
+// ui/schedule-menu.ts
 function relTime(iso, now = Date.now()) {
   if (!iso)
     return "—";
@@ -7226,10 +7272,10 @@ async function showSchedulesMenu(ctx, scheduler) {
   ctx.ui.notify(`Cancelled "${job.name}".`, "info");
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/ui/workflow-card.ts
+// ui/workflow-card.ts
 import { stripTerminalSequences as stripTerminalSequences2, Text, truncateToWidth as truncateToWidth4, visibleWidth as visibleWidth3 } from "@earendil-works/pi-tui";
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/progress.ts
+// workflow/progress.ts
 function collapse(progress) {
   const agents2 = new Map;
   const logs = [];
@@ -7441,7 +7487,7 @@ var GERUND_OVERRIDES = new Map([
   ["cleanup", null]
 ]);
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/ui/workflow-card.ts
+// ui/workflow-card.ts
 var LABEL_COLUMN_MAX = 28;
 var DEFAULT_WIDTH = 80;
 var UNICODE_GLYPHS = {
@@ -7635,15 +7681,15 @@ function renderWorkflowEntryCard(data, theme) {
   }, theme);
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/task.ts
+// workflow/task.ts
 import { randomUUID as randomUUID3 } from "node:crypto";
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/xml.ts
+// xml.ts
 function escapeXml(s2) {
   return s2.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/task.ts
+// workflow/task.ts
 function workflowRunId() {
   return `wf_${randomUUID3().replace(/-/g, "").slice(0, 12)}`;
 }
@@ -7790,7 +7836,7 @@ function formatWorkflowNotification(task, now = Date.now()) {
 `);
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/ui/workflow-dialog.ts
+// ui/workflow-dialog.ts
 import {
   matchesKey as matchesKey4,
   stripTerminalSequences as stripTerminalSequences3,
@@ -8376,7 +8422,7 @@ class WorkflowDialog {
   }
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/ui/workflow-menu.ts
+// ui/workflow-menu.ts
 async function showWorkflowDialog(ctx, task, deps) {
   const { VIEWPORT_HEIGHT_PCT: VIEWPORT_HEIGHT_PCT2 } = await Promise.resolve().then(() => (init_conversation_viewer(), exports_conversation_viewer));
   let overlay;
@@ -8457,7 +8503,7 @@ async function showWorkflowsMenu(ctx, deps) {
   if (index >= 0)
     await showWorkflowDialog(ctx, tasks[index], deps);
 }
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/collisions.ts
+// workflow/collisions.ts
 init_agent_runner();
 var FOREIGN_WORKFLOW_TOOL_NAMES = new Set([
   SUBAGENT_TOOL_NAMES.WORKFLOW,
@@ -8485,7 +8531,7 @@ function decideWorkflowCollision(input) {
   };
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/entry.ts
+// workflow/entry.ts
 var WORKFLOW_ENTRY_TYPE = "subagents:workflow";
 function workflowEntryData(task) {
   return {
@@ -8500,21 +8546,21 @@ function workflowEntryData(task) {
   };
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/host.ts
+// workflow/host.ts
 init_agent_record_entry();
 init_agent_types();
 init_model_resolver();
 init_model_scope();
 import { existsSync as existsSync12 } from "node:fs";
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/saved.ts
+// workflow/saved.ts
 init_memory();
 init_package_resources();
 import { existsSync as existsSync11, readdirSync as readdirSync3, readFileSync as readFileSync9, statSync as statSync5 } from "node:fs";
 import { isAbsolute as isAbsolute4, join as join12 } from "node:path";
 import { getAgentDir as getAgentDir10 } from "@earendil-works/pi-coding-agent";
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/meta.ts
+// workflow/meta.ts
 import { createContext, Script } from "node:vm";
 
 class WorkflowMetaError extends Error {
@@ -8743,11 +8789,11 @@ function workflowCallName(args) {
   return name;
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/runtime.ts
+// workflow/runtime.ts
 import { cpus } from "node:os";
 import { Worker } from "node:worker_threads";
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/journal.ts
+// workflow/journal.ts
 import { createHash } from "node:crypto";
 import { appendFileSync as appendFileSync2, readFileSync as readFileSync8 } from "node:fs";
 function journalKey(input) {
@@ -8799,7 +8845,7 @@ function isEntry(value) {
   return Number.isInteger(entry.index) && entry.index >= 0 && typeof entry.key === "string" && typeof entry.ok === "boolean" && (entry.text === undefined || typeof entry.text === "string") && (entry.resumed === undefined || entry.resumed === true);
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/json-schema.ts
+// workflow/json-schema.ts
 import { Check, Errors } from "typebox/value";
 var MAX_SCHEMA_BYTES = 64 * 1024;
 var MAX_REPORTED_ERRORS = 5;
@@ -8858,7 +8904,7 @@ function checkAgainst(schema, value) {
   return reported.length > 0 ? reported.join("; ") : "the value does not match the required schema";
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/worker-source.ts
+// workflow/worker-source.ts
 var DETERMINISM_PRELUDE = "const Date = (function () {" + " const RealDate = globalThis.Date;" + " const die = function (what) {" + ' throw new Error(what + " is unavailable in workflow scripts (breaks resume).' + ' Stamp results after the workflow returns, or pass timestamps via `args`.");' + " };" + ' RealDate.now = function () { return die("Date.now()"); };' + ' Math.random = function () { return die("Math.random()"); };' + " return class WorkflowDate extends RealDate {" + ' constructor() { if (arguments.length === 0) die("new Date()"); super(...arguments); }' + " };" + "})();";
 var WORKER_SOURCE = `"use strict";
 
@@ -9574,7 +9620,7 @@ main().catch(function (error) {
 });
 `;
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/runtime.ts
+// workflow/runtime.ts
 var MAX_SCRIPT_LENGTH = 524288;
 var WORKFLOW_AGENT_CAP = 1000;
 var WORKFLOW_ITEM_CAP = 4096;
@@ -10146,7 +10192,7 @@ async function runWorkflow(options) {
   });
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/saved.ts
+// workflow/saved.ts
 var WORKFLOW_EXTENSION = ".js";
 function savedWorkflowRoots(cwd) {
   return [
@@ -10282,7 +10328,7 @@ function resolveWorkflowScript(params, cwd) {
   };
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/host.ts
+// workflow/host.ts
 var DEFAULT_GATE_TIMEOUT_MS = 10 * 60000;
 function childCwd(record) {
   const path = record.worktree?.path;
@@ -10490,7 +10536,7 @@ function createWorkflowHost(deps) {
   };
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/workflow/tool-description.ts
+// workflow/tool-description.ts
 var fullWorkflowToolDescription = `Execute a workflow script that orchestrates multiple subagents deterministically. Workflows run in the background — this tool returns immediately with a task ID, and you are notified when the workflow completes. Use /agents → Workflows to watch live progress.
 
 A workflow structures work across many agents — to be comprehensive (decompose and cover in parallel), to be confident (independent perspectives and adversarial checks before committing), or to take on scale one context can't hold (migrations, audits, broad sweeps). The script is where you encode that structure: what fans out, what verifies, what synthesizes.
@@ -10654,7 +10700,7 @@ Use this tool for multi-step orchestration where control flow should be determin
 
 The tool result includes a runId. To resume after a pause, kill, or script edit, relaunch with SubagentWorkflow({scriptPath, resumeFromRunId}) — the longest unchanged prefix of agent() calls returns cached results instantly; the first edited/new call and everything after it runs live. Same script + same args → 100% cache hit. It is a prefix and not a lookup: a later call that still matches is not reused once an earlier one has changed. A journaled failure ends the prefix, so resuming a run that died at agent 5 retries exactly agent 5. Same session only, and the run must have finished — stop it from /agents → Workflows first. Before diagnosing why a completed workflow returned an empty or unexpected result, Read the run's \`<run id>.workflow.jsonl\` beside its script — it records each agent's actual return value; do not assume cached results are non-empty. Date.now()/Math.random()/new Date() are unavailable in scripts (they would break this) — stamp results after the workflow returns, or pass timestamps via args.`;
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/subagent/index.ts
+// index.ts
 init_worktree();
 function textResult2(msg, details) {
   return { content: [{ type: "text", text: msg }], details };
@@ -11297,6 +11343,7 @@ Use get_subagent_result for full output.`,
     widget.dispose();
     outbox.dispose();
     fleet.dispose();
+    unsubPermissionPrompt();
     unsubHandoffKey?.();
     unsubHandoffKey = undefined;
     handoffKeyUi = undefined;
@@ -11372,6 +11419,9 @@ Use get_subagent_result for full output.`,
     return mode === "always" || mode === "hidden" ? mode : "auto";
   }
   const fleet = new FleetList(manager, agentActivity, isShowCostEnabled, getViewerMarkdown, (mode) => chooseViewerMarkdown(mode, currentCtx), getFullscreenScrollbar, backgroundActionFor);
+  const unsubPermissionPrompt = pi.events.on("permissions:ui_prompt", () => {
+    fleet.closeViewerIfOpen();
+  });
   let fleetViewEnabled = true;
   function isFleetViewEnabled() {
     return fleetViewEnabled;

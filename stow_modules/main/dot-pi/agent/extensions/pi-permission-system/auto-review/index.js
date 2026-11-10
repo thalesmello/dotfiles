@@ -419,6 +419,11 @@ export default function permissionAutoReview(pi, authorizerRegistry, options = {
 		const toolName = req?.toolName ?? details?.toolName ?? surface;
 		const value = details?.command ?? req?.value ?? details?.value ?? "";
 		const matchedPattern = req?.matchedPattern ?? "";
+		const requesterAgent =
+			details?.agentName ??
+			details?.forwarding?.requesterAgentName ??
+			req?.requester?.agentName ??
+			null;
 		const recentPrompts = getRecentUserPrompts(ctx);
 
 		const promptLines = [
@@ -429,6 +434,7 @@ export default function permissionAutoReview(pi, authorizerRegistry, options = {
 				: ["(none)"]),
 			"",
 			`Pending permission request:`,
+			...(requesterAgent ? [`- Requesting subagent: ${requesterAgent}`] : []),
 			`- Surface: ${surface}`,
 			`- Tool: ${toolName}`,
 			`- Matched rule: ${matchedPattern}`,
@@ -622,12 +628,6 @@ export default function permissionAutoReview(pi, authorizerRegistry, options = {
 
 					if (parsed.verdict === "allow") {
 						return { kind: "allow" };
-					}
-					if (parsed.verdict === "deny") {
-						return {
-							kind: "deny",
-							reason: parsed.reason || "Blocked by auto-review safety judge.",
-						};
 					}
 					return {
 						kind: "defer",

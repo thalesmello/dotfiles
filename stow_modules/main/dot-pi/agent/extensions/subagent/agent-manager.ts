@@ -569,7 +569,7 @@ export class AgentManager {
       parentAgentId: options.parentAgentId,
       workflowId: options.workflowId,
       maxSubagentDepth: options.maxSubagentDepth,
-      rootSessionId: options.rootSessionId,
+      rootSessionId: options.rootSessionId ?? ctx.sessionManager?.getSessionId?.(),
       // A reopen continues this file until its session says otherwise (a fork
       // gets its own, set at session creation). Seeded so a run that fails
       // before it has a session still names the conversation in its saved
@@ -824,6 +824,7 @@ export class AgentManager {
 
     const promise = runAgent(ctx, type, prompt, {
       pi,
+      rootSessionId: record.rootSessionId,
       agentId: id,
       model: options.model,
       maxTurns: options.maxTurns,
