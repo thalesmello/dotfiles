@@ -64,7 +64,10 @@
  * While a selection is live, a `⇥ reference` popup sits at the end of the
  * selection. Clicking it, or pressing Tab, appends a one-line reference to
  * the prompt editor — `> the first line of the selection ...` — and leaves
- * the cursor on the next line. The editor never holds the whole selection.
+ * the cursor on the next line (no extra blank line in the prompt editor).
+ * On submit/render, a virtual blank line is inserted around each reference
+ * line so follow-up text renders outside the Markdown blockquote.
+ * The editor never holds the whole selection.
  * On submit, the `input` handler swaps each reference line for the full
  * selected text, so the model receives the selection as context.
  *
@@ -994,6 +997,31 @@ function addArmedSelectionAsReference(): void {
 	(capturedTui as { requestRender?: () => void } | undefined)?.requestRender?.();
 }
 
+/**
+ * Insert a virtual blank line before and after each reference line so that
+ * follow-up text in the submitted/rendered prompt sits outside the Markdown
+ * blockquote even when no blank line was present in the prompt editor.
+ */
+function separateReferenceLines(text: string, referenceLines?: ReadonlySet<string>): string {
+	const lines = text.split("\n");
+	if (lines.length <= 1) return text;
+	const isReferenceLine = (line: string): boolean =>
+		referenceLines && referenceLines.size > 0 ? referenceLines.has(line) : /^>\s+\S/.test(line);
+	const out: string[] = [];
+	for (let i = 0; i < lines.length; i += 1) {
+		const line = lines[i]!;
+		const ref = isReferenceLine(line);
+		if (ref && out.length > 0 && out[out.length - 1]!.trim() !== "") {
+			out.push("");
+		}
+		out.push(line);
+		if (ref && i + 1 < lines.length && lines[i + 1]!.trim() !== "") {
+			out.push("");
+		}
+	}
+	return out.join("\n");
+}
+
 /** Tab adds the armed selection as a reference; every other key passes through. */
 function handleReferenceInput(data: string): { consume: boolean } | undefined {
 	if (data !== "\t" && data !== "\x1b[9u" && data !== "\x1b[9;1u") return undefined;
@@ -1201,6 +1229,22 @@ function wrapEditorWithReferenceBlocks(base: unknown, keybindings: { matches(dat
 				) {
 					removeReferenceBlock(self, lineIndex + 1, { line: lineIndex, col: cursor.cursorCol });
 					return;
+				}
+			}
+		} else if (pendingReferences.size > 0 && !(self as { autocompleteState?: unknown }).autocompleteState) {
+			const cursor = getEditorCursor(self);
+			const lines = self.getText().split("\n");
+			const currentLine = lines[cursor.cursorLine] ?? "";
+			const isBackslashNewline = cursor.cursorCol > 0 && currentLine[cursor.cursorCol - 1] === "\\";
+			if (!isBackslashNewline) {
+				const current = self.getText();
+				const separated = separateReferenceLines(current, new Set(pendingReferences.keys()));
+				if (separated !== current) {
+					if (self.state && Array.isArray((self.state as { lines?: string[] }).lines)) {
+						(self.state as { lines: string[] }).lines = separated.split("\n");
+					} else {
+						self.setText(separated);
+					}
 				}
 			}
 		}
@@ -1671,15 +1715,18 @@ export default function selectionManagerExtension(pi: ExtensionAPI): void {
 	// Swap reference lines in the submitted prompt for the full selections.
 	pi.on("input", async (event) => {
 		if (pendingReferences.size === 0) return { action: "continue" };
-		let text = event.text;
-		let changed = false;
-		for (const [referenceLine, fullText] of [...pendingReferences]) {
-			if (!text.includes(referenceLine)) continue;
+		const matchedReferences = new Set<string>();
+		for (const referenceLine of pendingReferences.keys()) {
+			if (event.text.includes(referenceLine)) matchedReferences.add(referenceLine);
+		}
+		if (matchedReferences.size === 0) return { action: "continue" };
+		let text = separateReferenceLines(event.text, matchedReferences);
+		for (const referenceLine of matchedReferences) {
+			const fullText = pendingReferences.get(referenceLine)!;
 			text = text.split(referenceLine).join(`Referenced selection:\n"""\n${fullText}\n"""`);
 			pendingReferences.delete(referenceLine);
-			changed = true;
 		}
-		return changed ? { action: "transform", text } : { action: "continue" };
+		return { action: "transform", text };
 	});
 
 	pi.registerCommand("selection-manager", {

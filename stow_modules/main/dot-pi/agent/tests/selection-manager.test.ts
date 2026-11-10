@@ -209,13 +209,13 @@ describe("selection-manager extension", () => {
 		expect(screen.mouseEvents).toEqual([]);
 		expect(editorText).toBe("> | Name | Role | ...\n> | Name | Role | ...\n");
 
-		// On submit the reference lines expand to the full selected text.
+		// On submit the reference lines expand to the full selected text, separated by a blank line.
 		const inputHandler = handlers.get("input")![0]!;
 		const result: any = await inputHandler({ text: `${editorText}Which rows are these?` }, tuiCtx);
 		expect(result.action).toBe("transform");
 		expect(result.text).toContain("| Name | Role |\n| --- | --- |\n| Alice | Admin |");
 		expect(result.text).not.toContain("> | Name | Role | ...");
-		expect(result.text).toContain("Which rows are these?");
+		expect(result.text).toContain("\"\"\"\n\nWhich rows are these?");
 	});
 
 	test("renders references as highlighted blocks that cannot be edited, only removed", async () => {
@@ -253,7 +253,20 @@ describe("selection-manager extension", () => {
 		editor.handleInput("x");
 		expect(editor.getText()).toBe(`${referenceLine}\ndraft prompt`);
 
+		// Submitting inserts a virtual blank line after the reference line even
+		// though no blank line was visible in the prompt editor.
+		let submittedText = "";
+		editor.onSubmit = (text: string) => {
+			submittedText = text;
+		};
+		editor.handleInput("\r");
+		expect(submittedText).toBe(`${referenceLine}\n\ndraft prompt`);
+
 		// Backspace on the block removes the whole block.
+		seedReference();
+		editor.setText(`${editorText}draft prompt`);
+		editor.cursorLine = 0;
+		editor.cursorCol = 4;
 		editor.handleInput("\x7f");
 		expect(editor.getText()).toBe("draft prompt");
 
