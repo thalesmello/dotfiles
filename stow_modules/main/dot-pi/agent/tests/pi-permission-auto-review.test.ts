@@ -3,9 +3,12 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import permissionAutoReview, {
+	MAX_REVIEW_ATTEMPTS,
+	REVIEW_TIMEOUT_MS,
 	resolveJudgeModel,
 } from "../extensions/pi-permission-system/auto-review/index.js";
 import { composeAuthorizerChain } from "../extensions/pi-permission-system/src/authority/authorizer-chain.ts";
+import { LocalUserAuthorizer } from "../extensions/pi-permission-system/src/authority/local-user-authorizer.ts";
 import {
 	initialPromptState,
 	type PromptModelConfig,
@@ -235,6 +238,105 @@ describe("auto-review judge & natural-language rule proposer", () => {
 			id: "gemini-3.8-flash",
 		});
 	});
+
+	test("uses a 30s timeout with a retry on timeout or transient error", async () => {
+		expect(REVIEW_TIMEOUT_MS).toBe(30_000);
+		expect(MAX_REVIEW_ATTEMPTS).toBe(2);
+
+		let authorize: ((details: unknown, query: unknown, log: unknown) => Promise<unknown>) | undefined;
+		let sessionStart: ((event: unknown, ctx: unknown) => void) | undefined;
+		let calls = 0;
+		const pi = {
+			on(event: string, handler: (event: unknown, ctx: unknown) => void) {
+				if (event === "session_start") sessionStart = handler;
+			},
+			registerCommand() {},
+		};
+		permissionAutoReview(
+			pi as never,
+			{
+				register(_name: string, fn: typeof authorize) {
+					authorize = fn;
+				},
+			},
+			{ timeoutMs: 25 },
+		);
+		sessionStart?.(null, {
+			hasUI: false,
+			cwd: "/Users/thalesmello/src/dotfiles",
+			model: { provider: "google", id: "gemini-3.8-flash" },
+			sessionManager: { getBranch: () => [] },
+			modelRegistry: {
+				find: () => undefined,
+				complete: async (_model: unknown, _req: unknown, opts: { signal?: AbortSignal }) => {
+					calls += 1;
+					if (calls === 1) {
+						await new Promise((resolve) => {
+							opts.signal?.addEventListener("abort", resolve, { once: true });
+						});
+						return { stopReason: "aborted", content: [] };
+					}
+					return { content: [{ type: "text", text: '{"verdict":"allow","reason":"Retry succeeded."}' }] };
+				},
+			},
+		});
+
+		const verdict = await authorize!(
+			{ requestId: "r-retry", payload: { request: { surface: "bash" } }, command: "ls" },
+			{},
+			log,
+		);
+		expect(calls).toBe(2);
+		expect(verdict).toEqual({ kind: "allow" });
+	});
+
+	test("defers after exhausting retry when both attempts time out", async () => {
+		let authorize: ((details: unknown, query: unknown, log: unknown) => Promise<unknown>) | undefined;
+		let sessionStart: ((event: unknown, ctx: unknown) => void) | undefined;
+		let calls = 0;
+		const pi = {
+			on(event: string, handler: (event: unknown, ctx: unknown) => void) {
+				if (event === "session_start") sessionStart = handler;
+			},
+			registerCommand() {},
+		};
+		permissionAutoReview(
+			pi as never,
+			{
+				register(_name: string, fn: typeof authorize) {
+					authorize = fn;
+				},
+			},
+			{ timeoutMs: 20 },
+		);
+		sessionStart?.(null, {
+			hasUI: false,
+			cwd: "/Users/thalesmello/src/dotfiles",
+			model: { provider: "google", id: "gemini-3.8-flash" },
+			sessionManager: { getBranch: () => [] },
+			modelRegistry: {
+				find: () => undefined,
+				complete: async (_model: unknown, _req: unknown, opts: { signal?: AbortSignal }) => {
+					calls += 1;
+					await new Promise((resolve) => {
+						opts.signal?.addEventListener("abort", resolve, { once: true });
+					});
+					return { stopReason: "aborted", content: [] };
+				},
+			},
+		});
+
+		const verdict = await authorize!(
+			{ requestId: "r-timeout", payload: { request: { surface: "bash" } }, command: "ls" },
+			{},
+			log,
+		);
+		expect(calls).toBe(2);
+		expect(verdict).toEqual({
+			kind: "defer",
+			reason: "Auto-review judge (google/gemini-3.8-flash) timed out, so asking you instead.",
+		});
+	});
 });
 
 describe("permission prompt explain-and-propose flow", () => {
@@ -334,3 +436,64 @@ describe("permission prompt explain-and-propose flow", () => {
 		});
 	});
 });
+
+describe("LocalUserAuthorizer Herdr blocked status", () => {
+	test("emits herdr:blocked while the permission dialog is open and clears it on settle", async () => {
+		const emitted: Array<{ channel: string; data: unknown }> = [];
+		let resolvePrompt: ((decision: unknown) => void) | undefined;
+
+		const authorizer = new LocalUserAuthorizer({
+			ui: {} as never,
+			mode: "tui",
+			events: {
+				emit(channel: string, data: unknown) {
+					emitted.push({ channel, data });
+				},
+				on: () => () => {},
+			},
+			dialogs: {
+				run: <T>(task: () => Promise<T>) => task(),
+			},
+			getPromptPreferences: () => ({
+				doublePressToConfirm: true,
+				budget: { maxRows: 24, fieldMaxWidth: 400 },
+				dialogKeys: DEFAULT_DIALOG_KEYS,
+				promptNotifications: [],
+			}),
+			requestPermissionDecision: () =>
+				new Promise((resolve) => {
+					resolvePrompt = resolve as (decision: unknown) => void;
+				}) as never,
+			describeSession: () => ({ name: "test", cwd: "/Users/thalesmello/src" }),
+		});
+
+		const pending = authorizer.authorize(makeDetails());
+		const blockedStart = emitted.filter((e) => e.channel === "herdr:blocked");
+		expect(blockedStart).toEqual([
+			{
+				channel: "herdr:blocked",
+				data: { active: true, label: "Permission Required: bash" },
+			},
+		]);
+
+		resolvePrompt?.({
+			approved: true,
+			state: "approved",
+			decidedBy: { kind: "user", via: "dialog" },
+		});
+		await pending;
+
+		const blockedAll = emitted.filter((e) => e.channel === "herdr:blocked");
+		expect(blockedAll).toEqual([
+			{
+				channel: "herdr:blocked",
+				data: { active: true, label: "Permission Required: bash" },
+			},
+			{
+				channel: "herdr:blocked",
+				data: { active: false },
+			},
+		]);
+	});
+});
+

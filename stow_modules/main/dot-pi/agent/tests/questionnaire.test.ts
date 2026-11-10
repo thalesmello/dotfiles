@@ -42,8 +42,10 @@ mock.module("@earendil-works/pi-tui", () => ({
 		) {}
 	},
 	matchesKey: (data: string, key: string) => data === key,
+	truncateToWidth: (text: string) => text,
 	visibleWidth: (text: string) => text.length,
 	wrapTextWithAnsi: (text: string) => [text],
+	SettingsList: class {},
 }));
 
 mock.module("typebox", () => ({

@@ -84,21 +84,41 @@ export class LocalUserAuthorizer implements TerminalAuthorizer {
     const title = details.forwarding
       ? "Permission Required (Subagent)"
       : "Permission Required";
-    return this.deps.requestPermissionDecision(
-      {
-        mode: this.deps.mode,
-        ui: this.deps.ui,
-        ...this.deps.getPromptPreferences(),
-        notice: describePromptNotice(
-          title,
-          details.payload.request,
-          this.deps.describeSession(),
-        ),
-      },
+    const notice = describePromptNotice(
       title,
-      details.payload,
-      buildRequestOptions(details),
+      details.payload.request,
+      this.deps.describeSession(),
     );
+    emitHerdrBlocked(this.deps.events, {
+      active: true,
+      label: notice.body,
+    });
+    return this.deps
+      .requestPermissionDecision(
+        {
+          mode: this.deps.mode,
+          ui: this.deps.ui,
+          ...this.deps.getPromptPreferences(),
+          notice,
+        },
+        title,
+        details.payload,
+        buildRequestOptions(details),
+      )
+      .finally(() => {
+        emitHerdrBlocked(this.deps.events, { active: false });
+      });
+  }
+}
+
+function emitHerdrBlocked(
+  events: PermissionEventBus,
+  data: { active: boolean; label?: string },
+): void {
+  try {
+    events.emit("herdr:blocked", data);
+  } catch {
+    // Observational Herdr status broadcast; never block the permission prompt.
   }
 }
 

@@ -6621,13 +6621,25 @@ class LocalUserAuthorizer {
   present(details) {
     emitUiPromptEvent(this.deps.events, buildUiPrompt(details));
     const title = details.forwarding ? "Permission Required (Subagent)" : "Permission Required";
+    const notice = describePromptNotice(title, details.payload.request, this.deps.describeSession());
+    emitHerdrBlocked(this.deps.events, {
+      active: true,
+      label: notice.body
+    });
     return this.deps.requestPermissionDecision({
       mode: this.deps.mode,
       ui: this.deps.ui,
       ...this.deps.getPromptPreferences(),
-      notice: describePromptNotice(title, details.payload.request, this.deps.describeSession())
-    }, title, details.payload, buildRequestOptions(details));
+      notice
+    }, title, details.payload, buildRequestOptions(details)).finally(() => {
+      emitHerdrBlocked(this.deps.events, { active: false });
+    });
   }
+}
+function emitHerdrBlocked(events, data) {
+  try {
+    events.emit("herdr:blocked", data);
+  } catch {}
 }
 function releasedDecision(reason) {
   return {
@@ -27755,7 +27767,8 @@ class SessionTurnPrep {
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/pi-permission-system/auto-review/index.js
 var AUTHORIZER_NAME = "auto-review";
 var STATUS_KEY = "pi-permission-auto-review";
-var REVIEW_TIMEOUT_MS = 15000;
+var REVIEW_TIMEOUT_MS = 30000;
+var MAX_REVIEW_ATTEMPTS = 2;
 var FAMILY_FAST_CANDIDATES = {
   meta: ["muse-spark-1.4-internal", "muse-spark-1.3-internal", "muse-latest"],
   anthropic: ["claude-haiku-5-5", "claude-haiku-4-5", "claude-sonnet-5-5", "claude-sonnet-5"],
@@ -27967,7 +27980,9 @@ function parseProposedRulesReply(rawText) {
     return;
   }
 }
-function permissionAutoReview(pi2, authorizerRegistry) {
+function permissionAutoReview(pi2, authorizerRegistry, options = {}) {
+  const timeoutMs = options.timeoutMs ?? REVIEW_TIMEOUT_MS;
+  const maxAttempts = options.maxAttempts ?? MAX_REVIEW_ATTEMPTS;
   let activeCtx;
   let tally = { allow: 0, deny: 0, defer: 0 };
   const renderStatus = () => {
@@ -28011,87 +28026,137 @@ function permissionAutoReview(pi2, authorizerRegistry) {
     if (details?.toolInputPreview && details.toolInputPreview !== value) {
       promptLines.push(`- Input preview: ${details.toolInputPreview.slice(0, 1000)}`);
     }
-    const timeoutController = new AbortController;
-    const timer = setTimeout(() => timeoutController.abort(), REVIEW_TIMEOUT_MS);
-    const signals = [timeoutController.signal, ...ctx.signal ? [ctx.signal] : []];
-    const signal = AbortSignal.any(signals);
-    try {
-      const response = await completeFast(ctx.modelRegistry, model, {
-        systemPrompt: JUDGE_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: [{ type: "text", text: promptLines.join(`
+    const modelLabel = `${model.provider}/${model.id}`;
+    let lastFailure = {
+      event: "auto_review.error",
+      logMeta: { requestId: details.requestId, model: modelLabel },
+      reason: "Auto-review judge failed, so asking you instead."
+    };
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const timeoutController = new AbortController;
+      const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
+      const signals = [timeoutController.signal, ...ctx.signal ? [ctx.signal] : []];
+      const signal = AbortSignal.any(signals);
+      try {
+        const response = await completeFast(ctx.modelRegistry, model, {
+          systemPrompt: JUDGE_SYSTEM_PROMPT,
+          messages: [
+            {
+              role: "user",
+              content: [{ type: "text", text: promptLines.join(`
 `) }],
-            timestamp: Date.now()
-          }
-        ]
-      }, signal);
-      if (response?.stopReason === "aborted" || timeoutController.signal.aborted) {
-        tally.defer += 1;
+              timestamp: Date.now()
+            }
+          ]
+        }, signal);
+        if (response?.stopReason === "aborted" || timeoutController.signal.aborted) {
+          lastFailure = {
+            event: "auto_review.timeout",
+            logMeta: { requestId: details.requestId, model: modelLabel, attempt },
+            reason: `Auto-review judge (${modelLabel}) timed out, so asking you instead.`
+          };
+          if (ctx.signal?.aborted || attempt >= maxAttempts)
+            break;
+          log.debug("auto_review.retry", {
+            requestId: details.requestId,
+            model: modelLabel,
+            attempt,
+            cause: "timeout"
+          });
+          continue;
+        }
+        if (response?.stopReason === "error" || response?.errorMessage) {
+          lastFailure = {
+            event: "auto_review.error",
+            logMeta: {
+              requestId: details.requestId,
+              model: modelLabel,
+              attempt,
+              error: response.errorMessage
+            },
+            reason: `Auto-review judge (${modelLabel}) failed (${response.errorMessage ?? "API error"}), so asking you instead.`
+          };
+          if (ctx.signal?.aborted || attempt >= maxAttempts)
+            break;
+          log.debug("auto_review.retry", {
+            requestId: details.requestId,
+            model: modelLabel,
+            attempt,
+            cause: response.errorMessage ?? "error"
+          });
+          continue;
+        }
+        const replyText = extractText(response?.content);
+        const parsed = parseJudgeReply(replyText);
+        if (!parsed) {
+          lastFailure = {
+            event: "auto_review.unparseable",
+            logMeta: { requestId: details.requestId, attempt, replyText },
+            reason: "Auto-review judge returned an unparseable verdict, so asking you instead."
+          };
+          if (ctx.signal?.aborted || attempt >= maxAttempts)
+            break;
+          log.debug("auto_review.retry", {
+            requestId: details.requestId,
+            model: modelLabel,
+            attempt,
+            cause: "unparseable"
+          });
+          continue;
+        }
+        tally[parsed.verdict] += 1;
         renderStatus();
-        log.debug("auto_review.timeout", {
+        log.review("auto_review.decision", {
           requestId: details.requestId,
-          model: `${model.provider}/${model.id}`
+          model: modelLabel,
+          outcome: parsed.verdict,
+          reason: parsed.reason,
+          ...attempt > 1 ? { attempt } : {}
         });
+        if (parsed.verdict === "allow") {
+          return { kind: "allow" };
+        }
+        if (parsed.verdict === "deny") {
+          return {
+            kind: "deny",
+            reason: parsed.reason || "Blocked by auto-review safety judge."
+          };
+        }
         return {
           kind: "defer",
-          reason: `Auto-review judge (${model.provider}/${model.id}) timed out, so asking you instead.`
+          reason: parsed.reason || "Auto-review judge asked for human confirmation without giving a reason."
         };
-      }
-      if (response?.stopReason === "error" || response?.errorMessage) {
-        tally.defer += 1;
-        renderStatus();
-        log.debug("auto_review.error", {
+      } catch (err2) {
+        const errMsg = err2 instanceof Error ? err2.message : String(err2);
+        const timedOut = timeoutController.signal.aborted && !ctx.signal?.aborted;
+        lastFailure = timedOut ? {
+          event: "auto_review.timeout",
+          logMeta: { requestId: details.requestId, model: modelLabel, attempt },
+          reason: `Auto-review judge (${modelLabel}) timed out, so asking you instead.`
+        } : {
+          event: "auto_review.error",
+          logMeta: { requestId: details.requestId, model: modelLabel, attempt, error: errMsg },
+          reason: "Auto-review judge failed, so asking you instead."
+        };
+        if (ctx.signal?.aborted || attempt >= maxAttempts)
+          break;
+        log.debug("auto_review.retry", {
           requestId: details.requestId,
-          model: `${model.provider}/${model.id}`,
-          error: response.errorMessage
+          model: modelLabel,
+          attempt,
+          cause: timedOut ? "timeout" : errMsg
         });
-        return {
-          kind: "defer",
-          reason: `Auto-review judge (${model.provider}/${model.id}) failed (${response.errorMessage ?? "API error"}), so asking you instead.`
-        };
+      } finally {
+        clearTimeout(timer);
       }
-      const replyText = extractText(response?.content);
-      const parsed = parseJudgeReply(replyText);
-      if (!parsed) {
-        tally.defer += 1;
-        renderStatus();
-        log.debug("auto_review.unparseable", { requestId: details.requestId, replyText });
-        return { kind: "defer", reason: "Auto-review judge returned an unparseable verdict, so asking you instead." };
-      }
-      tally[parsed.verdict] += 1;
-      renderStatus();
-      log.review("auto_review.decision", {
-        requestId: details.requestId,
-        model: `${model.provider}/${model.id}`,
-        outcome: parsed.verdict,
-        reason: parsed.reason
-      });
-      if (parsed.verdict === "allow") {
-        return { kind: "allow" };
-      }
-      if (parsed.verdict === "deny") {
-        return {
-          kind: "deny",
-          reason: parsed.reason || "Blocked by auto-review safety judge."
-        };
-      }
-      return {
-        kind: "defer",
-        reason: parsed.reason || "Auto-review judge asked for human confirmation without giving a reason."
-      };
-    } catch (err2) {
-      tally.defer += 1;
-      renderStatus();
-      log.debug("auto_review.error", {
-        requestId: details.requestId,
-        error: err2 instanceof Error ? err2.message : String(err2)
-      });
-      return { kind: "defer", reason: "Auto-review judge failed, so asking you instead." };
-    } finally {
-      clearTimeout(timer);
     }
+    tally.defer += 1;
+    renderStatus();
+    log.debug(lastFailure.event, lastFailure.logMeta);
+    return {
+      kind: "defer",
+      reason: lastFailure.reason
+    };
   };
   if (authorizerRegistry && typeof authorizerRegistry.register === "function") {
     authorizerRegistry.register(AUTHORIZER_NAME, authorize);
@@ -28117,41 +28182,50 @@ function permissionAutoReview(pi2, authorizerRegistry) {
       }
     }
     promptLines.push("", "User's natural-language rule request:", instruction.trim());
-    const timeoutController = new AbortController;
-    const timer = setTimeout(() => timeoutController.abort(), REVIEW_TIMEOUT_MS);
-    const signals = [
-      timeoutController.signal,
-      ...ctx.signal ? [ctx.signal] : [],
-      ...callerSignal ? [callerSignal] : []
-    ];
-    const signal = AbortSignal.any(signals);
-    try {
-      const response = await completeFast(ctx.modelRegistry, model, {
-        systemPrompt: RULE_PROPOSER_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: [{ type: "text", text: promptLines.join(`
+    let lastError;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const timeoutController = new AbortController;
+      const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
+      const signals = [
+        timeoutController.signal,
+        ...ctx.signal ? [ctx.signal] : [],
+        ...callerSignal ? [callerSignal] : []
+      ];
+      const signal = AbortSignal.any(signals);
+      try {
+        const response = await completeFast(ctx.modelRegistry, model, {
+          systemPrompt: RULE_PROPOSER_SYSTEM_PROMPT,
+          messages: [
+            {
+              role: "user",
+              content: [{ type: "text", text: promptLines.join(`
 `) }],
-            timestamp: Date.now()
-          }
-        ]
-      }, signal);
-      if (response?.stopReason === "aborted" || timeoutController.signal.aborted) {
-        throw new Error(`Rule proposer (${model.provider}/${model.id}) timed out.`);
+              timestamp: Date.now()
+            }
+          ]
+        }, signal);
+        if (response?.stopReason === "aborted" || timeoutController.signal.aborted) {
+          throw new Error(`Rule proposer (${model.provider}/${model.id}) timed out.`);
+        }
+        if (response?.stopReason === "error" || response?.errorMessage) {
+          throw new Error(response.errorMessage || "Rule proposer model returned an error.");
+        }
+        const replyText = extractText(response?.content);
+        const parsed = parseProposedRulesReply(replyText);
+        if (!parsed) {
+          throw new Error("Could not interpret a valid permission rule from the model response.");
+        }
+        return parsed;
+      } catch (err2) {
+        lastError = timeoutController.signal.aborted && !ctx.signal?.aborted && !callerSignal?.aborted ? new Error(`Rule proposer (${model.provider}/${model.id}) timed out.`) : err2;
+        if (ctx.signal?.aborted || callerSignal?.aborted || attempt >= maxAttempts) {
+          break;
+        }
+      } finally {
+        clearTimeout(timer);
       }
-      if (response?.stopReason === "error" || response?.errorMessage) {
-        throw new Error(response.errorMessage || "Rule proposer model returned an error.");
-      }
-      const replyText = extractText(response?.content);
-      const parsed = parseProposedRulesReply(replyText);
-      if (!parsed) {
-        throw new Error("Could not interpret a valid permission rule from the model response.");
-      }
-      return parsed;
-    } finally {
-      clearTimeout(timer);
     }
+    throw lastError ?? new Error("Rule proposer failed.");
   };
   pi2.on("session_start", (_event, ctx) => {
     activeCtx = ctx;
