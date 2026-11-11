@@ -101,7 +101,7 @@ new_worktree = "prefix+shift+g"
 # open_worktree = ""    # optional, unset by default
 # remove_worktree = ""  # optional, unset by default; opens confirmation
 # rename_workspace = "prefix+shift+w"
-# close_workspace = "prefix+shift+d"
+close_workspace = "prefix+alt+backspace"
 # prefix+tab / prefix+shift+tab are taken over by attention-jump.fish and
 # focus-back.fish (see [[keys.command]] below), so workspace nav is unbound here.
 # It still lives on prefix+alt+1..9 / ctrl+alt+1..9 (switch_workspace) and on
