@@ -4,13 +4,17 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import select
 import signal
 import subprocess
 import sys
 
+# Native Mission Control support is built from ~/src/JankyBorders. Do not inject
+# a dylib into the Homebrew executable or compile C during desktop startup.
+NATIVE_BORDERS = Path.home() / ".local/libexec/jankyborders/borders"
 BORDERS_ARGV = [
-    "/opt/homebrew/bin/borders",
+    str(NATIVE_BORDERS) if NATIVE_BORDERS.is_file() else "/opt/homebrew/bin/borders",
     "style=round",
     "width=6.0",
     "active_color=0xffffffff",
@@ -18,6 +22,8 @@ BORDERS_ARGV = [
     "hidpi=off",
     "ax_focus=on",
 ]
+if NATIVE_BORDERS.is_file():
+    BORDERS_ARGV += ["mission_control=on", "mission_control_fade=80"]
 
 
 def pid_alive(pid: int) -> bool:
@@ -81,6 +87,8 @@ def main(argv: list[str]) -> int:
             stderr=subprocess.DEVNULL,
             check=False,
         )
+        if not NATIVE_BORDERS.is_file():
+            print("borders-supervisor: native build missing; Mission Control hiding unavailable", file=sys.stderr)
         border_proc = subprocess.Popen(BORDERS_ARGV)
 
         events = [
