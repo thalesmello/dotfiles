@@ -8,7 +8,8 @@ Two subcommands:
   close   inspect the focused pane and close it immediately when idle, forward
           <c-space><bs> to (n)vim when --forward-vim is passed, or open the
           confirmation popup when a non-shell process is running in it
-  prompt  the confirmation popup UI (y closes the pane; any other key keeps it)
+  prompt  the confirmation popup UI (y/enter or repeating the close shortcut
+          closes the pane; any other key keeps it)
 """
 
 from __future__ import annotations
@@ -831,9 +832,118 @@ def render_prompt(
     return "\n".join(lines) + "\n"
 
 
+CONFIRM_KEYS = frozenset({
+    "y",
+    "Y",
+    "\r",
+    "\n",
+    "ctrl+alt+w",
+    "prefix+backspace",
+    "prefix+ctrl+backspace",
+    "prefix+x",
+})
+
+
+def _classify_coded_key(code: int, mods: int, prefix: bool) -> tuple[str | None, bool]:
+    if 57441 <= code <= 57454:
+        return None, prefix
+    if code in (119, 87) and (mods & 14) == 6:
+        return "ctrl+alt+w", False
+    if code in (0, 32) and mods == 4:
+        return None, True
+    if prefix:
+        if code in (8, 127) and mods == 0:
+            return "prefix+backspace", False
+        if code in (8, 127) and mods == 4:
+            return "prefix+ctrl+backspace", False
+        if code in (120, 88) and (mods & ~1) == 0:
+            return "prefix+x", False
+        return "esc", False
+    if code == 13 and mods == 0:
+        return "\r", False
+    if code in (121, 89) and (mods & ~1) == 0:
+        return ("Y" if code == 89 or (mods & 1) else "y"), False
+    return "esc", False
+
+
+def decode_input_step(buf: bytes, prefix: bool = False) -> tuple[int, str | None, bool]:
+    first = buf[0]
+    if first == 0x00:
+        return 1, None, True
+    if first in (0x08, 0x7F):
+        if prefix:
+            return 1, ("prefix+ctrl+backspace" if first == 0x08 else "prefix+backspace"), False
+        return 1, chr(first), False
+    if first == 0x1B:
+        if len(buf) == 1:
+            return 1, "esc", False
+        if buf[1] == 0x17:
+            return 2, ("esc" if prefix else "ctrl+alt+w"), False
+        if buf[1:2] == b"[":
+            i = 2
+            while i < len(buf) and 0x20 <= buf[i] <= 0x3F:
+                i += 1
+            if i >= len(buf) or not (0x40 <= buf[i] <= 0x7E):
+                return len(buf), "esc", False
+            final = chr(buf[i])
+            params = buf[2:i].decode("ascii", "replace")
+            length = i + 1
+            if final in ("I", "O") and not params:
+                return length, None, prefix
+            if final == "u":
+                parts = params.split(";")
+                code_str = parts[0].split(":", 1)[0] if parts else ""
+                code = int(code_str) if code_str.isdigit() else 0
+                mods, event = 0, ""
+                if len(parts) > 1:
+                    mod_text, _, event = parts[1].partition(":")
+                    if mod_text.isdigit():
+                        mods = int(mod_text) - 1
+                if event == "3":
+                    return length, None, prefix
+                key, next_prefix = _classify_coded_key(code, mods, prefix)
+                return length, key, next_prefix
+            if final == "~":
+                fields = params.split(";")
+                code, mods, event = 0, 0, ""
+                if len(fields) == 3 and fields[0] == "27" and fields[2].isdigit():
+                    code = int(fields[2])
+                    mod_text, _, event = fields[1].partition(":")
+                    if mod_text.isdigit():
+                        mods = int(mod_text) - 1
+                elif len(fields) >= 2 and fields[0].isdigit():
+                    code = int(fields[0])
+                    mod_text, _, event = fields[1].partition(":")
+                    if mod_text.isdigit():
+                        mods = int(mod_text) - 1
+                if event == "3":
+                    return length, None, prefix
+                if code:
+                    key, next_prefix = _classify_coded_key(code, mods, prefix)
+                    return length, key, next_prefix
+                return length, "esc", False
+            return length, "esc", False
+        if buf[1:2] == b"O" and len(buf) >= 3:
+            if buf[2:3] == b"M" and not prefix:
+                return 3, "\r", False
+            return 3, "esc", False
+        return len(buf), "esc", False
+    try:
+        ch = buf.decode("utf-8", "replace")[0]
+    except IndexError:
+        return len(buf), "esc", False
+    size = max(1, len(ch.encode("utf-8")))
+    if prefix:
+        if ch in ("x", "X"):
+            return size, "prefix+x", False
+        return size, "esc", False
+    return size, ch, False
+
+
 def read_single_key(fd: int) -> str:
     import select
 
+    prefix = False
     while True:
         ready, _, _ = select.select([fd], [], [], 0.1)
         if not ready:
@@ -841,17 +951,20 @@ def read_single_key(fd: int) -> str:
         data = os.read(fd, 64)
         if not data:
             return "esc"
-        if data[:1] == b"\x1b":
-            # Drain any remaining bytes of an escape sequence.
+        if b"\x1b" in data:
+            # Collect any remaining bytes of an escape sequence.
+            chunks = [data]
             while select.select([fd], [], [], 0.01)[0]:
-                if not os.read(fd, 64):
+                more = os.read(fd, 64)
+                if not more:
                     break
-            return "esc"
-        try:
-            ch = data.decode("utf-8", "replace")[0]
-        except IndexError:
-            return "esc"
-        return ch
+                chunks.append(more)
+            data = b"".join(chunks)
+        while data:
+            consumed, key, prefix = decode_input_step(data, prefix)
+            data = data[consumed:]
+            if key is not None:
+                return key
 
 
 def run_prompt(
@@ -900,7 +1013,7 @@ def run_prompt(
             if not ready:
                 continue
             key = read_single_key(fd)
-            if key in ("y", "Y", "\r", "\n"):
+            if key in CONFIRM_KEYS:
                 draw(closing=True)
                 try:
                     close_fn()

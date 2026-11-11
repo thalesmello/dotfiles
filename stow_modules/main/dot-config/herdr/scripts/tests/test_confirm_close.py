@@ -311,6 +311,79 @@ class RenderPromptTest(unittest.TestCase):
         self.assertEqual(cc.truncate("abc", 1), "abc")
 
 
+class PromptKeyInputTest(unittest.TestCase):
+    def read_key(self, *chunks: bytes) -> str:
+        r, w = os.pipe()
+        try:
+            for chunk in chunks:
+                os.write(w, chunk)
+            os.close(w)
+            w = -1
+            return cc.read_single_key(r)
+        finally:
+            if w >= 0:
+                os.close(w)
+            os.close(r)
+
+    def test_standard_confirm_keys(self):
+        for raw in (b"y", b"Y", b"\r", b"\n", b"\x1b[13u", b"\x1b[121u", b"\x1b[89;2u"):
+            with self.subTest(raw=raw):
+                self.assertIn(self.read_key(raw), cc.CONFIRM_KEYS)
+
+    def test_ctrl_alt_w_confirms_close(self):
+        for chunks in (
+            (b"\x1b\x17",),
+            (b"\x1b", b"\x17"),
+            (b"\x1b[119;7u",),
+            (b"\x1b[119;7:1u",),
+            (b"\x1b[119:87;7u",),
+            (b"\x1b[27;7;119~",),
+            (b"\x1b[119;7~",),
+        ):
+            with self.subTest(chunks=chunks):
+                key = self.read_key(*chunks)
+                self.assertEqual(key, "ctrl+alt+w")
+                self.assertIn(key, cc.CONFIRM_KEYS)
+
+    def test_prefix_close_chords_confirm_close(self):
+        for chunks, expected in (
+            ((b"\x00\x7f",), "prefix+backspace"),
+            ((b"\x00", b"\x7f"), "prefix+backspace"),
+            ((b"\x00\x08",), "prefix+ctrl+backspace"),
+            ((b"\x00x",), "prefix+x"),
+            ((b"\x1b[32;5u\x1b[127u",), "prefix+backspace"),
+            ((b"\x1b[32;5u\x1b[127;5u",), "prefix+ctrl+backspace"),
+            ((b"\x1b[32;5u\x1b[120u",), "prefix+x"),
+        ):
+            with self.subTest(chunks=chunks):
+                key = self.read_key(*chunks)
+                self.assertEqual(key, expected)
+                self.assertIn(key, cc.CONFIRM_KEYS)
+
+    def test_key_release_and_focus_events_are_ignored(self):
+        self.assertEqual(
+            self.read_key(b"\x1b[119;7:3u\x1b[I\x1b[57442u\x1b\x17"),
+            "ctrl+alt+w",
+        )
+
+    def test_other_keys_cancel(self):
+        for raw in (
+            b"n",
+            b"N",
+            b"\x1b",
+            b"\x1b[27u",
+            b"\x1b[A",
+            b"\x7f",
+            b"x",
+            b"\x1bw",
+            b"\x17",
+            b"\x00n",
+            b"\x00\x1b",
+        ):
+            with self.subTest(raw=raw):
+                self.assertNotIn(self.read_key(raw), cc.CONFIRM_KEYS)
+
+
 _ah_spec = importlib.util.spec_from_file_location(
     "agent_handler", os.path.join(_HERE, "..", "agent-handler.py"))
 ah = importlib.util.module_from_spec(_ah_spec)

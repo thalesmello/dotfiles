@@ -520,7 +520,8 @@ description = "toggle focused agent pin"
 
 # Confirm before closing a busy pane (scripts/confirm-close.py, a script port
 # of asumaran/asconfirmclose): an idle shell pane closes immediately, a pane
-# running a process asks first (y or enter closes; n/esc/any other key keeps).
+# running a process asks first (y, enter, or repeating the close shortcut closes;
+# n/esc/any other key keeps).
 # prefix+backspace / ctrl+alt+w keep smart-close.sh's vim forwarding on top.
 [[keys.command]]
 key = ["prefix+ctrl+backspace", "prefix+x"]
