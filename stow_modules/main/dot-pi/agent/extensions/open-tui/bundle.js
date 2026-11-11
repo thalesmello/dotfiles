@@ -169,11 +169,10 @@ import { copyToClipboard, UserMessageComponent } from "@earendil-works/pi-coding
 import {
   compositeTuiLine,
   Markdown,
-  Marked,
+  Marked as Marked2,
   truncateToWidth as truncateToWidth2,
   TuiAltScreen,
-  visibleWidth as visibleWidth2,
-  wrapTextWithAnsi
+  visibleWidth as visibleWidth3
 } from "@earendil-works/pi-tui";
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/utils.ts
@@ -525,6 +524,662 @@ function headerColumnWidths(innerWidth, minTipsWidth = MIN_TIPS_WIDTH, maxTipsWi
   return { leftWidth, rightWidth, useTips: true };
 }
 
+// stow_modules/main/dot-pi/agent/extensions/osc8-links.ts
+import * as piTui from "@earendil-works/pi-tui";
+var PATCH_STATE_SYMBOL = Symbol.for("pi.osc8Links.patchState");
+var OSC8_CLOSE = "\x1B]8;;\x1B\\";
+var PLAIN_URL_Candidate_REGEX = /https?:\/\/(?:<[a-zA-Z0-9_.:-]+>|[^\s<>"'`\x00-\x1f\x7f│┌┐└┘├┤┬┴┼─])+/gi;
+var HTML_LAYOUT_TAG_REGEX = /^<\/?(?:br|wbr|hr|p|div|span|a|img|code|pre|em|strong|b|i|u|s|del|ins|sub|sup|td|th|tr|table)\b/i;
+var graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+var cjkBreakRegex = /[\p{Script_Extensions=Han}\p{Script_Extensions=Hiragana}\p{Script_Extensions=Katakana}\p{Script_Extensions=Hangul}\p{Script_Extensions=Bopomofo}]/u;
+function countChar(str, ch) {
+  let count = 0;
+  for (let i = 0;i < str.length; i++) {
+    if (str[i] === ch)
+      count++;
+  }
+  return count;
+}
+function splitTrailingUrlPunctuation(rawUrl) {
+  let url = rawUrl;
+  let trailing = "";
+  while (url.length > 0) {
+    const inlineTagMatch = /(<[a-zA-Z0-9_.:-]+>)$/.exec(url);
+    if (inlineTagMatch && HTML_LAYOUT_TAG_REGEX.test(inlineTagMatch[1])) {
+      const tag = inlineTagMatch[1];
+      url = url.slice(0, -tag.length);
+      trailing = tag + trailing;
+      continue;
+    }
+    const last = url[url.length - 1];
+    if (`.!?,;:'"`.includes(last)) {
+      url = url.slice(0, -1);
+      trailing = last + trailing;
+      continue;
+    }
+    if (last === ")" && countChar(url, ")") > countChar(url, "(")) {
+      url = url.slice(0, -1);
+      trailing = last + trailing;
+      continue;
+    }
+    if (last === "]" && countChar(url, "]") > countChar(url, "[")) {
+      url = url.slice(0, -1);
+      trailing = last + trailing;
+      continue;
+    }
+    if (last === "}" && countChar(url, "}") > countChar(url, "{")) {
+      url = url.slice(0, -1);
+      trailing = last + trailing;
+      continue;
+    }
+    break;
+  }
+  return { url, trailing };
+}
+function findUrlsInPlainText(text) {
+  if (!text.includes("http://") && !text.includes("https://") && !/https?:\/\//i.test(text)) {
+    return [];
+  }
+  const matches = [];
+  PLAIN_URL_Candidate_REGEX.lastIndex = 0;
+  let match;
+  while ((match = PLAIN_URL_Candidate_REGEX.exec(text)) !== null) {
+    const { url } = splitTrailingUrlPunctuation(match[0]);
+    if (url.length > "https://".length) {
+      matches.push({
+        start: match.index,
+        end: match.index + url.length,
+        url
+      });
+    }
+  }
+  return matches;
+}
+function ansiCodeLength(str, pos) {
+  if (pos >= str.length || str.charCodeAt(pos) !== 27)
+    return 0;
+  const next = str[pos + 1];
+  if (next === "[") {
+    for (let j = pos + 2;j < str.length; j++) {
+      const c = str.charCodeAt(j);
+      if (c === 109 || c === 71 || c === 75 || c === 72 || c === 74) {
+        return j + 1 - pos;
+      }
+    }
+    return 0;
+  }
+  if (next === "]" || next === "_") {
+    for (let j = pos + 2;j < str.length; j++) {
+      const c = str.charCodeAt(j);
+      if (c === 7)
+        return j + 1 - pos;
+      if (c === 27 && str[j + 1] === "\\")
+        return j + 2 - pos;
+    }
+    return 0;
+  }
+  return 0;
+}
+function extractAnsiCode(str, pos) {
+  const length = ansiCodeLength(str, pos);
+  return length > 0 ? { code: str.substring(pos, pos + length), length } : null;
+}
+function parseOsc8Code(ansiCode) {
+  if (!ansiCode.startsWith("\x1B]8;"))
+    return;
+  const terminator = ansiCode.endsWith("\x07") ? "\x07" : "\x1B\\";
+  const body = ansiCode.slice(4, terminator === "\x07" ? -1 : -2);
+  const sep = body.indexOf(";");
+  if (sep === -1)
+    return;
+  const params = body.slice(0, sep);
+  const url = body.slice(sep + 1);
+  if (!url)
+    return null;
+  return { params, url, terminator };
+}
+function linkifyAnsiLineUrls(line, styleUrlPrefix = "\x1B[4m", styleUrlSuffix = "\x1B[24m") {
+  if (!line || !line.includes("http://") && !line.includes("https://") && !/https?:\/\//i.test(line)) {
+    return line;
+  }
+  let plain = "";
+  const charHasOsc8 = [];
+  const charHasUnderline = [];
+  const tracker = new AnsiTracker;
+  let i = 0;
+  while (i < line.length) {
+    const ansi = extractAnsiCode(line, i);
+    if (ansi) {
+      tracker.process(ansi.code);
+      i += ansi.length;
+      continue;
+    }
+    plain += line[i];
+    charHasOsc8.push(tracker.activeHyperlink !== null);
+    charHasUnderline.push(tracker.underline);
+    i++;
+  }
+  const urlMatches = findUrlsInPlainText(plain).filter((m) => {
+    for (let idx = m.start;idx < m.end; idx++) {
+      if (charHasOsc8[idx])
+        return false;
+    }
+    return true;
+  });
+  if (urlMatches.length === 0) {
+    return line;
+  }
+  const openAtPlainIdx = new Map;
+  const closeAtPlainIdx = new Map;
+  for (const match of urlMatches) {
+    openAtPlainIdx.set(match.start, match.url);
+    closeAtPlainIdx.set(match.end, true);
+  }
+  let out = "";
+  let plainIdx = 0;
+  let addedUnderlineForUrl = false;
+  i = 0;
+  while (i < line.length) {
+    const ansi = extractAnsiCode(line, i);
+    if (ansi) {
+      out += ansi.code;
+      if (addedUnderlineForUrl && /^\x1b\[(?:0|24)(?:;[\d;]*)*m$/.test(ansi.code)) {
+        out += styleUrlPrefix;
+      }
+      i += ansi.length;
+      continue;
+    }
+    const openUrl = openAtPlainIdx.get(plainIdx);
+    if (openUrl !== undefined) {
+      const needsPrefix = Boolean(styleUrlPrefix) && !(styleUrlPrefix === "\x1B[4m" && charHasUnderline[plainIdx]);
+      addedUnderlineForUrl = needsPrefix;
+      out += `\x1B]8;;${openUrl}\x1B\\${needsPrefix ? styleUrlPrefix : ""}`;
+    }
+    out += line[i];
+    plainIdx++;
+    i++;
+    if (closeAtPlainIdx.get(plainIdx)) {
+      const closeSuffix = addedUnderlineForUrl ? styleUrlSuffix : "";
+      addedUnderlineForUrl = false;
+      out += `${closeSuffix}${OSC8_CLOSE}`;
+    }
+  }
+  return out;
+}
+function linkifyAnsiTextUrls(text, styleUrlPrefix = "\x1B[4m", styleUrlSuffix = "\x1B[24m") {
+  if (!text || !text.includes("http://") && !text.includes("https://") && !/https?:\/\//i.test(text)) {
+    return text;
+  }
+  return text.split(`
+`).map((line) => linkifyAnsiLineUrls(line, styleUrlPrefix, styleUrlSuffix)).join(`
+`);
+}
+function stripTerminalSequencesSafe(str) {
+  if (!str.includes("\x1B"))
+    return str;
+  let result = "";
+  let i = 0;
+  while (i < str.length) {
+    const ansi = extractAnsiCode(str, i);
+    if (ansi) {
+      i += ansi.length;
+      continue;
+    }
+    result += str[i];
+    i++;
+  }
+  return result;
+}
+
+class AnsiTracker {
+  bold = false;
+  dim = false;
+  italic = false;
+  underline = false;
+  blink = false;
+  inverse = false;
+  hidden = false;
+  strikethrough = false;
+  fgColor = null;
+  bgColor = null;
+  activeHyperlink = null;
+  process(ansiCode) {
+    const hyperlink = parseOsc8Code(ansiCode);
+    if (hyperlink !== undefined) {
+      this.activeHyperlink = hyperlink;
+      return;
+    }
+    if (!ansiCode.endsWith("m"))
+      return;
+    const match = ansiCode.match(/^\x1b\[([\d;]*)m$/);
+    if (!match)
+      return;
+    const params = match[1];
+    if (params === "" || params === "0") {
+      this.reset();
+      return;
+    }
+    const parts = params.split(";");
+    let i = 0;
+    while (i < parts.length) {
+      const code = Number.parseInt(parts[i], 10);
+      if (code === 38 || code === 48) {
+        if (parts[i + 1] === "5" && parts[i + 2] !== undefined) {
+          const colorCode = `${parts[i]};${parts[i + 1]};${parts[i + 2]}`;
+          if (code === 38)
+            this.fgColor = colorCode;
+          else
+            this.bgColor = colorCode;
+          i += 3;
+          continue;
+        }
+        if (parts[i + 1] === "2" && parts[i + 4] !== undefined) {
+          const colorCode = `${parts[i]};${parts[i + 1]};${parts[i + 2]};${parts[i + 3]};${parts[i + 4]}`;
+          if (code === 38)
+            this.fgColor = colorCode;
+          else
+            this.bgColor = colorCode;
+          i += 5;
+          continue;
+        }
+      }
+      switch (code) {
+        case 0:
+          this.reset();
+          break;
+        case 1:
+          this.bold = true;
+          break;
+        case 2:
+          this.dim = true;
+          break;
+        case 3:
+          this.italic = true;
+          break;
+        case 4:
+          this.underline = true;
+          break;
+        case 5:
+          this.blink = true;
+          break;
+        case 7:
+          this.inverse = true;
+          break;
+        case 8:
+          this.hidden = true;
+          break;
+        case 9:
+          this.strikethrough = true;
+          break;
+        case 21:
+          this.bold = false;
+          break;
+        case 22:
+          this.bold = false;
+          this.dim = false;
+          break;
+        case 23:
+          this.italic = false;
+          break;
+        case 24:
+          this.underline = false;
+          break;
+        case 25:
+          this.blink = false;
+          break;
+        case 27:
+          this.inverse = false;
+          break;
+        case 28:
+          this.hidden = false;
+          break;
+        case 29:
+          this.strikethrough = false;
+          break;
+        case 39:
+          this.fgColor = null;
+          break;
+        case 49:
+          this.bgColor = null;
+          break;
+        default:
+          if (code >= 30 && code <= 37 || code >= 90 && code <= 97) {
+            this.fgColor = String(code);
+          } else if (code >= 40 && code <= 47 || code >= 100 && code <= 107) {
+            this.bgColor = String(code);
+          }
+          break;
+      }
+      i++;
+    }
+  }
+  reset() {
+    this.bold = false;
+    this.dim = false;
+    this.italic = false;
+    this.underline = false;
+    this.blink = false;
+    this.inverse = false;
+    this.hidden = false;
+    this.strikethrough = false;
+    this.fgColor = null;
+    this.bgColor = null;
+  }
+  getActiveCodes() {
+    const codes = [];
+    if (this.bold)
+      codes.push("1");
+    if (this.dim)
+      codes.push("2");
+    if (this.italic)
+      codes.push("3");
+    if (this.underline)
+      codes.push("4");
+    if (this.blink)
+      codes.push("5");
+    if (this.inverse)
+      codes.push("7");
+    if (this.hidden)
+      codes.push("8");
+    if (this.strikethrough)
+      codes.push("9");
+    if (this.fgColor)
+      codes.push(this.fgColor);
+    if (this.bgColor)
+      codes.push(this.bgColor);
+    let result = codes.length > 0 ? `\x1B[${codes.join(";")}m` : "";
+    if (this.activeHyperlink) {
+      result += `\x1B]8;${this.activeHyperlink.params};${this.activeHyperlink.url}${this.activeHyperlink.terminator}`;
+    }
+    return result;
+  }
+  getLineEndReset() {
+    let result = "";
+    if (this.underline) {
+      result += "\x1B[24m";
+    }
+    if (this.activeHyperlink) {
+      result += `\x1B]8;;${this.activeHyperlink.terminator}`;
+    }
+    return result;
+  }
+}
+function updateTrackerFromText(text, tracker) {
+  let i = text.indexOf("\x1B");
+  while (i !== -1) {
+    const length = ansiCodeLength(text, i);
+    if (length > 0) {
+      tracker.process(text.substring(i, i + length));
+      i += length;
+    } else {
+      i++;
+    }
+    i = text.indexOf("\x1B", i);
+  }
+}
+function isClosingAnsiSequence(code) {
+  const osc8 = parseOsc8Code(code);
+  if (osc8 !== undefined) {
+    return osc8 === null;
+  }
+  return /^\x1b\[(?:0|21|22|23|24|25|27|28|29|39|49)(?:;(?:0|21|22|23|24|25|27|28|29|39|49))*m$/.test(code);
+}
+function splitIntoTokensWithAnsiFixed(text) {
+  const tokens = [];
+  let current = "";
+  let pendingAnsi = "";
+  let currentKind = null;
+  let i = 0;
+  const flushCurrent = () => {
+    if (!current)
+      return;
+    tokens.push(current);
+    current = "";
+    currentKind = null;
+  };
+  while (i < text.length) {
+    const ansiResult = extractAnsiCode(text, i);
+    if (ansiResult) {
+      if (current && currentKind === "word" && !pendingAnsi && isClosingAnsiSequence(ansiResult.code)) {
+        current += ansiResult.code;
+      } else {
+        pendingAnsi += ansiResult.code;
+      }
+      i += ansiResult.length;
+      continue;
+    }
+    let end = text.indexOf("\x1B", i + 1);
+    while (end !== -1 && ansiCodeLength(text, end) === 0) {
+      end = text.indexOf("\x1B", end + 1);
+    }
+    if (end === -1)
+      end = text.length;
+    const chunk = text.slice(i, end);
+    for (const { segment } of graphemeSegmenter.segment(chunk)) {
+      const segmentIsSpace = segment === " ";
+      if (!segmentIsSpace && cjkBreakRegex.test(segment)) {
+        flushCurrent();
+        const token = pendingAnsi + segment;
+        pendingAnsi = "";
+        tokens.push(token);
+        continue;
+      }
+      const segmentKind = segmentIsSpace ? "space" : "word";
+      if (current && currentKind !== segmentKind) {
+        flushCurrent();
+      }
+      if (pendingAnsi) {
+        current += pendingAnsi;
+        pendingAnsi = "";
+      }
+      currentKind = segmentKind;
+      current += segment;
+    }
+    i = end;
+  }
+  if (pendingAnsi) {
+    if (current) {
+      current += pendingAnsi;
+    } else if (tokens.length > 0) {
+      tokens[tokens.length - 1] += pendingAnsi;
+    } else {
+      current = pendingAnsi;
+    }
+  }
+  if (current) {
+    tokens.push(current);
+  }
+  return tokens;
+}
+function trimTrailingSpacesPreservingAnsi(line) {
+  if (!line)
+    return line;
+  const segments = [];
+  let i = 0;
+  while (i < line.length) {
+    const ansi = extractAnsiCode(line, i);
+    if (ansi) {
+      segments.push({ type: "ansi", value: ansi.code });
+      i += ansi.length;
+      continue;
+    }
+    let end = i;
+    while (end < line.length && !extractAnsiCode(line, end)) {
+      end++;
+    }
+    segments.push({ type: "text", value: line.slice(i, end) });
+    i = end;
+  }
+  for (let idx = segments.length - 1;idx >= 0; idx--) {
+    const seg = segments[idx];
+    if (seg.type === "ansi")
+      continue;
+    const trimmed = seg.value.replace(/ +$/, "");
+    seg.value = trimmed;
+    if (trimmed.length > 0) {
+      break;
+    }
+  }
+  return segments.map((s) => s.value).join("");
+}
+function breakLongWordPreservingOsc8(word, width, tracker, measureWidth) {
+  const lines = [];
+  let currentLine = tracker.getActiveCodes();
+  let currentWidth = 0;
+  let i = 0;
+  const segments = [];
+  while (i < word.length) {
+    const ansiResult = extractAnsiCode(word, i);
+    if (ansiResult) {
+      segments.push({ type: "ansi", value: ansiResult.code });
+      i += ansiResult.length;
+    } else {
+      let end = i;
+      while (end < word.length && !extractAnsiCode(word, end)) {
+        end++;
+      }
+      for (const seg of graphemeSegmenter.segment(word.slice(i, end))) {
+        segments.push({ type: "grapheme", value: seg.segment });
+      }
+      i = end;
+    }
+  }
+  for (const seg of segments) {
+    if (seg.type === "ansi") {
+      currentLine += seg.value;
+      tracker.process(seg.value);
+      continue;
+    }
+    const grapheme = seg.value;
+    if (!grapheme)
+      continue;
+    const graphemeWidth = measureWidth(grapheme);
+    if (currentWidth + graphemeWidth > width) {
+      const lineEndReset = tracker.getLineEndReset();
+      if (lineEndReset) {
+        currentLine += lineEndReset;
+      }
+      lines.push(currentLine);
+      currentLine = tracker.getActiveCodes();
+      currentWidth = 0;
+    }
+    currentLine += grapheme;
+    currentWidth += graphemeWidth;
+  }
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  return lines.length > 0 ? lines : [""];
+}
+function wrapSingleLinePreservingOsc8(line, width, measureWidth) {
+  if (!line)
+    return [""];
+  const visibleLength = measureWidth(line);
+  if (visibleLength <= width) {
+    return [ensureBalancedLineOsc8(line)];
+  }
+  const wrapped = [];
+  const tracker = new AnsiTracker;
+  const tokens = splitIntoTokensWithAnsiFixed(line);
+  let currentLine = "";
+  let currentVisibleLength = 0;
+  for (const token of tokens) {
+    const tokenVisibleLength = measureWidth(token);
+    const isWhitespace = stripTerminalSequencesSafe(token).trim() === "";
+    if (tokenVisibleLength > width && !isWhitespace) {
+      if (currentVisibleLength > 0) {
+        let lineToPush = trimTrailingSpacesPreservingAnsi(currentLine);
+        const lineEndReset = tracker.getLineEndReset();
+        if (lineEndReset) {
+          lineToPush += lineEndReset;
+        }
+        wrapped.push(ensureBalancedLineOsc8(lineToPush));
+        currentLine = "";
+        currentVisibleLength = 0;
+      } else if (currentLine) {
+        updateTrackerFromText(currentLine, tracker);
+        currentLine = "";
+      }
+      const broken = breakLongWordPreservingOsc8(token, width, tracker, measureWidth);
+      for (let i = 0;i < broken.length - 1; i++) {
+        wrapped.push(ensureBalancedLineOsc8(broken[i]));
+      }
+      currentLine = broken[broken.length - 1];
+      currentVisibleLength = measureWidth(currentLine);
+      continue;
+    }
+    const totalNeeded = currentVisibleLength + tokenVisibleLength;
+    if (totalNeeded > width && currentVisibleLength > 0) {
+      let lineToWrap = trimTrailingSpacesPreservingAnsi(currentLine);
+      const lineEndReset = tracker.getLineEndReset();
+      if (lineEndReset) {
+        lineToWrap += lineEndReset;
+      }
+      wrapped.push(ensureBalancedLineOsc8(lineToWrap));
+      if (isWhitespace) {
+        updateTrackerFromText(token, tracker);
+        currentLine = tracker.getActiveCodes();
+        currentVisibleLength = 0;
+        continue;
+      }
+      currentLine = tracker.getActiveCodes() + token;
+      currentVisibleLength = tokenVisibleLength;
+    } else {
+      currentLine += token;
+      currentVisibleLength += tokenVisibleLength;
+    }
+    updateTrackerFromText(token, tracker);
+  }
+  if (currentVisibleLength > 0 || wrapped.length === 0) {
+    let finalLine = trimTrailingSpacesPreservingAnsi(currentLine);
+    const lineEndReset = tracker.getLineEndReset();
+    if (lineEndReset) {
+      finalLine += lineEndReset;
+    }
+    wrapped.push(ensureBalancedLineOsc8(finalLine));
+  }
+  return wrapped.length > 0 ? wrapped : [""];
+}
+function ensureBalancedLineOsc8(line) {
+  if (!line.includes("\x1B]8;"))
+    return line;
+  let active = null;
+  let i = 0;
+  while (i < line.length) {
+    const ansi = extractAnsiCode(line, i);
+    if (ansi) {
+      const parsed = parseOsc8Code(ansi.code);
+      if (parsed !== undefined) {
+        active = parsed;
+      }
+      i += ansi.length;
+    } else {
+      i++;
+    }
+  }
+  if (active) {
+    return `${line}\x1B]8;;${active.terminator}`;
+  }
+  return line;
+}
+function wrapAnsiTextPreservingOsc8(text, width, measureWidth = piTui.visibleWidth) {
+  if (!text)
+    return [""];
+  const linkedText = linkifyAnsiTextUrls(text);
+  const inputLines = linkedText.split(/\r\n|\r|\n/);
+  const result = [];
+  const tracker = new AnsiTracker;
+  for (const inputLine of inputLines) {
+    const prefix = result.length > 0 ? tracker.getActiveCodes() : "";
+    const wrappedLines = wrapSingleLinePreservingOsc8(prefix + inputLine, Math.max(1, width), measureWidth);
+    for (const wrappedLine of wrappedLines) {
+      result.push(wrappedLine);
+    }
+    updateTrackerFromText(inputLine, tracker);
+  }
+  return result.length > 0 ? result : [""];
+}
+
 // stow_modules/main/dot-pi/agent/extensions/open-tui/copy-buttons.ts
 var LABEL = "⧉ Copy";
 var COPIED_LABEL = "Copied";
@@ -550,20 +1205,20 @@ function markCopyScope(markdown, context) {
 }
 function renderFramedCode(theme, code, lang, width, label, border = theme.codeBlockBorder, marker = "") {
   const inner = width - 4;
-  const highlighted = theme.highlightCode?.(code, lang) ?? code.split(`
-`).map((line) => theme.codeBlock(line));
+  const highlighted = (theme.highlightCode?.(code, lang) ?? code.split(`
+`).map((line) => theme.codeBlock(line))).map((line) => linkifyAnsiLineUrls(line));
   const rows = highlighted.flatMap((line) => {
-    const wrapped = wrapTextWithAnsi(line, inner);
+    const wrapped = wrapAnsiTextPreservingOsc8(line, inner, visibleWidth3);
     return wrapped.length > 0 ? wrapped : [""];
   });
   const suffix = label === undefined ? "" : ` ${LABEL} `;
-  const name = truncateToWidth2(lang?.trim().split(/\s+/, 1)[0] || "code", Math.max(1, width - 6 - visibleWidth2(suffix)), "…");
+  const name = truncateToWidth2(lang?.trim().split(/\s+/, 1)[0] || "code", Math.max(1, width - 6 - visibleWidth3(suffix)), "…");
   const prefix = `╭─ ${name} `;
-  const widest = Math.max(0, ...rows.map((row) => visibleWidth2(row)));
-  const frameWidth = Math.min(width, Math.max(widest + 4, visibleWidth2(prefix) + 3 + visibleWidth2(suffix) + 1));
-  const fill = Math.max(0, frameWidth - visibleWidth2(prefix) - visibleWidth2(suffix) - 1);
+  const widest = Math.max(0, ...rows.map((row) => visibleWidth3(row)));
+  const frameWidth = Math.min(width, Math.max(widest + 4, visibleWidth3(prefix) + 3 + visibleWidth3(suffix) + 1));
+  const fill = Math.max(0, frameWidth - visibleWidth3(prefix) - visibleWidth3(suffix) - 1);
   const top = (label === undefined ? marker : "") + border("╭─ ") + theme.codeBlockBorder(`${name} `) + border("─".repeat(fill)) + (label === undefined ? "" : ` ${marker}${label} `) + border("╮");
-  const body = rows.map((row) => border("│ ") + row + " ".repeat(Math.max(0, frameWidth - 4 - visibleWidth2(row))) + border(" │"));
+  const body = rows.map((row) => border("│ ") + row + " ".repeat(Math.max(0, frameWidth - 4 - visibleWidth3(row))) + border(" │"));
   return [top, ...body, border(`╰${"─".repeat(frameWidth - 2)}╯`)];
 }
 function handleCopyMouse(owner, regions, event, onCopy) {
@@ -608,7 +1263,7 @@ function restoreTabs(source, ordinal, rendered) {
 `);
   const normalized = sourceLines.map((line) => line.replace(/\t/g, "   "));
   const blocks = [];
-  const parser = new Marked;
+  const parser = new Marked2;
   parser.walkTokens(parser.lexer(normalized.join(`
 `)), (token) => {
     if (token.type === "code")
@@ -910,7 +1565,7 @@ function installCopyButtons(options) {
             }
             const region = {
               row,
-              col: visibleWidth2(clean),
+              col: visibleWidth3(clean),
               width: LABEL.length,
               text: restoreTabs(source, currentOrdinal, block.text)
             };
@@ -1016,10 +1671,10 @@ function installCopyButtons(options) {
 import {
   CustomEditor
 } from "@earendil-works/pi-coding-agent";
-import { CURSOR_MARKER, truncateToWidth as truncateToWidth3, visibleWidth as visibleWidth3 } from "@earendil-works/pi-tui";
+import { CURSOR_MARKER, truncateToWidth as truncateToWidth3, visibleWidth as visibleWidth4 } from "@earendil-works/pi-tui";
 function fillLine(content, width) {
   const truncated = truncateToWidth3(content, Math.max(0, width), "");
-  const pad = " ".repeat(Math.max(0, width - visibleWidth3(truncated)));
+  const pad = " ".repeat(Math.max(0, width - visibleWidth4(truncated)));
   return `${truncated}${pad}`;
 }
 var CURSOR_STYLE_SEQUENCES = {
@@ -1084,15 +1739,15 @@ function roundedBorder(width, kind, paint, sourceLine, indicator) {
     const scrollMatch = plain.match(/([↑↓]\s+\d+\s+more)/);
     const contentWidth = width - 2;
     let status = indicator.renderInBorder(Math.max(1, contentWidth - 5));
-    let statusWidth = visibleWidth3(status);
+    let statusWidth = visibleWidth4(status);
     if (statusWidth > 0) {
       const overflowLabel = scrollMatch ? ` ${scrollMatch[1]} ` : undefined;
-      const overflowLabelWidth = overflowLabel ? visibleWidth3(overflowLabel) : 0;
+      const overflowLabelWidth = overflowLabel ? visibleWidth4(overflowLabel) : 0;
       const overflowStart = Math.floor((contentWidth - overflowLabelWidth) / 2);
       const canFitOverflow = () => overflowLabel !== undefined && overflowLabelWidth + 2 <= contentWidth && overflowStart - (3 + statusWidth + 1) >= 1;
       if (overflowLabel && !canFitOverflow()) {
         status = indicator.renderSpinnerInBorder(contentWidth);
-        statusWidth = visibleWidth3(status);
+        statusWidth = visibleWidth4(status);
       }
       if (canFitOverflow()) {
         const leftBlockWidth = 3 + statusWidth + 1;
@@ -1102,7 +1757,7 @@ function roundedBorder(width, kind, paint, sourceLine, indicator) {
         return `${paint(`${corners[0]}── `)}${status}${paint(` ${"─".repeat(contentWidth - statusWidth - 4)}${corners[1]}`)}`;
       }
       status = indicator.renderSpinnerInBorder(contentWidth);
-      statusWidth = visibleWidth3(status);
+      statusWidth = visibleWidth4(status);
       const prefixWidth = Math.min(3, Math.max(0, contentWidth - statusWidth));
       return `${paint(`${corners[0]}${"─".repeat(prefixWidth)}`)}${status}${paint(`${"─".repeat(Math.max(0, contentWidth - prefixWidth - statusWidth))}${corners[1]}`)}`;
     }
@@ -1112,7 +1767,7 @@ function roundedBorder(width, kind, paint, sourceLine, indicator) {
     const scrollMatch = plain.match(/([↑↓]\s+\d+\s+more)/);
     if (scrollMatch) {
       const label = `─── ${scrollMatch[1]} `;
-      const fill = Math.max(0, width - 2 - visibleWidth3(label));
+      const fill = Math.max(0, width - 2 - visibleWidth4(label));
       return paint(`${corners[0]}${label}${"─".repeat(fill)}${corners[1]}`);
     }
   }
@@ -1133,27 +1788,27 @@ function inlineBorder(width, kind, paint, renderLine, sourceLine, indicator) {
   const right = scrollMatch ? paint(` ${scrollMatch[1]} `) : "";
   let left = paint("─");
   if (kind === "top" && indicator) {
-    const statusBudget = Math.max(1, contentWidth - visibleWidth3(right) - 7);
+    const statusBudget = Math.max(1, contentWidth - visibleWidth4(right) - 7);
     let status = indicator.renderInBorder(statusBudget);
-    if (visibleWidth3(status) > statusBudget)
+    if (visibleWidth4(status) > statusBudget)
       status = indicator.renderSpinnerInBorder(statusBudget);
-    const leftBudget = Math.max(0, contentWidth - visibleWidth3(right) - 1);
+    const leftBudget = Math.max(0, contentWidth - visibleWidth4(right) - 1);
     status = truncateToWidth3(status, Math.max(0, leftBudget - 4), "");
-    if (visibleWidth3(status) > 0)
+    if (visibleWidth4(status) > 0)
       left = `${paint("── ")}${status}${paint(" ")}`;
   }
-  const lineBudget = Math.max(0, contentWidth - visibleWidth3(left) - visibleWidth3(right) - 6);
+  const lineBudget = Math.max(0, contentWidth - visibleWidth4(left) - visibleWidth4(right) - 6);
   const line = renderLine(lineBudget);
   if (!line)
     return roundedBorder(width, kind, paint, sourceLine, indicator);
   const leftContent = trimTrailingSpaces(line.left);
   const rightContent = trimTrailingSpaces(line.right);
-  if (visibleWidth3(leftContent) === 0 && visibleWidth3(rightContent) === 0) {
+  if (visibleWidth4(leftContent) === 0 && visibleWidth4(rightContent) === 0) {
     return roundedBorder(width, kind, paint, sourceLine, indicator);
   }
   const leftCell = leftContent ? ` ${leftContent} ` : "";
   const rightCell = rightContent ? ` ${rightContent} ` : "";
-  const fill = Math.max(1, contentWidth - visibleWidth3(left) - visibleWidth3(leftCell) - visibleWidth3(rightCell) - visibleWidth3(right) - 1);
+  const fill = Math.max(1, contentWidth - visibleWidth4(left) - visibleWidth4(leftCell) - visibleWidth4(rightCell) - visibleWidth4(right) - 1);
   return `${paint(corners[0])}${left}${leftCell}${paint("─".repeat(fill))}${rightCell}${right}${paint("─")}${paint(corners[1])}`;
 }
 function isFrameableEditor(editor) {
@@ -1501,7 +2156,7 @@ function installEditor(_pi, ctx, cursorStyle = "block", inlineFooter) {
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/footer.ts
 import { hostname as osHostname } from "node:os";
-import { truncateToWidth as truncateToWidth4, visibleWidth as visibleWidth4, wrapTextWithAnsi as wrapTextWithAnsi2 } from "@earendil-works/pi-tui";
+import { truncateToWidth as truncateToWidth4, visibleWidth as visibleWidth5, wrapTextWithAnsi as wrapTextWithAnsi2 } from "@earendil-works/pi-tui";
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/icons.ts
 var NERD_GLYPHS = {
@@ -1964,7 +2619,7 @@ function renderContextBar(theme, ctx, width, glyphs, iconMode) {
   const pctText = theme.fg(stressColor(contextPct), `${contextPct.toFixed(1)}%`);
   const ctxText = `${theme.fg("text", fmtTokens(contextTokens))}${theme.fg("dim", "/")}${theme.fg("text", fmtTokens(contextWindow))}`;
   const contextIcon = theme.fg(stressColor(contextPct), glyphs.context);
-  const reserved = visibleWidth4(contextIcon) + visibleWidth4(pctText) + visibleWidth4(ctxText) + 5 + 2;
+  const reserved = visibleWidth5(contextIcon) + visibleWidth5(pctText) + visibleWidth5(ctxText) + 5 + 2;
   const barWidth = Math.max(4, Math.min(12, width - reserved));
   return `${contextIcon} ${renderBar(theme, contextPct, barWidth, resolveIconMode(iconMode) === "ascii")} ${pctText} ${theme.fg("dim", "·")} ${ctxText}`;
 }
@@ -1999,7 +2654,7 @@ function renderExtensionStatusLines(theme, extensionStatuses, glyphs, width) {
   return wrapTextWithAnsi2(line, width);
 }
 function fitInlineLine(left, right, width, theme) {
-  const rightWidth = visibleWidth4(right);
+  const rightWidth = visibleWidth5(right);
   if (rightWidth > width) {
     return { left: "", right: truncateToWidth4(right, width, theme.fg("dim", "...")) };
   }
@@ -2010,7 +2665,7 @@ function fitInlineLine(left, right, width, theme) {
 }
 function fitInlineSegments(parts, width, theme) {
   const separator = theme.fg("dim", " · ");
-  const separatorReserve = Math.max(0, parts.length - 1) * Math.max(0, visibleWidth4(separator) - 1);
+  const separatorReserve = Math.max(0, parts.length - 1) * Math.max(0, visibleWidth5(separator) - 1);
   return fitSegmentsByPriority(parts, Math.max(0, width - separatorReserve), theme.fg("dim", "...")).filter(Boolean).join(separator);
 }
 var FOOTER_ANCHORS = {
@@ -2034,7 +2689,7 @@ function fitContributedRow(row, mode, builtins, contributions, width, theme) {
         contributed = true;
         parts.push({
           text: renderStatusText(theme, segment.text),
-          compactText: segment.compactText && visibleWidth4(segment.compactText) > 0 ? renderStatusText(theme, segment.compactText) : undefined,
+          compactText: segment.compactText && visibleWidth5(segment.compactText) > 0 ? renderStatusText(theme, segment.compactText) : undefined,
           priority: segment.priority
         });
       }
@@ -2062,7 +2717,7 @@ function fitContributedRow(row, mode, builtins, contributions, width, theme) {
     gapWidth: (previous, next) => {
       if (previous < left.length && next >= left.length)
         return 1;
-      return visibleWidth4(next < left.length ? leftSeparator : rightSeparator);
+      return visibleWidth5(next < left.length ? leftSeparator : rightSeparator);
     }
   });
   const join = (parts, separator) => parts.filter(Boolean).map((part) => `${part}${ANSI_RESET}`).join(separator);
@@ -2099,7 +2754,7 @@ function renderFooterContent(ctx, getState, getConfig, getModelMeta, theme, foot
   const meta = getModelMeta();
   const totals = getUsageTotals(ctx);
   const builtins = {};
-  const contributions = segments.extensionSegments ? getExtensionSegments().filter((segment) => visibleWidth4(segment.text) > 0) : [];
+  const contributions = segments.extensionSegments ? getExtensionSegments().filter((segment) => visibleWidth5(segment.text) > 0) : [];
   const leftParts = [];
   const inlineTopLeftParts = [];
   const inlineTopRightParts = [];
@@ -2113,8 +2768,8 @@ function renderFooterContent(ctx, getState, getConfig, getModelMeta, theme, foot
       compactText: `${cwdPrefix}${accent(truncatePath(basenamePath(cwd), maxCwd))}`,
       priority: 4,
       truncate: (_text, maxWidth, ellipsis) => {
-        const pathWidth = maxWidth - visibleWidth4(cwdPrefix);
-        if (pathWidth <= visibleWidth4(ellipsis)) {
+        const pathWidth = maxWidth - visibleWidth5(cwdPrefix);
+        if (pathWidth <= visibleWidth5(ellipsis)) {
           return truncateToWidth4(`${cwdPrefix}${accent(basenamePath(cwd))}`, maxWidth, ellipsis);
         }
         return `${cwdPrefix}${accent(truncatePath(basenamePath(cwd), pathWidth))}`;
@@ -2173,7 +2828,7 @@ function renderFooterContent(ctx, getState, getConfig, getModelMeta, theme, foot
   if (segments.context) {
     contextText = renderContextBar(theme, ctx, width, glyphs, config.icons.mode);
     const compact = renderContextCompact(theme, ctx, glyphs);
-    if (compact && visibleWidth4(compact) < visibleWidth4(contextText)) {
+    if (compact && visibleWidth5(compact) < visibleWidth5(contextText)) {
       contextCompact = compact;
     }
   }
@@ -2189,7 +2844,7 @@ function renderFooterContent(ctx, getState, getConfig, getModelMeta, theme, foot
   const line1 = contributedTop ? alignContributedRow(contributedTop, width, theme) : alignRight(fitted.filter(Boolean).join(" "), fittedContext, width, theme);
   const inlineLeftBudget = Math.floor(width * 0.45);
   const inlineTopLeft = fitInlineSegments(inlineTopLeftParts, inlineLeftBudget, theme);
-  const inlineRightBudget = Math.max(0, width - visibleWidth4(inlineTopLeft) - (inlineTopLeft ? 1 : 0));
+  const inlineRightBudget = Math.max(0, width - visibleWidth5(inlineTopLeft) - (inlineTopLeft ? 1 : 0));
   const inlineTop = fitContributedRow(1, "inline", builtins, contributions, width, theme) ?? {
     left: inlineTopLeft,
     right: fitInlineSegments(inlineTopRightParts, inlineRightBudget, theme)
@@ -2652,7 +3307,7 @@ import {
   SelectList,
   Text,
   truncateToWidth as truncateToWidth5,
-  visibleWidth as visibleWidth5
+  visibleWidth as visibleWidth6
 } from "@earendil-works/pi-tui";
 var TABS = ["features", "icons", "segments", "telemetry"];
 var COPY = {
@@ -3008,7 +3663,7 @@ class SectionedSettingsList {
       const item = row.item;
       return [{
         value: item.id,
-        label: compact ? `${truncateToWidth5(item.label, Math.max(0, width - 8 - visibleWidth5(item.currentValue)))}: ${item.currentValue}` : item.label,
+        label: compact ? `${truncateToWidth5(item.label, Math.max(0, width - 8 - visibleWidth6(item.currentValue)))}: ${item.currentValue}` : item.label,
         description: compact ? undefined : item.currentValue
       }];
     });
@@ -3048,7 +3703,7 @@ class SectionedSettingsList {
       if (row.kind === "setting")
         return settingLines[itemIndex++];
       const label = truncateToWidth5(`  ──${row.label} `, width, "");
-      return this.theme.fg("dim", label + "─".repeat(Math.max(0, width - visibleWidth5(label))));
+      return this.theme.fg("dim", label + "─".repeat(Math.max(0, width - visibleWidth6(label))));
     });
     const { start, end } = this.visibleRange();
     const visible = lines.slice(start, end);
@@ -3505,11 +4160,11 @@ function formatTurnTelemetry(telemetry, theme, config, iconMode) {
 // stow_modules/main/dot-pi/agent/extensions/open-tui/tool-view.ts
 import { homedir } from "node:os";
 import { isAbsolute as isAbsolute2, relative as relative2, sep as sep2 } from "node:path";
-import { Box as Box2, getCapabilities, getImageDimensions, imageFallback, Spacer, Text as Text2, truncateToWidth as truncateToWidth7, visibleWidth as visibleWidth7 } from "@earendil-works/pi-tui";
+import { Box as Box2, getCapabilities, getImageDimensions, imageFallback, Spacer, Text as Text2, truncateToWidth as truncateToWidth7, visibleWidth as visibleWidth8 } from "@earendil-works/pi-tui";
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/tool-preview.ts
 import { getLanguageFromPath, highlightCode } from "@earendil-works/pi-coding-agent";
-import { backgroundAnsi, rgbColor, truncateToWidth as truncateToWidth6, visibleWidth as visibleWidth6 } from "@earendil-works/pi-tui";
+import { backgroundAnsi, rgbColor, truncateToWidth as truncateToWidth6, visibleWidth as visibleWidth7 } from "@earendil-works/pi-tui";
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/vendor/diff/base.js
 class Diff {
@@ -4126,11 +4781,11 @@ function prepareToolPreview(kind, source, path, theme) {
   const hidden = rows.length - shown;
   return (width, indent) => {
     const pad = truncateToWidth6(indent, Math.max(0, width), "");
-    const available = Math.max(0, width - visibleWidth6(pad));
+    const available = Math.max(0, width - visibleWidth7(pad));
     const result = prepared.map(({ code, band }) => {
       const columns = Math.max(0, available - (band ? 2 : 0));
       const clipped = truncateToWidth6(code, columns, band ? `${band}…` : "…");
-      return pad + (band && columns > 0 ? clipped + band + " ".repeat(Math.max(0, columns - visibleWidth6(clipped))) + "\x1B[49m" : clipped);
+      return pad + (band && columns > 0 ? clipped + band + " ".repeat(Math.max(0, columns - visibleWidth7(clipped))) + "\x1B[49m" : clipped);
     });
     if (hidden > 0)
       result.push(pad + theme.fg("dim", truncateToWidth6(`… +${hidden} lines (ctrl+o to expand)`, available, "…")));
@@ -4427,7 +5082,7 @@ function lines(build, theme, glyphs, cacheable = true) {
       const colors = theme.colors;
       if (cacheable && cache && cache.width === width && cache.colors === colors && cache.toolCall === icons.toolCall && cache.toolResult === icons.toolResult)
         return cache.lines;
-      const rendered = build(width, icons).map((line) => truncateToWidth7(line, Math.max(0, width), "…"));
+      const rendered = build(width, icons).map((line) => truncateToWidth7(linkifyAnsiLineUrls(line), Math.max(0, width), "…"));
       if (cacheable)
         cache = { width, colors, toolCall: icons.toolCall, toolResult: icons.toolResult, lines: rendered };
       return rendered;
@@ -4580,7 +5235,7 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
       const tail = partial && isShell ? tailLines(textOutput(result), LIVE_TAIL_LINES) : [];
       return lines((width, { toolResult }) => {
         const gutter = `${pad}  ${theme.fg("dim", toolResult)}  `;
-        const indent = `${pad}  ${" ".repeat(visibleWidth7(toolResult))}  `;
+        const indent = `${pad}  ${" ".repeat(visibleWidth8(toolResult))}  `;
         if (partial) {
           if (!timed)
             return [gutter + theme.fg("warning", "Running…")];
@@ -4629,7 +5284,7 @@ function registerToolView(pi, getView, glyphs) {
 }
 
 // stow_modules/main/dot-pi/agent/extensions/rounded-tools.ts
-import { visibleWidth as visibleWidth8 } from "@earendil-works/pi-tui";
+import { visibleWidth as visibleWidth9 } from "@earendil-works/pi-tui";
 
 class RoundedFrame {
   inner;
@@ -4675,7 +5330,7 @@ class RoundedFrame {
     }
     if (innerLines.length > 0) {
       for (const line of innerLines) {
-        const vis = visibleWidth8(line);
+        const vis = visibleWidth9(line);
         const pad = " ".repeat(Math.max(0, innerWidth - vis));
         out.push(side + " " + line + pad + " " + side);
       }
@@ -4737,10 +5392,10 @@ function registerRoundedTools(pi) {
 }
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/peek.ts
-import { truncateToWidth as truncateToWidth8, visibleWidth as visibleWidth9, wrapTextWithAnsi as wrapTextWithAnsi3 } from "@earendil-works/pi-tui";
+import { truncateToWidth as truncateToWidth8, visibleWidth as visibleWidth10, wrapTextWithAnsi as wrapTextWithAnsi3 } from "@earendil-works/pi-tui";
 var SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 var MAX_PEEK_LINES = 2;
-var graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+var graphemeSegmenter2 = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 function stringValue(value) {
   return typeof value === "string" ? value : undefined;
 }
@@ -4798,10 +5453,10 @@ function clipTail(text, budget) {
   let w = 0;
   let end = text.length;
   let clippedStart = end;
-  const segments = graphemeSegmenter.segment(text);
+  const segments = graphemeSegmenter2.segment(text);
   while (end > 0) {
     const part = segments.containing(end - 1);
-    w += visibleWidth9(part.segment);
+    w += visibleWidth10(part.segment);
     if (w > budget)
       return "…" + text.slice(clippedStart);
     end = part.index;
@@ -4819,7 +5474,7 @@ function buildPeekLabel(state, frame, glyphs, width, lineCount = 1) {
     case "thinking": {
       const spin = SPINNER_FRAMES[frame % SPINNER_FRAMES.length] ?? "";
       const marker = `${prefix} ${spin}`;
-      const markerWidth = visibleWidth9(`${marker} `);
+      const markerWidth = visibleWidth10(`${marker} `);
       const contentWidth = Math.max(0, w - markerWidth);
       const thoughtIndent = " ".repeat(markerWidth);
       const safeLines = state.tail.split(`

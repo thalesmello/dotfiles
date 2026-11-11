@@ -6,6 +6,7 @@ import type { ToolViewConfig } from "./config.ts";
 import type { IconGlyphs } from "./icons.ts";
 import { codeLines, prepareToolPreview } from "./tool-preview.ts";
 import { sanitizeStatus, stripAnsi } from "./utils.ts";
+import { linkifyAnsiLineUrls } from "../osc8-links.ts";
 
 type RenderCall = NonNullable<ToolRenderers["renderCall"]>;
 type RenderResult = NonNullable<ToolRenderers["renderResult"]>;
@@ -370,7 +371,7 @@ function lines(
 			const colors = theme.colors;
 			if (cacheable && cache && cache.width === width && cache.colors === colors
 				&& cache.toolCall === icons.toolCall && cache.toolResult === icons.toolResult) return cache.lines;
-			const rendered = build(width, icons).map((line) => truncateToWidth(line, Math.max(0, width), "…"));
+			const rendered = build(width, icons).map((line) => truncateToWidth(linkifyAnsiLineUrls(line), Math.max(0, width), "…"));
 			if (cacheable) cache = { width, colors, toolCall: icons.toolCall, toolResult: icons.toolResult, lines: rendered };
 			return rendered;
 		},

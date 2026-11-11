@@ -47,6 +47,52 @@ init_utils5();
 init_text();
 init_truncated_text();
 init_markdown();
+class TuiAltScreen {
+  previousScreen = [];
+  terminal = { columns: 80, rows: 24 };
+  selectionAnchor = undefined;
+  selectionFocus = undefined;
+  selectionPressActive = false;
+  selectionDragged = false;
+  pressedUrl = undefined;
+  openedUrls = [];
+  openUrl = (url) => { this.openedUrls.push(url); };
+  clearTextSelection() {
+    this.selectionPressActive = false;
+    this.selectionAnchor = undefined;
+    this.selectionFocus = undefined;
+    this.pressedUrl = undefined;
+    this.selectionDragged = false;
+  }
+  handleMouseEvent(raw) {
+    const isMotion = (raw.button & 32) !== 0;
+    if (raw.release) {
+      if (!this.selectionPressActive || !this.selectionAnchor) return;
+      this.selectionPressActive = false;
+      const isClick = !this.selectionDragged && this.selectionAnchor.row === raw.y && this.selectionAnchor.col === raw.x;
+      const clickedUrl = isClick ? this.pressedUrl : undefined;
+      this.pressedUrl = undefined;
+      if (clickedUrl && this.openUrl) {
+        this.selectionAnchor = undefined;
+        this.selectionFocus = undefined;
+        this.openUrl(clickedUrl);
+      }
+      return;
+    }
+    if (isMotion) {
+      if (!this.selectionPressActive || !this.selectionAnchor) return;
+      this.selectionDragged = true;
+      this.pressedUrl = undefined;
+      this.selectionFocus = { row: raw.y, col: raw.x };
+      return;
+    }
+    this.selectionPressActive = true;
+    this.selectionAnchor = { row: raw.y, col: raw.x };
+    this.selectionFocus = { row: raw.y, col: raw.x };
+    this.selectionDragged = false;
+    this.pressedUrl = getOsc8LinkAtColumn(this.previousScreen[raw.y] ?? "", raw.x);
+  }
+}
 return {
   CURSOR_MARKER: "",
   Editor: class {},
@@ -55,6 +101,7 @@ return {
   Markdown,
   Text,
   TruncatedText,
+  TuiAltScreen,
   Marked: Z,
   visibleWidth,
   getOsc8LinkAtColumn,
@@ -380,5 +427,37 @@ describe("osc8-links extension", () => {
 
 		expect(linkedTextForUrl(lines, url1)).toBe(url1);
 		expect(linkedTextForUrl(lines, url2)).toBe(url2);
+	});
+
+	test("left-clicking links in fullscreen TuiAltScreen opens OSC 8 and plain URLs even with motion jitter", () => {
+		const osc8Url = "https://www.internalfb.com/diff/D124714457";
+		const plainUrl = "https://example.com/plain/link";
+		const md = new realTui.Markdown(`Click [D124714457](${osc8Url})`, 0, 0, markdownTheme);
+		const screen = new realTui.TuiAltScreen();
+		screen.previousScreen = [
+			...md.render(60),
+			`  Bash(curl ${plainUrl})`,
+		];
+
+		// 1. Left-click on OSC 8 link with sub-cell motion and 1-cell jitter still opens the URL.
+		const linkCol = realTui.stripTerminalSequences(screen.previousScreen[0]!).indexOf("D124714457");
+		screen.handleMouseEvent({ button: 0, x: linkCol, y: 0, release: false });
+		screen.handleMouseEvent({ button: 32, x: linkCol, y: 0, release: false });
+		screen.handleMouseEvent({ button: 32, x: linkCol + 1, y: 0, release: false });
+		screen.handleMouseEvent({ button: 0, x: linkCol + 1, y: 0, release: true });
+		expect(screen.openedUrls).toEqual([osc8Url]);
+		expect(screen.selectionDragged).toBe(false);
+
+		// 2. Left-click on a plain URL without OSC 8 also opens the URL.
+		const plainCol = screen.previousScreen[1]!.indexOf("https://");
+		screen.handleMouseEvent({ button: 0, x: plainCol + 3, y: 1, release: false });
+		screen.handleMouseEvent({ button: 0, x: plainCol + 3, y: 1, release: true });
+		expect(screen.openedUrls).toEqual([osc8Url, plainUrl]);
+
+		// 3. A real drag (> 2 columns) selects text and does not open the URL.
+		screen.handleMouseEvent({ button: 0, x: linkCol, y: 0, release: false });
+		screen.handleMouseEvent({ button: 32, x: linkCol + 6, y: 0, release: false });
+		screen.handleMouseEvent({ button: 0, x: linkCol + 6, y: 0, release: true });
+		expect(screen.openedUrls).toEqual([osc8Url, plainUrl]);
 	});
 });

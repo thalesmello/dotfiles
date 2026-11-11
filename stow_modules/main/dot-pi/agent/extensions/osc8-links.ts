@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import * as piTui from "@earendil-works/pi-tui";
 
@@ -1042,7 +1043,203 @@ type PatchState = {
 	origMarkdownWrapCellText: (text: string, maxWidth: number, stylePrefix?: string) => string[];
 	origTextRender: typeof piTui.Text.prototype.render;
 	origTruncatedTextRender: typeof piTui.TruncatedText.prototype.render;
+	altScreenMouseInstalled?: boolean;
+	origAltScreenHandleMouseEvent?: (this: AltScreenLike, event: RawAltMouseEvent) => void;
+	altScreenMouseWrapper?: (this: AltScreenLike, event: RawAltMouseEvent) => void;
+	altScreenMouseImpl?: (this: AltScreenLike, event: RawAltMouseEvent) => void;
 };
+
+interface RawAltMouseEvent {
+	button: number;
+	x: number;
+	y: number;
+	release: boolean;
+}
+
+interface AltScreenSelectionPoint {
+	row: number;
+	col: number;
+	scrollView?: unknown;
+}
+
+interface AltScreenLike {
+	previousScreen?: string[];
+	currentLayout?: unknown;
+	terminal?: { columns: number; rows: number; write?: (data: string) => void };
+	selectionAnchor?: AltScreenSelectionPoint;
+	selectionFocus?: AltScreenSelectionPoint;
+	selectionGranularity?: "character" | "word" | "line";
+	selectionInitialRange?: unknown;
+	selectionPressActive?: boolean;
+	selectionDragged?: boolean;
+	pressedUrl?: string;
+	openUrl?: (url: string) => void;
+	clearTextSelection?: () => void;
+	resetTextSelection?: () => void;
+	clearComponentMouseGesture?: () => void;
+	flash?: (message: string, durationMs?: number) => void;
+	getSelectionPoint?: (event: { x: number; y: number }, scrollView?: unknown) => AltScreenSelectionPoint;
+	getSelectionSourceLine?: (point: AltScreenSelectionPoint) => string;
+	requestRender?: () => void;
+	_osc8PressedLink?: { url: string; x: number; y: number; movedFar: boolean };
+}
+
+const LINK_CLICK_TOLERANCE = 2;
+
+function writeHerdrOpenOsc52(screen: AltScreenLike, url: string): void {
+	if (!/^https?:\/\//i.test(url)) return;
+	const urlB64 = Buffer.from(url, "utf8").toString("base64");
+	const record = `\x1eHERDR_OPEN_URL_V1:8f26c7a14d9346b8a01e57bc649b2e3d:${urlB64}\x1f`;
+	const requestB64 = Buffer.from(record, "utf8").toString("base64");
+	const osc52 = `\x1b]52;c;${requestB64}\x07`;
+	if (typeof screen.terminal?.write === "function") {
+		screen.terminal.write(osc52);
+		return;
+	}
+	process.stdout.write(osc52);
+}
+
+function openLinkUrl(screen: AltScreenLike, url: string): void {
+	if (!url) return;
+	if (process.platform !== "darwin" && process.env.HERDR_ENV === "1" && /^https?:\/\//i.test(url)) {
+		writeHerdrOpenOsc52(screen, url);
+		return;
+	}
+	if (
+		process.platform === "darwin" &&
+		process.env.HERDR_ENV === "1" &&
+		typeof screen.terminal?.write === "function" &&
+		/^https?:\/\//i.test(url)
+	) {
+		// Inside Pi's macOS Seatbelt sandbox, `/usr/bin/open` fails with LaunchServices
+		// error -54. Try `/usr/bin/open` first, and if it exits non-zero, relay the URL
+		// over OSC 52 (`HERDR_OPEN_URL_V1`) to Hammerspoon (`herdrRelay.lua`).
+		let fallbackSent = false;
+		const sendFallback = () => {
+			if (fallbackSent) return;
+			fallbackSent = true;
+			writeHerdrOpenOsc52(screen, url);
+		};
+		try {
+			const child = spawn("/usr/bin/open", [url], { stdio: "ignore", detached: true, cwd: "/" });
+			child.on("error", sendFallback);
+			child.on("close", (code) => {
+				if (code !== 0) sendFallback();
+			});
+			child.unref();
+			return;
+		} catch {
+			sendFallback();
+			return;
+		}
+	}
+	if (typeof screen.openUrl === "function") {
+		screen.openUrl(url);
+		return;
+	}
+	const cmd = process.platform === "darwin" ? "open" : "xdg-open";
+	spawn(cmd, [url], { stdio: "ignore", detached: true, cwd: "/" }).on("error", () => {}).unref();
+}
+
+export function getLinkAtColumn(
+	line: string,
+	column: number,
+	tui: typeof piTui = piTui,
+): string | undefined {
+	if (!line || column < 0) return undefined;
+
+	if (typeof tui.getOsc8LinkAtColumn === "function") {
+		const osc8Url = tui.getOsc8LinkAtColumn(line, column);
+		if (osc8Url) return osc8Url;
+	} else if (line.includes("\x1b]8;")) {
+		let activeUrl: string | undefined;
+		let currentCol = 0;
+		let i = 0;
+		while (i < line.length) {
+			const ansi = extractAnsiCode(line, i);
+			if (ansi) {
+				const parsed = parseOsc8Code(ansi.code);
+				if (parsed !== undefined) {
+					activeUrl = parsed?.url || undefined;
+				}
+				i += ansi.length;
+				continue;
+			}
+			let textEnd = i;
+			while (textEnd < line.length && !extractAnsiCode(line, textEnd)) textEnd++;
+			for (const { segment } of graphemeSegmenter.segment(line.slice(i, textEnd))) {
+				const width = segment === "\t" ? 3 : tui.visibleWidth(segment);
+				if (column >= currentCol && column < currentCol + width) {
+					if (activeUrl) return activeUrl;
+				}
+				currentCol += width;
+			}
+			i = textEnd;
+		}
+	}
+
+	const plain = stripTerminalSequencesSafe(line);
+	const matches = findUrlsInPlainText(plain);
+	if (matches.length === 0) return undefined;
+
+	let currentCol = 0;
+	let utf16Offset = 0;
+	for (const { segment } of graphemeSegmenter.segment(plain)) {
+		const width = segment === "\t" ? 3 : tui.visibleWidth(segment);
+		const segStart = utf16Offset;
+		const segEnd = utf16Offset + segment.length;
+		if (width > 0 && column >= currentCol && column < currentCol + width) {
+			for (const match of matches) {
+				if (segStart < match.end && segEnd > match.start) {
+					return match.url;
+				}
+			}
+			return undefined;
+		}
+		currentCol += width;
+		utf16Offset = segEnd;
+	}
+	return undefined;
+}
+
+export function resolveAltScreenUrlAt(
+	screen: AltScreenLike,
+	x: number,
+	y: number,
+	tui: typeof piTui = piTui,
+): string | undefined {
+	const rows = screen.terminal?.rows ?? screen.previousScreen?.length ?? 0;
+	const cols = screen.terminal?.columns ?? 0;
+	const clampedY = rows > 0 ? Math.max(0, Math.min(rows - 1, y)) : Math.max(0, y);
+	const clampedX = cols > 0 ? Math.max(0, Math.min(cols - 1, x)) : Math.max(0, x);
+
+	const screenLine = screen.previousScreen?.[clampedY] ?? "";
+	const screenOsc8 = typeof tui.getOsc8LinkAtColumn === "function"
+		? tui.getOsc8LinkAtColumn(screenLine, clampedX)
+		: undefined;
+	if (screenOsc8) return screenOsc8;
+
+	let sourceUrl: string | undefined;
+	if (typeof screen.getSelectionPoint === "function" && typeof screen.getSelectionSourceLine === "function") {
+		try {
+			const point = screen.getSelectionPoint({ x: clampedX, y: clampedY }, screen.selectionAnchor?.scrollView);
+			if (point) {
+				const sourceLine = screen.getSelectionSourceLine(point);
+				if (sourceLine) {
+					sourceUrl = getLinkAtColumn(sourceLine, point.col, tui);
+				}
+			}
+		} catch {
+			// Fall back to screen line inspection.
+		}
+	}
+
+	const screenPlainUrl = getLinkAtColumn(screenLine, clampedX, tui);
+	if (sourceUrl && screenPlainUrl) {
+		return sourceUrl.length >= screenPlainUrl.length ? sourceUrl : screenPlainUrl;
+	}
+	return screenPlainUrl ?? sourceUrl;
+}
 
 export function enableOsc8Hyperlinks(tui: typeof piTui = piTui): void {
 	const current = tui.getCapabilities();
@@ -1507,12 +1704,121 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 			textHolder.text = rawText;
 		}
 	};
+
+	const altProto = (tui as unknown as { TuiAltScreen?: { prototype?: Record<string, unknown> } }).TuiAltScreen
+		?.prototype as
+		| {
+				handleMouseEvent?: (this: AltScreenLike, event: RawAltMouseEvent) => void;
+		  }
+		| undefined;
+
+	if (altProto && typeof altProto.handleMouseEvent === "function") {
+		if (!state.altScreenMouseInstalled || !state.origAltScreenHandleMouseEvent || !state.altScreenMouseWrapper) {
+			state.origAltScreenHandleMouseEvent = altProto.handleMouseEvent;
+			state.altScreenMouseWrapper = function (this: AltScreenLike, raw: RawAltMouseEvent): void {
+				return state.altScreenMouseImpl!.call(this, raw);
+			};
+			altProto.handleMouseEvent = state.altScreenMouseWrapper;
+			state.altScreenMouseInstalled = true;
+		}
+
+		let inMouseImpl = false;
+		state.altScreenMouseImpl = function (this: AltScreenLike, raw: RawAltMouseEvent): void {
+			const origHandleMouseEvent = state.origAltScreenHandleMouseEvent!;
+			if (!raw || inMouseImpl) {
+				return origHandleMouseEvent.call(this, raw);
+			}
+			const isMotion = (raw.button & 32) !== 0;
+			const buttonCode = raw.button & 3;
+			const isPrimaryPress = !raw.release && !isMotion && buttonCode === 0;
+			const isPrimaryRelease = raw.release && (buttonCode === 0 || buttonCode === 3);
+
+			if (isPrimaryPress) {
+				const url = resolveAltScreenUrlAt(this, raw.x, raw.y, tui);
+				this._osc8PressedLink = url ? { url, x: raw.x, y: raw.y, movedFar: false } : undefined;
+				inMouseImpl = true;
+				try {
+					origHandleMouseEvent.call(this, raw);
+				} finally {
+					inMouseImpl = false;
+				}
+				if (url) {
+					this.pressedUrl = url;
+					// Prevent double/triple clicks on a link from selecting the word instead of opening the link.
+					if (this.selectionGranularity && this.selectionGranularity !== "character") {
+						this.selectionGranularity = "character";
+						this.selectionInitialRange = undefined;
+						if (typeof this.getSelectionPoint === "function") {
+							const pt = this.getSelectionPoint({ x: raw.x, y: raw.y }, this.selectionAnchor?.scrollView);
+							this.selectionAnchor = pt;
+							this.selectionFocus = pt;
+						} else if (this.selectionAnchor) {
+							this.selectionFocus = { ...this.selectionAnchor };
+						}
+					}
+				}
+				return;
+			}
+
+			if (isMotion && this._osc8PressedLink) {
+				const pending = this._osc8PressedLink;
+				if (raw.x === pending.x && raw.y === pending.y) {
+					// Ignore sub-cell motion events on the exact press cell so TuiAltScreen
+					// does not clear pressedUrl or mark the click as a drag selection.
+					return;
+				}
+				const withinTolerance =
+					raw.y === pending.y && Math.abs(raw.x - pending.x) <= LINK_CLICK_TOLERANCE;
+				if (withinTolerance && resolveAltScreenUrlAt(this, raw.x, raw.y, tui) === pending.url) {
+					// Ignore 1-2 cell pointer jitter along the same link during a click.
+					return;
+				}
+				pending.movedFar = true;
+				this._osc8PressedLink = undefined;
+			}
+
+			if (isPrimaryRelease && this._osc8PressedLink) {
+				const pending = this._osc8PressedLink;
+				this._osc8PressedLink = undefined;
+				const withinTolerance =
+					!pending.movedFar &&
+					raw.y === pending.y &&
+					Math.abs(raw.x - pending.x) <= LINK_CLICK_TOLERANCE;
+				const releaseUrl = withinTolerance ? resolveAltScreenUrlAt(this, raw.x, raw.y, tui) : undefined;
+				if (withinTolerance && (raw.x === pending.x || releaseUrl === pending.url)) {
+					this.clearTextSelection?.();
+					this.resetTextSelection?.();
+					this.clearComponentMouseGesture?.();
+					this.selectionPressActive = false;
+					this.selectionDragged = false;
+					this.selectionAnchor = undefined;
+					this.selectionFocus = undefined;
+					this.pressedUrl = undefined;
+					try {
+						openLinkUrl(this, pending.url);
+						this.flash?.("Opening link…");
+					} catch {
+						// Ignore openUrl errors.
+					}
+					this.requestRender?.();
+					return;
+				}
+			}
+
+			inMouseImpl = true;
+			try {
+				return origHandleMouseEvent.call(this, raw);
+			} finally {
+				inMouseImpl = false;
+			}
+		};
+	}
 }
 
 export default function osc8LinksExtension(pi: ExtensionAPI): void {
 	installOsc8LinkRendering(piTui);
 	pi.registerMarkdownTransformer((markdown) => normalizeMarkdownForOsc8(markdown));
 	pi.on("session_start", () => {
-		enableOsc8Hyperlinks(piTui);
+		installOsc8LinkRendering(piTui);
 	});
 }

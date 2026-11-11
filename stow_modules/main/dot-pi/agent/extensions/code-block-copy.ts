@@ -713,18 +713,24 @@ function patchedRenderToken(
 	// theme omits it do we render the block ourselves with pi's exported
 	// highlighter, so code blocks stay syntax-highlighted either way.
 	if (!this.theme?.highlightCode && !state.wrappedRenderToken && typeof highlightCode === "function") {
+		const prevHighlight = this.theme.highlightCode;
 		try {
-			const indent = this.theme.codeBlockIndent ?? "  ";
-			const lines = [
-				this.theme.codeBlockBorder(`\`\`\`${token.lang || ""}`),
-				...highlightCode(token.text, token.lang).map((line) => `${indent}${line}`),
-				this.theme.codeBlockBorder("```"),
-			];
-			if (nextTokenType && nextTokenType !== "space") lines.push("");
+			this.theme.highlightCode = (code: string, lang?: string) => highlightCode(code, lang);
+			inPatchedRenderToken = true;
+			let lines: string[];
+			try {
+				lines = delegate.call(this, token, width, nextTokenType, styleContext);
+			} finally {
+				inPatchedRenderToken = false;
+			}
 			if (isZenActive()) return lines;
+			const openTuiFramed = attachOpenTuiFrameBlockId(lines, token.text);
+			if (openTuiFramed) return openTuiFramed;
 			return applyCodeBackground(this.theme, insertButtonLine(this, lines, token.text));
 		} catch {
 			// Fall through to the original renderer.
+		} finally {
+			this.theme.highlightCode = prevHighlight;
 		}
 	}
 

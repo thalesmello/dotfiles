@@ -15,6 +15,7 @@ import {
 	type TuiMouseEventResult,
 } from "@earendil-works/pi-tui";
 import { stripAnsi } from "./utils.ts";
+import { linkifyAnsiLineUrls, wrapAnsiTextPreservingOsc8 } from "../osc8-links.ts";
 
 const LABEL = "⧉ Copy";
 const COPIED_LABEL = "Copied";
@@ -122,9 +123,10 @@ export function renderFramedCode(
 	marker = "",
 ): string[] {
 	const inner = width - 4;
-	const highlighted = theme.highlightCode?.(code, lang) ?? code.split("\n").map((line) => theme.codeBlock(line));
+	const highlighted = (theme.highlightCode?.(code, lang) ?? code.split("\n").map((line) => theme.codeBlock(line)))
+		.map((line) => linkifyAnsiLineUrls(line));
 	const rows = highlighted.flatMap((line) => {
-		const wrapped = wrapTextWithAnsi(line, inner);
+		const wrapped = wrapAnsiTextPreservingOsc8(line, inner, visibleWidth);
 		return wrapped.length > 0 ? wrapped : [""];
 	});
 	const suffix = label === undefined ? "" : ` ${LABEL} `;
