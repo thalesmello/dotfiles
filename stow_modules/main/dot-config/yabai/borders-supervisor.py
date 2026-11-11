@@ -10,11 +10,16 @@ import signal
 import subprocess
 import sys
 
-# Native Mission Control support is built from ~/src/JankyBorders. Do not inject
-# a dylib into the Homebrew executable or compile C during desktop startup.
-NATIVE_BORDERS = Path.home() / ".local/libexec/jankyborders/borders"
+# Prefer the pinned native fork installed by Brewfile, then a manual dev build.
+# Neither path injects a dylib or compiles C during desktop startup.
+NATIVE_CANDIDATES = [
+    Path("/opt/homebrew/opt/borders-mission-control/bin/borders"),
+    Path("/usr/local/opt/borders-mission-control/bin/borders"),
+    Path.home() / ".local/libexec/jankyborders/borders",
+]
+NATIVE_BORDERS = next((path for path in NATIVE_CANDIDATES if os.access(path, os.X_OK)), None)
 BORDERS_ARGV = [
-    str(NATIVE_BORDERS) if NATIVE_BORDERS.is_file() else "/opt/homebrew/bin/borders",
+    str(NATIVE_BORDERS) if NATIVE_BORDERS is not None else "/opt/homebrew/bin/borders",
     "style=round",
     "width=6.0",
     "active_color=0xffffffff",
@@ -22,7 +27,7 @@ BORDERS_ARGV = [
     "hidpi=off",
     "ax_focus=on",
 ]
-if NATIVE_BORDERS.is_file():
+if NATIVE_BORDERS is not None:
     BORDERS_ARGV += ["mission_control=on", "mission_control_fade=80"]
 
 
@@ -87,7 +92,7 @@ def main(argv: list[str]) -> int:
             stderr=subprocess.DEVNULL,
             check=False,
         )
-        if not NATIVE_BORDERS.is_file():
+        if NATIVE_BORDERS is None:
             print("borders-supervisor: native build missing; Mission Control hiding unavailable", file=sys.stderr)
         border_proc = subprocess.Popen(BORDERS_ARGV)
 

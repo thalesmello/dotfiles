@@ -66,7 +66,8 @@ brew "xcbeautify"
 brew "yazi"
 brew "yq"
 brew "zoxide"
-brew "felixkratz/formulae/borders", trusted: true
+tap "thalesmello/jankyborders", "https://github.com/thalesmello/JankyBorders.git" if OS.mac?
+brew "thalesmello/jankyborders/borders-mission-control", trusted: true if OS.mac?
 brew "koekeishiya/formulae/yabai", trusted: true
 brew "oven-sh/bun/bun", trusted: true
 brew "pomdtr/tap/ray", trusted: true

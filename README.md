@@ -10,6 +10,23 @@ bash ./scripts/pipx_install.sh
 bash ./scripts/go_install.sh
 ```
 
+### Patched JankyBorders
+
+The Brewfile uses `thalesmello/JankyBorders`, with native Mission Control fading,
+through its `borders-mission-control` formula. If upstream Borders is already
+installed, unlink it once before running `brew bundle install`:
+
+```bash
+brew unlink felixkratz/formulae/borders
+brew bundle install
+```
+
+The fork supplies the normal `borders` command. The yabai supervisor prefers
+`/opt/homebrew/opt/borders-mission-control/bin/borders` (or `/usr/local/opt/...`
+on Intel), with the manually compiled `~/.local/libexec/jankyborders/borders`
+as a fallback. It enables `mission_control=on mission_control_fade=80`.
+The fade is timed, not linked to trackpad gesture progress.
+
 Set `fish` as default shell
 
 ```
