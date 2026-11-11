@@ -256,4 +256,14 @@ class AlfredWorkflowsTest < Minitest::Test
     refute (stage/"__pycache__").exist?
     refute (stage/".DS_Store").exist?
   end
+
+  def test_unreadable_preferences_directory_raises_instead_of_skipping_migration
+    write_workflow(unmanaged)
+    FileUtils.chmod(0000, AlfredWorkflows.preferences_path)
+    begin
+      assert_raises(Errno::EACCES) { AlfredWorkflows.matching_workflows(BUNDLE_ID) }
+    ensure
+      FileUtils.chmod(0700, AlfredWorkflows.preferences_path)
+    end
+  end
 end

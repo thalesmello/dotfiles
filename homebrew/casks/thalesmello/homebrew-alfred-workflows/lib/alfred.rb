@@ -73,7 +73,11 @@ module AlfredWorkflows
 
   def matching_workflows(bundle_id)
     directory = preferences_path/"workflows"
-    return [] unless directory.directory?
+    begin
+      return [] unless File.stat(directory).directory?
+    rescue Errno::ENOENT, Errno::ENOTDIR
+      return []
+    end
 
     directory.children.sort.select do |folder|
       info = folder/"info.plist"
@@ -294,16 +298,23 @@ module AlfredWorkflows
 
     dsl.artifact(STAGED_WORKFLOW, target: workflow_path(token).to_s)
     # Homebrew 7 uses declarative install steps instead of Ruby flight blocks.
-    # Copy the helper into staging so sandboxed steps do not need to read tap
-    # Ruby files from the user's dotfiles directory.
+    # Copy the helper into staging so steps do not need to read tap Ruby files
+    # from the user's dotfiles directory. Mark each `run` step with
+    # `sudo => "if_needed"` so Homebrew routes it to the parent `brew` process
+    # (keeping TCC access to `~/Library/CloudStorage` for Google Drive-synced
+    # Alfred preferences instead of disclaiming TCC in `utils/disclaim.rb`),
+    # while `requires_sudo?` remains false and `run_serialised_command` still
+    # executes without sudo.
     dsl.preflight_steps do
       write_file "alfred-helper.rb", helper_content
       run "/usr/bin/ruby", args: stage_args, env: environment,
           writable_paths: writable_paths, print_stdout: true
+      @steps.last["sudo"] = "if_needed"
     end
     dsl.postflight_steps do
       run "/usr/bin/ruby", args: [helper.to_s, "finish", "--state", state_file.to_s],
           env: environment, writable_paths: writable_paths, print_stdout: true
+      @steps.last["sudo"] = "if_needed"
     end
     # Homebrew removes the previous artifact before reinstall/upgrade preflight.
     # Save live configuration before removal; the next install can restore it.
@@ -311,6 +322,7 @@ module AlfredWorkflows
       write_file "alfred-helper.rb", helper_content
       run "/usr/bin/ruby", args: [helper.to_s, "save", "--token", token, "--bundle-id", bundle_id],
           env: environment, writable_paths: writable_paths, print_stdout: true
+      @steps.last["sudo"] = "if_needed"
     end
   end
 
