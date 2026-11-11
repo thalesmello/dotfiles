@@ -261,6 +261,19 @@ function recordTranscriptLayout(view: TranscriptViewLike, contentHeight: number,
 	};
 }
 
+interface ChainedPatch<Fn> {
+	__inactive?: boolean;
+	__prev?: Fn;
+}
+
+function unwrapPrototypeChain<Fn>(current: Fn | undefined): Fn | undefined {
+	let cursor = current as (Fn & ChainedPatch<Fn>) | undefined;
+	while (cursor?.__inactive && cursor.__prev) {
+		cursor = cursor.__prev as Fn & ChainedPatch<Fn>;
+	}
+	return cursor;
+}
+
 function patchedUpdateLayout(
 	this: TranscriptViewLike,
 	contentHeight: number,
@@ -268,12 +281,16 @@ function patchedUpdateLayout(
 	requestRender: () => void,
 ): void {
 	originalUpdateLayout!.call(this, contentHeight, viewportHeight, requestRender);
-	if (this.primary && this.followEnd) {
+	if (installed && this.primary && this.followEnd) {
 		recordTranscriptLayout(this, contentHeight, viewportHeight);
 	}
 }
 
 function patchedHandleInput(this: EditorLike, data: string): void {
+	if (!installed) {
+		originalHandleInput!.call(this, data);
+		return;
+	}
 	const beforeText = typeof this.getText === "function" ? this.getText() : undefined;
 	originalHandleInput!.call(this, data);
 	if (this.tui?.hasOverlay?.()) return;
@@ -305,11 +322,15 @@ function installFollowOnSend(): boolean {
 	const scrollPrototype = ScrollView.prototype as unknown as ScrollViewPrototype;
 	if (typeof scrollPrototype.updateLayout !== "function") return false;
 	originalUpdateLayout = scrollPrototype.updateLayout;
+	(patchedUpdateLayout as UpdateLayoutFn & ChainedPatch<UpdateLayoutFn>).__inactive = false;
+	(patchedUpdateLayout as UpdateLayoutFn & ChainedPatch<UpdateLayoutFn>).__prev = originalUpdateLayout;
 	scrollPrototype.updateLayout = patchedUpdateLayout;
 
 	const editorPrototype = Editor.prototype as unknown as EditorPrototype;
 	if (typeof editorPrototype.handleInput === "function") {
 		originalHandleInput = editorPrototype.handleInput;
+		(patchedHandleInput as HandleInputFn & ChainedPatch<HandleInputFn>).__inactive = false;
+		(patchedHandleInput as HandleInputFn & ChainedPatch<HandleInputFn>).__prev = originalHandleInput;
 		editorPrototype.handleInput = patchedHandleInput;
 	}
 
@@ -319,15 +340,15 @@ function installFollowOnSend(): boolean {
 
 function uninstallFollowOnSend(): void {
 	if (installed && originalUpdateLayout) {
+		(patchedUpdateLayout as UpdateLayoutFn & ChainedPatch<UpdateLayoutFn>).__inactive = true;
 		const scrollPrototype = ScrollView.prototype as unknown as ScrollViewPrototype;
-		scrollPrototype.updateLayout = originalUpdateLayout;
+		scrollPrototype.updateLayout = unwrapPrototypeChain(scrollPrototype.updateLayout);
 	}
 	if (installed && originalHandleInput) {
+		(patchedHandleInput as HandleInputFn & ChainedPatch<HandleInputFn>).__inactive = true;
 		const editorPrototype = Editor.prototype as unknown as EditorPrototype;
-		editorPrototype.handleInput = originalHandleInput;
+		editorPrototype.handleInput = unwrapPrototypeChain(editorPrototype.handleInput);
 	}
-	originalUpdateLayout = undefined;
-	originalHandleInput = undefined;
 	installed = false;
 	transcriptView = undefined;
 	transcriptMetrics = undefined;
