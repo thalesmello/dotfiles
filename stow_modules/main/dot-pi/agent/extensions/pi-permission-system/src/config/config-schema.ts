@@ -561,6 +561,18 @@ export const unifiedConfigSchema = z
           "Ordered names of registered **live-authority chain links** (e.g. a model judge) to consult before the terminal authorizer (the human, or the subagent-forwarding / headless-deny fallback).\n\nA link reviews an `ask` and returns `allow` / `deny` (with an optional teaching reason) / `defer` to the next link. Three invariants govern the chain:\n\n- **Config order wins.** The order here \u2014 not the order extensions register in \u2014 fixes the security-relevant chain order.\n- **Fail-safe skip.** A name with no registered link is skipped with a warning; the `ask` still reaches the terminal (more prompting, never less).\n- **Opt-in activation.** Installing a judge extension grants it no authority; a link decides nothing until you name it here.\n\nThe chain owner caps every verdict with a bounded-delegation checkpoint: a link's `allow` on an excluded surface (`external_directory` or `path`) is downgraded to `defer`, so a link cannot exceed your policy. The one exception is per ask: a link's `allow` on a bash `external_directory` ask whose every flagged path names nothing on disk below the filesystem root (and is not a proven write) is honored, and the review log records `authorizer_allow_licensed`.\n\nDefaults to an empty list (no links).",
         default: [],
       }),
+    autoMode: z
+      .strictObject({
+        environment: z.array(z.string().min(1)).max(MAX_CONFIG_ARRAY_ITEMS).optional(),
+        allow: z.array(z.string().min(1)).max(MAX_CONFIG_ARRAY_ITEMS).optional(),
+        soft_deny: z.array(z.string().min(1)).max(MAX_CONFIG_ARRAY_ITEMS).optional(),
+        hard_deny: z.array(z.string().min(1)).max(MAX_CONFIG_ARRAY_ITEMS).optional(),
+      })
+      .optional()
+      .meta({
+        description:
+          "Custom prose rules for the auto-review AI permission judge (Claude Code / Codex autoMode format: environment, allow, soft_deny, hard_deny).",
+      }),
     permission: permissionSchema.optional(),
     shellTools: shellToolsSchema.optional(),
     commandEffects: commandEffectsSchema.optional(),

@@ -39,6 +39,21 @@
         "diff": "read",
         "show": "read"
       }
+    },
+    "strings": {
+      "effects": "read"
+    },
+    "otool": {
+      "effects": "read"
+    },
+    "nm": {
+      "effects": "read"
+    },
+    "ps": {
+      "effects": []
+    },
+    "herdr": {
+      "effects": []
     }
   },
   "permission": {
@@ -68,6 +83,7 @@
     "external_directory": {
       "*": "ask",
       "/tmp/*": "allow",
+      "/opt/homebrew/*": "allow",
       "~/src/*": "allow",
       "~/fbsource/*": "allow",
       "~/www/*": "allow",
@@ -77,6 +93,7 @@
     },
     "bash": {
       "*": "ask",
+      "cd *": "allow",
       "ls": "allow",
       "ls *": "allow",
       "pwd": "allow",
@@ -93,6 +110,14 @@
       "stat *": "allow",
       "which *": "allow",
       "file *": "allow",
+      "strings *": "allow",
+      "otool *": "allow",
+      "nm *": "allow",
+      "ps": "allow",
+      "ps *": "allow",
+      "herdr *": "allow",
+      "xcrun --show-sdk-path*": "allow",
+      "xcrun --find *": "allow",
       "date *": "allow",
       "sleep *": "allow",
       "true": "allow",
@@ -109,6 +134,14 @@
       "git remote*": "allow",
       "git rev-parse*": "allow",
       "git check-ignore*": "allow",
+      "git -C * status*": "allow",
+      "git -C * log*": "allow",
+      "git -C * diff*": "allow",
+      "git -C * show*": "allow",
+      "git -C * branch*": "allow",
+      "git -C * remote*": "allow",
+      "git -C * rev-parse*": "allow",
+      "git -C * check-ignore*": "allow",
       "sl status*": "allow",
       "sl log*": "allow",
       "sl diff*": "allow",

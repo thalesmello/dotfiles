@@ -84,7 +84,11 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["bell", "osc9", "osc777"]
+        "enum": [
+          "bell",
+          "osc9",
+          "osc777"
+        ]
       }
     },
     "forwardingTimeoutMs": {
@@ -163,6 +167,45 @@
         "type": "string",
         "minLength": 1
       }
+    },
+    "autoMode": {
+      "description": "Custom prose rules for the auto-review AI permission judge (Claude Code / Codex autoMode format: environment, allow, soft_deny, hard_deny).",
+      "type": "object",
+      "properties": {
+        "environment": {
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "allow": {
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "soft_deny": {
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "hard_deny": {
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "permission": {
       "type": "object",
@@ -358,7 +401,9 @@
             "minLength": 1
           }
         },
-        "required": ["commandArgument"],
+        "required": [
+          "commandArgument"
+        ],
         "additionalProperties": false,
         "description": "Maps one shell-aliased tool to the input arguments holding its command and (optionally) its working directory."
       },
@@ -388,7 +433,9 @@
       "examples": [
         {
           "git": {
-            "unlessOption": ["--output"],
+            "unlessOption": [
+              "--output"
+            ],
             "subcommands": {
               "log": "read",
               "diff": "read"
@@ -460,7 +507,9 @@
           "maxLength": 500
         }
       },
-      "required": ["action"],
+      "required": [
+        "action"
+      ],
       "additionalProperties": false,
       "description": "Deny with an optional custom reason shown to the agent when the action is blocked."
     },
@@ -471,7 +520,10 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": ["read", "write"],
+              "enum": [
+                "read",
+                "write"
+              ],
               "description": "A filesystem effect: read (the command only reads its path operands) or write (it may modify them)."
             },
             {
@@ -479,7 +531,10 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": ["read", "write"],
+                "enum": [
+                  "read",
+                  "write"
+                ],
                 "description": "A filesystem effect: read (the command only reads its path operands) or write (it may modify them)."
               }
             }
@@ -513,7 +568,10 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "enum": ["read", "write"],
+                    "enum": [
+                      "read",
+                      "write"
+                    ],
                     "description": "A filesystem effect: read (the command only reads its path operands) or write (it may modify them)."
                   },
                   {
@@ -521,7 +579,10 @@
                     "type": "array",
                     "items": {
                       "type": "string",
-                      "enum": ["read", "write"],
+                      "enum": [
+                        "read",
+                        "write"
+                      ],
                       "description": "A filesystem effect: read (the command only reads its path operands) or write (it may modify them)."
                     }
                   }

@@ -3,7 +3,10 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import permissionAutoReview, {
+	buildJudgeSystemPrompt,
+	extractSessionContext,
 	MAX_REVIEW_ATTEMPTS,
+	parseJudgeReply,
 	REVIEW_TIMEOUT_MS,
 	resolveJudgeModel,
 	resolveJudgeModels,
@@ -546,6 +549,228 @@ describe("auto-review judge & natural-language rule proposer", () => {
 				verdict: "allow",
 				reason: null,
 			},
+		});
+	});
+
+	test("deduplicates LLM calls across multiple gates on the same toolCallId and command", async () => {
+		let authorize: ((details: unknown, query: unknown, log: unknown) => Promise<unknown>) | undefined;
+		let sessionStart: ((event: unknown, ctx: unknown) => void) | undefined;
+		let calls = 0;
+		const pi = {
+			on(event: string, handler: (event: unknown, ctx: unknown) => void) {
+				if (event === "session_start") sessionStart = handler;
+			},
+			registerCommand() {},
+		};
+		permissionAutoReview(pi as never, {
+			register(_name: string, fn: typeof authorize) {
+				authorize = fn;
+			},
+		});
+		sessionStart?.(null, {
+			hasUI: false,
+			cwd: "/Users/thalesmello/src/dotfiles",
+			model: { provider: "google", id: "gemini-3.8-flash" },
+			sessionManager: { getBranch: () => [], getSessionId: () => "sess-1" },
+			modelRegistry: {
+				find: () => undefined,
+				complete: async () => {
+					calls += 1;
+					return { content: [{ type: "text", text: '{"verdict":"allow"}' }] };
+				},
+			},
+		});
+
+		const cmd = "tar -tzf /Users/thalesmello/Library/Caches/Homebrew/borders.tar.gz";
+		// Gate 1: external_directory
+		const v1 = await authorize!(
+			{
+				requestId: "r-ext",
+				toolCallId: "call_dup_1",
+				command: cmd,
+				decidingPath: "/Users/thalesmello/Library/Caches/Homebrew/borders.tar.gz",
+				payload: { request: { surface: "external_directory", value: cmd } },
+			},
+			{},
+			log,
+		);
+		// Gate 2: bash (same toolCallId and command)
+		const v2 = await authorize!(
+			{
+				requestId: "r-bash",
+				toolCallId: "call_dup_1",
+				command: cmd,
+				payload: { request: { surface: "bash", value: cmd } },
+			},
+			{},
+			log,
+		);
+
+		expect(v1).toEqual({ kind: "allow" });
+		expect(v2).toEqual({ kind: "allow" });
+		expect(calls).toBe(1);
+	});
+
+	test("uses reasoning: off + sessionId on first pass and escalates to reasoning: low after unparseable reply", async () => {
+		let authorize: ((details: unknown, query: unknown, log: unknown) => Promise<unknown>) | undefined;
+		let sessionStart: ((event: unknown, ctx: unknown) => void) | undefined;
+		const seenOpts: Array<{ reasoning?: string; sessionId?: string }> = [];
+		const pi = {
+			on(event: string, handler: (event: unknown, ctx: unknown) => void) {
+				if (event === "session_start") sessionStart = handler;
+			},
+			registerCommand() {},
+		};
+		permissionAutoReview(
+			pi as never,
+			{
+				register(_name: string, fn: typeof authorize) {
+					authorize = fn;
+				},
+			},
+			{ timeoutMs: 50, retryDelaysMs: [1, 1] },
+		);
+		sessionStart?.(null, {
+			hasUI: false,
+			cwd: "/Users/thalesmello/src/dotfiles",
+			model: { provider: "google", id: "gemini-3.8-flash" },
+			sessionManager: { getBranch: () => [], getSessionId: () => "sess-abc" },
+			modelRegistry: {
+				find: () => undefined,
+				streamSimple: (_model: unknown, _ctx: unknown, opts: { reasoning?: string; sessionId?: string }) => {
+					seenOpts.push({ reasoning: opts.reasoning, sessionId: opts.sessionId });
+					return {
+						result: async () => {
+							if (seenOpts.length === 1) {
+								return { content: [{ type: "text", text: "not valid json" }] };
+							}
+							return { content: [{ type: "text", text: '{"verdict":"allow"}' }] };
+						},
+					};
+				},
+			},
+		});
+
+		const verdict = await authorize!(
+			{ requestId: "r-escalate", payload: { request: { surface: "bash" } }, command: "ls" },
+			{},
+			log,
+		);
+		expect(verdict).toEqual({ kind: "allow" });
+		expect(seenOpts).toEqual([
+			{ reasoning: "off", sessionId: "auto-review:sess-abc" },
+			{ reasoning: "low", sessionId: "auto-review:sess-abc" },
+		]);
+	});
+
+	test("extracts assistant proposals, questionnaire answers, recent tool calls, and full tool input", () => {
+		const branch = [
+			{
+				type: "message",
+				message: {
+					role: "assistant",
+					content: [{ type: "text", text: "Should I push the branch to origin/main now?" }],
+				},
+			},
+			{
+				type: "message",
+				message: {
+					role: "user",
+					content: [{ type: "text", text: "yes" }],
+				},
+			},
+			{
+				type: "message",
+				message: {
+					role: "toolResult",
+					toolName: "questionnaire",
+					isError: false,
+					content: [{ type: "text", text: "Deploy target: staging" }],
+					details: {
+						cancelled: false,
+						answers: [{ id: "target", label: "staging" }],
+					},
+				},
+			},
+			{
+				type: "message",
+				message: {
+					role: "assistant",
+					content: [
+						{
+							type: "toolCall",
+							id: "call_prev",
+							name: "write",
+							arguments: { path: "/tmp/deploy.sh", content: "echo deploying" },
+						},
+						{
+							type: "toolCall",
+							id: "call_curr",
+							name: "bash",
+							arguments: { command: "bash /tmp/deploy.sh", timeout: 30 },
+						},
+					],
+				},
+			},
+		];
+
+		const extracted = extractSessionContext(
+			{ sessionManager: { getBranch: () => branch } },
+			"call_curr",
+		);
+		expect(extracted.userPrompts).toEqual([
+			"[assistant proposed: Should I push the branch to origin/main now?] -> yes",
+			"[user_answer via questionnaire] Deploy target: staging",
+		]);
+		expect(extracted.recentTools).toEqual(["write: /tmp/deploy.sh (echo deploying)"]);
+		expect(extracted.fullToolInput).toEqual({ command: "bash /tmp/deploy.sh", timeout: 30 });
+	});
+
+	test("supports autoMode operator policy rules and denies cleanly when caller cancels", async () => {
+		const prompt = buildJudgeSystemPrompt({
+			environment: ["$defaults", "Internal repo: github.com/acme/*"],
+			soft_deny: ["$defaults", "Never run database migrations by hand"],
+		});
+		expect(prompt).toContain("Internal repo: github.com/acme/*");
+		expect(prompt).toContain("Never run database migrations by hand");
+		expect(prompt).not.toContain("$defaults");
+		expect(parseJudgeReply('{"verdict":"allow"}')).toEqual({ verdict: "allow", reason: "" });
+
+		let authorize: ((details: unknown, query: unknown, log: unknown) => Promise<unknown>) | undefined;
+		let sessionStart: ((event: unknown, ctx: unknown) => void) | undefined;
+		const abortController = new AbortController();
+		abortController.abort();
+		const pi = {
+			on(event: string, handler: (event: unknown, ctx: unknown) => void) {
+				if (event === "session_start") sessionStart = handler;
+			},
+			registerCommand() {},
+		};
+		permissionAutoReview(pi as never, {
+			register(_name: string, fn: typeof authorize) {
+				authorize = fn;
+			},
+		});
+		sessionStart?.(null, {
+			hasUI: false,
+			cwd: "/Users/thalesmello/src/dotfiles",
+			signal: abortController.signal,
+			model: { provider: "google", id: "gemini-3.8-flash" },
+			sessionManager: { getBranch: () => [] },
+			modelRegistry: {
+				find: () => undefined,
+				complete: async () => ({ content: [{ type: "text", text: '{"verdict":"allow"}' }] }),
+			},
+		});
+
+		const verdict = await authorize!(
+			{ requestId: "r-cancel", payload: { request: { surface: "bash" } }, command: "ls" },
+			{},
+			log,
+		);
+		expect(verdict).toEqual({
+			kind: "deny",
+			reason: "The automatic permission review was cancelled before it finished.",
 		});
 	});
 });

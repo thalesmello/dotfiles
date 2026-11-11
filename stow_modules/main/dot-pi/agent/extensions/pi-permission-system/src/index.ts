@@ -161,7 +161,9 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
   // Register the bundled Claude Code-style auto-review authorizer ("auto-review")
   // and obtain its natural-language rule proposer for the permission dialog and
   // `/permission explain`.
-  const autoReview = permissionAutoReview(pi, authorizerRegistry);
+  const autoReview = permissionAutoReview(pi, authorizerRegistry, {
+    getAutoModeConfig: () => configStore.current().autoMode,
+  });
 
   const authorizerSelection = new AuthorizerSelection({
     detection: subagentDetection,

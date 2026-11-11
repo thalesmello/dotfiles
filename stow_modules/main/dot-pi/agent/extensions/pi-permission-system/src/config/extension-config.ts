@@ -40,6 +40,8 @@ export interface PermissionSystemExtensionConfig {
   shellTools?: ShellToolsConfig;
   /** Ordered names of registered live-authority chain links to consult before the terminal authorizer. */
   authorizerChain?: string[];
+  /** Custom prose rules for the auto-review AI permission judge. */
+  autoMode?: UnifiedPermissionConfig["autoMode"];
 }
 
 export const DEFAULT_EXTENSION_CONFIG: PermissionSystemExtensionConfig = {
@@ -113,6 +115,9 @@ export function normalizePermissionSystemConfig(
   }
   if (raw.authorizerChain !== undefined) {
     result.authorizerChain = raw.authorizerChain;
+  }
+  if (raw.autoMode !== undefined) {
+    result.autoMode = raw.autoMode;
   }
   return result;
 }

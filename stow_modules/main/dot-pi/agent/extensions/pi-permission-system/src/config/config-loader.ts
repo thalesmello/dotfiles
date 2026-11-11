@@ -287,6 +287,17 @@ export function mergeUnifiedConfigs(
     merged.shellTools = overrideShell;
   }
 
+  // autoMode: shallow-merge by rule list (environment, allow, soft_deny, hard_deny)
+  const baseAutoMode = base.autoMode;
+  const overrideAutoMode = override.autoMode;
+  if (baseAutoMode && overrideAutoMode) {
+    merged.autoMode = { ...baseAutoMode, ...overrideAutoMode };
+  } else if (baseAutoMode) {
+    merged.autoMode = baseAutoMode;
+  } else if (overrideAutoMode) {
+    merged.autoMode = overrideAutoMode;
+  }
+
   // Permission: deep-shallow merge
   const basePerm = base.permission;
   const overridePerm = override.permission;
