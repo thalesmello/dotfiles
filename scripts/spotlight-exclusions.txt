@@ -1,0 +1,10 @@
+# Folders excluded from macOS Spotlight indexing.
+# Applied by scripts/macos_settings.sh and verified by tests/macos_settings_test.rb.
+~/.local
+~/.claude
+~/.cache
+~/.bun
+~/.cargo
+~/Library/Caches/dotslash
+~/Library/Containers/com.google.drivefs.fpext/Data/tmp
+~/src/tries

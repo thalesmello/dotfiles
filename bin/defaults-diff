@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""Snapshot and diff macOS `defaults` (including in-memory cfprefsd & -currentHost).
+
+Usage:
+  defaults-diff                       # Interactive: snapshot -> wait for Enter -> diff
+  defaults-diff -d com.apple.dock     # Interactive, scoped to one domain
+  defaults-diff --snapshot DIR        # Save a snapshot directory
+  defaults-diff --before A --after B  # Diff two snapshot directories
+"""
+
+from __future__ import annotations
+
+import argparse
+import pathlib
+import re
+import subprocess
+import sys
+import tempfile
+
+DOMAIN_HEADER_RE = re.compile(r'^    (?:"([^"]+)"|([^\s"=]+)) =     \{\n', re.MULTILINE)
+
+
+def _run_defaults(extra_args: list[str]) -> str:
+    cmd = ["defaults", *extra_args]
+    res = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    return res.stdout
+
+
+def parse_domains(raw_output: str) -> dict[str, str]:
+    """Split `defaults read` output into {domain_name: domain_body}."""
+    domains: dict[str, str] = {}
+    matches = list(DOMAIN_HEADER_RE.finditer(raw_output))
+    for idx, match in enumerate(matches):
+        domain = match.group(1) or match.group(2)
+        start = match.end()
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(raw_output)
+        chunk = raw_output[start:end]
+        # Strip trailing `    };\n` (and outer `}\n` on the final block)
+        chunk = re.sub(r"\n    \};\n(?:\}\n)?\Z", "\n", chunk)
+        # Outdent by 8 spaces for clean per-domain files
+        lines = [line[8:] if line.startswith("        ") else line for line in chunk.splitlines()]
+        domains[domain] = "\n".join(lines) + "\n"
+    return domains
+
+
+def _safe_filename(domain: str) -> str:
+    if domain == "Apple Global Domain":
+        return "NSGlobalDomain"
+    return domain.replace("/", "__")
+
+
+def take_snapshot(dest: pathlib.Path, domain: str | None = None) -> None:
+    dest.mkdir(parents=True, exist_ok=True)
+    scopes = [
+        ("user", []),
+        ("currentHost", ["-currentHost"]),
+    ]
+    for scope_name, scope_flags in scopes:
+        scope_dir = dest / scope_name
+        scope_dir.mkdir(parents=True, exist_ok=True)
+        if domain:
+            out = _run_defaults([*scope_flags, "read", domain])
+            if out.strip():
+                (scope_dir / _safe_filename(domain)).write_text(out, encoding="utf-8")
+        else:
+            out = _run_defaults([*scope_flags, "read"])
+            for dom, body in parse_domains(out).items():
+                (scope_dir / _safe_filename(dom)).write_text(body, encoding="utf-8")
+
+
+def diff_snapshots(before: pathlib.Path, after: pathlib.Path, target: str | None = None) -> int:
+    left = before
+    right = after
+    if target:
+        cleaned = target
+        for prefix in (str(before), str(after)):
+            if cleaned.startswith(prefix):
+                cleaned = cleaned[len(prefix) :].lstrip("/")
+        if (before / cleaned).exists() or (after / cleaned).exists():
+            left = before / cleaned
+            right = after / cleaned
+        elif (before / "user" / _safe_filename(cleaned)).exists() or (
+            after / "user" / _safe_filename(cleaned)
+        ).exists():
+            left = before / "user" / _safe_filename(cleaned)
+            right = after / "user" / _safe_filename(cleaned)
+
+    cmd = ["git", "diff", "--no-index", "--color=auto", str(left), str(right)]
+    proc = subprocess.run(cmd, check=False)
+    # git diff --no-index exits 1 when differences are found, which is normal
+    return 0 if proc.returncode in (0, 1) else proc.returncode
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("-d", "--domain", help="Scope snapshot to a single defaults domain")
+    parser.add_argument("--snapshot", type=pathlib.Path, help="Write snapshot to directory and exit")
+    parser.add_argument("--before", type=pathlib.Path, help="Before snapshot directory")
+    parser.add_argument("--after", type=pathlib.Path, help="After snapshot directory")
+    parser.add_argument("target", nargs="?", help="Optional domain or relative file inside snapshot to diff")
+    args = parser.parse_args(argv)
+
+    if args.snapshot:
+        take_snapshot(args.snapshot, domain=args.domain)
+        return 0
+
+    if args.before or args.after:
+        if not (args.before and args.after):
+            parser.error("--before and --after must be used together")
+        return diff_snapshots(args.before, args.after, target=args.target or args.domain)
+
+    with tempfile.TemporaryDirectory(prefix="defaults-diff-") as tmp:
+        tmp_path = pathlib.Path(tmp)
+        before_dir = tmp_path / "before"
+        after_dir = tmp_path / "after"
+        print("Taking 'before' snapshot...", file=sys.stderr)
+        take_snapshot(before_dir, domain=args.domain)
+        try:
+            input("Toggle the setting in System Settings, then press Enter to diff (Ctrl-C to cancel)... ")
+        except (EOFError, KeyboardInterrupt):
+            print("\nCancelled.", file=sys.stderr)
+            return 130
+        print("Taking 'after' snapshot...", file=sys.stderr)
+        take_snapshot(after_dir, domain=args.domain)
+        return diff_snapshots(before_dir, after_dir, target=args.target)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

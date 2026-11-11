@@ -57,6 +57,28 @@ mkdir -p ~/.local/bin && fish_add_path ~/.local/bin
 mkdir -p ~/go/bin && fish_add_path ~/go/bin
 ```
 
+## macOS settings
+
+Apply system `defaults` preferences and Spotlight exclusions (`scripts/spotlight-exclusions.txt`):
+
+```
+make macos
+```
+
+Note: updating Spotlight's system-wide `VolumeConfiguration.plist` requires the terminal app to have **Full Disk Access** enabled in **System Settings → Privacy & Security → Full Disk Access** (writable user folders also receive a `.metadata_never_index` sentinel file automatically).
+
+Verify that the current machine matches the configured macOS settings:
+
+```
+make test-macos
+```
+
+To discover the `defaults` domain and key when toggling a setting in System Settings:
+
+```
+defaults-diff
+```
+
 ## Alfred workflows
 
 The `.stowrc` in `homebrew/` targets Homebrew's tap folder, so
