@@ -436,8 +436,223 @@ def fetch_agent_title(runner: HerdrRunner, pane_id: str) -> str:
     return agent_title_from_pane(pane) if isinstance(pane, dict) else ""
 
 
-def close_pane(runner: HerdrRunner, pane_id: str) -> None:
-    runner.call("pane.close", {"pane_id": pane_id}, ["pane", "close", pane_id])
+STATUS_RANK = {
+    "blocked": "0",
+    "done": "1",
+    "idle": "2",
+    "unknown": "3",
+    "working": "4",
+}
+PANEL_MODES = ("grouped", "smart", "hidden")
+
+
+def sort_token(status: str, seq: int) -> str:
+    rank = STATUS_RANK.get(status, STATUS_RANK["unknown"])
+    return f"{rank}:{999_999_999_999 - seq:012d}"
+
+
+def usable_sort(value: Any) -> str | None:
+    if not isinstance(value, str) or len(value) != 14 or value[1] != ":":
+        return None
+    if value[:1] not in STATUS_RANK.values() or not value[2:].isdigit():
+        return None
+    if 999_999_999_999 - int(value[2:]) <= 0:
+        return None
+    return value
+
+
+def agent_handler_state_dir(socket_path: str | None = None) -> str | None:
+    env_dir = os.environ.get("HERDR_AGENT_HANDLER_STATE_DIR")
+    if env_dir:
+        return env_dir
+    if not socket_path:
+        return None
+    base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+    parent = os.path.dirname(socket_path)
+    suffix = ""
+    if os.path.basename(os.path.dirname(parent)) == "sessions":
+        name = os.path.basename(parent)
+        if name:
+            suffix = f"@{name}"
+    return os.path.join(base, "herdr", f"agent-handler{suffix}")
+
+
+def load_panel_mode(state_dir: str | None = None) -> str:
+    if not state_dir:
+        return "smart"
+    try:
+        with open(os.path.join(state_dir, "panel-mode"), "r", encoding="utf-8") as handle:
+            mode = handle.read().strip()
+    except OSError:
+        return "smart"
+    return mode if mode in PANEL_MODES else "smart"
+
+
+def load_frozen_sorts(state_dir: str | None = None) -> dict[str, str]:
+    if not state_dir:
+        return {}
+    try:
+        with open(os.path.join(state_dir, "frozen.json"), "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except Exception:
+        return {}
+    if isinstance(data, dict):
+        return {str(k): str(v) for k, v in data.items() if k and v}
+    return {}
+
+
+def pick_next_agent(
+    agents: list[dict[str, Any]],
+    pane_id: str,
+    mode: str = "smart",
+    frozen: dict[str, str] | None = None,
+) -> str | None:
+    """Return the next agent pane ID in the sidebar list after `pane_id`.
+
+    Follows the same ordering and filtering as agent-handler.py's sidebar
+    view (`grouped`, `smart`, or `hidden`). If `pane_id` is the last agent
+    in the ordered list, picks the preceding agent (`remaining[-1]`).
+    """
+    valid = [
+        a for a in agents
+        if isinstance(a, dict) and isinstance(a.get("pane_id"), str) and a.get("pane_id")
+    ]
+    if len(valid) <= 1 or not any(a["pane_id"] == pane_id for a in valid):
+        return None
+    if any(a.get("focused") and a["pane_id"] != pane_id for a in valid):
+        return None
+
+    frozen_map = frozen or {}
+
+    def is_snoozed(a: dict[str, Any]) -> bool:
+        tokens = a.get("tokens")
+        return isinstance(tokens, dict) and bool(tokens.get("herdr_snooze"))
+
+    def is_working(a: dict[str, Any]) -> bool:
+        return a.get("agent_status") == "working"
+
+    if mode == "grouped":
+        visible = list(enumerate(valid))
+    elif mode == "hidden":
+        visible = [
+            (idx, a) for idx, a in enumerate(valid)
+            if a["pane_id"] == pane_id or (not is_snoozed(a) and not is_working(a))
+        ]
+    else:
+        visible = [
+            (idx, a) for idx, a in enumerate(valid)
+            if a["pane_id"] == pane_id or not is_snoozed(a)
+        ]
+
+    if len(visible) <= 1:
+        visible = [
+            (idx, a) for idx, a in enumerate(valid)
+            if a["pane_id"] == pane_id or not is_snoozed(a)
+        ]
+    if len(visible) <= 1:
+        visible = list(enumerate(valid))
+
+    if mode == "grouped":
+        ordered = [a for _idx, a in visible]
+    else:
+        def sort_key(item: tuple[int, dict[str, Any]]) -> tuple[tuple[int, str], str, int, int]:
+            idx, a = item
+            tokens = a.get("tokens") if isinstance(a.get("tokens"), dict) else {}
+            pin = tokens.get("um_pin")
+            pin_key = (0, str(pin)) if pin else (1, "")
+            um_sort = usable_sort(tokens.get("um_sort"))
+            if um_sort is None and (a.get("focused") or a["pane_id"] == pane_id):
+                terminal_id = a.get("terminal_id")
+                key = terminal_id if isinstance(terminal_id, str) and terminal_id else f"pane:{a['pane_id']}"
+                um_sort = usable_sort(frozen_map.get(key))
+            seq = a.get("state_change_seq")
+            seq_int = seq if isinstance(seq, int) else 0
+            if um_sort is None:
+                status = a.get("agent_status")
+                status_str = status if isinstance(status, str) else "unknown"
+                um_sort = sort_token(status_str, seq_int)
+            return (pin_key, um_sort, -seq_int, idx)
+
+        ordered = [a for _idx, a in sorted(visible, key=sort_key)]
+
+    target_idx = next((i for i, a in enumerate(ordered) if a["pane_id"] == pane_id), None)
+    if target_idx is None:
+        return None
+    remaining = [a for a in ordered if a["pane_id"] != pane_id]
+    if not remaining:
+        return None
+    return remaining[min(target_idx, len(remaining) - 1)]["pane_id"]
+
+
+def next_agent_to_focus(runner: HerdrRunner, pane_id: str) -> str | None:
+    """Return the next agent pane to focus when closing `pane_id`, or None.
+
+    If `pane_id`'s tab has another pane, returns None so Herdr focuses that
+    sibling pane in the same tab. If `pane_id` is the last pane in its tab
+    and hosts an agent, returns the next agent on the sidebar list.
+    """
+    try:
+        layout_res = runner.call(
+            "pane.layout",
+            {"pane_id": pane_id},
+            ["pane", "layout", "--pane", pane_id],
+        )
+    except Exception:
+        layout_res = {}
+    layout = layout_res.get("layout") if isinstance(layout_res, dict) else None
+    if isinstance(layout, dict):
+        panes = layout.get("panes")
+        if isinstance(panes, list) and len(panes) > 1:
+            return None
+
+    try:
+        agents_res = runner.call("agent.list", {}, ["agent", "list"])
+    except Exception:
+        return None
+    agents = agents_res.get("agents") if isinstance(agents_res, dict) else None
+    if not isinstance(agents, list):
+        return None
+
+    sdir = agent_handler_state_dir(runner.socket_path)
+    mode = load_panel_mode(sdir)
+    frozen = load_frozen_sorts(sdir)
+    return pick_next_agent(agents, pane_id, mode=mode, frozen=frozen)
+
+
+def focus_agent_pane(runner: HerdrRunner, pane_id: str) -> None:
+    try:
+        runner.call("agent.focus", {"target": pane_id}, ["agent", "focus", pane_id])
+    except Exception:
+        try:
+            runner.call("pane.focus", {"pane_id": pane_id}, ["pane", "focus", "--pane", pane_id])
+        except Exception:
+            pass
+
+
+def close_pane(runner: HerdrRunner, pane_id: str, focus_next_agent: bool = True) -> None:
+    next_target = next_agent_to_focus(runner, pane_id) if focus_next_agent else None
+    if next_target:
+        # Focus the next agent BEFORE closing `pane_id`. If `pane.close` ran
+        # while `pane_id`'s tab was still the client's active tab, Herdr's
+        # `reconcile_client_shell_locations` would fall back to the adjacent
+        # tab/workspace for one frame -- visibly flickering it, acknowledging
+        # its surface completion (`done` -> `idle`), clearing its unread mark,
+        # and recording it in focus history. Moving focus to `next_target`
+        # first means `pane.close` closes `pane_id`'s tab in the background
+        # while the client is already on `next_target`.
+        focus_agent_pane(runner, next_target)
+    try:
+        runner.call("pane.close", {"pane_id": pane_id}, ["pane", "close", pane_id])
+    except Exception:
+        if next_target:
+            focus_agent_pane(runner, pane_id)
+        raise
+    if next_target:
+        # Re-assert focus in case closing `pane_id` also closed a single-tab
+        # workspace (`AppState::close_workspaces` resets the server's active
+        # workspace index when a workspace is removed). No-op when `next_target`
+        # is already focused.
+        focus_agent_pane(runner, next_target)
 
 
 def send_keys(runner: HerdrRunner, pane_id: str, keys: list[str]) -> None:
@@ -521,6 +736,7 @@ def run_close(
     if not pane_id:
         pane_id = current_pane_id(runner)
 
+    has_process = False
     try:
         info = fetch_process_info(runner, pane_id)
     except CliError as exc:
@@ -535,10 +751,11 @@ def run_close(
         if forward_vim and is_vim_process(info):
             send_keys(runner, pane_id, ["ctrl+space", "backspace"])
             return "forwarded"
+        has_process = classify(info).busy
         verdict = classify(info, cfg.ignore_set())
 
     if not verdict.busy:
-        close_pane(runner, pane_id)
+        close_pane(runner, pane_id, focus_next_agent=has_process)
         print(f"closed idle pane {pane_id}", file=log)
         return "closed"
 
@@ -663,6 +880,7 @@ def run_prompt(
         resized = True
 
     prev_winch = signal.signal(signal.SIGWINCH, on_winch)
+    prev_hup = signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
     def draw(closing: bool = False, err: str | None = None) -> None:
         cols = shutil.get_terminal_size((64, 9)).columns
@@ -704,6 +922,7 @@ def run_prompt(
             pass
         try:
             signal.signal(signal.SIGWINCH, prev_winch)
+            signal.signal(signal.SIGHUP, prev_hup)
         except Exception:
             pass
 

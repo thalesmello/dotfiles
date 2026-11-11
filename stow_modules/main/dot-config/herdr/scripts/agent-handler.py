@@ -628,19 +628,175 @@ def sync_workspaces(
     return home_workspaces, has_working
 
 
-def fetch_pane_keys() -> set[str] | None:
+def fetch_panes() -> list[dict[str, Any]] | None:
     response = request("pane.list", {})
     panes = (response.get("result") or {}).get("panes")
     if not isinstance(panes, list):
         return None
+    return [pane for pane in panes if isinstance(pane, dict)]
+
+
+def fetch_pane_keys() -> set[str] | None:
+    panes = fetch_panes()
+    if panes is None:
+        return None
     keys: set[str] = set()
     for pane in panes:
-        if not isinstance(pane, dict):
-            continue
         pane_id = pane.get("pane_id")
         if isinstance(pane_id, str) and pane_id:
             keys.add(pane_key(pane, pane_id))
     return keys
+
+
+def next_agent_candidates(
+    agents: list[dict[str, Any]],
+    pane_id: str,
+    pinned: set[str] | None = None,
+    frozen: dict[str, str] | None = None,
+    mode: str | None = None,
+) -> list[str]:
+    valid = [
+        a for a in agents
+        if isinstance(a, dict) and isinstance(a.get("pane_id"), str) and a.get("pane_id")
+    ]
+    if not valid:
+        return []
+    pinned_set = pinned or set()
+    frozen_map = frozen or {}
+    panel_mode = mode if mode in PANEL_MODES else load_panel_mode()
+
+    def is_snoozed(a: dict[str, Any]) -> bool:
+        tokens = a.get("tokens")
+        return isinstance(tokens, dict) and bool(tokens.get("herdr_snooze"))
+
+    def is_working(a: dict[str, Any]) -> bool:
+        return status_name(a) == "working"
+
+    if panel_mode == "grouped":
+        visible = list(enumerate(valid))
+    elif panel_mode == "hidden":
+        visible = [
+            (idx, a) for idx, a in enumerate(valid)
+            if a["pane_id"] == pane_id or (not is_snoozed(a) and not is_working(a))
+        ]
+    else:
+        visible = [
+            (idx, a) for idx, a in enumerate(valid)
+            if a["pane_id"] == pane_id or not is_snoozed(a)
+        ]
+
+    if len(visible) <= 1:
+        visible = [
+            (idx, a) for idx, a in enumerate(valid)
+            if a["pane_id"] == pane_id or not is_snoozed(a)
+        ]
+    if len(visible) <= 1:
+        visible = list(enumerate(valid))
+
+    if panel_mode == "grouped":
+        ordered = [a for _idx, a in visible]
+    else:
+        def sort_key(item: tuple[int, dict[str, Any]]) -> tuple[tuple[int, str], str, int, int]:
+            idx, a = item
+            pid = a["pane_id"]
+            key = pane_key(a, pid)
+            tokens = a.get("tokens") if isinstance(a.get("tokens"), dict) else {}
+            is_pin = key in pinned_set or bool(tokens.get(PIN_TOKEN))
+            pin_key = (0, PIN_GLYPH) if is_pin else (1, "")
+            um_sort = usable_sort(tokens.get(SORT_TOKEN))
+            if um_sort is None and (a.get("focused") or pid == pane_id):
+                um_sort = usable_sort(frozen_map.get(key))
+            seq = a.get("state_change_seq")
+            seq_int = seq if isinstance(seq, int) else 0
+            if um_sort is None:
+                um_sort = sort_token(status_name(a), seq_int)
+            return (pin_key, um_sort, -seq_int, idx)
+
+        ordered = [a for _idx, a in sorted(visible, key=sort_key)]
+
+    target_idx = next((i for i, a in enumerate(ordered) if a["pane_id"] == pane_id), 0)
+    remaining = [a["pane_id"] for a in ordered if a["pane_id"] != pane_id]
+    if not remaining:
+        return []
+    start = min(target_idx, len(remaining) - 1)
+    return remaining[start:] + remaining[:start][::-1]
+
+
+def reconcile_closed_agent_focus(
+    agents: list[dict[str, Any]],
+    last_focused: dict[str, Any] | None,
+    pinned: set[str] | None = None,
+    frozen: dict[str, str] | None = None,
+    mode: str | None = None,
+) -> dict[str, Any] | None:
+    live_panes = {
+        a["pane_id"]
+        for a in agents
+        if isinstance(a.get("pane_id"), str) and a.get("pane_id")
+    }
+    if last_focused is not None:
+        prev_pane = last_focused.get("pane_id")
+        prev_tab = last_focused.get("tab_id")
+        candidates = last_focused.get("candidates") or []
+        if isinstance(prev_pane, str) and prev_pane and prev_pane not in live_panes:
+            panes = fetch_panes()
+            if panes is not None:
+                still_open = next((p for p in panes if p.get("pane_id") == prev_pane), None)
+                if still_open is not None:
+                    if still_open.get("focused"):
+                        synthetic = {
+                            "pane_id": prev_pane,
+                            "tab_id": prev_tab,
+                            "terminal_id": last_focused.get("terminal_id"),
+                            "focused": True,
+                            "tokens": last_focused.get("tokens") or {},
+                            "agent_status": last_focused.get("agent_status") or "idle",
+                            "state_change_seq": last_focused.get("state_change_seq") or 0,
+                        }
+                        return {
+                            **last_focused,
+                            "candidates": next_agent_candidates(
+                                [*agents, synthetic],
+                                prev_pane,
+                                pinned=pinned,
+                                frozen=frozen,
+                                mode=mode,
+                            ),
+                        }
+                else:
+                    tab_has_other_pane = bool(prev_tab) and any(
+                        p.get("tab_id") == prev_tab for p in panes
+                    )
+                    if not tab_has_other_pane:
+                        target = next((cid for cid in candidates if cid in live_panes), None)
+                        if target and not any(
+                            p.get("pane_id") == target and p.get("focused") for p in panes
+                        ):
+                            request("agent.focus", {"target": target})
+                            for a in agents:
+                                a["focused"] = a.get("pane_id") == target
+
+    focused_agent = next(
+        (
+            a for a in agents
+            if a.get("focused") and isinstance(a.get("pane_id"), str) and a.get("pane_id")
+        ),
+        None,
+    )
+    if focused_agent is None:
+        return None
+    f_pane = focused_agent["pane_id"]
+    return {
+        "pane_id": f_pane,
+        "tab_id": focused_agent.get("tab_id"),
+        "terminal_id": focused_agent.get("terminal_id"),
+        "tokens": dict(focused_agent.get("tokens") or {}),
+        "agent_status": status_name(focused_agent),
+        "state_change_seq": focused_agent.get("state_change_seq") or 0,
+        "candidates": next_agent_candidates(
+            agents, f_pane, pinned=pinned, frozen=frozen, mode=mode
+        ),
+    }
 
 
 def sync_agents(
@@ -900,6 +1056,7 @@ def daemon_loop() -> int:
     workspaces: list[dict[str, Any]] | None = None
     agents: list[dict[str, Any]] | None = None
     home_workspaces: set[str] = set()
+    last_focused_agent: dict[str, Any] | None = None
     last_fetch_at = 0.0
     force_refresh = True
     frame = 0
@@ -956,6 +1113,13 @@ def daemon_loop() -> int:
                     agents = fetched
                     last_fetch_at = now
                     force_refresh = False
+                    last_focused_agent = reconcile_closed_agent_focus(
+                        agents,
+                        last_focused_agent,
+                        pinned=pinned,
+                        frozen=frozen,
+                        mode=load_panel_mode(),
+                    )
                 else:
                     workspaces = None
                     agents = None

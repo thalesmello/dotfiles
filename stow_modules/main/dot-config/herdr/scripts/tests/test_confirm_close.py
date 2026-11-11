@@ -107,10 +107,15 @@ BUSY = {"foreground_process_group_id": 20, "shell_pid": 10,
 
 
 class FakeRunner(cc.HerdrRunner):
-    def __init__(self, info=None, info_error=None, open_error=None, pane=None):
+    def __init__(self, info=None, info_error=None, open_error=None, pane=None,
+                 layout=None, agents=None, focus_error=None, close_error=None):
         super().__init__(bin_path="herdr", socket_path=None)
         self.info, self.info_error, self.open_error = info, info_error, open_error
         self.pane = pane
+        self.layout = layout
+        self.agents = agents
+        self.focus_error = focus_error
+        self.close_error = close_error
         self.calls = []
 
     def call(self, method, params, cli_args):
@@ -121,6 +126,14 @@ class FakeRunner(cc.HerdrRunner):
             return {"process_info": self.info}
         if method == "pane.get":
             return {"pane": self.pane} if self.pane is not None else {}
+        if method == "pane.layout":
+            return {"layout": self.layout} if self.layout is not None else {}
+        if method == "agent.list":
+            return {"agents": self.agents} if self.agents is not None else {}
+        if method == "agent.focus" and self.focus_error is not None:
+            raise self.focus_error
+        if method == "pane.close" and self.close_error is not None:
+            raise self.close_error
         if method == "plugin.pane.open" and self.open_error is not None:
             raise self.open_error
         return {}
@@ -296,6 +309,194 @@ class RenderPromptTest(unittest.TestCase):
         self.assertEqual(cc.truncate("hello world", 6), "hello…")
         self.assertEqual(cc.truncate("héllo wörld", 4), "hél…")
         self.assertEqual(cc.truncate("abc", 1), "abc")
+
+
+_ah_spec = importlib.util.spec_from_file_location(
+    "agent_handler", os.path.join(_HERE, "..", "agent-handler.py"))
+ah = importlib.util.module_from_spec(_ah_spec)
+sys.modules["agent_handler"] = ah
+_ah_spec.loader.exec_module(ah)
+
+
+class CloseFocusBehaviorTest(unittest.TestCase):
+    def test_multi_pane_tab_keeps_tab_focus(self):
+        # Another pane exists in the same tab: close_pane must NOT jump to
+        # another agent, letting Herdr focus the sibling pane in the tab.
+        layout = {"panes": [{"pane_id": "w1:p1", "focused": True},
+                            {"pane_id": "w1:p2", "focused": False}]}
+        agents = [
+            {"pane_id": "w1:p1", "agent": "pi", "agent_status": "idle",
+             "state_change_seq": 10, "focused": True},
+            {"pane_id": "w2:p1", "agent": "pi", "agent_status": "idle",
+             "state_change_seq": 9, "focused": False},
+        ]
+        runner = FakeRunner(BUSY, layout=layout, agents=agents)
+        cc.close_pane(runner, "w1:p1")
+        self.assertEqual(runner.calls, [
+            ("pane.layout", {"pane_id": "w1:p1"}),
+            ("pane.close", {"pane_id": "w1:p1"}),
+        ])
+
+    def test_last_pane_in_tab_focuses_next_agent_in_smart_order(self):
+        # Single pane in tab: closing w1:p1 focuses the next agent in the
+        # sidebar smart priority order (done -> idle newest first -> working).
+        layout = {"panes": [{"pane_id": "w1:p2", "focused": True}]}
+        agents = [
+            {"pane_id": "w1:p1", "agent": "pi", "agent_status": "working",
+             "state_change_seq": 50, "focused": False},
+            {"pane_id": "w1:p2", "agent": "pi", "agent_status": "done",
+             "state_change_seq": 20, "focused": True},
+            {"pane_id": "w2:p1", "agent": "pi", "agent_status": "idle",
+             "state_change_seq": 30, "focused": False},
+            {"pane_id": "w3:p1", "agent": "pi", "agent_status": "idle",
+             "state_change_seq": 40, "focused": False},
+        ]
+        # Smart order: w1:p2 (done), w3:p1 (idle seq 40), w2:p1 (idle seq 30), w1:p1 (working).
+        # Closing w1:p2 -> next agent on the list is w3:p1, focused BEFORE pane.close
+        # so Herdr never falls back to (or marks seen) the adjacent tab w1:p1, and
+        # re-asserted after pane.close in case closing the tab also closed its workspace.
+        runner = FakeRunner(BUSY, layout=layout, agents=agents)
+        cc.close_pane(runner, "w1:p2")
+        self.assertEqual(runner.calls, [
+            ("pane.layout", {"pane_id": "w1:p2"}),
+            ("agent.list", {}),
+            ("agent.focus", {"target": "w3:p1"}),
+            ("pane.close", {"pane_id": "w1:p2"}),
+            ("agent.focus", {"target": "w3:p1"}),
+        ])
+
+    def test_close_failure_restores_original_focus(self):
+        layout = {"panes": [{"pane_id": "w1:p1", "focused": True}]}
+        agents = [
+            {"pane_id": "w1:p1", "agent": "pi", "agent_status": "done",
+             "state_change_seq": 20, "focused": True},
+            {"pane_id": "w2:p1", "agent": "pi", "agent_status": "idle",
+             "state_change_seq": 10, "focused": False},
+        ]
+        err = cc.CliError("workspace_group_close_required", "group close required")
+        runner = FakeRunner(BUSY, layout=layout, agents=agents, close_error=err)
+        with self.assertRaises(cc.CliError):
+            cc.close_pane(runner, "w1:p1")
+        self.assertEqual(runner.calls, [
+            ("pane.layout", {"pane_id": "w1:p1"}),
+            ("agent.list", {}),
+            ("agent.focus", {"target": "w2:p1"}),
+            ("pane.close", {"pane_id": "w1:p1"}),
+            ("agent.focus", {"target": "w1:p1"}),
+        ])
+
+    def test_last_agent_in_list_focuses_previous_agent(self):
+        layout = {"panes": [{"pane_id": "w2:p1", "focused": True}]}
+        agents = [
+            {"pane_id": "w1:p1", "agent": "pi", "agent_status": "done",
+             "state_change_seq": 20, "focused": False},
+            {"pane_id": "w2:p1", "agent": "pi", "agent_status": "idle",
+             "state_change_seq": 10, "focused": True},
+        ]
+        runner = FakeRunner(BUSY, layout=layout, agents=agents)
+        cc.close_pane(runner, "w2:p1")
+        self.assertEqual(runner.calls[-3:], [
+            ("agent.focus", {"target": "w1:p1"}),
+            ("pane.close", {"pane_id": "w2:p1"}),
+            ("agent.focus", {"target": "w1:p1"}),
+        ])
+
+    def test_respects_frozen_um_sort_and_pins(self):
+        # w1:p1 turned from done to idle when focused, but its um_sort token is
+        # frozen at rank 1 (done). The next agent after it is the other done
+        # agent (w2:p1), not the idle agent below w3:p1.
+        agents = [
+            {"pane_id": "w1:p1", "agent": "pi", "agent_status": "idle",
+             "state_change_seq": 100, "focused": True,
+             "tokens": {"um_sort": cc.sort_token("done", 50)}},
+            {"pane_id": "w2:p1", "agent": "pi", "agent_status": "done",
+             "state_change_seq": 40, "focused": False,
+             "tokens": {"um_sort": cc.sort_token("done", 40)}},
+            {"pane_id": "w3:p1", "agent": "pi", "agent_status": "idle",
+             "state_change_seq": 90, "focused": False,
+             "tokens": {"um_sort": cc.sort_token("idle", 90)}},
+        ]
+        self.assertEqual(cc.pick_next_agent(agents, "w1:p1"), "w2:p1")
+
+    def test_grouped_and_hidden_panel_modes(self):
+        agents = [
+            {"pane_id": "w1:p1", "agent": "pi", "agent_status": "working",
+             "state_change_seq": 10, "focused": False},
+            {"pane_id": "w1:p2", "agent": "pi", "agent_status": "done",
+             "state_change_seq": 20, "focused": True},
+            {"pane_id": "w1:p3", "agent": "pi", "agent_status": "working",
+             "state_change_seq": 30, "focused": False},
+            {"pane_id": "w2:p1", "agent": "pi", "agent_status": "idle",
+             "state_change_seq": 5, "focused": False},
+        ]
+        # In grouped mode (agent.list order), the agent after w1:p2 is w1:p3.
+        self.assertEqual(cc.pick_next_agent(agents, "w1:p2", mode="grouped"), "w1:p3")
+        # In hidden mode (working filtered out), closing w2:p1 (the last non-working
+        # agent) falls back to the remaining non-working agent w1:p2 instead of working w1:p3.
+        agents[1]["focused"] = False
+        agents[3]["focused"] = True
+        self.assertEqual(cc.pick_next_agent(agents, "w2:p1", mode="hidden"), "w1:p2")
+
+    def test_skips_snoozed_agents_and_unfocused_background_close(self):
+        agents = [
+            {"pane_id": "w1:p1", "agent": "pi", "agent_status": "done",
+             "state_change_seq": 30, "focused": True},
+            {"pane_id": "w2:p1", "agent": "pi", "agent_status": "done",
+             "state_change_seq": 20, "focused": False,
+             "tokens": {"herdr_snooze": "1"}},
+            {"pane_id": "w3:p1", "agent": "pi", "agent_status": "idle",
+             "state_change_seq": 10, "focused": False},
+        ]
+        self.assertEqual(cc.pick_next_agent(agents, "w1:p1"), "w3:p1")
+        # Closing w3:p1 while w1:p1 is focused does not steal focus.
+        self.assertIsNone(cc.pick_next_agent(agents, "w3:p1"))
+
+    def test_agent_handler_reconciles_external_close(self):
+        from unittest import mock
+
+        agents_before = [
+            {"pane_id": "w1:p1", "tab_id": "w1:t1", "terminal_id": "t1",
+             "agent": "pi", "agent_status": "done", "state_change_seq": 20, "focused": True},
+            {"pane_id": "w1:p2", "tab_id": "w1:t2", "terminal_id": "t2",
+             "agent": "pi", "agent_status": "working", "state_change_seq": 30, "focused": False},
+            {"pane_id": "w2:p1", "tab_id": "w2:t1", "terminal_id": "t3",
+             "agent": "pi", "agent_status": "idle", "state_change_seq": 10, "focused": False},
+        ]
+        state = ah.reconcile_closed_agent_focus(agents_before, None, mode="smart")
+        self.assertEqual(state["pane_id"], "w1:p1")
+        self.assertEqual(state["candidates"], ["w2:p1", "w1:p2"])
+
+        # Case 1: w1:p1 closed as the last pane in w1:t1; Herdr focused adjacent tab w1:p2.
+        # agent-handler redirects focus to w2:p1 (next agent in smart list).
+        agents_after = [
+            {"pane_id": "w1:p2", "tab_id": "w1:t2", "terminal_id": "t2",
+             "agent": "pi", "agent_status": "working", "state_change_seq": 30, "focused": True},
+            {"pane_id": "w2:p1", "tab_id": "w2:t1", "terminal_id": "t3",
+             "agent": "pi", "agent_status": "idle", "state_change_seq": 10, "focused": False},
+        ]
+        panes_after = [
+            {"pane_id": "w1:p2", "tab_id": "w1:t2", "focused": True},
+            {"pane_id": "w2:p1", "tab_id": "w2:t1", "focused": False},
+        ]
+        requests = []
+        with mock.patch.object(ah, "fetch_panes", return_value=panes_after), \
+                mock.patch.object(ah, "request", side_effect=lambda m, p: requests.append((m, p)) or {}):
+            state_after = ah.reconcile_closed_agent_focus(agents_after, state, mode="smart")
+        self.assertEqual(requests, [("agent.focus", {"target": "w2:p1"})])
+        self.assertEqual(state_after["pane_id"], "w2:p1")
+
+        # Case 2: w1:p1 closed, but another pane w1:p9 still exists in w1:t1.
+        # agent-handler leaves focus on w1:p9 in the same tab.
+        panes_with_sibling = [
+            {"pane_id": "w1:p9", "tab_id": "w1:t1", "focused": True},
+            {"pane_id": "w1:p2", "tab_id": "w1:t2", "focused": False},
+            {"pane_id": "w2:p1", "tab_id": "w2:t1", "focused": False},
+        ]
+        requests = []
+        with mock.patch.object(ah, "fetch_panes", return_value=panes_with_sibling), \
+                mock.patch.object(ah, "request", side_effect=lambda m, p: requests.append((m, p)) or {}):
+            ah.reconcile_closed_agent_focus(agents_after, state, mode="smart")
+        self.assertEqual(requests, [])
 
 
 if __name__ == "__main__":
