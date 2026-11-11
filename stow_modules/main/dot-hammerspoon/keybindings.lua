@@ -1120,6 +1120,36 @@ function M.setup()
   service:bindOnce(hyper, "delete", "Close Chrome Preset Apps", closeChromePresetApps)
   service:bindOnce({"alt"}, "delete", "Close Chrome Preset Apps", closeChromePresetApps)
 
+  service:bindOnce(hyperShift, "delete", "Close Spotify, Wispr Flow & Karabiner GUI", function()
+    a.sync(function()
+      local targets = {
+        {label = "Spotify", proc = "Spotify", bundles = {"com.spotify.client"}},
+        {label = "Wispr Flow", proc = "Wispr Flow", bundles = {"com.electron.wispr-flow", "com.electron.wispr-flow.accessibility-mac-app"}},
+        {label = "Karabiner GUI", proc = "Karabiner-Elements", bundles = {"org.pqrs.Karabiner-Elements.Settings"}},
+      }
+      local closed = {}
+      for _, t in ipairs(targets) do
+        local found = false
+        for _, bundle in ipairs(t.bundles) do
+          for _, app in ipairs(hs.application.applicationsForBundleID(bundle) or {}) do
+            found = true
+            app:kill()
+          end
+        end
+        local ok = a.wait(taskAsync({"killall", t.proc}))
+        if found or ok then
+          closed[#closed + 1] = t.label
+        end
+      end
+
+      if #closed == 0 then
+        Preset.displayMessage("Spotify, Wispr Flow & Karabiner GUI already closed")
+      else
+        Preset.displayMessage("Closed " .. table.concat(closed, ", "))
+      end
+    end)()
+  end)
+
   -- Side-by-side: arrange the marked windows (2-6) into an optimal grid.
   service:bindOnce({"shift"}, ";", "Side By Side", function()
     local count = ArgList.count()
