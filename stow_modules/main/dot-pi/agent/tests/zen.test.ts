@@ -6,7 +6,10 @@ import { pathToFileURL } from "node:url";
 
 const hostPath = join(import.meta.dir, "zen-host.ts");
 const hostHref = pathToFileURL(hostPath).href;
-const { Container, Text } = await import(hostHref);
+const { Container, Text, getAgentDir, setTestAgentDir } = await import(hostHref);
+
+const testAgentDir = join(tmpdir(), `pi-zen-test-agent-${process.pid}`);
+setTestAgentDir(testAgentDir);
 
 const bundlePath = join(import.meta.dir, "../extensions/zen/bundle.js");
 const bundleSource = fs.readFileSync(bundlePath, "utf8");
@@ -18,6 +21,7 @@ const redirectedPath = join(tmpdir(), `zen-extension-test-${process.pid}.mjs`);
 fs.writeFileSync(redirectedPath, redirectedSource);
 afterAll(() => {
 	fs.rmSync(redirectedPath, { force: true });
+	fs.rmSync(testAgentDir, { recursive: true, force: true });
 });
 
 const {
@@ -25,6 +29,7 @@ const {
 	computeZenColumn,
 	padZenLine,
 	isZenActive,
+	readZenDefault,
 	MIN_TEXT_WIDTH,
 	MAX_SIDE_MARGIN_RATIO,
 } = await import(pathToFileURL(redirectedPath).href);
@@ -92,6 +97,7 @@ describe("padZenLine", () => {
 describe("zen extension lifecycle, centered column, and /zen command", () => {
 	beforeEach(() => {
 		delete (globalThis as { piZenSwitch?: unknown }).piZenSwitch;
+		fs.rmSync(testAgentDir, { recursive: true, force: true });
 	});
 
 	function createHarness() {
@@ -250,6 +256,7 @@ describe("zen extension lifecycle, centered column, and /zen command", () => {
 			runZenCommand: async (args = "") => {
 				await commands.get("zen")!.handler(args, ctx);
 			},
+			getCompletions: (prefix: string) => commands.get("zen")!.getArgumentCompletions?.(prefix) ?? [],
 		};
 	}
 
@@ -398,5 +405,52 @@ describe("zen extension lifecycle, centered column, and /zen command", () => {
 		);
 		expect(onResult1.render(80)[0]).toContain("▸ tools  2 read");
 		expect(onResult2.render(80)[0]).toContain("- read  src/dog.ts");
+	});
+
+	test("/zen default toggles and /zen default on/off sets the startup default in pi-zen.json", async () => {
+		const h = createHarness();
+		await h.emit("session_start", { reason: "startup" });
+		expect(readZenDefault(getAgentDir())).toBe(false);
+		expect(isZenActive()).toBe(false);
+
+		// /zen default toggles default from false -> true and activates Zen
+		await h.runZenCommand("default");
+		expect(readZenDefault(getAgentDir())).toBe(true);
+		expect(isZenActive()).toBe(true);
+		expect(h.notices.at(-1)).toEqual({
+			text: "Zen default on · Zen enabled by default on startup",
+			level: "info",
+		});
+
+		// /zen default toggles default from true -> false and deactivates Zen
+		await h.runZenCommand("default");
+		expect(readZenDefault(getAgentDir())).toBe(false);
+		expect(isZenActive()).toBe(false);
+		expect(h.notices.at(-1)).toEqual({
+			text: "Zen default off · Zen disabled by default on startup",
+			level: "info",
+		});
+
+		// /zen default on explicitly enables the default
+		await h.runZenCommand("default on");
+		expect(readZenDefault(getAgentDir())).toBe(true);
+		expect(isZenActive()).toBe(true);
+
+		// A fresh session with defaultEnabled=true starts with Zen active on startup
+		delete (globalThis as { piZenSwitch?: unknown }).piZenSwitch;
+		const h2 = createHarness();
+		expect(isZenActive()).toBe(true);
+		await h2.emit("session_start", { reason: "startup" });
+		expect(h2.documentContainer.render(120)).toEqual([`${" ".repeat(20)}chatwidth=80`]);
+
+		// /zen default off explicitly disables the default and leaves Zen
+		await h2.runZenCommand("default off");
+		expect(readZenDefault(getAgentDir())).toBe(false);
+		expect(isZenActive()).toBe(false);
+		expect(h2.documentContainer.render(120)).toEqual(["[Context]", "  AGENTS.md", "chatwidth=120"]);
+
+		// Completions include default and default on/off
+		expect(h2.getCompletions("").map((c: any) => c.value)).toEqual(["on", "off", "details", "default"]);
+		expect(h2.getCompletions("default ").map((c: any) => c.value)).toEqual(["default on", "default off"]);
 	});
 });

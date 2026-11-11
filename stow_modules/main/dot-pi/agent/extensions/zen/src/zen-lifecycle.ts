@@ -5,6 +5,7 @@ import type { QuietingOutcome, RestoringOutcome, StartupQuieting } from "./start
 import { createUiClaim, type UiPart } from "./ui-claim.ts";
 import {
 	announce,
+	defaultNotice,
 	offNotice,
 	ON_OUTSIDE_TUI,
 	onNotice,
@@ -65,6 +66,16 @@ export function createZenLifecycle({
 			const parsed = parseZenCommand(args);
 			if (parsed._tag === "Unrecognized") {
 				announce(host.ui, USAGE_NOTICE);
+				return;
+			}
+			if (parsed.command._tag === "Default") {
+				const outcome = zenSwitch.turnDefault(parsed.command.mode);
+				if (!outcome.enabled) {
+					await leave(host);
+				} else if (host.mode === "tui") {
+					await enter(host, "zen on");
+				}
+				announce(host.ui, defaultNotice(outcome));
 				return;
 			}
 			if (zenSwitch.turn(parsed.command) === "pi") {

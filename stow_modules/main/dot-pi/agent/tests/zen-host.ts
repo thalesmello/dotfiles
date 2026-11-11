@@ -198,8 +198,14 @@ export class AssistantMessageComponent extends Container {
 	}
 }
 
+let testAgentDir = `/tmp/pi-zen-test-agent-${process.pid}`;
+
+export function setTestAgentDir(dir: string): void {
+	testAgentDir = dir;
+}
+
 export function getAgentDir(): string {
-	return "/tmp/pi-zen-test-agent";
+	return testAgentDir;
 }
 
 export function sessionEntryToContextMessages(entry: any): any[] {

@@ -2797,22 +2797,38 @@ function createUiClaim(parts) {
 }
 
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/zen/src/zen-switch.ts
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+var CONFIG_FILE = "pi-zen.json";
 var CHOICES = new Map([
   ["on", "zen"],
   ["off", "pi"],
   ["details", "zen-details"]
 ]);
-var USAGE_NOTICE = { text: "Usage: /zen [on|off|details]", level: "warning" };
+var DEFAULT_CHOICES = new Map([
+  ["default", "toggle"],
+  ["default on", "on"],
+  ["default off", "off"]
+]);
+var TOP_COMPLETIONS = ["on", "off", "details", "default"];
+var DEFAULT_COMPLETIONS = ["default", "default on", "default off"];
+var USAGE_NOTICE = { text: "Usage: /zen [on|off|details|default [on|off]]", level: "warning" };
 var ON_OUTSIDE_TUI = { text: "Zen on · it shows in Pi's interactive terminal", level: "info" };
 function parseZenCommand(args) {
-  const argument = args.trim().toLowerCase();
+  const argument = args.trim().toLowerCase().replace(/\s+/g, " ");
   if (argument === "")
     return { _tag: "Command", command: { _tag: "Toggle" } };
+  const defaultMode = DEFAULT_CHOICES.get(argument);
+  if (defaultMode !== undefined) {
+    return { _tag: "Command", command: { _tag: "Default", mode: defaultMode } };
+  }
   const look = CHOICES.get(argument);
   return look === undefined ? { _tag: "Unrecognized", argument } : { _tag: "Command", command: { _tag: "Choose", look } };
 }
 function zenCompletions(prefix) {
-  return [...CHOICES.keys()].filter((word) => word.startsWith(prefix)).map((word) => ({ value: word, label: word }));
+  const normalized = prefix.trimStart().toLowerCase().replace(/\s+/g, " ");
+  const candidates = normalized.startsWith("default") ? DEFAULT_COMPLETIONS : TOP_COMPLETIONS;
+  return candidates.filter((word) => word.startsWith(normalized)).map((word) => ({ value: word, label: word }));
 }
 function lookAfter(command, current) {
   switch (command._tag) {
@@ -2822,14 +2838,52 @@ function lookAfter(command, current) {
       return command.look;
   }
 }
-function carriedSwitch() {
-  const carried = globalThis.piZenSwitch ?? { look: "pi" };
+function readConfigObject(path) {
+  try {
+    const raw = readFileSync(path, "utf8");
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+function readZenDefault(agentDir) {
+  const config = readConfigObject(join(agentDir, CONFIG_FILE));
+  return config.defaultEnabled === true;
+}
+function writeZenDefault(agentDir, enabled) {
+  const path = join(agentDir, CONFIG_FILE);
+  try {
+    const existing = readConfigObject(path);
+    const updated = { ...existing, defaultEnabled: enabled };
+    mkdirSync(agentDir, { recursive: true });
+    writeFileSync(path, `${JSON.stringify(updated, null, 2)}
+`, "utf8");
+    return { ok: true, enabled };
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    return { ok: false, enabled, path, detail };
+  }
+}
+function carriedSwitch(agentDir) {
+  const initialLook = agentDir !== undefined && readZenDefault(agentDir) ? "zen" : "pi";
+  const carried = globalThis.piZenSwitch ?? { look: initialLook };
   globalThis.piZenSwitch = carried;
+  const isDefault = () => agentDir === undefined ? false : readZenDefault(agentDir);
   return {
     look: () => carried.look,
     turn: (command) => {
       carried.look = lookAfter(command, carried.look);
       return carried.look;
+    },
+    isDefault,
+    turnDefault: (mode) => {
+      const nextEnabled = mode === "on" ? true : mode === "off" ? false : !isDefault();
+      carried.look = nextEnabled ? "zen" : "pi";
+      if (agentDir === undefined) {
+        return { ok: true, enabled: nextEnabled };
+      }
+      return writeZenDefault(agentDir, nextEnabled);
     }
   };
 }
@@ -2908,6 +2962,19 @@ function offNotice(outcome) {
       return headOnly("Zen off");
   }
 }
+function defaultNotice(outcome) {
+  const head = outcome.enabled ? "Zen default on" : "Zen default off";
+  if (!outcome.ok) {
+    return headed(head, {
+      text: `could not write ${outcome.path} (${outcome.detail})`,
+      level: "warning"
+    });
+  }
+  return headed(head, {
+    text: outcome.enabled ? "Zen enabled by default on startup" : "Zen disabled by default on startup",
+    level: "info"
+  });
+}
 function announce(ui, notice) {
   ui.notify(notice.text, notice.level);
 }
@@ -2948,6 +3015,16 @@ function createZenLifecycle({
         announce(host.ui, USAGE_NOTICE);
         return;
       }
+      if (parsed.command._tag === "Default") {
+        const outcome = zenSwitch.turnDefault(parsed.command.mode);
+        if (!outcome.enabled) {
+          await leave(host);
+        } else if (host.mode === "tui") {
+          await enter(host, "zen on");
+        }
+        announce(host.ui, defaultNotice(outcome));
+        return;
+      }
       if (zenSwitch.turn(parsed.command) === "pi") {
         announce(host.ui, offNotice(await leave(host)));
         return;
@@ -2963,7 +3040,7 @@ function createZenLifecycle({
 
 // dotfiles/stow_modules/main/dot-pi/agent/extensions/zen/index.ts
 function zen(pi) {
-  const zenSwitch = carriedSwitch();
+  const zenSwitch = carriedSwitch(getAgentDir());
   let sessionManager;
   const runs = createCallRuns(() => {
     if (sessionManager !== undefined)
@@ -3084,7 +3161,7 @@ function zen(pi) {
     return orientMessage(markdown, context, liveSentInk());
   });
   pi.registerCommand("zen", {
-    description: "Quiet the TUI with a centered column: on, off, or details (alias for on)",
+    description: "Quiet the TUI with a centered column: on, off, details, or default [on|off]",
     getArgumentCompletions: zenCompletions,
     handler: lifecycle.command
   });
@@ -3095,5 +3172,7 @@ export {
   computeZenColumn,
   zen as default,
   isZenActive,
-  padZenLine
+  padZenLine,
+  readZenDefault,
+  writeZenDefault
 };

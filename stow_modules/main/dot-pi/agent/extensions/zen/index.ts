@@ -24,7 +24,13 @@ import {
 } from "./src/zen-column.ts";
 import { zenEditorPart } from "./src/zen-editor.ts";
 import { createZenLifecycle } from "./src/zen-lifecycle.ts";
-import { carriedSwitch, isZenActive, zenCompletions } from "./src/zen-switch.ts";
+import {
+	carriedSwitch,
+	isZenActive,
+	readZenDefault,
+	writeZenDefault,
+	zenCompletions,
+} from "./src/zen-switch.ts";
 
 export {
 	computeZenColumn,
@@ -32,11 +38,13 @@ export {
 	MAX_SIDE_MARGIN_RATIO,
 	MIN_TEXT_WIDTH,
 	padZenLine,
+	readZenDefault,
+	writeZenDefault,
 	type ZenColumnLayout,
 };
 
 export default function zen(pi: ExtensionAPI): void {
-	const zenSwitch = carriedSwitch();
+	const zenSwitch = carriedSwitch(getAgentDir());
 	let sessionManager: ExtensionContext["sessionManager"] | undefined;
 	const runs = createCallRuns(() => {
 		if (sessionManager !== undefined) seedRuns(sessionManager);
@@ -162,7 +170,7 @@ export default function zen(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("zen", {
-		description: "Quiet the TUI with a centered column: on, off, or details (alias for on)",
+		description: "Quiet the TUI with a centered column: on, off, details, or default [on|off]",
 		getArgumentCompletions: zenCompletions,
 		handler: lifecycle.command,
 	});
