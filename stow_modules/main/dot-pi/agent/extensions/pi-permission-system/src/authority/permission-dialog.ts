@@ -183,6 +183,15 @@ export interface RequestPermissionOptions {
    * of allowed commands/paths into concrete permission grants.
    */
   proposeRules?: RuleProposer;
+  /**
+   * Optional background re-evaluator invoked while the prompt sits unanswered
+   * and unengaged by the human (e.g. when an authorizer link timed out while
+   * the laptop was closed and resumed).
+   */
+  reevaluate?: (
+    signal: AbortSignal,
+    onUpdateAnnotation?: (source: string, text: string) => void,
+  ) => Promise<PermissionPromptDecision | null>;
 }
 
 /**

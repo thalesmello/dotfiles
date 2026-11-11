@@ -6,6 +6,7 @@ import permissionAutoReview, {
 	MAX_REVIEW_ATTEMPTS,
 	REVIEW_TIMEOUT_MS,
 	resolveJudgeModel,
+	resolveJudgeModels,
 } from "../extensions/pi-permission-system/auto-review/index.js";
 import { composeAuthorizerChain } from "../extensions/pi-permission-system/src/authority/authorizer-chain.ts";
 import { LocalUserAuthorizer } from "../extensions/pi-permission-system/src/authority/local-user-authorizer.ts";
@@ -239,9 +240,9 @@ describe("auto-review judge & natural-language rule proposer", () => {
 		});
 	});
 
-	test("uses a 30s timeout with a retry on timeout or transient error", async () => {
+	test("uses a 30s timeout with retries on timeout or transient error", async () => {
 		expect(REVIEW_TIMEOUT_MS).toBe(30_000);
-		expect(MAX_REVIEW_ATTEMPTS).toBe(2);
+		expect(MAX_REVIEW_ATTEMPTS).toBe(5);
 
 		let authorize: ((details: unknown, query: unknown, log: unknown) => Promise<unknown>) | undefined;
 		let sessionStart: ((event: unknown, ctx: unknown) => void) | undefined;
@@ -259,7 +260,7 @@ describe("auto-review judge & natural-language rule proposer", () => {
 					authorize = fn;
 				},
 			},
-			{ timeoutMs: 25 },
+			{ timeoutMs: 25, retryDelaysMs: [2, 2, 2, 2] },
 		);
 		sessionStart?.(null, {
 			hasUI: false,
@@ -270,7 +271,7 @@ describe("auto-review judge & natural-language rule proposer", () => {
 				find: () => undefined,
 				complete: async (_model: unknown, _req: unknown, opts: { signal?: AbortSignal }) => {
 					calls += 1;
-					if (calls === 1) {
+					if (calls <= 2) {
 						await new Promise((resolve) => {
 							opts.signal?.addEventListener("abort", resolve, { once: true });
 						});
@@ -286,11 +287,138 @@ describe("auto-review judge & natural-language rule proposer", () => {
 			{},
 			log,
 		);
-		expect(calls).toBe(2);
+		expect(calls).toBe(3);
 		expect(verdict).toEqual({ kind: "allow" });
 	});
 
-	test("defers after exhausting retry when both attempts time out", async () => {
+	test("resets retry budget and aborts stale request when laptop sleeps and resumes (clock jump)", async () => {
+		let authorize: ((details: unknown, query: unknown, log: unknown) => Promise<unknown>) | undefined;
+		let sessionStart: ((event: unknown, ctx: unknown) => void) | undefined;
+		let calls = 0;
+		let fakeNow = 1_000_000;
+		const pi = {
+			on(event: string, handler: (event: unknown, ctx: unknown) => void) {
+				if (event === "session_start") sessionStart = handler;
+			},
+			registerCommand() {},
+		};
+		permissionAutoReview(
+			pi as never,
+			{
+				register(_name: string, fn: typeof authorize) {
+					authorize = fn;
+				},
+			},
+			{
+				timeoutMs: 50,
+				maxAttempts: 2,
+				retryDelaysMs: [2],
+				sleepCheckIntervalMs: 5,
+				sleepJumpThresholdMs: 1_000,
+				postWakeSettleMs: 5,
+				clock: () => fakeNow,
+			},
+		);
+		sessionStart?.(null, {
+			hasUI: false,
+			cwd: "/Users/thalesmello/src/dotfiles",
+			model: { provider: "google", id: "gemini-3.8-flash" },
+			sessionManager: { getBranch: () => [] },
+			modelRegistry: {
+				find: () => undefined,
+				complete: async (_model: unknown, _req: unknown, opts: { signal?: AbortSignal }) => {
+					calls += 1;
+					if (calls === 1) {
+						// Attempt 1 fails right before sleep
+						return { stopReason: "error", errorMessage: "socket closed", content: [] };
+					}
+					if (calls === 2) {
+						// Attempt 2 is in-flight when laptop lid closes for 10 minutes
+						setTimeout(() => {
+							fakeNow += 10 * 60_000;
+						}, 8);
+						await new Promise((resolve) => {
+							opts.signal?.addEventListener("abort", resolve, { once: true });
+						});
+						return { stopReason: "aborted", content: [] };
+					}
+					if (calls === 3) {
+						// First post-wake attempt fails while Wi-Fi is still reconnecting
+						return { stopReason: "error", errorMessage: "network unreachable", content: [] };
+					}
+					// Second post-wake attempt succeeds because wake reset the 2-attempt budget!
+					return { content: [{ type: "text", text: '{"verdict":"allow","reason":"Resumed after wake."}' }] };
+				},
+			},
+		});
+
+		const verdict = await authorize!(
+			{ requestId: "r-sleep-wake", payload: { request: { surface: "bash" } }, command: "ls" },
+			{},
+			log,
+		);
+		expect(calls).toBe(4);
+		expect(verdict).toEqual({ kind: "allow" });
+	});
+
+	test("falls back to secondary fast models in the same family on later retry attempts", async () => {
+		const catalog = [
+			{ provider: "google", id: "gemini-3.8-flash" },
+			{ provider: "google", id: "gemini-3.6-flash" },
+			{ provider: "google", id: "gemini-3.5-flash" },
+		];
+		const registry = {
+			find: (p: string, id: string) => catalog.find((m) => m.provider === p && m.id === id),
+			getAll: () => catalog,
+			hasConfiguredAuth: () => true,
+		};
+		expect(resolveJudgeModels(registry, { provider: "google", id: "gemini-4-argon" })).toEqual(catalog);
+
+		let authorize: ((details: unknown, query: unknown, log: unknown) => Promise<unknown>) | undefined;
+		let sessionStart: ((event: unknown, ctx: unknown) => void) | undefined;
+		const seenModels: string[] = [];
+		const pi = {
+			on(event: string, handler: (event: unknown, ctx: unknown) => void) {
+				if (event === "session_start") sessionStart = handler;
+			},
+			registerCommand() {},
+		};
+		permissionAutoReview(
+			pi as never,
+			{
+				register(_name: string, fn: typeof authorize) {
+					authorize = fn;
+				},
+			},
+			{ timeoutMs: 20, retryDelaysMs: [1, 1, 1, 1] },
+		);
+		sessionStart?.(null, {
+			hasUI: false,
+			cwd: "/Users/thalesmello/src/dotfiles",
+			model: { provider: "google", id: "gemini-4-argon" },
+			sessionManager: { getBranch: () => [] },
+			modelRegistry: {
+				...registry,
+				complete: async (model: { id: string }) => {
+					seenModels.push(model.id);
+					if (seenModels.length < 3) {
+						return { stopReason: "error", errorMessage: "503 unavailable", content: [] };
+					}
+					return { content: [{ type: "text", text: '{"verdict":"allow","reason":"Fallback model succeeded."}' }] };
+				},
+			},
+		});
+
+		const verdict = await authorize!(
+			{ requestId: "r-fallback-model", payload: { request: { surface: "bash" } }, command: "ls" },
+			{},
+			log,
+		);
+		expect(seenModels).toEqual(["gemini-3.8-flash", "gemini-3.8-flash", "gemini-3.6-flash"]);
+		expect(verdict).toEqual({ kind: "allow" });
+	});
+
+	test("defers with transient: true after exhausting all attempts when every attempt times out", async () => {
 		let authorize: ((details: unknown, query: unknown, log: unknown) => Promise<unknown>) | undefined;
 		let sessionStart: ((event: unknown, ctx: unknown) => void) | undefined;
 		let calls = 0;
@@ -307,7 +435,7 @@ describe("auto-review judge & natural-language rule proposer", () => {
 					authorize = fn;
 				},
 			},
-			{ timeoutMs: 20 },
+			{ timeoutMs: 15, retryDelaysMs: [1, 1, 1, 1] },
 		);
 		sessionStart?.(null, {
 			hasUI: false,
@@ -331,10 +459,66 @@ describe("auto-review judge & natural-language rule proposer", () => {
 			{},
 			log,
 		);
-		expect(calls).toBe(2);
+		expect(calls).toBe(MAX_REVIEW_ATTEMPTS);
 		expect(verdict).toEqual({
 			kind: "defer",
 			reason: "Auto-review judge (google/gemini-3.8-flash) timed out, so asking you instead.",
+			transient: true,
+		});
+	});
+
+	test("background re-evaluation auto-resolves an open prompt after laptop resume when initial evaluation timed out", async () => {
+		let calls = 0;
+		const link = {
+			name: "auto-review",
+			authorize: async () => {
+				calls += 1;
+				if (calls === 1) {
+					return {
+						kind: "defer" as const,
+						reason: "Auto-review judge (google/gemini-3.8-flash) timed out, so asking you instead.",
+						transient: true,
+					};
+				}
+				return { kind: "allow" as const };
+			},
+		};
+		const terminal = {
+			authorize: async (details: {
+				reevaluate?: (signal: AbortSignal) => Promise<unknown>;
+			}) => {
+				expect(typeof details.reevaluate).toBe("function");
+				const controller = new AbortController();
+				const reevaluated = await details.reevaluate!(controller.signal);
+				expect(reevaluated).toEqual({
+					approved: true,
+					state: "approved",
+					decidedBy: {
+						kind: "authorizer",
+						name: "auto-review",
+						verdict: "allow",
+						reason: null,
+					},
+				});
+				return reevaluated as never;
+			},
+		};
+		const chain = composeAuthorizerChain([link as never], terminal as never, query, log, {
+			reevaluateBaseDelayMs: 5,
+			reevaluateMaxDelayMs: 20,
+			sleepCheckIntervalMs: 5,
+		});
+		const decision = await chain.authorize(makeDetails());
+		expect(calls).toBe(2);
+		expect(decision).toEqual({
+			approved: true,
+			state: "approved",
+			decidedBy: {
+				kind: "authorizer",
+				name: "auto-review",
+				verdict: "allow",
+				reason: null,
+			},
 		});
 	});
 });

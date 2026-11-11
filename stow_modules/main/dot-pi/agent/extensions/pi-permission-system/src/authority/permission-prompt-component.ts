@@ -124,6 +124,8 @@ export async function requestPermissionDecision(
   }
 }
 
+type PromptSurfaceAnswer = UnattributedDecision | PermissionPromptDecision;
+
 /**
  * One human-facing surface: how to ask on it, and the name it answers under.
  *
@@ -131,7 +133,7 @@ export async function requestPermissionDecision(
  */
 interface DecisionSurface {
   via: UserDecisionSurface;
-  ask: (window: DialogClock) => Promise<UnattributedDecision | undefined>;
+  ask: (window: DialogClock) => Promise<PromptSurfaceAnswer | undefined>;
 }
 
 /**
@@ -164,13 +166,13 @@ function chooseDecisionSurface(
   };
 }
 
-function askThroughFallback(
+async function askThroughFallback(
   view: PermissionPromptView,
   title: string,
   payload: PromptPayload,
   options: RequestPermissionOptions | undefined,
   signal: AbortSignal | undefined,
-): Promise<UnattributedDecision | undefined> {
+): Promise<PromptSurfaceAnswer | undefined> {
   // The fallback renders once and cannot re-render, so it neither paints nor
   // offers an expansion; it substitutes a nominal width for the terminal size
   // it is never told, and the host's own select wraps from there.
@@ -187,19 +189,59 @@ function askThroughFallback(
     proposeRules && !options?.proposeRules
       ? { ...options, proposeRules }
       : options;
-  return requestPermissionDecisionFromUi(
-    view.ui,
-    title,
-    rendered.lines.join("\n"),
-    effectiveOptions,
-    signal,
-  );
+
+  const reevaluateController = options?.reevaluate
+    ? new AbortController()
+    : undefined;
+  let reevaluatedDecision: PermissionPromptDecision | undefined;
+  if (options?.reevaluate && reevaluateController) {
+    const onWindowAbort = () => reevaluateController.abort();
+    signal?.addEventListener("abort", onWindowAbort, { once: true });
+    void options
+      .reevaluate(reevaluateController.signal)
+      .then(
+        (decision) => {
+          if (!reevaluateController.signal.aborted && decision) {
+            reevaluatedDecision = decision;
+            reevaluateController.abort();
+          }
+        },
+        () => {},
+      )
+      .finally(() => {
+        signal?.removeEventListener("abort", onWindowAbort);
+      });
+  }
+
+  const combinedSignal =
+    signal && reevaluateController
+      ? AbortSignal.any([signal, reevaluateController.signal])
+      : (signal ?? reevaluateController?.signal);
+
+  try {
+    const answer = await requestPermissionDecisionFromUi(
+      view.ui,
+      title,
+      rendered.lines.join("\n"),
+      effectiveOptions,
+      combinedSignal,
+    );
+    if (reevaluatedDecision !== undefined) {
+      return reevaluatedDecision;
+    }
+    return answer;
+  } finally {
+    reevaluateController?.abort();
+  }
 }
 
 function attributeToHuman(
-  decision: UnattributedDecision,
+  decision: PromptSurfaceAnswer,
   via: UserDecisionSurface,
 ): PermissionPromptDecision {
+  if ("decidedBy" in decision && decision.decidedBy !== undefined) {
+    return decision;
+  }
   const decidedBy: DecisionSource = { kind: "user", via };
   return { ...decision, decidedBy };
 }
@@ -235,7 +277,7 @@ export function presentInlinePermissionPrompt(
   payload: PromptPayload,
   options?: RequestPermissionOptions,
   clock?: DialogClock,
-): Promise<UnattributedDecision | undefined> {
+): Promise<PromptSurfaceAnswer | undefined> {
   const proposeRules: RuleProposer | undefined =
     options?.proposeRules ??
     (view.proposeRules
@@ -249,8 +291,18 @@ export function presentInlinePermissionPrompt(
     keys: view.dialogKeys,
     canProposeRules: proposeRules !== undefined,
   };
-  return view.ui.custom<UnattributedDecision | undefined>(
-    (tui, theme, keybindings, done) => {
+  return view.ui.custom<PromptSurfaceAnswer | undefined>(
+    (tui, theme, keybindings, rawDone) => {
+      const reevaluateController = options?.reevaluate
+        ? new AbortController()
+        : undefined;
+      let settled = false;
+      const done = (decision: PromptSurfaceAnswer | undefined) => {
+        if (settled) return;
+        settled = true;
+        reevaluateController?.abort();
+        rawDone(decision);
+      };
       // The host's `done` is idempotent, so a human answer racing the abort
       // settles whichever arrives first.
       clock?.signal?.addEventListener(
@@ -269,7 +321,7 @@ export function presentInlinePermissionPrompt(
       if (notification) {
         tui.terminal.write(notification);
       }
-      return new PermissionPromptComponent(
+      const component = new PermissionPromptComponent(
         theme,
         config,
         title,
@@ -282,7 +334,25 @@ export function presentInlinePermissionPrompt(
         done,
         clock,
         proposeRules,
+        () => {
+          reevaluateController?.abort();
+        },
       );
+      if (options?.reevaluate && reevaluateController) {
+        void options
+          .reevaluate(reevaluateController.signal, (source, text) => {
+            component.updateAnnotation(source, text);
+          })
+          .then(
+            (decision) => {
+              if (!reevaluateController.signal.aborted && decision) {
+                done(decision);
+              }
+            },
+            () => {},
+          );
+      }
+      return component;
     },
     { overlay: false },
   );
@@ -328,17 +398,27 @@ class PermissionPromptComponent implements Component {
     private readonly theme: PromptTheme,
     private readonly config: PromptModelConfig,
     private readonly title: string,
-    private readonly payload: PromptPayload,
+    private payload: PromptPayload,
     private readonly budget: RenderBudget,
     private readonly handleAppAction: (data: string) => boolean,
     private readonly requestRender: () => void,
-    private readonly done: (decision: UnattributedDecision) => void,
+    private readonly done: (decision: PromptSurfaceAnswer) => void,
     private readonly clock: DialogClock | undefined,
     private readonly proposeRules?: RuleProposer,
+    private readonly onUserInput?: () => void,
   ) {
     this.state = initialPromptState(config);
     this.reason = this.createReasonEditor();
     this.explain = this.createExplainEditor();
+  }
+
+  updateAnnotation(source: string, text: string): void {
+    const filtered = this.payload.annotations.filter((a) => a.source !== source);
+    this.payload = {
+      ...this.payload,
+      annotations: text ? [...filtered, { source, text }] : filtered,
+    };
+    this.requestRender();
   }
 
   /**
@@ -441,6 +521,7 @@ class PermissionPromptComponent implements Component {
 
   handleInput(data: string): void {
     this.engageClock();
+    this.onUserInput?.();
     if (this.state.step === "reason") {
       this.handleReasonInput(data);
       return;

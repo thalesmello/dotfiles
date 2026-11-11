@@ -30,7 +30,7 @@ import type { SubagentSessionRegistry } from "./subagent-registry.ts";
 export type AuthorizerVerdict =
   | { kind: "allow" }
   | { kind: "deny"; reason?: string }
-  | { kind: "defer"; reason?: string };
+  | { kind: "defer"; reason?: string; transient?: boolean };
 
 /**
  * A non-terminal link in the live-authority chain: reviews an `ask` and may

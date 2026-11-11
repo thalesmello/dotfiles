@@ -180,6 +180,7 @@ function buildRequestOptions(
           ),
         }
       : {}),
+    ...(details.reevaluate ? { reevaluate: details.reevaluate } : {}),
   };
   return Object.keys(options).length > 0 ? options : undefined;
 }

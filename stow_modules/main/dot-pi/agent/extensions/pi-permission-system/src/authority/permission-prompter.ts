@@ -90,6 +90,28 @@ export interface PromptPermissionDetails {
    * no intent leaves this absent.
    */
   accessIntent?: ForwardedAccessFacts;
+  /**
+   * Optional signal aborted when an open permission dialog no longer needs a
+   * background re-evaluation (e.g. the human engaged or the prompt closed).
+   */
+  signal?: AbortSignal;
+  /**
+   * True when an authorizer link is being re-invoked in the background after an
+   * initial transient failure (timeout / network error).
+   */
+  isReevaluation?: boolean;
+  /**
+   * Background re-evaluator attached by `composeAuthorizerChain` when one or
+   * more links deferred only because of a transient failure (e.g. timeout while
+   * the laptop was closed). Runs while the terminal prompt sits unanswered and
+   * unengaged by the human; resolves with a decisive `PermissionPromptDecision`
+   * to auto-close the prompt, or `null` if all links subsequently deferred
+   * non-transiently or the signal was aborted.
+   */
+  reevaluate?: (
+    signal: AbortSignal,
+    onUpdateAnnotation?: (source: string, text: string) => void,
+  ) => Promise<PermissionPromptDecision | null>;
 }
 
 /**
