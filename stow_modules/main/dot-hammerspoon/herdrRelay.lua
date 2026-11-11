@@ -126,18 +126,14 @@ local discarding
 local pasteRequest
 
 local function snapshotClipboard()
-  previousClipboard = hs.pasteboard.readAllData()
+  previousClipboard = GhosttyPreset.readClipboardSnapshot()
   -- Kept alongside the UTI snapshot because a paste needs the TEXT, and by the
   -- time a paste request is read the clipboard no longer holds it.
   previousText = hs.pasteboard.readString()
 end
 
 local function restoreClipboard()
-  if previousClipboard and next(previousClipboard) then
-    hs.pasteboard.writeAllData(previousClipboard)
-  else
-    hs.pasteboard.clearContents()
-  end
+  GhosttyPreset.writeTransientSnapshot(previousClipboard, previousText)
   ignoredChangeCount = hs.pasteboard.changeCount()
 end
 
@@ -688,13 +684,9 @@ end
 -- From the request's own copy rather than the module snapshot, which by now has
 -- been through the popup command's clipboard round trip.
 local function restorePasteClipboard(request)
-  if request.snapshot and next(request.snapshot) then
-    hs.pasteboard.writeAllData(request.snapshot)
-  else
-    hs.pasteboard.setContents(request.text)
-  end
+  GhosttyPreset.writeTransientSnapshot(request.snapshot, request.text)
   ignoredChangeCount = hs.pasteboard.changeCount()
-  previousClipboard = hs.pasteboard.readAllData()
+  previousClipboard = GhosttyPreset.readClipboardSnapshot()
   previousText = request.text
 end
 
@@ -743,6 +735,7 @@ local function beginPaste(fields)
   -- request left on the clipboard is a frame the next paste would produce.
   local snapshot, text = previousClipboard, previousText
   restoreClipboard()
+  GhosttyPreset.purgeAlfredHerdrEntries()
 
   -- The terminal, captured before any dialog can take the focus off it: it is
   -- both what the dialog hands the focus back to and what the popup chords have
@@ -806,8 +799,9 @@ local function readyPaste(fields)
   if request.timer then request.timer:stop(); request.timer = nil end
 
   -- Overwrites the READY record, which is the receiver's own OSC 52 write.
-  hs.pasteboard.setContents(hs.base64.encode(request.text) .. PASTE_TERMINATOR)
+  GhosttyPreset.setTransientContents(hs.base64.encode(request.text) .. PASTE_TERMINATOR)
   ignoredChangeCount = hs.pasteboard.changeCount()
+  GhosttyPreset.purgeAlfredHerdrEntries()
 
   hs.timer.doAfter(PASTE_SETTLE, function()
     if pasteRequest ~= request then return end
@@ -844,22 +838,26 @@ local function onPasteboardChange(contents)
     if not GhosttyPreset.onHerdrCommandReady() then
       restoreClipboard()
     end
+    GhosttyPreset.purgeAlfredHerdrEntries()
     return
   end
 
   if GhosttyPreset.isHerdrCommandClipboard(contents) then
+    GhosttyPreset.onHerdrCommandClipboard(contents)
     return
   end
 
   local record = parseFramedRecord(contents, COPY_PREFIX, COPY_SUFFIX)
   if record then
     handleCopyRecord(record)
+    GhosttyPreset.purgeAlfredHerdrEntries()
     return
   end
 
   record = parseFramedRecord(contents, PASTE_PREFIX, PASTE_SUFFIX)
   if record then
     handlePasteRecord(record)
+    GhosttyPreset.purgeAlfredHerdrEntries()
     return
   end
 
@@ -872,6 +870,7 @@ local function onPasteboardChange(contents)
     -- Consume the request before showing the dialog so the sentinel never
     -- remains available to paste into another app.
     restoreClipboard()
+    GhosttyPreset.purgeAlfredHerdrEntries()
     showOpenDialog(url)
     return
   end
@@ -915,6 +914,7 @@ function M.setup()
   discarding = nil
   pasteRequest = nil
 
+  GhosttyPreset.purgeAlfredHerdrEntries()
   hs.pasteboard.watcher.interval(POLL_INTERVAL)
   _G._HerdrRelayWatcher = hs.pasteboard.watcher.new(onPasteboardChange)
 end

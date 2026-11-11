@@ -194,6 +194,7 @@ function ghostty-preset
         # not mistaken for an answer. Per-run, so a reply that arrives after its
         # run gave up cannot be read as the next run's.
         set -l token "ghostty-preset:herdr-exec:$fish_pid-"(random)
+        set -l reply_file "$lock/reply"
 
         # bash: run-command.sh evals what it is handed. <cmd> is expected to be
         # bash-quoted already (jq's @sh is the easy way).
@@ -204,32 +205,26 @@ function ghostty-preset
             "[ -n \"\$__out\" ] && printf '%s\\n' \"\$__out\"" \
             "true")
 
-        set -l saved (pbpaste 2>/dev/null | string collect)
-
-        # stdout discarded: everything this prints belongs to <cmd>, and `hs -c`
-        # is free to echo whatever the Lua chunk evaluated to. stderr is kept.
+        # Hammerspoon snapshots the full clipboard, stages the wrapper with
+        # org.nspasteboard.TransientType, consumes the OSC 52 reply into
+        # $reply_file, restores the original clipboard as transient, and purges
+        # any OSC 52 frame Alfred's timer may have caught.
+        set -l enc (printf '%s' "$wrapper" | base64 | tr -d '\n')
         set -l drove 0
-        ghostty-preset execute-and-forget-herdr-command "$wrapper" >/dev/null; or set drove 1
+        hs -c "require('ghosttyPreset').executeAndForgetHerdrCommand(hs.base64.decode('$enc'), {token='$token', replyFile='$reply_file', timeout=$timeout})" >/dev/null; or set drove 1
 
-        # 50ms ticks. Nothing arrives at all if the popup never opened, hence the
-        # cap -- leaving our own wrapper on the clipboard is worse than giving up.
         set -l reply
         if test $drove -eq 0
-            for i in (seq (math "round($timeout * 20)"))
-                sleep 0.05
-
-                set -l parts (string split -m 2 \n -- (pbpaste 2>/dev/null | string collect))
-                if test (count $parts) -ge 2; and test "$parts[1]" = "$token"
-                    set reply $parts
-                    break
+            for i in (seq (math "round($timeout * 50)"))
+                if test -f "$reply_file"
+                    set -l parts (string split -m 2 \n -- (cat "$reply_file" 2>/dev/null | string collect))
+                    if test (count $parts) -ge 2; and test "$parts[1]" = "$token"
+                        set reply $parts
+                        break
+                    end
                 end
+                sleep 0.02
             end
-        end
-
-        if test -n "$saved"
-            printf '%s' "$saved" | pbcopy
-        else
-            printf '' | pbcopy
         end
 
         rm -rf "$lock"

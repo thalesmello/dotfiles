@@ -536,6 +536,92 @@ end
 -- herdr run-command popup (callback-driven)
 ---------------------------------------------------------------
 
+-- Standard nspasteboard.org marker honored by Alfred (and other clipboard
+-- managers) to ignore temporary/programmatic pasteboard writes and restores.
+M.TRANSIENT_UTI = "org.nspasteboard.TransientType"
+
+local ALFRED_CLIPBOARD_DB = os.getenv("HOME")
+  .. "/Library/Application Support/Alfred/Databases/clipboard.alfdb"
+local ALFRED_PURGE_DELAY = 0.25
+local alfredPurgeTimer = nil
+
+-- Uses the `clipboard_items` covering index on `clipboard(item)` in Alfred's DB.
+local ALFRED_HAS_HERDR_SQL = [[
+  SELECT 1 FROM clipboard
+  WHERE (item >= char(30) || 'HERDR_' AND item < char(30) || 'HERDRa')
+     OR (item >= 'ghostty-preset:herdr-exec:' AND item < 'ghostty-preset:herdr-exec;')
+  LIMIT 1;
+]]
+
+local ALFRED_DELETE_HERDR_SQL = [[
+  DELETE FROM clipboard
+  WHERE (item >= char(30) || 'HERDR_' AND item < char(30) || 'HERDRa')
+     OR (item >= 'ghostty-preset:herdr-exec:' AND item < 'ghostty-preset:herdr-exec;');
+]]
+
+local function purgeAlfredDbNow()
+  if hs.fs.attributes(ALFRED_CLIPBOARD_DB, "mode") ~= "file" then return end
+  local ok, sqlite3 = pcall(require, "hs.sqlite3")
+  if not ok or not sqlite3 then return end
+  local db = sqlite3.open(ALFRED_CLIPBOARD_DB, sqlite3.OPEN_READWRITE)
+  if not db then return end
+  pcall(function()
+    db:busy_timeout(100)
+    local hasMatch = false
+    for _ in db:urows(ALFRED_HAS_HERDR_SQL) do
+      hasMatch = true
+      break
+    end
+    if hasMatch then
+      db:exec(ALFRED_DELETE_HERDR_SQL)
+    end
+  end)
+  pcall(function() db:close() end)
+end
+
+-- Remove any Herdr OSC 52 control frames that Ghostty wrote to NSPasteboard
+-- and that Alfred's 150ms timer may have captured before Hammerspoon consumed
+-- them. Debounced to run once after Alfred's poll window settles, never
+-- synchronously on the hot path.
+function M.purgeAlfredHerdrEntries()
+  if alfredPurgeTimer then
+    alfredPurgeTimer:stop()
+  end
+  alfredPurgeTimer = hs.timer.doAfter(ALFRED_PURGE_DELAY, function()
+    alfredPurgeTimer = nil
+    purgeAlfredDbNow()
+  end)
+end
+
+function M.readClipboardSnapshot()
+  local ok, data = pcall(hs.pasteboard.readAllData)
+  if not ok or type(data) ~= "table" then return nil end
+  data[M.TRANSIENT_UTI] = nil
+  return data
+end
+
+function M.setTransientContents(text)
+  return hs.pasteboard.writeAllData({
+    ["public.utf8-plain-text"] = text,
+    [M.TRANSIENT_UTI] = "",
+  })
+end
+
+function M.writeTransientSnapshot(snapshot, fallbackText)
+  if type(snapshot) == "table" and next(snapshot) then
+    local copy = {}
+    for uti, data in pairs(snapshot) do
+      copy[uti] = data
+    end
+    copy[M.TRANSIENT_UTI] = ""
+    hs.pasteboard.writeAllData(copy)
+  elseif type(fallbackText) == "string" and fallbackText ~= "" then
+    M.setTransientContents(fallbackText)
+  else
+    hs.pasteboard.clearContents()
+  end
+end
+
 -- Must match `run-command.sh --callback`. Framed with RS/US and a 128-bit
 -- namespace token (same convention as herdrRelay.lua) so ordinary clipboard
 -- text never matches by accident.
@@ -549,13 +635,28 @@ local CMD_RESTORE_DELAY = 0.15
 
 local pendingHerdrCmd = nil
 local stagedHerdrCmd = nil
+local pendingHerdrReply = nil
 
-local function restoreHerdrClipboard(saved)
-  if saved ~= nil then
-    hs.pasteboard.setContents(saved)
-  else
-    hs.pasteboard.clearContents()
+local function restoreHerdrClipboard(savedSnapshot, savedText)
+  M.writeTransientSnapshot(savedSnapshot, savedText)
+end
+
+local function stopPendingReply()
+  if pendingHerdrReply and pendingHerdrReply.timer then
+    pendingHerdrReply.timer:stop()
+    pendingHerdrReply.timer = nil
   end
+  pendingHerdrReply = nil
+end
+
+local function writeReplyFile(path, contents)
+  if type(path) ~= "string" or path == "" then return end
+  local tmp = path .. ".tmp"
+  local f = io.open(tmp, "wb")
+  if not f then return end
+  f:write(contents)
+  f:close()
+  os.rename(tmp, path)
 end
 
 -- True when `contents` is an internal clipboard value owned by the herdr
@@ -567,6 +668,25 @@ function M.isHerdrCommandClipboard(contents)
   if contents == M.CMD_READY_TOKEN then return true end
   if stagedHerdrCmd ~= nil and contents == stagedHerdrCmd then return true end
   if contents:sub(1, 26) == "ghostty-preset:herdr-exec:" then return true end
+  return false
+end
+
+-- Consume an `execute-herdr-command` reply if one arrived on the pasteboard,
+-- write it to the waiting CLI's reply file, and immediately restore the
+-- pre-command clipboard as transient.
+function M.onHerdrCommandClipboard(contents)
+  if type(contents) ~= "string" then return false end
+  if contents:sub(1, 26) ~= "ghostty-preset:herdr-exec:" then return false end
+
+  M.purgeAlfredHerdrEntries()
+
+  local rep = pendingHerdrReply
+  if rep and contents:sub(1, #rep.prefix) == rep.prefix then
+    stopPendingReply()
+    writeReplyFile(rep.replyFile, contents)
+    restoreHerdrClipboard(rep.savedSnapshot, rep.savedText)
+    return true
+  end
   return false
 end
 
@@ -588,10 +708,13 @@ function M.onHerdrCommandReady()
   end
   pendingHerdrCmd = nil
 
+  M.purgeAlfredHerdrEntries()
+
   local cmd = req.cmd
-  local saved = req.saved
+  local savedSnapshot = req.savedSnapshot
+  local savedText = req.savedText
   stagedHerdrCmd = cmd
-  hs.pasteboard.setContents(cmd)
+  M.setTransientContents(cmd)
 
   hs.timer.doAfter(CMD_PASTE_SETTLE, function()
     Preset.sendKeys({"cmd", "v"})
@@ -606,8 +729,9 @@ function M.onHerdrCommandReady()
         -- come in that way), or another run may have staged its own command
         -- there -- and restoring over either loses it.
         local current = hs.pasteboard.getContents()
+        if M.onHerdrCommandClipboard(current) then return end
         if current ~= cmd and current ~= M.CMD_READY_TOKEN then return end
-        restoreHerdrClipboard(saved)
+        restoreHerdrClipboard(savedSnapshot, savedText)
       end)
     end)
   end)
@@ -621,32 +745,79 @@ end
 -- an OSC 52 token (`M.CMD_READY_TOKEN`), then stage <cmd> on the clipboard,
 -- paste, and press Enter.
 --
+-- When `opts` carries `{ token = ..., replyFile = ..., timeout = ... }`, also
+-- watches for the command's OSC 52 reply (`<token>\n<status>\n<output>`), writes
+-- it to `replyFile`, and immediately restores the pre-command clipboard as
+-- transient so `bin/ghostty-preset` never needs `pbpaste`/`pbcopy`.
+--
 -- Waiting for the popup's OSC 52 ready token eliminates guessing how long
 -- herdr (local or over ssh/et) takes to open the popup and prepare its tty.
 -- Returns nothing on purpose: `hs -c` prints whatever the chunk evaluates to, so
 -- a `true` here would show up on the shim's stdout and end up mixed into the
 -- output execute-herdr-command hands back to its caller.
-function M.executeAndForgetHerdrCommand(cmd)
+function M.executeAndForgetHerdrCommand(cmd, opts)
   if not cmd or cmd == "" then return end
+  opts = type(opts) == "table" and opts or nil
 
-  local saved
+  local savedSnapshot, savedText
   if pendingHerdrCmd then
     if pendingHerdrCmd.timer then
       pendingHerdrCmd.timer:stop()
       pendingHerdrCmd.timer = nil
     end
-    saved = pendingHerdrCmd.saved
+    savedSnapshot = pendingHerdrCmd.savedSnapshot
+    savedText = pendingHerdrCmd.savedText
+  elseif pendingHerdrReply then
+    savedSnapshot = pendingHerdrReply.savedSnapshot
+    savedText = pendingHerdrReply.savedText
   else
-    saved = hs.pasteboard.getContents()
-    if saved == M.CMD_READY_TOKEN then
-      saved = nil
+    local current = hs.pasteboard.getContents()
+    if M.isHerdrCommandClipboard(current) then
+      savedSnapshot = nil
+      savedText = nil
       hs.pasteboard.clearContents()
+    else
+      savedSnapshot = M.readClipboardSnapshot()
+      savedText = current
     end
+  end
+
+  stopPendingReply()
+  if opts and type(opts.token) == "string" and opts.token ~= ""
+      and type(opts.replyFile) == "string" and opts.replyFile ~= "" then
+    local replyTimeout = tonumber(opts.timeout) or CMD_READY_TIMEOUT
+    local rep = {
+      token = opts.token,
+      prefix = opts.token .. "\n",
+      replyFile = opts.replyFile,
+      savedSnapshot = savedSnapshot,
+      savedText = savedText,
+      deadline = hs.timer.secondsSinceEpoch() + replyTimeout + CMD_READY_TIMEOUT,
+    }
+    pendingHerdrReply = rep
+    rep.timer = hs.timer.doEvery(CMD_READY_POLL, function()
+      if pendingHerdrReply ~= rep then
+        if rep.timer then rep.timer:stop(); rep.timer = nil end
+        return
+      end
+      local current = hs.pasteboard.getContents()
+      if M.onHerdrCommandClipboard(current) then
+        return
+      end
+      if hs.timer.secondsSinceEpoch() >= rep.deadline then
+        stopPendingReply()
+        if M.isHerdrCommandClipboard(hs.pasteboard.getContents()) then
+          restoreHerdrClipboard(savedSnapshot, savedText)
+          M.purgeAlfredHerdrEntries()
+        end
+      end
+    end)
   end
 
   local req = {
     cmd = cmd,
-    saved = saved,
+    savedSnapshot = savedSnapshot,
+    savedText = savedText,
     dispatched = false,
     deadline = hs.timer.secondsSinceEpoch() + CMD_READY_TIMEOUT,
   }
@@ -665,9 +836,11 @@ function M.executeAndForgetHerdrCommand(cmd)
       req.timer:stop()
       req.timer = nil
       pendingHerdrCmd = nil
+      stopPendingReply()
       log("executeAndForgetHerdrCommand: timed out waiting for herdr callback popup")
       if hs.pasteboard.getContents() == M.CMD_READY_TOKEN then
-        restoreHerdrClipboard(saved)
+        restoreHerdrClipboard(savedSnapshot, savedText)
+        M.purgeAlfredHerdrEntries()
       end
     end
   end)
