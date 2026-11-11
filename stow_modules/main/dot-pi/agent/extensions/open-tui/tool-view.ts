@@ -422,6 +422,11 @@ function genericResult(result: ToolResult, theme: Theme, context: RenderContext)
  * unknown. A known extension can supply its own summary. Native renderers start on expansion;
  * after collapse they still receive completion and error updates, but skip hidden progress.
  */
+function isZenActive(): boolean {
+	const sw = (globalThis as { piZenSwitch?: { look?: string } }).piZenSwitch;
+	return sw !== undefined && sw.look !== undefined && sw.look !== "pi";
+}
+
 export function createCompactRenderers(
 	toolName: string,
 	native: ToolRenderers | undefined,
@@ -446,6 +451,9 @@ export function createCompactRenderers(
 	return {
 		renderShell: "self",
 		renderCall(args, theme, context) {
+			if (isZenActive()) {
+				return renderNativeCall ? renderNativeCall(args, theme, context) : new Box(0, 0);
+			}
 			const row = rowState(context);
 			// Keep native timers/edit state current; write rebuilds its full highlight cache only on expansion.
 			if (context.expanded || (generic ? feedCollapsedNative(row, context.isPartial, context.isError) : toolName !== "write")) {
@@ -502,6 +510,9 @@ export function createCompactRenderers(
 		},
 
 		renderResult(result, options, theme, context) {
+			if (isZenActive()) {
+				return renderNativeResult ? renderNativeResult(result, options, theme, context) : new Box(0, 0);
+			}
 			const row = rowState(context);
 			row.hasResult = true;
 			const partial = options.isPartial && !context.isError;

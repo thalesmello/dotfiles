@@ -196,6 +196,11 @@ type ToolDef = {
 	[key: string]: any;
 };
 
+function isZenActive(): boolean {
+	const sw = (globalThis as { piZenSwitch?: { look?: string } }).piZenSwitch;
+	return sw !== undefined && sw.look !== undefined && sw.look !== "pi";
+}
+
 /**
  * Wrap a built-in tool definition in rounded frames.
  *
@@ -223,14 +228,14 @@ function wrapBuiltin(def: ToolDef) {
 			// During execution pi re-renders every tick (e.g. bash's elapsed
 			// timer). Skip the frame then — keeping its borders stable avoids
 			// redraw flicker — and only wrap it once the tool settles.
-			if (context?.isPartial) return inner;
+			if (context?.isPartial || isZenActive()) return inner;
 			return frame(inner, theme, "open-bottom", borderColorFor(context));
 		},
 		renderResult: (result: any, options: any, theme: any, context: any) => {
 			const inner: Component = def.renderResult
 				? def.renderResult(result, options, theme, { ...context, lastComponent: undefined })
 				: { render: () => [] };
-			if (context?.isPartial) return inner;
+			if (context?.isPartial || isZenActive()) return inner;
 			return frame(inner, theme, "open-top", borderColorFor(context));
 		},
 	};

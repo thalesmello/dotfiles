@@ -38,6 +38,11 @@ function isTuiContext(ctx: ExtensionContext): boolean {
 	return ctx.hasUI && ctx.mode === "tui";
 }
 
+function isZenActive(): boolean {
+	const sw = (globalThis as { piZenSwitch?: { look?: string } }).piZenSwitch;
+	return sw !== undefined && sw.look !== undefined && sw.look !== "pi";
+}
+
 export default function (pi: ExtensionAPI) {
 	const sessionLifecycle = new SessionLifecycle();
 	const state: FooterState = createInitialState();
@@ -102,7 +107,7 @@ export default function (pi: ExtensionAPI) {
 	};
 	const applyUi = (ctx: ExtensionContext) => {
 		if (!isTuiContext(ctx)) return;
-		if (!config.enabled) {
+		if (!config.enabled || isZenActive()) {
 			uninstallUi(ctx);
 			return;
 		}
@@ -224,6 +229,16 @@ export default function (pi: ExtensionAPI) {
 		}
 	};
 
+	pi.events.on("zen:change", () => {
+		if (!sessionLifecycle.isCurrent() || !lastCtx) return;
+		if (isZenActive()) {
+			uninstallUi(lastCtx);
+		} else {
+			applyUi(lastCtx);
+			refreshInteractiveState(lastCtx);
+		}
+	});
+
 	pi.on("session_start", async (_event, ctx) => {
 		sessionLifecycle.start();
 		lastCtx = ctx;
@@ -329,7 +344,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("agent_settled", (event, ctx) => {
 		const telemetry = turnTelemetry.handle(event);
-		if (telemetry && config.enabled && config.telemetry.enabled && isTuiContext(ctx)) {
+		if (telemetry && config.enabled && active && config.telemetry.enabled && isTuiContext(ctx)) {
 			const message = formatTurnTelemetry(telemetry, ctx.ui.theme, config.telemetry, config.icons.mode);
 			if (message) ctx.ui.notify(message, "info");
 		}

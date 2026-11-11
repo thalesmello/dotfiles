@@ -682,6 +682,11 @@ function attachOpenTuiFrameBlockId(lines: string[], code: string): string[] | un
 	return [taggedTop, ...lines.slice(1)];
 }
 
+function isZenActive(): boolean {
+	const sw = (globalThis as { piZenSwitch?: { look?: string } }).piZenSwitch;
+	return sw !== undefined && sw.look !== undefined && sw.look !== "pi";
+}
+
 function patchedRenderToken(
 	this: MarkdownInternals,
 	token: CodeTokenLike,
@@ -716,6 +721,7 @@ function patchedRenderToken(
 				this.theme.codeBlockBorder("```"),
 			];
 			if (nextTokenType && nextTokenType !== "space") lines.push("");
+			if (isZenActive()) return lines;
 			return applyCodeBackground(this.theme, insertButtonLine(this, lines, token.text));
 		} catch {
 			// Fall through to the original renderer.
@@ -729,6 +735,7 @@ function patchedRenderToken(
 	} finally {
 		inPatchedRenderToken = false;
 	}
+	if (isZenActive()) return lines;
 	const openTuiFramed = attachOpenTuiFrameBlockId(lines, token.text);
 	if (openTuiFramed) return openTuiFramed;
 	return applyCodeBackground(this.theme, insertButtonLine(this, lines, token.text));

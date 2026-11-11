@@ -1,4 +1,4 @@
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/config.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/config.ts
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
@@ -163,7 +163,7 @@ function saveConfig(config) {
   }
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/copy-buttons.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/copy-buttons.ts
 import { randomUUID } from "node:crypto";
 import { copyToClipboard, UserMessageComponent } from "@earendil-works/pi-coding-agent";
 import {
@@ -176,7 +176,7 @@ import {
   wrapTextWithAnsi
 } from "@earendil-works/pi-tui";
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/utils.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/utils.ts
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import {
   stripTerminalSequences as stripTerminalSequencesFromTui,
@@ -525,7 +525,7 @@ function headerColumnWidths(innerWidth, minTipsWidth = MIN_TIPS_WIDTH, maxTipsWi
   return { leftWidth, rightWidth, useTips: true };
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/copy-buttons.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/copy-buttons.ts
 var LABEL = "⧉ Copy";
 var COPIED_LABEL = "Copied";
 var COPIED_FEEDBACK_MS = 2000;
@@ -1012,7 +1012,7 @@ function installCopyButtons(options) {
   };
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/editor.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/editor.ts
 import {
   CustomEditor
 } from "@earendil-works/pi-coding-agent";
@@ -1251,7 +1251,7 @@ function decorateOpenTuiEditor(editor, tui, options = {}) {
       DECORATIONS.delete(editor);
     }
   };
-  const patch2 = (key, value) => {
+  const patch = (key, value) => {
     const descriptor = Object.getOwnPropertyDescriptor(editor, key);
     decorated[key] = value;
     restore.push(() => {
@@ -1265,22 +1265,22 @@ function decorateOpenTuiEditor(editor, tui, options = {}) {
   };
   DECORATIONS.set(editor, decoration);
   configureCursor(tui, decoration.cursorStyle);
-  patch2("embedWorkingStatus", true);
-  patch2("setWorkingStatusIndicator", (indicator) => {
+  patch("embedWorkingStatus", true);
+  patch("setWorkingStatusIndicator", (indicator) => {
     if (!decoration.active)
       return baseSetWorkingStatus?.(indicator);
     decoration.indicator = indicator;
     tui.requestRender();
   });
-  patch2("setCursorStyle", (style, hardware = false) => {
+  patch("setCursorStyle", (style, hardware = false) => {
     if (decoration.active)
       applyCursorStyle(decoration, style, hardware);
     else
       baseSetCursorStyle?.(style, hardware);
   });
-  patch2("render", (width) => decoration.active ? renderFrame(decoration, width) : decoration.baseRender(width));
-  patch2("handleMouse", (event) => baseHandleMouse(decoration.active && event.width === decoration.framedWidth ? { ...event, x: event.x - EDITOR_FRAME_LEFT_INSET, width: event.width - EDITOR_FRAME_HORIZONTAL_CHROME } : event));
-  patch2("setPaddingX", (nextPadding) => {
+  patch("render", (width) => decoration.active ? renderFrame(decoration, width) : decoration.baseRender(width));
+  patch("handleMouse", (event) => baseHandleMouse(decoration.active && event.width === decoration.framedWidth ? { ...event, x: event.x - EDITOR_FRAME_LEFT_INSET, width: event.width - EDITOR_FRAME_HORIZONTAL_CHROME } : event));
+  patch("setPaddingX", (nextPadding) => {
     padding = nextPadding;
     baseSetPaddingX(decoration.active ? 0 : nextPadding);
   });
@@ -1499,11 +1499,11 @@ function installEditor(_pi, ctx, cursorStyle = "block", inlineFooter) {
   };
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/footer.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/footer.ts
 import { hostname as osHostname } from "node:os";
 import { truncateToWidth as truncateToWidth4, visibleWidth as visibleWidth4, wrapTextWithAnsi as wrapTextWithAnsi2 } from "@earendil-works/pi-tui";
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/icons.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/icons.ts
 var NERD_GLYPHS = {
   cwd: "",
   host: "",
@@ -1699,7 +1699,7 @@ function runtimeSymbol(name, mode) {
   return RUNTIME_SYMBOLS[name] ?? "";
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/git.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/git.ts
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 var execFileAsync = promisify(execFile);
@@ -1807,7 +1807,7 @@ async function readGitStatus(cwd, options = {}) {
   return status;
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/state.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/state.ts
 var usageCache;
 function getUsageTotals(ctx) {
   const { sessionManager } = ctx;
@@ -1870,7 +1870,7 @@ function getModelMeta(ctx, getThinkingLevel, capitalizeProviderName) {
   return { provider, model, effort };
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/footer.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/footer.ts
 function shortHostname(hostname) {
   return hostname.split(".")[0] ?? "";
 }
@@ -2065,10 +2065,10 @@ function fitContributedRow(row, mode, builtins, contributions, width, theme) {
       return visibleWidth4(next < left.length ? leftSeparator : rightSeparator);
     }
   });
-  const join2 = (parts, separator) => parts.filter(Boolean).map((part) => `${part}${ANSI_RESET}`).join(separator);
+  const join = (parts, separator) => parts.filter(Boolean).map((part) => `${part}${ANSI_RESET}`).join(separator);
   return {
-    left: join2(fitted.slice(0, left.length), leftSeparator),
-    right: join2(fitted.slice(left.length), rightSeparator)
+    left: join(fitted.slice(0, left.length), leftSeparator),
+    right: join(fitted.slice(left.length), rightSeparator)
   };
 }
 function alignContributedRow(line, width, theme) {
@@ -2076,7 +2076,7 @@ function alignContributedRow(line, width, theme) {
     return truncateToWidth4(line.left, width, theme.fg("dim", "..."));
   return alignRight(line.left, line.right, width, theme);
 }
-function renderFooterContent(ctx, getState, getConfig, getModelMeta2, theme, footerData, width, getLiveTps, getExtensionSegments) {
+function renderFooterContent(ctx, getState, getConfig, getModelMeta, theme, footerData, width, getLiveTps, getExtensionSegments) {
   if (width <= 0) {
     return {
       mainLines: ["", ""],
@@ -2096,7 +2096,7 @@ function renderFooterContent(ctx, getState, getConfig, getModelMeta2, theme, foo
       glyphs[key] = spaceFooterIcon(glyphs[key]);
     }
   }
-  const meta = getModelMeta2();
+  const meta = getModelMeta();
   const totals = getUsageTotals(ctx);
   const builtins = {};
   const contributions = segments.extensionSegments ? getExtensionSegments().filter((segment) => visibleWidth4(segment.text) > 0) : [];
@@ -2216,7 +2216,7 @@ function renderFooterContent(ctx, getState, getConfig, getModelMeta2, theme, foo
   const extensionLines = segments.extensionStatuses ? renderExtensionStatusLines(theme, footerData.getExtensionStatuses(), glyphs, width) : [];
   return { mainLines, inlineLines: { top: inlineTop, bottom: inlineBottom }, extensionLines };
 }
-function installFooter(ctx, getState, getConfig, getModelMeta2, hooks) {
+function installFooter(ctx, getState, getConfig, getModelMeta, hooks) {
   let renderInline = () => {
     return;
   };
@@ -2229,7 +2229,7 @@ function installFooter(ctx, getState, getConfig, getModelMeta2, hooks) {
       hooks.scheduleGitRefresh();
       tui.requestRender();
     });
-    const getContent = (width) => renderFooterContent(ctx, getState, getConfig, getModelMeta2, theme, footerData, width, hooks.getLiveTps ?? (() => null), hooks.getExtensionSegments ?? (() => []));
+    const getContent = (width) => renderFooterContent(ctx, getState, getConfig, getModelMeta, theme, footerData, width, hooks.getLiveTps ?? (() => null), hooks.getExtensionSegments ?? (() => []));
     renderInline = (width) => getContent(width).inlineLines;
     return {
       dispose() {
@@ -2262,7 +2262,7 @@ function installFooter(ctx, getState, getConfig, getModelMeta2, hooks) {
   };
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/footer-segments.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/footer-segments.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
 var BUILTIN_SEGMENTS = [
   "cwd",
@@ -2371,7 +2371,7 @@ function createFooterSegments(events, requestRender) {
   };
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/header.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/header.ts
 import { VERSION } from "@earendil-works/pi-coding-agent";
 var LOGO = [
   "            ",
@@ -2467,7 +2467,7 @@ function installHeader(pi, ctx) {
   return () => ctx.ui.setHeader(undefined);
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/runtime.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/runtime.ts
 import { execFile as execFile2 } from "node:child_process";
 import { existsSync as existsSync2, readdirSync, statSync } from "node:fs";
 import { join as join2 } from "node:path";
@@ -2619,7 +2619,7 @@ async function readRuntimeInfo(cwd) {
   return null;
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/session-lifecycle.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/session-lifecycle.ts
 class SessionLifecycle {
   current = 0;
   shutDown = false;
@@ -2642,7 +2642,7 @@ class SessionLifecycle {
   }
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/settings-command.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/settings-command.ts
 import {
   Box,
   getKeybindings,
@@ -3247,7 +3247,7 @@ function registerSettingsCommand(pi, hooks) {
   });
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/telemetry.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/telemetry.ts
 var STALL_THRESHOLD_MS = 1000;
 var LIVE_TPS_WINDOW_MS = 2000;
 var CJK_CHARS = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]/g;
@@ -3502,16 +3502,16 @@ function formatTurnTelemetry(telemetry, theme, config, iconMode) {
   return parts.join(` ${theme.fg("dim", "|")} `);
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/tool-view.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/tool-view.ts
 import { homedir } from "node:os";
 import { isAbsolute as isAbsolute2, relative as relative2, sep as sep2 } from "node:path";
 import { Box as Box2, getCapabilities, getImageDimensions, imageFallback, Spacer, Text as Text2, truncateToWidth as truncateToWidth7, visibleWidth as visibleWidth7 } from "@earendil-works/pi-tui";
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/tool-preview.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/tool-preview.ts
 import { getLanguageFromPath, highlightCode } from "@earendil-works/pi-coding-agent";
 import { backgroundAnsi, rgbColor, truncateToWidth as truncateToWidth6, visibleWidth as visibleWidth6 } from "@earendil-works/pi-tui";
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/vendor/diff/base.js
+// stow_modules/main/dot-pi/agent/extensions/open-tui/vendor/diff/base.js
 class Diff {
   diff(oldStr, newStr, options = {}) {
     let callback;
@@ -3690,9 +3690,9 @@ class Diff {
       if (!component.removed) {
         if (!component.added && this.useLongestToken) {
           let value = newTokens.slice(newPos, newPos + component.count);
-          value = value.map(function(value2, i) {
+          value = value.map(function(value, i) {
             const oldValue = oldTokens[oldPos + i];
-            return oldValue.length > value2.length ? oldValue : value2;
+            return oldValue.length > value.length ? oldValue : value;
           });
           component.value = this.join(value);
         } else {
@@ -3711,7 +3711,7 @@ class Diff {
   }
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/vendor/util/string.js
+// stow_modules/main/dot-pi/agent/extensions/open-tui/vendor/util/string.js
 function longestCommonPrefix(str1, str2) {
   let i;
   for (i = 0;i < str1.length && i < str2.length; i++) {
@@ -3796,11 +3796,11 @@ function overlapCount(a, b) {
 function segment(string, segmenter) {
   const parts = [];
   for (const segmentObj of Array.from(segmenter.segment(string))) {
-    const segment2 = segmentObj.segment;
-    if (parts.length && /\s/.test(parts[parts.length - 1]) && /\s/.test(segment2)) {
-      parts[parts.length - 1] += segment2;
+    const segment = segmentObj.segment;
+    if (parts.length && /\s/.test(parts[parts.length - 1]) && /\s/.test(segment)) {
+      parts[parts.length - 1] += segment;
     } else {
-      parts.push(segment2);
+      parts.push(segment);
     }
   }
   return parts;
@@ -3839,7 +3839,7 @@ function leadingAndTrailingWs(string, segmenter) {
   return [head, tail];
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/vendor/diff/word.js
+// stow_modules/main/dot-pi/agent/extensions/open-tui/vendor/diff/word.js
 var extendedWordChars = "a-zA-Z0-9_\\u{AD}\\u{C0}-\\u{D6}\\u{D8}-\\u{F6}\\u{F8}-\\u{2C6}\\u{2C8}-\\u{2D7}\\u{2DE}-\\u{2FF}\\u{1E00}-\\u{1EFF}";
 var tokenizeIncludingWhitespace = new RegExp(`[${extendedWordChars}]+|\\s+|[^${extendedWordChars}]`, "ug");
 
@@ -3978,7 +3978,7 @@ function diffWordsWithSpace(oldStr, newStr, options) {
   return wordsWithSpaceDiff.diff(oldStr, newStr, options);
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/tool-preview.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/tool-preview.ts
 var MAX_PREVIEW_LINES = 16;
 var MAX_HIGHLIGHT_CHARS = 16384;
 var MAX_WORD_CHARS = 4096;
@@ -4056,11 +4056,11 @@ function highlight(rows, path, theme) {
     let end = start;
     while (end < rows.length && rows[end].kind !== "gap")
       end++;
-    const segment2 = rows.slice(start, end);
+    const segment = rows.slice(start, end);
     for (const side of ["old", "new"]) {
-      if (side === "old" && !segment2.some((line) => line.kind === "-"))
+      if (side === "old" && !segment.some((line) => line.kind === "-"))
         continue;
-      const selected = segment2.filter((line) => line.kind !== (side === "old" ? "+" : "-"));
+      const selected = segment.filter((line) => line.kind !== (side === "old" ? "+" : "-"));
       const source = selected.map((line) => line.text).join(`
 `);
       const colored = language && source.length <= MAX_HIGHLIGHT_CHARS ? highlightCode(source, language) : undefined;
@@ -4138,7 +4138,7 @@ function prepareToolPreview(kind, source, path, theme) {
   };
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/tool-view.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/tool-view.ts
 var TOOL_LABELS = {
   read: "Read",
   bash: "Bash",
@@ -4420,20 +4420,20 @@ function formatElapsed(ms) {
   return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`;
 }
 function lines(build, theme, glyphs, cacheable = true) {
-  let cache2;
+  let cache;
   return {
     render(width) {
       const icons = glyphs();
       const colors = theme.colors;
-      if (cacheable && cache2 && cache2.width === width && cache2.colors === colors && cache2.toolCall === icons.toolCall && cache2.toolResult === icons.toolResult)
-        return cache2.lines;
+      if (cacheable && cache && cache.width === width && cache.colors === colors && cache.toolCall === icons.toolCall && cache.toolResult === icons.toolResult)
+        return cache.lines;
       const rendered = build(width, icons).map((line) => truncateToWidth7(line, Math.max(0, width), "…"));
       if (cacheable)
-        cache2 = { width, colors, toolCall: icons.toolCall, toolResult: icons.toolResult, lines: rendered };
+        cache = { width, colors, toolCall: icons.toolCall, toolResult: icons.toolResult, lines: rendered };
       return rendered;
     },
     invalidate() {
-      cache2 = undefined;
+      cache = undefined;
     }
   };
 }
@@ -4474,6 +4474,10 @@ function genericResult(result, theme, context) {
 `);
   return new Text2(output ? theme.fg("toolOutput", output) : "", 0, 0);
 }
+function isZenActive() {
+  const sw = globalThis.piZenSwitch;
+  return sw !== undefined && sw.look !== undefined && sw.look !== "pi";
+}
 function createCompactRenderers(toolName, native, glyphs, running, generic = false, summarizeExtension = summarizeGeneric) {
   const label = Object.hasOwn(TOOL_LABELS, toolName) ? TOOL_LABELS[toolName] : sanitizeStatus(toolName);
   const isShell = !generic && (toolName === "bash" || toolName === "powershell");
@@ -4485,6 +4489,9 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
   return {
     renderShell: "self",
     renderCall(args, theme, context) {
+      if (isZenActive()) {
+        return renderNativeCall ? renderNativeCall(args, theme, context) : new Box2(0, 0);
+      }
       const row = rowState(context);
       if (context.expanded || (generic ? feedCollapsedNative(row, context.isPartial, context.isError) : toolName !== "write")) {
         row.nativeCall = renderNativeCall?.(args, theme, nativeContext(context, row, row.nativeCall));
@@ -4534,6 +4541,9 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
       }, theme, glyphs, !context.isPartial);
     },
     renderResult(result, options, theme, context) {
+      if (isZenActive()) {
+        return renderNativeResult ? renderNativeResult(result, options, theme, context) : new Box2(0, 0);
+      }
       const row = rowState(context);
       row.hasResult = true;
       const partial = options.isPartial && !context.isError;
@@ -4618,7 +4628,7 @@ function registerToolView(pi, getView, glyphs) {
   });
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/rounded-tools.ts
+// stow_modules/main/dot-pi/agent/extensions/rounded-tools.ts
 import { visibleWidth as visibleWidth8 } from "@earendil-works/pi-tui";
 
 class RoundedFrame {
@@ -4689,19 +4699,23 @@ function borderColorFor(context) {
     return "error";
   return "border";
 }
+function isZenActive2() {
+  const sw = globalThis.piZenSwitch;
+  return sw !== undefined && sw.look !== undefined && sw.look !== "pi";
+}
 function wrapBuiltin(def) {
   return {
     ...def,
     renderShell: "self",
     renderCall: (args, theme, context) => {
       const inner = def.renderCall ? def.renderCall(args, theme, { ...context, lastComponent: undefined }) : { render: () => [] };
-      if (context?.isPartial)
+      if (context?.isPartial || isZenActive2())
         return inner;
       return frame(inner, theme, "open-bottom", borderColorFor(context));
     },
     renderResult: (result, options, theme, context) => {
       const inner = def.renderResult ? def.renderResult(result, options, theme, { ...context, lastComponent: undefined }) : { render: () => [] };
-      if (context?.isPartial)
+      if (context?.isPartial || isZenActive2())
         return inner;
       return frame(inner, theme, "open-top", borderColorFor(context));
     }
@@ -4722,7 +4736,7 @@ function registerRoundedTools(pi) {
   });
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/peek.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/peek.ts
 import { truncateToWidth as truncateToWidth8, visibleWidth as visibleWidth9, wrapTextWithAnsi as wrapTextWithAnsi3 } from "@earendil-works/pi-tui";
 var SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 var MAX_PEEK_LINES = 2;
@@ -4764,17 +4778,17 @@ function peekTail(fullThinking, lineCount = 1) {
   if (!fullThinking)
     return "";
   const count = normalizePeekLineCount(lineCount);
-  const lines2 = [];
+  const lines = [];
   let end = fullThinking.length;
-  while (end > 0 && lines2.length < count) {
+  while (end > 0 && lines.length < count) {
     const start = fullThinking.lastIndexOf(`
 `, end - 1) + 1;
     const line = fullThinking.slice(start, end).replace(/\s+/g, " ").trim();
     if (line)
-      lines2.push(line);
+      lines.push(line);
     end = start - 1;
   }
-  return lines2.reverse().join(`
+  return lines.reverse().join(`
 `);
 }
 function clipTail(text, budget) {
@@ -4796,14 +4810,14 @@ function clipTail(text, budget) {
   }
   return text;
 }
-function buildPeekLabel(state, frame2, glyphs, width, lineCount = 1) {
+function buildPeekLabel(state, frame, glyphs, width, lineCount = 1) {
   const w = Math.max(1, Math.floor(width));
   const prefix = `${glyphs.thinking} think`;
   const count = normalizePeekLineCount(lineCount);
   const fit = (line) => truncateToWidth8(line, w, "…");
   switch (state.phase) {
     case "thinking": {
-      const spin = SPINNER_FRAMES[frame2 % SPINNER_FRAMES.length] ?? "";
+      const spin = SPINNER_FRAMES[frame % SPINNER_FRAMES.length] ?? "";
       const marker = `${prefix} ${spin}`;
       const markerWidth = visibleWidth9(`${marker} `);
       const contentWidth = Math.max(0, w - markerWidth);
@@ -4836,7 +4850,7 @@ ${fit(secondTail ? `${thoughtIndent}${secondTail}` : thoughtIndent)}`;
   }
 }
 
-// dotfiles/stow_modules/main/dot-pi/agent/extensions/open-tui/index.ts
+// stow_modules/main/dot-pi/agent/extensions/open-tui/index.ts
 function getPendingUiChange(enabled, active) {
   if (enabled === active)
     return;
@@ -4844,6 +4858,10 @@ function getPendingUiChange(enabled, active) {
 }
 function isTuiContext(ctx) {
   return ctx.hasUI && ctx.mode === "tui";
+}
+function isZenActive3() {
+  const sw = globalThis.piZenSwitch;
+  return sw !== undefined && sw.look !== undefined && sw.look !== "pi";
 }
 function open_tui_default(pi) {
   const sessionLifecycle = new SessionLifecycle;
@@ -4877,10 +4895,10 @@ function open_tui_default(pi) {
     if (!editor)
       throw new Error("Open TUI editor is not installed");
     const snapshot = { ...peek };
-    const frame2 = peekFrame;
+    const frame = peekFrame;
     const glyphs = resolveGlyphs(config.icons.mode);
-    const lines2 = config.thinkingPeek.lines;
-    editor.setLatestHiddenThinkingLabel((width) => buildPeekLabel(snapshot, frame2, glyphs, width, lines2));
+    const lines = config.thinkingPeek.lines;
+    editor.setLatestHiddenThinkingLabel((width) => buildPeekLabel(snapshot, frame, glyphs, width, lines));
     peekLabelActive = true;
   };
   const clearPeekLabel = (ctx) => {
@@ -4904,7 +4922,7 @@ function open_tui_default(pi) {
   const applyUi = (ctx) => {
     if (!isTuiContext(ctx))
       return;
-    if (!config.enabled) {
+    if (!config.enabled || isZenActive3()) {
       uninstallUi(ctx);
       return;
     }
@@ -5017,6 +5035,16 @@ function open_tui_default(pi) {
       workingTimer = undefined;
     }
   };
+  pi.events.on("zen:change", () => {
+    if (!sessionLifecycle.isCurrent() || !lastCtx)
+      return;
+    if (isZenActive3()) {
+      uninstallUi(lastCtx);
+    } else {
+      applyUi(lastCtx);
+      refreshInteractiveState(lastCtx);
+    }
+  });
   pi.on("session_start", async (_event, ctx) => {
     sessionLifecycle.start();
     lastCtx = ctx;
@@ -5113,7 +5141,7 @@ function open_tui_default(pi) {
   });
   pi.on("agent_settled", (event, ctx) => {
     const telemetry = turnTelemetry.handle(event);
-    if (telemetry && config.enabled && config.telemetry.enabled && isTuiContext(ctx)) {
+    if (telemetry && config.enabled && active && config.telemetry.enabled && isTuiContext(ctx)) {
       const message = formatTurnTelemetry(telemetry, ctx.ui.theme, config.telemetry, config.icons.mode);
       if (message)
         ctx.ui.notify(message, "info");
@@ -5221,6 +5249,6 @@ function open_tui_default(pi) {
   });
 }
 export {
-  getPendingUiChange,
-  open_tui_default as default
+  open_tui_default as default,
+  getPendingUiChange
 };
