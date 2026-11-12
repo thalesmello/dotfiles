@@ -20,17 +20,23 @@ herdr=$(herdr_bin) || herdr_die "edit-config" \
     "herdr CLI not found (HERDR_BIN_PATH unset and no herdr on PATH)"
 
 config="${XDG_CONFIG_HOME:-$HOME/.config}/herdr/config.toml"
+app_keys="${HERDR_APP_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app}/keys.json"
+app_settings="${HERDR_APP_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app}/settings.json"
 
 if [ "$1" = "--edit" ]; then
-    "${EDITOR:-nvim}" "$config"
+    if [ "$("$herdr" backend 2>/dev/null)" = "hc" ] && [ -f "$app_keys" ]; then
+        "${EDITOR:-nvim}" "$app_keys" "$app_settings" "$config"
+    else
+        "${EDITOR:-nvim}" "$config"
+    fi
     "$herdr" server reload-config >/dev/null \
         || herdr_die "edit-config" "server reload-config failed"
     exit 0
 fi
 
-pane="${HERDR_ACTIVE_PANE_ID}"
+pane=$(herdr_current_pane)
 [ -n "$pane" ] || herdr_die "edit-config" \
-    "HERDR_ACTIVE_PANE_ID is unset -- no pane to split"
+    "no active pane to split"
 
 # Absolute path: `pane run` hands the command to the split's shell, which has
 # its own cwd (and would re-expand a leading ~).

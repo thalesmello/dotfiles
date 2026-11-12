@@ -18,7 +18,7 @@ local M = {}
 
 -- Set vim.g.claudecode_herdr_pane = false before startup to keep every agent
 -- in an in-nvim terminal even under herdr.
-M.use_herdr = vim.env.HERDR_PANE_ID ~= nil and vim.g.claudecode_herdr_pane ~= false
+M.use_herdr = (vim.env.HERDR_PANE_ID ~= nil or vim.env.HC_TERMINAL_ID ~= nil) and vim.g.claudecode_herdr_pane ~= false
 
 M.terminal_config = {
    split_width_percentage = 0.40,

@@ -2,7 +2,7 @@
 -- agents sidebar (herdr only detects agents by a pane's foreground process, so
 -- an in-nvim terminal is invisible to it). See herdr_agent_pane.lua.
 -- Set vim.g.claudecode_herdr_pane = false before startup to stay in-nvim.
-local use_herdr_pane = vim.env.HERDR_PANE_ID ~= nil and vim.g.claudecode_herdr_pane ~= false
+local use_herdr_pane = (vim.env.HERDR_PANE_ID ~= nil or vim.env.HC_TERMINAL_ID ~= nil) and vim.g.claudecode_herdr_pane ~= false
 
 local function copy_reference(reference)
    vim.fn.setreg("+", reference)

@@ -98,6 +98,33 @@ HOMEBREW_ALFRED_WORKFLOWS_MIGRATE=1 brew bundle install
 Backups: `~/Library/Application Support/Alfred Workflow Backups/`.
 
 
+## Herdr / Herdr App transition
+
+`bin/hc-preset` is the session-aware adapter. Legacy panes use `herdr`;
+core terminals use `hc` for terminal operations and `herdr-app` for the
+window. `hc-preset backend` prints the selected backend. Use
+`hc-preset --backend herdr|hc ...` or `HC_PRESET_BACKEND` to select one
+explicitly when both runtimes are open.
+
+`stow main` installs both configurations side by side:
+
+- `~/.config/herdr/config.toml`: legacy TUI configuration and plugins.
+- `~/.config/herdr-core/config.toml`: new terminal runtime's shell.
+- `~/.config/herdr-app/settings.json`, `keys.json`, `themes/`: desktop look
+  and direct shortcuts. `mods/prefix/` implements the Ctrl-Space bindings;
+  the command runner mods host interactive terminal popups.
+
+Keep the legacy installation during the transition. Core terminal IDs
+and app pane IDs are different, and neither can be used as a legacy
+pane ID. Remote terminal labels use IDs local to that remote machine.
+The adapter is not a replacement for every native API; consult the
+installed help for the operation you need.
+
+Pi receives only a short, session-specific skill pointer, not the full
+manual: load `herdr --skill` in legacy sessions when interacting with
+other panes; load `hc --skill` for core terminal/agent operations and
+`herdr-app --skill` for desktop operations when needed.
+
 ## Herdr plugins
 
 The Herdr plugins live as scripts under

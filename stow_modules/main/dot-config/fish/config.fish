@@ -71,8 +71,8 @@ if status --is-interactive
     end
 end
 
-# Load herdr-specific configuration when running inside a herdr session
-if set -q HERDR_ENV
+# Load herdr-specific configuration when running inside a herdr or hc session
+if begin; set -q HERDR_ENV; or set -q HC_TERMINAL_ID; end
     and test -f $__fish_config_dir/herdr.fish
     source $__fish_config_dir/herdr.fish
 end

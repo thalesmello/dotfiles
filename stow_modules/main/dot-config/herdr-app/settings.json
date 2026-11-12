@@ -1,0 +1,14 @@
+{
+  "zoom": 1.0,
+  "theme": "catppuccin-frappe",
+  "font": "Inconsolata LGC Nerd Font Mono",
+  "font_size": 18,
+  "font_ligatures": false,
+  "minimum_contrast": 1.1,
+  "option_as_alt": "left",
+  "clipboard_write": true,
+  "pane_scrollbars": true,
+  "sounds": {
+    "enabled": true
+  }
+}

@@ -24,16 +24,18 @@
 
 . "$(dirname "$0")/herdr-lib.sh"
 
-sock=$(herdr_socket) || herdr_die "Even layout" "no herdr API socket"
-
-# herdr injects the focused pane into every keys.command environment; the CLI
-# fallback is for running this by hand from a pane.
-pane="${HERDR_ACTIVE_PANE_ID:-$HERDR_PANE_ID}"
+pane="${HERDR_ACTIVE_PANE_ID:-${HERDR_PANE_ID:-${HC_TERMINAL_ID:-}}}"
 if [ -z "$pane" ]; then
     herdr=$(herdr_bin) || herdr_die "Even layout" "herdr CLI not found"
     pane=$("$herdr" pane current 2>/dev/null | jq -r '(.result // .).pane.pane_id // empty')
 fi
 [ -n "$pane" ] || herdr_die "Even layout" "no focused pane"
+
+herdr=$(herdr_bin) || herdr_die "Even layout" "adapter not found"
+if [ "$("$herdr" backend 2>/dev/null)" = hc ]; then
+    "$herdr" even-layout "$pane" || herdr_die "Even layout" "could not balance the selected tab"
+    exit 0
+fi
 
 layout=$(herdr_request layout.export "$(printf '{"pane_id":"%s"}' "$pane")")
 [ -n "$layout" ] || herdr_die "Even layout" "layout.export returned nothing"
@@ -50,12 +52,11 @@ requests=$(printf '%s' "$layout" | jq -c --arg pane "$pane" '
     else empty end;
   (.result // .).layout.root
   | splits([])
-  | {id: "even-layout", method: "layout.set_split_ratio",
-     params: {pane_id: $pane, path: .path, ratio: .ratio}}
+  | {pane_id: $pane, path: .path, ratio: .ratio}
 ' 2>/dev/null)
 
-[ -n "$requests" ] || exit 0   # single pane: nothing to even out
+[ -n "$requests" ] || exit 0   # single pane: nothing to do
 
-printf '%s\n' "$requests" | while IFS= read -r request; do
-    printf '%s\n' "$request" | nc -U "$sock" >/dev/null 2>&1
+printf '%s\n' "$requests" | while IFS= read -r params; do
+    herdr_request layout.set_split_ratio "$params" >/dev/null || exit 1
 done

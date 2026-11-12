@@ -167,9 +167,16 @@ def herdr_bin() -> str:
     env_bin = os.environ.get("HERDR_BIN_PATH")
     if env_bin and os.path.isfile(env_bin) and os.access(env_bin, os.X_OK):
         return env_bin
+    for candidate in (
+        os.path.expanduser("~/src/dotfiles/bin/hc-preset"),
+        os.path.expanduser("~/.local/bin/hc-preset"),
+        os.path.expanduser("~/dotfiles/bin/hc-preset"),
+    ):
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
     import shutil
 
-    resolved = shutil.which("herdr")
+    resolved = shutil.which("hc-preset") or shutil.which("herdr")
     if resolved:
         return resolved
     for candidate in (
@@ -179,10 +186,14 @@ def herdr_bin() -> str:
     ):
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             return candidate
-    return "herdr"
+    return "hc-preset"
 
 
 def herdr_socket() -> str | None:
+    if (os.environ.get("HC_PRESET_BACKEND") or "").strip().lower() == "hc":
+        return None
+    if os.environ.get("HC_TERMINAL_ID") and os.environ.get("HERDR_ENV") != "1" and not os.environ.get("HERDR_SOCKET_PATH"):
+        return None
     env_sock = os.environ.get("HERDR_SOCKET_PATH")
     if env_sock and os.path.exists(env_sock):
         return env_sock
@@ -362,7 +373,7 @@ def classify(info: dict[str, Any], ignore: set[str] | None = None) -> Verdict:
 
 
 def current_pane_id(runner: HerdrRunner) -> str:
-    for env_name in ("HERDR_ACTIVE_PANE_ID", "HERDR_PANE_ID"):
+    for env_name in ("HERDR_ACTIVE_PANE_ID", "HERDR_PANE_ID", "HC_TERMINAL_ID"):
         val = os.environ.get(env_name)
         if val:
             return val

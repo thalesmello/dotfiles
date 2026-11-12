@@ -1,7 +1,7 @@
 {
   "debugLog": false,
   "permissionReviewLog": true,
-  "yoloMode": false,
+  "yoloMode": true,
   "doublePressToConfirm": true,
   "permissionDialogKeys": {
     "approve": "y",
@@ -53,6 +53,15 @@
       "effects": []
     },
     "herdr": {
+      "effects": []
+    },
+    "hc": {
+      "effects": []
+    },
+    "herdr-app": {
+      "effects": []
+    },
+    "hc-preset": {
       "effects": []
     }
   },
@@ -116,6 +125,9 @@
       "ps": "allow",
       "ps *": "allow",
       "herdr *": "allow",
+      "hc *": "allow",
+      "herdr-app *": "allow",
+      "hc-preset *": "allow",
       "xcrun --show-sdk-path*": "allow",
       "xcrun --find *": "allow",
       "date *": "allow",

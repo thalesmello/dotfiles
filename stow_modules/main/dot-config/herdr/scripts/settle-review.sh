@@ -162,7 +162,7 @@ Thales can approve it.
 
 ## 1. Scan
 
-Run `herdr agent list` and take every agent whose `agent_status` is `idle`
+Run `hc-preset agent list` and take every agent whose `agent_status` is `idle`
 or `done`. Skip `working`, `blocked`, and `unknown`. Note each candidate's
 pane_id, workspace_id, tab_id, agent kind, terminal_title_stripped, cwd, and
 status.
@@ -171,12 +171,12 @@ status.
 
 For each candidate, read its recent output:
 
-    herdr agent read <pane_id> --source recent-unwrapped --lines 120
+    hc-preset agent read <pane_id> --source recent-unwrapped --lines 120
 
 Do this IN PARALLEL -- the scan is the slow part and the candidates are
 independent. Either issue the reads as multiple tool calls in one block,
 or run one bash command that backgrounds a read per candidate
-(`herdr agent read <pane> ... > /tmp/settle-review-read-<pane>.txt &`)
+(`hc-preset agent read <pane> ... > /tmp/settle-review-read-<pane>.txt &`)
 and `wait`s for all of them, at most ~8 at a time. Never read candidates
 one by one in a sequential loop. Keep each output labelled by pane_id so
 verdicts cannot get crossed.
@@ -195,7 +195,7 @@ Verdicts:
 - **Uncertain**: the transcript does not prove either way. Uncertain is a
   verdict, not a failure -- say what is missing.
 
-Already-snoozed candidates (a `$snoozed` token in `herdr agent list`) are
+Already-snoozed candidates (a `$snoozed` token in `hc-preset agent list`) are
 still listed, marked as snoozed.
 
 Only **Settle** verdicts go to Thales as suggestions. Keep and Uncertain
@@ -248,7 +248,7 @@ His answer has two kinds of entries:
   unambiguously name a candidate or an action, do NOT guess: act on the
   clear entries, then ask him in chat what he meant by that one.
 
-Immediately before acting, re-run `herdr agent get <pane_id>` for every
+Immediately before acting, re-run `hc-preset agent get <pane_id>` for every
 session you are about to touch -- again IN PARALLEL (one block of tool
 calls, or background jobs + `wait`) -- and skip any (report why) that are
 no longer `idle`/`done` or no longer exist: they may have resumed
@@ -269,7 +269,7 @@ never settle anyone who was not listed as an option.
 
 ## 5. Verify and report
 
-After acting, run `herdr agent list` again and confirm every settled pane
+After acting, run `hc-preset agent list` again and confirm every settled pane
 is gone and every kept/snoozed pane is still there. Print a final table:
 pane, title, his answer, action taken, verified result. Note that settled
 sessions reopen from prefix+alt+s.

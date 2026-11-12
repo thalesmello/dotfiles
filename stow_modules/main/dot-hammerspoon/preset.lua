@@ -374,21 +374,27 @@ local function titleRuns(title, program)
   return title:find(program, 1, true) ~= nil
 end
 
+function M.isHerdrAppWindow()
+  local win = hs.window.focusedWindow()
+  if not win then return false end
+  local app = win:application()
+  return app ~= nil and app:name() == "Herdr"
+end
+
 -- True when the focused Ghostty window shows a single surface (a zoomed split or
--- a lone pane) whose program is herdr. The window title reflects the focused
--- surface's title, which herdr sets to "herdr ..." (prefixed with the transport
--- marker over a remote transport: "[mosh] herdr ...", "[et] herdr ...").
+-- a lone pane) whose program is herdr, OR when Herdr.app is focused.
 function M.isGhosttyHerdrZoomedOrSingleSurface()
+  if M.isHerdrAppWindow() then return true end
   if not M.isGhosttyZoomedOrSingleSurface() then return false end
   local win = hs.window.focusedWindow()
   return titleRuns(win and win:title() or "", "herdr")
 end
 
 -- True when the focused Ghostty window shows a single surface (zoomed split or
--- lone pane) running a multiplexer-like app -- nvim or herdr -- so forwarding
--- pane-navigation keys to it makes sense. Identified by the focused surface's
--- title (nvim sets "nvim:...", herdr sets "herdr ...").
+-- lone pane) running a multiplexer-like app -- nvim or herdr -- OR when Herdr.app
+-- is focused, so forwarding pane-navigation keys to it makes sense.
 function M.isGhosttyMultiplexerZoomedOrSingleSurface()
+  if M.isHerdrAppWindow() then return true end
   if not M.isGhosttyZoomedOrSingleSurface() then return false end
   local win = hs.window.focusedWindow()
   local title = win and win:title() or ""

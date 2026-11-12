@@ -39,7 +39,7 @@ local M = {}
 
 -- Matched against yabai's `.app` by `list-windows --app`, so the two terminals
 -- are merged into one cycle.
-local TERMINAL_APP_REGEX = "^(iTerm2|Ghostty)$"
+local TERMINAL_APP_REGEX = "^(iTerm2|Ghostty|Herdr)$"
 
 -- Simple trace: which termPreset action a keybinding just invoked.
 local function log(msg)

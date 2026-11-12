@@ -143,7 +143,7 @@ function __workflow_preset_get_selection_type
     # deliberately -- e.g. a hammerspoon:// link, where the frontmost app by the
     # time this runs is Hammerspoon or whatever the link was clicked in.
     if set -q _flag_content_only
-        or test "$_flag_app" = "iTerm2" -o "$_flag_app" = "Ghostty" -o "$_flag_app" = "Code"
+        or test "$_flag_app" = "iTerm2" -o "$_flag_app" = "Ghostty" -o "$_flag_app" = "Herdr" -o "$_flag_app" = "Code"
         or iterm-preset is-floating-window-active
 
         # Claude Code wraps long URLs/paths across lines; join them back up so a
@@ -229,12 +229,9 @@ function __workflow_preset_open_in_nvim --argument-names app path
     # Two commands by design: new-split makes the terminal split, and the
     # command it runs drives nvim into the right pane (remoting to a sibling
     # nvim if one exists, else opening nvim in the split).
-    if set -q HERDR_PANE_ID; or set -q HERDR_ACTIVE_PANE_ID
-        # Already inside herdr (e.g. the pick-selection split): talk to it
-        # directly. Going through ghostty-preset would take the long way
-        # round -- hammerspoon synthesising the run-command chord to reach
-        # the same herdr-preset call from a popup.
-        herdr-preset open-file-with-fallback "$path"
+    if set -q HERDR_PANE_ID; or set -q HERDR_ACTIVE_PANE_ID; or set -q HC_TERMINAL_ID
+        # Already inside herdr or hc: talk to it directly via hc-preset.
+        hc-preset open-file-with-fallback "$path"
         return
     end
 
@@ -242,7 +239,9 @@ function __workflow_preset_open_in_nvim --argument-names app path
     # DESTINATION, not the context the text came from.
     test -n "$app"; or set app (hs-preset get-focused-window-app)
 
-    if test "$app" = "Ghostty"
+    if test "$app" = "Herdr"
+        hc-preset --backend hc open-file-with-fallback "$path"
+    else if test "$app" = "Ghostty"
         # ghostty-preset decides: herdr surface -> open in a herdr pane
         # (reuse an existing nvim or make a herdr split); otherwise a native
         # Ghostty split driving nvim-open-in-tab.
@@ -306,7 +305,7 @@ case "get-page-id"
     if test "$focused_app" = "Google Chrome"
         set url $argv[1]; set -e argv[1]
         set value (__workflow_preset_default "$url" "$(env OUTPUT_FORMAT=json chrome-cli info | jq -r '.url')" "$(pbpaste)")
-    else if test "$focused_app" = "iTerm2" -o "$focused_app" = "Ghostty"
+    else if test "$focused_app" = "iTerm2" -o "$focused_app" = "Ghostty" -o "$focused_app" = "Herdr"
         if string match -qr '\n\s+' "$old_clipboard"
             set value (string replace -ra '\n\s*' '' "$old_clipboard")
         end

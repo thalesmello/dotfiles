@@ -53,6 +53,20 @@ resolve_tty() {
         esac
     done
 
+    # Fallback when detached inside an hc terminal ($HC_TERMINAL_ID): resolve the
+    # terminal's shell pid via `hc get` and look up its controlling pty.
+    if [ -n "${HC_TERMINAL_ID:-}" ] && command -v hc >/dev/null 2>&1; then
+        _hc_pid=$(hc get "$HC_TERMINAL_ID" --json 2>/dev/null | sed -n 's/.*"pid":\([0-9][0-9]*\).*/\1/p' | head -n 1)
+        if [ -n "$_hc_pid" ]; then
+            _t=$(ps -o tty= -p "$_hc_pid" 2>/dev/null | tr -d ' ')
+            case $_t in
+                ""|"?"|"??"|"-") ;;
+                /dev/*) [ -w "$_t" ] && { printf '%s\n' "$_t"; return 0; } ;;
+                *) [ -w "/dev/$_t" ] && { printf '/dev/%s\n' "$_t"; return 0; } ;;
+            esac
+        fi
+    fi
+
     # Fallback when spawned by the detached `herdr server` daemon (ppid=1, tty=?):
     # find an attached `herdr` client process with a writable controlling terminal.
     for _t in $(ps -u "${USER:-$(id -un)}" -o tty=,comm= 2>/dev/null | awk '$2 == "herdr" && $1 != "?" && $1 != "??" { print $1 }'); do

@@ -22,8 +22,8 @@ letter="$2"   # h | j | k | l
 
 herdr=$(herdr_bin) || exit 0
 
-# Focused pane id is injected by herdr; no CLI call needed for it.
-pane="${HERDR_ACTIVE_PANE_ID:-}"
+# Focused pane id is injected by herdr; fall back to herdr_current_pane in hc mode.
+pane="${HERDR_ACTIVE_PANE_ID:-$(herdr_current_pane 2>/dev/null)}"
 
 # layout is still required for no_room: "1" if zoomed or a single pane else "0".
 # jq starts far faster than python3, so parsing stays cheap.

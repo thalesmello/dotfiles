@@ -1,0 +1,9 @@
+{
+  "place": "none",
+  "title": "Run Command",
+  "overlay": {
+    "kind": "dialog",
+    "width": 680,
+    "height": 340
+  }
+}

@@ -69,8 +69,8 @@ Pattern:
 
 ```bash
 # Create/use a Herdr pane, then run a script in that pane:
-herdr pane split --current --direction right --cwd "$PWD" --no-focus
-herdr pane run <pane-id> 'python3 /tmp/replace_tot_dot.py'
+hc-preset pane split --current --direction right --cwd "$PWD" --no-focus
+hc-preset pane run <pane-id> 'python3 /tmp/replace_tot_dot.py'
 ```
 
 For Markdown-friendly URL writes from Python, encode the text like this:

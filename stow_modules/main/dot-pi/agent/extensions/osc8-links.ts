@@ -1101,13 +1101,14 @@ function writeHerdrOpenOsc52(screen: AltScreenLike, url: string): void {
 
 function openLinkUrl(screen: AltScreenLike, url: string): void {
 	if (!url) return;
-	if (process.platform !== "darwin" && process.env.HERDR_ENV === "1" && /^https?:\/\//i.test(url)) {
+	const inHerdrOrHc = process.env.HERDR_ENV === "1" || Boolean(process.env.HC_TERMINAL_ID);
+	if (process.platform !== "darwin" && inHerdrOrHc && /^https?:\/\//i.test(url)) {
 		writeHerdrOpenOsc52(screen, url);
 		return;
 	}
 	if (
 		process.platform === "darwin" &&
-		process.env.HERDR_ENV === "1" &&
+		inHerdrOrHc &&
 		typeof screen.terminal?.write === "function" &&
 		/^https?:\/\//i.test(url)
 	) {

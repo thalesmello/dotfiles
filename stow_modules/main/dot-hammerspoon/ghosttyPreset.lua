@@ -19,10 +19,29 @@
 -- Preset.sendKeys, which is immune to the physically-held hyper modifiers.
 
 local Preset = require("preset")
+local task = require("shell").task
 
 local GHOSTTY = 'application id "com.mitchellh.ghostty"'
 
 local M = {}
+
+local function isHerdrApp()
+  return Preset.isHerdrAppWindow()
+end
+
+local function runHcPreset(args)
+  local cmd = {"hc-preset", "--backend", "hc"}
+  for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+  task(cmd)
+end
+
+local function runHcScript(scriptRelPath, extraArgs)
+  local parts = {"HC_PRESET_BACKEND=hc", "$HOME/.config/herdr/scripts/" .. scriptRelPath}
+  for _, a in ipairs(extraArgs or {}) do
+    parts[#parts + 1] = string.format("%q", tostring(a))
+  end
+  task({"sh", "-c", table.concat(parts, " ")})
+end
 
 -- Simple trace: which ghosttyPreset action a keybinding just invoked.
 local function log(msg)
@@ -140,16 +159,19 @@ function M.isFloatingTerminal()
   return Preset.isGhosttyQuickTerminalActive()
 end
 
--- Front window is a lone herdr session (one tab, one pane, title runs herdr).
+-- Front window is a lone herdr session (one tab, one pane, title runs herdr),
+-- or Herdr.app itself.
 function M.isHerdrWindow()
+  if isHerdrApp() then return true end
   local name = loneSurfaceName()
   return name ~= "" and titleRuns(name, "herdr")
 end
 
 -- Front window is a lone multiplexer session (one tab, one pane, title nvim or
--- herdr). The quick terminal can't be addressed via `front window`, so answer it
--- from AX instead.
+-- herdr), or Herdr.app itself. The quick terminal can't be addressed via
+-- `front window`, so answer it from AX instead.
 function M.isMultiplexerWindow()
+  if isHerdrApp() then return true end
   if M.isFloatingTerminal() then
     return M.isMultiplexerAppZoomedOrSingleSurface()
   end
@@ -223,7 +245,10 @@ end
 -- keybinding call `new-split-with-fallback (shift ? --horizontal : --vertical)`.
 function M.newSplitWithFallback(horizontal)
   log("newSplitWithFallback " .. (horizontal and "horizontal" or "vertical"))
-  if M.isMultiplexerAppZoomedOrSingleSurface() then
+  if isHerdrApp() then
+    log("  -> route: herdr-app pane.split")
+    runHcPreset({"do", horizontal and "pane.split:down" or "pane.split:right"})
+  elseif M.isMultiplexerAppZoomedOrSingleSurface() then
     if isMoshMode() then
       -- Old prefix sequence: prefix, then `-` (horizontal) or `v` (vertical).
       log("  -> route: multiplexer (mosh prefix)")
@@ -243,7 +268,10 @@ end
 
 function M.newTabWithFallback()
   log("newTabWithFallback")
-  if M.isMultiplexerWindow() then
+  if isHerdrApp() then
+    log("  -> route: herdr-app tab.new")
+    runHcPreset({"do", "tab.new"})
+  elseif M.isMultiplexerWindow() then
     if isMoshMode() then
       log("  -> route: multiplexer (mosh prefix)")
       sendPrefixThen({"ctrl", "t"})
@@ -262,7 +290,10 @@ end
 
 function M.newWindowWithFallback()
   log("newWindowWithFallback")
-  if M.isMultiplexerWindow() then
+  if isHerdrApp() then
+    log("  -> route: herdr-app space.new")
+    runHcPreset({"do", "space.new"})
+  elseif M.isMultiplexerWindow() then
     if isMoshMode() then
       -- Old prefix sequence for new-window was prefix, then shift+n.
       log("  -> route: multiplexer (mosh prefix)")
@@ -283,16 +314,22 @@ end
 -- direction: "prev"/"previous" or "next".
 function M.focusTabWithFallback(direction)
   local fallbackKey
+  local normDir
   if direction == "prev" or direction == "previous" then
     fallbackKey = "leftbracket"
+    normDir = "prev"
   elseif direction == "next" then
     fallbackKey = "rightbracket"
+    normDir = "next"
   else
     return false
   end
   log("focusTabWithFallback " .. direction)
 
-  if M.isMultiplexerWindow() then
+  if isHerdrApp() then
+    log("  -> route: herdr-app smart-tab-nav " .. normDir)
+    runHcScript("smart-tab-nav.sh", {normDir})
+  elseif M.isMultiplexerWindow() then
     if isMoshMode() then
       -- Prefix sequence: prefix, then [ (prev) / ] (next).
       log("  -> route: multiplexer (mosh prefix)")
@@ -320,6 +357,11 @@ end
 -- cmd+N fall through to Ghostty's own goto_tab / to the frontmost app.
 function M.focusTabIndexWithFallback(index)
   if type(index) ~= "number" or index < 1 or index > 9 then return false end
+  if isHerdrApp() then
+    log("focusTabIndexWithFallback " .. index .. " -> route: herdr-app tab.select")
+    runHcPreset({"do", "tab.select:" .. tostring(index)})
+    return true
+  end
   if not M.isMultiplexerWindow() then
     log("focusTabIndexWithFallback " .. index .. " -> route: not a multiplexer, passing through")
     return false
@@ -336,6 +378,11 @@ end
 -- cmd+ctrl+N fall through to Ghostty / the frontmost app.
 function M.focusWorkspaceIndexWithFallback(index)
   if type(index) ~= "number" or index < 1 or index > 9 then return false end
+  if isHerdrApp() then
+    log("focusWorkspaceIndexWithFallback " .. index .. " -> route: herdr-app space.select")
+    runHcPreset({"do", "space.select:" .. tostring(index)})
+    return true
+  end
   if not M.isMultiplexerWindow() then
     log("focusWorkspaceIndexWithFallback " .. index .. " -> route: not a multiplexer, passing through")
     return false
@@ -349,6 +396,11 @@ end
 -- Toggle herdr's sidebar (prefix+b) when herdr owns the visible surface.
 -- Returns false otherwise so the caller can let cmd+b through untouched.
 function M.toggleSidebarWithFallback()
+  if isHerdrApp() then
+    log("toggleSidebarWithFallback -> route: herdr-app layout.toggle:sidebar")
+    runHcPreset({"do", "layout.toggle:sidebar"})
+    return true
+  end
   if not M.isHerdrZoomedOrSingleSurface() then
     log("toggleSidebarWithFallback -> route: not herdr, passing through")
     return false
@@ -364,6 +416,11 @@ end
 -- visible splits. Returns false otherwise so the caller can let cmd+shift+enter
 -- through untouched.
 function M.zoomWithFallback()
+  if isHerdrApp() then
+    log("zoomWithFallback -> route: herdr-app pane.zoom")
+    runHcPreset({"do", "pane.zoom"})
+    return true
+  end
   if not M.isHerdrWindow() then
     log("zoomWithFallback -> route: not herdr, passing through")
     return false
@@ -392,7 +449,10 @@ function M.resizePaneWithFallback(direction)
   if not key then return false end
   log("resizePaneWithFallback " .. direction)
 
-  if M.isHerdrWindow() then
+  if isHerdrApp() then
+    log("  -> route: herdr-app resize-pane " .. direction)
+    runHcPreset({"resize-pane", direction})
+  elseif M.isHerdrWindow() then
     -- Always the prefix sequence, local or over mosh: resize mode has no direct
     -- chord.
     log("  -> route: herdr (prefix+r, " .. key .. ", esc)")
@@ -408,7 +468,10 @@ end
 
 function M.closePaneWithFallback()
   log("closePaneWithFallback")
-  if M.isMultiplexerAppZoomedOrSingleSurface() then
+  if isHerdrApp() then
+    log("  -> route: herdr-app smart-close.sh")
+    runHcScript("smart-close.sh")
+  elseif M.isMultiplexerAppZoomedOrSingleSurface() then
     if isMoshMode() then
       -- Old prefix sequence for close-pane was prefix, then backspace.
       log("  -> route: multiplexer (mosh prefix)")
@@ -428,7 +491,10 @@ function M.focusPaneWithFallback(direction)
   local fallbackKey = ({ left = "h", right = "l", down = "j", up = "k" })[direction]
   if not fallbackKey then return false end
   log("focusPaneWithFallback " .. direction)
-  if M.isMultiplexerAppZoomedOrSingleSurface() then
+  if isHerdrApp() then
+    log("  -> route: herdr-app smart-pane-nav " .. direction)
+    runHcScript("smart-pane-nav.sh", {direction, fallbackKey})
+  elseif M.isMultiplexerAppZoomedOrSingleSurface() then
     if isMoshMode() then
       -- Old prefix sequence: prefix, then ctrl+<hjkl>.
       log("  -> route: multiplexer (mosh prefix)")
@@ -862,11 +928,14 @@ end
 function M.openFileWithFallback(file)
   if not file or file == "" then return false end
   log("openFileWithFallback " .. file)
-  if M.isHerdrZoomedOrSingleSurface() then
+  if isHerdrApp() then
+    log("  -> route: herdr-app hc-preset open-file-with-fallback")
+    runHcPreset({"open-file-with-fallback", file})
+  elseif M.isHerdrZoomedOrSingleSurface() then
     log("  -> route: herdr run-command popup")
     -- Single-quote the path for the popup's bash `eval`.
     M.executeAndForgetHerdrCommand(
-      "herdr-preset open-file-with-fallback '" .. file:gsub("'", "'\\''") .. "'")
+      "hc-preset open-file-with-fallback '" .. file:gsub("'", "'\\''") .. "'")
   else
     log("  -> route: native Ghostty split (nvim-open-in-tab)")
     M.newSplit({ vertical = true, cmd = 'ghostty-preset nvim-open-in-tab "' .. file .. '"' })

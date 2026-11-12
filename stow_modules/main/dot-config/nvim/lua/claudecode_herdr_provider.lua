@@ -47,7 +47,7 @@ local function label_lockfile()
 
    local label = table.concat({
       "Neovim",
-      vim.env.HERDR_PANE_ID or tostring(vim.fn.getpid()),
+      vim.env.HERDR_PANE_ID or vim.env.HC_TERMINAL_ID or tostring(vim.fn.getpid()),
       vim.fn.fnamemodify(vim.fn.getcwd(), ":t"),
    }, " ")
 

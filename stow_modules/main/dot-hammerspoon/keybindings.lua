@@ -428,9 +428,10 @@ function M.setup()
         function() GhosttyPreset.focusPaneWithFallback(paneDir) end},
       {cond = isSpaceStack, function()
         task({"yabai-preset", "focus-stack-aware", yabaiDir}, function(ok)
-          -- Only fall back to Ghostty pane nav when Ghostty is focused; otherwise
-          -- there's just no window that way and we leave focus put.
-          if not ok and focusedWindowAppName() == "Ghostty" then
+          -- Only fall back to Ghostty/Herdr pane nav when Ghostty or Herdr is focused;
+          -- otherwise there's just no window that way and we leave focus put.
+          local app = focusedWindowAppName()
+          if not ok and (app == "Ghostty" or app == "Herdr") then
             GhosttyPreset.focusPaneWithFallback(paneDir)
           end
         end)
@@ -469,6 +470,10 @@ function M.setup()
   -- Ctrl+Cmd HJKL (per-app, Chrome tab nav)
   local function isiTerm()
     return isiTermFloatingTerminal() or focusedWindowAppName() == "iTerm2"
+  end
+
+  local function isHerdrApp()
+    return focusedWindowAppName() == "Herdr"
   end
 
   -- True when Ghostty is frontmost, OR its quick (floating) terminal is focused.
@@ -512,8 +517,12 @@ function M.setup()
     local isCtrlTab = flags.ctrl and not flags.cmd and not flags.alt and code == hs.keycodes.map["tab"]
     if isCtrlTab then
       local focused = hs.window.focusedWindow()
-      local isGhosttyWindow = focused and focused:application() and focused:application():name() == "Ghostty"
-      if not isGhosttyWindow or not GhosttyPreset.isHerdrWindow() then return false end
+      local appName = focused and focused:application() and focused:application():name()
+      if appName == "Herdr" then
+        GhosttyPreset.focusTabWithFallback(flags.shift and "prev" or "next")
+        return true
+      end
+      if appName ~= "Ghostty" or not GhosttyPreset.isHerdrWindow() then return false end
       Preset.sendKeys({"ctrl", "space"})
       Preset.sendKeys({flags.shift and "leftbracket" or "rightbracket"})
       return true
@@ -552,11 +561,12 @@ function M.setup()
     local isZoom = code == hs.keycodes.map["return"] and flags.shift
     if not (isD or isT or isN or isPrevTab or isNextTab or isW or isB or isZoom or digit) then return false end
     local focused = hs.window.focusedWindow()
-    local isGhosttyWindow = focused and focused:application() and focused:application():name() == "Ghostty"
+    local appName = focused and focused:application() and focused:application():name()
+    local isGhosttyOrHerdrWindow = (appName == "Ghostty" or appName == "Herdr")
     -- close-pane-with-fallback drives keybinds only (no `front window`
     -- AppleScript), so unlike the split/tab fallbacks it works in the quick
     -- terminal too -- accept it there as well.
-    if not (isGhosttyWindow or ((isW or isB or digit) and Preset.isGhosttyQuickTerminalActive())) then return false end
+    if not (isGhosttyOrHerdrWindow or ((isW or isB or digit) and Preset.isGhosttyQuickTerminalActive())) then return false end
     if digit then
       -- Returns false when the surface isn't a multiplexer: pass cmd+N through.
       if flags.ctrl then
@@ -592,7 +602,7 @@ function M.setup()
     local flags = event:getFlags()
     if not (flags.cmd and flags.alt) or flags.ctrl or flags.shift then return false end
     if event:getKeyCode() ~= hs.keycodes.map["v"] then return false end
-    if not isGhostty() then return false end
+    if not (isGhostty() or isHerdrApp()) then return false end
 
     local text = hs.pasteboard.getContents()
     if not text then return true end
@@ -617,7 +627,7 @@ function M.setup()
   local function cycleTerminalWindows(exceptId)
     local wins = {}
     local eligible = {}
-    for _, appName in ipairs({ "iTerm2", "Ghostty" }) do
+    for _, appName in ipairs({ "iTerm2", "Ghostty", "Herdr" }) do
       local app = hs.application.get(appName)
       if app then
         for _, w in ipairs(app:allWindows()) do
@@ -681,24 +691,28 @@ function M.setup()
   default:conditionalBind({"ctrl", "cmd"}, "h", {
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "left"}) end},
     {cond = isGhostty, function() GhosttyPreset.focusPaneWithFallback("left") end},
+    {cond = isHerdrApp, function() GhosttyPreset.focusPaneWithFallback("left") end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "tab") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "left") end},
   })
   default:conditionalBind({"ctrl", "cmd"}, "j", {
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "down"}) end},
     {cond = isGhostty, function() GhosttyPreset.focusPaneWithFallback("down") end},
+    {cond = isHerdrApp, function() GhosttyPreset.focusPaneWithFallback("down") end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "9") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "down") end},
   })
   default:conditionalBind({"ctrl", "cmd"}, "k", {
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "up"}) end},
     {cond = isGhostty, function() GhosttyPreset.focusPaneWithFallback("up") end},
+    {cond = isHerdrApp, function() GhosttyPreset.focusPaneWithFallback("up") end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "1") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "up") end},
   })
   default:conditionalBind({"ctrl", "cmd"}, "l", {
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "right"}) end},
     {cond = isGhostty, function() GhosttyPreset.focusPaneWithFallback("right") end},
+    {cond = isHerdrApp, function() GhosttyPreset.focusPaneWithFallback("right") end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl"}, "tab") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "right") end},
   })
@@ -707,28 +721,33 @@ function M.setup()
   -- in its config, so send the same keys the iTerm branch does -- except on a
   -- herdr surface, where a Ghostty resize_split would move a divider herdr does
   -- not own: GhosttyPreset.resizePaneWithFallback drives herdr's resize mode
-  -- (prefix+r, direction, esc) there and falls back to ctrl+cmd+arrow elsewhere.
+  -- (prefix+r, direction, esc) there (and hc-preset resize-pane in Herdr.app)
+  -- and falls back to ctrl+cmd+arrow elsewhere.
   default:conditionalBind({"shift", "ctrl", "cmd"}, "h", {
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "left") end},
     {cond = isGhostty, function() GhosttyPreset.resizePaneWithFallback("left") end},
+    {cond = isHerdrApp, function() GhosttyPreset.resizePaneWithFallback("left") end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "pageup") end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "left") end},
   })
   default:conditionalBind({"shift", "ctrl", "cmd"}, "j", {
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "down") end},
     {cond = isGhostty, function() GhosttyPreset.resizePaneWithFallback("down") end},
+    {cond = isHerdrApp, function() GhosttyPreset.resizePaneWithFallback("down") end},
     {app = "Google Chrome", function() task({"osascript-preset", "send-keys", "ctrl", "shift", "j"}) end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "down") end},
   })
   default:conditionalBind({"shift", "ctrl", "cmd"}, "k", {
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "up") end},
     {cond = isGhostty, function() GhosttyPreset.resizePaneWithFallback("up") end},
+    {cond = isHerdrApp, function() GhosttyPreset.resizePaneWithFallback("up") end},
     {app = "Google Chrome", function() task({"osascript-preset", "send-keys", "ctrl", "shift", "k"}) end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "up") end},
   })
   default:conditionalBind({"shift", "ctrl", "cmd"}, "l", {
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "right") end},
     {cond = isGhostty, function() GhosttyPreset.resizePaneWithFallback("right") end},
+    {cond = isHerdrApp, function() GhosttyPreset.resizePaneWithFallback("right") end},
     {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "pagedown") end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "right") end},
   })
@@ -779,7 +798,9 @@ function M.setup()
   default:conditionalBindOnce(hyper, "x", "Focus Terminal", {
     { cond = isiTerm, function() cycleTerminalWindows() end },
     { cond = isGhostty, function() cycleTerminalWindows() end },
+    { cond = isHerdrApp, function() cycleTerminalWindows() end },
     { cond = function() return hs.application.get("iTerm2") ~= nil end, function() launchOrFocus("iTerm") end },
+    { cond = function() return hs.application.get("Herdr") ~= nil end, function() launchOrFocus("Herdr") end },
     { function() launchOrFocus("Ghostty") end },
   })
 
@@ -827,6 +848,7 @@ function M.setup()
   default:conditionalBindOnce(hyper, "g", "Universal Actions", {
     {app = "iTerm2", function() fish("ua --clipboard") end},
     {app = "Ghostty", function() fish("ua --clipboard") end},
+    {app = "Herdr", function() fish("ua --clipboard") end},
     {function() fish("ua") end},
   })
   default:bindOnce(hyperShift, "g", "Universal Actions (force)", function() fish("ua") end)

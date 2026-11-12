@@ -25,22 +25,27 @@ set -u
 # we are, so a second checkout on PATH does not answer for this one. Invoked as
 # a bare name (a keybinding, or PATH from a shell) there is nothing to go on and
 # PATH decides, which is the same file in the normal setup.
-preset=$(dirname -- "$0")/herdr-preset
-[ -x "$preset" ] || preset=herdr-preset
+preset=$(dirname -- "$0")/hc-preset
+[ -x "$preset" ] || preset=$(dirname -- "$0")/herdr-preset
+[ -x "$preset" ] || preset=hc-preset
 
-# The herdr CLI, for the notification. Same order as herdr-preset's
-# __herdr_bin: the variable herdr injects into its own child processes, then
-# PATH, then the usual install locations.
+# The hc-preset / herdr CLI, for the notification.
 herdr_bin() {
+    if [ -x "$preset" ]; then
+        printf '%s\n' "$preset"
+        return 0
+    fi
+    for _cmd in hc-preset herdr; do
+        if command -v "$_cmd" >/dev/null 2>&1; then
+            command -v "$_cmd"
+            return 0
+        fi
+    done
     if [ -n "${HERDR_BIN_PATH:-}" ] && [ -x "$HERDR_BIN_PATH" ]; then
         printf '%s\n' "$HERDR_BIN_PATH"
         return 0
     fi
-    if command -v herdr >/dev/null 2>&1; then
-        command -v herdr
-        return 0
-    fi
-    for candidate in "$HOME/.local/bin/herdr" /opt/homebrew/bin/herdr /usr/local/bin/herdr; do
+    for candidate in "$HOME/.local/bin/hc-preset" "$HOME/.local/bin/herdr" /opt/homebrew/bin/herdr /usr/local/bin/herdr; do
         [ -x "$candidate" ] && { printf '%s\n' "$candidate"; return 0; }
     done
     return 1

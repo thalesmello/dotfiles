@@ -24,11 +24,22 @@
 local M = {}
 
 local function herdr_bin()
+   if vim.fn.executable("hc-preset") == 1 then
+      return "hc-preset"
+   end
+   local home_adapter = vim.fn.expand("~/src/dotfiles/bin/hc-preset")
+   if vim.fn.executable(home_adapter) == 1 then
+      return home_adapter
+   end
    local env_bin = vim.env.HERDR_BIN_PATH
    if env_bin and env_bin ~= "" and vim.fn.executable(env_bin) == 1 then
       return env_bin
    end
    return "herdr"
+end
+
+local function host_pane_id()
+   return vim.env.HERDR_PANE_ID or vim.env.HC_TERMINAL_ID
 end
 
 --- Run a herdr CLI command synchronously. Returns the completed process, or nil
@@ -65,9 +76,9 @@ function M.json(args)
    return decoded.result
 end
 
---- Whether this nvim is itself running inside a herdr pane.
+--- Whether this nvim is itself running inside a herdr or hc pane.
 function M.available()
-   return vim.env.HERDR_PANE_ID ~= nil
+   return host_pane_id() ~= nil
 end
 
 --- Agents herdr has detected, excluding this nvim's own pane.
@@ -77,22 +88,31 @@ end
 --- "workspace" scope is for the explicit attach command, where picking an agent
 --- from another tab of the same workspace is the point.
 ---@param opts? { scope?: "tab"|"workspace", kinds?: string[] }
----@return table[] agents entries from `herdr agent list`
+---@return table[] agents entries from `hc-preset agent list`
 function M.list_agents(opts)
    opts = opts or {}
 
    local result = M.json({ "agent", "list" })
    local agents = (result and result.agents) or {}
 
+   local self_id = host_pane_id()
    local key = opts.scope == "workspace" and "workspace_id" or "tab_id"
    local id = opts.scope == "workspace" and vim.env.HERDR_WORKSPACE_ID or vim.env.HERDR_TAB_ID
+   if not id and self_id then
+      local self_pane = M.json({ "pane", "get", self_id })
+      if self_pane and self_pane.pane then
+         id = self_pane.pane[key]
+         self_id = self_pane.pane.pane_id or self_id
+      end
+   end
 
    local out = {}
    for _, agent in ipairs(agents) do
       local kind_matches = opts.kinds == nil or vim.list_contains(opts.kinds, agent.agent)
       if
          kind_matches
-         and agent.pane_id ~= vim.env.HERDR_PANE_ID
+         and agent.pane_id ~= self_id
+         and agent.terminal_id ~= self_id
          and (id == nil or agent[key] == id)
       then
          table.insert(out, agent)
@@ -138,15 +158,15 @@ function M.new(spec)
       -- Pane ids are valid agent targets, and `agent focus` also switches
       -- workspace/tab when needed. Fall back to directional focus in case the
       -- pane has no detected agent yet (the agent is still starting up).
-      if M.json({ "agent", "focus", pane_id }) == nil and vim.env.HERDR_PANE_ID then
-         M.json({ "pane", "focus", "--pane", vim.env.HERDR_PANE_ID, "--direction", "right" })
+      if M.json({ "agent", "focus", pane_id }) == nil and host_pane_id() then
+         M.json({ "pane", "focus", "--pane", host_pane_id(), "--direction", "right" })
       end
    end
 
    local function spawn(cmd_string, env_table, effective_config, focus)
-      local host_pane = vim.env.HERDR_PANE_ID
+      local host_pane = host_pane_id()
       if not host_pane then
-         vim.notify("Not running inside a herdr pane (HERDR_PANE_ID unset)", vim.log.levels.ERROR)
+         vim.notify("Not running inside a herdr/hc pane (HERDR_PANE_ID / HC_TERMINAL_ID unset)", vim.log.levels.ERROR)
          return false
       end
 

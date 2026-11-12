@@ -33,7 +33,7 @@ end
 # its lowest-numbered tab. Prints nothing if it cannot be determined.
 function __herdr_natural_root_pane_id --argument-names workspace
     command -q python3; or return
-    herdr api snapshot 2>/dev/null | python3 -c '
+    hc-preset api snapshot 2>/dev/null | python3 -c '
 import sys, json
 ws = sys.argv[1]
 try:
@@ -53,13 +53,13 @@ end
 
 # Print tab-separated fields for a workspace:
 #   label \t elected_root_pane_id [\t natural_root_pane_id]
-# When __herdr_natural_root is not yet cached, queries `herdr api snapshot`
+# When __herdr_natural_root is not yet cached, queries `hc-preset api snapshot`
 # once to fetch both the workspace state and the natural root pane id in a
 # single pass instead of spawning two separate herdr + python3 pipelines.
 function __herdr_workspace_state --argument-names workspace
     if not set -q __herdr_natural_root
         if command -q jq
-            herdr api snapshot 2>/dev/null | jq -r --arg ws "$workspace" '
+            hc-preset api snapshot 2>/dev/null | jq -r --arg ws "$workspace" '
                 .result.snapshot as $s
                 | ([$s.workspaces[]? | select(.workspace_id == $ws)][0]) as $w
                 | if $w then
@@ -71,7 +71,7 @@ function __herdr_workspace_state --argument-names workspace
             return $status
         end
         command -q python3; or return 1
-        herdr api snapshot 2>/dev/null | python3 -c '
+        hc-preset api snapshot 2>/dev/null | python3 -c '
 import sys, json
 ws = sys.argv[1]
 try:
@@ -95,7 +95,7 @@ print(label + "\t" + elected + "\t" + root_pane)
     end
 
     if command -q jq
-        herdr workspace get "$workspace" 2>/dev/null | jq -r '
+        hc-preset workspace get "$workspace" 2>/dev/null | jq -r '
             .result.workspace as $w
             | if $w then [($w.label // ""), ($w.tokens.herdr_autoroot // "")] | @tsv
               else halt_error(1) end
@@ -103,7 +103,7 @@ print(label + "\t" + elected + "\t" + root_pane)
         return $status
     end
     command -q python3; or return 1
-    herdr workspace get "$workspace" 2>/dev/null | python3 -c '
+    hc-preset workspace get "$workspace" 2>/dev/null | python3 -c '
 import sys, json
 try:
     ws = json.load(sys.stdin)["result"]["workspace"]
@@ -176,7 +176,7 @@ function __herdr_rename_workspace_on_cd --on-variable PWD
     test -n "$label"; or return
     set -g __herdr_auto_label "$label"
     if test "$label" != "$cur"
-        herdr workspace rename "$HERDR_WORKSPACE_ID" "$label" >/dev/null 2>&1
+        hc-preset workspace rename "$HERDR_WORKSPACE_ID" "$label" >/dev/null 2>&1
     end
 end
 
@@ -190,7 +190,7 @@ function fish_herdr_elect_root_panel
     end
 
     # Record the election on the workspace (authoritative, seen by every pane).
-    herdr workspace report-metadata "$HERDR_WORKSPACE_ID" \
+    hc-preset workspace report-metadata "$HERDR_WORKSPACE_ID" \
         --source herdr-fish --token herdr_autoroot="$HERDR_PANE_ID" >/dev/null 2>&1
 
     # Reset this shell's naming state so auto-naming takes over from here.

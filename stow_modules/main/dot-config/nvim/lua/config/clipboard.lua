@@ -27,7 +27,7 @@ if should_load('ssh') then
 	-- A paste needs the user to confirm a dialog on the Mac and takes a couple
 	-- of seconds, so caching is left ON: `"+p` right after a `"+y` is answered
 	-- from nvim's own cache and never leaves the machine.
-	if vim.env.HERDR_PANE_ID ~= nil or vim.env.HERDR_SOCKET_PATH ~= nil then
+	if vim.env.HERDR_PANE_ID ~= nil or vim.env.HERDR_SOCKET_PATH ~= nil or vim.env.HC_TERMINAL_ID ~= nil then
 		local copy = {'herdr-copy', '--quiet', '--label', 'nvim'}
 		local paste = {'herdr-paste'}
 		vim.g.clipboard = {

@@ -152,7 +152,7 @@ _watch_background_queue() {
 # must leave focus alone -- on the popup while it is open, and on whatever
 # is focused when it finishes if the popup has already closed.
 active_pane_cwd() {
-  local _pane=${HERDR_ACTIVE_PANE_ID:-}
+  local _pane=${HERDR_ACTIVE_PANE_ID:-$(herdr_current_pane 2>/dev/null)}
   [ -n "$_pane" ] || return 0
   "$herdr" pane get "$_pane" 2>/dev/null | python3 -c '
 import json, sys

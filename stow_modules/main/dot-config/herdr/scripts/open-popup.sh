@@ -24,6 +24,14 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 herdr=$(herdr_bin) || herdr_die "popup" "herdr CLI not found"
 
+case "$herdr" in
+    *hc-preset)
+        "$herdr" popup-open "$plugin" "$entrypoint" "${width:-}" "${height:-}" $extra_pairs >/dev/null 2>&1 \
+            || herdr_die "popup" "couldn't open $plugin/$entrypoint"
+        exit 0
+        ;;
+esac
+
 set -- "$herdr" plugin pane open \
     --plugin "$plugin" --entrypoint "$entrypoint" \
     --placement popup --focus

@@ -16,6 +16,19 @@
 #   it knows its own path -- it is absent often enough that it can't be the only
 #   source. So: HERDR_BIN_PATH, then PATH, then the usual install locations.
 function herdr_bin
+    for candidate in $HOME/src/dotfiles/bin/hc-preset $HOME/.local/bin/hc-preset $HOME/dotfiles/bin/hc-preset
+        if test -x $candidate
+            echo $candidate
+            return 0
+        end
+    end
+
+    set -l resolved (command -v hc-preset)
+    if test -n "$resolved"
+        echo $resolved
+        return 0
+    end
+
     if set -q HERDR_BIN_PATH; and test -x "$HERDR_BIN_PATH"
         echo $HERDR_BIN_PATH
         return 0
@@ -48,7 +61,7 @@ function herdr_socket
         return 0
     end
 
-    for candidate in $HOME/.config/herdr/herdr.sock $HOME/.local/state/herdr/herdr.sock
+    for candidate in $HOME/.config/herdr/herdr.sock $HOME/.local/state/herdr/herdr.sock $HOME/.local/state/herdr-core/default/default.sock
         if test -S $candidate
             echo $candidate
             return 0
@@ -60,6 +73,11 @@ end
 
 # herdr_request <method> <json-params> -- one-shot API call, prints the response.
 function herdr_request --argument-names method params
+    set -l bin (herdr_bin)
+    if string match -q '*hc-preset' -- "$bin"
+        $bin rpc $method $params
+        return $status
+    end
     set -l sock (herdr_socket); or return 1
     printf '{"id":"fish","method":"%s","params":%s}\n' $method $params | nc -U $sock
 end
@@ -94,10 +112,20 @@ function herdr_current_pane
         return 0
     end
 
+    if set -q HC_TERMINAL_ID; and test -n "$HC_TERMINAL_ID"
+        echo $HC_TERMINAL_ID
+        return 0
+    end
+
     # Last fallback asks which pane is focused, for launches outside a pane/key
     # context.
     set -l bin (herdr_bin); or return 1
-    set -l pane ($bin pane list 2>/dev/null |
+    set -l pane ($bin current-id 2>/dev/null)
+    if test -n "$pane"
+        echo $pane
+        return 0
+    end
+    set pane ($bin pane list 2>/dev/null |
         jq -r 'first((.result // .).panes[] | select(.focused) | .pane_id) // empty')
     test -n "$pane"; or return 1
     echo $pane

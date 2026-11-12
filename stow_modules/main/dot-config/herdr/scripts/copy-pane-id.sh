@@ -17,7 +17,7 @@
 
 herdr=$(herdr_bin) || exit 1
 
-pane="${HERDR_ACTIVE_PANE_ID}"
+pane=$(herdr_current_pane)
 [ -n "$pane" ] || exit 1
 
 b64=$(printf '%s' "$pane" | base64 | tr -d '\r\n')

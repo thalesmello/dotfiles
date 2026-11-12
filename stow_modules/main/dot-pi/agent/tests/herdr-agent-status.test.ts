@@ -87,6 +87,9 @@ describe("classifyBash", () => {
 		expect(classifyBash("sl status && git log --oneline -3", "/home/user/fbsource")).toBe("readonly");
 		expect(classifyBash("presto --execute 'select 1' ns", "/home/user/fbsource")).toBe("readonly");
 		expect(classifyBash("cat file.ts | grep book", "/home/user/src")).toBe("readonly");
+		expect(classifyBash("hc ls --json && herdr-app status && hc-preset agent list", "/home/user/src")).toBe("readonly");
+		expect(classifyBash("hc-preset pane split --current --direction right", "/home/user/src")).toBe("mutating");
+		expect(classifyBash("herdr-app do tab.new", "/home/user/src")).toBe("mutating");
 		expect(classifyBash("some-random-tool --write", "/home/user/src")).toBe("mutating");
 		expect(classifyBash("rm file.ts", "/home/user/src")).toBe("mutating");
 		expect(classifyBash("echo hi > out.txt", "/home/user/src")).toBe("mutating");

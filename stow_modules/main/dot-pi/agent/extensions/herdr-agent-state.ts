@@ -9,6 +9,7 @@ import net from "node:net";
 import path from "node:path";
 
 const HERDR_ENV = process.env.HERDR_ENV;
+const HC_TERMINAL_ID = process.env.HC_TERMINAL_ID;
 const socketPath = process.env.HERDR_SOCKET_PATH;
 const socketEndpoint =
   process.platform === "win32" && socketPath ? `\\\\.\\pipe\\${socketPath}` : socketPath;
@@ -20,8 +21,22 @@ const HERDR_TERMINAL_INSTRUCTIONS = [
   "**Do not use `tmux`.** Do not create or attach to tmux sessions, windows, or panes; do not drive terminals or agents with `tmux new-session`, `send-keys`, `capture-pane`, or similar commands; and do not use tmux as a disposable/background terminal or as a harness for testing another TUI or agent. Use Herdr workspaces, tabs, panes, `pane run`, `pane wait-output`, `pane read`, `agent start`, and `agent prompt` instead. If Herdr is unavailable, stop and say so rather than falling back to tmux. The only exception is when Thales explicitly asks you to use tmux in the current request.",
 ].join("\n");
 
+const HC_TERMINAL_INSTRUCTIONS = [
+  "Herdr (`herdr-app` + `hc`) is the terminal runtime and window manager in this environment.",
+  "",
+  "**Do not use `tmux`.** Do not create or attach to tmux sessions, windows, or panes; do not drive terminals or agents with `tmux new-session`, `send-keys`, `capture-pane`, or similar commands; and do not use tmux as a disposable/background terminal or as a harness for testing another TUI or agent. Use `hc` (`hc run`, `hc wait`, `hc read`, `hc send`, `hc keys`) and `herdr-app` (`herdr-app do ...`) instead. If `hc` is unavailable, stop and say so rather than falling back to tmux. The only exception is when Thales explicitly asks you to use tmux in the current request.",
+].join("\n");
+
 function enabled() {
   return HERDR_ENV === "1" && !!socketPath && !!paneId;
+}
+
+function isHcSession() {
+  return Boolean(HC_TERMINAL_ID) && (!enabled() || process.env.TERM_PROGRAM === "ghostty");
+}
+
+function inAnyHerdrOrHc() {
+  return enabled() || isHcSession();
 }
 
 function sendRequestAttempt(request: unknown, timeoutMs: number): Promise<boolean> {
@@ -182,7 +197,7 @@ async function drainStateQueue(): Promise<void> {
 }
 
 export default function (pi) {
-  if (!enabled()) {
+  if (!inAnyHerdrOrHc()) {
     return;
   }
 
@@ -204,6 +219,7 @@ export default function (pi) {
   }
 
   function publishState(force = false) {
+    if (!enabled()) return;
     const next = desiredState();
     if (!force && next.state === lastState && next.message === lastMessage) {
       return;
@@ -218,7 +234,9 @@ export default function (pi) {
       delete event.systemPromptOptions.sections.herdr_terminal;
       return;
     }
-    event.systemPromptOptions.sections.herdr_terminal = HERDR_TERMINAL_INSTRUCTIONS;
+    event.systemPromptOptions.sections.herdr_terminal = isHcSession()
+      ? HC_TERMINAL_INSTRUCTIONS
+      : HERDR_TERMINAL_INSTRUCTIONS;
   });
 
   pi.events.on("herdr:blocked", (data) => {

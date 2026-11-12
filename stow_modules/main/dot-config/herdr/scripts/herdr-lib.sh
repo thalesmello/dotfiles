@@ -45,6 +45,22 @@
 #   command substitutions, where stdout is a pipe.
 
 herdr_bin() {
+    for _candidate in \
+        "$HOME/src/dotfiles/bin/hc-preset" \
+        "$HOME/.local/bin/hc-preset" \
+        "$HOME/dotfiles/bin/hc-preset"; do
+        if [ -x "$_candidate" ]; then
+            printf '%s\n' "$_candidate"
+            return 0
+        fi
+    done
+
+    _resolved=$(command -v hc-preset 2>/dev/null)
+    if [ -n "$_resolved" ]; then
+        printf '%s\n' "$_resolved"
+        return 0
+    fi
+
     if [ -n "${HERDR_BIN_PATH:-}" ] && [ -x "$HERDR_BIN_PATH" ]; then
         printf '%s\n' "$HERDR_BIN_PATH"
         return 0
@@ -73,7 +89,8 @@ herdr_socket() {
     fi
 
     for _candidate in "$HOME/.config/herdr/herdr.sock" \
-        "$HOME/.local/state/herdr/herdr.sock"; do
+        "$HOME/.local/state/herdr/herdr.sock" \
+        "$HOME/.local/state/herdr-core/default/default.sock"; do
         if [ -S "$_candidate" ]; then
             printf '%s\n' "$_candidate"
             return 0
@@ -84,8 +101,31 @@ herdr_socket() {
 }
 
 herdr_request() {
+    _bin=$(herdr_bin) && case "$_bin" in
+        *hc-preset)
+            "$_bin" rpc "$1" "$2"
+            return $?
+            ;;
+    esac
     _sock=$(herdr_socket) || return 1
     printf '{"id":"sh","method":"%s","params":%s}\n' "$1" "$2" | nc -U "$_sock"
+}
+
+herdr_current_pane() {
+    if [ -n "${HERDR_ACTIVE_PANE_ID:-}" ]; then
+        printf '%s\n' "$HERDR_ACTIVE_PANE_ID"
+        return 0
+    fi
+    if [ -n "${HERDR_PANE_ID:-}" ]; then
+        printf '%s\n' "$HERDR_PANE_ID"
+        return 0
+    fi
+    if [ -n "${HC_TERMINAL_ID:-}" ]; then
+        printf '%s\n' "$HC_TERMINAL_ID"
+        return 0
+    fi
+    _bin=$(herdr_bin) || return 1
+    "$_bin" current-id 2>/dev/null
 }
 
 HERDR_DIE_HOLD_CHARS=${HERDR_DIE_HOLD_CHARS:-100}

@@ -28,6 +28,16 @@ export interface HerdrSkillOptions {
 	env?: NodeJS.ProcessEnv;
 }
 
+function isHcSession(env: NodeJS.ProcessEnv): boolean {
+	if (!env.HC_TERMINAL_ID) return false;
+	if (env.HERDR_ENV !== "1") return true;
+	return env.TERM_PROGRAM === "ghostty";
+}
+
+function isHerdrSession(env: NodeJS.ProcessEnv): boolean {
+	return env.HERDR_ENV === "1" && !isHcSession(env);
+}
+
 function callerContext(env: NodeJS.ProcessEnv): string {
 	const parts = [
 		["HERDR_WORKSPACE_ID", env.HERDR_WORKSPACE_ID],
@@ -39,8 +49,30 @@ function callerContext(env: NodeJS.ProcessEnv): string {
 	return parts.length > 0 ? ` Caller context: ${parts.join(", ")}.` : "";
 }
 
+function hcCallerContext(env: NodeJS.ProcessEnv): string {
+	const parts = [
+		["HC_TERMINAL_ID", env.HC_TERMINAL_ID],
+		["HC_SESSION", env.HC_SESSION],
+	]
+		.filter((entry): entry is [string, string] => Boolean(entry[1]))
+		.map(([key, value]) => `${key}=${value}`);
+	return parts.join(", ");
+}
+
 /** The short instruction that goes into context. Exported for tests. */
 export function herdrPointer(env: NodeJS.ProcessEnv): string {
+	if (isHcSession(env)) {
+		return [
+			`This session runs inside a Herdr terminal (${hcCallerContext(env)}).`,
+			"`hc` (herdr-core) runs persistent terminals and coding agents on this machine; `herdr-app` controls the window (spaces, tabs, and panes).",
+			"Load the relevant skill only when a task needs you to interact with that surface:",
+			"- Run `hc --skill`, read the full output, and follow it when you need to read, inspect, or wait on output from another pane/terminal, run a command in another terminal, or start, prompt, wait on, read, or send keys to another coding agent on this machine.",
+			"- Run `herdr-app --skill`, read the full output, and follow it when you need to create, split, move, focus, or close a pane, tab, or space in the window, or customize layouts, keys, or mods.",
+			"Do not guess `hc` or `herdr-app` commands, flags, or IDs. Load the skill first, then discover live state with the commands it names.",
+			"Do not load either skill for work that stays in this terminal and needs no other pane or agent.",
+		].join("\n");
+	}
+
 	return [
 		`This session runs inside a Herdr pane (HERDR_ENV=1).${callerContext(env)}`,
 		"Herdr controls the panes, tabs, and workspaces on this machine and tracks the coding agents inside them.",
@@ -55,7 +87,7 @@ export function herdrPointer(env: NodeJS.ProcessEnv): string {
 
 export default function herdrSkill(pi: ExtensionAPI, options: HerdrSkillOptions = {}) {
 	const env = options.env ?? process.env;
-	if (env.HERDR_ENV !== "1") {
+	if (!isHerdrSession(env) && !isHcSession(env)) {
 		return;
 	}
 

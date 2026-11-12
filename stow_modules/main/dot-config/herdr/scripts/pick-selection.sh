@@ -65,12 +65,18 @@ herdr=$(herdr_bin) || herdr_die "pick-selection" \
 # inherits the server's environment, which may not have the dotfiles bin on it.
 # Fall back to the copy in the checkout this script is stowed from -- `cd -P` so
 # the `..` climbing walks the real tree rather than the ~/.config symlink.
-herdr_preset=$(command -v herdr-preset 2>/dev/null)
+herdr_preset=$(command -v hc-preset 2>/dev/null)
+if [ -z "$herdr_preset" ]; then
+    herdr_preset=$(cd -P "$(dirname "$0")/../../../../../bin" 2>/dev/null && pwd)/hc-preset
+fi
+if [ ! -x "$herdr_preset" ]; then
+    herdr_preset=$(command -v herdr-preset 2>/dev/null)
+fi
 if [ -z "$herdr_preset" ]; then
     herdr_preset=$(cd -P "$(dirname "$0")/../../../../../bin" 2>/dev/null && pwd)/herdr-preset
 fi
 [ -x "$herdr_preset" ] || herdr_die "pick-selection" \
-    "herdr-preset not found (not on PATH, and none beside this script's checkout)"
+    "hc-preset / herdr-preset not found (not on PATH, and none beside this script's checkout)"
 
 mode="${1:-open}"
 pane="${2:-}"
@@ -106,7 +112,7 @@ if [ -z "$pane" ]; then
     # SPLIT, so any later "what is focused" answer is the picker looking at
     # itself. The live query is only a fallback for a missing variable (running
     # this by hand outside a keybinding).
-    src="${HERDR_ACTIVE_PANE_ID}"
+    src="${HERDR_ACTIVE_PANE_ID:-${HC_TERMINAL_ID:-}}"
     if [ -z "$src" ]; then
         src=$(env -u HERDR_PANE_ID -u HERDR_ACTIVE_PANE_ID "$herdr" pane current 2>/dev/null \
             | python3 -c \

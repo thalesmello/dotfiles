@@ -12,7 +12,7 @@
 
 herdr=$(herdr_bin) || exit 1
 
-pane="${HERDR_ACTIVE_PANE_ID}"
+pane=$(herdr_current_pane)
 [ -n "$pane" ] || exit 1
 
 new=$("$herdr" pane split "$pane" --direction right --ratio 0.6 --focus \

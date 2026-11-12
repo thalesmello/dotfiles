@@ -154,7 +154,7 @@ Rules:
    - Reading, searching, listing, or inspecting files/directories/binaries on the developer machine (~/src, ~/fbsource, ~/www, ~/notes, ~/.pi, ~/.claude, /tmp, /usr, /opt/homebrew, /Library, /Applications).
    - Running tests, linters, formatters, typecheckers, or builds (buck2, bun, npm, pytest, arc dsfmt, dataswarm-cli status/linter/tester, cargo, tsc, clang).
    - Local version control operations (git status/diff/log/add/commit/checkout/branch/stash/rev-parse, sl status/diff/log/show/commit/amend/goto/pull/rebase).
-   - Running local scripts or one-liners (python3, fbpython, node, bun, ruby, bash) that do local computation, file processing, benchmarks, or read-only queries (presto, chronos cinfo, herdr, dotsync2, meta).
+   - Running local scripts or one-liners (python3, fbpython, node, bun, ruby, bash) that do local computation, file processing, benchmarks, or read-only queries (presto, chronos cinfo, herdr, hc, herdr-app, hc-preset, dotsync2, meta).
    - Creating, moving, copying, or deleting temporary/build/test files (e.g. rm -rf in /tmp or test artifacts), or deleting specific local files the user explicitly asked to remove or created earlier in this session.
    - Any action the user EXPLICITLY instructed or confirmed (including replying "yes"/"go ahead" to an assistant proposal or selecting an option in a questionnaire).
 2. DEFER (ask the human) when the action is risky and was NOT explicitly requested by the user:

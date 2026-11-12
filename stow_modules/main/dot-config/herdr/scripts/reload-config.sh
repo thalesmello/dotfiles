@@ -14,10 +14,12 @@ herdr_bin=$(herdr_bin) || {
 # so resolve herdr-preset the same defensive way as the other helpers.
 herdr_preset="${HERDR_PRESET_PATH:-}"
 if [ -z "$herdr_preset" ] || [ ! -x "$herdr_preset" ]; then
-  herdr_preset=$(command -v herdr-preset 2>/dev/null || true)
+  herdr_preset=$(command -v hc-preset 2>/dev/null || command -v herdr-preset 2>/dev/null || true)
 fi
 if [ -z "$herdr_preset" ]; then
   for candidate in \
+    "$HOME/src/dotfiles/bin/hc-preset" \
+    "$HOME/.local/bin/hc-preset" \
     "$HOME/src/dotfiles/bin/herdr-preset" \
     "$HOME/.local/bin/herdr-preset" \
     "$HOME/dotfiles/bin/herdr-preset"; do

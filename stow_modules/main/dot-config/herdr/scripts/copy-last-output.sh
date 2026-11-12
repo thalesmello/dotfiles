@@ -32,7 +32,7 @@
 
 herdr=$(herdr_bin) || exit 1
 
-pane="${HERDR_ACTIVE_PANE_ID}"
+pane=$(herdr_current_pane)
 [ -n "$pane" ] || exit 1
 
 # Gate: only act when fish is the foreground program in this pane.

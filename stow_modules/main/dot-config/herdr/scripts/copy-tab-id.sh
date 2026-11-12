@@ -13,7 +13,13 @@
 
 herdr=$(herdr_bin) || exit 1
 
-tab="${HERDR_ACTIVE_TAB_ID}"
+tab="${HERDR_ACTIVE_TAB_ID:-}"
+if [ -z "$tab" ]; then
+    pane=$(herdr_current_pane 2>/dev/null || true)
+    if [ -n "$pane" ]; then
+        tab=$("$herdr" pane get "$pane" 2>/dev/null | sed -n 's/.*"tab_id":"\([^"]*\)".*/\1/p' | head -1)
+    fi
+fi
 [ -n "$tab" ] || exit 1
 
 b64=$(printf '%s' "$tab" | base64 | tr -d '\r\n')

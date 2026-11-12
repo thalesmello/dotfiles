@@ -18,18 +18,26 @@ set -x PATH /opt/homebrew/bin (status dirname) $PATH
 # as herdr-lib.fish's herdr_bin, which this file can't source -- it runs with
 # --no-config and lives in another stow module.)
 function __herdr_bin
+    set -l adapter (status dirname)/hc-preset
+    if test -x "$adapter"
+        echo "$adapter"
+        return 0
+    end
+
     if set -q HERDR_BIN_PATH; and test -x "$HERDR_BIN_PATH"
         echo "$HERDR_BIN_PATH"
         return 0
     end
 
-    set -l resolved (command -v herdr)
-    if test -n "$resolved"
-        echo "$resolved"
-        return 0
+    for name in hc-preset herdr
+        set -l resolved (command -v $name)
+        if test -n "$resolved"
+            echo "$resolved"
+            return 0
+        end
     end
 
-    for candidate in $HOME/.local/bin/herdr /opt/homebrew/bin/herdr /usr/local/bin/herdr
+    for candidate in $HOME/.local/bin/hc-preset $HOME/.local/bin/herdr /opt/homebrew/bin/herdr /usr/local/bin/herdr
         if test -x "$candidate"
             echo "$candidate"
             return 0
@@ -640,28 +648,35 @@ function herdr-preset
             return 1
         end
 
-        set -l anchor "$HERDR_ACTIVE_PANE_ID"
-        test -n "$anchor"; or set anchor "$HERDR_PANE_ID"
-        test -n "$anchor"; or begin
-            echo "$tag: no anchor pane (HERDR_ACTIVE_PANE_ID and HERDR_PANE_ID both unset -- not running inside herdr?)" >&2
+        set -l bin (__herdr_bin); or begin
+            echo "$tag: hc-preset / herdr CLI not found" >&2
             return 1
         end
 
-        set -l get_out (herdr pane get "$anchor" 2>&1)
+        set -l anchor "$HERDR_ACTIVE_PANE_ID"
+        test -n "$anchor"; or set anchor "$HERDR_PANE_ID"
+        test -n "$anchor"; or set anchor "$HC_TERMINAL_ID"
+        test -n "$anchor"; or set anchor ($bin current-id 2>/dev/null)
+        test -n "$anchor"; or begin
+            echo "$tag: no anchor pane (HERDR_ACTIVE_PANE_ID, HERDR_PANE_ID, and HC_TERMINAL_ID all unset)" >&2
+            return 1
+        end
+
+        set -l get_out ($bin pane get "$anchor" 2>&1)
         set -l tab (printf '%s' "$get_out" | jq -r '.result.pane.tab_id // empty' 2>/dev/null)
         test -n "$tab"; or begin
             echo "$tag: could not resolve tab for anchor pane '$anchor'" >&2
-            echo "  herdr pane get output: $get_out" >&2
+            echo "  pane get output: $get_out" >&2
             return 1
         end
 
         # Real panes of this tab, excluding our own popup pane (HERDR_PANE_ID).
         set -l self "$HERDR_PANE_ID"
-        set -l list_out (herdr pane list 2>&1)
+        set -l list_out ($bin pane list 2>&1)
         set -l panes (printf '%s' "$list_out" | jq -r --arg tab "$tab" --arg self "$self" '.result.panes[] | select(.tab_id == $tab and .pane_id != $self) | .pane_id' 2>/dev/null)
         test -n "$panes"; or begin
             echo "$tag: no other panes found in tab '$tab' (self='$self')" >&2
-            echo "  herdr pane list output: $list_out" >&2
+            echo "  pane list output: $list_out" >&2
             return 1
         end
 
@@ -674,7 +689,7 @@ function herdr-preset
         set -l sock
         set -l nvim_target
         for pane in $panes
-            set -l pid (herdr pane process-info --pane "$pane" 2>/dev/null | jq -r '.result.process_info.foreground_processes[]? | select(.name == "nvim") | .pid' 2>/dev/null | head -n1)
+            set -l pid ($bin pane process-info --pane "$pane" 2>/dev/null | jq -r '.result.process_info.foreground_processes[]? | select(.name == "nvim") | .pid' 2>/dev/null | head -n1)
             test -n "$pid"; or continue
             set -l pids $pid (pgrep -P $pid)
             set -l s (lsof -p (string join , $pids) -a -U 2>/dev/null | string match -r '\S+/nvim\.\d+\.0$' | head -n1)
@@ -696,23 +711,23 @@ function herdr-preset
                 echo "  nvim output: $rem_out" >&2
                 return 1
             end
-            set -l focus_out (herdr agent focus "$nvim_target" 2>&1)
+            set -l focus_out ($bin agent focus "$nvim_target" 2>&1)
             or echo "$tag: warning: could not focus nvim pane '$nvim_target': $focus_out" >&2
         else
             # No reachable nvim in this tab: make a vertical split running nvim on
             # the file, splitting off the pane that was active. `exec` so quitting
             # nvim closes the pane.
-            set -l split_out (herdr pane split "$anchor" --direction right --focus 2>&1)
+            set -l split_out ($bin pane split "$anchor" --direction right --focus 2>&1)
             set -l new (printf '%s' "$split_out" | jq -r '.result.pane.pane_id // empty' 2>/dev/null)
             test -n "$new"; or begin
                 echo "$tag: pane split failed for anchor '$anchor'" >&2
-                echo "  herdr pane split output: $split_out" >&2
+                echo "  pane split output: $split_out" >&2
                 return 1
             end
-            set -l run_out (herdr pane run "$new" "exec nvim $(string escape -- $file)" 2>&1)
+            set -l run_out ($bin pane run "$new" "exec nvim $(string escape -- $file)" 2>&1)
             or begin
                 echo "$tag: pane run (exec nvim) failed in pane '$new'" >&2
-                echo "  herdr pane run output: $run_out" >&2
+                echo "  pane run output: $run_out" >&2
                 return 1
             end
         end
@@ -788,16 +803,23 @@ function herdr-preset
             return 1
         end
 
-        test -n "$pane"; or set pane "$HERDR_ACTIVE_PANE_ID"
-        test -n "$pane"; or set pane "$HERDR_PANE_ID"
-        test -n "$pane"; or begin
-            echo "$tag: no pane given, and neither HERDR_ACTIVE_PANE_ID nor HERDR_PANE_ID is set" >&2
+        set -l bin (__herdr_bin); or begin
+            echo "$tag: hc-preset / herdr CLI not found" >&2
             return 1
         end
 
-        set -l layout (herdr pane layout --pane "$pane" 2>/dev/null | string collect)
+        test -n "$pane"; or set pane "$HERDR_ACTIVE_PANE_ID"
+        test -n "$pane"; or set pane "$HERDR_PANE_ID"
+        test -n "$pane"; or set pane "$HC_TERMINAL_ID"
+        test -n "$pane"; or set pane ($bin current-id 2>/dev/null)
+        test -n "$pane"; or begin
+            echo "$tag: no pane given, and neither HERDR_ACTIVE_PANE_ID, HERDR_PANE_ID, nor HC_TERMINAL_ID is set" >&2
+            return 1
+        end
+
+        set -l layout ($bin pane layout --pane "$pane" 2>/dev/null | string collect)
         set -l rect (printf '%s' "$layout" \
-            | jq -r --arg p "$pane" '.result.layout.panes[]? | select(.pane_id == $p) | .rect.width' 2>/dev/null)
+            | jq -r --arg p "$pane" '.result.layout.panes[]? | select(.pane_id == $p or .terminal_id == $p) | .rect.width' 2>/dev/null)
         set -l area (printf '%s' "$layout" | jq -r '.result.layout.area.width // empty' 2>/dev/null)
         set -l was_zoomed (printf '%s' "$layout" | jq -r '.result.layout.zoomed // false' 2>/dev/null)
         test -n "$rect"; or set rect 0
@@ -807,7 +829,7 @@ function herdr-preset
         # knows; an explicit --profile wins outright.
         set -l procs
         if test -z "$profile"
-            set procs (herdr pane process-info --pane "$pane" 2>/dev/null \
+            set procs ($bin pane process-info --pane "$pane" 2>/dev/null \
                 | jq -r '.result.process_info.foreground_processes[]?.name // empty' 2>/dev/null)
         end
 
@@ -828,7 +850,7 @@ function herdr-preset
         set -l bound $rect
         set -l zoomed_here false
         if test "$zoom" = true -a "$was_zoomed" != true
-            if herdr pane zoom "$pane" --on >/dev/null 2>&1
+            if $bin pane zoom "$pane" --on >/dev/null 2>&1
                 set zoomed_here true
             end
         end
@@ -847,7 +869,7 @@ function herdr-preset
         set -l previous
         for attempt in (seq 8)
             test "$zoomed_here" = true; and sleep 0.12
-            set text (herdr pane read "$pane" --source visible 2>&1 | string collect)
+            set text ($bin pane read "$pane" --source visible 2>&1 | string collect)
             # $pipestatus[1] is the read's own status. Do NOT go looking for
             # `"error"` in the output: this reads whatever is ON the screen, and
             # a pane showing code that mentions an error field would fail every
@@ -859,7 +881,7 @@ function herdr-preset
             set previous "$text"
         end
 
-        test "$zoomed_here" = true; and herdr pane zoom "$pane" --off >/dev/null 2>&1
+        test "$zoomed_here" = true; and $bin pane zoom "$pane" --off >/dev/null 2>&1
 
         if test $read_status -ne 0
             echo "$tag: pane read failed for '$pane'" >&2
@@ -1019,8 +1041,10 @@ sys.stdout.write("\n".join(out) + ("\n" if out else ""))
         set -l pane $argv[1]
         test -n "$pane"; or set pane "$HERDR_ACTIVE_PANE_ID"
         test -n "$pane"; or set pane "$HERDR_PANE_ID"
+        test -n "$pane"; or set pane "$HC_TERMINAL_ID"
+        test -n "$pane"; or set pane ($bin current-id 2>/dev/null)
         test -n "$pane"; or begin
-            echo "$tag: no pane given, and neither HERDR_ACTIVE_PANE_ID nor HERDR_PANE_ID is set" >&2
+            echo "$tag: no pane given, and neither HERDR_ACTIVE_PANE_ID, HERDR_PANE_ID, nor HC_TERMINAL_ID is set" >&2
             return 1
         end
 
@@ -1044,7 +1068,7 @@ sys.stdout.write("\n".join(out) + ("\n" if out else ""))
             --argjson panes "$panes" \
             --argjson tabs "$tabs" \
             --argjson workspaces "$workspaces" '
-            (first($panes.result.panes[]? | select(.pane_id == $pane))
+            (first($panes.result.panes[]? | select(.pane_id == $pane or .terminal_id == $pane))
                 // error("pane \($pane) not found in this herdr session")) as $p
             | (first($tabs.result.tabs[]? | select(.tab_id == $p.tab_id)) // {}) as $t
             | (first($workspaces.result.workspaces[]? | select(.workspace_id == $p.workspace_id)) // {}) as $w
@@ -1102,21 +1126,15 @@ sys.stdout.write("\n".join(out) + ("\n" if out else ""))
         end
 
         set -l panes ($bin pane list 2>&1 | string collect)
-        printf '%s' "$panes" | jq -e --arg p "$pane" 'any(.result.panes[]?; .pane_id == $p)' >/dev/null 2>&1
+        printf '%s' "$panes" | jq -e --arg p "$pane" 'any(.result.panes[]?; .pane_id == $p or .terminal_id == $p)' >/dev/null 2>&1
         or begin
             echo "$tag: pane '$pane' is gone from this herdr session" >&2
             return 1
         end
 
-        # pane.focus over the socket rather than the CLI: `herdr pane focus` only
-        # moves to a NEIGHBOUR, and `herdr agent focus` refuses panes it does not
-        # know as agents. Same call herdr-lib.fish's herdr_focus_pane makes.
-        set -l sock (__herdr_socket); or begin
-            echo "$tag: no herdr API socket found" >&2
-            return 1
-        end
-
-        set -l resp (printf '{"id":"herdr-preset","method":"pane.focus","params":{"pane_id":"%s"}}\n' "$pane" | nc -U "$sock")
+        # pane.focus via hc-preset rpc (which talks to herdr.sock in herdr mode
+        # and herdr-app in hc mode).
+        set -l resp ($bin rpc pane.focus (printf '{"pane_id":"%s"}' "$pane") 2>/dev/null)
         printf '%s' "$resp" | jq -e '.error | not' >/dev/null 2>&1
         or begin
             echo "$tag: pane.focus failed for '$pane'" >&2

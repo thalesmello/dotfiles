@@ -32,7 +32,7 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 
 herdr=$(herdr_bin) || herdr_die "break-pane" "herdr CLI not found"
 
-pane="$HERDR_ACTIVE_PANE_ID"
+pane=$(herdr_current_pane)
 [ -n "$pane" ] || { printf 'no focused pane\n'; sleep 1; exit 1; }
 
 # Pane name (first of label/title/terminal title) + its tab, in one call.

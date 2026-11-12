@@ -241,8 +241,8 @@ function yabai-harpoon
             else
                 set json (jq -n --argjson chrome_tab "$chrome_tab" --argjson window "$window" '{app: $window.app, title: $chrome_tab.title, type: "chrome_tab", uuid: ({chrome_tab: $chrome_tab.id} | @base64), tab_id: $chrome_tab.id, tab_window_id: $chrome_tab.windowId, url: $chrome_tab.url}')
             end
-        else if test "$window_app" = "Ghostty"; and ghostty-preset is-herdr-zoomed-or-single-surface
-            # herdr multiplexes many panes into one window, so a plain `window`
+        else if test "$window_app" = "Herdr"; or begin; test "$window_app" = "Ghostty"; and ghostty-preset is-herdr-zoomed-or-single-surface; end
+            # herdr / herdr-app multiplexes many panes into one window, so a plain `window`
             # pin here would only ever return to "wherever herdr happens to be
             # showing". Pin the PANE instead.
             set -l herdr (yabai-harpoon capture-herdr-pin)
@@ -301,14 +301,15 @@ function yabai-harpoon
         string match -r '\d+' -- (cat "$id_file" 2>/dev/null)
         return 0
     case "capture-herdr-pin"
-        # Ask the herdr session displayed in the focused window to describe its
+        # Ask the herdr / herdr-app session displayed in the focused window to describe its
         # focused pane, and print that JSON.
-        #
-        # The session may be running on a devserver over ssh (`herdr --remote`),
-        # where its socket is unreachable from here -- so this cannot just call
-        # the herdr CLI. execute-herdr-command runs it wherever the SERVER is,
-        # over herdr's run-command popup and the clipboard.
-        set -l pin (ghostty-preset execute-herdr-command "herdr-preset get-pin-json")
+        set -l focused_app (yabai-preset query-focused-window | jq -r '.app // empty' 2>/dev/null)
+        set -l pin
+        if test "$focused_app" = "Herdr"
+            set pin (hc-preset --backend hc get-pin-json)
+        else
+            set pin (ghostty-preset execute-herdr-command "hc-preset get-pin-json")
+        end
         or begin
             echo "yabai-harpoon: could not read the herdr pin ($pin)" >&2
             return 1
@@ -355,6 +356,15 @@ function yabai-harpoon
         yabai-preset focus-window-id --wait-focus "$window_id"
         or return 1
 
+        if test "$app" = "Herdr"
+            hc-preset --backend hc focus-pane "$pane_id" --session "$session"
+            or begin
+                echo "yabai-harpoon: could not focus herdr-app pane $pane_id" >&2
+                return 1
+            end
+            return 0
+        end
+
         # Confirm herdr really is what that window is showing before typing into
         # it. A failure here returns non-zero, which makes `focus` refresh the
         # pins and retry rather than paste a command at some unrelated app.
@@ -364,12 +374,12 @@ function yabai-harpoon
             return 1
         end
 
-        # Same round trip as capture-herdr-pin. --session makes herdr-preset
+        # Same round trip as capture-herdr-pin. --session makes hc-preset
         # refuse if the window has since been pointed at a different session,
         # where this pane id would name something else entirely. @sh because
         # execute-herdr-command hands what it is given to bash.
         set -l focus_cmd (jq -nrj --arg pane "$pane_id" --arg session "$session" \
-            '"herdr-preset focus-pane \($pane|@sh) --session \($session|@sh)"')
+            '"hc-preset focus-pane \($pane|@sh) --session \($session|@sh)"')
 
         set -l out (ghostty-preset execute-herdr-command "$focus_cmd")
         or begin

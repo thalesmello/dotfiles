@@ -47,6 +47,7 @@ import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const HERDR_ENV = process.env.HERDR_ENV;
+const HC_TERMINAL_ID = process.env.HC_TERMINAL_ID;
 const socketPath = process.env.HERDR_SOCKET_PATH;
 const socketEndpoint =
 	process.platform === "win32" && socketPath ? `\\\\.\\pipe\\${socketPath}` : socketPath;
@@ -60,12 +61,16 @@ export const SETTLED_EVENT = "herdr-agent-status:settled";
 export const BOOK_GLYPH = "󰂺";
 export const BOOK_TOKEN = "book";
 
-function enabled(): boolean {
+function herdrSocketEnabled(): boolean {
 	return HERDR_ENV === "1" && !!socketPath && !!paneId;
 }
 
+function enabled(): boolean {
+	return herdrSocketEnabled() || Boolean(HC_TERMINAL_ID);
+}
+
 function sendRequestAttempt(request: unknown, timeoutMs: number): Promise<boolean> {
-	if (!enabled()) return Promise.resolve(true);
+	if (!herdrSocketEnabled()) return Promise.resolve(true);
 	return new Promise((resolve) => {
 		let done = false;
 		let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -87,6 +92,27 @@ function sendRequestAttempt(request: unknown, timeoutMs: number): Promise<boolea
 }
 
 async function reportBook(booked: boolean): Promise<void> {
+	if (!herdrSocketEnabled() && HC_TERMINAL_ID) {
+		try {
+			const child = spawn(
+				"hc-preset",
+				[
+					"rpc",
+					"pane.report_metadata",
+					JSON.stringify({
+						pane_id: HC_TERMINAL_ID,
+						source,
+						tokens: { [BOOK_TOKEN]: booked ? BOOK_GLYPH : null },
+					}),
+				],
+				{ stdio: "ignore" },
+			);
+			child.unref?.();
+		} catch {
+			// Ignore best-effort reporting errors
+		}
+		return;
+	}
 	const request = {
 		id: `${source}:${Date.now()}:${Math.random().toString(36).slice(2)}`,
 		method: "pane.report_metadata",
@@ -107,7 +133,7 @@ function settledScriptPath(): string {
 
 export function settlePreviousSession(
 	sessionFile: string,
-	targetPane: string | undefined = paneId ?? process.env.HERDR_PANE_ID,
+	targetPane: string | undefined = paneId ?? process.env.HERDR_PANE_ID ?? HC_TERMINAL_ID ?? process.env.HC_TERMINAL_ID,
 ): Promise<boolean> {
 	if (!targetPane) return Promise.resolve(false);
 	const script = settledScriptPath();
@@ -182,7 +208,7 @@ function resolveDir(current: string, target: string): string {
 }
 
 const READONLY_STARTERS =
-	/^(ls|cat|head|tail|grep|rg|ag|fd|find|pwd|echo|printf|date|which|type|env|printenv|wc|jq|yq|diff|cmp|stat|file|du|df|ps|whoami|hostname|id|true|false|test|sleep|herdr\s+(agent|pane|workspace|tab|api|status)\b.*\b(list|get|read|current|layout|snapshot|process-info|neighbor|edges|explain)\b|presto\b|chronos\s+cinfo\b|dotsync2\s+pull\b)/;
+	/^(ls|cat|head|tail|grep|rg|ag|fd|find|pwd|echo|printf|date|which|type|env|printenv|wc|jq|yq|diff|cmp|stat|file|du|df|ps|whoami|hostname|id|true|false|test|sleep|(herdr|hc-preset)\s+((agent|pane|workspace|tab|api)\s+(list|get|read|current|layout|snapshot|process-info|neighbor|edges|explain)|status)\b|(hc|hc-preset)\s+(ls|get|read|wait|templates|events|schema|backend|is-session|current-id|pane-id|pane-visible-unwrap|get-pin-json)\b|(hc|hc-preset)\s+(machine|server)\s+(ls|list|status)\b|(hc|hc-preset)\s+file\s+read\b|(herdr-app|hc-preset)\s+(ls|status|commands|check|shot)\b|presto\b|chronos\s+cinfo\b|dotsync2\s+pull\b)/;
 const READONLY_VCS =
 	/^(git|sl|hg)\s+(status|log|diff|show|blame|annotate|grep|branch|tag|describe|rev-parse|ls-files|cat-file|stash\s+list|bookmark|id|root|whereami)\b/;
 const READONLY_MISC =
@@ -198,7 +224,10 @@ const MUTATING_SEGMENTS: RegExp[] = [
 	/^(sed|perl)\b[^;]*\s-i\b/,
 	/(^|\s)(>>?|&>)\s*[^\s&|]/, // output redirection writes a file
 	/^(npm|pnpm|yarn|pip|pipx|brew|cargo|go)\s+(install|add|remove|uninstall|update|upgrade|publish|mod)\b/,
-	/^herdr\s+(agent|pane|workspace|tab|worktree|session)\s+(start|run|split|close|create|remove|send-|prompt|rename|move|swap|resize|focus|attach)\b/,
+	/^(herdr|hc-preset)\s+(agent|pane|workspace|tab|worktree|session)\s+(start|run|split|close|create|remove|send-|prompt|rename|move|swap|resize|focus|attach)\b/,
+	/^(hc|hc-preset)\s+(run|kill|rm|keep|label|send|keys|interrupt|put|exec|attach|update)\b/,
+	/^(hc|hc-preset)\s+file\s+(write|edit)\b/,
+	/^(herdr-app|hc-preset)\s+do\b/,
 	/^(chronos\s+ckill|dataswarm-cli\s+daemon\s+execute\s+(tester|nbackfill|linter)\b|\.\/(tester|nbackfill)\b)/,
 	/^(stow|dotsync2\s+push)\b/,
 ];

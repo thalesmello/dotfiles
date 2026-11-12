@@ -46,10 +46,12 @@ describe("herdr-skill extension", () => {
 		expect(section).toContain("another coding agent on this machine");
 		expect(section).toContain("HERDR_PANE_ID=w1:p1");
 
-		// Not the skill itself: no skill body, no frontmatter, short text.
+		// Not the skill itself, and no hc/herdr-app leakage in a herdr session.
 		expect(section).not.toContain("agent start");
 		expect(section).not.toContain("pane split --current");
 		expect(section).not.toContain("name: herdr");
+		expect(section).not.toContain("hc --skill");
+		expect(section).not.toContain("herdr-app --skill");
 		expect(section.length).toBeLessThan(1500);
 	});
 
@@ -60,5 +62,21 @@ describe("herdr-skill extension", () => {
 		const second = await harness.emitBeforeAgentStart();
 		expect(second.systemPromptOptions.sections.herdr).toBe(first.systemPromptOptions.sections.herdr);
 		expect(herdrPointer(env)).toBe(first.systemPromptOptions.sections.herdr);
+	});
+
+	test("adds pointer only to hc --skill and herdr-app --skill inside an hc session", async () => {
+		const harness = createHarness({
+			env: { HC_TERMINAL_ID: "t3" },
+		});
+
+		const event = await harness.emitBeforeAgentStart();
+		const section: string = event.systemPromptOptions.sections.herdr;
+
+		expect(section).toContain("Run `hc --skill`");
+		expect(section).toContain("Run `herdr-app --skill`");
+		expect(section).toContain("HC_TERMINAL_ID=t3");
+		expect(section).toContain("Do not load either skill for work that stays in this terminal");
+		expect(section).not.toContain("Run `herdr --skill`");
+		expect(section.length).toBeLessThan(1500);
 	});
 });

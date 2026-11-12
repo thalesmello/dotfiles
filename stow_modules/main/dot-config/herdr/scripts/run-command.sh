@@ -65,9 +65,11 @@ else
 fi
 
 # Hand the invoking pane, not the popup, to whatever gets run.
-if [ -n "$HERDR_ACTIVE_PANE_ID" ]; then
+active_pane="${HERDR_ACTIVE_PANE_ID:-$(herdr_current_pane 2>/dev/null || true)}"
+if [ -n "$active_pane" ]; then
+  export HERDR_ACTIVE_PANE_ID="$active_pane"
   unset HERDR_PANE_ID
-  pane_cwd=$("$herdr" pane get "$HERDR_ACTIVE_PANE_ID" 2>/dev/null \
+  pane_cwd=$("$herdr" pane get "$active_pane" 2>/dev/null \
     | sed -n 's/.*"foreground_cwd":"\([^"]*\)".*/\1/p' | head -1)
   [ -n "$pane_cwd" ] && cd "$pane_cwd" 2>/dev/null
 fi

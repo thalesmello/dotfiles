@@ -1,0 +1,3 @@
+# herdr-core (hc) configuration
+# Mirrors [terminal] default_shell = "fish" from ~/.config/herdr/config.toml
+shell = ["fish", "-l"]
