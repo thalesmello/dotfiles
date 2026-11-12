@@ -37,6 +37,7 @@ chsh -s "$(which fish)"
 Create a symbolic links for your files:
 
 ```
+mkdir -p ~/.pi/agent
 stow main
 stow local
 ln "$(pwd)/mouseless/config.yaml" "$HOME/Library/Containers/net.sonuscape.mouseless/Data/.mouseless/configs/config.yaml"

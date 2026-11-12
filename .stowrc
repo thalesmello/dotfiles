@@ -2,3 +2,7 @@
 --dotfiles
 --dir=./stow_modules
 --ignore=\.stowrc
+--ignore=^auth\.json(\.lock)?$
+--ignore=^models-store\.json(\.lock)?$
+--ignore=^sessions$
+--ignore=^subagent-sessions$
