@@ -327,7 +327,7 @@ function M.setup()
   end)
 
   -- Own http/https, so hs.urlevent.httpCallback gets to route every link (see
-  -- local/finicky.lua for the routing rules).
+  -- finicky.lua for the routing rules).
   --
   -- hs.urlevent.setDefaultHandler goes through LSSetDefaultHandlerForURLScheme,
   -- which macOS ignores for http/https since the default-browser lockdown --
