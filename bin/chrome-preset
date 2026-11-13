@@ -51,6 +51,9 @@ function url-invariant
     else if string match -qr 'intern/bunny\?metamate(\b|%20|\+|$)' -- "$raw"
         echo "internalfb.com/metamate"
         return 0
+    else if string match -qr '^https?://(www\.)?(wa\.me|web\.whatsapp\.com|api\.whatsapp\.com)(\b|/|$)' -- "$raw"
+        echo "web.whatsapp.com"
+        return 0
     end
 
     string replace -r '[?#].*$' '' -- "$raw" \
@@ -102,6 +105,9 @@ function rediscover-app-window
     end
     if string match -qr 'intern/bunny\?metamate' -- "$url"
         set -a candidate_urls "https://agentcloud.internalmeta.com/" "https://www.internalfb.com/metamate"
+    end
+    if string match -qr '^https?://(www\.)?(wa\.me|web\.whatsapp\.com|api\.whatsapp\.com)(\b|/|$)' -- "$url"
+        set -a candidate_urls "https://web.whatsapp.com/" "https://api.whatsapp.com/"
     end
     for candidate_url in $candidate_urls
         set -l needle (url-invariant "$candidate_url")
@@ -935,7 +941,8 @@ function chrome-preset
             disown
         end
     case "open-in-app"
-        argparse profile= -- $argv
+        argparse profile= if-open -- $argv
+        or return 1
 
         set appname $argv[1]
         set -e argv[1]
@@ -948,6 +955,8 @@ function chrome-preset
 
             chrome-cli open "$url" -t "$(jq -nr --argjson app "$chrome_info" '$app.id')"
             wm-preset focus-window-id "$window"
+        else if set -q _flag_if_open
+            return 1
         else
             chrome-preset create-app --profile="$_flag_profile" "$appname" "$url"
         end
