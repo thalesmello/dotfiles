@@ -1,5 +1,70 @@
 import { describe, expect, mock, test } from "bun:test";
 
+const STYLE_TAG_RE = /\[\/?[a-z]+\]|<CURSOR>/g;
+
+function stripTestStyleTags(text: string): string {
+	return text.replace(STYLE_TAG_RE, "");
+}
+
+function visibleWidthWithStyleTags(text: string): number {
+	return stripTestStyleTags(text).length;
+}
+
+function wrapTextWithStyleTags(text: string, width: number): string[] {
+	const maxWidth = Math.max(1, width);
+	return text.split(/\r?\n/).flatMap((paragraph) => {
+		if (!paragraph || visibleWidthWithStyleTags(paragraph) <= maxWidth) {
+			return [paragraph];
+		}
+		const tokens = paragraph.match(/\S+|\s+/g) ?? [paragraph];
+		const lines: string[] = [];
+		let current = "";
+		let currentWidth = 0;
+
+		for (const token of tokens) {
+			const isSpace = /^\s+$/.test(stripTestStyleTags(token));
+			const tokenWidth = visibleWidthWithStyleTags(token);
+			if (isSpace) {
+				if (currentWidth === 0) continue;
+				if (currentWidth + tokenWidth <= maxWidth) {
+					current += token;
+					currentWidth += tokenWidth;
+				} else {
+					lines.push(current.trimEnd());
+					current = "";
+					currentWidth = 0;
+				}
+				continue;
+			}
+			if (currentWidth > 0 && currentWidth + tokenWidth > maxWidth) {
+				lines.push(current.trimEnd());
+				current = "";
+				currentWidth = 0;
+			}
+			if (tokenWidth <= maxWidth) {
+				current += token;
+				currentWidth += tokenWidth;
+				continue;
+			}
+			const plain = stripTestStyleTags(token);
+			for (let i = 0; i < plain.length; i += maxWidth) {
+				const slice = plain.slice(i, i + maxWidth);
+				if (i + maxWidth < plain.length) {
+					lines.push(slice);
+				} else {
+					current = slice;
+					currentWidth = slice.length;
+				}
+			}
+		}
+
+		if (currentWidth > 0 || lines.length === 0) {
+			lines.push(current.trimEnd());
+		}
+		return lines;
+	});
+}
+
 mock.module("@earendil-works/pi-tui", () => ({
 	CURSOR_MARKER: "<CURSOR>",
 	Editor: class {
@@ -76,8 +141,8 @@ mock.module("@earendil-works/pi-tui", () => ({
 	},
 	matchesKey: (data: string, key: string) => data === key,
 	truncateToWidth: (text: string) => text,
-	visibleWidth: (text: string) => text.length,
-	wrapTextWithAnsi: (text: string) => [text],
+	visibleWidth: visibleWidthWithStyleTags,
+	wrapTextWithAnsi: wrapTextWithStyleTags,
 	SettingsList: class {},
 }));
 
@@ -228,6 +293,9 @@ describe("questionnaire multiple-choice inline context", () => {
 			resultPromise,
 			input: (data: string) => component.handleInput(data),
 			render: (width = 80) => component.render(width) as string[],
+			setRows: (rows: number) => {
+				tui.terminal.rows = rows;
+			},
 			getSubmitted: () => submitted,
 		};
 	}
@@ -432,5 +500,63 @@ describe("questionnaire multiple-choice inline context", () => {
 		const result = await harness.resultPromise;
 		expect(result.details.cancelled).toBe(false);
 		expect(result.details.answers[0].entries.map((entry: any) => entry.label)).toEqual(["A with very old tests"]);
+	});
+
+	test("wraps long questions onto continuation lines and re-wraps when terminal width narrows", async () => {
+		const longPrompt = "Where should Cmd+Up / Cmd+Down jump to the top/bottom of history?";
+		const harness = createHarness([{ id: "target", label: "Target", prompt: longPrompt, options, multiple: false }]);
+
+		// 1. First render on a wide terminal (127 columns): question fits on a single line.
+		const wideLines = harness.render(127).map(stripTestStyleTags);
+		expect(wideLines).toContain(`> ${longPrompt}`);
+		for (const line of wideLines) {
+			expect(line.length).toBeLessThanOrEqual(127);
+		}
+
+		// 2. Terminal narrows to 63 columns (e.g. a 50/50 split pane) without an intermediate keypress.
+		// Previously cachedLines was returned unchanged, causing the terminal to clip "history?" mid-word ("hist").
+		const narrowLines = harness.render(63).map(stripTestStyleTags);
+		for (const line of narrowLines) {
+			expect(line.length).toBeLessThanOrEqual(63);
+		}
+		expect(narrowLines).toContain("> Where should Cmd+Up / Cmd+Down jump to the top/bottom of");
+		expect(narrowLines).toContain("  history?");
+
+		harness.input("escape");
+		harness.input("escape");
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(true);
+	});
+
+	test("re-renders when terminal row count changes and keeps wrapped question prompt visible on first option", async () => {
+		const longPrompt =
+			"Does typing flicker while Pi is idle, or only while the agent is producing output in the terminal?";
+		const manyOptions = Array.from({ length: 8 }, (_, idx) => ({
+			value: `opt_${idx + 1}`,
+			label: `Option ${idx + 1}`,
+			description: `Description for option ${idx + 1}`,
+		}));
+		const harness = createHarness([{ id: "q1", label: "When", prompt: longPrompt, options: manyOptions }]);
+
+		// Initial render at 50 rows shows the full form.
+		const fullLines = harness.render(45).map(stripTestStyleTags);
+		expect(fullLines.length).toBeGreaterThan(20);
+
+		// Shrink terminal rows to 20 (viewportHeight = 12): cache must invalidate and slice to 12 rows,
+		// while keeping all 3 wrapped question prompt lines visible above Option 1 even after scrolling down and back up.
+		harness.setRows(20);
+		for (let i = 0; i < 5; i++) harness.input("down");
+		for (let i = 0; i < 5; i++) harness.input("up");
+		const compactLines = harness.render(45).map(stripTestStyleTags);
+		expect(compactLines.length).toBe(12);
+		expect(compactLines).toContain("> Does typing flicker while Pi is idle, or");
+		expect(compactLines).toContain("  only while the agent is producing output in");
+		expect(compactLines).toContain("  the terminal?");
+		expect(compactLines.some((line) => line.includes("1. Option 1"))).toBe(true);
+
+		harness.input("escape");
+		harness.input("escape");
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(true);
 	});
 });

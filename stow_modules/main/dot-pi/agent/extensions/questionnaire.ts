@@ -234,6 +234,8 @@ export default function questionnaire(pi: ExtensionAPI) {
 				let inputOptionIndex: number | null = null;
 				let scrollOffset = 0;
 				let cancelArmed = false;
+				let cachedWidth: number | undefined;
+				let cachedRows: number | undefined;
 				let cachedLines: string[] | undefined;
 				const answers = new Map<string, Answer>();
 				const optionIndices = new Map<string, number>();
@@ -255,8 +257,14 @@ export default function questionnaire(pi: ExtensionAPI) {
 				const editor = new Editor(tui, editorTheme);
 
 				// Helpers
-				function refresh() {
+				function invalidateCache() {
+					cachedWidth = undefined;
+					cachedRows = undefined;
 					cachedLines = undefined;
+				}
+
+				function refresh() {
+					invalidateCache();
 					tui.requestRender();
 				}
 
@@ -677,26 +685,30 @@ export default function questionnaire(pi: ExtensionAPI) {
 				}
 
 				function render(width: number): string[] {
-					if (cachedLines) return cachedLines;
+					const renderWidth = Math.max(1, width);
+					const terminalRows = tui.terminal.rows;
+					if (cachedLines && cachedWidth === renderWidth && cachedRows === terminalRows) {
+						return cachedLines;
+					}
 
 					const lines: string[] = [];
-					const renderWidth = Math.max(1, width);
 					let activeLine = 0;
 					let activeEndLine = 0;
 					let activeQuestionLine = 0;
 					let activeQuestionEndLine = 0;
 
 					function addWrapped(text: string) {
-						lines.push(...wrapTextWithAnsi(text, renderWidth));
+						lines.push(...wrapTextWithAnsi(text.replace(/\t/g, "   "), renderWidth));
 					}
 
 					function addWrappedWithPrefix(prefix: string, text: string) {
+						const normalizedText = text.replace(/\t/g, "   ");
 						const prefixWidth = visibleWidth(prefix);
 						if (prefixWidth >= renderWidth) {
-							addWrapped(prefix + text);
+							addWrapped(prefix + normalizedText);
 							return;
 						}
-						const wrapped = wrapTextWithAnsi(text, renderWidth - prefixWidth);
+						const wrapped = wrapTextWithAnsi(normalizedText, renderWidth - prefixWidth);
 						const continuationPrefix = " ".repeat(prefixWidth);
 						for (let i = 0; i < wrapped.length; i++) {
 							lines.push(`${i === 0 ? prefix : continuationPrefix}${wrapped[i]}`);
@@ -770,7 +782,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 						const activeQuestion = currentTab === questionIndex;
 						const questionLine = lines.length;
 						const answer = answers.get(question.id);
-						const status = answer ? theme.fg("success", " ✓") : theme.fg("muted", "");
+						const status = answer ? theme.fg("success", " ✓") : "";
 						const prefix = activeQuestion ? theme.fg("accent", "> ") : "  ";
 						const label = isMulti ? theme.fg("muted", `${question.label}: `) : "";
 						addWrappedWithPrefix(prefix, `${label}${theme.fg("text", question.prompt)}${status}`);
@@ -833,8 +845,10 @@ export default function questionnaire(pi: ExtensionAPI) {
 					}
 					lines.push(theme.fg("accent", "─".repeat(renderWidth)));
 
-					const viewportHeight = Math.max(8, Math.min(28, tui.terminal.rows - 8));
+					const viewportHeight = Math.max(8, Math.min(28, terminalRows - 8));
 					if (lines.length <= viewportHeight) {
+						cachedWidth = renderWidth;
+						cachedRows = terminalRows;
 						cachedLines = lines;
 						return lines;
 					}
@@ -843,7 +857,10 @@ export default function questionnaire(pi: ExtensionAPI) {
 					const activeQuestionHeight = activeQuestionEndLine - activeQuestionLine + 1;
 					const canRevealActiveQuestion =
 						currentTab !== submitTab && activeQuestionHeight <= viewportHeight - scrollMargin * 2;
-					const targetLine = canRevealActiveQuestion ? activeQuestionLine : activeLine;
+					const canRevealQuestionThroughActiveOption =
+						currentTab !== submitTab && activeEndLine - activeQuestionLine + 1 <= viewportHeight - scrollMargin * 2;
+					const targetLine =
+						canRevealActiveQuestion || canRevealQuestionThroughActiveOption ? activeQuestionLine : activeLine;
 					const targetEndLine = canRevealActiveQuestion ? activeQuestionEndLine : activeEndLine;
 					const maxScroll = Math.max(0, lines.length - viewportHeight);
 					if (targetLine < scrollOffset + scrollMargin) {
@@ -861,15 +878,15 @@ export default function questionnaire(pi: ExtensionAPI) {
 					if (hiddenBelow > 0) {
 						visible[visible.length - 1] = theme.fg("dim", `↓ ${hiddenBelow} more`);
 					}
+					cachedWidth = renderWidth;
+					cachedRows = terminalRows;
 					cachedLines = visible;
 					return visible;
 				}
 
 				return {
 					render,
-					invalidate: () => {
-						cachedLines = undefined;
-					},
+					invalidate: invalidateCache,
 					handleInput,
 				};
 				},
