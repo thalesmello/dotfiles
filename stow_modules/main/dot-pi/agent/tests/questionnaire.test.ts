@@ -292,6 +292,7 @@ describe("questionnaire multiple-choice inline context", () => {
 		return {
 			resultPromise,
 			input: (data: string) => component.handleInput(data),
+			mouse: (event: { type?: string; wheelDelta?: number }) => component.handleMouse?.(event),
 			render: (width = 80) => component.render(width) as string[],
 			setRows: (rows: number) => {
 				tui.terminal.rows = rows;
@@ -553,6 +554,82 @@ describe("questionnaire multiple-choice inline context", () => {
 		expect(compactLines).toContain("  only while the agent is producing output in");
 		expect(compactLines).toContain("  the terminal?");
 		expect(compactLines.some((line) => line.includes("1. Option 1"))).toBe(true);
+
+		harness.input("escape");
+		harness.input("escape");
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(true);
+	});
+
+	test("gradually collapses to 3 content lines on history scroll up, expands gradually on scroll down, and immediately expands on Up/Down keys", async () => {
+		const manyOptions = Array.from({ length: 8 }, (_, idx) => ({
+			value: `opt_${idx + 1}`,
+			label: `Option ${idx + 1}`,
+			description: `Description for option ${idx + 1}`,
+		}));
+		const harness = createHarness([{ id: "q1", label: "Q1", prompt: "Choose an option", options: manyOptions }]);
+		const store = (globalThis as Record<symbol, { collapseLines: number }>)[Symbol.for("pi.scroll-collapse")]!;
+
+		const fullLines = harness.render(80).map(stripTestStyleTags);
+		const fullHeight = fullLines.length;
+		expect(fullHeight).toBeGreaterThan(15);
+
+		// Simulate gradual history scroll up by 4 lines: questionnaire shrinks by 4 lines.
+		store.collapseLines = 4;
+		const partialCollapsed = harness.render(80).map(stripTestStyleTags);
+		expect(partialCollapsed.length).toBe(fullHeight - 4);
+
+		// Simulate large history scroll up (e.g. PageUp): clamps at 3 content lines + 2 border/indicator lines = 5 rows total.
+		store.collapseLines = 100;
+		const fullyCollapsed = harness.render(80).map(stripTestStyleTags);
+		expect(fullyCollapsed.length).toBe(5);
+		expect(fullyCollapsed.slice(1, 4).some((line) => line.includes("1. Option 1"))).toBe(true);
+
+		// Simulate gradual history scroll down by 3 lines from maxCollapseLines: expands by 3 lines (5 -> 8 rows).
+		const maxCollapse = fullHeight - 5;
+		store.collapseLines = maxCollapse - 3;
+		const partialExpanded = harness.render(80).map(stripTestStyleTags);
+		expect(partialExpanded.length).toBe(8);
+
+		// Any Up/Down keyboard input immediately expands the whole questionnaire back to full height.
+		harness.input("down");
+		expect(store.collapseLines).toBe(0);
+		const expandedLines = harness.render(80).map(stripTestStyleTags);
+		expect(expandedLines.length).toBe(fullHeight);
+		expect(expandedLines.some((line) => line.includes("> ○ 2. Option 2"))).toBe(true);
+
+		harness.input("escape");
+		harness.input("escape");
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(true);
+	});
+
+	test("mouse wheel on top of questionnaire scrolls the questionnaire and consumes the event", async () => {
+		const manyOptions = Array.from({ length: 12 }, (_, idx) => ({
+			value: `opt_${idx + 1}`,
+			label: `Option ${idx + 1}`,
+			description: `Description for option ${idx + 1}`,
+		}));
+		const harness = createHarness([{ id: "q1", label: "Q1", prompt: "Choose an option", options: manyOptions }]);
+		harness.setRows(20); // viewportHeight = 12
+
+		const initialLines = harness.render(80).map(stripTestStyleTags);
+		expect(initialLines.length).toBe(12);
+		expect(initialLines.some((line) => line.includes("1. Option 1"))).toBe(true);
+		expect(initialLines[11]).toMatch(/^↓ \d+ more$/);
+
+		// Scroll down with mouse wheel on top of questionnaire.
+		const wheelDown = harness.mouse({ type: "wheel", wheelDelta: 6 });
+		expect(wheelDown).toEqual({ handled: true, render: true });
+		const scrolledLines = harness.render(80).map(stripTestStyleTags);
+		expect(scrolledLines.length).toBe(12);
+		expect(scrolledLines[0]).toBe("↑ 6 more");
+		expect(scrolledLines.some((line) => line.includes("1. Option 1"))).toBe(false);
+
+		// Subsequent keyboard navigation returns viewport focus to the active option.
+		harness.input("down");
+		const afterKeyLines = harness.render(80).map(stripTestStyleTags);
+		expect(afterKeyLines.some((line) => line.includes("> ○ 2. Option 2"))).toBe(true);
 
 		harness.input("escape");
 		harness.input("escape");

@@ -158,6 +158,30 @@ export function optionMarker(multiple: boolean, activeQuestion: boolean, selecte
 
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
+/** Maximum content lines visible in the questionnaire when fully collapsed. */
+export const MIN_COLLAPSED_CONTENT_LINES = 3;
+
+const SCROLL_COLLAPSE_SYMBOL = Symbol.for("pi.scroll-collapse");
+
+interface DockCollapseTarget {
+	maxCollapseLines: number;
+	onCollapseChange?: () => void;
+}
+
+interface ScrollCollapseStore {
+	collapseLines: number;
+	questionnaireTarget?: DockCollapseTarget;
+	editorTarget?: DockCollapseTarget;
+}
+
+function getScrollCollapseStore(): ScrollCollapseStore {
+	const holder = globalThis as Record<symbol, ScrollCollapseStore | undefined>;
+	holder[SCROLL_COLLAPSE_SYMBOL] ??= {
+		collapseLines: 0,
+	};
+	return holder[SCROLL_COLLAPSE_SYMBOL]!;
+}
+
 export function formatEditorCursorText(
 	editor: Pick<Editor, "getText"> & Partial<Pick<Editor, "getLines" | "getCursor">>,
 	inverse: (text: string) => string,
@@ -233,9 +257,12 @@ export default function questionnaire(pi: ExtensionAPI) {
 				let inputQuestionId: string | null = null;
 				let inputOptionIndex: number | null = null;
 				let scrollOffset = 0;
+				let lastMaxScroll = 0;
+				let manualScroll = false;
 				let cancelArmed = false;
 				let cachedWidth: number | undefined;
 				let cachedRows: number | undefined;
+				let cachedCollapseLines: number | undefined;
 				let cachedLines: string[] | undefined;
 				const answers = new Map<string, Answer>();
 				const optionIndices = new Map<string, number>();
@@ -260,12 +287,28 @@ export default function questionnaire(pi: ExtensionAPI) {
 				function invalidateCache() {
 					cachedWidth = undefined;
 					cachedRows = undefined;
+					cachedCollapseLines = undefined;
 					cachedLines = undefined;
 				}
 
 				function refresh() {
 					invalidateCache();
 					tui.requestRender();
+				}
+
+				const collapseStore = getScrollCollapseStore();
+				collapseStore.collapseLines = 0;
+				const questionnaireCollapseTarget: DockCollapseTarget = {
+					maxCollapseLines: 0,
+					onCollapseChange: refresh,
+				};
+				collapseStore.questionnaireTarget = questionnaireCollapseTarget;
+
+				function expandQuestionnaire() {
+					if (collapseStore.collapseLines !== 0) {
+						collapseStore.collapseLines = 0;
+						invalidateCache();
+					}
 				}
 
 				function submit(cancelled: boolean) {
@@ -590,6 +633,22 @@ export default function questionnaire(pi: ExtensionAPI) {
 				function handleInput(data: string) {
 					const isEscape = matchesKey(data, Key.escape);
 					const clearedCancelArmed = !isEscape && clearCancelArmed();
+					const kb = _kb as { matches?: (data: string, action: string) => boolean } | undefined;
+					const isUp =
+						matchesKey(data, Key.up) ||
+						Boolean(kb?.matches?.(data, "tui.select.up")) ||
+						data === "\x10" ||
+						/^\x1b(?:\[(?:1;[0-9:]+)?A|OA|\[(?:57352|112;5)(?:;[0-9:]+)?u)$/.test(data);
+					const isDown =
+						matchesKey(data, Key.down) ||
+						Boolean(kb?.matches?.(data, "tui.select.down")) ||
+						data === "\x0e" ||
+						/^\x1b(?:\[(?:1;[0-9:]+)?B|OB|\[(?:57353|110;5)(?:;[0-9:]+)?u)$/.test(data);
+
+					manualScroll = false;
+					if (isUp || isDown) {
+						expandQuestionnaire();
+					}
 
 					// Input mode: route to editor
 					if (inputMode) {
@@ -645,18 +704,18 @@ export default function questionnaire(pi: ExtensionAPI) {
 							submit(false);
 						} else if (isEscape) {
 							armOrCancel();
-						} else if (matchesKey(data, Key.up)) {
+						} else if (isUp) {
 							moveUp();
 						}
 						return;
 					}
 
 					// Option navigation
-					if (matchesKey(data, Key.up)) {
+					if (isUp) {
 						moveUp();
 						return;
 					}
-					if (matchesKey(data, Key.down)) {
+					if (isDown) {
 						moveDown();
 						return;
 					}
@@ -684,10 +743,47 @@ export default function questionnaire(pi: ExtensionAPI) {
 					}
 				}
 
+				function handleMouse(event: { type?: string; wheelDelta?: number }) {
+					if (event.type !== "wheel") return undefined;
+					const delta =
+						typeof event.wheelDelta === "number" && Number.isFinite(event.wheelDelta)
+							? Math.trunc(event.wheelDelta)
+							: 0;
+					let expanded = false;
+					let remainingDelta = delta;
+					if (delta > 0 && collapseStore.collapseLines > 0) {
+						const maxCollapse = Math.max(0, Math.trunc(questionnaireCollapseTarget.maxCollapseLines));
+						const currentCollapse = Math.max(0, Math.min(maxCollapse, collapseStore.collapseLines));
+						const expandStep = Math.min(currentCollapse, delta);
+						if (expandStep > 0) {
+							collapseStore.collapseLines = currentCollapse - expandStep;
+							remainingDelta = delta - expandStep;
+							expanded = true;
+							invalidateCache();
+						}
+					}
+					if (remainingDelta !== 0 && lastMaxScroll > 0) {
+						const nextOffset = Math.max(0, Math.min(lastMaxScroll, scrollOffset + remainingDelta));
+						if (nextOffset !== scrollOffset) {
+							scrollOffset = nextOffset;
+							manualScroll = true;
+							invalidateCache();
+							return { handled: true, render: true };
+						}
+					}
+					return { handled: true, render: expanded };
+				}
+
 				function render(width: number): string[] {
 					const renderWidth = Math.max(1, width);
 					const terminalRows = tui.terminal.rows;
-					if (cachedLines && cachedWidth === renderWidth && cachedRows === terminalRows) {
+					const currentCollapseRequest = collapseStore.collapseLines;
+					if (
+						cachedLines &&
+						cachedWidth === renderWidth &&
+						cachedRows === terminalRows &&
+						cachedCollapseLines === currentCollapseRequest
+					) {
 						return cachedLines;
 					}
 
@@ -845,28 +941,41 @@ export default function questionnaire(pi: ExtensionAPI) {
 					}
 					lines.push(theme.fg("accent", "─".repeat(renderWidth)));
 
-					const viewportHeight = Math.max(8, Math.min(28, terminalRows - 8));
+					const baseViewportHeight = Math.max(8, Math.min(28, terminalRows - 8));
+					const fullViewportHeight = Math.min(lines.length, baseViewportHeight);
+					const minViewportHeight = Math.min(fullViewportHeight, MIN_COLLAPSED_CONTENT_LINES + 2);
+					const maxCollapseLines = Math.max(0, fullViewportHeight - minViewportHeight);
+					questionnaireCollapseTarget.maxCollapseLines = maxCollapseLines;
+					const collapseLines = Math.max(0, Math.min(maxCollapseLines, currentCollapseRequest));
+					const viewportHeight = fullViewportHeight - collapseLines;
+
 					if (lines.length <= viewportHeight) {
+						lastMaxScroll = 0;
+						scrollOffset = 0;
 						cachedWidth = renderWidth;
 						cachedRows = terminalRows;
+						cachedCollapseLines = currentCollapseRequest;
 						cachedLines = lines;
 						return lines;
 					}
 
-					const scrollMargin = 2;
-					const activeQuestionHeight = activeQuestionEndLine - activeQuestionLine + 1;
-					const canRevealActiveQuestion =
-						currentTab !== submitTab && activeQuestionHeight <= viewportHeight - scrollMargin * 2;
-					const canRevealQuestionThroughActiveOption =
-						currentTab !== submitTab && activeEndLine - activeQuestionLine + 1 <= viewportHeight - scrollMargin * 2;
-					const targetLine =
-						canRevealActiveQuestion || canRevealQuestionThroughActiveOption ? activeQuestionLine : activeLine;
-					const targetEndLine = canRevealActiveQuestion ? activeQuestionEndLine : activeEndLine;
 					const maxScroll = Math.max(0, lines.length - viewportHeight);
-					if (targetLine < scrollOffset + scrollMargin) {
-						scrollOffset = Math.max(0, targetLine - scrollMargin);
-					} else if (targetEndLine >= scrollOffset + viewportHeight - scrollMargin) {
-						scrollOffset = Math.min(maxScroll, targetEndLine - viewportHeight + scrollMargin + 1);
+					lastMaxScroll = maxScroll;
+					if (!manualScroll) {
+						const scrollMargin = viewportHeight >= 7 ? 2 : 1;
+						const activeQuestionHeight = activeQuestionEndLine - activeQuestionLine + 1;
+						const canRevealActiveQuestion =
+							currentTab !== submitTab && activeQuestionHeight <= viewportHeight - scrollMargin * 2;
+						const canRevealQuestionThroughActiveOption =
+							currentTab !== submitTab && activeEndLine - activeQuestionLine + 1 <= viewportHeight - scrollMargin * 2;
+						const targetLine =
+							canRevealActiveQuestion || canRevealQuestionThroughActiveOption ? activeQuestionLine : activeLine;
+						const targetEndLine = canRevealActiveQuestion ? activeQuestionEndLine : activeEndLine;
+						if (targetLine < scrollOffset + scrollMargin) {
+							scrollOffset = Math.max(0, targetLine - scrollMargin);
+						} else if (targetEndLine >= scrollOffset + viewportHeight - scrollMargin) {
+							scrollOffset = Math.min(maxScroll, targetEndLine - viewportHeight + scrollMargin + 1);
+						}
 					}
 					scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
 
@@ -880,6 +989,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 					}
 					cachedWidth = renderWidth;
 					cachedRows = terminalRows;
+					cachedCollapseLines = currentCollapseRequest;
 					cachedLines = visible;
 					return visible;
 				}
@@ -888,10 +998,14 @@ export default function questionnaire(pi: ExtensionAPI) {
 					render,
 					invalidate: invalidateCache,
 					handleInput,
+					handleMouse,
 				};
 				},
 				{ blocked: { kind: "question", message: blockedLabel } } as never,
 			).finally(() => {
+				const store = getScrollCollapseStore();
+				store.questionnaireTarget = undefined;
+				store.collapseLines = 0;
 				pi.events.emit("herdr:blocked", { active: false });
 			});
 

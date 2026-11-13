@@ -438,4 +438,185 @@ describe("follow-on-send extension", () => {
 		await commands.get("follow-on-send")!.handler("", tuiCtx);
 		expect(notifications.at(-1)?.message).toContain("inactive");
 	});
+
+	test("gradually collapses a multi-line prompt bar down to 3 content lines on history scroll up and expands on scroll down", async () => {
+		await emit("session_start");
+		const view = startTranscript(100, 20);
+		const editor = new FakeEditor({ terminal: { rows: 40 } });
+		editor.setText(["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"].join("\n"));
+
+		// Initial render: all 8 content lines + 2 borders = 10 rows.
+		let rendered = editor.render(80);
+		expect(rendered).toHaveLength(10);
+		expect(rendered.slice(1, -1)).toEqual(["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"]);
+
+		// Scroll up 2 lines in history: prompt bar shrinks by 2 lines (8 -> 6 content lines = 8 rows).
+		view.scrollBy(-2);
+		rendered = editor.render(80);
+		expect(rendered).toHaveLength(8);
+		expect(rendered[0]).toContain("↑ 2 more");
+		expect(rendered.slice(1, -1)).toEqual(["L3", "L4", "L5", "L6", "L7", "L8"]);
+
+		// Scroll up 10 more lines (scrollTop = 68, 7 lines above collapsed tail 75):
+		// clamps at 3 content lines + 2 borders = 5 rows total.
+		view.scrollBy(-10);
+		rendered = editor.render(80);
+		expect(rendered).toHaveLength(5);
+		expect(rendered[0]).toContain("↑ 5 more");
+		expect(rendered.slice(1, -1)).toEqual(["L6", "L7", "L8"]);
+
+		// Scrolling down while not at the tail of history (7 lines remaining to tail 75)
+		// keeps the prompt bar collapsed until the tail is reached.
+		view.scrollBy(4);
+		rendered = editor.render(80);
+		expect(rendered).toHaveLength(5);
+		view.scrollBy(3); // now at scrollTop = 75 (the tail of the collapsed viewport)
+		rendered = editor.render(80);
+		expect(rendered).toHaveLength(5);
+
+		// Once at the tail of history (scrollTop = 75, hiddenLinesBelow = 0), scrolling down
+		// gradually expands the prompt bar (3 -> 5 content lines = 7 rows).
+		view.scrollBy(2);
+		rendered = editor.render(80);
+		expect(rendered).toHaveLength(7);
+		expect(rendered[0]).toContain("↑ 3 more");
+		expect(rendered.slice(1, -1)).toEqual(["L4", "L5", "L6", "L7", "L8"]);
+
+		// Scroll down 3 more lines at the tail: fully restored to 8 content lines (10 rows).
+		view.scrollBy(3);
+		rendered = editor.render(80);
+		expect(rendered).toHaveLength(10);
+		expect(rendered.slice(1, -1)).toEqual(["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"]);
+
+		// Typing in the prompt while scrolled far up in history immediately expands the prompt,
+		// and scrolling up again from the middle of history collapses it again.
+		view.scrollBy(-30);
+		expect(editor.render(80)).toHaveLength(5);
+		editor.handleInput("!");
+		expect(editor.render(80)).toHaveLength(10);
+		view.scrollBy(-2);
+		expect(editor.render(80)).toHaveLength(8);
+
+		await emit("session_shutdown");
+	});
+
+	test("PageUp immediately collapses a multi-line prompt bar to 3 content lines, and Up/Down key in editor immediately expands it", async () => {
+		await emit("session_start");
+		const view = startTranscript(100, 20);
+		const editor = new FakeEditor({ terminal: { rows: 40 } });
+		editor.setText(["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "L10"].join("\n"));
+
+		expect(editor.render(80)).toHaveLength(12); // 10 content + 2 borders
+
+		// PageUp (viewportHeight - 4 = 16 lines) collapses all the way to 3 content lines (5 rows).
+		view.scrollBy(-16);
+		const collapsed = editor.render(80);
+		expect(collapsed).toHaveLength(5);
+		expect(collapsed.slice(1, -1)).toEqual(["L8", "L9", "L10"]);
+
+		// Pressing Up arrow in the prompt editor immediately expands it back to full size.
+		editor.handleInput("\x1b[A");
+		const expanded = editor.render(80);
+		expect(expanded).toHaveLength(12);
+		expect(expanded.slice(1, -1)).toEqual(["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "L10"]);
+
+		// Short prompts with <= 3 lines keep their natural line count when scrolling history.
+		editor.setText("Only1\nOnly2");
+		expect(editor.render(80)).toHaveLength(4);
+		view.scrollBy(-16);
+		expect(editor.render(80)).toHaveLength(4);
+
+		await emit("session_shutdown");
+	});
+
+	test("mouse wheel on top of the prompt bar expands it when collapsed and scrolls its content once expanded without scrolling chat history", async () => {
+		await emit("session_start");
+		const view = startTranscript(100, 20);
+		// Terminal with 20 rows => defaultMaxVisibleLines = Math.max(5, 6) = 6 content lines.
+		const editor = new FakeEditor({ terminal: { rows: 20 } });
+		editor.setText(["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"].join("\n"));
+		expect(editor.render(80)).toHaveLength(8); // 6 content lines + 2 borders (L3..L8)
+
+		// Collapse prompt bar to 3 content lines via history scroll up (maxCollapse = 6 - 3 = 3).
+		view.scrollBy(-10);
+		const historyScrollTop = view.scrollTop;
+		let rendered = editor.render(80);
+		expect(rendered.slice(1, -1)).toEqual(["L6", "L7", "L8"]);
+
+		// Wheel up on top of the collapsed prompt bar scrolls its 3-line viewport up (L6..L8 -> L3..L5).
+		const wheelUpCollapsed = editor.handleMouse({ type: "wheel", x: 5, y: 1, wheelDelta: -3 } as any) as any;
+		expect(wheelUpCollapsed).toEqual({ handled: true, render: true });
+		expect(view.scrollTop).toBe(historyScrollTop);
+		rendered = editor.render(80);
+		expect(rendered.slice(1, -1)).toEqual(["L3", "L4", "L5"]);
+
+		// Wheel down on top of the collapsed prompt bar by 2 lines expands it from 3 -> 5 content lines (L3..L7).
+		const expandPartial = editor.handleMouse({ type: "wheel", x: 5, y: 1, wheelDelta: 2 } as any) as any;
+		expect(expandPartial).toEqual({ handled: true, render: true });
+		expect(view.scrollTop).toBe(historyScrollTop);
+		rendered = editor.render(80);
+		expect(rendered.slice(1, -1)).toEqual(["L3", "L4", "L5", "L6", "L7"]);
+
+		// Wheel down on top of the prompt bar by 2 more lines finishes expanding (5 -> 6 content lines)
+		// and scrolls the remaining 1 line down inside the expanded prompt bar (L3..L8).
+		const expandAndScroll = editor.handleMouse({ type: "wheel", x: 5, y: 1, wheelDelta: 2 } as any) as any;
+		expect(expandAndScroll).toEqual({ handled: true, render: true });
+		expect(view.scrollTop).toBe(historyScrollTop);
+		rendered = editor.render(80);
+		expect(rendered[0]).toContain("↑ 2 more");
+		expect(rendered.slice(1, -1)).toEqual(["L3", "L4", "L5", "L6", "L7", "L8"]);
+
+		// Scrolling up on the chat history collapses the prompt bar again.
+		view.scrollBy(-3);
+		rendered = editor.render(80);
+		expect(rendered).toHaveLength(5);
+
+		await emit("session_shutdown");
+	});
+
+	test("scrollToStart, scrollToEnd, and scrollTo drive gradual and full collapse/expansion for active questionnaireTarget", async () => {
+		await emit("session_start");
+		const view = startTranscript(100, 12);
+		const store = (globalThis as Record<symbol, any>)[Symbol.for("pi.scroll-collapse")]!;
+		let renderNotifications = 0;
+		store.questionnaireTarget = {
+			maxCollapseLines: 20,
+			onCollapseChange: () => {
+				renderNotifications += 1;
+			},
+		};
+
+		// Gradual wheel scroll up on history (3 lines) collapses questionnaire by 3 lines.
+		view.scrollBy(-3);
+		expect(store.collapseLines).toBe(3);
+		expect(renderNotifications).toBe(1);
+
+		// PageUp (viewportHeight - 4 = 8) collapses questionnaire all the way to maxCollapseLines (20).
+		view.scrollBy(-8);
+		expect(store.collapseLines).toBe(20);
+		expect(renderNotifications).toBe(2);
+
+		// Scroll up further into history so hiddenLinesBelow > 0: scrolling down in the middle
+		// of history keeps questionnaire collapsed until reaching the tail (scrollTop = 68),
+		// then expands by 5 lines (20 -> 15) once past the tail.
+		view.scrollBy(-15);
+		const collapsedTail = 100 - (12 + 20); // 68
+		view.scrollTo(collapsedTail);
+		expect(store.collapseLines).toBe(20);
+		view.scrollTo(collapsedTail + 5);
+		expect(store.collapseLines).toBe(15);
+
+		// scrollToEnd restores questionnaire to full height immediately (collapseLines = 0).
+		view.scrollToEnd();
+		expect(store.collapseLines).toBe(0);
+		expect(view.isFollowingEnd).toBe(true);
+
+		// scrollToStart collapses questionnaire all the way immediately (collapseLines = 20).
+		view.scrollToStart();
+		expect(store.collapseLines).toBe(20);
+		expect(view.isFollowingEnd).toBe(false);
+
+		store.questionnaireTarget = undefined;
+		await emit("session_shutdown");
+	});
 });
