@@ -146,14 +146,14 @@ describe("snapToEndIfNearEnd", () => {
 		expect(snapToEndIfNearEnd(view, { contentHeight: 30, viewportHeight: 5 })).toBe(true);
 		expect(scrollToEndCalls).toBe(0);
 	});
-	test("snaps when viewing the top of a long recent message", () => {
+	test("snaps when scrolled within one viewportHeight of the tail", () => {
 		let snapped = false;
 		const view = {
 			primary: true,
 			followEnd: true,
-			// 80 lines of recent message (rows 120..200) in a 35-line viewport;
-			// user scrolled up to row 120 to read the top of the latest message.
-			scrollTop: 120,
+			// 200-line transcript in a 35-line viewport (maxScrollTop = 165);
+			// user scrolled up 35 lines to row 130 (within one viewportHeight of the tail).
+			scrollTop: 130,
 			isFollowingEnd: false,
 			scrollToEnd() {
 				snapped = true;
@@ -165,20 +165,19 @@ describe("snapToEndIfNearEnd", () => {
 			snapToEndIfNearEnd(view, {
 				contentHeight: 200,
 				viewportHeight: 35,
-				lastMessageStartRow: 120,
 			}),
 		).toBe(true);
 		expect(snapped).toBe(true);
 		expect(view.scrollTop).toBe(165);
 	});
 
-	test("keeps position when scrolled more than one viewport above the latest message", () => {
+	test("keeps position when scrolled more than one viewportHeight above the tail even inside a long recent message", () => {
 		const view = {
 			primary: true,
 			followEnd: true,
-			// Viewport shows rows 20..55 (viewportBottom = 55), while the latest
-			// message starts at row 120 (65 lines below the viewport > 35).
-			scrollTop: 20,
+			// 200-line transcript in a 35-line viewport (maxScrollTop = 165);
+			// user scrolled up to row 120 (45 lines above maxScrollTop > viewportHeight 35).
+			scrollTop: 120,
 			isFollowingEnd: false,
 			scrollToEnd() {
 				throw new Error("must not snap");
@@ -188,10 +187,10 @@ describe("snapToEndIfNearEnd", () => {
 			snapToEndIfNearEnd(view, {
 				contentHeight: 200,
 				viewportHeight: 35,
-				lastMessageStartRow: 120,
+				lastMessageStartRow: 80,
 			}),
 		).toBe(false);
-		expect(view.scrollTop).toBe(20);
+		expect(view.scrollTop).toBe(120);
 	});
 });
 
@@ -352,12 +351,13 @@ describe("follow-on-send extension", () => {
 		await emit("session_shutdown");
 	});
 
-	test("typing in the prompt editor snaps to the end when near the latest message", async () => {
+	test("typing in the prompt editor does not snap; hitting submit (Enter) snaps when near the tail", async () => {
 		await emit("session_start");
 		const view = startTranscript(100, 20);
 		// Scroll up 15 lines (within one viewportHeight of 20).
 		view.scrollBy(-15);
 		view.updateLayout(100, 20, () => {});
+		expect(view.scrollTop).toBe(65);
 		expect(view.isFollowingEnd).toBe(false);
 
 		const editor = new FakeEditor();
@@ -365,14 +365,21 @@ describe("follow-on-send extension", () => {
 		editor.handleInput("\x1b");
 		expect(view.isFollowingEnd).toBe(false);
 
-		// Typing a character snaps immediately.
-		editor.handleInput("a");
+		// Typing characters and editing must NOT snap to the bottom.
+		editor.handleInput("h");
+		editor.handleInput("i");
+		editor.handleInput("\x7f");
+		expect(view.isFollowingEnd).toBe(false);
+		expect(view.scrollTop).toBe(65);
+
+		// Hitting submit (Enter) on a non-empty prompt snaps to the end.
+		editor.handleInput("\r");
 		expect(view.isFollowingEnd).toBe(true);
 		expect(view.scrollTop).toBe(80);
 		await emit("session_shutdown");
 	});
 
-	test("typing in the prompt editor keeps the scroll position when far up in history", async () => {
+	test("hitting submit (Enter) in the prompt editor keeps the scroll position when far from the tail", async () => {
 		await emit("session_start");
 		const documentContainer = {
 			mouseLayout: {
@@ -387,21 +394,23 @@ describe("follow-on-send extension", () => {
 		};
 		const view = new FakeScrollView(documentContainer, { follow: "end", primary: true });
 		view.updateLayout(144, 20, () => {});
-		// Latest turn starts at row 82. Scroll all the way to row 10 (viewportBottom = 30,
-		// 52 lines above row 82 > viewportHeight 20).
-		view.scrollBy(-114);
+		// Scroll 30 lines above maxScrollTop (124 -> 94), which is inside the latest
+		// 60-line assistant message (rows 84..144) but > viewportHeight (20) from the tail.
+		view.scrollBy(-30);
 		view.updateLayout(144, 20, () => {});
-		expect(view.scrollTop).toBe(10);
+		expect(view.scrollTop).toBe(94);
 		expect(view.isFollowingEnd).toBe(false);
 
 		const editor = new FakeEditor();
 		editor.handleInput("h");
+		editor.handleInput("\r");
+		await emit("input", { text: "h", source: "interactive" });
 		expect(view.isFollowingEnd).toBe(false);
-		expect(view.scrollTop).toBe(10);
+		expect(view.scrollTop).toBe(94);
 		await emit("session_shutdown");
 	});
 
-	test("typing in an overlay editor does not snap the transcript", async () => {
+	test("submitting in an overlay editor or from an extension does not snap the transcript", async () => {
 		await emit("session_start");
 		const view = startTranscript(30, 5);
 		view.scrollBy(-3);
@@ -410,6 +419,10 @@ describe("follow-on-send extension", () => {
 
 		const overlayEditor = new FakeEditor({ hasOverlay: () => true });
 		overlayEditor.handleInput("q");
+		overlayEditor.handleInput("\r");
+		expect(view.isFollowingEnd).toBe(false);
+
+		await emit("input", { text: "background notification", source: "extension" });
 		expect(view.isFollowingEnd).toBe(false);
 		await emit("session_shutdown");
 	});

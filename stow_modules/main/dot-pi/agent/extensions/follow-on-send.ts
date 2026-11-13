@@ -1,5 +1,5 @@
 /**
- * follow-on-send.ts -- follow the transcript end when typing or sending a prompt.
+ * follow-on-send.ts -- follow the transcript end after submitting a prompt.
  *
  * Why this exists
  * ---------------
@@ -12,23 +12,20 @@
  * patches two prototypes for the life of a TUI session:
  *
  * - `ScrollView.prototype.updateLayout` runs on every layout. The patch
- *   records the primary follow-end view (the transcript), its content and
- *   viewport heights, and the start row of the most recent message/turn from
- *   the container's `mouseLayout`, then calls the original method. It never
- *   moves the view, so manual scrolling keeps the built-in exact-end rule.
+ *   records the primary follow-end view (the transcript) and its last content
+ *   and viewport heights, then calls the original method. It never moves the
+ *   view, so manual scrolling and typing keep the current scroll position.
  * - `Editor.prototype.handleInput` runs when typing or submitting in the
- *   prompt editor. When an edit changes the prompt text (and no overlay is
- *   open), it snaps the transcript back to the end if it is reasonably close
- *   to the most recent message.
+ *   prompt editor. Only when hitting submit (Enter) clears a non-empty prompt
+ *   (and no overlay is open) does it snap the transcript back to the end if
+ *   the scroll view is close enough to the tail of the conversation.
  *
- * On `Editor.handleInput` text edits, on the `input` event (a new user
- * message), and on `user_bash` (a `!` command), the extension checks the
- * recorded view: when the most recent message/turn is still on screen or
- * starts at most `max(NEAR_END_LINES, viewportHeight)` lines below the
- * viewport (or, when message bounds are unavailable, when the hidden tail is
- * within that threshold), it calls the view's own `scrollToEnd()`, which snaps
- * to the end and re-enables follow mode. Farther up in history, it changes
- * nothing.
+ * On prompt submit (`Editor.handleInput` on Enter, `input` event, and
+ * `user_bash` `!` command), the extension checks the recorded view: when the
+ * hidden tail below the viewport is at most `max(NEAR_END_LINES, viewportHeight)`
+ * lines, it calls the view's own `scrollToEnd()`, which snaps to the end and
+ * re-enables follow mode for the output that follows. Farther up in history,
+ * it changes nothing.
  *
  * Requires fullscreen mode (`tuiMode: "fullscreen"`), which owns the
  * transcript scroll view. In regular mode the terminal owns scrolling and
@@ -182,11 +179,11 @@ export function findLastMessageStartRow(root: unknown): number | undefined {
 }
 
 /**
- * Snap a transcript view to its end when it sits near the most recent message
- * or near the end of the transcript.
+ * Snap a transcript view to its end when it sits close enough to the tail of
+ * the conversation.
  *
  * @param view The transcript scroll view.
- * @param metrics Content and viewport heights (and optional last message start) from its last layout.
+ * @param metrics Content and viewport heights from its last layout.
  * @param withinLines Lines hidden below the viewport that count as near (defaults to `max(NEAR_END_LINES, viewportHeight)`).
  * @returns Whether the view now sits at and follows the end.
  */
@@ -203,14 +200,8 @@ export function snapToEndIfNearEnd(
 			: Number.isFinite(withinLines)
 				? Math.max(0, Math.trunc(withinLines))
 				: 0;
-	if (metrics.lastMessageStartRow !== undefined && Number.isFinite(metrics.lastMessageStartRow)) {
-		const targetRow = Math.max(0, Math.min(metrics.contentHeight, Math.trunc(metrics.lastMessageStartRow)));
-		const viewportBottom = view.scrollTop + metrics.viewportHeight;
-		if (targetRow - viewportBottom > threshold) return false;
-	} else {
-		const maxScrollTop = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
-		if (maxScrollTop - view.scrollTop > threshold) return false;
-	}
+	const maxScrollTop = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
+	if (maxScrollTop - view.scrollTop > threshold) return false;
 	view.scrollToEnd();
 	return true;
 }
@@ -286,6 +277,17 @@ function patchedUpdateLayout(
 	}
 }
 
+/** Whether `data` is an unmodified Enter/submit key sequence. */
+export function isSubmitKeyData(data: string): boolean {
+	return (
+		data === "\r" ||
+		data === "\n" ||
+		data === "\x1bOM" ||
+		data === "\x1b[13~" ||
+		/^(\x1b\[13(?:;1(?::\d+)?)?u|\x1b\[27;1;13~)$/.test(data)
+	);
+}
+
 function patchedHandleInput(this: EditorLike, data: string): void {
 	if (!installed) {
 		originalHandleInput!.call(this, data);
@@ -294,8 +296,9 @@ function patchedHandleInput(this: EditorLike, data: string): void {
 	const beforeText = typeof this.getText === "function" ? this.getText() : undefined;
 	originalHandleInput!.call(this, data);
 	if (this.tui?.hasOverlay?.()) return;
+	if (!isSubmitKeyData(data)) return;
 	const afterText = typeof this.getText === "function" ? this.getText() : undefined;
-	if (beforeText !== undefined && afterText !== beforeText) {
+	if (beforeText !== undefined && beforeText.trim().length > 0 && afterText === "") {
 		if (!transcriptView?.deref()) {
 			const primary = this.tui?.getPrimaryScrollView?.();
 			if (primary && primary.primary && primary.followEnd) {
@@ -364,8 +367,11 @@ export default function followOnSendExtension(pi: ExtensionAPI): void {
 
 	// A new user message: follow the output it is about to produce when the
 	// transcript already sits near the end.
-	pi.on("input", (_event, ctx) => {
+	pi.on("input", (event, ctx) => {
 		if (ctx.mode !== "tui") return;
+		if ((event as { source?: string })?.source && (event as { source?: string }).source !== "interactive") {
+			return { action: "continue" } as const;
+		}
 		followTranscriptOnSend();
 		return { action: "continue" } as const;
 	});
@@ -377,7 +383,8 @@ export default function followOnSendExtension(pi: ExtensionAPI): void {
 		followTranscriptOnSend();
 	});
 
-	pi.on("session_shutdown", () => {
+	pi.on("session_shutdown", (_event, ctx) => {
+		if (ctx && ctx.mode !== "tui") return;
 		uninstallFollowOnSend();
 	});
 
@@ -386,7 +393,7 @@ export default function followOnSendExtension(pi: ExtensionAPI): void {
 		handler: async (_args, ctx) => {
 			ctx.ui.notify(
 				installed
-					? `follow-on-send: active (typing or sending snaps to the end when near the latest message)`
+					? `follow-on-send: active (submitting snaps to the end when near the tail of the conversation)`
 					: "follow-on-send: inactive (patch not installed)",
 				installed ? "info" : "warning",
 			);
