@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, spyOn, test } from "bun:test";
 import * as fs from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -64,6 +64,9 @@ async function emit(event: string): Promise<void> {
 	}
 }
 
+const FRAME = "\x1b[?2026hnew editor text\x1b[?25h\x1b[?2026l";
+const BAR_FRAME = "\x1b[?2026h\x1b[6 qnew editor text\x1b[?25h\x1b[?2026l";
+
 class FakeTui {
 	writes: string[] = [];
 	hardwareCursor = false;
@@ -113,25 +116,78 @@ describe("insert-caret extension", () => {
 		// drawn block downstream in pi's TUI, not by editing lines here).
 		expect(lines[1]).toContain("hello");
 		expect(lines[1]).toContain("world".slice(1));
-		// The hardware cursor is on and its shape set to a steady bar.
+		// Rendering only queues the shape; it must not send an out-of-band
+		// cursor-only write that a multiplexer can paint with stale text.
 		expect(tui.hardwareCursor).toBe(true);
-		expect(tui.writes).toEqual(["\x1b[6 q"]);
+		expect(tui.writes).toEqual([]);
+		tui.terminal.write(FRAME);
+		expect(tui.writes).toEqual([BAR_FRAME]);
 
 		// An immediate second render does not spam the shape sequence.
 		editor.render(40);
-		expect(tui.writes).toEqual(["\x1b[6 q"]);
+		tui.terminal.write(FRAME);
+		expect(tui.writes).toEqual([BAR_FRAME, FRAME]);
 	});
 
 	test("restores the default cursor shape on shutdown", async () => {
 		const tui = new FakeTui();
 		const editor = new Editor(tui, {});
+		const originalWrite = tui.terminal.write;
 		editor.render(40);
-		expect(tui.writes).toEqual(["\x1b[6 q"]);
+		tui.terminal.write(FRAME);
+		expect(tui.writes).toEqual([BAR_FRAME]);
 
 		await emit("session_shutdown");
-		expect(tui.writes).toEqual(["\x1b[6 q", "\x1b[0 q"]);
+		expect(tui.writes).toEqual([BAR_FRAME, "\x1b[0 q"]);
+		expect(tui.terminal.write).toBe(originalWrite);
 
 		// Reinstall for any later tests.
+		await emit("session_start");
+	});
+
+	test("periodic reassertions stay inside synchronized frames and preserve other writes", () => {
+		const clock = spyOn(Date, "now").mockReturnValue(1000);
+		try {
+			const tui = new FakeTui();
+			const editor = new Editor(tui, {});
+			editor.render(40);
+			tui.terminal.write(FRAME);
+			clock.mockReturnValue(2100);
+			editor.render(40);
+			expect(tui.writes).toEqual([BAR_FRAME]);
+			tui.terminal.write("unrelated terminal write");
+			expect(tui.writes.at(-1)).toBe("unrelated terminal write");
+			tui.terminal.write(FRAME);
+			expect(tui.writes.at(-1)).toBe(BAR_FRAME);
+			editor.render(40);
+			tui.terminal.write(FRAME);
+			expect(tui.writes.at(-1)).toBe(FRAME);
+		} finally { clock.mockRestore(); }
+	});
+
+	test("many editor renders create one terminal patch and restore the shape once", async () => {
+		const tui = new FakeTui();
+		const editor = new Editor(tui, {});
+		for (let i = 0; i < 50; i++) editor.render(40);
+		expect(tui.writes).toEqual([]);
+		tui.terminal.write(FRAME);
+		expect(tui.writes).toEqual([BAR_FRAME]);
+		await emit("session_shutdown");
+		expect(tui.writes).toEqual([BAR_FRAME, "\x1b[0 q"]);
+		await emit("session_start");
+	});
+
+	test("shutdown disarms queued assertions without clobbering later terminal wrappers", async () => {
+		const tui = new FakeTui();
+		const editor = new Editor(tui, {});
+		editor.render(40);
+		const inner = tui.terminal.write;
+		const outer = (data: string) => inner(data);
+		tui.terminal.write = outer;
+		await emit("session_shutdown");
+		expect(tui.terminal.write).toBe(outer);
+		tui.terminal.write(FRAME);
+		expect(tui.writes).toEqual(["\x1b[0 q", FRAME]);
 		await emit("session_start");
 	});
 });

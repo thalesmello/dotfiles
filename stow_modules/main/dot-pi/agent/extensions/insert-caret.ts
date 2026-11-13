@@ -30,7 +30,9 @@
  * no rendered lines; it only configures the TUI on the first render and
  * re-asserts the bar shape at most once a second (in case an external
  * editor such as Neovim, opened from pi, leaves its own shape behind
- * when it exits).
+ * when it exits). Shape writes are queued into Pi's synchronized terminal
+ * frame, never emitted as separate writes while the editor is rendering.
+ * This keeps a multiplexer from seeing a new cursor state with old text.
  *
  * Patch state lives on `globalThis` under a Symbol (the osc8-links.ts /
  * code-block-copy.ts pattern) so a /reload never wraps twice, and
@@ -48,9 +50,23 @@ import { Editor } from "@earendil-works/pi-tui";
 const CURSOR_SHAPE_BAR = "\x1b[6 q";
 const CURSOR_SHAPE_DEFAULT = "\x1b[0 q";
 const REASSERT_INTERVAL_MS = 1_000;
+const BEGIN_SYNCHRONIZED_OUTPUT = "\x1b[?2026h";
+
+type TerminalWrite = (data: string) => unknown;
+interface TerminalLike {
+	write?: TerminalWrite;
+}
+interface CursorWritePatch {
+	terminal: TerminalLike;
+	original: TerminalWrite;
+	patched: TerminalWrite;
+	descriptor?: PropertyDescriptor;
+	enabled: boolean;
+	pendingTuis: Set<object>;
+}
 
 interface TuiLike {
-	terminal?: { write?: (data: string) => void };
+	terminal?: TerminalLike;
 	getShowHardwareCursor?: () => boolean;
 	setShowHardwareCursor?: (enabled: boolean) => void;
 	requestRender?: () => void;
@@ -68,7 +84,7 @@ interface PatchState {
 	origRender: RenderFn | undefined;
 	patchedRender: RenderFn | undefined;
 	configuredTuis: WeakSet<object>;
-	terminals: Set<{ write: (data: string) => void }>;
+	terminalPatches: Map<TerminalLike, CursorWritePatch>;
 	lastAssertAt: Map<object, number>;
 	configureCount: number;
 }
@@ -82,11 +98,44 @@ function getPatchState(): PatchState {
 		origRender: undefined,
 		patchedRender: undefined,
 		configuredTuis: new WeakSet(),
-		terminals: new Set(),
+		terminalPatches: new Map(),
 		lastAssertAt: new Map(),
 		configureCount: 0,
 	};
-	return holder[PATCH_STATE_SYMBOL]!;
+	const state = holder[PATCH_STATE_SYMBOL]!;
+	// A /reload can reuse state created by an earlier extension version.
+	state.terminalPatches ??= new Map();
+	return state;
+}
+
+function getTerminalPatch(state: PatchState, terminal: TerminalLike): CursorWritePatch | undefined {
+	const existing = state.terminalPatches.get(terminal);
+	if (existing) return existing;
+	if (typeof terminal.write !== "function") return undefined;
+	const original = terminal.write;
+	const patch: CursorWritePatch = {
+		terminal,
+		original,
+		patched: (data) => {
+			if (patch.enabled && patch.pendingTuis.size > 0) {
+				const begin = data.indexOf(BEGIN_SYNCHRONIZED_OUTPUT);
+				if (begin >= 0) {
+					const cut = begin + BEGIN_SYNCHRONIZED_OUTPUT.length;
+					data = data.slice(0, cut) + CURSOR_SHAPE_BAR + data.slice(cut);
+					const now = Date.now();
+					for (const tui of patch.pendingTuis) state.lastAssertAt.set(tui, now);
+					patch.pendingTuis.clear();
+				}
+			}
+			return original.call(terminal, data);
+		},
+		descriptor: Object.getOwnPropertyDescriptor(terminal, "write"),
+		enabled: true,
+		pendingTuis: new Set(),
+	};
+	terminal.write = patch.patched;
+	state.terminalPatches.set(terminal, patch);
+	return patch;
 }
 
 function assertInsertCursor(tui: TuiLike | undefined): void {
@@ -96,19 +145,17 @@ function assertInsertCursor(tui: TuiLike | undefined): void {
 		if (typeof tui.setShowHardwareCursor === "function" && tui.getShowHardwareCursor?.() !== true) {
 			tui.setShowHardwareCursor(true);
 		}
-		const write = tui.terminal?.write;
-		if (typeof write !== "function") return;
-		state.terminals.add(write.bind(tui.terminal));
+		if (!tui.terminal) return;
+		const patch = getTerminalPatch(state, tui.terminal);
+		if (!patch) return;
 		const now = Date.now();
 		const last = state.lastAssertAt.get(tui as object) ?? 0;
 		if (!state.configuredTuis.has(tui as object)) {
 			state.configuredTuis.add(tui as object);
-			state.lastAssertAt.set(tui as object, now);
 			state.configureCount += 1;
-			write.call(tui.terminal, CURSOR_SHAPE_BAR);
+			patch.pendingTuis.add(tui as object);
 		} else if (now - last >= REASSERT_INTERVAL_MS) {
-			state.lastAssertAt.set(tui as object, now);
-			write.call(tui.terminal, CURSOR_SHAPE_BAR);
+			patch.pendingTuis.add(tui as object);
 		}
 	} catch {
 		// Cursor styling must never break rendering.
@@ -142,14 +189,20 @@ function uninstallInsertCaret(): void {
 	}
 	// Restore the terminal's default cursor shape on the way out (a
 	// reload's new runtime re-asserts the bar on its first render).
-	for (const write of state.terminals) {
+	for (const patch of state.terminalPatches.values()) {
+		patch.enabled = false;
+		patch.pendingTuis.clear();
 		try {
-			write(CURSOR_SHAPE_DEFAULT);
+			patch.original.call(patch.terminal, CURSOR_SHAPE_DEFAULT);
 		} catch {
 			// Ignore a dead terminal.
 		}
+		if (patch.terminal.write === patch.patched) {
+			if (patch.descriptor) Object.defineProperty(patch.terminal, "write", patch.descriptor);
+			else Reflect.deleteProperty(patch.terminal, "write");
+		}
 	}
-	state.terminals.clear();
+	state.terminalPatches.clear();
 	state.configuredTuis = new WeakSet();
 	state.lastAssertAt.clear();
 }
