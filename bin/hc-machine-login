@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""Interactive transport authentication followed by an immediate hc reconnect.
+
+Run only in a human-facing PTY. No credential capture or daemon auto-start.
+~/.config/herdr-app/machine-login.json provides per-machine preparation argv.
+"""
+import argparse
+import json
+import os
+from pathlib import Path
+import shlex
+import subprocess
+import sys
+
+
+class LoginError(RuntimeError):
+    pass
+
+
+def query(argv):
+    result = subprocess.run(argv, capture_output=True, text=True, timeout=70)
+    if result.returncode:
+        raise LoginError(result.stderr.strip() or f"{argv[0]} failed ({result.returncode})")
+    try:
+        return json.loads(result.stdout)
+    except ValueError as exc:
+        raise LoginError(f"{argv[0]} returned invalid JSON") from exc
+
+
+def preparation(machine, config):
+    """Build argv from trusted config, never evaluate a shell command."""
+    entry = config.get(machine['name'])
+    if entry is None:
+        if machine.get('via'):
+            raise LoginError('Configure a preparation command for this --via machine in machine-login.json')
+        return []
+    argv = entry.get('prepare') if isinstance(entry, dict) else None
+    if not isinstance(argv, list) or not argv or any(not isinstance(x, str) for x in argv):
+        raise LoginError('prepare must be a nonempty array of strings')
+    target = machine['target']
+    host = target
+    if machine.get('via'):
+        parts = shlex.split(target)
+        # Only the known ek run form has a safe, discoverable hostname.
+        if len(parts) != 4 or Path(parts[0]).name != 'ek' or parts[1] not in ('run', 'r') or parts[2] not in ('-s', '--peer-session-id-or-hostname'):
+            raise LoginError('Cannot derive a hostname from this --via command; use explicit preparation argv')
+        host = parts[3]
+        if not host or host.startswith('-'):
+            raise LoginError('Invalid Enkaku host selector')
+    return [arg.replace('{host}', host).replace('{machine}', machine['name']) for arg in argv]
+
+
+def login(name, config, preview=False):
+    machines = query(['hc', 'machine', 'ls', '--json']).get('machines', [])
+    machine = next((m for m in machines if m.get('name') == name), None)
+    if machine is None:
+        raise LoginError(f'No saved hc machine named {name}')
+    if machine.get('state') == 'connected':
+        print(f'{name} is already connected.')
+        return 0
+    if 'a different core answers there' in (machine.get('why') or ''):
+        raise LoginError('Remote core identity changed. Use the existing rebuilt-machine repair flow; authentication does not re-pair it.')
+    prepare = preparation(machine, config)
+    retry = ['hc-preset', '--backend', 'hc', 'rpc', 'machine.connect', json.dumps({'machine': name})]
+    if preview:
+        print(json.dumps({'machine': name, 'prepare': prepare, 'retry': retry}))
+        return 0
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        raise LoginError('Authentication requires a human-facing terminal, not redirected input/output')
+    if prepare:
+        if Path(prepare[0]).name == 'ek':
+            # Never let an AI/sandbox helper auto-start an authentication daemon.
+            status = subprocess.run([prepare[0], 'status'], capture_output=True, text=True, timeout=10)
+            if status.returncode:
+                raise LoginError('Enkaku daemon unavailable. Run ek start in a normal terminal, then retry here.')
+        print(f'Authenticate {name}\nTransport: {shlex.join(prepare)}\n', flush=True)
+        # The actual SSH/FIDO2/Duo UI runs on this PTY. No passwords/codes are
+        # copied into arguments, logs, custom inputs, or JSON files.
+        code = subprocess.call(prepare)
+        if code:
+            raise LoginError(f'Authentication did not complete (exit {code}); hc was not reconnected')
+    else:
+        # Native SSH machines use hc's human login flow rather than bypassing it.
+        code = subprocess.call(['hc', 'machine', 'login', name])
+        if code:
+            raise LoginError(f'hc login did not complete (exit {code})')
+    print(f'\nReconnecting {name} now…', flush=True)
+    reply = query(retry)
+    result = reply.get('result') or {}
+    if result.get('state') != 'connected':
+        raise LoginError(result.get('why') or f"hc reports {result.get('state', 'unknown')} after reconnect")
+    print(f'{name} connected. Your existing remote terminals are preserved.', flush=True)
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('machine')
+    parser.add_argument('--preview', action='store_true', help='Print command plan without authenticating/reconnecting')
+    args = parser.parse_args()
+    home = Path(os.environ.get('HERDR_APP_HOME', Path.home() / '.config' / 'herdr-app'))
+    config_path = home / 'machine-login.json'
+    try:
+        config = json.loads(config_path.read_text()) if config_path.exists() else {}
+        if not isinstance(config, dict):
+            raise LoginError('machine-login.json must be an object')
+        return login(args.machine, config, preview=args.preview)
+    except (LoginError, OSError, ValueError, subprocess.SubprocessError) as exc:
+        print(f'\nConnection failed: {exc}', file=sys.stderr, flush=True)
+        return 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

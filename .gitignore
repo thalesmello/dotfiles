@@ -45,7 +45,8 @@ stow_modules/main/dot-config/herdr-app/update-notes*
 stow_modules/main/dot-config/herdr-app/view.json
 stow_modules/main/dot-config/herdr-app/window.json
 stow_modules/main/dot-config/herdr-app/windows.json
-stow_modules/main/dot-config/herdr-app/layouts/
+stow_modules/main/dot-config/herdr-app/layouts/*
+!stow_modules/main/dot-config/herdr-app/layouts/transition.json
 stow_modules/main/dot-config/herdr-app/themes/atom-one-dark.json
 stow_modules/main/dot-config/herdr-app/themes/win98.json
 stow_modules/main/dot-config/herdr-app/mods/*
@@ -55,6 +56,8 @@ stow_modules/main/dot-config/herdr-app/mods/*
 !stow_modules/main/dot-config/herdr-app/mods/run-command/**
 !stow_modules/main/dot-config/herdr-app/mods/run-command-callback/
 !stow_modules/main/dot-config/herdr-app/mods/run-command-callback/**
+!stow_modules/main/dot-config/herdr-app/mods/spaces-reconnect/
+!stow_modules/main/dot-config/herdr-app/mods/spaces-reconnect/**
 stow_modules/main/dot-config/herdr-app/mods/*/*.d.ts
 stow_modules/main/dot-config/herdr-app/mods/*/jsconfig.json
 stow_modules/main/dot-pi/agent/auth.json*

@@ -299,7 +299,7 @@ def hc_rpc(method: str, params: dict[str, Any] | None = None, timeout: float = 5
     ) if sock else None
     # Never swallow a failed mutation or retry it after an uncertain outcome.
     if method in {"terminal.run", "terminal.send", "terminal.keys", "terminal.kill",
-                  "terminal.rm", "terminal.label", "terminal.keep", "doc.set"}:
+                  "terminal.rm", "terminal.label", "terminal.keep", "doc.set", "machine.connect"}:
         require_reply(reply, method)
     return reply
 
@@ -841,6 +841,10 @@ def hc_show_notification(title: str, body: str = "") -> None:
 
 
 def handle_hc_rpc_compat(method: str, params: dict[str, Any]) -> dict[str, Any]:
+    if method == "machine.connect":
+        # Explicit retry after a human authenticates the --via transport.
+        # This preserves the saved machine/remote core identity and terminals.
+        return require_reply(hc_rpc(method, params, timeout=60), method)
     world = HcWorld()
     if method == "pane.focus":
         target = params.get("pane_id") or params.get("target")
