@@ -54,6 +54,15 @@
  *   word-boundary wrap with one space), blockquotes become `> ` lines,
  *   fenced code is kept verbatim, and a break the wrapper would not have
  *   taken (a short line, a blank line, a structural line) stays a newline.
+ * - Triple-clicking any row selects the whole visual row; dragging up or
+ *   down on the third click (or pressing `Shift+Up`/`Shift+Down` after)
+ *   expands or shrinks the selection by whole visual rows.
+ * - Whenever a selection is active (regular drag, double-click word, or
+ *   triple-click line), `Shift+Arrows` moves the selection focus cursor to
+ *   expand or shrink the selection, and `Shift+Alt+Left`/`Shift+Alt+Right`
+ *   moves the selection focus by words, without copying. Mouse selections
+ *   copy once on release; a double-click copy waits out the multi-click
+ *   interval so a third click can cancel the intermediate word copy.
  *
  * Requires fullscreen mode (`tuiMode: "fullscreen"`) with copy on select, so
  * pi captures the mouse at all. In regular mode the terminal owns selection
@@ -80,6 +89,7 @@
 
 import { CustomEditor, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { sliceByColumn, stripTerminalSequences, TuiAltScreen, visibleWidth } from "@earendil-works/pi-tui";
+import { installEditorSelection } from "./selection-manager/editor-selection.ts";
 
 // ---------------------------------------------------------------------------
 // Rendered-table parsing (operates on plain rendered lines, as pi's TUI does)
@@ -863,11 +873,17 @@ function getCodeFrameHighlightSegments(
 // TuiAltScreen internals, reached through runtime properties
 // ---------------------------------------------------------------------------
 
+interface ScrollViewLike {
+	scrollTop: number;
+	viewportHeight?: number;
+	scrollTo?(row: number, options?: { disableFollow?: boolean }): void;
+}
+
 interface SelectionPointLike {
 	row: number;
 	col: number;
 	boundary?: boolean;
-	scrollView?: { scrollTop: number };
+	scrollView?: ScrollViewLike;
 }
 
 interface SelectionLike {
@@ -888,7 +904,7 @@ interface LayoutBoxLike {
 	rect: LayoutRectLike;
 	clip: LayoutRectLike;
 	children?: LayoutBoxLike[];
-	scrollView?: { scrollTop: number };
+	scrollView?: ScrollViewLike;
 	scrollContentLines?: readonly string[];
 }
 
@@ -905,6 +921,30 @@ interface AltScreenInternals {
 		minColumn?: number,
 		maxColumn?: number,
 	): { start: number; end: number };
+	getActiveSelectionText?(): string | undefined;
+	copySelectionToClipboard?(): Promise<boolean> | boolean;
+	copyActiveSelectionToClipboard?(): Promise<boolean> | boolean;
+	copyTextToClipboard?(text: string): Promise<boolean> | boolean;
+	copyOnSelect?: boolean;
+	requestRender?(): void;
+	getSelectionPoint?(event: { x: number; y: number }, scrollView?: ScrollViewLike): SelectionPointLike;
+	getSelectionSourceLine?(point: SelectionPointLike): string;
+	getWordSelection?(point: SelectionPointLike): SelectionLike | undefined;
+	getLineSelection?(point: SelectionPointLike): SelectionLike;
+	handleSelectionMouseEvent?(event: RawMouseEvent): void;
+	selectionAnchor?: SelectionPointLike;
+	selectionFocus?: SelectionPointLike;
+	anchor?: SelectionPointLike;
+	focus?: SelectionPointLike;
+	selectionGranularity?: "character" | "word" | "line";
+	selectionInitialRange?: SelectionLike;
+	selectionPressActive?: boolean;
+	selectionDragged?: boolean;
+	lastClick?: unknown;
+	pressedUrl?: string;
+	mouseCapture?: unknown;
+	mousePressTarget?: unknown;
+	scrollbarDrag?: unknown;
 	previousScreen: string[];
 	currentLayout?: LayoutFrameLike;
 	terminal: { columns: number; rows: number };
@@ -955,6 +995,701 @@ function applySelectionHighlight(text: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Selection cursor, triple-click line selection, and keyboard selection
+// ---------------------------------------------------------------------------
+
+const DOUBLE_CLICK_INTERVAL_MS = 500;
+// Keep normal double-click tolerance, but resolve its copy more promptly.
+const TRIPLE_CLICK_INTERVAL_MS = 200;
+const CLICK_COLUMN_TOLERANCE = 2;
+const TERMINAL_WORD_SELECTION_JOINERS = new Set(["/", "-", "+", "\\", "~", "_", "."]);
+const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+const wordSegmenter = new Intl.Segmenter(undefined, { granularity: "word" });
+
+/** Multi-click tracker tolerant of sub-cell jitter and clicks on trailing line whitespace. */
+let lastPress:
+	| {
+			tui: AltScreenInternals;
+			timestamp: number;
+			x: number;
+			y: number;
+			count: number;
+	  }
+	| undefined;
+
+// A double-click may still become a triple-click. Never publish its word
+// selection until that possibility has expired.
+let pendingMouseCopy: { timer: ReturnType<typeof setTimeout> } | undefined;
+
+function cancelPendingMouseCopy(): void {
+	if (!pendingMouseCopy) return;
+	clearTimeout(pendingMouseCopy.timer);
+	pendingMouseCopy = undefined;
+}
+
+function copyCompletedMouseSelection(internals: AltScreenInternals): void {
+	cancelPendingMouseCopy();
+	if (!internals.copyOnSelect || !internals.getSelectionBounds()) return;
+	const isPendingTripleClick = lastPress?.tui === internals && lastPress.count === 2 && !internals.selectionDragged;
+	if (!isPendingTripleClick) {
+		copyActiveSelection(internals);
+		return;
+	}
+	const anchor = getAnchor(internals);
+	const focus = getFocus(internals);
+	const text = internals.getActiveSelectionText?.();
+	// Count clicks from press to press, just like Pi. Starting the wait at
+	// release gives the third press at least the full triple-click interval.
+	const pending = {
+		timer: setTimeout(() => {
+			if (pendingMouseCopy !== pending) return;
+			pendingMouseCopy = undefined;
+			if (
+				!installed || !internals.copyOnSelect || internals.selectionPressActive ||
+				getAnchor(internals) !== anchor || getFocus(internals) !== focus ||
+				internals.getActiveSelectionText?.() !== text
+			) return;
+			copyActiveSelection(internals);
+		}, TRIPLE_CLICK_INTERVAL_MS),
+	};
+	pendingMouseCopy = pending;
+	pending.timer.unref?.();
+}
+
+/** True while a selection is being adjusted with Shift+Arrow keys (even if momentarily collapsed). */
+let keyboardSelectionActive = false;
+/** True while Enter should copy the active/adjusted selection (cleared once Enter copies or the user types in the editor). */
+let selectionCopyArmed = false;
+/** Prompt selection and transcript selection must never compete for arrow/copy keys. */
+let transcriptSelectionOwnsInput = false;
+/** Remembered target column across consecutive Shift+Up / Shift+Down movements. */
+let preferredFocusCol: number | undefined;
+
+function getAnchor(internals: AltScreenInternals): SelectionPointLike | undefined {
+	return internals.selectionAnchor ?? internals.anchor;
+}
+
+function getFocus(internals: AltScreenInternals): SelectionPointLike | undefined {
+	return internals.selectionFocus ?? internals.focus;
+}
+
+function setAnchorAndFocus(
+	internals: AltScreenInternals,
+	anchor: SelectionPointLike | undefined,
+	focus: SelectionPointLike | undefined,
+): void {
+	internals.selectionAnchor = anchor;
+	internals.selectionFocus = focus;
+	if ("anchor" in internals) internals.anchor = anchor;
+	if ("focus" in internals) internals.focus = focus;
+}
+
+function findPrimaryScrollBox(box: LayoutBoxLike | undefined): LayoutBoxLike | undefined {
+	if (!box) return undefined;
+	if (box.scrollView) return box;
+	for (const child of box.children ?? []) {
+		const found = findPrimaryScrollBox(child);
+		if (found) return found;
+	}
+	return undefined;
+}
+
+function getSourceLinesForPoint(internals: AltScreenInternals, point?: SelectionPointLike): readonly string[] {
+	const scrollView = point?.scrollView ?? findPrimaryScrollBox(internals.currentLayout?.root)?.scrollView;
+	if (scrollView) {
+		const box = findScrollViewBox(internals.currentLayout?.root, scrollView);
+		if (box?.scrollContentLines) return box.scrollContentLines;
+	}
+	return internals.previousScreen;
+}
+
+function getSourceLineAt(internals: AltScreenInternals, point: SelectionPointLike): string {
+	if (typeof internals.getSelectionSourceLine === "function") {
+		return internals.getSelectionSourceLine(point);
+	}
+	const lines = getSourceLinesForPoint(internals, point);
+	return lines[point.row] ?? "";
+}
+
+function getCodeFrameBodyBoundsAtRow(
+	internals: AltScreenInternals,
+	point: SelectionPointLike,
+): CodeFrameRowBounds | undefined {
+	const lines = getSourceLinesForPoint(internals, point);
+	const plainLines = lines.map((line) => stripTerminalSequences(line));
+	const frame = parseCodeFrameBlocks(plainLines).find(
+		(candidate) => point.row >= candidate.bodyStartRow && point.row <= candidate.bodyEndRow,
+	);
+	if (!frame) return undefined;
+	return getCodeFrameRowBounds(plainLines[point.row] ?? "");
+}
+
+function getLineContentBounds(
+	internals: AltScreenInternals,
+	point: SelectionPointLike,
+): { start: number; end: number; plain: string } {
+	const plain = stripTerminalSequences(getSourceLineAt(internals, point));
+	const codeBounds = getCodeFrameBodyBoundsAtRow(internals, point);
+	if (codeBounds) {
+		return { start: codeBounds.contentStart, end: codeBounds.trimmedEnd, plain };
+	}
+	return { start: 0, end: visibleWidth(plain), plain };
+}
+
+function resolveSelectionPoint(
+	internals: AltScreenInternals,
+	event: { x: number; y: number },
+	scrollView?: ScrollViewLike,
+): SelectionPointLike {
+	const resolvedScrollView =
+		scrollView ??
+		getAnchor(internals)?.scrollView ??
+		findPrimaryScrollBox(internals.currentLayout?.root)?.scrollView ??
+		(internals as { scrollView?: ScrollViewLike }).scrollView;
+	if (typeof internals.getSelectionPoint === "function") {
+		return internals.getSelectionPoint(event, resolvedScrollView);
+	}
+	if (resolvedScrollView) {
+		const box = findScrollViewBox(internals.currentLayout?.root, resolvedScrollView);
+		if (box && box.rect.height > 0 && box.clip.height > 0) {
+			const visibleTop = Math.max(0, box.rect.y, box.clip.y);
+			const visibleBottom = Math.min(
+				internals.terminal.rows - 1,
+				box.rect.y + box.rect.height - 1,
+				box.clip.y + box.clip.height - 1,
+			);
+			const pointerRow = Math.max(visibleTop, Math.min(visibleBottom, event.y));
+			const maxContentRow = Math.max(0, (box.scrollContentLines?.length ?? 1) - 1);
+			return {
+				row: Math.max(0, Math.min(maxContentRow, resolvedScrollView.scrollTop + pointerRow - box.rect.y)),
+				col: Math.max(0, Math.min(box.rect.width - 1, event.x - box.rect.x)),
+				scrollView: resolvedScrollView,
+			};
+		}
+	}
+	const maxRow = Math.max(0, (internals.previousScreen.length || internals.terminal.rows) - 1);
+	return {
+		row: Math.max(0, Math.min(maxRow, event.y)),
+		col: Math.max(0, Math.min(Math.max(0, internals.terminal.columns - 1), event.x)),
+		...(resolvedScrollView ? { scrollView: resolvedScrollView } : {}),
+	};
+}
+
+function getGraphemeRanges(plainLine: string): Array<{ start: number; end: number }> {
+	const ranges: Array<{ start: number; end: number }> = [];
+	let col = 0;
+	for (const { segment } of graphemeSegmenter.segment(plainLine)) {
+		const width = visibleWidth(segment);
+		if (width > 0) {
+			ranges.push({ start: col, end: col + width });
+			col += width;
+		}
+	}
+	return ranges;
+}
+
+function getGraphemeAtColumn(plainLine: string, column: number): { start: number; end: number } | undefined {
+	for (const range of getGraphemeRanges(plainLine)) {
+		if (column >= range.start && column < range.end) return range;
+	}
+	return undefined;
+}
+
+function snapColumnToGraphemeStart(plainLine: string, column: number): number {
+	const width = visibleWidth(plainLine);
+	const clamped = Math.max(0, Math.min(width, column));
+	return getGraphemeAtColumn(plainLine, clamped)?.start ?? clamped;
+}
+
+function getWordSelectionAt(internals: AltScreenInternals, point: SelectionPointLike): SelectionLike | undefined {
+	if (typeof internals.getWordSelection === "function") {
+		const builtIn = internals.getWordSelection(point);
+		if (builtIn) return builtIn;
+	}
+	const line = stripTerminalSequences(getSourceLineAt(internals, point));
+	const segments: Array<{ start: number; end: number; selectable: boolean; joiner: boolean }> = [];
+	let start = 0;
+	for (const segment of wordSegmenter.segment(line)) {
+		const end = start + visibleWidth(segment.segment);
+		const joiner = TERMINAL_WORD_SELECTION_JOINERS.has(segment.segment);
+		segments.push({ start, end, selectable: segment.isWordLike === true || joiner, joiner });
+		start = end;
+	}
+	const clickedSegmentIndex = segments.findIndex((segment) => point.col >= segment.start && point.col < segment.end);
+	if (clickedSegmentIndex < 0) return undefined;
+	const canJoin = (left: (typeof segments)[number], right: (typeof segments)[number]) =>
+		left.selectable && right.selectable && (left.joiner || right.joiner);
+	let selectionStart = segments[clickedSegmentIndex]!.start;
+	let selectionEnd = segments[clickedSegmentIndex]!.end;
+	for (let index = clickedSegmentIndex; index > 0 && canJoin(segments[index - 1]!, segments[index]!); index--) {
+		selectionStart = segments[index - 1]!.start;
+	}
+	for (
+		let index = clickedSegmentIndex;
+		index < segments.length - 1 && canJoin(segments[index]!, segments[index + 1]!);
+		index++
+	) {
+		selectionEnd = segments[index + 1]!.end;
+	}
+	return {
+		start: { ...point, col: selectionStart },
+		end: { ...point, col: selectionEnd, boundary: true },
+	};
+}
+
+function getWholeLineSelection(internals: AltScreenInternals, point: SelectionPointLike): SelectionLike {
+	const width = visibleWidth(getSourceLineAt(internals, point));
+	return {
+		start: { ...point, col: 0 },
+		end: { ...point, col: width, boundary: true },
+	};
+}
+
+function updateLineSelectionFocus(internals: AltScreenInternals, point: SelectionPointLike): void {
+	const initial = internals.selectionInitialRange ?? getWholeLineSelection(internals, getAnchor(internals) ?? point);
+	internals.selectionInitialRange = initial;
+	const range = getWholeLineSelection(internals, point);
+	if (range.start.row < initial.start.row) {
+		setAnchorAndFocus(internals, initial.end, range.start);
+	} else {
+		setAnchorAndFocus(internals, initial.start, range.end);
+	}
+}
+
+function updateWordSelectionFocus(internals: AltScreenInternals, point: SelectionPointLike): void {
+	const initial = internals.selectionInitialRange;
+	if (!initial) {
+		setAnchorAndFocus(internals, getAnchor(internals), point);
+		return;
+	}
+	const range = getWordSelectionAt(internals, point);
+	if (!range) return;
+	const targetBeforeInitial =
+		range.start.row < initial.start.row ||
+		(range.start.row === initial.start.row && range.start.col < initial.start.col);
+	if (targetBeforeInitial) {
+		setAnchorAndFocus(internals, initial.end, range.start);
+	} else {
+		setAnchorAndFocus(internals, initial.start, range.end);
+	}
+}
+
+/**
+ * Normalize `(anchor, focus)` into exact cursor boundaries (`boundary: true`
+ * on both endpoints) while preserving the currently selected column range.
+ */
+function normalizeSelectionCursors(
+	internals: AltScreenInternals,
+): { anchor: SelectionPointLike; focus: SelectionPointLike } | undefined {
+	const anchor = getAnchor(internals);
+	const focus = getFocus(internals);
+	if (!anchor || !focus) return undefined;
+	if (anchor.boundary && focus.boundary) {
+		internals.selectionGranularity = "character";
+		internals.selectionInitialRange = undefined;
+		return { anchor, focus };
+	}
+	const anchorBeforeFocus = anchor.row < focus.row || (anchor.row === focus.row && anchor.col <= focus.col);
+	const startPoint = anchorBeforeFocus ? anchor : focus;
+	const endPoint = anchorBeforeFocus ? focus : anchor;
+
+	const startPlain = stripTerminalSequences(getSourceLineAt(internals, startPoint));
+	const startWidth = visibleWidth(startPlain);
+	const startCol = startPoint.boundary
+		? Math.min(startPoint.col, startWidth)
+		: (getGraphemeAtColumn(startPlain, startPoint.col)?.start ?? Math.min(startPoint.col, startWidth));
+
+	const endPlain = stripTerminalSequences(getSourceLineAt(internals, endPoint));
+	const endWidth = visibleWidth(endPlain);
+	const endCol = endPoint.boundary
+		? Math.min(endPoint.col, endWidth)
+		: (getGraphemeAtColumn(endPlain, endPoint.col)?.end ?? Math.min(endPoint.col + 1, endWidth));
+
+	const normStart: SelectionPointLike = { ...startPoint, col: startCol, boundary: true };
+	const normEnd: SelectionPointLike = { ...endPoint, col: endCol, boundary: true };
+	const normAnchor = anchorBeforeFocus ? normStart : normEnd;
+	const normFocus = anchorBeforeFocus ? normEnd : normStart;
+
+	internals.selectionGranularity = "character";
+	internals.selectionInitialRange = undefined;
+	setAnchorAndFocus(internals, normAnchor, normFocus);
+	return { anchor: normAnchor, focus: normFocus };
+}
+
+function moveCursorCharLeft(internals: AltScreenInternals, focus: SelectionPointLike): SelectionPointLike {
+	const bounds = getLineContentBounds(internals, focus);
+	if (focus.col > bounds.start) {
+		const ranges = getGraphemeRanges(bounds.plain);
+		for (let i = ranges.length - 1; i >= 0; i--) {
+			if (ranges[i]!.start < focus.col && ranges[i]!.start >= bounds.start) {
+				return { ...focus, col: ranges[i]!.start, boundary: true };
+			}
+		}
+		return { ...focus, col: Math.max(bounds.start, focus.col - 1), boundary: true };
+	}
+	if (focus.row > 0) {
+		const prevRow = focus.row - 1;
+		const prevBounds = getLineContentBounds(internals, { ...focus, row: prevRow });
+		return { ...focus, row: prevRow, col: prevBounds.end, boundary: true };
+	}
+	return { ...focus, col: bounds.start, boundary: true };
+}
+
+function moveCursorCharRight(
+	internals: AltScreenInternals,
+	focus: SelectionPointLike,
+	maxRow: number,
+): SelectionPointLike {
+	const bounds = getLineContentBounds(internals, focus);
+	if (focus.col < bounds.end) {
+		const ranges = getGraphemeRanges(bounds.plain);
+		for (const range of ranges) {
+			if (range.end > focus.col && range.end <= bounds.end) {
+				return { ...focus, col: range.end, boundary: true };
+			}
+		}
+		return { ...focus, col: Math.min(bounds.end, focus.col + 1), boundary: true };
+	}
+	if (focus.row < maxRow) {
+		const nextRow = focus.row + 1;
+		const nextBounds = getLineContentBounds(internals, { ...focus, row: nextRow });
+		return { ...focus, row: nextRow, col: nextBounds.start, boundary: true };
+	}
+	return { ...focus, col: bounds.end, boundary: true };
+}
+
+interface LineWordSegment {
+	start: number;
+	end: number;
+	isWord: boolean;
+	isWhitespace: boolean;
+}
+
+function getLineWordSegments(plainLine: string, minCol = 0, maxCol = visibleWidth(plainLine)): LineWordSegment[] {
+	const segments: LineWordSegment[] = [];
+	let col = 0;
+	for (const seg of wordSegmenter.segment(plainLine)) {
+		const width = visibleWidth(seg.segment);
+		if (width <= 0) continue;
+		const start = Math.max(minCol, col);
+		const end = Math.min(maxCol, col + width);
+		col += width;
+		if (end <= start) continue;
+		const isWhitespace = /^\s+$/.test(seg.segment);
+		const isWord = seg.isWordLike === true || TERMINAL_WORD_SELECTION_JOINERS.has(seg.segment);
+		segments.push({ start, end, isWord, isWhitespace });
+	}
+	return segments;
+}
+
+function moveCursorWordLeft(
+	internals: AltScreenInternals,
+	anchor: SelectionPointLike,
+	focus: SelectionPointLike,
+): SelectionPointLike {
+	const bounds = getLineContentBounds(internals, focus);
+	if (focus.col > bounds.start) {
+		const segments = getLineWordSegments(bounds.plain, bounds.start, bounds.end);
+		let idx = -1;
+		for (let i = 0; i < segments.length; i++) {
+			if (segments[i]!.start < focus.col) idx = i;
+		}
+		while (idx >= 0 && segments[idx]!.isWhitespace) idx--;
+		if (idx < 0) return { ...focus, col: bounds.start, boundary: true };
+		const targetIsWord = segments[idx]!.isWord;
+		while (
+			idx > 0 &&
+			!segments[idx - 1]!.isWhitespace &&
+			segments[idx - 1]!.isWord === targetIsWord
+		) {
+			idx--;
+		}
+		let nextCol = segments[idx]!.start;
+		// When shrinking a forward selection on the same row (`focus > anchor`),
+		// land on the end of the previous word (instead of leaving the separating
+		// whitespace highlighted) once `focus` is already at the word's start or
+		// when stepping back from the end of a subsequent word.
+		if (focus.row === anchor.row && focus.col > anchor.col && nextCol > anchor.col) {
+			let prevIdx = idx - 1;
+			while (prevIdx >= 0 && segments[prevIdx]!.isWhitespace) prevIdx--;
+			if (prevIdx >= 0 && segments[prevIdx]!.end >= anchor.col) {
+				nextCol = segments[prevIdx]!.end;
+			}
+		}
+		return { ...focus, col: nextCol, boundary: true };
+	}
+	if (focus.row > 0) {
+		const prevRow = focus.row - 1;
+		const prevBounds = getLineContentBounds(internals, { ...focus, row: prevRow });
+		return { ...focus, row: prevRow, col: prevBounds.end, boundary: true };
+	}
+	return { ...focus, col: bounds.start, boundary: true };
+}
+
+function moveCursorWordRight(
+	internals: AltScreenInternals,
+	anchor: SelectionPointLike,
+	focus: SelectionPointLike,
+	maxRow: number,
+): SelectionPointLike {
+	const bounds = getLineContentBounds(internals, focus);
+	if (focus.col < bounds.end) {
+		const segments = getLineWordSegments(bounds.plain, bounds.start, bounds.end);
+		let idx = segments.findIndex((seg) => seg.end > focus.col);
+		if (idx < 0) return { ...focus, col: bounds.end, boundary: true };
+		while (idx < segments.length && segments[idx]!.isWhitespace) idx++;
+		if (idx >= segments.length) return { ...focus, col: bounds.end, boundary: true };
+		const targetIsWord = segments[idx]!.isWord;
+		while (
+			idx + 1 < segments.length &&
+			!segments[idx + 1]!.isWhitespace &&
+			segments[idx + 1]!.isWord === targetIsWord
+		) {
+			idx++;
+		}
+		let nextCol = segments[idx]!.end;
+		// When shrinking a backward selection on the same row (`focus < anchor`),
+		// land on the start of the next word instead of leaving leading spaces.
+		if (focus.row === anchor.row && focus.col < anchor.col && nextCol < anchor.col) {
+			let nextIdx = idx + 1;
+			while (nextIdx < segments.length && segments[nextIdx]!.isWhitespace) nextIdx++;
+			if (nextIdx < segments.length && segments[nextIdx]!.start <= anchor.col) {
+				nextCol = segments[nextIdx]!.start;
+			}
+		}
+		return { ...focus, col: nextCol, boundary: true };
+	}
+	if (focus.row < maxRow) {
+		const nextRow = focus.row + 1;
+		const nextBounds = getLineContentBounds(internals, { ...focus, row: nextRow });
+		return { ...focus, row: nextRow, col: nextBounds.start, boundary: true };
+	}
+	return { ...focus, col: bounds.end, boundary: true };
+}
+
+function revealSelectionPoint(internals: AltScreenInternals, point: SelectionPointLike): void {
+	const scrollView = point.scrollView;
+	if (!scrollView) return;
+	const box = findScrollViewBox(internals.currentLayout?.root, scrollView);
+	const viewportHeight = scrollView.viewportHeight ?? box?.rect.height ?? 0;
+	if (viewportHeight <= 0) return;
+	if (point.row < scrollView.scrollTop) {
+		if (typeof scrollView.scrollTo === "function") scrollView.scrollTo(point.row, { disableFollow: true });
+		else scrollView.scrollTop = point.row;
+	} else if (point.row >= scrollView.scrollTop + viewportHeight) {
+		const nextTop = point.row - viewportHeight + 1;
+		if (typeof scrollView.scrollTo === "function") scrollView.scrollTo(nextTop, { disableFollow: true });
+		else scrollView.scrollTop = nextTop;
+	}
+}
+
+type SelectionKeyAction =
+	| "char-left"
+	| "char-right"
+	| "word-left"
+	| "word-right"
+	| "line-up"
+	| "line-down";
+
+function parseSelectionKey(data: string): { action: SelectionKeyAction; release: boolean } | undefined {
+	const csiArrow = /^\x1b(?:\[(?:1;)?|O)(\d+)(?::(\d+))?([ABCD])$/.exec(data);
+	if (csiArrow) {
+		const mod = (Number.parseInt(csiArrow[1]!, 10) - 1) & ~(64 | 128);
+		const release = csiArrow[2] === "3";
+		const dir = csiArrow[3]!;
+		if (mod === 1) {
+			if (dir === "A") return { action: "line-up", release };
+			if (dir === "B") return { action: "line-down", release };
+			if (dir === "C") return { action: "char-right", release };
+			if (dir === "D") return { action: "char-left", release };
+		} else if (mod === 3) {
+			if (dir === "A") return { action: "line-up", release };
+			if (dir === "B") return { action: "line-down", release };
+			if (dir === "C") return { action: "word-right", release };
+			if (dir === "D") return { action: "word-left", release };
+		}
+		return undefined;
+	}
+	const kittyArrow = /^\x1b\[(57417|57418|57419|57420)(?::\d*)?(?::\d+)?(?:;(\d+))?(?::(\d+))?u$/.exec(data);
+	if (kittyArrow) {
+		const code = kittyArrow[1]!;
+		const mod = (Number.parseInt(kittyArrow[2] ?? "1", 10) - 1) & ~(64 | 128);
+		const release = kittyArrow[3] === "3";
+		if (mod === 1) {
+			if (code === "57419") return { action: "line-up", release };
+			if (code === "57420") return { action: "line-down", release };
+			if (code === "57418") return { action: "char-right", release };
+			if (code === "57417") return { action: "char-left", release };
+		} else if (mod === 3) {
+			if (code === "57419") return { action: "line-up", release };
+			if (code === "57420") return { action: "line-down", release };
+			if (code === "57418") return { action: "word-right", release };
+			if (code === "57417") return { action: "word-left", release };
+		}
+		return undefined;
+	}
+	if (data === "\x1b[a") return { action: "line-up", release: false };
+	if (data === "\x1b[b") return { action: "line-down", release: false };
+	if (data === "\x1b[c") return { action: "char-right", release: false };
+	if (data === "\x1b[d") return { action: "char-left", release: false };
+	if (data === "\x1bB" || data === "\x1b\x1b[1;2D") return { action: "word-left", release: false };
+	if (data === "\x1bF" || data === "\x1b\x1b[1;2C") return { action: "word-right", release: false };
+	return undefined;
+}
+
+function isEnterCopyKey(data: string): { release: boolean } | undefined {
+	if (data === "\r" || data === "\n" || data === "\x1bOM") {
+		return { release: false };
+	}
+	const kittyEnter = /^\x1b\[(13|57414)(?::\d*)?(?::\d+)?(?:;(\d+))?(?::(\d+))?u$/.exec(data);
+	if (kittyEnter) {
+		const mod = (Number.parseInt(kittyEnter[2] ?? "1", 10) - 1) & ~(64 | 128);
+		if (mod === 0) return { release: kittyEnter[3] === "3" };
+	}
+	return undefined;
+}
+
+function isMetaWCopyKey(data: string): { release: boolean } | undefined {
+	// Ghostty maps super+c (Cmd+C) to \x1bw (meta+w / alt+w).
+	if (data === "\x1bw" || data === "\x1bW" || data === "\x1b[27;3;119~") {
+		return { release: false };
+	}
+	const kitty = /^\x1b\[(119|87|99)(?::\d*)?(?::\d+)?(?:;(\d+))?(?::(\d+))?u$/.exec(data);
+	if (kitty) {
+		const code = kitty[1]!;
+		const mod = (Number.parseInt(kitty[2] ?? "1", 10) - 1) & ~(64 | 128);
+		const release = kitty[3] === "3";
+		if ((code === "119" || code === "87") && (mod === 2 || mod === 8)) return { release };
+		if (code === "99" && mod === 8) return { release };
+	}
+	return undefined;
+}
+
+function copyActiveSelection(internals: AltScreenInternals): boolean {
+	cancelPendingMouseCopy();
+	if (!internals.getSelectionBounds()) return false;
+	if (typeof internals.copySelectionToClipboard === "function") {
+		void internals.copySelectionToClipboard();
+		return true;
+	}
+	if (typeof internals.copyActiveSelectionToClipboard === "function") {
+		void internals.copyActiveSelectionToClipboard();
+		return true;
+	}
+	const text = internals.getActiveSelectionText?.();
+	if (!text) return false;
+	if (typeof internals.copyTextToClipboard === "function") {
+		void internals.copyTextToClipboard(text);
+	}
+	return true;
+}
+
+function hasEditableSelection(internals: AltScreenInternals): boolean {
+	if (!getAnchor(internals) || !getFocus(internals)) return false;
+	return (
+		internals.getSelectionBounds() !== undefined ||
+		keyboardSelectionActive ||
+		internals.selectionGranularity === "line"
+	);
+}
+
+/**
+ * Update the armed reference snapshot and re-render after a keyboard selection
+ * adjustment, WITHOUT copying to the clipboard. Keyboard copying happens only
+ * on Enter or Cmd+C (meta+w).
+ */
+function syncSelectionAfterKeyboardMove(internals: AltScreenInternals): void {
+	if (internals.getSelectionBounds()) {
+		internals.getActiveSelectionText?.();
+		selectionCopyArmed = true;
+	} else {
+		armedSnapshot = undefined;
+		popupRect = undefined;
+		selectionCopyArmed = false;
+	}
+	internals.requestRender?.();
+}
+
+function applyKeyboardSelectionMove(internals: AltScreenInternals, action: SelectionKeyAction): boolean {
+	if (!hasEditableSelection(internals)) return false;
+	cancelPendingMouseCopy();
+	if ((action === "line-up" || action === "line-down") && internals.selectionGranularity === "line") {
+		const focus = getFocus(internals);
+		if (!focus) return false;
+		const lines = getSourceLinesForPoint(internals, focus);
+		const maxRow = Math.max(0, lines.length - 1);
+		const delta = action === "line-up" ? -1 : 1;
+		const nextRow = Math.max(0, Math.min(maxRow, focus.row + delta));
+		updateLineSelectionFocus(internals, { ...focus, row: nextRow });
+		const updatedFocus = getFocus(internals);
+		if (updatedFocus) revealSelectionPoint(internals, updatedFocus);
+		keyboardSelectionActive = true;
+		preferredFocusCol = undefined;
+		syncSelectionAfterKeyboardMove(internals);
+		return true;
+	}
+
+	const normalized = normalizeSelectionCursors(internals);
+	if (!normalized) return false;
+	const { anchor, focus } = normalized;
+	const lines = getSourceLinesForPoint(internals, focus);
+	const maxRow = Math.max(0, lines.length - 1);
+	let nextFocus: SelectionPointLike;
+
+	switch (action) {
+		case "char-left":
+			preferredFocusCol = undefined;
+			nextFocus = moveCursorCharLeft(internals, focus);
+			break;
+		case "char-right":
+			preferredFocusCol = undefined;
+			nextFocus = moveCursorCharRight(internals, focus, maxRow);
+			break;
+		case "word-left":
+			preferredFocusCol = undefined;
+			nextFocus = moveCursorWordLeft(internals, anchor, focus);
+			break;
+		case "word-right":
+			preferredFocusCol = undefined;
+			nextFocus = moveCursorWordRight(internals, anchor, focus, maxRow);
+			break;
+		case "line-up": {
+			const targetCol = preferredFocusCol ?? focus.col;
+			preferredFocusCol = targetCol;
+			if (focus.row > 0) {
+				const nextRow = focus.row - 1;
+				const nextPlain = stripTerminalSequences(getSourceLineAt(internals, { ...focus, row: nextRow }));
+				const nextCol = snapColumnToGraphemeStart(nextPlain, Math.min(targetCol, visibleWidth(nextPlain)));
+				nextFocus = { ...focus, row: nextRow, col: nextCol, boundary: true };
+			} else {
+				nextFocus = { ...focus, row: 0, col: 0, boundary: true };
+			}
+			break;
+		}
+		case "line-down": {
+			const targetCol = preferredFocusCol ?? focus.col;
+			preferredFocusCol = targetCol;
+			if (focus.row < maxRow) {
+				const nextRow = focus.row + 1;
+				const nextPlain = stripTerminalSequences(getSourceLineAt(internals, { ...focus, row: nextRow }));
+				const nextCol = snapColumnToGraphemeStart(nextPlain, Math.min(targetCol, visibleWidth(nextPlain)));
+				nextFocus = { ...focus, row: nextRow, col: nextCol, boundary: true };
+			} else {
+				const endWidth = visibleWidth(stripTerminalSequences(getSourceLineAt(internals, focus)));
+				nextFocus = { ...focus, row: maxRow, col: endWidth, boundary: true };
+			}
+			break;
+		}
+	}
+
+	setAnchorAndFocus(internals, anchor, nextFocus);
+	revealSelectionPoint(internals, nextFocus);
+	keyboardSelectionActive = true;
+	syncSelectionAfterKeyboardMove(internals);
+	return true;
+}
+
+// ---------------------------------------------------------------------------
 // Referencing a selection in the next prompt
 // ---------------------------------------------------------------------------
 
@@ -975,6 +1710,16 @@ let capturedTui: AltScreenInternals | undefined;
 /** Reference line shown in the editor -> full selected text, swapped in on submit. */
 const pendingReferences = new Map<string, string>();
 
+function ensureCapturedTui(internals: AltScreenInternals): void {
+	if (capturedTui === internals) return;
+	capturedTui = internals;
+	popupRect = undefined;
+	const withInput = internals as AltScreenInternals & {
+		addInputListener?: (listener: typeof handleReferenceInput) => void;
+	};
+	withInput.addInputListener?.(handleReferenceInput);
+}
+
 /** One-line visual stand-in for a selection in the prompt editor. */
 function makeReferenceLine(text: string): string {
 	const firstLine = text.split("\n").find((line) => line.trim().length > 0)?.trim() ?? "";
@@ -987,6 +1732,7 @@ function makeReferenceLine(text: string): string {
 /** Append the armed selection as a reference line and put the cursor on the next line. */
 function addArmedSelectionAsReference(): void {
 	if (!armedSnapshot || !activeCtx) return;
+	cancelPendingMouseCopy();
 	const referenceLine = makeReferenceLine(armedSnapshot.text);
 	pendingReferences.set(referenceLine, armedSnapshot.text);
 	const current = activeCtx.ui.getEditorText();
@@ -994,6 +1740,9 @@ function addArmedSelectionAsReference(): void {
 	activeCtx.ui.setEditorText(`${current}${prefix}${referenceLine}\n`);
 	armedSnapshot = undefined;
 	popupRect = undefined;
+	keyboardSelectionActive = false;
+	selectionCopyArmed = false;
+	preferredFocusCol = undefined;
 	(capturedTui as { requestRender?: () => void } | undefined)?.requestRender?.();
 }
 
@@ -1022,12 +1771,53 @@ function separateReferenceLines(text: string, referenceLines?: ReadonlySet<strin
 	return out.join("\n");
 }
 
-/** Tab adds the armed selection as a reference; every other key passes through. */
+/**
+ * Handle Tab (to reference the armed selection), Shift+Arrows / Shift+Alt+Arrows
+ * (to expand or shrink the active selection without copying), and Enter or
+ * Cmd+C / meta+w (to copy the active selection).
+ */
 function handleReferenceInput(data: string): { consume: boolean } | undefined {
-	if (data !== "\t" && data !== "\x1b[9u" && data !== "\x1b[9;1u") return undefined;
-	if (!armedSnapshot || !activeCtx) return undefined;
-	addArmedSelectionAsReference();
-	return { consume: true };
+	if (data === "\t" || data === "\x1b[9u" || data === "\x1b[9;1u") {
+		if (!armedSnapshot || !activeCtx) return undefined;
+		addArmedSelectionAsReference();
+		return { consume: true };
+	}
+	const selectionKey = parseSelectionKey(data);
+	if (selectionKey) {
+		if (!capturedTui || !transcriptSelectionOwnsInput || !hasEditableSelection(capturedTui)) return undefined;
+		if (selectionKey.release) return { consume: true };
+		return applyKeyboardSelectionMove(capturedTui, selectionKey.action) ? { consume: true } : undefined;
+	}
+	const metaW = isMetaWCopyKey(data);
+	if (metaW) {
+		if (!capturedTui || !transcriptSelectionOwnsInput || !capturedTui.getSelectionBounds()) return undefined;
+		if (metaW.release) return { consume: true };
+		return copyActiveSelection(capturedTui) ? { consume: true } : undefined;
+	}
+	const enterKey = isEnterCopyKey(data);
+	if (enterKey) {
+		if (!capturedTui || !capturedTui.getSelectionBounds() || (!selectionCopyArmed && !keyboardSelectionActive)) {
+			return undefined;
+		}
+		if (enterKey.release) return { consume: true };
+		const copied = copyActiveSelection(capturedTui);
+		selectionCopyArmed = false;
+		keyboardSelectionActive = false;
+		return copied ? { consume: true } : undefined;
+	}
+	// Any non-mouse keyboard input means the user is typing/navigating in the editor.
+	if (!/^\x1b\[<\d+;\d+;\d+[Mm]$/.test(data) && !(data.length === 6 && data.startsWith("\x1b[M"))) {
+		cancelPendingMouseCopy();
+		selectionCopyArmed = false;
+		if (keyboardSelectionActive) {
+			keyboardSelectionActive = false;
+			preferredFocusCol = undefined;
+			if (capturedTui && !capturedTui.getSelectionBounds()) {
+				setAnchorAndFocus(capturedTui, undefined, undefined);
+			}
+		}
+	}
+	return undefined;
 }
 
 /** Paint the reference popup on the row below the end of the selection (same column) and remember its rectangle. */
@@ -1191,9 +1981,11 @@ function wrapEditorWithReferenceBlocks(base: unknown, keybindings: { matches(dat
 	const editor = base as EditorInternals & Record<PropertyKey, unknown>;
 	if (editor[REFERENCE_EDITOR_MARKER]) return base;
 	const BaseCtor = editor.constructor as new (...args: never[]) => EditorInternals;
-	const baseHandleInput = BaseCtor.prototype.handleInput;
-	const baseHandleMouse = BaseCtor.prototype.handleMouse;
-	const baseRender = BaseCtor.prototype.render;
+	// Compose with instance decorators as well as subclasses (open-tui
+	// installs render/handleMouse as own-properties on the editor).
+	const baseHandleInput = editor.handleInput;
+	const baseHandleMouse = editor.handleMouse;
+	const baseRender = editor.render;
 
 	class ReferenceEditor extends BaseCtor {}
 	const proto = ReferenceEditor.prototype as EditorInternals & Record<PropertyKey, unknown>;
@@ -1272,6 +2064,9 @@ function wrapEditorWithReferenceBlocks(base: unknown, keybindings: { matches(dat
 	};
 
 	Object.setPrototypeOf(editor, ReferenceEditor.prototype);
+	editor.handleInput = proto.handleInput;
+	if (baseHandleMouse) editor.handleMouse = proto.handleMouse;
+	editor.render = proto.render;
 	editor[REFERENCE_EDITOR_MARKER] = true;
 	return editor;
 }
@@ -1284,7 +2079,24 @@ function installReferenceEditor(ctx: ExtensionContext): void {
 	if ((previous as (EditorFactoryLike & Record<PropertyKey, unknown>) | undefined)?.[REFERENCE_EDITOR_MARKER]) return;
 	const factory: EditorFactoryLike & Record<PropertyKey, unknown> = (tui, theme, keybindings) => {
 		const base = previous?.(tui, theme, keybindings) ?? new CustomEditor(tui as never, theme as never, keybindings as never);
-		return wrapEditorWithReferenceBlocks(base, keybindings);
+		return installEditorSelection(wrapEditorWithReferenceBlocks(base, keybindings), {
+			onFocus: () => {
+				transcriptSelectionOwnsInput = false;
+				cancelPendingMouseCopy();
+				keyboardSelectionActive = false;
+				selectionCopyArmed = false;
+				armedSnapshot = undefined;
+				popupRect = undefined;
+				if (capturedTui) setAnchorAndFocus(capturedTui, undefined, undefined);
+			},
+			copyText: (text) => {
+				const screen = tui as AltScreenInternals | undefined;
+				if (text) void screen?.copyTextToClipboard?.(text);
+			},
+			onReplace: () => pruneStaleReferences(base as EditorInternals),
+			isReference: (line) => pendingReferences.has(line),
+			isSubmit: (data) => keybindings.matches(data, "tui.input.submit"),
+		});
 	};
 	factory[REFERENCE_EDITOR_MARKER] = true;
 	ctx.ui.setEditorComponent(factory as never);
@@ -1478,19 +2290,31 @@ function getTableHighlightSegments(
 
 type GetSelectionTextFn = (this: AltScreenInternals) => string | undefined;
 type ApplySelectionFn = (this: AltScreenInternals, screen: string[], layout?: LayoutFrameLike) => string[];
+type SetSelectionFn = (
+	this: AltScreenInternals,
+	anchor: { row: number; col: number; boundary?: boolean },
+	focus: { row: number; col: number; boundary?: boolean },
+) => void;
 
 interface AltScreenPrototype {
 	getActiveSelectionText?: GetSelectionTextFn;
 	applySelection?: ApplySelectionFn;
 	handleMouseEvent?: HandleMouseEventFn;
+	setSelection?: SetSelectionFn;
 }
 
 let installed = false;
 let originals:
-	| { getActiveSelectionText: GetSelectionTextFn; applySelection: ApplySelectionFn; handleMouseEvent: HandleMouseEventFn }
+	| {
+			getActiveSelectionText: GetSelectionTextFn;
+			applySelection: ApplySelectionFn;
+			handleMouseEvent: HandleMouseEventFn;
+			setSelection?: SetSelectionFn;
+	  }
 	| undefined;
 
 function patchedGetActiveSelectionText(this: AltScreenInternals): string | undefined {
+	ensureCapturedTui(this);
 	const selection = this.getSelectionBounds();
 	if (!selection) return undefined;
 	const sourceLines = getSelectionSourceLines(this, selection);
@@ -1509,6 +2333,20 @@ function patchedGetActiveSelectionText(this: AltScreenInternals): string | undef
 	return result;
 }
 
+function patchedSetSelection(
+	this: AltScreenInternals,
+	anchor: { row: number; col: number; boundary?: boolean },
+	focus: { row: number; col: number; boundary?: boolean },
+): void {
+	ensureCapturedTui(this);
+	cancelPendingMouseCopy();
+	keyboardSelectionActive = false;
+	selectionCopyArmed = true;
+	transcriptSelectionOwnsInput = true;
+	preferredFocusCol = undefined;
+	originals?.setSelection?.call(this, anchor, focus);
+}
+
 interface RawMouseEvent {
 	button: number;
 	x: number;
@@ -1519,38 +2357,179 @@ interface RawMouseEvent {
 type HandleMouseEventFn = (this: AltScreenInternals, event: RawMouseEvent) => void;
 
 function patchedHandleMouseEvent(this: AltScreenInternals, event: RawMouseEvent): void {
-	const isPrimaryPress = !event.release && (event.button & 32) === 0 && (event.button & 3) === 0;
+	ensureCapturedTui(this);
+	const isMotion = (event.button & 32) !== 0;
+	const buttonCode = event.button & 3;
+	const isPrimaryPress = !event.release && !isMotion && buttonCode === 0;
+	const isPrimaryDrag = !event.release && isMotion && buttonCode === 0;
+	const isPrimaryRelease = event.release && (buttonCode === 0 || buttonCode === 3);
+
 	if (isPrimaryPress) {
+		cancelPendingMouseCopy();
+		const now = Date.now();
+		const isContinuationClick =
+			lastPress !== undefined &&
+			lastPress.tui === this &&
+			now - lastPress.timestamp <= (lastPress.count === 2 ? TRIPLE_CLICK_INTERVAL_MS : DOUBLE_CLICK_INTERVAL_MS) &&
+			lastPress.y === event.y &&
+			Math.abs(lastPress.x - event.x) <= CLICK_COLUMN_TOLERANCE;
 		if (
+			!isContinuationClick &&
 			armedSnapshot &&
 			popupRect &&
 			event.y === popupRect.row &&
 			event.x >= popupRect.start &&
 			event.x < popupRect.end
 		) {
+			lastPress = undefined;
 			addArmedSelectionAsReference();
 			return;
 		}
-		// Any other press starts a new selection and drops the armed one.
+		// Any other press starts or continues a mouse selection and drops the armed popup.
 		armedSnapshot = undefined;
 		popupRect = undefined;
+		keyboardSelectionActive = false;
+		selectionCopyArmed = false;
+		preferredFocusCol = undefined;
+
+		const clickCount = isContinuationClick ? (lastPress!.count % 3) + 1 : 1;
+		lastPress = { tui: this, timestamp: now, x: event.x, y: event.y, count: clickCount };
+
+		// Pi's native tracker uses 500 ms for all clicks. Once our shorter
+		// third-click window expires, prevent it from selecting/copying a
+		// line after the word was already copied.
+		if (!isContinuationClick) this.lastClick = undefined;
+		originals!.handleMouseEvent.call(this, event);
+
+		// If an overlay, scrollbar, or layout component captured the press, do not start a text selection.
+		if (this.mouseCapture || this.mousePressTarget || this.scrollbarDrag) {
+			lastPress = undefined;
+			return;
+		}
+
+		transcriptSelectionOwnsInput = true;
+		const hasBuiltInSelectionMouse = typeof this.handleSelectionMouseEvent === "function";
+		const point = resolveSelectionPoint(this, event);
+		if (clickCount === 3) {
+			const range = getWholeLineSelection(this, point);
+			this.selectionPressActive = true;
+			this.selectionGranularity = "line";
+			this.selectionInitialRange = range;
+			setAnchorAndFocus(this, range.start, range.end);
+			this.selectionDragged = false;
+			this.pressedUrl = undefined;
+			this.requestRender?.();
+		} else if (clickCount === 2) {
+			if (!hasBuiltInSelectionMouse || this.selectionGranularity !== "word") {
+				const word = getWordSelectionAt(this, point);
+				this.selectionPressActive = true;
+				this.selectionGranularity = word ? "word" : "character";
+				this.selectionInitialRange = word;
+				setAnchorAndFocus(this, word?.start ?? point, word?.end ?? point);
+				this.selectionDragged = false;
+				this.pressedUrl = undefined;
+				this.requestRender?.();
+			}
+		} else if (!hasBuiltInSelectionMouse) {
+			this.selectionPressActive = true;
+			this.selectionGranularity = "character";
+			this.selectionInitialRange = undefined;
+			setAnchorAndFocus(this, point, point);
+			this.selectionDragged = false;
+			this.requestRender?.();
+		}
+		return;
 	}
+
+	if (isPrimaryDrag) {
+		// Ignore sub-cell motion on the press cell so multi-click sequences are not broken.
+		if (lastPress && lastPress.tui === this && event.x === lastPress.x && event.y === lastPress.y) {
+			return;
+		}
+		if (
+			lastPress &&
+			lastPress.tui === this &&
+			(Math.abs(event.x - lastPress.x) > CLICK_COLUMN_TOLERANCE || event.y !== lastPress.y)
+		) {
+			lastPress = undefined;
+		}
+		originals!.handleMouseEvent.call(this, event);
+		if (!this.selectionPressActive || !getAnchor(this)) return;
+		this.selectionDragged = true;
+		const point = resolveSelectionPoint(this, event, getAnchor(this)?.scrollView);
+		if (this.selectionGranularity === "line") {
+			updateLineSelectionFocus(this, point);
+			this.requestRender?.();
+		} else if (typeof this.handleSelectionMouseEvent !== "function") {
+			if (this.selectionGranularity === "word") {
+				updateWordSelectionFocus(this, point);
+			} else {
+				setAnchorAndFocus(this, getAnchor(this), point);
+			}
+			this.requestRender?.();
+		}
+		return;
+	}
+
+	if (isPrimaryRelease) {
+		const wasPressActive = Boolean(this.selectionPressActive);
+		const savedGranularity = this.selectionGranularity;
+		const savedInitialRange = this.selectionInitialRange;
+		const savedAnchor = getAnchor(this);
+		const savedFocus = getFocus(this);
+
+		// Pi's native release handler copies immediately, including the word
+		// on the second click. Suppress only that automatic copy while it
+		// finalizes the selection, then let our one release-copy path decide
+		// whether to copy now or wait for a possible third click.
+		const copyOnSelect = this.copyOnSelect;
+		this.copyOnSelect = false;
+		try {
+			originals!.handleMouseEvent.call(this, event);
+		} finally {
+			this.copyOnSelect = copyOnSelect;
+		}
+
+		if (wasPressActive) {
+			const hasBuiltInSelectionMouse = typeof this.handleSelectionMouseEvent === "function";
+			if (!hasBuiltInSelectionMouse && savedAnchor) {
+				const point = resolveSelectionPoint(this, event, savedAnchor.scrollView);
+				if (savedGranularity === "line") {
+					updateLineSelectionFocus(this, point);
+				} else if (savedGranularity === "word") {
+					updateWordSelectionFocus(this, point);
+				} else {
+					setAnchorAndFocus(this, savedAnchor, point);
+				}
+				this.selectionPressActive = false;
+			} else if (
+				(savedGranularity === "line" || savedGranularity === "word") &&
+				!this.getSelectionBounds() &&
+				savedAnchor &&
+				savedFocus
+			) {
+				this.selectionGranularity = savedGranularity;
+				this.selectionInitialRange = savedInitialRange;
+				setAnchorAndFocus(this, savedAnchor, savedFocus);
+			}
+			if (this.getSelectionBounds()) {
+				selectionCopyArmed = true;
+				this.getActiveSelectionText?.();
+				copyCompletedMouseSelection(this);
+			}
+			this.requestRender?.();
+		}
+		return;
+	}
+
 	originals!.handleMouseEvent.call(this, event);
 }
 
 function patchedApplySelection(this: AltScreenInternals, screen: string[], layout?: LayoutFrameLike): string[] {
 	const internals = this;
-	// Capture the live renderer once so Tab presses can reach the reference
-	// logic. The renderer's own input listener was registered first, so Tab
-	// reaches this listener only when no viewport action consumes it.
-	if (capturedTui !== internals) {
-		capturedTui = internals;
-		popupRect = undefined;
-		const withInput = internals as AltScreenInternals & {
-			addInputListener?: (listener: typeof handleReferenceInput) => void;
-		};
-		withInput.addInputListener?.(handleReferenceInput);
-	}
+	// Capture the live renderer once so Tab and Shift+Arrow presses can reach
+	// the selection/reference logic.
+	ensureCapturedTui(internals);
 	const selection = internals.getSelectionBounds();
 	if (!selection) return originals!.applySelection.call(internals, screen, layout);
 
@@ -1675,25 +2654,38 @@ function installTableSelection(): boolean {
 		getActiveSelectionText: prototype.getActiveSelectionText,
 		applySelection: prototype.applySelection,
 		handleMouseEvent: prototype.handleMouseEvent,
+		...(typeof prototype.setSelection === "function" ? { setSelection: prototype.setSelection } : {}),
 	};
 	prototype.getActiveSelectionText = patchedGetActiveSelectionText;
 	prototype.applySelection = patchedApplySelection;
 	prototype.handleMouseEvent = patchedHandleMouseEvent;
+	if (typeof prototype.setSelection === "function") {
+		prototype.setSelection = patchedSetSelection;
+	}
 	installed = true;
 	return true;
 }
 
 function uninstallTableSelection(): void {
+	cancelPendingMouseCopy();
 	if (!installed || !originals) return;
 	const prototype = TuiAltScreen.prototype as unknown as AltScreenPrototype;
 	prototype.getActiveSelectionText = originals.getActiveSelectionText;
 	prototype.applySelection = originals.applySelection;
 	prototype.handleMouseEvent = originals.handleMouseEvent;
+	if (originals.setSelection) {
+		prototype.setSelection = originals.setSelection;
+	}
 	originals = undefined;
 	installed = false;
 	armedSnapshot = undefined;
 	popupRect = undefined;
 	capturedTui = undefined;
+	lastPress = undefined;
+	keyboardSelectionActive = false;
+	selectionCopyArmed = false;
+	transcriptSelectionOwnsInput = false;
+	preferredFocusCol = undefined;
 	pendingReferences.clear();
 }
 

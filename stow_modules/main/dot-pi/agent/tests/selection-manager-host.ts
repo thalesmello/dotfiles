@@ -43,6 +43,19 @@ return { visibleWidth, sliceByColumn, stripTerminalSequences, getGraphemeCellRan
 export const realUtils = loadRealPiTuiUtils();
 const { visibleWidth, sliceByColumn, stripTerminalSequences, getGraphemeCellRange } = realUtils;
 
+function loadRealPiKeys() {
+	const bin = fs.readFileSync("/usr/local/bin/pi_cli/pi.real", "utf8");
+	const start = bin.lastIndexOf("// ", bin.indexOf("packages/tui/src/keys.ts"));
+	const end = bin.lastIndexOf("// ", bin.indexOf("packages/tui/src/terminal-colors.ts", start));
+	if (start < 0 || end <= start) throw new Error("Cannot find Pi key parser");
+	return new Function(`const __esm = fn => fn; ${bin.slice(start, end)}\ninit_keys(); return { matchesKey, isKeyRelease, decodeKittyPrintable };`)() as {
+		matchesKey(data: string, key: string): boolean;
+		isKeyRelease(data: string): boolean;
+		decodeKittyPrintable(data: string): string | undefined;
+	};
+}
+export const { matchesKey, isKeyRelease, decodeKittyPrintable } = loadRealPiKeys();
+
 // ---------------------------------------------------------------------------
 // Fake host screen: selection bounds, per-row selection columns, the previous
 // screen, and a layout tree whose scroll-view box carries the transcript
@@ -99,8 +112,25 @@ export class FakeAltScreen {
 	inputListeners: Array<(data: string) => { consume?: boolean } | undefined> = [];
 	mouseEvents: Array<{ button: number; x: number; y: number; release: boolean }> = [];
 	renderRequests = 0;
-	private anchor: SelectionPoint | undefined;
-	private focus: SelectionPoint | undefined;
+	selectionAnchor: SelectionPoint | undefined;
+	selectionFocus: SelectionPoint | undefined;
+	selectionGranularity: "character" | "word" | "line" = "character";
+	selectionInitialRange: Selection | undefined;
+	selectionPressActive = false;
+	selectionDragged = false;
+	copyOnSelect = true;
+	copiedTexts: string[] = [];
+
+	copySelectionToClipboard(): boolean {
+		const text = this.getActiveSelectionText();
+		if (!text) return false;
+		return this.copyTextToClipboard(text);
+	}
+
+	copyTextToClipboard(text: string): boolean {
+		this.copiedTexts.push(text);
+		return true;
+	}
 
 	addInputListener(listener: (data: string) => { consume?: boolean } | undefined): () => void {
 		this.inputListeners.push(listener);
@@ -120,6 +150,8 @@ export class FakeAltScreen {
 
 	handleMouseEvent(event: { button: number; x: number; y: number; release: boolean }): void {
 		this.mouseEvents.push(event);
+		(this as FakeAltScreen & { handleSelectionMouseEvent?: (raw: typeof event) => void })
+			.handleSelectionMouseEvent?.(event);
 	}
 
 	requestRender(): void {
@@ -171,18 +203,23 @@ export class FakeAltScreen {
 		};
 	}
 
-	setSelection(anchor: { row: number; col: number }, focus: { row: number; col: number }): void {
-		this.anchor = { ...anchor, scrollView: this.scrollView };
-		this.focus = { ...focus, scrollView: this.scrollView };
+	setSelection(
+		anchor: { row: number; col: number; boundary?: boolean },
+		focus: { row: number; col: number; boundary?: boolean },
+	): void {
+		this.selectionAnchor = { ...anchor, scrollView: this.scrollView };
+		this.selectionFocus = { ...focus, scrollView: this.scrollView };
+		this.selectionGranularity = "character";
+		this.selectionInitialRange = undefined;
 	}
 
 	getSelectionBounds(): Selection | undefined {
-		if (!this.anchor || !this.focus) return undefined;
-		if (this.anchor.row === this.focus.row && this.anchor.col === this.focus.col) return undefined;
+		if (!this.selectionAnchor || !this.selectionFocus) return undefined;
+		if (this.selectionAnchor.row === this.selectionFocus.row && this.selectionAnchor.col === this.selectionFocus.col) return undefined;
 		const anchorFirst =
-			this.anchor.row < this.focus.row ||
-			(this.anchor.row === this.focus.row && this.anchor.col < this.focus.col);
-		return anchorFirst ? { start: this.anchor, end: this.focus } : { start: this.focus, end: this.anchor };
+			this.selectionAnchor.row < this.selectionFocus.row ||
+			(this.selectionAnchor.row === this.selectionFocus.row && this.selectionAnchor.col < this.selectionFocus.col);
+		return anchorFirst ? { start: this.selectionAnchor, end: this.selectionFocus } : { start: this.selectionFocus, end: this.selectionAnchor };
 	}
 
 	getSelectionColumns(
@@ -262,6 +299,51 @@ export class FakeAltScreen {
 	}
 }
 
+// Exercise Pi's actual selection gesture/release code too. The simple fake
+// above never auto-copies on release, which previously hid the native word
+// copy on the second click of a triple-click sequence.
+function loadRealSelectionMouseMethods(): Record<string, Function> {
+	const bin = fs.readFileSync("/usr/local/bin/pi_cli/pi.real", "utf8");
+	const section = bin.indexOf("packages/tui/src/tui-alt-screen.ts");
+	const pointsStart = bin.indexOf("    getScrollSelectionPoint(", section);
+	const pointsEnd = bin.indexOf("    updateSelectionAutoScroll(", pointsStart);
+	const mouseStart = bin.indexOf("    handleSelectionMouseEvent(event) {", pointsEnd);
+	const mouseEnd = bin.indexOf("    getSelectionBounds()", mouseStart);
+	if (section < 0 || pointsStart < 0 || pointsEnd < 0 || mouseStart < 0 || mouseEnd < 0) {
+		throw new Error("Cannot find the installed Pi selection methods");
+	}
+	return new Function("utils", "findBox", `
+const { visibleWidth, stripTerminalSequences } = utils;
+const DOUBLE_CLICK_INTERVAL_MS = 500;
+const wordSegmenter4 = new Intl.Segmenter(undefined, { granularity: "word" });
+const TERMINAL_WORD_SELECTION_JOINERS = new Set(["/", "-", "+", "\\\\", "~", "_", "."]);
+const getScrollViewBox = (frame, view) => findBox(frame.root, view);
+const getScrollViewsAt = (frame) => frame.root.scrollView ? [frame.root.scrollView] : [];
+const getOsc8LinkAtColumn = () => undefined;
+class NativeSelection {
+${bin.slice(pointsStart, pointsEnd)}
+${bin.slice(mouseStart, mouseEnd)}
+}
+return NativeSelection.prototype;
+`)(realUtils, findBox);
+}
+
+export class NativeSelectionAltScreen extends FakeAltScreen {
+	// Declaration only: the real implementation below is installed on this
+	// prototype and discovered by the extension's runtime compatibility check.
+	declare handleSelectionMouseEvent: (event: { button: number; x: number; y: number; release: boolean }) => void;
+
+	stopSelectionAutoScroll(): void {}
+	updateSelectionAutoScroll(): void {}
+	hasOverlay(): boolean { return false; }
+	createMouseEvent(): object { return {}; }
+	dispatchMouseToOverlay(): { hit: boolean } { return { hit: false }; }
+	dispatchMouseToLayout(): undefined { return undefined; }
+}
+
+const nativeMethods = Object.getOwnPropertyDescriptors(loadRealSelectionMouseMethods());
+delete nativeMethods.constructor;
+Object.defineProperties(NativeSelectionAltScreen.prototype, nativeMethods);
 // The pi-tui surface the extension imports.
 export const TuiAltScreen = FakeAltScreen;
 export { sliceByColumn, stripTerminalSequences, visibleWidth };
