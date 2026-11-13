@@ -4,6 +4,7 @@ import sleepWakeRetryExtension, {
 	computeRetryDelayLimitError,
 	computeRetryDelayMs,
 	createSleepMonitor,
+	didMessageSpanSleep,
 	type AgentSessionEventLike,
 	type AgentSessionLike,
 	type AssistantEventStreamLike,
@@ -14,20 +15,26 @@ import sleepWakeRetryExtension, {
 
 class FakeAgentSession implements AgentSessionLike {
 	agent: {
+		state?: { messages?: AssistantMessageLike[] };
 		prepareRequest?: (request: unknown, signal?: AbortSignal) => Promise<unknown> | unknown;
 		abort?: () => void;
-	} = {};
+		continue?: () => Promise<unknown>;
+	} = { state: { messages: [] } };
 	settingsManager: { getRetrySettings(): RetryPolicyLike };
+	isCompacting = false;
 	_isAgentRunActive = false;
 	_agentRunAbortRequested = false;
 	_retryAttempt = 0;
 	_declinedRetryReason?: string;
+	_failedResponse?: AssistantMessageLike;
+	_runSystemPromptOptions?: unknown;
 	_retryAbortController?: AbortController;
 
 	emittedEvents: AgentSessionEventLike[] = [];
 	extensionEvents: AgentSessionEventLike[] = [];
 	omittedMessages: AssistantMessageLike[] = [];
 	cancelledRetries = 0;
+	settledCount = 0;
 
 	constructor(policy: Partial<RetryPolicyLike> = {}) {
 		const resolved: RetryPolicyLike = {
@@ -47,11 +54,35 @@ class FakeAgentSession implements AgentSessionLike {
 	}
 
 	_isRetryableError(message: AssistantMessageLike): boolean {
-		return message.stopReason === "error" && Boolean(message.errorMessage);
+		// Mirror Pi's built-in RETRYABLE_PROVIDER_ERROR_PATTERN behavior:
+		// matches 503/socket closed/overloaded, but NOT "Request aborted".
+		if (message.stopReason !== "error" || !message.errorMessage) return false;
+		return /503|502|429|overloaded|socket connection was closed|connection reset|fetch failed/i.test(
+			message.errorMessage,
+		);
 	}
 
 	_omitRecoveryAttempt(message: AssistantMessageLike): void {
 		this.omittedMessages.push(message);
+		const msgs = this.agent.state?.messages;
+		if (Array.isArray(msgs)) {
+			const idx = msgs.indexOf(message);
+			if (idx !== -1) msgs.splice(idx, 1);
+		}
+	}
+
+	async _handlePostAgentRun(): Promise<boolean> {
+		return false;
+	}
+
+	async _runBeforeSettleBoundary(): Promise<boolean> {
+		return false;
+	}
+
+	async _emitAgentSettled(): Promise<void> {
+		this._isAgentRunActive = false;
+		this.settledCount += 1;
+		this._emit({ type: "agent_settled", aborted: this._agentRunAbortRequested });
 	}
 
 	_finishCancelledRetry(): void {
@@ -578,6 +609,122 @@ describe("sleep-wake-retry extension", () => {
 		const result = (await stream.result?.()) as AssistantMessageLike;
 		expect(result.stopReason).toBe("error");
 		expect(result.errorMessage).toBe(SLEEP_INTERRUPTED_ERROR_MESSAGE);
+
+		controller.uninstall();
+	});
+
+	test("treats 'Request aborted' when closing laptop (w5G:pR failure) as retryable and retries immediately via timestamp/durationMs sleep drift", async () => {
+		// Exact timestamps from w5G:pR (2026-11-13T18:35:59.624Z -> 2026-11-13T18:37:24.913Z):
+		// 85,289ms wall-clock elapsed vs 15,689ms monotonic durationMs (69.6s laptop sleep).
+		const requestStartedAt = 1794594959624;
+		const failedAt = 1794595044913;
+		let fakeNow = failedAt;
+
+		const { ScopedSession, controller } = createHarness({
+			clock: () => fakeNow,
+			sleepCheckIntervalMs: 50,
+			sleepJumpThresholdMs: 4_000,
+		});
+
+		const session = new ScopedSession({
+			enabled: true,
+			maxRetries: 12,
+			baseDelayMs: 2_000,
+			maxAgentDelayMs: 60_000,
+		});
+
+		const w5GpRMessage: AssistantMessageLike = {
+			role: "assistant",
+			content: [],
+			api: "google-generative-ai",
+			provider: "google",
+			model: "gemini-4-argon",
+			stopReason: "error",
+			timestamp: requestStartedAt,
+			errorMessage: "Request aborted",
+			durationMs: 15_689,
+		};
+
+		expect(didMessageSpanSleep(w5GpRMessage, fakeNow, 4_000)).toBe(true);
+		// Base Pi _isRetryableError would reject "Request aborted", but our patch accepts it.
+		expect(session._isRetryableError(w5GpRMessage)).toBe(true);
+		expect(session._willRetryAfterAgentEnd({ messages: [w5GpRMessage] })).toBe(true);
+
+		const shouldRetry = await session._prepareRetry(w5GpRMessage);
+		expect(shouldRetry).toBe(true);
+		expect(session._retryAttempt).toBe(1);
+		expect(session.emittedEvents.at(-1)).toMatchObject({
+			type: "auto_retry_start",
+			attempt: 1,
+			maxAttempts: 12,
+			delayMs: 0,
+			errorMessage: "Request aborted",
+		});
+
+		// Permanent quota/overflow errors or explicit user aborts are never retried.
+		expect(
+			session._isRetryableError({
+				role: "assistant",
+				stopReason: "error",
+				errorMessage: "prompt is too long",
+				timestamp: requestStartedAt,
+				durationMs: 15_689,
+			}),
+		).toBe(false);
+		session._agentRunAbortRequested = true;
+		expect(session._isRetryableError(w5GpRMessage)).toBe(false);
+
+		controller.uninstall();
+	});
+
+	test("automatically resumes a session upon wake if it had already settled on 'Error: Request aborted' while closing the laptop", async () => {
+		let fakeNow = 6_000_000;
+		const { ScopedSession, controller } = createHarness({
+			clock: () => fakeNow,
+			sleepCheckIntervalMs: 5,
+			sleepJumpThresholdMs: 1_000,
+		});
+
+		const session = new ScopedSession({
+			enabled: true,
+			maxRetries: 3,
+			baseDelayMs: 2_000,
+			maxAgentDelayMs: 60_000,
+		});
+
+		const userMsg: AssistantMessageLike = { role: "user" };
+		const failedAssistantMsg: AssistantMessageLike = {
+			role: "assistant",
+			stopReason: "error",
+			errorMessage: "Request aborted",
+		};
+		session.agent.state!.messages = [userMsg, failedAssistantMsg];
+
+		let continueCalls = 0;
+		session.agent.continue = async () => {
+			continueCalls += 1;
+			const recoveredMsg: AssistantMessageLike = {
+				role: "assistant",
+				stopReason: "stop",
+			};
+			session.agent.state!.messages!.push(recoveredMsg);
+			await session._emitExtensionEvent({ type: "message_end", message: recoveredMsg });
+		};
+
+		// Session fails with "Request aborted" and settles before/during sleep.
+		await session._emitExtensionEvent({ type: "message_end", message: failedAssistantMsg });
+		await session._emitExtensionEvent({ type: "agent_settled", aborted: false });
+
+		expect(continueCalls).toBe(0);
+
+		// Laptop wakes up after a 10-minute sleep.
+		fakeNow += 10 * 60_000;
+		expect(controller.checkWake()).toBe(true);
+		await new Promise((resolve) => setTimeout(resolve, 10));
+
+		expect(continueCalls).toBe(1);
+		expect(session.omittedMessages).toContain(failedAssistantMsg);
+		expect(session.settledCount).toBe(1);
 
 		controller.uninstall();
 	});

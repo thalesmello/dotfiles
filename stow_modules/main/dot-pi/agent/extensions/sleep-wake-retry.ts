@@ -6,11 +6,16 @@
  * When a laptop lid is closed while Pi is in the middle of running a session
  * (or a subagent session):
  *
- * 1. In-flight LLM streams break or hang on stale sockets across sleep, and
- *    brief macOS DarkWakes while the lid is closed fail repeatedly against an
- *    offline network interface, incrementing `AgentSession._retryAttempt` and
- *    growing the exponential backoff delay.
- * 2. When the laptop wakes up, `AgentSession._prepareRetry` sits waiting out
+ * 1. In-flight LLM streams break, get aborted by the HTTP/transport layer
+ *    (`stopReason: "error", errorMessage: "Request aborted"`), or hang on stale
+ *    sockets across sleep, and brief macOS DarkWakes while the lid is closed
+ *    fail repeatedly against an offline network interface, incrementing
+ *    `AgentSession._retryAttempt` and growing the exponential backoff delay.
+ * 2. Pi's built-in `RETRYABLE_PROVIDER_ERROR_PATTERN` does not match client/
+ *    transport abort messages like `"Request aborted"` (when the user did not
+ *    press Escape) or raw `"No route to host"` / `"ENETDOWN"` errors without an
+ *    HTTP 5xx wrapper, causing sessions to stop without retrying at all.
+ * 3. When the laptop wakes up, `AgentSession._prepareRetry` sits waiting out
  *    the remaining cooldown timer (`sleep(delayMs)` / `CountdownTimer`) before
  *    retrying the LLM call, blocking the session behind a long `Retrying ...`
  *    countdown (where pressing Escape cancels the run instead of retrying now).
@@ -18,10 +23,19 @@
  * How this works
  * --------------
  * A lightweight wall-clock sleep monitor (`createSleepMonitor`) checks for
- * system sleep/wake jumps (`clock() - lastTick >= SLEEP_JUMP_THRESHOLD_MS`).
+ * system sleep/wake jumps (`clock() - lastTick >= SLEEP_JUMP_THRESHOLD_MS`),
+ * supplemented by per-message wall-clock vs monotonic `durationMs` drift
+ * (`didMessageSpanSleep`).
  *
  * This extension patches `AgentSession.prototype` and `ModelRuntime.prototype`:
  *
+ * - **Retryable abort & disconnect classification (`_isRetryableError`)**:
+ *   when the user did not abort the run (`!_agentRunAbortRequested`), transport
+ *   and socket abort/disconnect errors such as `"Request aborted"`,
+ *   `"Request was aborted"`, `"The operation was aborted"`, `"AbortError"`,
+ *   `"No route to host"`, `"ENETDOWN"`, `"ENETUNREACH"`, `"ECONNABORTED"`, as
+ *   well as any non-quota/non-overflow error on a turn that spanned system
+ *   sleep, are treated as retryable.
  * - **During a retry cooldown (`_prepareRetry`)**: if the system wakes from a
  *   sleep while waiting in `_prepareRetry`, the cooldown wait resolves
  *   immediately (0ms remaining wait), `_retryAttempt` is reset, and `_prepareRetry`
@@ -32,14 +46,30 @@
  *   stream is terminated as a retryable error (`stopReason: "error"`),
  *   `_retryAttempt` is reset, and `_prepareRetry` skips the cooldown (`delayMs = 0`)
  *   to retry the LLM call immediately.
+ * - **Post-settle wake recovery**: if a session settled on a retryable/aborted
+ *   assistant error while the laptop was closing or offline before sleep, waking
+ *   the laptop automatically omits the failed assistant message and resumes
+ *   `agent.continue()` immediately.
  * - **Post-wake reconnect budget**: if that immediate 0ms post-wake retry fails
  *   while Wi-Fi/VPN is still reconnecting right after opening the lid, the next
  *   retry starts fresh at attempt 1 (`baseDelayMs`) with the full `maxRetries`
  *   budget instead of inheriting pre-sleep or DarkWake attempt counts.
  */
 
-import * as piCodingAgent from "@earendil-works/pi-coding-agent";
+import { createRequire } from "node:module";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+
+function loadPiCodingAgent(): {
+	AgentSession?: { prototype: AgentSessionLike };
+	ModelRuntime?: { prototype: ModelRuntimeLike };
+} | undefined {
+	try {
+		const req = createRequire(import.meta.url);
+		return req("@earendil-works/pi-coding-agent");
+	} catch {
+		return undefined;
+	}
+}
 
 export const SLEEP_CHECK_INTERVAL_MS = 1_000;
 export const SLEEP_JUMP_THRESHOLD_MS = 4_000;
@@ -48,6 +78,57 @@ const MAX_TIMER_DELAY_MS = 2_147_483_647;
 export const SLEEP_INTERRUPTED_ERROR_MESSAGE = "Socket connection was closed during system sleep";
 
 const WRAPPED_SIGNAL_SYMBOL = Symbol.for("pi.sleepWakeRetry.wrappedSignal");
+
+/**
+ * Transport, client-abort, and network-down errors that occur when a laptop
+ * closes its lid or loses Wi-Fi/VPN while an LLM request is in flight.
+ */
+export const SLEEP_OR_TRANSPORT_RETRYABLE_ERROR_PATTERN = new RegExp(
+	[
+		"\\b(?:request|operation|stream|fetch|connection|socket|http2?|client|response)\\b[^.\\n]*\\b(?:abort(?:ed)?|cancel(?:led|ed)?)\\b",
+		"\\b(?:abort(?:ed|error)|cancel(?:led|ed)?)\\b[^.\\n]*\\b(?:request|operation|stream|fetch|connection|socket|error)\\b",
+		"^(?:request\\s+|operation\\s+)?aborted\\b",
+		"\\bAbortError\\b",
+		"\\bno route to host\\b",
+		"\\bnetwork (?:is )?(?:down|unreachable|changed|lost)\\b",
+		"\\bhost is (?:down|unreachable)\\b",
+		"\\bsoftware caused connection abort\\b",
+		"\\bbroken pipe\\b",
+		"\\b(?:ENETDOWN|ENETUNREACH|EHOSTDOWN|EHOSTUNREACH|ENONET|ECONNRESET|ECONNABORTED|EPIPE|ETIMEDOUT|ECANCELED)\\b",
+		"\\bunexpected eof\\b",
+		"\\bpremature(?:ly)? close[d]?\\b",
+	].join("|"),
+	"i",
+);
+
+/**
+ * Permanent errors (quota/billing limits or context window overflow) that
+ * must not be retried as transient sleep failures.
+ */
+const NON_RETRYABLE_ERROR_PATTERN = new RegExp(
+	[
+		"GoUsageLimitError",
+		"FreeUsageLimitError",
+		"Monthly usage limit reached",
+		"available balance",
+		"insufficient_quota",
+		"out of budget",
+		"quota exceeded",
+		"billing",
+		"subscription_sharing_usage_limit_exceeded",
+		"subscription_sharing_workplace_individual_usage_limit_exceeded",
+		'"code"\\s*:\\s*"?1308(?![0-9])',
+		"prompt (?:is )?too long",
+		"prompt exceeds max length",
+		"request_too_large",
+		"input is too long for requested model",
+		"exceeds the context window",
+		"context window exceeded",
+		"context_length_exceeded",
+		"maximum context length",
+	].join("|"),
+	"i",
+);
 
 export interface RetryPolicyLike {
 	enabled: boolean;
@@ -67,6 +148,8 @@ export interface AssistantMessageLike {
 	stopReason?: string;
 	errorMessage?: string;
 	errorInfo?: ErrorInfoLike;
+	timestamp?: number;
+	durationMs?: number;
 	[key: string]: unknown;
 }
 
@@ -75,12 +158,18 @@ export interface AgentSessionEventLike {
 	message?: AssistantMessageLike;
 	messages?: AssistantMessageLike[];
 	willRetry?: boolean;
+	aborted?: boolean;
 	[key: string]: unknown;
 }
 
 export interface AgentLike {
+	state?: {
+		messages?: AssistantMessageLike[];
+		[key: string]: unknown;
+	};
 	prepareRequest?: (request: unknown, signal?: AbortSignal) => Promise<unknown> | unknown;
 	abort?: () => void;
+	continue?: () => Promise<unknown>;
 	streamFunction?: (...args: unknown[]) => unknown;
 	[key: string]: unknown;
 }
@@ -90,10 +179,13 @@ export interface AgentSessionLike {
 	settingsManager: {
 		getRetrySettings(): RetryPolicyLike;
 	};
+	isCompacting?: boolean;
 	_isAgentRunActive?: boolean;
 	_agentRunAbortRequested?: boolean;
 	_retryAttempt: number;
 	_declinedRetryReason?: string;
+	_failedResponse?: AssistantMessageLike;
+	_runSystemPromptOptions?: unknown;
 	_retryAbortController?: AbortController;
 	_isRetryableError(message: AssistantMessageLike): boolean;
 	_omitRecoveryAttempt(message: AssistantMessageLike): void;
@@ -103,14 +195,12 @@ export interface AgentSessionLike {
 	_willRetryAfterAgentEnd(event: { messages?: AssistantMessageLike[] }): boolean;
 	_prepareRetry(message: AssistantMessageLike): Promise<boolean>;
 	_startRun?(trigger: unknown, onStarted?: () => void): Promise<unknown>;
+	_handlePostAgentRun?(): Promise<boolean>;
+	_runBeforeSettleBoundary?(): Promise<boolean>;
+	_flushPendingBashMessages?(): void;
+	_flushPendingCustomMessages?(): void;
+	_emitAgentSettled?(): Promise<void>;
 	_installAgentRequestProjection?(): void;
-	_runDefaultCompaction?(
-		preparation: unknown,
-		model: unknown,
-		customInstructions: unknown,
-		signal: AbortSignal,
-		reason: unknown,
-	): Promise<unknown>;
 }
 
 export interface AssistantEventStreamLike {
@@ -187,6 +277,31 @@ export function createSleepMonitor(options: SleepMonitorOptions = {}): SleepMoni
 			listeners.clear();
 		},
 	};
+}
+
+/**
+ * True when an assistant message's wall-clock elapsed time (`nowMs - message.timestamp`)
+ * exceeds its monotonic CPU `durationMs` (`performance.now()` delta, which pauses
+ * during macOS system sleep) by at least `thresholdMs`.
+ */
+export function didMessageSpanSleep(
+	message: AssistantMessageLike | undefined,
+	nowMs: number,
+	thresholdMs: number,
+): boolean {
+	if (!message || typeof message.timestamp !== "number" || typeof message.durationMs !== "number") {
+		return false;
+	}
+	if (
+		!Number.isFinite(message.timestamp) ||
+		!Number.isFinite(message.durationMs) ||
+		message.durationMs < 0
+	) {
+		return false;
+	}
+	const wallElapsedMs = nowMs - message.timestamp;
+	if (wallElapsedMs <= 0) return false;
+	return wallElapsedMs - message.durationMs >= thresholdMs;
 }
 
 function serverRetryDelayMs(errorInfo?: ErrorInfoLike): number | undefined {
@@ -295,6 +410,14 @@ interface SessionRetryState {
 	unsubTurnWake?: () => void;
 	/** Whether `this.agent.prepareRequest` on this session has been wrapped. */
 	prepareRequestWrapped?: boolean;
+	/** Most recent retryable error message from the active run. */
+	lastRetryableErrorMessage?: AssistantMessageLike;
+	/** Saved `_runSystemPromptOptions` from the active run for post-settle wake resume. */
+	lastRunSystemPromptOptions?: unknown;
+	/** Retryable assistant error that settled the session while closing/offline. */
+	settledRetryableMessage?: AssistantMessageLike;
+	/** Unsubscribe for the post-settle wake listener. */
+	unsubSettledWake?: () => void;
 }
 
 export interface SleepWakeRetryOptions {
@@ -320,17 +443,16 @@ export function createSleepWakeRetryController(
 	const sleepCheckIntervalMs = options.sleepCheckIntervalMs ?? SLEEP_CHECK_INTERVAL_MS;
 	const sleepJumpThresholdMs = options.sleepJumpThresholdMs ?? SLEEP_JUMP_THRESHOLD_MS;
 
-	const AgentSessionClass =
-		options.AgentSessionClass ??
-		(piCodingAgent as unknown as { AgentSession?: { prototype: AgentSessionLike } }).AgentSession;
-	const ModelRuntimeClass =
-		options.ModelRuntimeClass ??
-		(piCodingAgent as unknown as { ModelRuntime?: { prototype: ModelRuntimeLike } }).ModelRuntime;
+	const hostModule =
+		options.AgentSessionClass && options.ModelRuntimeClass ? undefined : loadPiCodingAgent();
+	const AgentSessionClass = options.AgentSessionClass ?? hostModule?.AgentSession;
+	const ModelRuntimeClass = options.ModelRuntimeClass ?? hostModule?.ModelRuntime;
 
 	let sleepMonitor: SleepMonitor | undefined;
 	let installed = false;
 	const sessionStates = new WeakMap<AgentSessionLike, SessionRetryState>();
 
+	let origIsRetryableError: AgentSessionLike["_isRetryableError"] | undefined;
 	let origPrepareRetry: AgentSessionLike["_prepareRetry"] | undefined;
 	let origWillRetryAfterAgentEnd: AgentSessionLike["_willRetryAfterAgentEnd"] | undefined;
 	let origEmit: AgentSessionLike["_emit"] | undefined;
@@ -359,10 +481,28 @@ export function createSleepWakeRetryController(
 		}
 	}
 
+	function clearSettledWakeListener(state: SessionRetryState): void {
+		state.lastRetryableErrorMessage = undefined;
+		state.settledRetryableMessage = undefined;
+		if (state.unsubSettledWake) {
+			state.unsubSettledWake();
+			state.unsubSettledWake = undefined;
+		}
+	}
+
+	function didAttemptWake(state: SessionRetryState, message?: AssistantMessageLike): boolean {
+		const monitor = ensureMonitor();
+		return (
+			monitor.getWakeSeq() > state.requestWakeSeq ||
+			didMessageSpanSleep(message, clock(), sleepJumpThresholdMs)
+		);
+	}
+
 	function beginLlmAttempt(session: AgentSessionLike, state: SessionRetryState): void {
 		const monitor = ensureMonitor();
 		monitor.check();
 		clearTurnWakeListener(state);
+		clearSettledWakeListener(state);
 		state.requestWakeSeq = monitor.getWakeSeq();
 		state.isInLlmStream = true;
 		state.unsubTurnWake = monitor.onWake(() => {
@@ -404,15 +544,15 @@ export function createSleepWakeRetryController(
 		state: SessionRetryState,
 		message: AssistantMessageLike | undefined,
 	): void {
-		if (!message || message.role !== "assistant") return;
+		if (!message || message.role !== "assistant" || session._agentRunAbortRequested) return;
 		const monitor = ensureMonitor();
 		monitor.check();
-		const wokeDuringAttempt = monitor.getWakeSeq() > state.requestWakeSeq;
-		if (wokeDuringAttempt && !session._agentRunAbortRequested && message.stopReason === "aborted") {
+		if (didAttemptWake(state, message) && message.stopReason === "aborted") {
 			message.stopReason = "error";
 			if (
 				!message.errorMessage ||
 				message.errorMessage === "Request was aborted" ||
+				message.errorMessage === "Request aborted" ||
 				message.errorMessage === "Operation aborted"
 			) {
 				message.errorMessage = SLEEP_INTERRUPTED_ERROR_MESSAGE;
@@ -420,19 +560,112 @@ export function createSleepWakeRetryController(
 		}
 	}
 
+	async function resumeSettledFailureOnWake(
+		session: AgentSessionLike,
+		state: SessionRetryState,
+	): Promise<void> {
+		const failedMessage = state.settledRetryableMessage;
+		clearSettledWakeListener(state);
+		if (!failedMessage) return;
+		if (session._isAgentRunActive || session._agentRunAbortRequested || session.isCompacting) {
+			return;
+		}
+		if (typeof session.agent?.continue !== "function") {
+			return;
+		}
+		const agentMessages = session.agent.state?.messages;
+		if (
+			Array.isArray(agentMessages) &&
+			agentMessages.length > 0 &&
+			agentMessages[agentMessages.length - 1] !== failedMessage
+		) {
+			return;
+		}
+		const settings = session.settingsManager.getRetrySettings();
+		if (!settings.enabled || settings.maxRetries <= 0) {
+			return;
+		}
+
+		const monitor = ensureMonitor();
+		session._isAgentRunActive = true;
+		session._agentRunAbortRequested = false;
+		session._retryAttempt = 1;
+		if (state.lastRunSystemPromptOptions !== undefined) {
+			session._runSystemPromptOptions = state.lastRunSystemPromptOptions;
+		}
+		state.requestWakeSeq = monitor.getWakeSeq();
+		state.immediateRetryInFlight = true;
+
+		session._emit({
+			type: "auto_retry_start",
+			attempt: 1,
+			maxAttempts: settings.maxRetries,
+			delayMs: 0,
+			errorMessage: failedMessage.errorMessage || "Unknown error",
+		});
+		session._omitRecoveryAttempt(failedMessage);
+		session._failedResponse = failedMessage;
+
+		try {
+			await session.agent.continue();
+			while (!session._agentRunAbortRequested) {
+				if (await session._handlePostAgentRun?.()) {
+					if (session._agentRunAbortRequested) break;
+					await session.agent.continue();
+					continue;
+				}
+				if (session._agentRunAbortRequested || !(await session._runBeforeSettleBoundary?.())) {
+					break;
+				}
+				if (session._agentRunAbortRequested) break;
+				await session.agent.continue();
+			}
+		} finally {
+			clearTurnWakeListener(state);
+			if (session._agentRunAbortRequested) {
+				session._finishCancelledRetry();
+			}
+			session._failedResponse = undefined;
+			session._runSystemPromptOptions = undefined;
+			session._flushPendingBashMessages?.();
+			session._flushPendingCustomMessages?.();
+			state.immediateRetryInFlight = false;
+			await session._emitAgentSettled?.();
+		}
+	}
+
+	function armSettledWakeRecovery(
+		session: AgentSessionLike,
+		state: SessionRetryState,
+		failedMessage: AssistantMessageLike,
+	): void {
+		clearSettledWakeListener(state);
+		state.settledRetryableMessage = failedMessage;
+		const monitor = ensureMonitor();
+		state.unsubSettledWake = monitor.onWake(() => {
+			void resumeSettledFailureOnWake(session, state);
+		});
+	}
+
 	function handleSessionEvent(session: AgentSessionLike, event: AgentSessionEventLike): void {
 		const state = getSessionState(session);
 		if (!event || typeof event !== "object") return;
 
-		if (event.type === "message_start" && event.message?.role === "assistant") {
-			if (!state.isInLlmStream) {
-				const monitor = ensureMonitor();
-				monitor.check();
-				if (monitor.getWakeSeq() === state.requestWakeSeq) {
-					beginLlmAttempt(session, state);
-				}
+		if (event.type === "message_start") {
+			if (event.message?.role === "user") {
+				clearSettledWakeListener(state);
+				return;
 			}
-			normalizeSleepAbortedAssistantMessage(session, state, event.message);
+			if (event.message?.role === "assistant") {
+				if (!state.isInLlmStream) {
+					const monitor = ensureMonitor();
+					monitor.check();
+					if (monitor.getWakeSeq() === state.requestWakeSeq) {
+						beginLlmAttempt(session, state);
+					}
+				}
+				normalizeSleepAbortedAssistantMessage(session, state, event.message);
+			}
 			return;
 		}
 
@@ -443,14 +676,28 @@ export function createSleepWakeRetryController(
 				const monitor = ensureMonitor();
 				state.immediateRetryInFlight = false;
 				state.requestWakeSeq = monitor.getWakeSeq();
+				clearSettledWakeListener(state);
+			} else if (!session._agentRunAbortRequested && session._isRetryableError(event.message)) {
+				state.lastRetryableErrorMessage = event.message;
+				if (session._runSystemPromptOptions !== undefined) {
+					state.lastRunSystemPromptOptions = session._runSystemPromptOptions;
+				}
 			}
 			return;
 		}
 
-		if (event.type === "turn_end" || event.type === "agent_end" || event.type === "agent_settled") {
+		if (event.type === "turn_end" || event.type === "agent_end") {
 			clearTurnWakeListener(state);
-			if (event.type === "agent_settled") {
-				state.immediateRetryInFlight = false;
+			return;
+		}
+
+		if (event.type === "agent_settled") {
+			clearTurnWakeListener(state);
+			state.immediateRetryInFlight = false;
+			if (!event.aborted && !session._agentRunAbortRequested && state.lastRetryableErrorMessage) {
+				armSettledWakeRecovery(session, state, state.lastRetryableErrorMessage);
+			} else {
+				clearSettledWakeListener(state);
 			}
 			return;
 		}
@@ -477,6 +724,7 @@ export function createSleepWakeRetryController(
 		const monitor = ensureMonitor();
 		monitor.check();
 		const state = getSessionState(this);
+		clearSettledWakeListener(state);
 		state.requestWakeSeq = monitor.getWakeSeq();
 		state.immediateRetryInFlight = false;
 		try {
@@ -500,6 +748,36 @@ export function createSleepWakeRetryController(
 		return origEmit!.call(this, event);
 	}
 
+	function patchedIsRetryableError(
+		this: AgentSessionLike,
+		message: AssistantMessageLike,
+	): boolean {
+		if (this._agentRunAbortRequested) {
+			return false;
+		}
+		const monitor = ensureMonitor();
+		monitor.check();
+		const state = getSessionState(this);
+		normalizeSleepAbortedAssistantMessage(this, state, message);
+
+		if (origIsRetryableError && origIsRetryableError.call(this, message)) {
+			return true;
+		}
+		if (!message || message.stopReason !== "error" || !message.errorMessage) {
+			return false;
+		}
+		if (message.errorInfo?.retryable === false) {
+			return false;
+		}
+		if (NON_RETRYABLE_ERROR_PATTERN.test(message.errorMessage)) {
+			return false;
+		}
+		if (SLEEP_OR_TRANSPORT_RETRYABLE_ERROR_PATTERN.test(message.errorMessage)) {
+			return true;
+		}
+		return didAttemptWake(state, message);
+	}
+
 	function patchedWillRetryAfterAgentEnd(
 		this: AgentSessionLike,
 		event: { messages?: AssistantMessageLike[] },
@@ -510,13 +788,13 @@ export function createSleepWakeRetryController(
 		const monitor = ensureMonitor();
 		monitor.check();
 		const state = getSessionState(this);
-		const wokeDuringAttempt = monitor.getWakeSeq() > state.requestWakeSeq;
-		if (wokeDuringAttempt || state.immediateRetryInFlight) {
-			const messages = event?.messages ?? [];
-			for (let i = messages.length - 1; i >= 0; i--) {
-				const msg = messages[i];
-				if (msg?.role === "assistant") {
-					normalizeSleepAbortedAssistantMessage(this, state, msg);
+		const messages = event?.messages ?? [];
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const msg = messages[i];
+			if (msg?.role === "assistant") {
+				normalizeSleepAbortedAssistantMessage(this, state, msg);
+				const wokeDuringAttempt = didAttemptWake(state, msg);
+				if (wokeDuringAttempt || state.immediateRetryInFlight) {
 					if (this._isRetryableError(msg)) {
 						this._retryAttempt = 0;
 						const settings = this.settingsManager.getRetrySettings();
@@ -528,8 +806,8 @@ export function createSleepWakeRetryController(
 						}
 						return computeRetryDelayLimitError(settings, msg.errorInfo) === undefined;
 					}
-					break;
 				}
+				break;
 			}
 		}
 		return origWillRetryAfterAgentEnd!.call(this, event);
@@ -543,8 +821,10 @@ export function createSleepWakeRetryController(
 		monitor.check();
 		const state = getSessionState(this);
 		clearTurnWakeListener(state);
+		clearSettledWakeListener(state);
+		normalizeSleepAbortedAssistantMessage(this, state, message);
 
-		const wokeDuringAttempt = monitor.getWakeSeq() > state.requestWakeSeq;
+		const wokeDuringAttempt = didAttemptWake(state, message);
 		const settings = this.settingsManager.getRetrySettings();
 		if (!settings.enabled) {
 			return false;
@@ -705,6 +985,19 @@ export function createSleepWakeRetryController(
 
 		ensureMonitor();
 
+		if (typeof sessionProto._isRetryableError === "function") {
+			origIsRetryableError = sessionProto._isRetryableError;
+			(
+				patchedIsRetryableError as typeof origIsRetryableError &
+					ChainedPatch<typeof origIsRetryableError>
+			).__inactive = false;
+			(
+				patchedIsRetryableError as typeof origIsRetryableError &
+					ChainedPatch<typeof origIsRetryableError>
+			).__prev = origIsRetryableError;
+			sessionProto._isRetryableError = patchedIsRetryableError;
+		}
+
 		origPrepareRetry = sessionProto._prepareRetry;
 		(patchedPrepareRetry as typeof origPrepareRetry & ChainedPatch<typeof origPrepareRetry>).__inactive = false;
 		(patchedPrepareRetry as typeof origPrepareRetry & ChainedPatch<typeof origPrepareRetry>).__prev =
@@ -792,6 +1085,13 @@ export function createSleepWakeRetryController(
 		if (!installed) return;
 		const sessionProto = AgentSessionClass?.prototype;
 		if (sessionProto) {
+			if (origIsRetryableError) {
+				(
+					patchedIsRetryableError as typeof origIsRetryableError &
+						ChainedPatch<typeof origIsRetryableError>
+				).__inactive = true;
+				sessionProto._isRetryableError = unwrapPrototypeChain(sessionProto._isRetryableError);
+			}
 			if (origPrepareRetry) {
 				(
 					patchedPrepareRetry as typeof origPrepareRetry & ChainedPatch<typeof origPrepareRetry>
