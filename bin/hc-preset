@@ -596,6 +596,10 @@ class HcWorld:
         cwd = t_obj.get("cwd") or fg_cwd
         labels = t_obj.get("labels") or {}
         raw_status = entry.get("status") or t_obj.get("status")
+        if isinstance(raw_status, dict):
+            raw_status = raw_status.get("state")
+        if raw_status == "error":
+            raw_status = "blocked"
         app_name = entry.get("app") or labels.get("agent.kind")
 
         # Determine if an agent is running in this terminal

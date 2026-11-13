@@ -8443,7 +8443,13 @@ function presentInlinePermissionPrompt(view, title, payload, options, clock) {
       }, () => {});
     }
     return component;
-  }, { overlay: false });
+  }, {
+    overlay: false,
+    blocked: {
+      kind: "permission",
+      message: view.notice?.body || title
+    }
+  });
 }
 function handleToolsExpandAction(data, keybindings, ui) {
   if (!keybindings.matches(data, "app.tools.expand")) {

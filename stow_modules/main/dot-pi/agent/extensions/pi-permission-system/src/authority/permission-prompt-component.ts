@@ -354,7 +354,13 @@ export function presentInlinePermissionPrompt(
       }
       return component;
     },
-    { overlay: false },
+    {
+      overlay: false,
+      blocked: {
+        kind: "permission",
+        message: view.notice?.body || title,
+      },
+    } as never,
   );
 }
 

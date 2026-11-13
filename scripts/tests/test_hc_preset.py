@@ -105,6 +105,19 @@ class ErrorTests(unittest.TestCase):
                 contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(adapter.main(["--backend", "herdr", "rpc", "pane.focus", "{}"]), 1)
 
+    def test_error_status_maps_to_blocked(self):
+        world = adapter.HcWorld.__new__(adapter.HcWorld)
+        world.view = {}
+        world.focused_pane_id = None
+        world.term_by_addr = {
+            "t1": {"address": "t1", "agent": "pi", "status": "error", "cwd": "/tmp", "labels": {}},
+            "t2": {"address": "t2", "agent": "pi", "status": {"state": "error", "msg": "API error"}, "cwd": "/tmp", "labels": {}},
+        }
+        p1 = world._build_pane("p1", "t1", "tb1", "ws1", 0, {"terminal": "t1", "pane": "p1"})
+        p2 = world._build_pane("p2", "t2", "tb1", "ws1", 1, {"terminal": "t2", "pane": "p2"})
+        self.assertEqual(p1["agent_status"], "blocked")
+        self.assertEqual(p2["agent_status"], "blocked")
+
 
 if __name__ == "__main__":
     unittest.main()

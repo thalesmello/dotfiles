@@ -219,11 +219,13 @@ export default function questionnaire(pi: ExtensionAPI) {
 			// while the form is open so Herdr reports blocked/awaiting input
 			// instead. herdr-agent-state.ts counts these events and clears the
 			// blocked state when it gets active: false. No listener = no-op.
+			const blockedLabel = `Awaiting input: ${questions.map((q) => q.label).join(", ")}`;
 			pi.events.emit("herdr:blocked", {
 				active: true,
-				label: `Awaiting input: ${questions.map((q) => q.label).join(", ")}`,
+				label: blockedLabel,
 			});
-			const result = await ctx.ui.custom<QuestionnaireResult>((tui, theme, _kb, done) => {
+			const result = await ctx.ui.custom<QuestionnaireResult>(
+				(tui, theme, _kb, done) => {
 				// State
 				let currentTab = 0;
 				let inputMode = false;
@@ -870,7 +872,9 @@ export default function questionnaire(pi: ExtensionAPI) {
 					},
 					handleInput,
 				};
-			}).finally(() => {
+				},
+				{ blocked: { kind: "question", message: blockedLabel } } as never,
+			).finally(() => {
 				pi.events.emit("herdr:blocked", { active: false });
 			});
 
