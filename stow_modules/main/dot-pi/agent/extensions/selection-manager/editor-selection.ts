@@ -43,6 +43,23 @@ interface Options {
 }
 const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
+export type SelectionBoundary = "line-start" | "line-end" | "document-start" | "document-end";
+
+/** Ghostty's Cmd+Left/Right aliases and explicit Cmd(+Shift)+Arrow sequences. */
+export function parseBoundaryKey(data: string): { edge: SelectionBoundary; extend: boolean; release: boolean } | undefined {
+	const directions = { left: "line-start", right: "line-end", up: "document-start", down: "document-end" } as const;
+	for (const direction of ["left", "right", "up", "down"] as const) {
+		const extend = matchesKey(data, `shift+super+${direction}`);
+		if (extend || matchesKey(data, `super+${direction}`)) {
+			return { edge: directions[direction], extend, release: isKeyRelease(data) };
+		}
+	}
+	// Existing Ghostty mappings: super+left=text:\\x01, super+right=text:\\x05.
+	if (matchesKey(data, "ctrl+a")) return { edge: "line-start", extend: false, release: isKeyRelease(data) };
+	if (matchesKey(data, "ctrl+e")) return { edge: "line-end", extend: false, release: isKeyRelease(data) };
+	return undefined;
+}
+
 /** Editable selection on one existing editor instance; compose with its actual methods. */
 export function installEditorSelection(base: unknown, options: Options): unknown {
 	const editor = base as Editor;
@@ -168,6 +185,20 @@ export function installEditorSelection(base: unknown, options: Options): unknown
 		}
 		if (isKeyRelease(data)) return;
 		options.onFocus();
+		const boundary = parseBoundaryKey(data);
+		if (boundary) {
+			editor.cancelAutocomplete?.();
+			if (boundary.extend) anchor ??= cursor();
+			else clear();
+			const offset = boundary.edge === "document-start" ? 0
+				: boundary.edge === "document-end" ? editor.getText().length
+				: lineOffset(editor.state.cursorLine) + (boundary.edge === "line-end" ? editor.state.lines[editor.state.cursorLine]!.length : 0);
+			moveTo(offset);
+			if (boundary.extend) focus = cursor();
+			editor.exitHistoryBrowsing?.();
+			selectedTextVersion = editor.getText();
+			return;
+		}
 		for (const direction of ["left", "right", "up", "down"] as const) {
 			const word = matchesKey(data, `shift+alt+${direction}`);
 			if (!word && !matchesKey(data, `shift+${direction}`)) continue;

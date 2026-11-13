@@ -72,6 +72,60 @@ describe("editable prompt selection (native Pi editor)", () => {
 		expect(editor.getText()).toBe("Xbeta gamma");
 	});
 
+	test("Ghostty Cmd+Arrows move to line and document boundaries without selecting", () => {
+		const { editor, copied } = makeEditor("alpha\nbeta\ngamma");
+		caret(editor, 1, 2);
+		editor.handleInput("\x01"); // Ghostty Cmd+Left -> Ctrl+A.
+		expect(editor.getCursor()).toEqual({ line: 1, col: 0 });
+		editor.handleInput("\x05"); // Ghostty Cmd+Right -> Ctrl+E.
+		expect(editor.getCursor()).toEqual({ line: 1, col: 4 });
+		editor.handleInput("\x1b[1;9A"); // Cmd+Up.
+		expect(editor.getCursor()).toEqual({ line: 0, col: 0 });
+		editor.handleInput("\x1b[1;9B"); // Cmd+Down.
+		expect(editor.getCursor()).toEqual({ line: 2, col: 5 });
+		editor.handleInput("X");
+		expect(editor.getText()).toBe("alpha\nbeta\ngammaX");
+		expect(copied).toEqual([]);
+	});
+
+	test("Shift+Cmd+Arrows extend and shrink prompt selection to boundaries", () => {
+		const { editor, copied } = makeEditor("alpha\nbeta\ngamma");
+		caret(editor, 1, 2);
+		editor.handleInput("\x1b[1;10D");
+		editor.handleInput("\x1bw");
+		expect(copied.pop()).toBe("be");
+		editor.handleInput("\x1b[1;10C");
+		editor.handleInput("\x1bw");
+		expect(copied.pop()).toBe("ta");
+		editor.handleInput("\x1b[1;10A");
+		editor.handleInput("\x1bw");
+		expect(copied.pop()).toBe("alpha\nbe");
+		editor.handleInput("\x1b[1;10B");
+		expect(copied).toEqual([]); // Extending still must not copy automatically.
+		editor.handleInput("\x1bw");
+		expect(copied.pop()).toBe("ta\ngamma");
+		editor.handleInput("X");
+		expect(editor.getText()).toBe("alpha\nbeX");
+	});
+
+	test("Cmd line bounds work across wrapped rows and collapse an existing selection", () => {
+		const text = "alpha beta gamma delta epsilon";
+		const { editor } = makeEditor(text);
+		editor.render(12);
+		caret(editor, 0, 8);
+		editor.handleInput("\x1b[1;10D");
+		editor.handleInput("\x01");
+		expect(editor.state.cursorCol).toBe(0);
+		editor.handleInput("X");
+		expect(editor.getText()).toBe(`X${text}`);
+		caret(editor, 0, 8);
+		editor.handleInput("\x1b[57418;10u"); // Kitty Shift+Cmd+Right.
+		editor.handleInput("\x1b[1;10:3D"); // Release must not move the focus.
+		expect(editor.state.cursorCol).toBe(editor.getText().length);
+		editor.handleInput("X");
+		expect(editor.getText()).toBe("Xalpha bX");
+	});
+
 	test("Backspace/Delete replaces a selection rather than deleting one character", () => {
 		for (const deletion of ["\x7f", "\x1b[3~"]) {
 			const { editor } = makeEditor("alpha beta");

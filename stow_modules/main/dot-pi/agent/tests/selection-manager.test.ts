@@ -128,6 +128,39 @@ describe("selection-manager extension", () => {
 		expect(prototype.getActiveSelectionText).not.toBe(originalCopy);
 	});
 
+	test("Ghostty Cmd+Arrows adjust transcript focus to line/document boundaries without copying", () => {
+		const screen = startScreen(["alpha", "beta", "gamma"]);
+		screen.setSelection({ row: 1, col: 2 }, { row: 1, col: 3 });
+		expect(screen.emitInput("\x01")).toEqual({ consume: true });
+		expect(screen.getActiveSelectionText()).toBe("be");
+		expect(screen.emitInput("\x05")).toEqual({ consume: true });
+		expect(screen.getActiveSelectionText()).toBe("ta");
+		expect(screen.emitInput("\x1b[1;9A")).toEqual({ consume: true });
+		expect(screen.getActiveSelectionText()).toBe("alpha\nbe");
+		expect(screen.emitInput("\x1b[1;10B")).toEqual({ consume: true });
+		expect(screen.getActiveSelectionText()).toBe("ta\ngamma");
+		expect(screen.emitInput("\x1b[57417;10u")).toEqual({ consume: true });
+		expect(screen.getActiveSelectionText()).toBe("ta\n");
+		const focus = { ...screen.selectionFocus };
+		expect(screen.emitInput("\x1b[1;10:3C")).toEqual({ consume: true });
+		expect(screen.selectionFocus).toEqual(focus);
+		expect(screen.copiedTexts).toEqual([]);
+	});
+
+	test("Cmd+Up/Down retains whole-line granularity for triple-click transcript selections", () => {
+		const screen = startScreen(["alpha", "beta", "gamma"]);
+		for (let i = 0; i < 3; i++) {
+			screen.handleMouseEvent({ button: 0, x: 1, y: 1, release: false });
+			screen.handleMouseEvent({ button: 0, x: 1, y: 1, release: true });
+		}
+		screen.copiedTexts.length = 0;
+		expect(screen.emitInput("\x1b[1;9A")).toEqual({ consume: true });
+		expect(screen.getActiveSelectionText()).toBe("alpha\nbeta");
+		expect(screen.emitInput("\x1b[1;10B")).toEqual({ consume: true });
+		expect(screen.getActiveSelectionText()).toBe("beta\ngamma");
+		expect(screen.copiedTexts).toEqual([]);
+	});
+
 	test("keeps a selection that overshoots a table cell border inside that cell", () => {
 		const screen = startScreen(BASIC_TABLE);
 

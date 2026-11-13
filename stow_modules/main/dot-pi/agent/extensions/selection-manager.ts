@@ -60,7 +60,10 @@
  * - Whenever a selection is active (regular drag, double-click word, or
  *   triple-click line), `Shift+Arrows` moves the selection focus cursor to
  *   expand or shrink the selection, and `Shift+Alt+Left`/`Shift+Alt+Right`
- *   moves the selection focus by words, without copying. Mouse selections
+ *   moves the selection focus by words. Cmd+Left/Right (Ghostty's Ctrl+A/E
+ *   aliases) and Cmd+Up/Down move the transcript focus to line/document
+ *   boundaries; Shift+Cmd+Arrows does the same. These keys never copy.
+ *   Mouse selections
  *   copy once on release; a double-click copy waits out the multi-click
  *   interval so a third click can cancel the intermediate word copy.
  *
@@ -89,7 +92,7 @@
 
 import { CustomEditor, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { sliceByColumn, stripTerminalSequences, TuiAltScreen, visibleWidth } from "@earendil-works/pi-tui";
-import { installEditorSelection } from "./selection-manager/editor-selection.ts";
+import { installEditorSelection, parseBoundaryKey, type SelectionBoundary } from "./selection-manager/editor-selection.ts";
 
 // ---------------------------------------------------------------------------
 // Rendered-table parsing (operates on plain rendered lines, as pi's TUI does)
@@ -1484,6 +1487,7 @@ function revealSelectionPoint(internals: AltScreenInternals, point: SelectionPoi
 }
 
 type SelectionKeyAction =
+	| SelectionBoundary
 	| "char-left"
 	| "char-right"
 	| "word-left"
@@ -1492,6 +1496,8 @@ type SelectionKeyAction =
 	| "line-down";
 
 function parseSelectionKey(data: string): { action: SelectionKeyAction; release: boolean } | undefined {
+	const boundary = parseBoundaryKey(data);
+	if (boundary) return { action: boundary.edge, release: boundary.release };
 	const csiArrow = /^\x1b(?:\[(?:1;)?|O)(\d+)(?::(\d+))?([ABCD])$/.exec(data);
 	if (csiArrow) {
 		const mod = (Number.parseInt(csiArrow[1]!, 10) - 1) & ~(64 | 128);
@@ -1613,13 +1619,14 @@ function syncSelectionAfterKeyboardMove(internals: AltScreenInternals): void {
 function applyKeyboardSelectionMove(internals: AltScreenInternals, action: SelectionKeyAction): boolean {
 	if (!hasEditableSelection(internals)) return false;
 	cancelPendingMouseCopy();
-	if ((action === "line-up" || action === "line-down") && internals.selectionGranularity === "line") {
+	if ((action === "line-up" || action === "line-down" || action === "document-start" || action === "document-end") && internals.selectionGranularity === "line") {
 		const focus = getFocus(internals);
 		if (!focus) return false;
 		const lines = getSourceLinesForPoint(internals, focus);
 		const maxRow = Math.max(0, lines.length - 1);
 		const delta = action === "line-up" ? -1 : 1;
-		const nextRow = Math.max(0, Math.min(maxRow, focus.row + delta));
+		const nextRow = action === "document-start" ? 0 : action === "document-end" ? maxRow
+			: Math.max(0, Math.min(maxRow, focus.row + delta));
 		updateLineSelectionFocus(internals, { ...focus, row: nextRow });
 		const updatedFocus = getFocus(internals);
 		if (updatedFocus) revealSelectionPoint(internals, updatedFocus);
@@ -1637,6 +1644,17 @@ function applyKeyboardSelectionMove(internals: AltScreenInternals, action: Selec
 	let nextFocus: SelectionPointLike;
 
 	switch (action) {
+		case "line-start":
+		case "line-end":
+		case "document-start":
+		case "document-end": {
+			preferredFocusCol = undefined;
+			const row = action === "document-start" ? 0 : action === "document-end" ? maxRow : focus.row;
+			const bounds = getLineContentBounds(internals, { ...focus, row });
+			const col = action === "line-start" || action === "document-start" ? bounds.start : bounds.end;
+			nextFocus = { ...focus, row, col, boundary: true };
+			break;
+		}
 		case "char-left":
 			preferredFocusCol = undefined;
 			nextFocus = moveCursorCharLeft(internals, focus);

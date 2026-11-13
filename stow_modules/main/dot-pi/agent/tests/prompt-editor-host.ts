@@ -46,6 +46,7 @@ export interface NativePromptEditorInstance {
 	onChange?: (text: string) => void;
 	onSubmit?: (text: string) => void;
 	getText(): string;
+	getCursor(): { line: number; col: number };
 	setText(text: string): void;
 	handleInput(data: string): void;
 	handleMouse(event: { type: string; button: string; x: number; y: number; width: number; shift?: boolean; clickCount?: number }): unknown;
