@@ -27,7 +27,7 @@ export const MAX_REVIEW_ATTEMPTS = 5;
 export const DEFAULT_RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000];
 export const SLEEP_CHECK_INTERVAL_MS = 1_000;
 export const SLEEP_JUMP_THRESHOLD_MS = 4_000;
-export const POST_WAKE_SETTLE_MS = 3_000;
+export const POST_WAKE_SETTLE_MS = 0;
 export const MAX_WAKE_RESETS = 10;
 export const TOOL_CALL_CACHE_LIMIT = 64;
 
@@ -643,7 +643,7 @@ export default function permissionAutoReview(pi, authorizerRegistry, options = {
 	const sleepJumpThresholdMs =
 		options.sleepJumpThresholdMs ?? SLEEP_JUMP_THRESHOLD_MS;
 	const postWakeSettleMs =
-		options.postWakeSettleMs ?? (fastTestMode ? 10 : POST_WAKE_SETTLE_MS);
+		options.postWakeSettleMs ?? POST_WAKE_SETTLE_MS;
 	const maxWakeResets = options.maxWakeResets ?? MAX_WAKE_RESETS;
 	const clock = options.clock ?? Date.now;
 	const getAutoModeConfig =

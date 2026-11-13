@@ -14,7 +14,7 @@ const DEFAULT_REEVALUATE_BASE_DELAY_MS = 3_000;
 const DEFAULT_REEVALUATE_MAX_DELAY_MS = 30_000;
 const DEFAULT_SLEEP_CHECK_INTERVAL_MS = 1_000;
 const DEFAULT_SLEEP_JUMP_THRESHOLD_MS = 4_000;
-const DEFAULT_POST_WAKE_SETTLE_MS = 2_000;
+const DEFAULT_POST_WAKE_SETTLE_MS = 0;
 
 export interface ComposeAuthorizerChainOptions {
   /** Initial delay before background re-evaluation of a transiently-failed link. */

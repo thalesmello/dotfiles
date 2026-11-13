@@ -6732,7 +6732,7 @@ var DEFAULT_REEVALUATE_BASE_DELAY_MS = 3000;
 var DEFAULT_REEVALUATE_MAX_DELAY_MS = 30000;
 var DEFAULT_SLEEP_CHECK_INTERVAL_MS = 1000;
 var DEFAULT_SLEEP_JUMP_THRESHOLD_MS = 4000;
-var DEFAULT_POST_WAKE_SETTLE_MS = 2000;
+var DEFAULT_POST_WAKE_SETTLE_MS = 0;
 function composeAuthorizerChain(links, terminal, query, log, options) {
   if (links.length === 0) {
     return terminal;
@@ -28028,7 +28028,7 @@ var MAX_REVIEW_ATTEMPTS = 5;
 var DEFAULT_RETRY_DELAYS_MS2 = [1000, 2000, 4000, 8000];
 var SLEEP_CHECK_INTERVAL_MS = 1000;
 var SLEEP_JUMP_THRESHOLD_MS = 4000;
-var POST_WAKE_SETTLE_MS = 3000;
+var POST_WAKE_SETTLE_MS = 0;
 var MAX_WAKE_RESETS = 10;
 var TOOL_CALL_CACHE_LIMIT = 64;
 var TRUSTED_QUESTION_TOOLS = new Set([
@@ -28554,7 +28554,7 @@ function permissionAutoReview(pi, authorizerRegistry, options = {}) {
   const retryDelaysMs = options.retryDelaysMs ?? (fastTestMode ? [5, 10, 15, 20] : DEFAULT_RETRY_DELAYS_MS2);
   const sleepCheckIntervalMs = options.sleepCheckIntervalMs ?? (fastTestMode ? Math.max(5, Math.floor(timeoutMs / 2)) : SLEEP_CHECK_INTERVAL_MS);
   const sleepJumpThresholdMs = options.sleepJumpThresholdMs ?? SLEEP_JUMP_THRESHOLD_MS;
-  const postWakeSettleMs = options.postWakeSettleMs ?? (fastTestMode ? 10 : POST_WAKE_SETTLE_MS);
+  const postWakeSettleMs = options.postWakeSettleMs ?? POST_WAKE_SETTLE_MS;
   const maxWakeResets = options.maxWakeResets ?? MAX_WAKE_RESETS;
   const clock = options.clock ?? Date.now;
   const getAutoModeConfig = typeof options.getAutoModeConfig === "function" ? options.getAutoModeConfig : () => options.autoMode;
