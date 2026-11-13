@@ -120,6 +120,23 @@ export class FakeAltScreen {
 	selectionDragged = false;
 	copyOnSelect = true;
 	copiedTexts: string[] = [];
+	viewportScrollActions: Array<"top" | "bottom"> = [];
+
+	constructor() {
+		this.addInputListener((data) => this.handleViewportInput(data));
+	}
+
+	handleViewportInput(data: string): { consume: boolean } | undefined {
+		if (matchesKey(data, "super+up") || matchesKey(data, "super+home") || matchesKey(data, "ctrl+home")) {
+			if (!isKeyRelease(data)) this.viewportScrollActions.push("top");
+			return { consume: true };
+		}
+		if (matchesKey(data, "super+down") || matchesKey(data, "super+end") || matchesKey(data, "ctrl+end")) {
+			if (!isKeyRelease(data)) this.viewportScrollActions.push("bottom");
+			return { consume: true };
+		}
+		return undefined;
+	}
 
 	copySelectionToClipboard(): boolean {
 		const text = this.getActiveSelectionText();

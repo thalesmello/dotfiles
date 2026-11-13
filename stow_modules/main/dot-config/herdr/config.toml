@@ -437,6 +437,20 @@ type = "shell"
 command = "~/.config/herdr/scripts/smart-pane-nav.sh right l"
 description = "focus/forward pane right"
 
+# Smart history scroll: scroll shell pane scrollback to top/bottom, or forward
+# super+up/down to TUI/agent panes (like Pi) so they scroll their own history.
+[[keys.command]]
+key = ["super+up", "ctrl+alt+up"]
+type = "shell"
+command = "~/.config/herdr/scripts/smart-scroll.sh top"
+description = "scroll history to top"
+
+[[keys.command]]
+key = ["super+down", "ctrl+alt+down"]
+type = "shell"
+command = "~/.config/herdr/scripts/smart-scroll.sh bottom"
+description = "scroll history to bottom"
+
 # Smart tab navigation: move to the next/previous tab, but hop to the neighbouring
 # workspace (and its first/last tab) when already at the end of the current one.
 # ctrl+alt+shift+] / ctrl+alt+shift+[ are the direct chords forwarded by Ghostty

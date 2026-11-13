@@ -510,6 +510,48 @@ function M.focusPaneWithFallback(direction)
   return true
 end
 
+-- Scroll terminal history to `direction` ("top"/"up" or "bottom"/"down"), or
+-- forward Cmd+Up/Down to TUI/agent panes (like Pi) that own their own viewport.
+-- Returns true when handled/consumed here, false when the event should pass
+-- through to the terminal (e.g. Ghostty forwarding super+up/down into herdr).
+function M.scrollHistoryWithFallback(direction)
+  local isTop
+  if direction == "top" or direction == "up" then
+    isTop = true
+  elseif direction == "bottom" or direction == "down" then
+    isTop = false
+  else
+    return false
+  end
+  local normDir = isTop and "top" or "bottom"
+  local arrowKey = isTop and "up" or "down"
+  log("scrollHistoryWithFallback " .. normDir)
+
+  if isHerdrApp() then
+    log("  -> route: herdr-app smart-scroll.sh " .. normDir)
+    local cmd = "HC_PRESET_BACKEND=hc $HOME/.config/herdr/scripts/smart-scroll.sh " .. normDir
+    task({"sh", "-c", cmd}, function(ok, out)
+      if ok and out and out:match("forward") then
+        sendKeyToTerminal({"ctrl", "alt", arrowKey})
+      end
+    end)
+    return true
+  elseif M.isHerdrZoomedOrSingleSurface() or M.isHerdrWindow() then
+    log("  -> route: herdr (pass through super+" .. arrowKey .. ")")
+    return false
+  else
+    local win = hs.window.focusedWindow()
+    local title = win and win:title() or ""
+    if titleRuns(title, "nvim") or title:find("^π ") then
+      log("  -> route: TUI in Ghostty (pass through super+" .. arrowKey .. ")")
+      return false
+    end
+    log("  -> route: focused Ghostty window (cmd+" .. (isTop and "home" or "end") .. ")")
+    sendToFocused({"cmd", isTop and "home" or "end"})
+    return true
+  end
+end
+
 -- Show the quick terminal if it isn't already focused (F17 toggles it globally).
 function M.revealFloatingTerminal()
   log("revealFloatingTerminal")

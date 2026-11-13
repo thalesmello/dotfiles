@@ -108,6 +108,29 @@ describe("editable prompt selection (native Pi editor)", () => {
 		expect(editor.getText()).toBe("alpha\nbeX");
 	});
 
+	test("Shift+Alt+Up/Down and Alt+Up/Down expand and contract prompt selection by paragraph", () => {
+		const { editor, copied } = makeEditor("p1a\np1b\n\np2a\np2b\np2c\n\np3a\np3b");
+		caret(editor, 4, 1); // Inside "p2b"
+		editor.handleInput("\x1b[1;4B"); // Shift+Alt+Down -> end of p2
+		editor.handleInput("\x1bw");
+		expect(copied.pop()).toBe("2b\np2c");
+		editor.handleInput("\x1b[1;3B"); // Alt+Down (while selection active) -> end of p3
+		editor.handleInput("\x1bw");
+		expect(copied.pop()).toBe("2b\np2c\n\np3a\np3b");
+		editor.handleInput("\x1b[1;3A"); // Alt+Up -> contract to end of p2
+		editor.handleInput("\x1bw");
+		expect(copied.pop()).toBe("2b\np2c");
+		editor.handleInput("\x1b[1;3A"); // Alt+Up -> start of p2
+		editor.handleInput("\x1bw");
+		expect(copied.pop()).toBe("p2a\np");
+		editor.handleInput("\x1b[1;4A"); // Shift+Alt+Up -> start of p1
+		editor.handleInput("\x1bw");
+		expect(copied.pop()).toBe("p1a\np1b\n\np2a\np");
+		editor.handleInput("\x1b[1;3B"); // Alt+Down -> contract to start of p2
+		editor.handleInput("\x1bw");
+		expect(copied.pop()).toBe("p2a\np");
+	});
+
 	test("Cmd line bounds work across wrapped rows and collapse an existing selection", () => {
 		const text = "alpha beta gamma delta epsilon";
 		const { editor } = makeEditor(text);

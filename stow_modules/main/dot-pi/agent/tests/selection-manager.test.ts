@@ -159,6 +159,79 @@ describe("selection-manager extension", () => {
 		expect(screen.emitInput("\x1b[1;10B")).toEqual({ consume: true });
 		expect(screen.getActiveSelectionText()).toBe("beta\ngamma");
 		expect(screen.copiedTexts).toEqual([]);
+		expect(screen.viewportScrollActions).toEqual([]);
+	});
+
+	test("Cmd+Up/Down scrolls transcript history to top/bottom when no transcript selection is active", () => {
+		const screen = startScreen(["alpha", "beta", "gamma"]);
+		expect(screen.emitInput("\x1b[1;9A")).toEqual({ consume: true });
+		expect(screen.emitInput("\x1b[1;9B")).toEqual({ consume: true });
+		expect(screen.viewportScrollActions).toEqual(["top", "bottom"]);
+	});
+
+	test("Alt+Up/Down and Shift+Alt+Up/Down expand and contract transcript selections by paragraph", () => {
+		const screen = startScreen([
+			"para1 line1",
+			"para1 line2",
+			"",
+			"para2 line1",
+			"para2 line2",
+			"para2 line3",
+			"",
+			"para3 line1",
+			"para3 line2",
+		]);
+		// Character selection inside para2 line2 ("line2").
+		screen.setSelection({ row: 4, col: 6 }, { row: 4, col: 10 });
+		expect(screen.emitInput("\x1b[1;3B")).toEqual({ consume: true }); // Alt+Down -> end of para2
+		expect(screen.getActiveSelectionText()).toBe("line2\npara2 line3");
+		expect(screen.emitInput("\x1b[1;4B")).toEqual({ consume: true }); // Shift+Alt+Down -> end of para3
+		expect(screen.getActiveSelectionText()).toBe("line2\npara2 line3\n\npara3 line1\npara3 line2");
+		expect(screen.emitInput("\x1b[1;3A")).toEqual({ consume: true }); // Alt+Up -> contract to end of para2
+		expect(screen.getActiveSelectionText()).toBe("line2\npara2 line3");
+		expect(screen.emitInput("\x1b[1;3A")).toEqual({ consume: true }); // Alt+Up -> start of para2
+		expect(screen.getActiveSelectionText()).toBe("para2 line1\npara2");
+		expect(screen.emitInput("\x1b[1;4A")).toEqual({ consume: true }); // Shift+Alt+Up -> start of para1
+		expect(screen.getActiveSelectionText()).toBe("para1 line1\npara1 line2\n\npara2 line1\npara2");
+		expect(screen.emitInput("\x1b[1;3B")).toEqual({ consume: true }); // Alt+Down -> contract to start of para2
+		expect(screen.getActiveSelectionText()).toBe("para2 line1\npara2");
+		expect(screen.copiedTexts).toEqual([]);
+	});
+
+	test("Alt+Up/Down expands and contracts triple-click line selections by paragraph", () => {
+		const screen = startScreen([
+			"para1 line1",
+			"para1 line2",
+			"",
+			"para2 line1",
+			"para2 line2",
+			"para2 line3",
+			"",
+			"para3 line1",
+			"para3 line2",
+		]);
+		for (let i = 0; i < 3; i++) {
+			screen.handleMouseEvent({ button: 0, x: 1, y: 4, release: false });
+			screen.handleMouseEvent({ button: 0, x: 1, y: 4, release: true });
+		}
+		screen.copiedTexts.length = 0;
+		expect(screen.emitInput("\x1b[1;3B")).toEqual({ consume: true }); // Alt+Down -> end of para2
+		expect(screen.getActiveSelectionText()).toBe("para2 line2\npara2 line3");
+		expect(screen.emitInput("\x1b[1;3B")).toEqual({ consume: true }); // Alt+Down -> end of para3
+		expect(screen.getActiveSelectionText()).toBe("para2 line2\npara2 line3\n\npara3 line1\npara3 line2");
+		expect(screen.emitInput("\x1b[1;3A")).toEqual({ consume: true }); // Alt+Up -> contract to end of para2
+		expect(screen.getActiveSelectionText()).toBe("para2 line2\npara2 line3");
+		expect(screen.emitInput("\x1b[1;3A")).toEqual({ consume: true }); // Alt+Up -> contract back to initial line
+		expect(screen.getActiveSelectionText()).toBe("para2 line2");
+		expect(screen.emitInput("\x1b[1;3A")).toEqual({ consume: true }); // Alt+Up -> expand to start of para2
+		expect(screen.getActiveSelectionText()).toBe("para2 line1\npara2 line2");
+		expect(screen.emitInput("\x1b[1;3A")).toEqual({ consume: true }); // Alt+Up -> expand to start of para1
+		expect(screen.getActiveSelectionText()).toBe("para1 line1\npara1 line2\n\npara2 line1\npara2 line2");
+		expect(screen.emitInput("\x1b[1;3B")).toEqual({ consume: true }); // Alt+Down -> contract to start of para2
+		expect(screen.getActiveSelectionText()).toBe("para2 line1\npara2 line2");
+		expect(screen.emitInput("\x1b[1;3B")).toEqual({ consume: true }); // Alt+Down -> contract back to initial line
+		expect(screen.getActiveSelectionText()).toBe("para2 line2");
+		expect(screen.copiedTexts).toEqual([]);
 	});
 
 	test("keeps a selection that overshoots a table cell border inside that cell", () => {
@@ -697,12 +770,18 @@ for (const Host of [FakeAltScreen, NativeSelectionAltScreen]) {
 			expect(screen.copyOnSelect).toBe(true);
 		});
 
-		test("recognizes a third click 180 ms after the second press", () => {
+		test("recognizes a third click 180 ms after the second release even when the second click was held for 100 ms", () => {
 			const clock = spyOn(Date, "now").mockReturnValue(1000);
 			try {
 				const screen = createScreen();
-				doubleClick(screen);
+				press(screen);
+				clock.mockReturnValue(1080);
+				release(screen);
 				clock.mockReturnValue(1180);
+				press(screen);
+				clock.mockReturnValue(1280);
+				release(screen);
+				clock.mockReturnValue(1460); // 180 ms after second release, 280 ms after second press
 				press(screen);
 				release(screen);
 				expect(screen.selectionGranularity).toBe("line");

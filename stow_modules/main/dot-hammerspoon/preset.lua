@@ -17,6 +17,7 @@ local keyMap = {
   s = "s", t = "t", u = "u", v = "v", w = "w", x = "x",
   y = "y", z = "z", space = "space", ["return"] = "return",
   left = "left", right = "right", up = "up", down = "down",
+  home = "home", ["end"] = "end", pageup = "pageup", pagedown = "pagedown",
   fn = "fn", tab = "tab", escape = "escape", backtick = "`",
   backslash = "\\", delete = "delete",
   ["1"] = "1", ["2"] = "2", ["3"] = "3", ["4"] = "4", ["5"] = "5",
@@ -55,7 +56,8 @@ local sendKeyCodes = {
   m = 46, n = 45, o = 31, p = 35, q = 12, r = 15,
   s = 1, t = 17, u = 32, v = 9, w = 13, x = 7,
   y = 16, z = 6, space = 49, ["return"] = 36, left = 123,
-  right = 124, up = 126, down = 125, fn = 63, ["1"] = 18,
+  right = 124, up = 126, down = 125, home = 115, ["end"] = 119,
+  pageup = 116, pagedown = 121, fn = 63, ["1"] = 18,
   ["2"] = 19, ["3"] = 20, ["4"] = 21, ["5"] = 23, ["6"] = 22, ["7"] = 26,
   ["8"] = 28, ["9"] = 25, ["0"] = 29, tab = 48, escape = 53,
   backspace = 51, delete = 51,
@@ -120,6 +122,8 @@ function M.sendKeys(args, app)
   if key == "left" or key == "right" or key == "up" or key == "down" then
     if not hasFn then flags = flags + FLAG_FN end
     flags = flags + FLAG_NUMPAD
+  elseif key == "home" or key == "end" or key == "pageup" or key == "pagedown" then
+    if not hasFn then flags = flags + FLAG_FN end
   end
 
   -- Pre-release the key: when a hyper binding's trigger key is the SAME as this

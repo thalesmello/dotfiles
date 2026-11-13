@@ -199,20 +199,36 @@ export function installEditorSelection(base: unknown, options: Options): unknown
 			selectedTextVersion = editor.getText();
 			return;
 		}
+		const range = bounds();
 		for (const direction of ["left", "right", "up", "down"] as const) {
-			const word = matchesKey(data, `shift+alt+${direction}`);
+			const word = matchesKey(data, `shift+alt+${direction}`) || (range !== undefined && matchesKey(data, `alt+${direction}`));
 			if (!word && !matchesKey(data, `shift+${direction}`)) continue;
 			editor.cancelAutocomplete?.();
 			anchor ??= cursor();
-			if (word && direction === "left" && editor.moveWordBackwards) editor.moveWordBackwards();
+			if (word && (direction === "up" || direction === "down")) {
+				const cur = cursor();
+				const paragraphs: Array<{ start: number; end: number }> = [];
+				for (let i = 0; i < editor.state.lines.length; i++) {
+					if (editor.state.lines[i]!.trim().length === 0) continue;
+					const start = lineOffset(i);
+					while (i + 1 < editor.state.lines.length && editor.state.lines[i + 1]!.trim().length > 0) i++;
+					paragraphs.push({ start, end: lineOffset(i) + editor.state.lines[i]!.length });
+				}
+				const next = direction === "down"
+					? (cur < anchor ? paragraphs.find((p) => p.start > cur && p.start <= anchor!)?.start : undefined)
+						?? paragraphs.find((p) => p.end > cur)?.end ?? editor.getText().length
+					: (cur > anchor ? [...paragraphs].reverse().find((p) => p.end < cur && p.end >= anchor!)?.end : undefined)
+						?? [...paragraphs].reverse().find((p) => p.start < cur)?.start ?? 0;
+				moveTo(next);
+			} else if (word && direction === "left" && editor.moveWordBackwards) editor.moveWordBackwards();
 			else if (word && direction === "right" && editor.moveWordForwards) editor.moveWordForwards();
 			else if (editor.moveCursor) editor.moveCursor(direction === "up" ? -1 : direction === "down" ? 1 : 0, direction === "left" ? -1 : direction === "right" ? 1 : 0);
 			else input(`\x1b[${word && (direction === "left" || direction === "right") ? "1;3" : ""}${{ left: "D", right: "C", up: "A", down: "B" }[direction]}`);
 			focus = cursor();
+			editor.exitHistoryBrowsing?.();
 			selectedTextVersion = editor.getText();
 			return;
 		}
-		const range = bounds();
 		if (range) {
 			if (matchesKey(data, "alt+w") || matchesKey(data, "super+c")) {
 				options.copyText(editor.getText().slice(...range)); return;

@@ -868,6 +868,15 @@ def handle_hc_rpc_compat(method: str, params: dict[str, Any]) -> dict[str, Any]:
             hc_rpc("terminal.kill", {"terminal": p["terminal_id"]})
         return {"id": "hc-preset", "result": {"type": "ok"}}
 
+    if method == "pane.scroll":
+        p = world.resolve_pane(params.get("pane_id"))
+        if not p:
+            return {"id": "hc-preset", "error": {"code": "pane_not_found", "message": "Pane not found"}}
+        offset = int(params.get("offset_from_bottom") or 0)
+        to_val = "bottom" if offset == 0 else "top"
+        herdr_app_do("terminal.scroll", {"terminal": p["terminal_id"], "to": to_val})
+        return {"id": "hc-preset", "result": {"pane": p}}
+
     if method == "pane.process_info":
         p = world.resolve_pane(params.get("pane_id"))
         if not p:
@@ -2363,6 +2372,17 @@ def handle_herdr_hc_cli(argv: list[str]) -> int:
         if app_cmd == "space.close":
             s = parsed.get("id")
             return subprocess.call([h, "workspace", "close"] + ([str(s)] if s else []))
+        if app_cmd == "terminal.scroll":
+            p_id = parsed.get("terminal") or os.environ.get("HERDR_ACTIVE_PANE_ID") or os.environ.get("HERDR_PANE_ID")
+            if not p_id:
+                cur = herdr_rpc("pane.current", {})
+                p_id = ((cur or {}).get("result") or {}).get("pane", {}).get("pane_id")
+            if not p_id:
+                return 1
+            to_val = parsed.get("to")
+            offset = 0 if to_val == "bottom" else 18446744073709551615
+            herdr_rpc("pane.scroll", {"pane_id": str(p_id), "offset_from_bottom": offset})
+            return 0
 
     return print_err("unsupported_command", f"Unsupported hc command in herdr mode: {sub}")
 

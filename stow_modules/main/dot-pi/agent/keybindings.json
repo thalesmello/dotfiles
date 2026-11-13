@@ -9,5 +9,7 @@
   "tui.editor.cursorUp": ["up", "ctrl+p"],
   "tui.editor.cursorDown": ["down", "ctrl+n"],
   "tui.select.up": ["up", "ctrl+p"],
-  "tui.select.down": ["down", "ctrl+n"]
+  "tui.select.down": ["down", "ctrl+n"],
+  "tui.altScreen.top": ["ctrl+home", "super+up", "super+home"],
+  "tui.altScreen.bottom": ["ctrl+end", "super+down", "super+end"]
 }

@@ -559,14 +559,18 @@ function M.setup()
     -- cmd+shift+enter -> toggle herdr pane zoom (herdr: ctrl+space > ctrl+enter).
     -- Only claimed on a herdr surface; elsewhere it passes through.
     local isZoom = code == hs.keycodes.map["return"] and flags.shift
-    if not (isD or isT or isN or isPrevTab or isNextTab or isW or isB or isZoom or digit) then return false end
+    -- cmd+up / cmd+down -> scroll terminal history to top/bottom, or forward
+    -- to TUI/agent panes (like Pi) so they scroll their own history.
+    local isUp = code == hs.keycodes.map["up"] and not flags.shift
+    local isDown = code == hs.keycodes.map["down"] and not flags.shift
+    if not (isD or isT or isN or isPrevTab or isNextTab or isW or isB or isZoom or isUp or isDown or digit) then return false end
     local focused = hs.window.focusedWindow()
     local appName = focused and focused:application() and focused:application():name()
     local isGhosttyOrHerdrWindow = (appName == "Ghostty" or appName == "Herdr")
     -- close-pane-with-fallback drives keybinds only (no `front window`
     -- AppleScript), so unlike the split/tab fallbacks it works in the quick
     -- terminal too -- accept it there as well.
-    if not (isGhosttyOrHerdrWindow or ((isW or isB or digit) and Preset.isGhosttyQuickTerminalActive())) then return false end
+    if not (isGhosttyOrHerdrWindow or ((isW or isB or digit or isUp or isDown) and Preset.isGhosttyQuickTerminalActive())) then return false end
     if digit then
       -- Returns false when the surface isn't a multiplexer: pass cmd+N through.
       if flags.ctrl then
@@ -579,6 +583,8 @@ function M.setup()
     elseif isZoom then
       -- Returns false when herdr doesn't own the surface: pass cmd+shift+enter through.
       return GhosttyPreset.zoomWithFallback()
+    elseif isUp or isDown then
+      return GhosttyPreset.scrollHistoryWithFallback(isUp and "top" or "bottom")
     elseif isD then
       GhosttyPreset.newSplitWithFallback(flags.shift)
     elseif isT then

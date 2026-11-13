@@ -95,6 +95,9 @@ function ghostty-preset
     case "resize-pane-with-fallback"
         hs -c "require('ghosttyPreset').resizePaneWithFallback('$argv[1]')"
 
+    case "scroll-history-with-fallback"
+        hs -c "require('ghosttyPreset').scrollHistoryWithFallback('$argv[1]')"
+
     case "reveal-floating-terminal"
         hs -c "require('ghosttyPreset').revealFloatingTerminal()"
 
