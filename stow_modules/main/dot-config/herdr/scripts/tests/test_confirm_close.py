@@ -572,5 +572,148 @@ class CloseFocusBehaviorTest(unittest.TestCase):
         self.assertEqual(requests, [])
 
 
+class AttentionJumpOrderTest(unittest.TestCase):
+    SCRIPT = os.path.join(_HERE, "..", "attention-jump.fish")
+
+    def run_jump(self, agents):
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmp:
+            agents_file = os.path.join(tmp, "agents.json")
+            calls_file = os.path.join(tmp, "calls.log")
+            fake_bin = os.path.join(tmp, "hc-preset")
+            with open(agents_file, "w", encoding="utf-8") as handle:
+                json.dump({"result": {"agents": agents}}, handle)
+            with open(fake_bin, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "#!/bin/sh\n"
+                    f'echo "$*" >> "{calls_file}"\n'
+                    'if [ "$1" = "agent" ] && [ "$2" = "list" ]; then\n'
+                    f'  cat "{agents_file}"\n'
+                    "  exit 0\n"
+                    "fi\n"
+                    "exit 0\n"
+                )
+            os.chmod(fake_bin, 0o755)
+            env = dict(os.environ)
+            env["HOME"] = tmp
+            env["PATH"] = f"{tmp}:{env.get('PATH', '')}"
+            env["XDG_STATE_HOME"] = os.path.join(tmp, "state")
+            env["HERDR_BIN_PATH"] = fake_bin
+            env["HERDR_ACTIVE_PANE_ID"] = next(
+                (a["pane_id"] for a in agents if a.get("focused")), "w1:p1"
+            )
+            proc = subprocess.run(
+                ["fish", self.SCRIPT],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+            calls = []
+            if os.path.exists(calls_file):
+                with open(calls_file, "r", encoding="utf-8") as handle:
+                    calls = [line.strip() for line in handle if line.strip()]
+            focused = [
+                line.split()[2]
+                for line in calls
+                if line.startswith("agent focus ")
+            ]
+            notified = [
+                line for line in calls if line.startswith("notification show ")
+            ]
+            return focused[-1] if focused else None, notified
+
+    def test_orders_blocked_and_done_by_smart_priority_not_pane_id(self):
+        # In smart priority, within blocked (and within done), newer
+        # state_change_seq comes first, with pinned chats above unpinned and
+        # snoozed chats excluded -- matching agent-handler.py's VIEW_SORT.
+        agents = [
+            {"pane_id": "w1:p1", "agent": "pi", "agent_status": "idle",
+             "state_change_seq": 500, "focused": True},
+            {"pane_id": "w1:p2", "agent": "pi", "agent_status": "blocked",
+             "state_change_seq": 100, "focused": False},
+            {"pane_id": "w5G:pS", "agent": "pi", "agent_status": "blocked",
+             "state_change_seq": 300, "focused": False},
+            {"pane_id": "w2:p9", "agent": "pi", "agent_status": "blocked",
+             "state_change_seq": 200, "focused": False},
+            {"pane_id": "w1:p3", "agent": "pi", "agent_status": "done",
+             "state_change_seq": 150, "focused": False},
+            {"pane_id": "w5G:pD", "agent": "pi", "agent_status": "done",
+             "state_change_seq": 400, "focused": False},
+            {"pane_id": "w1:p0", "agent": "pi", "agent_status": "blocked",
+             "state_change_seq": 999, "focused": False,
+             "tokens": {"herdr_snooze": "1"}},
+        ]
+        # Resolving each target as we go should walk in exact smart-priority order:
+        # w5G:pS (blocked 300) -> w2:p9 (blocked 200) -> w1:p2 (blocked 100)
+        # -> w5G:pD (done 400) -> w1:p3 (done 150); snoozed w1:p0 is skipped.
+        expected = ["w5G:pS", "w2:p9", "w1:p2", "w5G:pD", "w1:p3"]
+        # Verify agent-handler's smart-priority order agrees on this exact sequence.
+        anchor = {"pane_id": "w0:p0", "agent": "pi", "agent_status": "blocked",
+                  "state_change_seq": 9999, "focused": True,
+                  "tokens": {"um_pin": "󰐃"}}
+        smart_candidates = [
+            pid for pid in ah.next_agent_candidates([anchor, *agents], "w0:p0", mode="smart")
+            if next(a for a in agents if a["pane_id"] == pid)["agent_status"] in ("blocked", "done")
+        ]
+        self.assertEqual(smart_candidates, expected)
+
+        visited = []
+        current_agents = [dict(a) for a in agents]
+        for _ in expected:
+            target, _ = self.run_jump(current_agents)
+            visited.append(target)
+            for a in current_agents:
+                if a["pane_id"] == target:
+                    a["focused"] = True
+                    a["agent_status"] = "idle"
+                else:
+                    a["focused"] = False
+        self.assertEqual(visited, expected)
+
+    def test_cycles_unresolved_blocked_agents_in_smart_priority_order(self):
+        # When pressing prefix+tab repeatedly without clearing blocked prompts,
+        # focus should walk down the smart-priority order (w3:p1 -> w2:p1 -> w1:p1)
+        # rather than ping-ponging between the top two.
+        agents = [
+            {"pane_id": "w1:p1", "agent": "pi", "agent_status": "blocked",
+             "state_change_seq": 100, "focused": False},
+            {"pane_id": "w2:p1", "agent": "pi", "agent_status": "blocked",
+             "state_change_seq": 200, "focused": False},
+            {"pane_id": "w3:p1", "agent": "pi", "agent_status": "blocked",
+             "state_change_seq": 300, "focused": True},
+        ]
+        visited = []
+        for _ in range(3):
+            target, _ = self.run_jump(agents)
+            visited.append(target)
+            for a in agents:
+                a["focused"] = (a["pane_id"] == target)
+        self.assertEqual(visited, ["w2:p1", "w1:p1", "w3:p1"])
+
+    def test_pinned_and_agent_list_order_tiebreak_match_smart_priority(self):
+        # Pinned blocked agent beats unpinned blocked agent with higher seq;
+        # equal state_change_seq preserves agent.list order (w2:p1 before w10:p1).
+        agents = [
+            {"pane_id": "w1:p1", "agent": "pi", "agent_status": "idle",
+             "state_change_seq": 10, "focused": True},
+            {"pane_id": "w2:p1", "agent": "pi", "agent_status": "blocked",
+             "state_change_seq": 100, "focused": False},
+            {"pane_id": "w10:p1", "agent": "pi", "agent_status": "blocked",
+             "state_change_seq": 100, "focused": False},
+            {"pane_id": "w9:p1", "agent": "pi", "agent_status": "blocked",
+             "state_change_seq": 50, "focused": False,
+             "tokens": {"um_pin": "󰐃"}},
+        ]
+        target1, _ = self.run_jump(agents)
+        self.assertEqual(target1, "w9:p1")
+        agents[3]["agent_status"] = "idle"
+        target2, _ = self.run_jump(agents)
+        self.assertEqual(target2, "w2:p1")
+
+
 if __name__ == "__main__":
     unittest.main()
