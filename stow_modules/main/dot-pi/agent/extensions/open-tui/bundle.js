@@ -1,6 +1,7 @@
+// @bun
 // stow_modules/main/dot-pi/agent/extensions/open-tui/config.ts
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { join } from "path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 var DEFAULT_CONFIG = {
   enabled: true,
@@ -164,7 +165,7 @@ function saveConfig(config) {
 }
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/copy-buttons.ts
-import { randomUUID } from "node:crypto";
+import { randomUUID } from "crypto";
 import { copyToClipboard, UserMessageComponent } from "@earendil-works/pi-coding-agent";
 import {
   compositeTuiLine,
@@ -176,7 +177,7 @@ import {
 } from "@earendil-works/pi-tui";
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/utils.ts
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "path";
 import {
   stripTerminalSequences as stripTerminalSequencesFromTui,
   truncateToWidth,
@@ -405,9 +406,9 @@ function isEditorBorderLine(line) {
   if (typeof line !== "string")
     return false;
   const plain = stripAnsi(line);
-  if (/^─+$/.test(plain))
+  if (/^\u2500+$/.test(plain))
     return true;
-  if (/^─*\s*[↑↓]\s+\d+\s+more\s*─*$/.test(plain))
+  if (/^\u2500*\s*[\u2191\u2193]\s+\d+\s+more\s*\u2500*$/.test(plain))
     return true;
   return false;
 }
@@ -525,13 +526,232 @@ function headerColumnWidths(innerWidth, minTipsWidth = MIN_TIPS_WIDTH, maxTipsWi
 }
 
 // stow_modules/main/dot-pi/agent/extensions/osc8-links.ts
+import { existsSync as existsSync2, readFileSync as readFileSync2, statSync } from "fs";
+import { homedir } from "os";
+import { delimiter, dirname, isAbsolute as isAbsolute2, join as join2, normalize, resolve as resolve2 } from "path";
+import { fileURLToPath, pathToFileURL } from "url";
 import * as piTui from "@earendil-works/pi-tui";
 var PATCH_STATE_SYMBOL = Symbol.for("pi.osc8Links.patchState");
+var PATH_STATE_SYMBOL = Symbol.for("pi.osc8Links.pathState");
 var OSC8_CLOSE = "\x1B]8;;\x1B\\";
-var PLAIN_URL_Candidate_REGEX = /https?:\/\/(?:<[a-zA-Z0-9_.:-]+>|[^\s<>"'`\x00-\x1f\x7f│┌┐└┘├┤┬┴┼─])+/gi;
+var RAW_OSC8_OPEN_FILE_URL_REGEX = /\x1b\]8;([^;\x07\x1b]*);(file:\/\/[^\x07\x1b]+)(\x07|\x1b\\)/gi;
+var PLAIN_URL_Candidate_REGEX = /https?:\/\/(?:<[a-zA-Z0-9_.:-]+>|[^\s<>"'`\x00-\x1f\x7f\u2502\u250C\u2510\u2514\u2518\u251C\u2524\u252C\u2534\u253C\u2500])+/gi;
+var PLAIN_FILE_URL_CANDIDATE_REGEX = /file:\/\/[^\s<>"'`\x00-\x1f\x7f\u2502\u250C\u2510\u2514\u2518\u251C\u2524\u252C\u2534\u253C\u2500]+/gi;
+var PLAIN_PATH_CANDIDATE_REGEX = /(?:\u2026\/|~\/|\.\.?\/|\/+)?\.?[A-Za-z0-9_][\w./+@%-]*[\w]/g;
+var PATHISH_EXTENSION_OR_SLASH_REGEX = /\/|(?<!\.)\.[A-Za-z][A-Za-z0-9]{0,9}$/;
+var SCHEME_PREFIX_REGEX = /(?:https?|ftp|file|mailto|ssh|git|npm|hammerspoon|tot):$/i;
+var LINE_COL_SUFFIX_REGEX = /^(.*?):(\d+)(?:(?::|-)(\d+))?$/;
 var HTML_LAYOUT_TAG_REGEX = /^<\/?(?:br|wbr|hr|p|div|span|a|img|code|pre|em|strong|b|i|u|s|del|ins|sub|sup|td|th|tr|table)\b/i;
 var graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 var cjkBreakRegex = /[\p{Script_Extensions=Han}\p{Script_Extensions=Hiragana}\p{Script_Extensions=Katakana}\p{Script_Extensions=Hangul}\p{Script_Extensions=Bopomofo}]/u;
+var FILE_STAT_CACHE_TTL_MS = 2000;
+var FILE_STAT_CACHE_MAX_SIZE = 2048;
+function getSharedPathState() {
+  const holder = globalThis;
+  if (!holder[PATH_STATE_SYMBOL]) {
+    holder[PATH_STATE_SYMBOL] = {
+      sessionCwd: process.cwd(),
+      fileStatCache: new Map,
+      knownPathsBySuffix: new Map,
+      indexedSessionFiles: new Set
+    };
+  }
+  return holder[PATH_STATE_SYMBOL];
+}
+function isHerdrOrHcSession(env = process.env) {
+  return env.HERDR_ENV === "1" || Boolean(env.HERDR_PANE_ID) || Boolean(env.HERDR_ACTIVE_PANE_ID) || Boolean(env.HC_TERMINAL_ID);
+}
+function getSessionCwd() {
+  return getSharedPathState().sessionCwd || process.cwd();
+}
+function formatHerdrFileHyperlinkUrl(filePath, kind = "file") {
+  return `hammerspoon://workflow-preset/open-selection?type=${encodeURIComponent(kind)}&match=${encodeURIComponent(filePath)}`;
+}
+function expandHomePath(rawPath, home = homedir()) {
+  if (rawPath === "~")
+    return home;
+  if (rawPath.startsWith("~/") || rawPath.startsWith("~\\")) {
+    return join2(home, rawPath.slice(2));
+  }
+  return rawPath;
+}
+function indexKnownFilePath(absPath) {
+  const { knownPathsBySuffix } = getSharedPathState();
+  const normalized = absPath.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length === 0)
+    return;
+  let suffix = "";
+  for (let i = parts.length - 1;i >= 0; i--) {
+    suffix = suffix ? `${parts[i]}/${suffix}` : parts[i];
+    knownPathsBySuffix.set(suffix, absPath);
+  }
+}
+function statExistingPath(absPath) {
+  const { fileStatCache } = getSharedPathState();
+  const now = Date.now();
+  const cached = fileStatCache.get(absPath);
+  if (cached && cached.expiresAt > now) {
+    return cached.kind;
+  }
+  let kind = null;
+  try {
+    const st = statSync(absPath);
+    if (st.isFile())
+      kind = "file";
+    else if (st.isDirectory())
+      kind = "directory";
+  } catch {
+    kind = null;
+  }
+  if (fileStatCache.size >= FILE_STAT_CACHE_MAX_SIZE) {
+    fileStatCache.clear();
+  }
+  fileStatCache.set(absPath, { kind, expiresAt: now + FILE_STAT_CACHE_TTL_MS });
+  if (kind) {
+    indexKnownFilePath(absPath);
+  }
+  return kind;
+}
+function stripOptionalLineColSuffix(filePath) {
+  const m = LINE_COL_SUFFIX_REGEX.exec(filePath);
+  if (!m || !m[1])
+    return filePath;
+  if (statExistingPath(filePath) !== null)
+    return filePath;
+  if (statExistingPath(m[1]) !== null)
+    return m[1];
+  return m[1];
+}
+function registerKnownFilePath(rawPath, cwd = getSessionCwd()) {
+  if (typeof rawPath !== "string")
+    return;
+  let trimmed = rawPath.trim();
+  if (!trimmed)
+    return;
+  if (trimmed.startsWith("@") && trimmed.length > 1) {
+    trimmed = trimmed.slice(1);
+  }
+  if (/^file:\/\//i.test(trimmed)) {
+    const parsed = parseFileHyperlinkUrl(trimmed);
+    if (!parsed)
+      return;
+    trimmed = parsed.filePath;
+  }
+  const expanded = expandHomePath(trimmed);
+  const resolved = isAbsolute2(expanded) ? normalize(expanded) : resolve2(cwd, expanded);
+  const clean = stripOptionalLineColSuffix(resolved);
+  indexKnownFilePath(clean);
+  statExistingPath(clean);
+  return clean;
+}
+function resolveToolPathHyperlinkUrl(rawPath, cwd = getSessionCwd(), env = process.env) {
+  const absPath = registerKnownFilePath(rawPath, cwd);
+  if (!absPath)
+    return;
+  if (isHerdrOrHcSession(env)) {
+    const kind = statExistingPath(absPath) ?? "file";
+    return formatHerdrFileHyperlinkUrl(absPath, kind);
+  }
+  return pathToFileURL(absPath).href;
+}
+function looksLikePathCandidate(candidate) {
+  if (!candidate || candidate.length < 2)
+    return false;
+  if (!PATHISH_EXTENSION_OR_SLASH_REGEX.test(candidate))
+    return false;
+  if (candidate.includes("..") && !/(?:^\.\.\/|\/\.\.(?:\/|$))/.test(candidate)) {
+    return false;
+  }
+  return true;
+}
+function resolveCandidateFilePath(rawCandidate, cwd = getSessionCwd()) {
+  if (!rawCandidate)
+    return;
+  const candidate = rawCandidate.startsWith("\u2026/") ? rawCandidate.slice(2) : rawCandidate;
+  if (!looksLikePathCandidate(candidate))
+    return;
+  const hasSlash = candidate.includes("/");
+  if (!rawCandidate.startsWith("\u2026/")) {
+    const expanded = expandHomePath(candidate);
+    const absPath = isAbsolute2(expanded) ? normalize(expanded) : resolve2(cwd, expanded);
+    const kind = statExistingPath(absPath);
+    if (kind === "file" || kind === "directory" && hasSlash) {
+      return { filePath: absPath, kind };
+    }
+  }
+  const { knownPathsBySuffix } = getSharedPathState();
+  const normalizedKey = candidate.replace(/^\.\//, "");
+  const knownAbs = knownPathsBySuffix.get(normalizedKey);
+  if (knownAbs) {
+    const kind = statExistingPath(knownAbs);
+    if (kind === "file" || kind === "directory" && hasSlash) {
+      return { filePath: knownAbs, kind };
+    }
+  }
+  return;
+}
+function parseFileHyperlinkUrl(url) {
+  if (!url)
+    return;
+  if (/^hammerspoon:\/\/workflow-preset\/open-selection(?:\?|$)/i.test(url)) {
+    try {
+      const parsed = new URL(url);
+      const rawType = (parsed.searchParams.get("type") || "file").toLowerCase();
+      const rawMatch = parsed.searchParams.get("match");
+      if (!rawMatch)
+        return;
+      if (rawType !== "file" && rawType !== "directory" && rawType !== "path") {
+        return;
+      }
+      const expanded = expandHomePath(rawMatch);
+      const absPath = isAbsolute2(expanded) ? normalize(expanded) : resolve2(getSessionCwd(), expanded);
+      const cleanPath = stripOptionalLineColSuffix(absPath);
+      const statKind = statExistingPath(cleanPath);
+      const kind = statKind ?? (rawType === "directory" ? "directory" : rawType === "path" ? "path" : "file");
+      return { filePath: cleanPath, kind };
+    } catch {
+      return;
+    }
+  }
+  if (/^file:\/\//i.test(url)) {
+    try {
+      const withoutHashOrQuery = url.split("#")[0].split("?")[0];
+      let filePath;
+      try {
+        filePath = fileURLToPath(withoutHashOrQuery);
+      } catch {
+        const parsed = new URL(withoutHashOrQuery);
+        filePath = decodeURIComponent(parsed.pathname);
+      }
+      if (!filePath)
+        return;
+      const cleanPath = stripOptionalLineColSuffix(normalize(filePath));
+      const statKind = statExistingPath(cleanPath);
+      return {
+        filePath: cleanPath,
+        kind: statKind === "directory" ? "directory" : "file"
+      };
+    } catch {
+      return;
+    }
+  }
+  return;
+}
+function isFileHyperlinkUrl(url) {
+  return parseFileHyperlinkUrl(url) !== undefined;
+}
+function rewriteUrlForHerdr(url, env = process.env) {
+  if (!url || !isHerdrOrHcSession(env))
+    return url;
+  if (/^file:\/\//i.test(url)) {
+    const parsed = parseFileHyperlinkUrl(url);
+    if (parsed) {
+      return formatHerdrFileHyperlinkUrl(parsed.filePath, parsed.kind);
+    }
+  }
+  return url;
+}
 function countChar(str, ch) {
   let count = 0;
   for (let i = 0;i < str.length; i++) {
@@ -577,23 +797,90 @@ function splitTrailingUrlPunctuation(rawUrl) {
   return { url, trailing };
 }
 function findUrlsInPlainText(text) {
-  if (!text.includes("http://") && !text.includes("https://") && !/https?:\/\//i.test(text)) {
+  if (!text)
+    return [];
+  const inHerdr = isHerdrOrHcSession();
+  const hasHttp = text.includes("http://") || text.includes("https://") || /https?:\/\//i.test(text);
+  const hasFileUrl = inHerdr && (text.includes("file://") || /file:\/\//i.test(text));
+  const hasPathChars = inHerdr && (text.includes("/") || text.includes("."));
+  if (!hasHttp && !hasFileUrl && !hasPathChars) {
     return [];
   }
   const matches = [];
-  PLAIN_URL_Candidate_REGEX.lastIndex = 0;
   let match;
-  while ((match = PLAIN_URL_Candidate_REGEX.exec(text)) !== null) {
-    const { url } = splitTrailingUrlPunctuation(match[0]);
-    if (url.length > "https://".length) {
-      matches.push({
-        start: match.index,
-        end: match.index + url.length,
-        url
-      });
+  if (hasHttp) {
+    PLAIN_URL_Candidate_REGEX.lastIndex = 0;
+    while ((match = PLAIN_URL_Candidate_REGEX.exec(text)) !== null) {
+      const { url } = splitTrailingUrlPunctuation(match[0]);
+      if (url.length > "https://".length) {
+        matches.push({
+          start: match.index,
+          end: match.index + url.length,
+          url
+        });
+      }
     }
   }
+  if (hasFileUrl) {
+    PLAIN_FILE_URL_CANDIDATE_REGEX.lastIndex = 0;
+    while ((match = PLAIN_FILE_URL_CANDIDATE_REGEX.exec(text)) !== null) {
+      const { url } = splitTrailingUrlPunctuation(match[0]);
+      if (url.length > "file:///".length) {
+        const start = match.index;
+        const end = match.index + url.length;
+        if (matches.some((m) => start < m.end && end > m.start))
+          continue;
+        matches.push({
+          start,
+          end,
+          url: rewriteUrlForHerdr(url)
+        });
+      }
+    }
+  }
+  if (hasPathChars) {
+    PLAIN_PATH_CANDIDATE_REGEX.lastIndex = 0;
+    while ((match = PLAIN_PATH_CANDIDATE_REGEX.exec(text)) !== null) {
+      const candidate = match[0];
+      const start = match.index;
+      const end = start + candidate.length;
+      if (matches.some((m) => start < m.end && end > m.start))
+        continue;
+      if (start > 0) {
+        const prev = text[start - 1];
+        if (/[\w/~.%+-]/.test(prev))
+          continue;
+        if (prev === "@" && start >= 2 && /[\w.]/.test(text[start - 2]))
+          continue;
+        if (prev === ":") {
+          const beforeColon = text.slice(Math.max(0, start - 20), start);
+          if (SCHEME_PREFIX_REGEX.test(beforeColon))
+            continue;
+        }
+      }
+      if (text.slice(end, end + 3) === "://")
+        continue;
+      const resolved = resolveCandidateFilePath(candidate);
+      if (resolved) {
+        const lineSuffix = /^:\d+(?:(?::|-)\d+)?(?![\w.])/.exec(text.slice(end));
+        const matchEnd = lineSuffix ? end + lineSuffix[0].length : end;
+        matches.push({
+          start,
+          end: matchEnd,
+          url: formatHerdrFileHyperlinkUrl(resolved.filePath, resolved.kind)
+        });
+      }
+    }
+  }
+  if (matches.length > 1) {
+    matches.sort((a, b) => a.start - b.start);
+  }
   return matches;
+}
+function formatOsc8(text, url, params = "") {
+  if (!text)
+    return text;
+  return `\x1B]8;${params};${url}\x1B\\${text}${OSC8_CLOSE}`;
 }
 function ansiCodeLength(str, pos) {
   if (pos >= str.length || str.charCodeAt(pos) !== 27)
@@ -639,22 +926,35 @@ function parseOsc8Code(ansiCode) {
   return { params, url, terminator };
 }
 function linkifyAnsiLineUrls(line, styleUrlPrefix = "\x1B[4m", styleUrlSuffix = "\x1B[24m") {
-  if (!line || !line.includes("http://") && !line.includes("https://") && !/https?:\/\//i.test(line)) {
+  if (!line)
     return line;
+  const inHerdr = isHerdrOrHcSession();
+  let workingLine = line;
+  if (inHerdr && workingLine.includes("\x1B]8;") && /file:\/\//i.test(workingLine)) {
+    workingLine = workingLine.replace(RAW_OSC8_OPEN_FILE_URL_REGEX, (_full, params, rawFileUrl, terminator) => {
+      return `\x1B]8;${params};${rewriteUrlForHerdr(rawFileUrl)}${terminator}`;
+    });
+  }
+  if (inHerdr) {
+    if (!workingLine.includes("/") && !workingLine.includes(".") && !workingLine.includes("http://") && !workingLine.includes("https://") && !/https?:\/\/|file:\/\//i.test(workingLine)) {
+      return workingLine;
+    }
+  } else if (!workingLine.includes("http://") && !workingLine.includes("https://") && !/https?:\/\//i.test(workingLine)) {
+    return workingLine;
   }
   let plain = "";
   const charHasOsc8 = [];
   const charHasUnderline = [];
   const tracker = new AnsiTracker;
   let i = 0;
-  while (i < line.length) {
-    const ansi = extractAnsiCode(line, i);
+  while (i < workingLine.length) {
+    const ansi = extractAnsiCode(workingLine, i);
     if (ansi) {
       tracker.process(ansi.code);
       i += ansi.length;
       continue;
     }
-    plain += line[i];
+    plain += workingLine[i];
     charHasOsc8.push(tracker.activeHyperlink !== null);
     charHasUnderline.push(tracker.underline);
     i++;
@@ -667,7 +967,7 @@ function linkifyAnsiLineUrls(line, styleUrlPrefix = "\x1B[4m", styleUrlSuffix = 
     return true;
   });
   if (urlMatches.length === 0) {
-    return line;
+    return workingLine;
   }
   const openAtPlainIdx = new Map;
   const closeAtPlainIdx = new Map;
@@ -679,8 +979,8 @@ function linkifyAnsiLineUrls(line, styleUrlPrefix = "\x1B[4m", styleUrlSuffix = 
   let plainIdx = 0;
   let addedUnderlineForUrl = false;
   i = 0;
-  while (i < line.length) {
-    const ansi = extractAnsiCode(line, i);
+  while (i < workingLine.length) {
+    const ansi = extractAnsiCode(workingLine, i);
     if (ansi) {
       out += ansi.code;
       if (addedUnderlineForUrl && /^\x1b\[(?:0|24)(?:;[\d;]*)*m$/.test(ansi.code)) {
@@ -691,11 +991,12 @@ function linkifyAnsiLineUrls(line, styleUrlPrefix = "\x1B[4m", styleUrlSuffix = 
     }
     const openUrl = openAtPlainIdx.get(plainIdx);
     if (openUrl !== undefined) {
-      const needsPrefix = Boolean(styleUrlPrefix) && !(styleUrlPrefix === "\x1B[4m" && charHasUnderline[plainIdx]);
+      const isFileLink = isFileHyperlinkUrl(openUrl);
+      const needsPrefix = !isFileLink && Boolean(styleUrlPrefix) && !(styleUrlPrefix === "\x1B[4m" && charHasUnderline[plainIdx]);
       addedUnderlineForUrl = needsPrefix;
       out += `\x1B]8;;${openUrl}\x1B\\${needsPrefix ? styleUrlPrefix : ""}`;
     }
-    out += line[i];
+    out += workingLine[i];
     plainIdx++;
     i++;
     if (closeAtPlainIdx.get(plainIdx)) {
@@ -707,7 +1008,13 @@ function linkifyAnsiLineUrls(line, styleUrlPrefix = "\x1B[4m", styleUrlSuffix = 
   return out;
 }
 function linkifyAnsiTextUrls(text, styleUrlPrefix = "\x1B[4m", styleUrlSuffix = "\x1B[24m") {
-  if (!text || !text.includes("http://") && !text.includes("https://") && !/https?:\/\//i.test(text)) {
+  if (!text)
+    return text;
+  if (!isHerdrOrHcSession()) {
+    if (!text.includes("http://") && !text.includes("https://") && !/https?:\/\//i.test(text)) {
+      return text;
+    }
+  } else if (!text.includes("/") && !text.includes(".") && !text.includes("http://") && !text.includes("https://") && !/https?:\/\/|file:\/\//i.test(text)) {
     return text;
   }
   return text.split(`
@@ -1181,7 +1488,7 @@ function wrapAnsiTextPreservingOsc8(text, width, measureWidth = piTui.visibleWid
 }
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/copy-buttons.ts
-var LABEL = "⧉ Copy";
+var LABEL = "\u29C9 Copy";
 var COPIED_LABEL = "Copied";
 var COPIED_FEEDBACK_MS = 2000;
 var MIN_FRAME_WIDTH = 8;
@@ -1212,14 +1519,14 @@ function renderFramedCode(theme, code, lang, width, label, border = theme.codeBl
     return wrapped.length > 0 ? wrapped : [""];
   });
   const suffix = label === undefined ? "" : ` ${LABEL} `;
-  const name = truncateToWidth2(lang?.trim().split(/\s+/, 1)[0] || "code", Math.max(1, width - 6 - visibleWidth3(suffix)), "…");
-  const prefix = `╭─ ${name} `;
+  const name = truncateToWidth2(lang?.trim().split(/\s+/, 1)[0] || "code", Math.max(1, width - 6 - visibleWidth3(suffix)), "\u2026");
+  const prefix = `\u256D\u2500 ${name} `;
   const widest = Math.max(0, ...rows.map((row) => visibleWidth3(row)));
   const frameWidth = Math.min(width, Math.max(widest + 4, visibleWidth3(prefix) + 3 + visibleWidth3(suffix) + 1));
   const fill = Math.max(0, frameWidth - visibleWidth3(prefix) - visibleWidth3(suffix) - 1);
-  const top = (label === undefined ? marker : "") + border("╭─ ") + theme.codeBlockBorder(`${name} `) + border("─".repeat(fill)) + (label === undefined ? "" : ` ${marker}${label} `) + border("╮");
-  const body = rows.map((row) => border("│ ") + row + " ".repeat(Math.max(0, frameWidth - 4 - visibleWidth3(row))) + border(" │"));
-  return [top, ...body, border(`╰${"─".repeat(frameWidth - 2)}╯`)];
+  const top = (label === undefined ? marker : "") + border("\u256D\u2500 ") + theme.codeBlockBorder(`${name} `) + border("\u2500".repeat(fill)) + (label === undefined ? "" : ` ${marker}${label} `) + border("\u256E");
+  const body = rows.map((row) => border("\u2502 ") + row + " ".repeat(Math.max(0, frameWidth - 4 - visibleWidth3(row))) + border(" \u2502"));
+  return [top, ...body, border(`\u2570${"\u2500".repeat(frameWidth - 2)}\u256F`)];
 }
 function handleCopyMouse(owner, regions, event, onCopy) {
   if (event.type === "press") {
@@ -1274,9 +1581,9 @@ function restoreTabs(source, ordinal, rendered) {
     return rendered;
   const rawLines = block.raw.replace(/\n+$/, "").split(`
 `);
-  let marker = "";
+  let marker = "\uE000";
   while (source.includes(marker))
-    marker += "";
+    marker += "\uE000";
   const expected = rendered.split(`
 `);
   expected[0] += marker;
@@ -1732,11 +2039,11 @@ function configureCursor(tui, cursorStyle) {
 }
 function roundedBorder(width, kind, paint, sourceLine, indicator) {
   if (width < 2)
-    return paint(truncateToWidth3(kind === "top" ? "╭╮" : "╰╯", width, ""));
-  const corners = kind === "top" ? ["╭", "╮"] : ["╰", "╯"];
+    return paint(truncateToWidth3(kind === "top" ? "\u256D\u256E" : "\u2570\u256F", width, ""));
+  const corners = kind === "top" ? ["\u256D", "\u256E"] : ["\u2570", "\u256F"];
   if (kind === "top" && indicator) {
     const plain = sourceLine ? stripAnsi(sourceLine) : "";
-    const scrollMatch = plain.match(/([↑↓]\s+\d+\s+more)/);
+    const scrollMatch = plain.match(/([\u2191\u2193]\s+\d+\s+more)/);
     const contentWidth = width - 2;
     let status = indicator.renderInBorder(Math.max(1, contentWidth - 5));
     let statusWidth = visibleWidth4(status);
@@ -1751,27 +2058,27 @@ function roundedBorder(width, kind, paint, sourceLine, indicator) {
       }
       if (canFitOverflow()) {
         const leftBlockWidth = 3 + statusWidth + 1;
-        return `${paint(`${corners[0]}── `)}${status}${paint(` ${"─".repeat(overflowStart - leftBlockWidth)}${overflowLabel}${"─".repeat(contentWidth - overflowStart - overflowLabelWidth)}${corners[1]}`)}`;
+        return `${paint(`${corners[0]}\u2500\u2500 `)}${status}${paint(` ${"\u2500".repeat(overflowStart - leftBlockWidth)}${overflowLabel}${"\u2500".repeat(contentWidth - overflowStart - overflowLabelWidth)}${corners[1]}`)}`;
       }
       if (contentWidth >= statusWidth + 5) {
-        return `${paint(`${corners[0]}── `)}${status}${paint(` ${"─".repeat(contentWidth - statusWidth - 4)}${corners[1]}`)}`;
+        return `${paint(`${corners[0]}\u2500\u2500 `)}${status}${paint(` ${"\u2500".repeat(contentWidth - statusWidth - 4)}${corners[1]}`)}`;
       }
       status = indicator.renderSpinnerInBorder(contentWidth);
       statusWidth = visibleWidth4(status);
       const prefixWidth = Math.min(3, Math.max(0, contentWidth - statusWidth));
-      return `${paint(`${corners[0]}${"─".repeat(prefixWidth)}`)}${status}${paint(`${"─".repeat(Math.max(0, contentWidth - prefixWidth - statusWidth))}${corners[1]}`)}`;
+      return `${paint(`${corners[0]}${"\u2500".repeat(prefixWidth)}`)}${status}${paint(`${"\u2500".repeat(Math.max(0, contentWidth - prefixWidth - statusWidth))}${corners[1]}`)}`;
     }
   }
   if (sourceLine) {
     const plain = stripAnsi(sourceLine);
-    const scrollMatch = plain.match(/([↑↓]\s+\d+\s+more)/);
+    const scrollMatch = plain.match(/([\u2191\u2193]\s+\d+\s+more)/);
     if (scrollMatch) {
-      const label = `─── ${scrollMatch[1]} `;
+      const label = `\u2500\u2500\u2500 ${scrollMatch[1]} `;
       const fill = Math.max(0, width - 2 - visibleWidth4(label));
-      return paint(`${corners[0]}${label}${"─".repeat(fill)}${corners[1]}`);
+      return paint(`${corners[0]}${label}${"\u2500".repeat(fill)}${corners[1]}`);
     }
   }
-  return paint(`${corners[0]}${"─".repeat(Math.max(0, width - 2))}${corners[1]}`);
+  return paint(`${corners[0]}${"\u2500".repeat(Math.max(0, width - 2))}${corners[1]}`);
 }
 function trimTrailingSpaces(text) {
   const ansiSuffix = text.match(/(?:\x1b\[[0-?]*[ -/]*[@-~])+$/)?.[0] ?? "";
@@ -1780,13 +2087,13 @@ function trimTrailingSpaces(text) {
 }
 function inlineBorder(width, kind, paint, renderLine, sourceLine, indicator) {
   if (width < 2)
-    return paint(truncateToWidth3(kind === "top" ? "╭╮" : "╰╯", width, ""));
-  const corners = kind === "top" ? ["╭", "╮"] : ["╰", "╯"];
+    return paint(truncateToWidth3(kind === "top" ? "\u256D\u256E" : "\u2570\u256F", width, ""));
+  const corners = kind === "top" ? ["\u256D", "\u256E"] : ["\u2570", "\u256F"];
   const contentWidth = width - 2;
   const plain = sourceLine ? stripAnsi(sourceLine) : "";
-  const scrollMatch = plain.match(/([↑↓]\s+\d+\s+more)/);
+  const scrollMatch = plain.match(/([\u2191\u2193]\s+\d+\s+more)/);
   const right = scrollMatch ? paint(` ${scrollMatch[1]} `) : "";
-  let left = paint("─");
+  let left = paint("\u2500");
   if (kind === "top" && indicator) {
     const statusBudget = Math.max(1, contentWidth - visibleWidth4(right) - 7);
     let status = indicator.renderInBorder(statusBudget);
@@ -1795,7 +2102,7 @@ function inlineBorder(width, kind, paint, renderLine, sourceLine, indicator) {
     const leftBudget = Math.max(0, contentWidth - visibleWidth4(right) - 1);
     status = truncateToWidth3(status, Math.max(0, leftBudget - 4), "");
     if (visibleWidth4(status) > 0)
-      left = `${paint("── ")}${status}${paint(" ")}`;
+      left = `${paint("\u2500\u2500 ")}${status}${paint(" ")}`;
   }
   const lineBudget = Math.max(0, contentWidth - visibleWidth4(left) - visibleWidth4(right) - 6);
   const line = renderLine(lineBudget);
@@ -1809,7 +2116,7 @@ function inlineBorder(width, kind, paint, renderLine, sourceLine, indicator) {
   const leftCell = leftContent ? ` ${leftContent} ` : "";
   const rightCell = rightContent ? ` ${rightContent} ` : "";
   const fill = Math.max(1, contentWidth - visibleWidth4(left) - visibleWidth4(leftCell) - visibleWidth4(rightCell) - visibleWidth4(right) - 1);
-  return `${paint(corners[0])}${left}${leftCell}${paint("─".repeat(fill))}${rightCell}${right}${paint("─")}${paint(corners[1])}`;
+  return `${paint(corners[0])}${left}${leftCell}${paint("\u2500".repeat(fill))}${rightCell}${right}${paint("\u2500")}${paint(corners[1])}`;
 }
 function isFrameableEditor(editor) {
   return typeof editor.borderColor === "function" && typeof editor.handleMouse === "function" && "getPaddingX" in editor && typeof editor.getPaddingX === "function" && typeof editor.setPaddingX === "function" && "focused" in editor && typeof editor.focused === "boolean";
@@ -1859,7 +2166,7 @@ function renderFrame(decoration, width) {
     return renderWithCursor(decoration, width);
   }
   const borderPaint = (text) => decoration.editor.borderColor(text);
-  const rail = borderPaint("│");
+  const rail = borderPaint("\u2502");
   const result = [];
   const inlineFooter = decoration.inlineFooter?.enabled() === true;
   const renderInlineLine = (kind, budget) => decoration.inlineFooter?.render(budget)?.[kind];
@@ -2155,40 +2462,40 @@ function installEditor(_pi, ctx, cursorStyle = "block", inlineFooter) {
 }
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/footer.ts
-import { hostname as osHostname } from "node:os";
+import { hostname as osHostname } from "os";
 import { truncateToWidth as truncateToWidth4, visibleWidth as visibleWidth5, wrapTextWithAnsi as wrapTextWithAnsi2 } from "@earendil-works/pi-tui";
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/icons.ts
 var NERD_GLYPHS = {
-  cwd: "",
-  host: "",
-  session: "",
-  git: "",
-  working: "",
-  done: "",
-  context: "",
-  model: "",
-  thinking: "",
-  input: "",
-  output: "",
-  cacheHit: "",
-  cost: "",
+  cwd: "\uF07C",
+  host: "\uF233",
+  session: "\uF02B",
+  git: "\uF418",
+  working: "\uF017",
+  done: "\uF00C",
+  context: "\uF0C9",
+  model: "\uF121",
+  thinking: "\uF0EB",
+  input: "\uF093",
+  output: "\uF019",
+  cacheHit: "\uF1C0",
+  cost: "\uF155",
   speed: "\uDB81\uDCC5",
-  latency: "",
-  stall: "",
-  extensions: "",
-  ahead: "↑",
-  behind: "↓",
-  diverged: "⇕",
+  latency: "\uF252",
+  stall: "\uF071",
+  extensions: "\uF1E6",
+  ahead: "\u2191",
+  behind: "\u2193",
+  diverged: "\u21D5",
   conflicted: "=",
   stashed: "$",
   modified: "!",
   staged: "+",
   untracked: "?",
-  renamed: "»",
-  deleted: "✘",
-  toolCall: "●",
-  toolResult: "⎿"
+  renamed: "\xBB",
+  deleted: "\u2718",
+  toolCall: "\u25CF",
+  toolResult: "\u23BF"
 };
 var ASCII_GLYPHS = {
   cwd: "@",
@@ -2200,8 +2507,8 @@ var ASCII_GLYPHS = {
   context: "#",
   model: "M",
   thinking: "~",
-  input: "↑",
-  output: "↓",
+  input: "\u2191",
+  output: "\u2193",
   cacheHit: "c",
   cost: "$",
   speed: ">",
@@ -2223,34 +2530,34 @@ var ASCII_GLYPHS = {
 };
 var UNICODE_GLYPHS = {
   cwd: "\uD83D\uDCC1",
-  host: "⌂",
+  host: "\u2302",
   session: "\uD83D\uDD16",
   git: "\uD83C\uDF3F",
-  working: "◷",
-  done: "✓",
-  context: "≡",
+  working: "\u25F7",
+  done: "\u2713",
+  context: "\u2261",
   model: "\uD83D\uDCBB",
   thinking: "\uD83D\uDCA1",
-  input: "↑",
-  output: "↓",
+  input: "\u2191",
+  output: "\u2193",
   cacheHit: "\uD83D\uDCBE",
   cost: "$",
-  speed: "⚡",
-  latency: "⌛",
-  stall: "⚠",
+  speed: "\u26A1",
+  latency: "\u231B",
+  stall: "\u26A0",
   extensions: "\uD83D\uDD0C",
-  ahead: "↑",
-  behind: "↓",
-  diverged: "↕",
+  ahead: "\u2191",
+  behind: "\u2193",
+  diverged: "\u2195",
   conflicted: "=",
   stashed: "$",
   modified: "!",
   staged: "+",
   untracked: "?",
-  renamed: "→",
-  deleted: "✗",
-  toolCall: "●",
-  toolResult: "└"
+  renamed: "\u2192",
+  deleted: "\u2717",
+  toolCall: "\u25CF",
+  toolResult: "\u2514"
 };
 function isSshSession() {
   return Boolean(process.env.SSH_TTY || process.env.SSH_CONNECTION);
@@ -2281,38 +2588,38 @@ function resolveGlyphs(mode) {
   return resolved === "nerd" ? NERD_GLYPHS : ASCII_GLYPHS;
 }
 var RUNTIME_SYMBOLS = {
-  nodejs: "",
-  rust: "",
-  go: "",
-  python: "",
-  ruby: "",
-  java: "",
-  cpp: "",
-  c: "",
-  swift: "",
-  kotlin: "",
-  deno: "",
-  bun: "",
-  php: "",
-  haskell: "",
-  julia: "",
-  lua: "",
-  elixir: "",
-  erlang: "",
-  gleam: "",
-  crystal: "",
-  dart: "",
-  nim: "",
-  zig: "",
-  ocaml: "",
-  clojure: "",
-  scala: "",
-  perl: "",
-  r: "",
-  elm: "",
-  haxe: "",
-  vagrant: "",
-  terraform: ""
+  nodejs: "\uE718",
+  rust: "\uE7A8",
+  go: "\uE626",
+  python: "\uE73C",
+  ruby: "\uE739",
+  java: "\uE256",
+  cpp: "\uE61D",
+  c: "\uE61E",
+  swift: "\uE755",
+  kotlin: "\uE634",
+  deno: "\uE7FB",
+  bun: "\uE76F",
+  php: "\uE73D",
+  haskell: "\uE777",
+  julia: "\uE624",
+  lua: "\uE620",
+  elixir: "\uE62B",
+  erlang: "\uE7B1",
+  gleam: "\uE6B4",
+  crystal: "\uE62F",
+  dart: "\uE7C0",
+  nim: "\uE677",
+  zig: "\uE6A9",
+  ocaml: "\uE67A",
+  clojure: "\uE76A",
+  scala: "\uE747",
+  perl: "\uE769",
+  r: "\uE68A",
+  elm: "\uE62C",
+  haxe: "\uE7B7",
+  vagrant: "\uE21A",
+  terraform: "\uE1A5"
 };
 var RUNTIME_ASCII_SYMBOLS = {
   nodejs: "node",
@@ -2351,12 +2658,12 @@ var RUNTIME_ASCII_SYMBOLS = {
 function runtimeSymbol(name, mode) {
   if (resolveIconMode(mode) !== "nerd")
     return RUNTIME_ASCII_SYMBOLS[name] ?? name;
-  return RUNTIME_SYMBOLS[name] ?? "";
+  return RUNTIME_SYMBOLS[name] ?? "\uF120";
 }
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/git.ts
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { execFile } from "child_process";
+import { promisify } from "util";
 var execFileAsync = promisify(execFile);
 var GIT_TIMEOUT_MS = 2000;
 function emptyGitStatus() {
@@ -2536,8 +2843,8 @@ function renderBar(theme, pct, barWidth, ascii) {
   const filled = Math.max(0, Math.min(barWidth, Math.round(pct / 100 * barWidth)));
   const empty = barWidth - filled;
   const color = stressColor(pct);
-  const filledCell = ascii ? "#" : "█";
-  const emptyCell = ascii ? "-" : "░";
+  const filledCell = ascii ? "#" : "\u2588";
+  const emptyCell = ascii ? "-" : "\u2591";
   return theme.fg("dim", "[") + theme.fg(color, filledCell.repeat(filled)) + theme.fg("dim", emptyCell.repeat(empty)) + theme.fg("dim", "]");
 }
 function renderContextCompact(theme, ctx, glyphs) {
@@ -2621,7 +2928,7 @@ function renderContextBar(theme, ctx, width, glyphs, iconMode) {
   const contextIcon = theme.fg(stressColor(contextPct), glyphs.context);
   const reserved = visibleWidth5(contextIcon) + visibleWidth5(pctText) + visibleWidth5(ctxText) + 5 + 2;
   const barWidth = Math.max(4, Math.min(12, width - reserved));
-  return `${contextIcon} ${renderBar(theme, contextPct, barWidth, resolveIconMode(iconMode) === "ascii")} ${pctText} ${theme.fg("dim", "·")} ${ctxText}`;
+  return `${contextIcon} ${renderBar(theme, contextPct, barWidth, resolveIconMode(iconMode) === "ascii")} ${pctText} ${theme.fg("dim", "\xB7")} ${ctxText}`;
 }
 function renderStatsSegments(theme, totals, glyphs, segments) {
   const stats = [];
@@ -2664,7 +2971,7 @@ function fitInlineLine(left, right, width, theme) {
   return { left: truncateToWidth4(left, availableForLeft, theme.fg("dim", "...")), right };
 }
 function fitInlineSegments(parts, width, theme) {
-  const separator = theme.fg("dim", " · ");
+  const separator = theme.fg("dim", " \xB7 ");
   const separatorReserve = Math.max(0, parts.length - 1) * Math.max(0, visibleWidth5(separator) - 1);
   return fitSegmentsByPriority(parts, Math.max(0, width - separatorReserve), theme.fg("dim", "...")).filter(Boolean).join(separator);
 }
@@ -2710,7 +3017,7 @@ function fitContributedRow(row, mode, builtins, contributions, width, theme) {
   const right = collect("right");
   if (!contributed)
     return;
-  const leftSeparator = row === 1 && mode === "plain" ? " " : theme.fg("dim", " · ");
+  const leftSeparator = row === 1 && mode === "plain" ? " " : theme.fg("dim", " \xB7 ");
   const rightSeparator = row === 1 ? leftSeparator : theme.fg("dim", " | ");
   const fitted = fitSegmentsByPriority([...left, ...right], width, theme.fg("dim", "..."), {
     compactOrder: "priority",
@@ -2818,7 +3125,7 @@ function renderFooterContent(ctx, getState, getConfig, getModelMeta, theme, foot
   const timerSeg = renderTimerSegment(theme, state, glyphs);
   if (timerSeg) {
     const liveTps = state.workingSince !== undefined && segments.liveTps ? getLiveTps() : null;
-    const text = liveTps === null ? timerSeg : `${timerSeg} ${theme.fg("dim", "·")} ${theme.fg(liveTps.stale ? "dim" : "accent", `${glyphs.speed} ~${Math.round(liveTps.tps)} tok/s`)}`;
+    const text = liveTps === null ? timerSeg : `${timerSeg} ${theme.fg("dim", "\xB7")} ${theme.fg(liveTps.stale ? "dim" : "accent", `${glyphs.speed} ~${Math.round(liveTps.tps)} tok/s`)}`;
     leftParts.push({ text, compactText: liveTps === null ? undefined : timerSeg, priority: 3 });
     inlineTopRightParts.push(leftParts.at(-1));
     builtins.timer = leftParts.at(-1);
@@ -2858,7 +3165,7 @@ function renderFooterContent(ctx, getState, getConfig, getModelMeta, theme, foot
   if (meta.effort && meta.effort !== "off") {
     modelParts.push(theme.fg(effortColor(meta.effort), `${glyphs.thinking} ${meta.effort}`));
   }
-  const modelBlock = modelParts.join(theme.fg("dim", " · "));
+  const modelBlock = modelParts.join(theme.fg("dim", " \xB7 "));
   const stats = renderStatsSegments(theme, totals, glyphs, segments);
   const statsBlock = [stats.tokens, stats.cost].filter(Boolean).join(` ${theme.fg("dim", "|")} `);
   builtins.model = { text: modelBlock, priority: 0 };
@@ -2918,7 +3225,7 @@ function installFooter(ctx, getState, getConfig, getModelMeta, hooks) {
 }
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/footer-segments.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
+import { randomUUID as randomUUID2 } from "crypto";
 var BUILTIN_SEGMENTS = [
   "cwd",
   "hostname",
@@ -3031,34 +3338,34 @@ import { VERSION } from "@earendil-works/pi-coding-agent";
 var LOGO = [
   "            ",
   "            ",
-  "█████████   ",
-  "███   ███   ",
-  "██████   ███",
-  "███      ███",
+  "\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588   ",
+  "\u2588\u2588\u2588   \u2588\u2588\u2588   ",
+  "\u2588\u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588",
+  "\u2588\u2588\u2588      \u2588\u2588\u2588",
   "            "
 ];
 function renderLogo(paintBrand) {
-  return LOGO.map((line) => line.replace(/███/g, paintBrand));
+  return LOGO.map((line) => line.replace(/\u2588\u2588\u2588/g, paintBrand));
 }
 function borderLine(left, label, right, width, paint) {
   if (width <= 1)
     return "";
   if (width < 8 || label.length === 0) {
-    return paint(truncateToWidth(left + "─".repeat(Math.max(0, width - 2)) + right, width, ""));
+    return paint(truncateToWidth(left + "\u2500".repeat(Math.max(0, width - 2)) + right, width, ""));
   }
-  const before = "─── ";
-  const after = " ─────";
+  const before = "\u2500\u2500\u2500 ";
+  const after = " \u2500\u2500\u2500\u2500\u2500";
   const fixedWidth = visibleWidth(before) + visibleWidth(label) + visibleWidth(after);
   const fill = Math.max(0, width - 2 - fixedWidth);
-  return `${paint(left)}${paint(before)}${label}${paint(after)}${paint("─".repeat(fill))}${paint(right)}`;
+  return `${paint(left)}${paint(before)}${label}${paint(after)}${paint("\u2500".repeat(fill))}${paint(right)}`;
 }
 function boxedLine(content, width, paint) {
   if (width <= 2)
     return truncateToWidth(content, width, "");
-  return `${paint("│")}${padRight(content, width - 2)}${paint("│")}`;
+  return `${paint("\u2502")}${padRight(content, width - 2)}${paint("\u2502")}`;
 }
 function twoColumn(left, right, leftWidth, rightWidth, paint) {
-  return `${padRight(left, leftWidth)} ${paint("│")} ${padRight(right, rightWidth, "…")}`;
+  return `${padRight(left, leftWidth)} ${paint("\u2502")} ${padRight(right, rightWidth, "\u2026")}`;
 }
 
 class OpenTuiHeader {
@@ -3090,10 +3397,10 @@ class OpenTuiHeader {
     const leftLines = [
       ...renderLogo(paint).map((line) => center(line, leftWidth)),
       center(bold("Let's build something great"), leftWidth),
-      center(muted(`${model} · ${effort}`), leftWidth),
+      center(muted(`${model} \xB7 ${effort}`), leftWidth),
       center(dim(cwd), leftWidth)
     ];
-    const tipDivider = paint("─".repeat(Math.max(8, Math.min(rightWidth, 22))));
+    const tipDivider = paint("\u2500".repeat(Math.max(8, Math.min(rightWidth, 22))));
     const [cmd0 = "", cmd1 = "", cmd2 = "", cmd3 = ""] = this.tipCommands;
     const tipLines = [
       "",
@@ -3107,12 +3414,12 @@ class OpenTuiHeader {
       muted(cmd3),
       ""
     ];
-    const lines = [borderLine("╭", `${paint("Pi")} v${VERSION}`, "╮", width, paint)];
+    const lines = [borderLine("\u256D", `${paint("Pi")} v${VERSION}`, "\u256E", width, paint)];
     for (let i = 0;i < leftLines.length; i++) {
       const content = useTips ? twoColumn(leftLines[i] ?? "", tipLines[i] ?? "", leftWidth, rightWidth, paint) : padRight(leftLines[i] ?? "", leftWidth);
       lines.push(boxedLine(content, width, paint));
     }
-    lines.push(borderLine("╰", "", "╯", width, paint));
+    lines.push(borderLine("\u2570", "", "\u256F", width, paint));
     return lines.map((line) => truncateToWidth(line, width, ""));
   }
   invalidate() {}
@@ -3123,10 +3430,10 @@ function installHeader(pi, ctx) {
 }
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/runtime.ts
-import { execFile as execFile2 } from "node:child_process";
-import { existsSync as existsSync2, readdirSync, statSync } from "node:fs";
-import { join as join2 } from "node:path";
-import { promisify as promisify2 } from "node:util";
+import { execFile as execFile2 } from "child_process";
+import { existsSync as existsSync3, readdirSync, statSync as statSync2 } from "fs";
+import { join as join3 } from "path";
+import { promisify as promisify2 } from "util";
 var execFileAsync2 = promisify2(execFile2);
 var VERSION_TIMEOUT_MS = 2500;
 var RUNTIMES = [
@@ -3192,7 +3499,7 @@ function fingerprint(cwd, def) {
   const parts = [];
   for (const f of def.files) {
     try {
-      const stat = statSync(join2(cwd, f));
+      const stat = statSync2(join3(cwd, f));
       parts.push(`${f}:${stat.mtimeMs}`);
     } catch {}
   }
@@ -3210,9 +3517,9 @@ function fingerprint(cwd, def) {
 function matchesDef(cwd, def) {
   if (def.env && process.env[def.env])
     return true;
-  if (def.files.some((f) => existsSync2(join2(cwd, f))))
+  if (def.files.some((f) => existsSync3(join3(cwd, f))))
     return true;
-  if (def.folders?.some((f) => existsSync2(join2(cwd, f))))
+  if (def.folders?.some((f) => existsSync3(join3(cwd, f))))
     return true;
   if (def.extensions) {
     try {
@@ -3328,7 +3635,7 @@ var COPY = {
       other: "Other",
       measurements: "Measurements"
     },
-    hint: "Tab/Shift+Tab/←/→: tabs · ↑/↓: move · Enter/Space: change · Esc/q: close",
+    hint: "Tab/Shift+Tab/\u2190/\u2192: tabs \xB7 \u2191/\u2193: move \xB7 Enter/Space: change \xB7 Esc/q: close",
     labels: {
       enabled: "Enabled",
       header: "Override header",
@@ -3365,68 +3672,68 @@ var COPY = {
       off: "Off",
       thinkingPeek: { off: "Off", one: "1 line", two: "2 lines" },
       toolView: { native: "Native", compact: "Compact" },
-      languages: { en: "English", zh: "简体中文" },
+      languages: { en: "English", zh: "\u7B80\u4F53\u4E2D\u6587" },
       cursorStyles: { block: "Block", bar: "Bar", underline: "Underline" },
       icons: { auto: "Auto", nerd: "Nerd", unicode: "Unicode", ascii: "ASCII" }
     }
   },
   zh: {
-    title: "Open TUI 设置",
-    tabs: { features: "常规", icons: "外观", segments: "底栏", telemetry: "遥测" },
+    title: "Open TUI \u8BBE\u7F6E",
+    tabs: { features: "\u5E38\u89C4", icons: "\u5916\u89C2", segments: "\u5E95\u680F", telemetry: "\u9065\u6D4B" },
     sections: {
-      extension: "扩展",
-      interface: "界面",
-      messages: "消息与工具",
-      footer: "底栏",
-      icons: "图标",
-      editor: "输入框",
-      location: "位置",
+      extension: "\u6269\u5C55",
+      interface: "\u754C\u9762",
+      messages: "\u6D88\u606F\u4E0E\u5DE5\u5177",
+      footer: "\u5E95\u680F",
+      icons: "\u56FE\u6807",
+      editor: "\u8F93\u5165\u6846",
+      location: "\u4F4D\u7F6E",
       git: "Git",
-      runtime: "运行环境",
-      usage: "用量",
-      other: "其他",
-      measurements: "测量指标"
+      runtime: "\u8FD0\u884C\u73AF\u5883",
+      usage: "\u7528\u91CF",
+      other: "\u5176\u4ED6",
+      measurements: "\u6D4B\u91CF\u6307\u6807"
     },
-    hint: "Tab/Shift+Tab/←/→：切页 · ↑/↓：移动 · Enter/Space：更改 · Esc/q：关闭",
+    hint: "Tab/Shift+Tab/\u2190/\u2192\uFF1A\u5207\u9875 \xB7 \u2191/\u2193\uFF1A\u79FB\u52A8 \xB7 Enter/Space\uFF1A\u66F4\u6539 \xB7 Esc/q\uFF1A\u5173\u95ED",
     labels: {
-      enabled: "启用",
-      header: "覆盖顶部信息栏",
-      inlineFooter: "底栏嵌入输入框",
-      copyButtons: "复制按钮",
-      thinkingPeek: "思考预览",
-      toolView: "工具视图",
-      extensionTools: "紧凑显示扩展工具",
-      language: "语言",
-      cursorStyle: "光标样式",
-      iconMode: "图标模式",
-      cwd: "当前目录",
-      hostname: "主机名",
-      sessionName: "会话名",
-      gitBranch: "Git 分支",
-      gitStatus: "Git 状态",
-      gitCommit: "Git 标签（分离 HEAD）",
-      runtime: "项目运行环境",
-      context: "上下文用量",
-      tokens: "会话 Token",
-      cost: "会话费用",
-      extensionStatuses: "扩展状态行",
-      extensionSegments: "扩展底栏片段",
-      capitalizeProviderName: "提供商名称首字母大写",
-      nerdIconSpacing: "Nerd 图标后额外留空",
-      liveTps: "实时 TPS",
-      totalDuration: "总耗时",
-      tokenCounts: "单次运行 Token",
-      stallDetails: "停顿详情",
-      costRate: "每百万 Token 单价"
+      enabled: "\u542F\u7528",
+      header: "\u8986\u76D6\u9876\u90E8\u4FE1\u606F\u680F",
+      inlineFooter: "\u5E95\u680F\u5D4C\u5165\u8F93\u5165\u6846",
+      copyButtons: "\u590D\u5236\u6309\u94AE",
+      thinkingPeek: "\u601D\u8003\u9884\u89C8",
+      toolView: "\u5DE5\u5177\u89C6\u56FE",
+      extensionTools: "\u7D27\u51D1\u663E\u793A\u6269\u5C55\u5DE5\u5177",
+      language: "\u8BED\u8A00",
+      cursorStyle: "\u5149\u6807\u6837\u5F0F",
+      iconMode: "\u56FE\u6807\u6A21\u5F0F",
+      cwd: "\u5F53\u524D\u76EE\u5F55",
+      hostname: "\u4E3B\u673A\u540D",
+      sessionName: "\u4F1A\u8BDD\u540D",
+      gitBranch: "Git \u5206\u652F",
+      gitStatus: "Git \u72B6\u6001",
+      gitCommit: "Git \u6807\u7B7E\uFF08\u5206\u79BB HEAD\uFF09",
+      runtime: "\u9879\u76EE\u8FD0\u884C\u73AF\u5883",
+      context: "\u4E0A\u4E0B\u6587\u7528\u91CF",
+      tokens: "\u4F1A\u8BDD Token",
+      cost: "\u4F1A\u8BDD\u8D39\u7528",
+      extensionStatuses: "\u6269\u5C55\u72B6\u6001\u884C",
+      extensionSegments: "\u6269\u5C55\u5E95\u680F\u7247\u6BB5",
+      capitalizeProviderName: "\u63D0\u4F9B\u5546\u540D\u79F0\u9996\u5B57\u6BCD\u5927\u5199",
+      nerdIconSpacing: "Nerd \u56FE\u6807\u540E\u989D\u5916\u7559\u7A7A",
+      liveTps: "\u5B9E\u65F6 TPS",
+      totalDuration: "\u603B\u8017\u65F6",
+      tokenCounts: "\u5355\u6B21\u8FD0\u884C Token",
+      stallDetails: "\u505C\u987F\u8BE6\u60C5",
+      costRate: "\u6BCF\u767E\u4E07 Token \u5355\u4EF7"
     },
     values: {
-      on: "开启",
-      off: "关闭",
-      thinkingPeek: { off: "关闭", one: "单行", two: "双行" },
-      toolView: { native: "原生", compact: "紧凑" },
-      languages: { en: "English", zh: "简体中文" },
-      cursorStyles: { block: "块", bar: "竖线", underline: "下划线" },
-      icons: { auto: "自动", nerd: "Nerd", unicode: "Unicode", ascii: "ASCII" }
+      on: "\u5F00\u542F",
+      off: "\u5173\u95ED",
+      thinkingPeek: { off: "\u5173\u95ED", one: "\u5355\u884C", two: "\u53CC\u884C" },
+      toolView: { native: "\u539F\u751F", compact: "\u7D27\u51D1" },
+      languages: { en: "English", zh: "\u7B80\u4F53\u4E2D\u6587" },
+      cursorStyles: { block: "\u5757", bar: "\u7AD6\u7EBF", underline: "\u4E0B\u5212\u7EBF" },
+      icons: { auto: "\u81EA\u52A8", nerd: "Nerd", unicode: "Unicode", ascii: "ASCII" }
     }
   }
 };
@@ -3702,8 +4009,8 @@ class SectionedSettingsList {
     const lines = this.rows.map((row) => {
       if (row.kind === "setting")
         return settingLines[itemIndex++];
-      const label = truncateToWidth5(`  ──${row.label} `, width, "");
-      return this.theme.fg("dim", label + "─".repeat(Math.max(0, width - visibleWidth6(label))));
+      const label = truncateToWidth5(`  \u2500\u2500${row.label} `, width, "");
+      return this.theme.fg("dim", label + "\u2500".repeat(Math.max(0, width - visibleWidth6(label))));
     });
     const { start, end } = this.visibleRange();
     const visible = lines.slice(start, end);
@@ -4135,7 +4442,7 @@ function formatTurnTelemetry(telemetry, theme, config, iconMode) {
   const glyphs = resolveGlyphs(iconMode);
   const parts = [];
   if (config.tps) {
-    const value = telemetry.tps === null ? "—" : `${telemetry.tps.toFixed(1)} tok/s`;
+    const value = telemetry.tps === null ? "\u2014" : `${telemetry.tps.toFixed(1)} tok/s`;
     parts.push(theme.fg(telemetry.tps === null ? "muted" : "accent", `${glyphs.speed} TPS ${value}`));
   }
   if (config.ttft) {
@@ -4158,8 +4465,8 @@ function formatTurnTelemetry(telemetry, theme, config, iconMode) {
 }
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/tool-view.ts
-import { homedir } from "node:os";
-import { isAbsolute as isAbsolute2, relative as relative2, sep as sep2 } from "node:path";
+import { homedir as homedir2 } from "os";
+import { isAbsolute as isAbsolute3, relative as relative2, sep as sep2 } from "path";
 import { Box as Box2, getCapabilities, getImageDimensions, imageFallback, Spacer, Text as Text2, truncateToWidth as truncateToWidth7, visibleWidth as visibleWidth8 } from "@earendil-works/pi-tui";
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/tool-preview.ts
@@ -4651,7 +4958,7 @@ function parseDiff(source) {
   const rows = [];
   for (const line of codeLines(source)) {
     if (/^ +\.\.\.$/.test(line)) {
-      rows.push({ kind: "gap", number: "", text: "…" });
+      rows.push({ kind: "gap", number: "", text: "\u2026" });
       continue;
     }
     const match = /^([ +\-]) *(\d+) (.*)$/.exec(line);
@@ -4784,11 +5091,11 @@ function prepareToolPreview(kind, source, path, theme) {
     const available = Math.max(0, width - visibleWidth7(pad));
     const result = prepared.map(({ code, band }) => {
       const columns = Math.max(0, available - (band ? 2 : 0));
-      const clipped = truncateToWidth6(code, columns, band ? `${band}…` : "…");
+      const clipped = truncateToWidth6(code, columns, band ? `${band}\u2026` : "\u2026");
       return pad + (band && columns > 0 ? clipped + band + " ".repeat(Math.max(0, columns - visibleWidth7(clipped))) + "\x1B[49m" : clipped);
     });
     if (hidden > 0)
-      result.push(pad + theme.fg("dim", truncateToWidth6(`… +${hidden} lines (ctrl+o to expand)`, available, "…")));
+      result.push(pad + theme.fg("dim", truncateToWidth6(`\u2026 +${hidden} lines (ctrl+o to expand)`, available, "\u2026")));
     return result;
   };
 }
@@ -4872,7 +5179,7 @@ function firstLine(text) {
 `).trim().split(`
 `);
   const head = lines[0] ?? "";
-  return lines.length > 1 ? `${head} … (+${lines.length - 1} lines)` : head;
+  return lines.length > 1 ? `${head} \u2026 (+${lines.length - 1} lines)` : head;
 }
 function tailLines(text, count) {
   const lines = cleanOutput(text).split(`
@@ -4881,10 +5188,10 @@ function tailLines(text, count) {
 }
 function inside(base, path) {
   const rel = relative2(base, path);
-  return rel !== ".." && !rel.startsWith(`..${sep2}`) && !isAbsolute2(rel) ? rel.split(sep2).join("/") : undefined;
+  return rel !== ".." && !rel.startsWith(`..${sep2}`) && !isAbsolute3(rel) ? rel.split(sep2).join("/") : undefined;
 }
-function displayPath(path, cwd, home = homedir()) {
-  if (!path || !isAbsolute2(path))
+function displayPath(path, cwd, home = homedir2()) {
+  if (!path || !isAbsolute3(path))
     return path;
   const inCwd = inside(cwd, path);
   if (inCwd)
@@ -4899,7 +5206,10 @@ function lineRange(offset, limit) {
   return typeof limit === "number" ? `:${start}-${start + limit - 1}` : `:${start}`;
 }
 function callDetail(toolName, args, cwd) {
-  const path = displayPath(str(args.file_path ?? args.path), cwd);
+  const rawPath = str(args.file_path ?? args.path);
+  if (rawPath)
+    registerKnownFilePath(rawPath, cwd);
+  const path = displayPath(rawPath, cwd);
   switch (toolName) {
     case "read":
       return path + lineRange(args.offset, args.limit);
@@ -4928,12 +5238,49 @@ function genericDetail(args, cwd) {
     const value = args[key];
     if (typeof value !== "string" || !value.trim())
       continue;
-    return key === "path" || key === "file_path" ? displayPath(value, cwd) : firstLine(value);
+    if (key === "path" || key === "file_path") {
+      registerKnownFilePath(value, cwd);
+      return displayPath(value, cwd);
+    }
+    return firstLine(value);
   }
   return Object.entries(args).filter(([, value]) => value !== undefined && value !== null).slice(0, GENERIC_DETAIL_ARGS).map(([key, value]) => {
     const shown = typeof value === "string" ? firstLine(value) : JSON.stringify(value) ?? String(value);
     return `${key}=${shown.slice(0, GENERIC_DETAIL_VALUE_CHARS)}`;
   }).join(", ");
+}
+function linkToolDetail(toolName, sanitizedDetail, args, cwd, generic = false) {
+  if (!sanitizedDetail)
+    return "";
+  let rawPath = "";
+  if (generic) {
+    for (const key of GENERIC_DETAIL_KEYS) {
+      const value = args[key];
+      if (typeof value !== "string" || !value.trim())
+        continue;
+      if (key === "path" || key === "file_path")
+        rawPath = value;
+      break;
+    }
+  } else if (toolName === "read" || toolName === "edit" || toolName === "write" || toolName === "grep" || toolName === "find" || toolName === "ls") {
+    rawPath = str(args.file_path ?? args.path) || (toolName === "ls" ? "." : "");
+  }
+  if (!rawPath)
+    return sanitizedDetail;
+  const url = resolveToolPathHyperlinkUrl(rawPath, cwd);
+  if (!url)
+    return sanitizedDetail;
+  if (generic || toolName === "read" || toolName === "edit" || toolName === "write" || toolName === "ls") {
+    return formatOsc8(sanitizedDetail, url);
+  }
+  const shownPath = sanitizeStatus(displayPath(rawPath, cwd));
+  if (shownPath && sanitizedDetail.endsWith(` in ${shownPath}`)) {
+    return sanitizedDetail.slice(0, -shownPath.length) + formatOsc8(shownPath, url);
+  }
+  if (shownPath && sanitizedDetail === shownPath) {
+    return formatOsc8(sanitizedDetail, url);
+  }
+  return sanitizedDetail;
 }
 function details(result) {
   const value = result.details;
@@ -4949,7 +5296,7 @@ function truncation(result) {
 function incomplete(result) {
   const info = details(result);
   const limit = ["matchLimitReached", "resultLimitReached", "entryLimitReached"].some((key) => info[key] !== undefined);
-  return (limit ? " · limit reached" : "") + (truncation(result).truncated || info.linesTruncated === true ? " · truncated" : "");
+  return (limit ? " \xB7 limit reached" : "") + (truncation(result).truncated || info.linesTruncated === true ? " \xB7 truncated" : "");
 }
 function shellLines(output, result) {
   const text = output.trim();
@@ -4963,18 +5310,18 @@ function summarizeResult(toolName, result, args) {
     case "read": {
       if (result.content.some((block) => block.type === "image"))
         return "image";
-      const more = /\n\n\[\d+ more lines in file\. Use offset=\d+ to continue\.\]\s*$/.test(raw) ? " · more" : "";
+      const more = /\n\n\[\d+ more lines in file\. Use offset=\d+ to continue\.\]\s*$/.test(raw) ? " \xB7 more" : "";
       return plural(countLines(text), "line") + incomplete(result) + more;
     }
     case "bash":
     case "powershell":
-      return `Done · ${shellLines(text, result)}`;
+      return `Done \xB7 ${shellLines(text, result)}`;
     case "edit": {
       const diff = details(result).diff;
       if (typeof diff !== "string")
         return "Edited";
       const { added, removed } = diffStats(diff);
-      return `+${added} −${removed}`;
+      return `+${added} \u2212${removed}`;
     }
     case "write":
       return `${plural(codeLines(str(args.content)).length, "line")} written`;
@@ -5011,8 +5358,8 @@ function summarizeGeneric(result, duration = "") {
   const counts = [
     ...totalLines ? [plural(totalLines, "line")] : [],
     ...images ? [plural(images, "image")] : []
-  ].join(" · ");
-  return (counts || "Done") + (info.truncated ? " · truncated" : "") + duration + (head ? ` · ${head}` : "");
+  ].join(" \xB7 ");
+  return (counts || "Done") + (info.truncated ? " \xB7 truncated" : "") + duration + (head ? ` \xB7 ${head}` : "");
 }
 function summarizeFff(kind, result, duration = "") {
   const info = details(result);
@@ -5047,7 +5394,7 @@ function summarizeFff(kind, result, duration = "") {
   const count = kind === "find" ? `${plural(matched, "file")} matched` : `${plural(matched, `${matchType}match`, `${matchType}matches`)} on this page`;
   const head = sanitizeStatus(output.split(`
 `)[fuzzy ? 1 : 0] ?? "");
-  return count + (more ? " · more available" : "") + (literal ? " · regex fallback" : "") + (weak ? " · weak matches" + (Number(weak[1]) < matched ? " · capped" : "") : "") + (truncation(result).truncated ? " · truncated" : "") + duration + (head ? ` · ${head}` : "");
+  return count + (more ? " \xB7 more available" : "") + (literal ? " \xB7 regex fallback" : "") + (weak ? " \xB7 weak matches" + (Number(weak[1]) < matched ? " \xB7 capped" : "") : "") + (truncation(result).truncated ? " \xB7 truncated" : "") + duration + (head ? ` \xB7 ${head}` : "");
 }
 function fffKind(toolName, sourceInfo) {
   const kind = FFF_TOOLS.get(toolName);
@@ -5065,8 +5412,8 @@ function summarizeError(toolName, result, duration = "") {
     const reason = status[1];
     const output = stripNotice(toolName, text.slice(0, status.index));
     const last = tailLines(output, 1)[0]?.trim();
-    const tail = last && last !== "(no output)" ? ` · ${last}` : "";
-    return `${reason[0].toUpperCase()}${reason.slice(1)} · ${shellLines(output, result)}${duration}${tail}`;
+    const tail = last && last !== "(no output)" ? ` \xB7 ${last}` : "";
+    return `${reason[0].toUpperCase()}${reason.slice(1)} \xB7 ${shellLines(output, result)}${duration}${tail}`;
   }
   return text.split(`
 `).find((line) => line.trim())?.trim() ?? "Failed";
@@ -5082,7 +5429,7 @@ function lines(build, theme, glyphs, cacheable = true) {
       const colors = theme.colors;
       if (cacheable && cache && cache.width === width && cache.colors === colors && cache.toolCall === icons.toolCall && cache.toolResult === icons.toolResult)
         return cache.lines;
-      const rendered = build(width, icons).map((line) => truncateToWidth7(linkifyAnsiLineUrls(line), Math.max(0, width), "…"));
+      const rendered = build(width, icons).map((line) => truncateToWidth7(linkifyAnsiLineUrls(line), Math.max(0, width), "\u2026"));
       if (cacheable)
         cache = { width, colors, toolCall: icons.toolCall, toolResult: icons.toolResult, lines: rendered };
       return rendered;
@@ -5183,14 +5530,15 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
       const color = context.isError ? "error" : context.isPartial ? live && row.pulseBright !== false ? "accent" : "dim" : "success";
       const titleColor = context.isPartial || context.isError ? "toolTitle" : "dim";
       const callArgs = args ?? {};
-      const detail = sanitizeStatus(generic ? genericDetail(callArgs, context.cwd) : callDetail(toolName, callArgs, context.cwd));
+      const rawDetail = sanitizeStatus(generic ? genericDetail(callArgs, context.cwd) : callDetail(toolName, callArgs, context.cwd));
+      const detail = linkToolDetail(toolName, rawDetail, callArgs, context.cwd, generic);
       const pad = " ".repeat(context.outputPad);
       return lines((_width, icons) => {
         const call = pad + theme.fg(color, icons.toolCall) + " " + theme.fg(titleColor, titleColor === "dim" ? label : theme.bold(label)) + (detail ? theme.fg(context.isPartial || context.isError ? "muted" : "dim", `(${detail})`) : "");
         if (generic && live && !row.hasResult) {
           const elapsed = row.startedAt === undefined ? "" : ` ${formatElapsed(Date.now() - row.startedAt)}`;
           const gutter = `${pad}  ${theme.fg("dim", icons.toolResult)}  `;
-          return [call, gutter + theme.fg("warning", `Running…${elapsed}`)];
+          return [call, gutter + theme.fg("warning", `Running\u2026${elapsed}`)];
         }
         return [call];
       }, theme, glyphs, !context.isPartial);
@@ -5230,7 +5578,7 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
         }
       }
       const timed = isShell || generic;
-      const duration = timed && context.durationMs !== undefined ? ` · ${formatElapsed(context.durationMs)}` : "";
+      const duration = timed && context.durationMs !== undefined ? ` \xB7 ${formatElapsed(context.durationMs)}` : "";
       const summary = partial ? "" : context.isError ? summarizeError(generic ? "" : toolName, result, duration) : generic ? summarizeExtension(result, duration) : summarizeResult(toolName, result, args) + duration;
       const tail = partial && isShell ? tailLines(textOutput(result), LIVE_TAIL_LINES) : [];
       return lines((width, { toolResult }) => {
@@ -5238,9 +5586,9 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
         const indent = `${pad}  ${" ".repeat(visibleWidth8(toolResult))}  `;
         if (partial) {
           if (!timed)
-            return [gutter + theme.fg("warning", "Running…")];
+            return [gutter + theme.fg("warning", "Running\u2026")];
           const elapsed = row.startedAt === undefined ? "" : ` ${formatElapsed(Date.now() - row.startedAt)}`;
-          return [...tail.map((line) => theme.fg("toolOutput", line)), theme.fg("warning", `Running…${elapsed}`)].map((line, index) => (index === 0 ? gutter : indent) + line);
+          return [...tail.map((line) => theme.fg("toolOutput", line)), theme.fg("warning", `Running\u2026${elapsed}`)].map((line, index) => (index === 0 ? gutter : indent) + line);
         }
         if (context.isError)
           return [gutter + theme.fg("error", summary)];
@@ -5322,11 +5670,11 @@ class RoundedFrame {
     if (this.cachedLines && this.cachedWidth === width && this.cachedInnerLines === innerLines) {
       return this.cachedLines;
     }
-    const horizontal = "─".repeat(Math.max(0, width - 2));
-    const side = this.border("│");
+    const horizontal = "\u2500".repeat(Math.max(0, width - 2));
+    const side = this.border("\u2502");
     const out = [];
     if (this.mode !== "open-top") {
-      out.push(this.border("╭" + horizontal + "╮"));
+      out.push(this.border("\u256D" + horizontal + "\u256E"));
     }
     if (innerLines.length > 0) {
       for (const line of innerLines) {
@@ -5338,7 +5686,7 @@ class RoundedFrame {
       out.push(side + " ".repeat(width - 2) + side);
     }
     if (this.mode !== "open-bottom") {
-      out.push(this.border("╰" + horizontal + "╯"));
+      out.push(this.border("\u2570" + horizontal + "\u256F"));
     }
     this.cachedWidth = width;
     this.cachedInnerLines = innerLines;
@@ -5393,7 +5741,7 @@ function registerRoundedTools(pi) {
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/peek.ts
 import { truncateToWidth as truncateToWidth8, visibleWidth as visibleWidth10, wrapTextWithAnsi as wrapTextWithAnsi3 } from "@earendil-works/pi-tui";
-var SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+var SPINNER_FRAMES = ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"];
 var MAX_PEEK_LINES = 2;
 var graphemeSegmenter2 = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 function stringValue(value) {
@@ -5458,7 +5806,7 @@ function clipTail(text, budget) {
     const part = segments.containing(end - 1);
     w += visibleWidth10(part.segment);
     if (w > budget)
-      return "…" + text.slice(clippedStart);
+      return "\u2026" + text.slice(clippedStart);
     end = part.index;
     if (w <= limit)
       clippedStart = end;
@@ -5469,7 +5817,7 @@ function buildPeekLabel(state, frame, glyphs, width, lineCount = 1) {
   const w = Math.max(1, Math.floor(width));
   const prefix = `${glyphs.thinking} think`;
   const count = normalizePeekLineCount(lineCount);
-  const fit = (line) => truncateToWidth8(line, w, "…");
+  const fit = (line) => truncateToWidth8(line, w, "\u2026");
   switch (state.phase) {
     case "thinking": {
       const spin = SPINNER_FRAMES[frame % SPINNER_FRAMES.length] ?? "";
@@ -5501,7 +5849,7 @@ ${fit(secondTail ? `${thoughtIndent}${secondTail}` : thoughtIndent)}`;
     case "done":
       return fit(`${prefix} ${glyphs.done}`);
     default:
-      return fit(`${prefix} ·`);
+      return fit(`${prefix} \xB7`);
   }
 }
 

@@ -128,8 +128,15 @@ const realTui = loadRealPiTui();
 mock.module("@earendil-works/pi-tui", () => realTui);
 
 const {
+	default: osc8LinksExtension,
+	clearKnownFilePaths,
+	formatHerdrFileHyperlinkUrl,
 	installOsc8LinkRendering,
 	normalizeMarkdownForOsc8,
+	parseFileHyperlinkUrl,
+	registerKnownFilePath,
+	resolveToolPathHyperlinkUrl,
+	setSessionCwd,
 	splitTrailingUrlPunctuation,
 } = await import("../extensions/osc8-links.ts");
 
@@ -459,5 +466,132 @@ describe("osc8-links extension", () => {
 		screen.handleMouseEvent({ button: 32, x: linkCol + 6, y: 0, release: false });
 		screen.handleMouseEvent({ button: 0, x: linkCol + 6, y: 0, release: true });
 		expect(screen.openedUrls).toEqual([osc8Url, plainUrl]);
+	});
+
+	test("enables prefix+o style OSC 8 links for file:// hyperlinks and filenames when running inside a herdr/hc window", () => {
+		const origHerdrEnv = process.env.HERDR_ENV;
+		const origPaneId = process.env.HERDR_PANE_ID;
+		const origActivePaneId = process.env.HERDR_ACTIVE_PANE_ID;
+		const origHcTerminalId = process.env.HC_TERMINAL_ID;
+
+		const extFileAbs = fs.realpathSync(new URL("../extensions/osc8-links.ts", import.meta.url));
+		const extDirAbs = fs.realpathSync(new URL("..", import.meta.url));
+		const expectedFileOsc8Url = formatHerdrFileHyperlinkUrl(extFileAbs, "file");
+
+		try {
+			process.env.HERDR_ENV = "1";
+			process.env.HERDR_PANE_ID = "w1:p1";
+			clearKnownFilePaths();
+			setSessionCwd(extDirAbs);
+
+			// 1. Native Pi file:// OSC 8 hyperlink (as emitted by linkPath / imageFallback) is rewritten to the Herdr workflow-preset OSC 8 URL.
+			const nativeFileOsc8 = `\x1b]8;;file://${extFileAbs}\x1b\\extensions/osc8-links.ts\x1b]8;;\x1b\\`;
+			const textWithNativeFileLink = new realTui.Text(`read ${nativeFileOsc8}:1-50`, 0, 0);
+			const nativeLines = textWithNativeFileLink.render(80);
+			expect(linkedTextForUrl(nativeLines, expectedFileOsc8Url)).toBe("extensions/osc8-links.ts");
+
+			// 2. Bare relative paths, inline-code paths, @-prefixed paths, and compact tool calls get OSC 8 file hyperlinks.
+			const mdSample = [
+				`Details in @${extFileAbs} and \`extensions/osc8-links.ts:120\`.`,
+				"",
+				"| Tool | File |",
+				"|---|---|",
+				"| Read | `extensions/osc8-links.ts` |",
+				`| Link | [osc8-links.ts](extensions/osc8-links.ts) |`,
+			].join("\n");
+			const md = new realTui.Markdown(mdSample, 0, 0, markdownTheme);
+			const mdLines = md.render(44);
+			expect(linkedTextForUrl(mdLines, expectedFileOsc8Url)).toBe(
+				`${extFileAbs}extensions/osc8-links.ts:120extensions/osc8-links.tsosc8-links.ts`,
+			);
+
+			// 3. Session metadata (e.g. historical toolCall arguments on session_start / /reload) indexes full paths
+			// so short display names like `Read(osc8-links.ts:1-200)` resolve to the full path even from another cwd.
+			clearKnownFilePaths();
+			const handlers = new Map<string, Array<(ev: any, ctx: any) => void>>();
+			osc8LinksExtension({
+				registerMarkdownTransformer: () => {},
+				on: (event: string, fn: (ev: any, ctx: any) => void) => {
+					handlers.set(event, [...(handlers.get(event) ?? []), fn]);
+				},
+			} as any);
+			for (const fn of handlers.get("session_start") ?? []) {
+				fn(
+					{ reason: "reload" },
+					{
+						cwd: "/tmp",
+						sessionManager: {
+							getEntries: () => [
+								{
+									type: "message",
+									message: {
+										role: "assistant",
+										content: [
+											{
+												type: "toolCall",
+												name: "read",
+												arguments: { path: extFileAbs, offset: 1, limit: 200 },
+											},
+										],
+									},
+								},
+							],
+						},
+					},
+				);
+			}
+			expect(resolveToolPathHyperlinkUrl(extFileAbs, "/tmp")).toBe(expectedFileOsc8Url);
+
+			const basenameMd = new realTui.Markdown("Updated `osc8-links.ts` and `Read(osc8-links.ts:1-200)`.", 0, 0, markdownTheme);
+			const basenameLines = basenameMd.render(80);
+			expect(linkedTextForUrl(basenameLines, expectedFileOsc8Url)).toBe("osc8-links.tsosc8-links.ts:1-200");
+			expect(basenameLines[0]).toContain("\x1b[38;2;255;200;100mosc8-links.ts\x1b[39m");
+			expect(basenameLines[0]).not.toContain("\x1b[38;2;100;150;255m");
+			expect(basenameLines[0]).not.toContain("\x1b[4m");
+
+			// 4. Compact tool view line (`Read(osc8-links.ts:1-200)`) and left-click in TuiAltScreen (including on `:1-200`) open the full file.
+			const compactToolText = new realTui.Text("  Read(osc8-links.ts:1-200)", 0, 0);
+			const screen = new realTui.TuiAltScreen();
+			const openedFiles: Array<{ filePath: string; kind: string; url: string }> = [];
+			(screen as any).openFile = (filePath: string, kind: string, url: string) => {
+				openedFiles.push({ filePath, kind, url });
+			};
+			screen.previousScreen = compactToolText.render(80);
+
+			const rangeCol = realTui.stripTerminalSequences(screen.previousScreen[0]!).indexOf(":1-200");
+			screen.handleMouseEvent({ button: 0, x: rangeCol + 1, y: 0, release: false });
+			screen.handleMouseEvent({ button: 0, x: rangeCol + 1, y: 0, release: true });
+
+			expect(openedFiles).toEqual([
+				{
+					filePath: extFileAbs,
+					kind: "file",
+					url: expectedFileOsc8Url,
+				},
+			]);
+			expect(parseFileHyperlinkUrl(expectedFileOsc8Url)).toEqual({
+				filePath: extFileAbs,
+				kind: "file",
+			});
+
+			// 5. Outside Herdr/hc, bare filenames are not rewritten into hammerspoon:// links.
+			delete process.env.HERDR_ENV;
+			delete process.env.HERDR_PANE_ID;
+			delete process.env.HERDR_ACTIVE_PANE_ID;
+			delete process.env.HC_TERMINAL_ID;
+
+			const outsideMd = new realTui.Markdown("Updated `extensions/osc8-links.ts`.", 0, 0, markdownTheme);
+			const outsideLines = outsideMd.render(60);
+			expect(linkedTextForUrl(outsideLines, expectedFileOsc8Url)).toBe("");
+		} finally {
+			if (origHerdrEnv === undefined) delete process.env.HERDR_ENV;
+			else process.env.HERDR_ENV = origHerdrEnv;
+			if (origPaneId === undefined) delete process.env.HERDR_PANE_ID;
+			else process.env.HERDR_PANE_ID = origPaneId;
+			if (origActivePaneId === undefined) delete process.env.HERDR_ACTIVE_PANE_ID;
+			else process.env.HERDR_ACTIVE_PANE_ID = origActivePaneId;
+			if (origHcTerminalId === undefined) delete process.env.HC_TERMINAL_ID;
+			else process.env.HC_TERMINAL_ID = origHcTerminalId;
+		}
 	});
 });

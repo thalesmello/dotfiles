@@ -6,7 +6,7 @@ import type { ToolViewConfig } from "./config.ts";
 import type { IconGlyphs } from "./icons.ts";
 import { codeLines, prepareToolPreview } from "./tool-preview.ts";
 import { sanitizeStatus, stripAnsi } from "./utils.ts";
-import { linkifyAnsiLineUrls } from "../osc8-links.ts";
+import { formatOsc8, linkifyAnsiLineUrls, registerKnownFilePath, resolveToolPathHyperlinkUrl } from "../osc8-links.ts";
 
 type RenderCall = NonNullable<ToolRenderers["renderCall"]>;
 type RenderResult = NonNullable<ToolRenderers["renderResult"]>;
@@ -151,7 +151,9 @@ function lineRange(offset: unknown, limit: unknown): string {
 
 /** The single key argument shown inside `Tool(...)`. */
 export function callDetail(toolName: string, args: Args, cwd: string): string {
-	const path = displayPath(str(args.file_path ?? args.path), cwd);
+	const rawPath = str(args.file_path ?? args.path);
+	if (rawPath) registerKnownFilePath(rawPath, cwd);
+	const path = displayPath(rawPath, cwd);
 	switch (toolName) {
 		case "read":
 			return path + lineRange(args.offset, args.limit);
@@ -181,7 +183,11 @@ export function genericDetail(args: Args, cwd: string): string {
 	for (const key of GENERIC_DETAIL_KEYS) {
 		const value = args[key];
 		if (typeof value !== "string" || !value.trim()) continue;
-		return key === "path" || key === "file_path" ? displayPath(value, cwd) : firstLine(value);
+		if (key === "path" || key === "file_path") {
+			registerKnownFilePath(value, cwd);
+			return displayPath(value, cwd);
+		}
+		return firstLine(value);
 	}
 	return Object.entries(args)
 		.filter(([, value]) => value !== undefined && value !== null)
@@ -191,6 +197,35 @@ export function genericDetail(args: Args, cwd: string): string {
 			return `${key}=${shown.slice(0, GENERIC_DETAIL_VALUE_CHARS)}`;
 		})
 		.join(", ");
+}
+
+function linkToolDetail(toolName: string, sanitizedDetail: string, args: Args, cwd: string, generic = false): string {
+	if (!sanitizedDetail) return "";
+	let rawPath = "";
+	if (generic) {
+		for (const key of GENERIC_DETAIL_KEYS) {
+			const value = args[key];
+			if (typeof value !== "string" || !value.trim()) continue;
+			if (key === "path" || key === "file_path") rawPath = value;
+			break;
+		}
+	} else if (toolName === "read" || toolName === "edit" || toolName === "write" || toolName === "grep" || toolName === "find" || toolName === "ls") {
+		rawPath = str(args.file_path ?? args.path) || (toolName === "ls" ? "." : "");
+	}
+	if (!rawPath) return sanitizedDetail;
+	const url = resolveToolPathHyperlinkUrl(rawPath, cwd);
+	if (!url) return sanitizedDetail;
+	if (generic || toolName === "read" || toolName === "edit" || toolName === "write" || toolName === "ls") {
+		return formatOsc8(sanitizedDetail, url);
+	}
+	const shownPath = sanitizeStatus(displayPath(rawPath, cwd));
+	if (shownPath && sanitizedDetail.endsWith(` in ${shownPath}`)) {
+		return sanitizedDetail.slice(0, -shownPath.length) + formatOsc8(shownPath, url);
+	}
+	if (shownPath && sanitizedDetail === shownPath) {
+		return formatOsc8(sanitizedDetail, url);
+	}
+	return sanitizedDetail;
 }
 
 function details(result: ToolResult): Record<string, unknown> {
@@ -494,7 +529,8 @@ export function createCompactRenderers(
 				: "success";
 			const titleColor = context.isPartial || context.isError ? "toolTitle" : "dim";
 			const callArgs = (args ?? {}) as Args;
-			const detail = sanitizeStatus(generic ? genericDetail(callArgs, context.cwd) : callDetail(toolName, callArgs, context.cwd));
+			const rawDetail = sanitizeStatus(generic ? genericDetail(callArgs, context.cwd) : callDetail(toolName, callArgs, context.cwd));
+			const detail = linkToolDetail(toolName, rawDetail, callArgs, context.cwd, generic);
 			const pad = " ".repeat(context.outputPad);
 			return lines((_width, icons) => {
 				const call = pad + theme.fg(color, icons.toolCall) + " " + theme.fg(titleColor, titleColor === "dim" ? label : theme.bold(label))

@@ -670,15 +670,18 @@ function herdr-preset
             return 1
         end
 
-        # Real panes of this tab, excluding our own popup pane (HERDR_PANE_ID).
+        # Real panes of this tab, excluding our own pane (HERDR_PANE_ID) when
+        # searching for an existing sibling nvim. When invoked directly from the
+        # sole pane of a tab (rather than a popup/picker split), $panes is
+        # legitimately empty and we fall straight through to splitting $anchor.
         set -l self "$HERDR_PANE_ID"
         set -l list_out ($bin pane list 2>&1)
-        set -l panes (printf '%s' "$list_out" | jq -r --arg tab "$tab" --arg self "$self" '.result.panes[] | select(.tab_id == $tab and .pane_id != $self) | .pane_id' 2>/dev/null)
-        test -n "$panes"; or begin
-            echo "$tag: no other panes found in tab '$tab' (self='$self')" >&2
+        printf '%s' "$list_out" | jq -e '.result.panes' >/dev/null 2>&1; or begin
+            echo "$tag: pane list failed for tab '$tab'" >&2
             echo "  pane list output: $list_out" >&2
             return 1
         end
+        set -l panes (printf '%s' "$list_out" | jq -r --arg tab "$tab" --arg self "$self" '.result.panes[] | select(.tab_id == $tab and .pane_id != $self) | .pane_id' 2>/dev/null)
 
         # Find an nvim already running in one of them AND its live RPC socket.
         # process-info reports the pane's foreground nvim (the TUI parent); the
@@ -711,7 +714,7 @@ function herdr-preset
                 echo "  nvim output: $rem_out" >&2
                 return 1
             end
-            set -l focus_out ($bin agent focus "$nvim_target" 2>&1)
+            set -l focus_out ($bin pane focus "$nvim_target" 2>&1; or $bin agent focus "$nvim_target" 2>&1)
             or echo "$tag: warning: could not focus nvim pane '$nvim_target': $focus_out" >&2
         else
             # No reachable nvim in this tab: make a vertical split running nvim on

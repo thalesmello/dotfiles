@@ -1,8 +1,13 @@
 import { spawn } from "node:child_process";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { delimiter, dirname, isAbsolute, join, normalize, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import * as piTui from "@earendil-works/pi-tui";
 
 const PATCH_STATE_SYMBOL = Symbol.for("pi.osc8Links.patchState");
+const PATH_STATE_SYMBOL = Symbol.for("pi.osc8Links.pathState");
 const OSC8_CLOSE = "\x1b]8;;\x1b\\";
 
 // Matches a complete raw OSC 8 sequence: ESC ] 8 ; params ; url (BEL | ST) text ESC ] 8 ; ; (BEL | ST)
@@ -12,9 +17,28 @@ const RAW_OSC8_GLOBAL_REGEX =
 const RAW_OSC8_BACKTICK_REGEX =
 	/`+\x1b\]8;([^;\x07\x1b]*);([^\x07\x1b]+)(?:\x07|\x1b\\)([^`\x07\x1b]*?)\x1b\]8;;(?:\x07|\x1b\\)`+/g;
 
+const RAW_OSC8_OPEN_FILE_URL_REGEX =
+	/\x1b\]8;([^;\x07\x1b]*);(file:\/\/[^\x07\x1b]+)(\x07|\x1b\\)/gi;
+
 // Matches candidate http(s) URLs in plain text, including inline placeholders like <redacted> inside URLs.
 const PLAIN_URL_Candidate_REGEX =
 	/https?:\/\/(?:<[a-zA-Z0-9_.:-]+>|[^\s<>"'`\x00-\x1f\x7f│┌┐└┘├┤┬┴┼─])+/gi;
+
+const PLAIN_FILE_URL_CANDIDATE_REGEX =
+	/file:\/\/[^\s<>"'`\x00-\x1f\x7f│┌┐└┘├┤┬┴┼─]+/gi;
+
+// Matches candidate file/directory paths in plain text (mirrors rxpick's BUILTIN_PATH_RE, plus optional leading `…/`).
+const PLAIN_PATH_CANDIDATE_REGEX =
+	/(?:…\/|~\/|\.\.?\/|\/+)?\.?[A-Za-z0-9_][\w./+@%-]*[\w]/g;
+
+const PATHISH_EXTENSION_OR_SLASH_REGEX =
+	/\/|(?<!\.)\.[A-Za-z][A-Za-z0-9]{0,9}$/;
+
+const SCHEME_PREFIX_REGEX =
+	/(?:https?|ftp|file|mailto|ssh|git|npm|hammerspoon|tot):$/i;
+
+const LINE_COL_SUFFIX_REGEX =
+	/^(.*?):(\d+)(?:(?::|-)(\d+))?$/;
 
 const HTML_LAYOUT_TAG_REGEX =
 	/^<\/?(?:br|wbr|hr|p|div|span|a|img|code|pre|em|strong|b|i|u|s|del|ins|sub|sup|td|th|tr|table)\b/i;
@@ -32,6 +56,299 @@ export interface UrlMatch {
 	start: number;
 	end: number;
 	url: string;
+}
+
+export interface ParsedFileHyperlink {
+	filePath: string;
+	kind: "file" | "directory" | "path";
+}
+
+const FILE_STAT_CACHE_TTL_MS = 2000;
+const FILE_STAT_CACHE_MAX_SIZE = 2048;
+
+type SharedPathState = {
+	sessionCwd: string;
+	fileStatCache: Map<string, { kind: "file" | "directory" | null; expiresAt: number }>;
+	knownPathsBySuffix: Map<string, string>;
+	indexedSessionFiles: Set<string>;
+};
+
+function getSharedPathState(): SharedPathState {
+	const holder = globalThis as Record<symbol, SharedPathState | undefined>;
+	if (!holder[PATH_STATE_SYMBOL]) {
+		holder[PATH_STATE_SYMBOL] = {
+			sessionCwd: process.cwd(),
+			fileStatCache: new Map(),
+			knownPathsBySuffix: new Map(),
+			indexedSessionFiles: new Set(),
+		};
+	}
+	return holder[PATH_STATE_SYMBOL]!;
+}
+
+export function isHerdrOrHcSession(env: NodeJS.ProcessEnv = process.env): boolean {
+	return (
+		env.HERDR_ENV === "1" ||
+		Boolean(env.HERDR_PANE_ID) ||
+		Boolean(env.HERDR_ACTIVE_PANE_ID) ||
+		Boolean(env.HC_TERMINAL_ID)
+	);
+}
+
+export function getSessionCwd(): string {
+	return getSharedPathState().sessionCwd || process.cwd();
+}
+
+export function setSessionCwd(cwd: string | undefined): void {
+	if (cwd && cwd.trim()) {
+		const state = getSharedPathState();
+		state.sessionCwd = cwd;
+		state.fileStatCache.clear();
+	}
+}
+
+export function clearKnownFilePaths(): void {
+	const state = getSharedPathState();
+	state.knownPathsBySuffix.clear();
+	state.fileStatCache.clear();
+	state.indexedSessionFiles.clear();
+}
+
+export function formatHerdrFileHyperlinkUrl(
+	filePath: string,
+	kind: "file" | "directory" | "path" = "file",
+): string {
+	return `hammerspoon://workflow-preset/open-selection?type=${encodeURIComponent(kind)}&match=${encodeURIComponent(filePath)}`;
+}
+
+function expandHomePath(rawPath: string, home = homedir()): string {
+	if (rawPath === "~") return home;
+	if (rawPath.startsWith("~/") || rawPath.startsWith("~\\")) {
+		return join(home, rawPath.slice(2));
+	}
+	return rawPath;
+}
+
+function indexKnownFilePath(absPath: string): void {
+	const { knownPathsBySuffix } = getSharedPathState();
+	const normalized = absPath.replace(/\\/g, "/");
+	const parts = normalized.split("/").filter(Boolean);
+	if (parts.length === 0) return;
+
+	let suffix = "";
+	for (let i = parts.length - 1; i >= 0; i--) {
+		suffix = suffix ? `${parts[i]}/${suffix}` : parts[i]!;
+		knownPathsBySuffix.set(suffix, absPath);
+	}
+}
+
+function statExistingPath(absPath: string): "file" | "directory" | null {
+	const { fileStatCache } = getSharedPathState();
+	const now = Date.now();
+	const cached = fileStatCache.get(absPath);
+	if (cached && cached.expiresAt > now) {
+		return cached.kind;
+	}
+
+	let kind: "file" | "directory" | null = null;
+	try {
+		const st = statSync(absPath);
+		if (st.isFile()) kind = "file";
+		else if (st.isDirectory()) kind = "directory";
+	} catch {
+		kind = null;
+	}
+
+	if (fileStatCache.size >= FILE_STAT_CACHE_MAX_SIZE) {
+		fileStatCache.clear();
+	}
+	fileStatCache.set(absPath, { kind, expiresAt: now + FILE_STAT_CACHE_TTL_MS });
+	if (kind) {
+		indexKnownFilePath(absPath);
+	}
+	return kind;
+}
+
+function stripOptionalLineColSuffix(filePath: string): string {
+	const m = LINE_COL_SUFFIX_REGEX.exec(filePath);
+	if (!m || !m[1]) return filePath;
+	if (statExistingPath(filePath) !== null) return filePath;
+	if (statExistingPath(m[1]) !== null) return m[1];
+	return m[1];
+}
+
+export function registerKnownFilePath(
+	rawPath: string | undefined | null,
+	cwd: string = getSessionCwd(),
+): string | undefined {
+	if (typeof rawPath !== "string") return undefined;
+	let trimmed = rawPath.trim();
+	if (!trimmed) return undefined;
+	if (trimmed.startsWith("@") && trimmed.length > 1) {
+		trimmed = trimmed.slice(1);
+	}
+	if (/^file:\/\//i.test(trimmed)) {
+		const parsed = parseFileHyperlinkUrl(trimmed);
+		if (!parsed) return undefined;
+		trimmed = parsed.filePath;
+	}
+	const expanded = expandHomePath(trimmed);
+	const resolved = isAbsolute(expanded) ? normalize(expanded) : resolve(cwd, expanded);
+	const clean = stripOptionalLineColSuffix(resolved);
+	indexKnownFilePath(clean);
+	statExistingPath(clean);
+	return clean;
+}
+
+export function resolveToolPathHyperlinkUrl(
+	rawPath: string | undefined | null,
+	cwd: string = getSessionCwd(),
+	env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+	const absPath = registerKnownFilePath(rawPath, cwd);
+	if (!absPath) return undefined;
+	if (isHerdrOrHcSession(env)) {
+		const kind = statExistingPath(absPath) ?? "file";
+		return formatHerdrFileHyperlinkUrl(absPath, kind);
+	}
+	return pathToFileURL(absPath).href;
+}
+
+function looksLikePathCandidate(candidate: string): boolean {
+	if (!candidate || candidate.length < 2) return false;
+	if (!PATHISH_EXTENSION_OR_SLASH_REGEX.test(candidate)) return false;
+	if (candidate.includes("..") && !/(?:^\.\.\/|\/\.\.(?:\/|$))/.test(candidate)) {
+		return false;
+	}
+	return true;
+}
+
+export function resolveCandidateFilePath(
+	rawCandidate: string,
+	cwd: string = getSessionCwd(),
+): ParsedFileHyperlink | undefined {
+	if (!rawCandidate) return undefined;
+	const candidate = rawCandidate.startsWith("…/") ? rawCandidate.slice(2) : rawCandidate;
+	if (!looksLikePathCandidate(candidate)) return undefined;
+
+	const hasSlash = candidate.includes("/");
+	if (!rawCandidate.startsWith("…/")) {
+		const expanded = expandHomePath(candidate);
+		const absPath = isAbsolute(expanded) ? normalize(expanded) : resolve(cwd, expanded);
+		const kind = statExistingPath(absPath);
+		if (kind === "file" || (kind === "directory" && hasSlash)) {
+			return { filePath: absPath, kind };
+		}
+	}
+
+	const { knownPathsBySuffix } = getSharedPathState();
+	const normalizedKey = candidate.replace(/^\.\//, "");
+	const knownAbs = knownPathsBySuffix.get(normalizedKey);
+	if (knownAbs) {
+		const kind = statExistingPath(knownAbs);
+		if (kind === "file" || (kind === "directory" && hasSlash)) {
+			return { filePath: knownAbs, kind };
+		}
+	}
+
+	return undefined;
+}
+
+export function parseFileHyperlinkUrl(url: string): ParsedFileHyperlink | undefined {
+	if (!url) return undefined;
+
+	if (/^hammerspoon:\/\/workflow-preset\/open-selection(?:\?|$)/i.test(url)) {
+		try {
+			const parsed = new URL(url);
+			const rawType = (parsed.searchParams.get("type") || "file").toLowerCase();
+			const rawMatch = parsed.searchParams.get("match");
+			if (!rawMatch) return undefined;
+			if (rawType !== "file" && rawType !== "directory" && rawType !== "path") {
+				return undefined;
+			}
+			const expanded = expandHomePath(rawMatch);
+			const absPath = isAbsolute(expanded) ? normalize(expanded) : resolve(getSessionCwd(), expanded);
+			const cleanPath = stripOptionalLineColSuffix(absPath);
+			const statKind = statExistingPath(cleanPath);
+			const kind: "file" | "directory" | "path" =
+				statKind ?? (rawType === "directory" ? "directory" : rawType === "path" ? "path" : "file");
+			return { filePath: cleanPath, kind };
+		} catch {
+			return undefined;
+		}
+	}
+
+	if (/^file:\/\//i.test(url)) {
+		try {
+			const withoutHashOrQuery = url.split("#")[0]!.split("?")[0]!;
+			let filePath: string;
+			try {
+				filePath = fileURLToPath(withoutHashOrQuery);
+			} catch {
+				const parsed = new URL(withoutHashOrQuery);
+				filePath = decodeURIComponent(parsed.pathname);
+			}
+			if (!filePath) return undefined;
+			const cleanPath = stripOptionalLineColSuffix(normalize(filePath));
+			const statKind = statExistingPath(cleanPath);
+			return {
+				filePath: cleanPath,
+				kind: statKind === "directory" ? "directory" : "file",
+			};
+		} catch {
+			return undefined;
+		}
+	}
+
+	return undefined;
+}
+
+export function isFileHyperlinkUrl(url: string): boolean {
+	return parseFileHyperlinkUrl(url) !== undefined;
+}
+
+export function rewriteUrlForHerdr(url: string, env: NodeJS.ProcessEnv = process.env): string {
+	if (!url || !isHerdrOrHcSession(env)) return url;
+	if (/^file:\/\//i.test(url)) {
+		const parsed = parseFileHyperlinkUrl(url);
+		if (parsed) {
+			return formatHerdrFileHyperlinkUrl(parsed.filePath, parsed.kind);
+		}
+	}
+	return url;
+}
+
+export function resolveMarkdownLinkHref(
+	rawHref: string,
+	cwd: string = getSessionCwd(),
+	env: NodeJS.ProcessEnv = process.env,
+): string {
+	if (!rawHref || !isHerdrOrHcSession(env)) return rawHref;
+	if (/^file:\/\//i.test(rawHref)) {
+		return rewriteUrlForHerdr(rawHref, env);
+	}
+	if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(rawHref) || rawHref.startsWith("#")) {
+		return rawHref;
+	}
+	const withoutFragment = rawHref.split("#")[0]!.split("?")[0]!.trim();
+	if (!withoutFragment) return rawHref;
+	const cleanCandidate = LINE_COL_SUFFIX_REGEX.exec(withoutFragment)?.[1] || withoutFragment;
+	const resolved = resolveCandidateFilePath(cleanCandidate, cwd);
+	if (resolved) {
+		return formatHerdrFileHyperlinkUrl(resolved.filePath, resolved.kind);
+	}
+	if (
+		(cleanCandidate.startsWith("/") ||
+			cleanCandidate.startsWith("~/") ||
+			cleanCandidate.startsWith("./") ||
+			cleanCandidate.startsWith("../")) &&
+		looksLikePathCandidate(cleanCandidate)
+	) {
+		const expanded = expandHomePath(cleanCandidate);
+		const absPath = isAbsolute(expanded) ? normalize(expanded) : resolve(cwd, expanded);
+		return formatHerdrFileHyperlinkUrl(absPath, "file");
+	}
+	return rawHref;
 }
 
 function countChar(str: string, ch: string): number {
@@ -83,23 +400,86 @@ export function splitTrailingUrlPunctuation(rawUrl: string): { url: string; trai
 }
 
 export function findUrlsInPlainText(text: string): UrlMatch[] {
-	if (!text.includes("http://") && !text.includes("https://") && !/https?:\/\//i.test(text)) {
+	if (!text) return [];
+	const inHerdr = isHerdrOrHcSession();
+	const hasHttp = text.includes("http://") || text.includes("https://") || /https?:\/\//i.test(text);
+	const hasFileUrl = inHerdr && (text.includes("file://") || /file:\/\//i.test(text));
+	const hasPathChars = inHerdr && (text.includes("/") || text.includes("."));
+
+	if (!hasHttp && !hasFileUrl && !hasPathChars) {
 		return [];
 	}
 
 	const matches: UrlMatch[] = [];
-	PLAIN_URL_Candidate_REGEX.lastIndex = 0;
 	let match: RegExpExecArray | null;
 
-	while ((match = PLAIN_URL_Candidate_REGEX.exec(text)) !== null) {
-		const { url } = splitTrailingUrlPunctuation(match[0]);
-		if (url.length > "https://".length) {
-			matches.push({
-				start: match.index,
-				end: match.index + url.length,
-				url,
-			});
+	if (hasHttp) {
+		PLAIN_URL_Candidate_REGEX.lastIndex = 0;
+		while ((match = PLAIN_URL_Candidate_REGEX.exec(text)) !== null) {
+			const { url } = splitTrailingUrlPunctuation(match[0]);
+			if (url.length > "https://".length) {
+				matches.push({
+					start: match.index,
+					end: match.index + url.length,
+					url,
+				});
+			}
 		}
+	}
+
+	if (hasFileUrl) {
+		PLAIN_FILE_URL_CANDIDATE_REGEX.lastIndex = 0;
+		while ((match = PLAIN_FILE_URL_CANDIDATE_REGEX.exec(text)) !== null) {
+			const { url } = splitTrailingUrlPunctuation(match[0]);
+			if (url.length > "file:///".length) {
+				const start = match.index;
+				const end = match.index + url.length;
+				if (matches.some((m) => start < m.end && end > m.start)) continue;
+				matches.push({
+					start,
+					end,
+					url: rewriteUrlForHerdr(url),
+				});
+			}
+		}
+	}
+
+	if (hasPathChars) {
+		PLAIN_PATH_CANDIDATE_REGEX.lastIndex = 0;
+		while ((match = PLAIN_PATH_CANDIDATE_REGEX.exec(text)) !== null) {
+			const candidate = match[0];
+			const start = match.index;
+			const end = start + candidate.length;
+
+			if (matches.some((m) => start < m.end && end > m.start)) continue;
+
+			if (start > 0) {
+				const prev = text[start - 1]!;
+				if (/[\w/~.%+-]/.test(prev)) continue;
+				if (prev === "@" && start >= 2 && /[\w.]/.test(text[start - 2]!)) continue;
+				if (prev === ":") {
+					const beforeColon = text.slice(Math.max(0, start - 20), start);
+					if (SCHEME_PREFIX_REGEX.test(beforeColon)) continue;
+				}
+			}
+
+			if (text.slice(end, end + 3) === "://") continue;
+
+			const resolved = resolveCandidateFilePath(candidate);
+			if (resolved) {
+				const lineSuffix = /^:\d+(?:(?::|-)\d+)?(?![\w.])/.exec(text.slice(end));
+				const matchEnd = lineSuffix ? end + lineSuffix[0].length : end;
+				matches.push({
+					start,
+					end: matchEnd,
+					url: formatHerdrFileHyperlinkUrl(resolved.filePath, resolved.kind),
+				});
+			}
+		}
+	}
+
+	if (matches.length > 1) {
+		matches.sort((a, b) => a.start - b.start);
 	}
 
 	return matches;
@@ -183,12 +563,39 @@ export function parseOsc8Code(ansiCode: string): ParsedOsc8 | null | undefined {
 }
 
 /**
- * Finds bare http(s) URLs in an ANSI-styled string where no OSC 8 hyperlink is active
- * and wraps their exact character ranges in OSC 8 hyperlinks while preserving all SGR colors.
+ * Finds bare http(s) URLs (and file paths when in Herdr/hc) in an ANSI-styled string where no OSC 8
+ * hyperlink is active and wraps their exact character ranges in OSC 8 hyperlinks while preserving all SGR colors.
  */
 export function linkifyAnsiLineUrls(line: string, styleUrlPrefix = "\x1b[4m", styleUrlSuffix = "\x1b[24m"): string {
-	if (!line || (!line.includes("http://") && !line.includes("https://") && !/https?:\/\//i.test(line))) {
-		return line;
+	if (!line) return line;
+
+	const inHerdr = isHerdrOrHcSession();
+	let workingLine = line;
+	if (inHerdr && workingLine.includes("\x1b]8;") && /file:\/\//i.test(workingLine)) {
+		workingLine = workingLine.replace(
+			RAW_OSC8_OPEN_FILE_URL_REGEX,
+			(_full, params: string, rawFileUrl: string, terminator: string) => {
+				return `\x1b]8;${params};${rewriteUrlForHerdr(rawFileUrl)}${terminator}`;
+			},
+		);
+	}
+
+	if (inHerdr) {
+		if (
+			!workingLine.includes("/") &&
+			!workingLine.includes(".") &&
+			!workingLine.includes("http://") &&
+			!workingLine.includes("https://") &&
+			!/https?:\/\/|file:\/\//i.test(workingLine)
+		) {
+			return workingLine;
+		}
+	} else if (
+		!workingLine.includes("http://") &&
+		!workingLine.includes("https://") &&
+		!/https?:\/\//i.test(workingLine)
+	) {
+		return workingLine;
 	}
 
 	// Build plain text and map each plain character index to whether an OSC 8 link or underline is already active.
@@ -198,14 +605,14 @@ export function linkifyAnsiLineUrls(line: string, styleUrlPrefix = "\x1b[4m", st
 	const tracker = new AnsiTracker();
 	let i = 0;
 
-	while (i < line.length) {
-		const ansi = extractAnsiCode(line, i);
+	while (i < workingLine.length) {
+		const ansi = extractAnsiCode(workingLine, i);
 		if (ansi) {
 			tracker.process(ansi.code);
 			i += ansi.length;
 			continue;
 		}
-		plain += line[i];
+		plain += workingLine[i];
 		charHasOsc8.push(tracker.activeHyperlink !== null);
 		charHasUnderline.push(tracker.underline);
 		i++;
@@ -219,7 +626,7 @@ export function linkifyAnsiLineUrls(line: string, styleUrlPrefix = "\x1b[4m", st
 	});
 
 	if (urlMatches.length === 0) {
-		return line;
+		return workingLine;
 	}
 
 	const openAtPlainIdx = new Map<number, string>();
@@ -233,8 +640,8 @@ export function linkifyAnsiLineUrls(line: string, styleUrlPrefix = "\x1b[4m", st
 	let plainIdx = 0;
 	let addedUnderlineForUrl = false;
 	i = 0;
-	while (i < line.length) {
-		const ansi = extractAnsiCode(line, i);
+	while (i < workingLine.length) {
+		const ansi = extractAnsiCode(workingLine, i);
 		if (ansi) {
 			out += ansi.code;
 			if (addedUnderlineForUrl && /^\x1b\[(?:0|24)(?:;[\d;]*)*m$/.test(ansi.code)) {
@@ -246,12 +653,16 @@ export function linkifyAnsiLineUrls(line: string, styleUrlPrefix = "\x1b[4m", st
 
 		const openUrl = openAtPlainIdx.get(plainIdx);
 		if (openUrl !== undefined) {
-			const needsPrefix = Boolean(styleUrlPrefix) && !(styleUrlPrefix === "\x1b[4m" && charHasUnderline[plainIdx]);
+			const isFileLink = isFileHyperlinkUrl(openUrl);
+			const needsPrefix =
+				!isFileLink &&
+				Boolean(styleUrlPrefix) &&
+				!(styleUrlPrefix === "\x1b[4m" && charHasUnderline[plainIdx]);
 			addedUnderlineForUrl = needsPrefix;
 			out += `\x1b]8;;${openUrl}\x1b\\${needsPrefix ? styleUrlPrefix : ""}`;
 		}
 
-		out += line[i];
+		out += workingLine[i];
 		plainIdx++;
 		i++;
 
@@ -266,7 +677,18 @@ export function linkifyAnsiLineUrls(line: string, styleUrlPrefix = "\x1b[4m", st
 }
 
 export function linkifyAnsiTextUrls(text: string, styleUrlPrefix = "\x1b[4m", styleUrlSuffix = "\x1b[24m"): string {
-	if (!text || (!text.includes("http://") && !text.includes("https://") && !/https?:\/\//i.test(text))) {
+	if (!text) return text;
+	if (!isHerdrOrHcSession()) {
+		if (!text.includes("http://") && !text.includes("https://") && !/https?:\/\//i.test(text)) {
+			return text;
+		}
+	} else if (
+		!text.includes("/") &&
+		!text.includes(".") &&
+		!text.includes("http://") &&
+		!text.includes("https://") &&
+		!/https?:\/\/|file:\/\//i.test(text)
+	) {
 		return text;
 	}
 	return text
@@ -1074,6 +1496,7 @@ interface AltScreenLike {
 	selectionDragged?: boolean;
 	pressedUrl?: string;
 	openUrl?: (url: string) => void;
+	openFile?: (filePath: string, kind: "file" | "directory" | "path", url: string) => void;
 	clearTextSelection?: () => void;
 	resetTextSelection?: () => void;
 	clearComponentMouseGesture?: () => void;
@@ -1085,6 +1508,94 @@ interface AltScreenLike {
 }
 
 const LINK_CLICK_TOLERANCE = 2;
+
+function resolveHcPresetBinary(env: NodeJS.ProcessEnv = process.env): string {
+	const home = homedir();
+	const candidates: string[] = [];
+	const pathDirs = (env.PATH ?? "").split(delimiter).filter(Boolean);
+	for (const dir of pathDirs) {
+		candidates.push(join(dir, "hc-preset"));
+	}
+	candidates.push(
+		join(home, "src", "dotfiles", "bin", "hc-preset"),
+		join(home, ".local_dotfiles", "bin", "hc-preset"),
+		join(home, ".local", "bin", "hc-preset"),
+	);
+	for (const candidate of candidates) {
+		try {
+			if (existsSync(candidate)) return candidate;
+		} catch {
+			// Ignore inaccessible paths.
+		}
+	}
+	return "hc-preset";
+}
+
+function buildHerdrSpawnEnv(baseEnv: NodeJS.ProcessEnv = process.env, hcPresetPath?: string): NodeJS.ProcessEnv {
+	const home = homedir();
+	const extraDirs = [
+		hcPresetPath && isAbsolute(hcPresetPath) ? dirname(hcPresetPath) : undefined,
+		"/opt/homebrew/bin",
+		"/opt/homebrew/sbin",
+		join(home, ".local_dotfiles", "bin"),
+		join(home, "src", "meta-dotfiles", "bin"),
+		join(home, "src", "dotfiles", "bin"),
+		join(home, ".local", "bin"),
+		"/usr/local/bin",
+		"/usr/bin",
+		"/bin",
+		"/usr/sbin",
+		"/sbin",
+	].filter((d): d is string => Boolean(d));
+	const existingDirs = (baseEnv.PATH ?? "").split(delimiter).filter(Boolean);
+	const mergedPath = Array.from(new Set([...extraDirs, ...existingDirs])).join(delimiter);
+	const activePane =
+		baseEnv.HERDR_PANE_ID || baseEnv.HERDR_ACTIVE_PANE_ID || baseEnv.HC_TERMINAL_ID || undefined;
+	return {
+		...baseEnv,
+		PATH: mergedPath,
+		...(activePane ? { HERDR_ACTIVE_PANE_ID: activePane } : {}),
+	};
+}
+
+export function openFileInHerdrPane(
+	filePath: string,
+	kind: "file" | "directory" | "path" = "file",
+	fallbackUrl?: string,
+): void {
+	if (!filePath) return;
+	const hcPreset = resolveHcPresetBinary();
+	const env = buildHerdrSpawnEnv(process.env, hcPreset);
+	const fallbackHref = fallbackUrl || formatHerdrFileHyperlinkUrl(filePath, kind);
+
+	let fallbackSent = false;
+	const runFallback = () => {
+		if (fallbackSent) return;
+		fallbackSent = true;
+		const cmd = process.platform === "darwin" ? "/usr/bin/open" : "xdg-open";
+		try {
+			spawn(cmd, [fallbackHref], { stdio: "ignore", detached: true, cwd: "/" }).on("error", () => {}).unref();
+		} catch {
+			// Ignore fallback open errors.
+		}
+	};
+
+	try {
+		const child = spawn(hcPreset, ["open-file-with-fallback", filePath], {
+			stdio: "ignore",
+			detached: true,
+			cwd: getSessionCwd(),
+			env,
+		});
+		child.on("error", runFallback);
+		child.on("close", (code) => {
+			if (code !== 0) runFallback();
+		});
+		child.unref();
+	} catch {
+		runFallback();
+	}
+}
 
 function writeHerdrOpenOsc52(screen: AltScreenLike, url: string): void {
 	if (!/^https?:\/\//i.test(url)) return;
@@ -1101,7 +1612,27 @@ function writeHerdrOpenOsc52(screen: AltScreenLike, url: string): void {
 
 function openLinkUrl(screen: AltScreenLike, url: string): void {
 	if (!url) return;
-	const inHerdrOrHc = process.env.HERDR_ENV === "1" || Boolean(process.env.HC_TERMINAL_ID);
+	const inHerdrOrHc = isHerdrOrHcSession();
+	if (inHerdrOrHc) {
+		const fileTarget = parseFileHyperlinkUrl(url);
+		if (fileTarget) {
+			const herdrFileUrl = formatHerdrFileHyperlinkUrl(fileTarget.filePath, fileTarget.kind);
+			if (typeof screen.openFile === "function") {
+				screen.openFile(fileTarget.filePath, fileTarget.kind, herdrFileUrl);
+				return;
+			}
+			if (typeof screen.terminal?.write === "function") {
+				openFileInHerdrPane(fileTarget.filePath, fileTarget.kind, herdrFileUrl);
+				return;
+			}
+			if (typeof screen.openUrl === "function") {
+				screen.openUrl(herdrFileUrl);
+				return;
+			}
+			openFileInHerdrPane(fileTarget.filePath, fileTarget.kind, herdrFileUrl);
+			return;
+		}
+	}
 	if (process.platform !== "darwin" && inHerdrOrHc && /^https?:\/\//i.test(url)) {
 		writeHerdrOpenOsc52(screen, url);
 		return;
@@ -1151,7 +1682,7 @@ export function getLinkAtColumn(
 
 	if (typeof tui.getOsc8LinkAtColumn === "function") {
 		const osc8Url = tui.getOsc8LinkAtColumn(line, column);
-		if (osc8Url) return osc8Url;
+		if (osc8Url) return rewriteUrlForHerdr(osc8Url);
 	} else if (line.includes("\x1b]8;")) {
 		let activeUrl: string | undefined;
 		let currentCol = 0;
@@ -1171,7 +1702,7 @@ export function getLinkAtColumn(
 			for (const { segment } of graphemeSegmenter.segment(line.slice(i, textEnd))) {
 				const width = segment === "\t" ? 3 : tui.visibleWidth(segment);
 				if (column >= currentCol && column < currentCol + width) {
-					if (activeUrl) return activeUrl;
+					if (activeUrl) return rewriteUrlForHerdr(activeUrl);
 				}
 				currentCol += width;
 			}
@@ -1218,7 +1749,7 @@ export function resolveAltScreenUrlAt(
 	const screenOsc8 = typeof tui.getOsc8LinkAtColumn === "function"
 		? tui.getOsc8LinkAtColumn(screenLine, clampedX)
 		: undefined;
-	if (screenOsc8) return screenOsc8;
+	if (screenOsc8) return rewriteUrlForHerdr(screenOsc8);
 
 	let sourceUrl: string | undefined;
 	if (typeof screen.getSelectionPoint === "function" && typeof screen.getSelectionSourceLine === "function") {
@@ -1333,6 +1864,9 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 		const tokens = expandInlineTokensForOsc8(rawTokens, tui.Marked);
 
 		const stylePlainUrl = (urlText: string, url: string) => {
+			if (isFileHyperlinkUrl(url)) {
+				return tui.hyperlink(applyText(urlText), url) + stylePrefix;
+			}
 			const styled = this.theme.link(this.theme.underline(applyText(urlText)));
 			return tui.hyperlink(styled, url) + stylePrefix;
 		};
@@ -1357,14 +1891,20 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 						result +=
 							linkifyPlainTextUrls(
 								codeText,
-								(urlText, url) => tui.hyperlink(this.theme.link(this.theme.underline(urlText)), url),
+								(urlText, url) => {
+									const styled = isFileHyperlinkUrl(url)
+										? this.theme.code(urlText)
+										: this.theme.link(this.theme.underline(urlText));
+									return tui.hyperlink(styled, url);
+								},
 								(chunk) => this.theme.code(chunk),
 							) + stylePrefix;
 					}
 					break;
 				}
 				case "link": {
-					const href = String(token.href ?? "");
+					const rawHref = String(token.href ?? "");
+					const href = resolveMarkdownLinkHref(rawHref);
 					const linkStyleFn = (text: string) => this.theme.link(this.theme.underline(text));
 					const linkStylePrefix = this.getStylePrefix(linkStyleFn);
 					const childContext = {
@@ -1375,8 +1915,8 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 					const innerText =
 						token.tokens && token.tokens.length > 0
 							? this.renderInlineTokens(token.tokens, childContext)
-							: String(token.text ?? href);
-					const styledLink = linkStyleFn(innerText || href);
+							: String(token.text ?? rawHref);
+					const styledLink = linkStyleFn(innerText || rawHref);
 					result += tui.hyperlink(styledLink, href) + stylePrefix;
 					break;
 				}
@@ -1407,9 +1947,10 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 					}
 					const anchorMatch = HTML_ANCHOR_REGEX.exec(rawHtml.trim());
 					if (!inLink && anchorMatch) {
-						const href = (anchorMatch[1] ?? anchorMatch[2] ?? anchorMatch[3] ?? "").trim();
+						const rawHref = (anchorMatch[1] ?? anchorMatch[2] ?? anchorMatch[3] ?? "").trim();
+						const href = resolveMarkdownLinkHref(rawHref);
 						const label =
-							stripTerminalSequencesSafe((anchorMatch[4] ?? "").replace(/<\/?br\s*\/?>/gi, "\n")).trim() || href;
+							stripTerminalSequencesSafe((anchorMatch[4] ?? "").replace(/<\/?br\s*\/?>/gi, "\n")).trim() || rawHref;
 						result += stylePlainUrl(label, href);
 					} else {
 						result += applyTextWithNewlinesAndUrls(rawHtml);
@@ -1816,10 +2357,92 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 	}
 }
 
+function extractAndRegisterToolPaths(payload: unknown, cwd?: string): void {
+	if (!payload || typeof payload !== "object") return;
+	const obj = payload as Record<string, unknown>;
+	const candidates = [obj.input, obj.args, obj.arguments, obj];
+	for (const item of candidates) {
+		if (!item || typeof item !== "object") continue;
+		const rec = item as Record<string, unknown>;
+		for (const key of ["path", "file_path", "scriptPath"]) {
+			if (typeof rec[key] === "string") {
+				registerKnownFilePath(rec[key] as string, cwd);
+			}
+		}
+	}
+}
+
+function indexSessionEntries(entries: unknown, cwd?: string): void {
+	if (!Array.isArray(entries)) return;
+	for (const entry of entries) {
+		if (!entry || typeof entry !== "object") continue;
+		const rec = entry as Record<string, unknown>;
+		extractAndRegisterToolPaths(rec, cwd);
+		const msg = rec.message as Record<string, unknown> | undefined;
+		if (!msg || typeof msg !== "object") continue;
+		const content = msg.content;
+		if (!Array.isArray(content)) continue;
+		for (const block of content) {
+			if (!block || typeof block !== "object") continue;
+			const b = block as Record<string, unknown>;
+			if (b.type === "toolCall") {
+				extractAndRegisterToolPaths(b, cwd);
+			}
+		}
+	}
+}
+
+function indexSessionFileIfNeeded(sessionFile: string | undefined, cwd?: string): void {
+	if (!sessionFile) return;
+	const state = getSharedPathState();
+	if (state.indexedSessionFiles.has(sessionFile)) return;
+	state.indexedSessionFiles.add(sessionFile);
+	try {
+		if (!existsSync(sessionFile)) return;
+		const raw = readFileSync(sessionFile, "utf8");
+		const parsedEntries: unknown[] = [];
+		for (const line of raw.split("\n")) {
+			if (!line.trim()) continue;
+			try {
+				parsedEntries.push(JSON.parse(line));
+			} catch {
+				// Ignore malformed JSONL lines.
+			}
+		}
+		indexSessionEntries(parsedEntries, cwd);
+	} catch {
+		// Ignore unreadable session files.
+	}
+}
+
 export default function osc8LinksExtension(pi: ExtensionAPI): void {
 	installOsc8LinkRendering(piTui);
+	if (process.env.PI_SESSION_FILE) {
+		indexSessionFileIfNeeded(process.env.PI_SESSION_FILE);
+	}
 	pi.registerMarkdownTransformer((markdown) => normalizeMarkdownForOsc8(markdown));
-	pi.on("session_start", () => {
+	pi.on("session_start", (_event, ctx) => {
+		if (ctx?.cwd) setSessionCwd(ctx.cwd);
+		const sm = (ctx as unknown as {
+			sessionManager?: {
+				getEntries?: () => unknown[];
+				getSessionFile?: () => string | undefined;
+			};
+		})?.sessionManager;
+		if (typeof sm?.getEntries === "function") {
+			indexSessionEntries(sm.getEntries(), ctx?.cwd);
+		}
+		if (typeof sm?.getSessionFile === "function") {
+			indexSessionFileIfNeeded(sm.getSessionFile(), ctx?.cwd);
+		}
 		installOsc8LinkRendering(piTui);
+	});
+	pi.on("tool_call", (event, ctx) => {
+		if (ctx?.cwd) setSessionCwd(ctx.cwd);
+		extractAndRegisterToolPaths(event, ctx?.cwd);
+	});
+	pi.on("tool_execution_start", (event, ctx) => {
+		if (ctx?.cwd) setSessionCwd(ctx.cwd);
+		extractAndRegisterToolPaths(event, ctx?.cwd);
 	});
 }
