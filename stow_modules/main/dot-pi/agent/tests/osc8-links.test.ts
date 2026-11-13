@@ -421,7 +421,7 @@ describe("osc8-links extension", () => {
 
 	test("strips trailing closing brackets and braces from bare GFM autolinks", () => {
 		const url1 = "https://www.internalfb.com/diff/D124714457";
-		const url2 = "https://wa.me/5511992611510";
+		const url2 = "https://wa.me/XXXXXXXXXXX";
 		const md = new realTui.Markdown(`Refs: [${url1}] and {${url2}}`, 0, 0, markdownTheme);
 		const lines = md.render(80);
 
