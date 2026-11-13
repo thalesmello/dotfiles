@@ -952,8 +952,25 @@ function chrome-preset
 
         if set window (resolve-app-window --profile="$_flag_profile" "$appname" "$url")
             set chrome_info (app-db-query "SELECT chrome_info FROM apps WHERE app_name = '$(sq-escape $appname)';")
+            set -l tab_id (jq -nr --argjson app "$chrome_info" '$app.id')
 
-            chrome-cli open "$url" -t "$(jq -nr --argjson app "$chrome_info" '$app.id')"
+            # WhatsApp Web intercepts clicks on `<a>` elements in a capture-phase
+            # window listener and opens `wa.me` / `web.whatsapp.com/send` links
+            # in-place without reloading the page. Try dispatching a synthetic
+            # anchor click first; if JavaScript from Apple Events is disabled or
+            # the app is not ready, fall back to navigating with `chrome-cli open`.
+            set -l opened_in_place 0
+            if string match -qr '^https?://(www\.)?(wa\.me|web\.whatsapp\.com|api\.whatsapp\.com)(\b|/|$)' -- "$url"
+                set -l js_url (jq -rn --arg u "$url" '$u | @json')
+                set -l js_result (chrome-cli execute "(() => { if (location.hostname !== 'web.whatsapp.com') return 'fallback'; let handled = false; const a = document.createElement('a'); a.href = $js_url; a.addEventListener('click', e => { handled = e.defaultPrevented; e.preventDefault(); }); (document.body || document.documentElement).appendChild(a); a.click(); a.remove(); return handled ? 'handled' : 'fallback'; })()" -t "$tab_id" 2>/dev/null | string trim)
+                if test "$js_result" = "handled"
+                    set opened_in_place 1
+                end
+            end
+
+            if test "$opened_in_place" -eq 0
+                chrome-cli open "$url" -t "$tab_id"
+            end
             wm-preset focus-window-id "$window"
         else if set -q _flag_if_open
             return 1
