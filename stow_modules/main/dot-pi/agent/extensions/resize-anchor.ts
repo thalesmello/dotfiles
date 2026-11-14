@@ -926,7 +926,9 @@ interface ChainedPatch<Fn> {
 
 function unwrapPrototypeChain<Fn>(current: Fn | undefined): Fn | undefined {
 	let cursor = current as (Fn & ChainedPatch<Fn>) | undefined;
-	while (cursor?.__inactive && cursor.__prev) {
+	const seen = new Set<Fn>();
+	while (cursor?.__inactive && cursor.__prev && !seen.has(cursor)) {
+		seen.add(cursor);
 		cursor = cursor.__prev as Fn & ChainedPatch<Fn>;
 	}
 	return cursor;
@@ -950,10 +952,42 @@ interface ScrollViewPrototype {
 	updateLayout?: UpdateLayoutFn;
 }
 
+const RESIZE_ANCHOR_STATE_SYMBOL = Symbol.for("pi.resize-anchor.patchState");
+
+interface ResizeAnchorGlobalState {
+	uninstall?: () => void;
+}
+
+function getResizeAnchorGlobalState(): ResizeAnchorGlobalState {
+	const holder = globalThis as Record<symbol, ResizeAnchorGlobalState | undefined>;
+	holder[RESIZE_ANCHOR_STATE_SYMBOL] ??= {};
+	return holder[RESIZE_ANCHOR_STATE_SYMBOL]!;
+}
+
 let installed = false;
-let originalContainerRender: ContainerRenderFn | undefined;
-let originalGetContentWidth: GetContentWidthFn | undefined;
-let originalUpdateLayout: UpdateLayoutFn | undefined;
+let restorePatches: Array<() => void> = [];
+
+function installPrototypePatch<Proto extends object, Key extends keyof Proto>(
+	prototype: Proto,
+	key: Key,
+	createPatch: (original: NonNullable<Proto[Key]>, isActive: () => boolean) => NonNullable<Proto[Key]>,
+): (() => void) | undefined {
+	const original = unwrapPrototypeChain(prototype[key]);
+	if (typeof original !== "function") return undefined;
+	let patched: (NonNullable<Proto[Key]> & ChainedPatch<NonNullable<Proto[Key]>>) | undefined;
+	const isActive = (): boolean => Boolean(installed && patched && !patched.__inactive);
+	patched = createPatch(original as NonNullable<Proto[Key]>, isActive) as NonNullable<Proto[Key]> &
+		ChainedPatch<NonNullable<Proto[Key]>>;
+	patched.__inactive = false;
+	patched.__prev = original as NonNullable<Proto[Key]>;
+	prototype[key] = patched as Proto[Key];
+	return () => {
+		if (patched) {
+			patched.__inactive = true;
+		}
+		prototype[key] = unwrapPrototypeChain(prototype[key]) as Proto[Key];
+	};
+}
 
 let viewStates = new WeakMap<ScrollViewLike, ViewState>();
 let childToView = new WeakMap<object, WeakRef<ScrollViewLike>>();
@@ -1060,27 +1094,37 @@ function registerScrollViewChild(view: ScrollViewLike, state: ViewState): void {
 	};
 }
 
-function patchedContainerRender(this: ContainerLike, width: number): string[] {
-	const view = installed ? childToView.get(this)?.deref() : undefined;
-	if (!view) {
-		return originalContainerRender!.call(this, width);
-	}
-	const state = getViewState(view);
-	const previousWidth = state.lastWidth ?? getContainerLayoutWidth(this);
-	if (previousWidth !== undefined && width !== previousWidth) {
-		onBeforeChildWidthChange(view, state, this, width);
-	}
-	const lines = originalContainerRender!.call(this, width);
-	onAfterChildRender(view, state, width, lines);
-	return lines;
+function createPatchedContainerRender(
+	originalContainerRender: ContainerRenderFn,
+	isActive: () => boolean,
+): ContainerRenderFn {
+	return function patchedContainerRender(this: ContainerLike, width: number): string[] {
+		const view = isActive() ? childToView.get(this)?.deref() : undefined;
+		if (!view) {
+			return originalContainerRender.call(this, width);
+		}
+		const state = getViewState(view);
+		const previousWidth = state.lastWidth ?? getContainerLayoutWidth(this);
+		if (previousWidth !== undefined && width !== previousWidth) {
+			onBeforeChildWidthChange(view, state, this, width);
+		}
+		const lines = originalContainerRender.call(this, width);
+		onAfterChildRender(view, state, width, lines);
+		return lines;
+	};
 }
 
-function patchedGetContentWidth(this: ScrollViewLike, width: number): number {
-	if (installed) {
-		const state = getViewState(this);
-		registerScrollViewChild(this, state);
-	}
-	return originalGetContentWidth!.call(this, width);
+function createPatchedGetContentWidth(
+	originalGetContentWidth: GetContentWidthFn,
+	isActive: () => boolean,
+): GetContentWidthFn {
+	return function patchedGetContentWidth(this: ScrollViewLike, width: number): number {
+		if (isActive()) {
+			const state = getViewState(this);
+			registerScrollViewChild(this, state);
+		}
+		return originalGetContentWidth.call(this, width);
+	};
 }
 
 function applyAnchoredScrollTop(
@@ -1120,140 +1164,137 @@ function applyAnchoredScrollTop(
 	}
 }
 
-function patchedUpdateLayout(
-	this: ScrollViewLike,
-	contentHeight: number,
-	viewportHeight: number,
-	requestRender: () => void,
-): void {
-	if (!installed) {
-		originalUpdateLayout!.call(this, contentHeight, viewportHeight, requestRender);
-		return;
-	}
+function createPatchedUpdateLayout(originalUpdateLayout: UpdateLayoutFn, isActive: () => boolean): UpdateLayoutFn {
+	return function patchedUpdateLayout(
+		this: ScrollViewLike,
+		contentHeight: number,
+		viewportHeight: number,
+		requestRender: () => void,
+	): void {
+		if (!isActive()) {
+			originalUpdateLayout.call(this, contentHeight, viewportHeight, requestRender);
+			return;
+		}
 
-	const state = getViewState(this);
-	registerScrollViewChild(this, state);
+		const state = getViewState(this);
+		registerScrollViewChild(this, state);
 
-	const explicitWidth = getContainerLayoutWidth(this.child);
-	const hasRenderFn = typeof (this.child as ContainerLike | undefined)?.render === "function";
+		const explicitWidth = getContainerLayoutWidth(this.child);
+		const hasRenderFn = typeof (this.child as ContainerLike | undefined)?.render === "function";
 
-	// Support callers / tests that mutate `child.mouseLayout.width` and call
-	// `updateLayout` directly without invoking `child.render(width)`.
-	if (
-		!hasRenderFn &&
-		state.pendingResizeWidth === undefined &&
-		explicitWidth !== undefined &&
-		state.lastWidth !== undefined &&
-		explicitWidth !== state.lastWidth
-	) {
-		if (this.isFollowingEnd) {
-			state.activeAnchor = undefined;
-			state.lastAnchoredScrollTop = undefined;
-			state.lastAnchoredLine = undefined;
-		} else {
-			if (!isAnchorStillValidAtCurrentScroll(this, state, state.lastLines)) {
-				if (this.scrollTop > 0 && state.lastBlocks && state.lastBlocks.length > 0) {
-					state.activeAnchor = captureScrollAnchorFromBlocks(
-						state.lastBlocks,
-						state.lastLines ?? [],
-						state.lastContentHeight ?? 0,
-						this.scrollTop,
-					);
-				} else {
-					state.activeAnchor = undefined;
-					state.lastAnchoredScrollTop = undefined;
-					state.lastAnchoredLine = undefined;
+		// Support callers / tests that mutate `child.mouseLayout.width` and call
+		// `updateLayout` directly without invoking `child.render(width)`.
+		if (
+			!hasRenderFn &&
+			state.pendingResizeWidth === undefined &&
+			explicitWidth !== undefined &&
+			state.lastWidth !== undefined &&
+			explicitWidth !== state.lastWidth
+		) {
+			if (this.isFollowingEnd) {
+				state.activeAnchor = undefined;
+				state.lastAnchoredScrollTop = undefined;
+				state.lastAnchoredLine = undefined;
+			} else {
+				if (!isAnchorStillValidAtCurrentScroll(this, state, state.lastLines)) {
+					if (this.scrollTop > 0 && state.lastBlocks && state.lastBlocks.length > 0) {
+						state.activeAnchor = captureScrollAnchorFromBlocks(
+							state.lastBlocks,
+							state.lastLines ?? [],
+							state.lastContentHeight ?? 0,
+							this.scrollTop,
+						);
+					} else {
+						state.activeAnchor = undefined;
+						state.lastAnchoredScrollTop = undefined;
+						state.lastAnchoredLine = undefined;
+					}
+				}
+				if (state.activeAnchor) {
+					state.pendingResizeWidth = explicitWidth;
 				}
 			}
-			if (state.activeAnchor) {
-				state.pendingResizeWidth = explicitWidth;
-			}
 		}
-	}
 
-	if (state.pendingResizeWidth !== undefined && state.activeAnchor !== undefined && !this.isFollowingEnd) {
-		const targetScrollTop = resolveScrollAnchor(
-			this.child,
-			state.lastLines ?? [],
-			contentHeight,
-			state.activeAnchor,
-		);
-		applyAnchoredScrollTop(this, contentHeight, viewportHeight, targetScrollTop, () => {
-			originalUpdateLayout!.call(this, contentHeight, viewportHeight, requestRender);
-		});
-		state.lastAnchoredScrollTop = this.scrollTop;
-		state.lastAnchoredLine = state.lastLines?.[this.scrollTop];
-		state.pendingResizeWidth = undefined;
-	} else {
-		const wasAtAnchoredTop = isAnchorStillValidAtCurrentScroll(this, state, state.lastLines);
-		originalUpdateLayout!.call(this, contentHeight, viewportHeight, requestRender);
-		if (wasAtAnchoredTop && !this.isFollowingEnd) {
+		if (state.pendingResizeWidth !== undefined && state.activeAnchor !== undefined && !this.isFollowingEnd) {
+			const targetScrollTop = resolveScrollAnchor(
+				this.child,
+				state.lastLines ?? [],
+				contentHeight,
+				state.activeAnchor,
+			);
+			applyAnchoredScrollTop(this, contentHeight, viewportHeight, targetScrollTop, () => {
+				originalUpdateLayout.call(this, contentHeight, viewportHeight, requestRender);
+			});
 			state.lastAnchoredScrollTop = this.scrollTop;
 			state.lastAnchoredLine = state.lastLines?.[this.scrollTop];
+			state.pendingResizeWidth = undefined;
 		} else {
-			state.activeAnchor = undefined;
-			state.lastAnchoredScrollTop = undefined;
-			state.lastAnchoredLine = undefined;
+			const wasAtAnchoredTop = isAnchorStillValidAtCurrentScroll(this, state, state.lastLines);
+			originalUpdateLayout.call(this, contentHeight, viewportHeight, requestRender);
+			if (wasAtAnchoredTop && !this.isFollowingEnd) {
+				state.lastAnchoredScrollTop = this.scrollTop;
+				state.lastAnchoredLine = state.lastLines?.[this.scrollTop];
+			} else {
+				state.activeAnchor = undefined;
+				state.lastAnchoredScrollTop = undefined;
+				state.lastAnchoredLine = undefined;
+			}
+			state.pendingResizeWidth = undefined;
 		}
-		state.pendingResizeWidth = undefined;
-	}
 
-	const normalizedHeight = Math.max(0, Math.floor(contentHeight));
-	state.lastContentHeight = normalizedHeight;
-	if (!hasRenderFn) {
-		if (explicitWidth !== undefined) state.lastWidth = explicitWidth;
-		const childLines = (this.child as ContainerLike | undefined)?.lines;
-		if (Array.isArray(childLines)) state.lastLines = childLines;
-		state.lastBlocks = buildLayoutBlocks(this.child, normalizedHeight);
-	}
+		const normalizedHeight = Math.max(0, Math.floor(contentHeight));
+		state.lastContentHeight = normalizedHeight;
+		if (!hasRenderFn) {
+			if (explicitWidth !== undefined) state.lastWidth = explicitWidth;
+			const childLines = (this.child as ContainerLike | undefined)?.lines;
+			if (Array.isArray(childLines)) state.lastLines = childLines;
+			state.lastBlocks = buildLayoutBlocks(this.child, normalizedHeight);
+		}
+	};
 }
 
 function installResizeAnchor(): boolean {
 	if (installed) return true;
+	const globalState = getResizeAnchorGlobalState();
+	if (globalState.uninstall && globalState.uninstall !== uninstallResizeAnchor) {
+		globalState.uninstall();
+	}
+
 	const scrollPrototype = ScrollView.prototype as unknown as ScrollViewPrototype;
 	const containerPrototype = Container.prototype as unknown as ContainerPrototype;
-	if (typeof scrollPrototype.updateLayout !== "function") return false;
+	if (typeof unwrapPrototypeChain(scrollPrototype.updateLayout) !== "function") return false;
 
-	originalUpdateLayout = scrollPrototype.updateLayout;
-	(patchedUpdateLayout as UpdateLayoutFn & ChainedPatch<UpdateLayoutFn>).__inactive = false;
-	(patchedUpdateLayout as UpdateLayoutFn & ChainedPatch<UpdateLayoutFn>).__prev = originalUpdateLayout;
-	scrollPrototype.updateLayout = patchedUpdateLayout;
+	const restores: Array<() => void> = [];
+	const addPatch = <Proto extends object, Key extends keyof Proto>(
+		prototype: Proto,
+		key: Key,
+		createPatch: (original: NonNullable<Proto[Key]>, isActive: () => boolean) => NonNullable<Proto[Key]>,
+	): void => {
+		const restore = installPrototypePatch(prototype, key, createPatch);
+		if (restore) restores.push(restore);
+	};
 
-	if (typeof scrollPrototype.getContentWidth === "function") {
-		originalGetContentWidth = scrollPrototype.getContentWidth;
-		(patchedGetContentWidth as GetContentWidthFn & ChainedPatch<GetContentWidthFn>).__inactive = false;
-		(patchedGetContentWidth as GetContentWidthFn & ChainedPatch<GetContentWidthFn>).__prev = originalGetContentWidth;
-		scrollPrototype.getContentWidth = patchedGetContentWidth;
-	}
+	addPatch(scrollPrototype, "updateLayout", createPatchedUpdateLayout);
+	addPatch(scrollPrototype, "getContentWidth", createPatchedGetContentWidth);
+	addPatch(containerPrototype, "render", createPatchedContainerRender);
 
-	if (typeof containerPrototype.render === "function") {
-		originalContainerRender = containerPrototype.render;
-		(patchedContainerRender as ContainerRenderFn & ChainedPatch<ContainerRenderFn>).__inactive = false;
-		(patchedContainerRender as ContainerRenderFn & ChainedPatch<ContainerRenderFn>).__prev = originalContainerRender;
-		containerPrototype.render = patchedContainerRender;
-	}
-
+	restorePatches = restores;
 	installed = true;
+	globalState.uninstall = uninstallResizeAnchor;
 	return true;
 }
 
 function uninstallResizeAnchor(): void {
-	if (installed && originalUpdateLayout) {
-		(patchedUpdateLayout as UpdateLayoutFn & ChainedPatch<UpdateLayoutFn>).__inactive = true;
-		const scrollPrototype = ScrollView.prototype as unknown as ScrollViewPrototype;
-		scrollPrototype.updateLayout = unwrapPrototypeChain(scrollPrototype.updateLayout);
-	}
-	if (installed && originalGetContentWidth) {
-		(patchedGetContentWidth as GetContentWidthFn & ChainedPatch<GetContentWidthFn>).__inactive = true;
-		const scrollPrototype = ScrollView.prototype as unknown as ScrollViewPrototype;
-		scrollPrototype.getContentWidth = unwrapPrototypeChain(scrollPrototype.getContentWidth);
-	}
-	if (installed && originalContainerRender) {
-		(patchedContainerRender as ContainerRenderFn & ChainedPatch<ContainerRenderFn>).__inactive = true;
-		const containerPrototype = Container.prototype as unknown as ContainerPrototype;
-		containerPrototype.render = unwrapPrototypeChain(containerPrototype.render);
-	}
+	const restores = restorePatches.splice(0, restorePatches.length);
 	installed = false;
+	for (const restore of restores) {
+		restore();
+	}
+	const globalState = getResizeAnchorGlobalState();
+	if (globalState.uninstall === uninstallResizeAnchor) {
+		globalState.uninstall = undefined;
+	}
 	viewStates = new WeakMap();
 	childToView = new WeakMap();
 }

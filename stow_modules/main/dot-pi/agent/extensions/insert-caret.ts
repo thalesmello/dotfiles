@@ -79,6 +79,21 @@ interface EditorLike {
 
 type RenderFn = (this: EditorLike, width: number) => string[];
 
+interface ChainedPatch<Fn> {
+	__inactive?: boolean;
+	__prev?: Fn;
+}
+
+function unwrapPrototypeChain<Fn>(current: Fn | undefined): Fn | undefined {
+	let cursor = current as (Fn & ChainedPatch<Fn>) | undefined;
+	const seen = new Set<Fn>();
+	while (cursor?.__inactive && cursor.__prev && !seen.has(cursor)) {
+		seen.add(cursor);
+		cursor = cursor.__prev as Fn & ChainedPatch<Fn>;
+	}
+	return cursor;
+}
+
 interface PatchState {
 	installed: boolean;
 	origRender: RenderFn | undefined;
@@ -162,20 +177,29 @@ function assertInsertCursor(tui: TuiLike | undefined): void {
 	}
 }
 
-function patchedRender(this: EditorLike, width: number): string[] {
-	const state = getPatchState();
-	assertInsertCursor(this?.tui);
-	return state.origRender!.call(this, width);
+function createPatchedRender(origRender: RenderFn, isActive: () => boolean): RenderFn {
+	return function patchedRender(this: EditorLike, width: number): string[] {
+		if (isActive()) {
+			assertInsertCursor(this?.tui);
+		}
+		return origRender.call(this, width);
+	};
 }
 
 function installInsertCaret(): boolean {
 	const state = getPatchState();
 	if (state.installed) return true;
 	const prototype = Editor.prototype as unknown as { render?: RenderFn };
-	if (typeof prototype.render !== "function") return false;
-	state.origRender = prototype.render;
-	state.patchedRender = patchedRender as RenderFn;
-	prototype.render = state.patchedRender;
+	const origRender = unwrapPrototypeChain(prototype.render);
+	if (typeof origRender !== "function") return false;
+	let patched: (RenderFn & ChainedPatch<RenderFn>) | undefined;
+	const isActive = (): boolean => Boolean(state.installed && patched && !patched.__inactive);
+	patched = createPatchedRender(origRender, isActive) as RenderFn & ChainedPatch<RenderFn>;
+	patched.__inactive = false;
+	patched.__prev = origRender;
+	state.origRender = origRender;
+	state.patchedRender = patched;
+	prototype.render = patched;
 	state.installed = true;
 	return true;
 }
@@ -183,9 +207,14 @@ function installInsertCaret(): boolean {
 function uninstallInsertCaret(): void {
 	const state = getPatchState();
 	const prototype = Editor.prototype as unknown as { render?: RenderFn };
-	if (state.installed && prototype.render === state.patchedRender) {
-		prototype.render = state.origRender;
+	if (state.patchedRender) {
+		(state.patchedRender as RenderFn & ChainedPatch<RenderFn>).__inactive = true;
+	}
+	if (state.installed) {
+		prototype.render = unwrapPrototypeChain(prototype.render);
 		state.installed = false;
+		state.origRender = undefined;
+		state.patchedRender = undefined;
 	}
 	// Restore the terminal's default cursor shape on the way out (a
 	// reload's new runtime re-asserts the bar on its first render).

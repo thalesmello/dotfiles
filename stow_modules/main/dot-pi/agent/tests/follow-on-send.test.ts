@@ -619,4 +619,41 @@ describe("follow-on-send extension", () => {
 		store.questionnaireTarget = undefined;
 		await emit("session_shutdown");
 	});
+
+	test("does not recurse on Editor.render across session_shutdown -> session_start when another extension wraps Editor.prototype.render in FIFO order", async () => {
+		const editorProto: any = FakeEditor.prototype;
+		const baseRender = editorProto.render;
+
+		// Session 1: follow-on-send installs first, then a naive wrapper (like old insert-caret)
+		// saves `orig = editorProto.render` and installs its own wrapper on top.
+		await emit("session_start");
+		const savedByOuter = editorProto.render;
+		let outerCalls = 0;
+		const outerWrapper = function (this: any, width: number) {
+			outerCalls += 1;
+			return savedByOuter.call(this, width);
+		};
+		editorProto.render = outerWrapper;
+
+		// Shutdown 1 (FIFO): follow-on-send shuts down first while `outerWrapper` is still
+		// outermost, then the outer extension shuts down and restores `savedByOuter`
+		// (follow-on-send's now-inactive patchedEditorRender) onto Editor.prototype.render.
+		await emit("session_shutdown");
+		if (editorProto.render === outerWrapper) {
+			editorProto.render = savedByOuter;
+		}
+
+		// Session 2 (/new or /resume): follow-on-send installs again on top of the prototype
+		// left behind by the outer wrapper's shutdown.
+		await emit("session_start");
+		const editor = new FakeEditor({ terminal: { rows: 40 } });
+		editor.setText("line 1\nline 2\nline 3\nline 4\nline 5");
+		expect(() => editor.render(80)).not.toThrow();
+		expect(editor.render(80)).toHaveLength(7);
+
+		// Clean shutdown unwraps all inactive patches back to the original baseRender.
+		await emit("session_shutdown");
+		expect(editorProto.render).toBe(baseRender);
+		expect(outerCalls).toBe(0);
+	});
 });

@@ -190,4 +190,46 @@ describe("insert-caret extension", () => {
 		expect(tui.writes).toEqual(["\x1b[0 q", FRAME]);
 		await emit("session_start");
 	});
+
+	test("cooperates with earlier ChainedPatch wrappers (such as follow-on-send) and naive outer wrappers across FIFO shutdown/restart cycles", async () => {
+		await emit("session_shutdown");
+		const prototype: any = Editor.prototype;
+		const baseRender = prototype.render;
+
+		// Simulate follow-on-send installing before insert-caret on session_start.
+		let innerCalls = 0;
+		const innerPatch: any = function (this: any, width: number) {
+			if (!innerPatch.__inactive) innerCalls += 1;
+			return baseRender.call(this, width);
+		};
+		innerPatch.__inactive = false;
+		innerPatch.__prev = baseRender;
+		prototype.render = innerPatch;
+
+		await emit("session_start");
+		// Also wrap insert-caret with a naive outer wrapper that restores its saved reference after shutdown.
+		const savedByNaiveOuter = prototype.render;
+		prototype.render = function (this: any, width: number) {
+			return savedByNaiveOuter.call(this, width);
+		};
+
+		// FIFO shutdown: follow-on-send deactivates first, then insert-caret shuts down,
+		// then the naive outer wrapper restores insert-caret's deactivated patch.
+		innerPatch.__inactive = true;
+		await emit("session_shutdown");
+		prototype.render = savedByNaiveOuter;
+
+		// Next session_start: insert-caret unwraps both inactive patches back to baseRender
+		// and never recurses on render.
+		await emit("session_start");
+		const tui = new FakeTui();
+		const editor = new Editor(tui, {});
+		expect(() => editor.render(40)).not.toThrow();
+		expect(innerCalls).toBe(0);
+
+		// When insert-caret shuts down with no active wrappers left, prototype.render is baseRender.
+		await emit("session_shutdown");
+		expect(prototype.render).toBe(baseRender);
+		await emit("session_start");
+	});
 });

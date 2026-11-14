@@ -392,18 +392,24 @@ function getEditorScrollState(editor: object): EditorScrollState {
 	return state;
 }
 
+const FOLLOW_ON_SEND_STATE_SYMBOL = Symbol.for("pi.follow-on-send.patchState");
+
+interface FollowOnSendGlobalState {
+	uninstall?: () => void;
+}
+
+function getFollowOnSendGlobalState(): FollowOnSendGlobalState {
+	const holder = globalThis as Record<symbol, FollowOnSendGlobalState | undefined>;
+	holder[FOLLOW_ON_SEND_STATE_SYMBOL] ??= {};
+	return holder[FOLLOW_ON_SEND_STATE_SYMBOL]!;
+}
+
 let installed = false;
-let originalUpdateLayout: UpdateLayoutFn | undefined;
-let originalScrollBy: ScrollByFn | undefined;
-let originalScrollTo: ScrollToFn | undefined;
-let originalScrollToStart: ScrollToStartFn | undefined;
-let originalScrollToEnd: ScrollToEndFn | undefined;
-let originalHandleInput: HandleInputFn | undefined;
-let originalEditorRender: EditorRenderFn | undefined;
-let originalEditorHandleMouse: EditorHandleMouseFn | undefined;
+let restorePatches: Array<() => void> = [];
 let transcriptView: WeakRef<TranscriptViewLike> | undefined;
 let transcriptMetrics: TranscriptMetrics | undefined;
 let collapseLinesAtLastLayout = 0;
+const activeEditorRenders = new WeakSet<object>();
 
 function recordTranscriptLayout(view: TranscriptViewLike, contentHeight: number, viewportHeight: number): void {
 	transcriptView = new WeakRef(view);
@@ -444,136 +450,171 @@ interface ChainedPatch<Fn> {
 
 function unwrapPrototypeChain<Fn>(current: Fn | undefined): Fn | undefined {
 	let cursor = current as (Fn & ChainedPatch<Fn>) | undefined;
-	while (cursor?.__inactive && cursor.__prev) {
+	const seen = new Set<Fn>();
+	while (cursor?.__inactive && cursor.__prev && !seen.has(cursor)) {
+		seen.add(cursor);
 		cursor = cursor.__prev as Fn & ChainedPatch<Fn>;
 	}
 	return cursor;
 }
 
-function patchedUpdateLayout(
-	this: TranscriptViewLike,
-	contentHeight: number,
-	viewportHeight: number,
-	requestRender: () => void,
-): void {
-	if (installed && this.primary && this.followEnd) {
-		const store = getScrollCollapseStore();
-		if (store.collapseLines > 0) {
-			this.followingEnd = false;
-			this.followSuppressedAtEnd = true;
+function installPrototypePatch<Proto extends object, Key extends keyof Proto>(
+	prototype: Proto,
+	key: Key,
+	createPatch: (original: NonNullable<Proto[Key]>, isActive: () => boolean) => NonNullable<Proto[Key]>,
+): (() => void) | undefined {
+	const original = unwrapPrototypeChain(prototype[key]);
+	if (typeof original !== "function") return undefined;
+	let patched: (NonNullable<Proto[Key]> & ChainedPatch<NonNullable<Proto[Key]>>) | undefined;
+	const isActive = (): boolean => Boolean(installed && patched && !patched.__inactive);
+	patched = createPatch(original as NonNullable<Proto[Key]>, isActive) as NonNullable<Proto[Key]> &
+		ChainedPatch<NonNullable<Proto[Key]>>;
+	patched.__inactive = false;
+	patched.__prev = original as NonNullable<Proto[Key]>;
+	prototype[key] = patched as Proto[Key];
+	return () => {
+		if (patched) {
+			patched.__inactive = true;
 		}
-	}
-	originalUpdateLayout!.call(this, contentHeight, viewportHeight, requestRender);
-	if (installed && this.primary && this.followEnd) {
-		const store = getScrollCollapseStore();
-		if (store.collapseLines > 0) {
-			this.followingEnd = false;
-			this.followSuppressedAtEnd = true;
-		}
-		recordTranscriptLayout(this, contentHeight, viewportHeight);
-	}
+		prototype[key] = unwrapPrototypeChain(prototype[key]) as Proto[Key];
+	};
 }
 
-function patchedScrollBy(this: TranscriptViewLike, lines: number): number {
-	if (!installed || !this.primary || !this.followEnd) {
-		return originalScrollBy!.call(this, lines);
-	}
-	const requested = Number.isFinite(lines) ? Math.trunc(lines) : 0;
-	if (requested === 0) {
-		return originalScrollBy!.call(this, lines);
-	}
-	const viewportHeight = this.viewportHeight ?? this.currentViewportHeight ?? 0;
-	const pageThreshold = viewportHeight > 5 ? Math.max(1, viewportHeight - 4) : Number.POSITIVE_INFINITY;
-	const isPageScroll = Math.abs(requested) >= pageThreshold;
-	const hiddenLinesBelow = requested > 0 ? getHiddenLinesBelow(this) : 0;
-	const heightDelta = applyTranscriptScrollDelta(requested, isPageScroll, hiddenLinesBelow);
+function createPatchedUpdateLayout(originalUpdateLayout: UpdateLayoutFn, isActive: () => boolean): UpdateLayoutFn {
+	return function patchedUpdateLayout(
+		this: TranscriptViewLike,
+		contentHeight: number,
+		viewportHeight: number,
+		requestRender: () => void,
+	): void {
+		const active = isActive();
+		if (active && this.primary && this.followEnd) {
+			const store = getScrollCollapseStore();
+			if (store.collapseLines > 0) {
+				this.followingEnd = false;
+				this.followSuppressedAtEnd = true;
+			}
+		}
+		originalUpdateLayout.call(this, contentHeight, viewportHeight, requestRender);
+		if (active && this.primary && this.followEnd) {
+			const store = getScrollCollapseStore();
+			if (store.collapseLines > 0) {
+				this.followingEnd = false;
+				this.followSuppressedAtEnd = true;
+			}
+			recordTranscriptLayout(this, contentHeight, viewportHeight);
+		}
+	};
+}
 
-	if (heightDelta < 0) {
-		syncViewportHeightForCollapse(this);
-	}
+function createPatchedScrollBy(originalScrollBy: ScrollByFn, isActive: () => boolean): ScrollByFn {
+	return function patchedScrollBy(this: TranscriptViewLike, lines: number): number {
+		if (!isActive() || !this.primary || !this.followEnd) {
+			return originalScrollBy.call(this, lines);
+		}
+		const requested = Number.isFinite(lines) ? Math.trunc(lines) : 0;
+		if (requested === 0) {
+			return originalScrollBy.call(this, lines);
+		}
+		const viewportHeight = this.viewportHeight ?? this.currentViewportHeight ?? 0;
+		const pageThreshold = viewportHeight > 5 ? Math.max(1, viewportHeight - 4) : Number.POSITIVE_INFINITY;
+		const isPageScroll = Math.abs(requested) >= pageThreshold;
+		const hiddenLinesBelow = requested > 0 ? getHiddenLinesBelow(this) : 0;
+		const heightDelta = applyTranscriptScrollDelta(requested, isPageScroll, hiddenLinesBelow);
 
-	let effectiveRequest = requested;
-	if (isPageScroll && heightDelta > 0) {
-		effectiveRequest = -Math.max(-requested, heightDelta + 1);
-	} else if (isPageScroll && heightDelta < 0) {
-		effectiveRequest = Math.max(requested, -heightDelta);
-	}
+		if (heightDelta < 0) {
+			syncViewportHeightForCollapse(this);
+		}
 
-	const remaining = originalScrollBy!.call(this, effectiveRequest);
-	const store = getScrollCollapseStore();
-	if (store.collapseLines > 0) {
-		this.followingEnd = false;
-		this.followSuppressedAtEnd = true;
-	} else if (this.isFollowingEnd) {
+		let effectiveRequest = requested;
+		if (isPageScroll && heightDelta > 0) {
+			effectiveRequest = -Math.max(-requested, heightDelta + 1);
+		} else if (isPageScroll && heightDelta < 0) {
+			effectiveRequest = Math.max(requested, -heightDelta);
+		}
+
+		const remaining = originalScrollBy.call(this, effectiveRequest);
+		const store = getScrollCollapseStore();
+		if (store.collapseLines > 0) {
+			this.followingEnd = false;
+			this.followSuppressedAtEnd = true;
+		} else if (this.isFollowingEnd) {
+			this.followSuppressedAtEnd = false;
+		}
+		if (heightDelta !== 0) {
+			this.requestRenderCallback?.();
+		}
+		return remaining;
+	};
+}
+
+function createPatchedScrollTo(originalScrollTo: ScrollToFn, isActive: () => boolean): ScrollToFn {
+	return function patchedScrollTo(
+		this: TranscriptViewLike,
+		scrollTop: number,
+		options?: { disableFollow?: boolean },
+	): void {
+		if (!isActive() || !this.primary || !this.followEnd) {
+			originalScrollTo.call(this, scrollTop, options);
+			return;
+		}
+		const target = Number.isFinite(scrollTop) ? Math.trunc(scrollTop) : this.scrollTop;
+		const delta = target - this.scrollTop;
+		const hiddenLinesBelow = delta > 0 ? getHiddenLinesBelow(this) : 0;
+		const heightDelta = delta !== 0 ? applyTranscriptScrollDelta(delta, false, hiddenLinesBelow) : 0;
+		if (heightDelta < 0) {
+			syncViewportHeightForCollapse(this);
+		}
+		originalScrollTo.call(this, scrollTop, options);
+		const store = getScrollCollapseStore();
+		if (store.collapseLines > 0) {
+			this.followingEnd = false;
+			this.followSuppressedAtEnd = true;
+		}
+		if (heightDelta !== 0) {
+			this.requestRenderCallback?.();
+		}
+	};
+}
+
+function createPatchedScrollToStart(originalScrollToStart: ScrollToStartFn, isActive: () => boolean): ScrollToStartFn {
+	return function patchedScrollToStart(this: TranscriptViewLike): void {
+		if (!isActive() || !this.primary || !this.followEnd) {
+			originalScrollToStart.call(this);
+			return;
+		}
+		const store = getScrollCollapseStore();
+		const maxCollapse = Math.max(0, Math.trunc(getActiveCollapseTarget(store)?.maxCollapseLines ?? 0));
+		const heightDelta = applyTranscriptScrollDelta(-Math.max(1, maxCollapse), true);
+		originalScrollToStart.call(this);
+		if (store.collapseLines > 0) {
+			this.followingEnd = false;
+			this.followSuppressedAtEnd = true;
+		}
+		if (heightDelta !== 0) {
+			this.requestRenderCallback?.();
+		}
+	};
+}
+
+function createPatchedScrollToEnd(originalScrollToEnd: ScrollToEndFn, isActive: () => boolean): ScrollToEndFn {
+	return function patchedScrollToEnd(this: TranscriptViewLike): void {
+		if (!isActive() || !this.primary || !this.followEnd) {
+			originalScrollToEnd.call(this);
+			return;
+		}
+		const store = getScrollCollapseStore();
+		const maxCollapse = Math.max(0, Math.trunc(getActiveCollapseTarget(store)?.maxCollapseLines ?? 0));
+		const heightDelta = applyTranscriptScrollDelta(Math.max(1, maxCollapse), true);
+		if (heightDelta < 0) {
+			syncViewportHeightForCollapse(this);
+		}
 		this.followSuppressedAtEnd = false;
-	}
-	if (heightDelta !== 0) {
-		this.requestRenderCallback?.();
-	}
-	return remaining;
-}
-
-function patchedScrollTo(
-	this: TranscriptViewLike,
-	scrollTop: number,
-	options?: { disableFollow?: boolean },
-): void {
-	if (!installed || !this.primary || !this.followEnd) {
-		originalScrollTo!.call(this, scrollTop, options);
-		return;
-	}
-	const target = Number.isFinite(scrollTop) ? Math.trunc(scrollTop) : this.scrollTop;
-	const delta = target - this.scrollTop;
-	const hiddenLinesBelow = delta > 0 ? getHiddenLinesBelow(this) : 0;
-	const heightDelta = delta !== 0 ? applyTranscriptScrollDelta(delta, false, hiddenLinesBelow) : 0;
-	if (heightDelta < 0) {
-		syncViewportHeightForCollapse(this);
-	}
-	originalScrollTo!.call(this, scrollTop, options);
-	const store = getScrollCollapseStore();
-	if (store.collapseLines > 0) {
-		this.followingEnd = false;
-		this.followSuppressedAtEnd = true;
-	}
-	if (heightDelta !== 0) {
-		this.requestRenderCallback?.();
-	}
-}
-
-function patchedScrollToStart(this: TranscriptViewLike): void {
-	if (!installed || !this.primary || !this.followEnd) {
-		originalScrollToStart!.call(this);
-		return;
-	}
-	const store = getScrollCollapseStore();
-	const maxCollapse = Math.max(0, Math.trunc(getActiveCollapseTarget(store)?.maxCollapseLines ?? 0));
-	const heightDelta = applyTranscriptScrollDelta(-Math.max(1, maxCollapse), true);
-	originalScrollToStart!.call(this);
-	if (store.collapseLines > 0) {
-		this.followingEnd = false;
-		this.followSuppressedAtEnd = true;
-	}
-	if (heightDelta !== 0) {
-		this.requestRenderCallback?.();
-	}
-}
-
-function patchedScrollToEnd(this: TranscriptViewLike): void {
-	if (!installed || !this.primary || !this.followEnd) {
-		originalScrollToEnd!.call(this);
-		return;
-	}
-	const store = getScrollCollapseStore();
-	const maxCollapse = Math.max(0, Math.trunc(getActiveCollapseTarget(store)?.maxCollapseLines ?? 0));
-	const heightDelta = applyTranscriptScrollDelta(Math.max(1, maxCollapse), true);
-	if (heightDelta < 0) {
-		syncViewportHeightForCollapse(this);
-	}
-	this.followSuppressedAtEnd = false;
-	originalScrollToEnd!.call(this);
-	if (heightDelta !== 0) {
-		this.requestRenderCallback?.();
-	}
+		originalScrollToEnd.call(this);
+		if (heightDelta !== 0) {
+			this.requestRenderCallback?.();
+		}
+	};
 }
 
 /** Whether `data` is an unmodified Enter/submit key sequence. */
@@ -598,217 +639,234 @@ export function isVerticalKeyData(data: string): boolean {
 	);
 }
 
-function patchedEditorRender(this: EditorLike, width: number): string[] {
-	if (
-		!installed ||
-		typeof this.layoutText !== "function" ||
-		typeof this.renderTopBorder !== "function" ||
-		typeof this.renderBottomBorder !== "function"
-	) {
-		return originalEditorRender!.call(this, width);
-	}
-
-	const editorState = getEditorScrollState(this);
-	const currentText = typeof this.getText === "function" ? this.getText() : undefined;
-	if (currentText !== undefined && currentText !== editorState.lastText) {
-		editorState.manualScrollOffset = undefined;
-		editorState.lastText = currentText;
-	}
-
-	const paddingProp = typeof this.getPaddingX === "function" ? this.getPaddingX() : (this.paddingX ?? 0);
-	const maxPadding = Math.max(0, Math.floor((width - 1) / 2));
-	const paddingX = Math.min(paddingProp, maxPadding);
-	const contentWidth = Math.max(1, width - paddingX * 2);
-	const layoutWidth = Math.max(1, contentWidth - (paddingX ? 0 : 1));
-	const fullLayoutLines = this.layoutText(layoutWidth);
-	const totalLines = fullLayoutLines.length;
-	const currentCursorLine = fullLayoutLines.findIndex((line) => line.hasCursor);
-	const currentCursorCol = currentCursorLine >= 0 ? fullLayoutLines[currentCursorLine]?.cursorPos : undefined;
-	if (
-		editorState.lastCursorLine !== undefined &&
-		(currentCursorLine !== editorState.lastCursorLine || currentCursorCol !== editorState.lastCursorCol)
-	) {
-		editorState.manualScrollOffset = undefined;
-		if (currentCursorLine !== editorState.lastCursorLine && !this.tui?.hasOverlay?.()) {
-			getScrollCollapseStore().collapseLines = 0;
+function createPatchedEditorRender(originalEditorRender: EditorRenderFn, isActive: () => boolean): EditorRenderFn {
+	return function patchedEditorRender(this: EditorLike, width: number): string[] {
+		if (
+			!isActive() ||
+			!this ||
+			typeof this !== "object" ||
+			activeEditorRenders.has(this) ||
+			typeof this.layoutText !== "function" ||
+			typeof this.renderTopBorder !== "function" ||
+			typeof this.renderBottomBorder !== "function"
+		) {
+			return originalEditorRender.call(this, width);
 		}
-	}
-	editorState.lastCursorLine = currentCursorLine;
-	editorState.lastCursorCol = currentCursorCol;
 
-	const terminalRows = this.tui?.terminal?.rows ?? 40;
-	const defaultMaxVisibleLines = Math.max(5, Math.floor(terminalRows * 0.3));
-	const fullVisibleCount = Math.min(totalLines, defaultMaxVisibleLines);
-	const minVisibleCount = Math.min(fullVisibleCount, MIN_COLLAPSED_CONTENT_LINES);
-	const maxCollapseLines = Math.max(0, fullVisibleCount - minVisibleCount);
+		activeEditorRenders.add(this);
+		try {
+			const editorState = getEditorScrollState(this);
+			const currentText = typeof this.getText === "function" ? this.getText() : undefined;
+			if (currentText !== undefined && currentText !== editorState.lastText) {
+				editorState.manualScrollOffset = undefined;
+				editorState.lastText = currentText;
+			}
 
-	const store = getScrollCollapseStore();
-	if (!this.tui?.hasOverlay?.()) {
-		store.editorTarget = {
-			maxCollapseLines,
-			onCollapseChange: () => {
-				this.tui?.requestRender?.();
-			},
-		};
-	}
+			const paddingProp = typeof this.getPaddingX === "function" ? this.getPaddingX() : (this.paddingX ?? 0);
+			const maxPadding = Math.max(0, Math.floor((width - 1) / 2));
+			const paddingX = Math.min(paddingProp, maxPadding);
+			const contentWidth = Math.max(1, width - paddingX * 2);
+			const layoutWidth = Math.max(1, contentWidth - (paddingX ? 0 : 1));
+			const fullLayoutLines = this.layoutText(layoutWidth);
+			const totalLines = fullLayoutLines.length;
+			const currentCursorLine = fullLayoutLines.findIndex((line) => line.hasCursor);
+			const currentCursorCol = currentCursorLine >= 0 ? fullLayoutLines[currentCursorLine]?.cursorPos : undefined;
+			if (
+				editorState.lastCursorLine !== undefined &&
+				(currentCursorLine !== editorState.lastCursorLine || currentCursorCol !== editorState.lastCursorCol)
+			) {
+				editorState.manualScrollOffset = undefined;
+				if (currentCursorLine !== editorState.lastCursorLine && !this.tui?.hasOverlay?.()) {
+					getScrollCollapseStore().collapseLines = 0;
+				}
+			}
+			editorState.lastCursorLine = currentCursorLine;
+			editorState.lastCursorCol = currentCursorCol;
 
-	const collapseLines = store.questionnaireTarget
-		? 0
-		: Math.max(0, Math.min(maxCollapseLines, store.collapseLines));
-	const effectiveMaxVisibleLines = Math.max(minVisibleCount, fullVisibleCount - collapseLines);
-	const maxScrollOffset = Math.max(0, totalLines - effectiveMaxVisibleLines);
+			const terminalRows = this.tui?.terminal?.rows ?? 40;
+			const defaultMaxVisibleLines = Math.max(5, Math.floor(terminalRows * 0.3));
+			const fullVisibleCount = Math.min(totalLines, defaultMaxVisibleLines);
+			const minVisibleCount = Math.min(fullVisibleCount, MIN_COLLAPSED_CONTENT_LINES);
+			const maxCollapseLines = Math.max(0, fullVisibleCount - minVisibleCount);
 
-	let targetScrollOffset: number;
-	if (editorState.manualScrollOffset !== undefined) {
-		targetScrollOffset = Math.max(0, Math.min(editorState.manualScrollOffset, maxScrollOffset));
-		editorState.manualScrollOffset = targetScrollOffset;
-	} else {
-		let cursorLineIndex = fullLayoutLines.findIndex((line) => line.hasCursor);
-		if (cursorLineIndex === -1) cursorLineIndex = 0;
-		let offset = this.scrollOffset ?? 0;
-		if (cursorLineIndex < offset) {
-			offset = cursorLineIndex;
-		} else if (cursorLineIndex >= offset + effectiveMaxVisibleLines) {
-			offset = cursorLineIndex - effectiveMaxVisibleLines + 1;
+			const store = getScrollCollapseStore();
+			if (!this.tui?.hasOverlay?.()) {
+				store.editorTarget = {
+					maxCollapseLines,
+					onCollapseChange: () => {
+						this.tui?.requestRender?.();
+					},
+				};
+			}
+
+			const collapseLines = store.questionnaireTarget
+				? 0
+				: Math.max(0, Math.min(maxCollapseLines, store.collapseLines));
+			const effectiveMaxVisibleLines = Math.max(minVisibleCount, fullVisibleCount - collapseLines);
+			const maxScrollOffset = Math.max(0, totalLines - effectiveMaxVisibleLines);
+
+			let targetScrollOffset: number;
+			if (editorState.manualScrollOffset !== undefined) {
+				targetScrollOffset = Math.max(0, Math.min(editorState.manualScrollOffset, maxScrollOffset));
+				editorState.manualScrollOffset = targetScrollOffset;
+			} else {
+				let cursorLineIndex = fullLayoutLines.findIndex((line) => line.hasCursor);
+				if (cursorLineIndex === -1) cursorLineIndex = 0;
+				let offset = this.scrollOffset ?? 0;
+				if (cursorLineIndex < offset) {
+					offset = cursorLineIndex;
+				} else if (cursorLineIndex >= offset + effectiveMaxVisibleLines) {
+					offset = cursorLineIndex - effectiveMaxVisibleLines + 1;
+				}
+				targetScrollOffset = Math.max(0, Math.min(offset, maxScrollOffset));
+			}
+
+			const visibleLayoutLines = fullLayoutLines.slice(
+				targetScrollOffset,
+				targetScrollOffset + effectiveMaxVisibleLines,
+			);
+			editorState.totalLines = totalLines;
+			editorState.visibleCount = visibleLayoutLines.length;
+
+			const ownLayoutText = Object.prototype.hasOwnProperty.call(this, "layoutText") ? this.layoutText : undefined;
+			this.layoutText = () => visibleLayoutLines;
+			this.scrollOffset = 0;
+			let result: string[];
+			try {
+				result = originalEditorRender.call(this, width);
+			} finally {
+				if (ownLayoutText !== undefined) this.layoutText = ownLayoutText;
+				else Reflect.deleteProperty(this, "layoutText");
+			}
+
+			this.scrollOffset = targetScrollOffset;
+			this.renderedVisibleLineCount = visibleLayoutLines.length;
+			if (result.length >= visibleLayoutLines.length + 2) {
+				result[0] = this.renderTopBorder(width, targetScrollOffset);
+				const linesBelow = Math.max(0, totalLines - (targetScrollOffset + visibleLayoutLines.length));
+				result[visibleLayoutLines.length + 1] = this.renderBottomBorder(width, linesBelow);
+			}
+			return result;
+		} finally {
+			activeEditorRenders.delete(this);
 		}
-		targetScrollOffset = Math.max(0, Math.min(offset, maxScrollOffset));
-	}
-
-	const visibleLayoutLines = fullLayoutLines.slice(
-		targetScrollOffset,
-		targetScrollOffset + effectiveMaxVisibleLines,
-	);
-	editorState.totalLines = totalLines;
-	editorState.visibleCount = visibleLayoutLines.length;
-
-	const ownLayoutText = Object.prototype.hasOwnProperty.call(this, "layoutText") ? this.layoutText : undefined;
-	this.layoutText = () => visibleLayoutLines;
-	this.scrollOffset = 0;
-	let result: string[];
-	try {
-		result = originalEditorRender!.call(this, width);
-	} finally {
-		if (ownLayoutText !== undefined) this.layoutText = ownLayoutText;
-		else Reflect.deleteProperty(this, "layoutText");
-	}
-
-	this.scrollOffset = targetScrollOffset;
-	this.renderedVisibleLineCount = visibleLayoutLines.length;
-	if (result.length >= visibleLayoutLines.length + 2) {
-		result[0] = this.renderTopBorder(width, targetScrollOffset);
-		const linesBelow = Math.max(0, totalLines - (targetScrollOffset + visibleLayoutLines.length));
-		result[visibleLayoutLines.length + 1] = this.renderBottomBorder(width, linesBelow);
-	}
-	return result;
+	};
 }
 
-function patchedEditorHandleMouse(
-	this: EditorLike,
-	event: EditorMouseEventLike,
-): EditorMouseResultLike | undefined {
-	if (!installed) {
-		return originalEditorHandleMouse?.call(this, event);
-	}
-	const editorState = getEditorScrollState(this);
-	if (event.type === "wheel") {
-		const autocompleteStartRow = (this.renderedVisibleLineCount ?? 1) + 2;
-		const autocompleteHeight = this.renderedAutocompleteHeight ?? 0;
-		if (
-			this.autocompleteState &&
-			this.autocompleteList &&
-			event.y >= autocompleteStartRow &&
-			event.y < autocompleteStartRow + autocompleteHeight
-		) {
-			return originalEditorHandleMouse?.call(this, event);
+function createPatchedEditorHandleMouse(
+	originalEditorHandleMouse: EditorHandleMouseFn,
+	isActive: () => boolean,
+): EditorHandleMouseFn {
+	return function patchedEditorHandleMouse(
+		this: EditorLike,
+		event: EditorMouseEventLike,
+	): EditorMouseResultLike | undefined {
+		if (!isActive()) {
+			return originalEditorHandleMouse.call(this, event);
 		}
-		const delta =
-			typeof event.wheelDelta === "number" && Number.isFinite(event.wheelDelta)
-				? Math.trunc(event.wheelDelta)
-				: 0;
-		const store = getScrollCollapseStore();
-		let expanded = false;
-		let remainingDelta = delta;
-		if (delta > 0 && !store.questionnaireTarget && store.collapseLines > 0) {
-			const maxCollapse = Math.max(0, Math.trunc(store.editorTarget?.maxCollapseLines ?? store.collapseLines));
-			const currentCollapse = Math.max(0, Math.min(maxCollapse, store.collapseLines));
-			const expandStep = Math.min(currentCollapse, delta);
-			if (expandStep > 0) {
-				store.collapseLines = currentCollapse - expandStep;
-				remainingDelta = delta - expandStep;
-				expanded = true;
-				const view = transcriptView?.deref();
-				if (view) {
-					syncViewportHeightForCollapse(view);
-					if (store.collapseLines === 0 && getHiddenLinesBelow(view) === 0) {
-						view.followSuppressedAtEnd = false;
+		const editorState = getEditorScrollState(this);
+		if (event.type === "wheel") {
+			const autocompleteStartRow = (this.renderedVisibleLineCount ?? 1) + 2;
+			const autocompleteHeight = this.renderedAutocompleteHeight ?? 0;
+			if (
+				this.autocompleteState &&
+				this.autocompleteList &&
+				event.y >= autocompleteStartRow &&
+				event.y < autocompleteStartRow + autocompleteHeight
+			) {
+				return originalEditorHandleMouse.call(this, event);
+			}
+			const delta =
+				typeof event.wheelDelta === "number" && Number.isFinite(event.wheelDelta)
+					? Math.trunc(event.wheelDelta)
+					: 0;
+			const store = getScrollCollapseStore();
+			let expanded = false;
+			let remainingDelta = delta;
+			if (delta > 0 && !store.questionnaireTarget && store.collapseLines > 0) {
+				const maxCollapse = Math.max(0, Math.trunc(store.editorTarget?.maxCollapseLines ?? store.collapseLines));
+				const currentCollapse = Math.max(0, Math.min(maxCollapse, store.collapseLines));
+				const expandStep = Math.min(currentCollapse, delta);
+				if (expandStep > 0) {
+					store.collapseLines = currentCollapse - expandStep;
+					remainingDelta = delta - expandStep;
+					expanded = true;
+					const view = transcriptView?.deref();
+					if (view) {
+						syncViewportHeightForCollapse(view);
+						if (store.collapseLines === 0 && getHiddenLinesBelow(view) === 0) {
+							view.followSuppressedAtEnd = false;
+						}
 					}
 				}
 			}
+			const totalLines =
+				typeof this.layoutText === "function"
+					? this.layoutText(this.lastWidth ?? 80).length
+					: editorState.totalLines;
+			const terminalRows = this.tui?.terminal?.rows ?? 40;
+			const defaultMaxVisibleLines = Math.max(5, Math.floor(terminalRows * 0.3));
+			const fullVisibleCount = Math.min(totalLines, defaultMaxVisibleLines);
+			const minVisibleCount = Math.min(fullVisibleCount, MIN_COLLAPSED_CONTENT_LINES);
+			const maxCollapseLines = Math.max(0, fullVisibleCount - minVisibleCount);
+			const activeCollapse = store.questionnaireTarget
+				? 0
+				: Math.max(0, Math.min(maxCollapseLines, store.collapseLines));
+			const visibleCount = Math.max(minVisibleCount, fullVisibleCount - activeCollapse);
+			const maxScrollOffset = Math.max(0, totalLines - visibleCount);
+			const rawOffset = editorState.manualScrollOffset ?? this.scrollOffset ?? 0;
+			const currentOffset = Math.max(0, Math.min(maxScrollOffset, rawOffset));
+			const nextOffset = Math.max(0, Math.min(maxScrollOffset, currentOffset + remainingDelta));
+			if (remainingDelta !== 0 && maxScrollOffset > 0) {
+				editorState.manualScrollOffset = nextOffset;
+				this.scrollOffset = nextOffset;
+			} else if (expanded && editorState.manualScrollOffset !== undefined) {
+				editorState.manualScrollOffset = Math.max(0, Math.min(maxScrollOffset, editorState.manualScrollOffset));
+				this.scrollOffset = editorState.manualScrollOffset;
+			}
+			return { handled: true, render: expanded || nextOffset !== currentOffset };
 		}
-		const totalLines =
-			typeof this.layoutText === "function"
-				? this.layoutText(this.lastWidth ?? 80).length
-				: editorState.totalLines;
-		const terminalRows = this.tui?.terminal?.rows ?? 40;
-		const defaultMaxVisibleLines = Math.max(5, Math.floor(terminalRows * 0.3));
-		const fullVisibleCount = Math.min(totalLines, defaultMaxVisibleLines);
-		const minVisibleCount = Math.min(fullVisibleCount, MIN_COLLAPSED_CONTENT_LINES);
-		const maxCollapseLines = Math.max(0, fullVisibleCount - minVisibleCount);
-		const activeCollapse = store.questionnaireTarget
-			? 0
-			: Math.max(0, Math.min(maxCollapseLines, store.collapseLines));
-		const visibleCount = Math.max(minVisibleCount, fullVisibleCount - activeCollapse);
-		const maxScrollOffset = Math.max(0, totalLines - visibleCount);
-		const rawOffset = editorState.manualScrollOffset ?? this.scrollOffset ?? 0;
-		const currentOffset = Math.max(0, Math.min(maxScrollOffset, rawOffset));
-		const nextOffset = Math.max(0, Math.min(maxScrollOffset, currentOffset + remainingDelta));
-		if (remainingDelta !== 0 && maxScrollOffset > 0) {
-			editorState.manualScrollOffset = nextOffset;
-			this.scrollOffset = nextOffset;
-		} else if (expanded && editorState.manualScrollOffset !== undefined) {
-			editorState.manualScrollOffset = Math.max(0, Math.min(maxScrollOffset, editorState.manualScrollOffset));
-			this.scrollOffset = editorState.manualScrollOffset;
+		if (event.type === "press" || event.type === "click" || event.type === "drag") {
+			editorState.manualScrollOffset = undefined;
 		}
-		return { handled: true, render: expanded || nextOffset !== currentOffset };
-	}
-	if (event.type === "press" || event.type === "click" || event.type === "drag") {
-		editorState.manualScrollOffset = undefined;
-	}
-	return originalEditorHandleMouse?.call(this, event);
+		return originalEditorHandleMouse.call(this, event);
+	};
 }
 
-function patchedHandleInput(this: EditorLike, data: string): void {
-	if (!installed) {
-		originalHandleInput!.call(this, data);
-		return;
-	}
-	const editorState = getEditorScrollState(this);
-	editorState.manualScrollOffset = undefined;
-	const beforeText = typeof this.getText === "function" ? this.getText() : undefined;
-	if (!this.tui?.hasOverlay?.() && isVerticalKeyData(data)) {
-		resetScrollCollapse();
-	}
-	originalHandleInput!.call(this, data);
-	const afterText = typeof this.getText === "function" ? this.getText() : undefined;
-	editorState.lastText = afterText;
-	if (!this.tui?.hasOverlay?.() && beforeText !== afterText) {
-		resetScrollCollapse();
-	}
-	if (this.tui?.hasOverlay?.()) return;
-	if (!isSubmitKeyData(data)) return;
-	if (beforeText !== undefined && beforeText.trim().length > 0 && afterText === "") {
-		if (!transcriptView?.deref()) {
-			const primary = this.tui?.getPrimaryScrollView?.();
-			if (primary && primary.primary && primary.followEnd) {
-				recordTranscriptLayout(
-					primary,
-					primary.contentHeight ?? 0,
-					primary.viewportHeight ?? 0,
-				);
-			}
+function createPatchedHandleInput(originalHandleInput: HandleInputFn, isActive: () => boolean): HandleInputFn {
+	return function patchedHandleInput(this: EditorLike, data: string): void {
+		if (!isActive()) {
+			originalHandleInput.call(this, data);
+			return;
 		}
-		followTranscriptOnSend();
-	}
+		const editorState = getEditorScrollState(this);
+		editorState.manualScrollOffset = undefined;
+		const beforeText = typeof this.getText === "function" ? this.getText() : undefined;
+		if (!this.tui?.hasOverlay?.() && isVerticalKeyData(data)) {
+			resetScrollCollapse();
+		}
+		originalHandleInput.call(this, data);
+		const afterText = typeof this.getText === "function" ? this.getText() : undefined;
+		editorState.lastText = afterText;
+		if (!this.tui?.hasOverlay?.() && beforeText !== afterText) {
+			resetScrollCollapse();
+		}
+		if (this.tui?.hasOverlay?.()) return;
+		if (!isSubmitKeyData(data)) return;
+		if (beforeText !== undefined && beforeText.trim().length > 0 && afterText === "") {
+			if (!transcriptView?.deref()) {
+				const primary = this.tui?.getPrimaryScrollView?.();
+				if (primary && primary.primary && primary.followEnd) {
+					recordTranscriptLayout(
+						primary,
+						primary.contentHeight ?? 0,
+						primary.viewportHeight ?? 0,
+					);
+				}
+			}
+			followTranscriptOnSend();
+		}
+	};
 }
 
 /** Snap the recorded transcript to its end when it sits near the most recent message. */
@@ -821,104 +879,56 @@ export function followTranscriptOnSend(withinLines?: number): boolean {
 
 function installFollowOnSend(): boolean {
 	if (installed) return true;
-	const scrollPrototype = ScrollView.prototype as unknown as ScrollViewPrototype;
-	if (typeof scrollPrototype.updateLayout !== "function") return false;
-	originalUpdateLayout = scrollPrototype.updateLayout;
-	(patchedUpdateLayout as UpdateLayoutFn & ChainedPatch<UpdateLayoutFn>).__inactive = false;
-	(patchedUpdateLayout as UpdateLayoutFn & ChainedPatch<UpdateLayoutFn>).__prev = originalUpdateLayout;
-	scrollPrototype.updateLayout = patchedUpdateLayout;
+	const globalState = getFollowOnSendGlobalState();
+	if (globalState.uninstall && globalState.uninstall !== uninstallFollowOnSend) {
+		globalState.uninstall();
+	}
 
-	if (typeof scrollPrototype.scrollBy === "function") {
-		originalScrollBy = scrollPrototype.scrollBy;
-		(patchedScrollBy as ScrollByFn & ChainedPatch<ScrollByFn>).__inactive = false;
-		(patchedScrollBy as ScrollByFn & ChainedPatch<ScrollByFn>).__prev = originalScrollBy;
-		scrollPrototype.scrollBy = patchedScrollBy;
-	}
-	if (typeof scrollPrototype.scrollTo === "function") {
-		originalScrollTo = scrollPrototype.scrollTo;
-		(patchedScrollTo as ScrollToFn & ChainedPatch<ScrollToFn>).__inactive = false;
-		(patchedScrollTo as ScrollToFn & ChainedPatch<ScrollToFn>).__prev = originalScrollTo;
-		scrollPrototype.scrollTo = patchedScrollTo;
-	}
-	if (typeof scrollPrototype.scrollToStart === "function") {
-		originalScrollToStart = scrollPrototype.scrollToStart;
-		(patchedScrollToStart as ScrollToStartFn & ChainedPatch<ScrollToStartFn>).__inactive = false;
-		(patchedScrollToStart as ScrollToStartFn & ChainedPatch<ScrollToStartFn>).__prev = originalScrollToStart;
-		scrollPrototype.scrollToStart = patchedScrollToStart;
-	}
-	if (typeof scrollPrototype.scrollToEnd === "function") {
-		originalScrollToEnd = scrollPrototype.scrollToEnd;
-		(patchedScrollToEnd as ScrollToEndFn & ChainedPatch<ScrollToEndFn>).__inactive = false;
-		(patchedScrollToEnd as ScrollToEndFn & ChainedPatch<ScrollToEndFn>).__prev = originalScrollToEnd;
-		scrollPrototype.scrollToEnd = patchedScrollToEnd;
-	}
+	const scrollPrototype = ScrollView.prototype as unknown as ScrollViewPrototype;
+	if (typeof unwrapPrototypeChain(scrollPrototype.updateLayout) !== "function") return false;
+
+	const restores: Array<() => void> = [];
+	const addPatch = <Proto extends object, Key extends keyof Proto>(
+		prototype: Proto,
+		key: Key,
+		createPatch: (original: NonNullable<Proto[Key]>, isActive: () => boolean) => NonNullable<Proto[Key]>,
+	): void => {
+		const restore = installPrototypePatch(prototype, key, createPatch);
+		if (restore) restores.push(restore);
+	};
+
+	addPatch(scrollPrototype, "updateLayout", createPatchedUpdateLayout);
+	addPatch(scrollPrototype, "scrollBy", createPatchedScrollBy);
+	addPatch(scrollPrototype, "scrollTo", createPatchedScrollTo);
+	addPatch(scrollPrototype, "scrollToStart", createPatchedScrollToStart);
+	addPatch(scrollPrototype, "scrollToEnd", createPatchedScrollToEnd);
 
 	const editorPrototype = Editor.prototype as unknown as EditorPrototype;
-	if (typeof editorPrototype.handleInput === "function") {
-		originalHandleInput = editorPrototype.handleInput;
-		(patchedHandleInput as HandleInputFn & ChainedPatch<HandleInputFn>).__inactive = false;
-		(patchedHandleInput as HandleInputFn & ChainedPatch<HandleInputFn>).__prev = originalHandleInput;
-		editorPrototype.handleInput = patchedHandleInput;
-	}
-	if (typeof editorPrototype.render === "function") {
-		originalEditorRender = editorPrototype.render;
-		(patchedEditorRender as EditorRenderFn & ChainedPatch<EditorRenderFn>).__inactive = false;
-		(patchedEditorRender as EditorRenderFn & ChainedPatch<EditorRenderFn>).__prev = originalEditorRender;
-		editorPrototype.render = patchedEditorRender;
-	}
-	if (typeof editorPrototype.handleMouse === "function") {
-		originalEditorHandleMouse = editorPrototype.handleMouse;
-		(patchedEditorHandleMouse as EditorHandleMouseFn & ChainedPatch<EditorHandleMouseFn>).__inactive = false;
-		(patchedEditorHandleMouse as EditorHandleMouseFn & ChainedPatch<EditorHandleMouseFn>).__prev =
-			originalEditorHandleMouse;
-		editorPrototype.handleMouse = patchedEditorHandleMouse;
-	}
+	addPatch(editorPrototype, "handleInput", createPatchedHandleInput);
+	addPatch(editorPrototype, "render", createPatchedEditorRender);
+	addPatch(editorPrototype, "handleMouse", createPatchedEditorHandleMouse);
 
+	restorePatches = restores;
 	const store = getScrollCollapseStore();
 	store.collapseLines = 0;
 	store.questionnaireTarget = undefined;
 	store.editorTarget = undefined;
 	collapseLinesAtLastLayout = 0;
 	installed = true;
+	globalState.uninstall = uninstallFollowOnSend;
 	return true;
 }
 
 function uninstallFollowOnSend(): void {
-	const scrollPrototype = ScrollView.prototype as unknown as ScrollViewPrototype;
-	if (installed && originalUpdateLayout) {
-		(patchedUpdateLayout as UpdateLayoutFn & ChainedPatch<UpdateLayoutFn>).__inactive = true;
-		scrollPrototype.updateLayout = unwrapPrototypeChain(scrollPrototype.updateLayout);
-	}
-	if (installed && originalScrollBy) {
-		(patchedScrollBy as ScrollByFn & ChainedPatch<ScrollByFn>).__inactive = true;
-		scrollPrototype.scrollBy = unwrapPrototypeChain(scrollPrototype.scrollBy);
-	}
-	if (installed && originalScrollTo) {
-		(patchedScrollTo as ScrollToFn & ChainedPatch<ScrollToFn>).__inactive = true;
-		scrollPrototype.scrollTo = unwrapPrototypeChain(scrollPrototype.scrollTo);
-	}
-	if (installed && originalScrollToStart) {
-		(patchedScrollToStart as ScrollToStartFn & ChainedPatch<ScrollToStartFn>).__inactive = true;
-		scrollPrototype.scrollToStart = unwrapPrototypeChain(scrollPrototype.scrollToStart);
-	}
-	if (installed && originalScrollToEnd) {
-		(patchedScrollToEnd as ScrollToEndFn & ChainedPatch<ScrollToEndFn>).__inactive = true;
-		scrollPrototype.scrollToEnd = unwrapPrototypeChain(scrollPrototype.scrollToEnd);
-	}
-	const editorPrototype = Editor.prototype as unknown as EditorPrototype;
-	if (installed && originalHandleInput) {
-		(patchedHandleInput as HandleInputFn & ChainedPatch<HandleInputFn>).__inactive = true;
-		editorPrototype.handleInput = unwrapPrototypeChain(editorPrototype.handleInput);
-	}
-	if (installed && originalEditorRender) {
-		(patchedEditorRender as EditorRenderFn & ChainedPatch<EditorRenderFn>).__inactive = true;
-		editorPrototype.render = unwrapPrototypeChain(editorPrototype.render);
-	}
-	if (installed && originalEditorHandleMouse) {
-		(patchedEditorHandleMouse as EditorHandleMouseFn & ChainedPatch<EditorHandleMouseFn>).__inactive = true;
-		editorPrototype.handleMouse = unwrapPrototypeChain(editorPrototype.handleMouse);
-	}
+	const restores = restorePatches.splice(0, restorePatches.length);
 	installed = false;
+	for (const restore of restores) {
+		restore();
+	}
+	const globalState = getFollowOnSendGlobalState();
+	if (globalState.uninstall === uninstallFollowOnSend) {
+		globalState.uninstall = undefined;
+	}
 	transcriptView = undefined;
 	transcriptMetrics = undefined;
 	collapseLinesAtLastLayout = 0;
