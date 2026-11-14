@@ -41,6 +41,24 @@ type AnswerEntryKind = "option" | "custom" | "context";
 
 type InputPurpose = "answer" | "context";
 
+type MouseTarget =
+	| { kind: "option"; questionIndex: number; optionIndex: number }
+	| { kind: "question"; questionIndex: number }
+	| { kind: "submit" }
+	| { kind: "scroll-up" }
+	| { kind: "scroll-down" };
+
+interface QuestionnaireMouseEvent {
+	type?: string;
+	button?: string;
+	x?: number;
+	y?: number;
+	width?: number;
+	height?: number;
+	wheelDelta?: number;
+	clickCount?: number;
+}
+
 export interface AnswerEntry {
 	value: string;
 	label: string;
@@ -236,6 +254,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 			}));
 
 			const isMulti = questions.length > 1;
+			const showSubmit = isMulti || questions.some((q) => q.multiple);
 			const submitTab = questions.length;
 			const totalTabs = questions.length + 1; // questions + Submit
 
@@ -264,6 +283,12 @@ export default function questionnaire(pi: ExtensionAPI) {
 				let cachedRows: number | undefined;
 				let cachedCollapseLines: number | undefined;
 				let cachedLines: string[] | undefined;
+				let lastRenderWidth = 80;
+				let visibleRowTargets: (MouseTarget | undefined)[] = [];
+				let pressedTarget: MouseTarget | undefined;
+				let pressedLayoutTargets: (MouseTarget | undefined)[] | undefined;
+				let lastReleasePoint: { x?: number; y?: number } | undefined;
+				let isSubmitted = false;
 				const answers = new Map<string, Answer>();
 				const optionIndices = new Map<string, number>();
 				const selectedOptions = new Map<string, Set<number>>();
@@ -312,6 +337,8 @@ export default function questionnaire(pi: ExtensionAPI) {
 				}
 
 				function submit(cancelled: boolean) {
+					if (isSubmitted) return;
+					isSubmitted = true;
 					done({ questions, answers: Array.from(answers.values()), cancelled });
 				}
 
@@ -631,6 +658,10 @@ export default function questionnaire(pi: ExtensionAPI) {
 				};
 
 				function handleInput(data: string) {
+					if (isSubmitted) return;
+					pressedTarget = undefined;
+					pressedLayoutTargets = undefined;
+					lastReleasePoint = undefined;
 					const isEscape = matchesKey(data, Key.escape);
 					const clearedCancelArmed = !isEscape && clearCancelArmed();
 					const kb = _kb as { matches?: (data: string, action: string) => boolean } | undefined;
@@ -743,12 +774,18 @@ export default function questionnaire(pi: ExtensionAPI) {
 					}
 				}
 
-				function handleMouse(event: { type?: string; wheelDelta?: number }) {
-					if (event.type !== "wheel") return undefined;
-					const delta =
-						typeof event.wheelDelta === "number" && Number.isFinite(event.wheelDelta)
-							? Math.trunc(event.wheelDelta)
-							: 0;
+				function sameMouseTarget(a: MouseTarget | undefined, b: MouseTarget | undefined): boolean {
+					if (!a || !b || a.kind !== b.kind) return false;
+					if (a.kind === "option" && b.kind === "option") {
+						return a.questionIndex === b.questionIndex && a.optionIndex === b.optionIndex;
+					}
+					if (a.kind === "question" && b.kind === "question") {
+						return a.questionIndex === b.questionIndex;
+					}
+					return true;
+				}
+
+				function scrollByWheel(delta: number): { handled: boolean; render: boolean } {
 					let expanded = false;
 					let remainingDelta = delta;
 					if (delta > 0 && collapseStore.collapseLines > 0) {
@@ -774,8 +811,232 @@ export default function questionnaire(pi: ExtensionAPI) {
 					return { handled: true, render: expanded };
 				}
 
+				function getMouseTargetAt(
+					event: QuestionnaireMouseEvent,
+					rowTargetsSnapshot?: (MouseTarget | undefined)[],
+				): MouseTarget | undefined {
+					if (!rowTargetsSnapshot && !cachedLines) {
+						render(typeof event.width === "number" && event.width > 0 ? event.width : lastRenderWidth);
+					}
+					const targets = rowTargetsSnapshot ?? visibleRowTargets;
+					if (typeof event.x === "number" && Number.isFinite(event.x)) {
+						const width = cachedWidth ?? lastRenderWidth;
+						if (event.x < 0 || event.x >= width) {
+							return undefined;
+						}
+					}
+					if (typeof event.y !== "number" || !Number.isFinite(event.y)) {
+						return undefined;
+					}
+					const row = Math.trunc(event.y);
+					if (row < 0 || row >= targets.length) {
+						return undefined;
+					}
+					return targets[row];
+				}
+
+				function previewMouseTarget(target: MouseTarget) {
+					clearCancelArmed();
+					if (inputMode) return;
+					if (target.kind === "option") {
+						const question = questions[target.questionIndex];
+						if (!question) return;
+						currentTab = target.questionIndex;
+						setOptionIndex(question, target.optionIndex);
+						manualScroll = true;
+						refresh();
+						return;
+					}
+					if (target.kind === "question") {
+						if (!questions[target.questionIndex]) return;
+						currentTab = target.questionIndex;
+						manualScroll = true;
+						refresh();
+						return;
+					}
+					if (target.kind === "submit") {
+						currentTab = submitTab;
+						manualScroll = true;
+						refresh();
+					}
+				}
+
+				function activateMouseTarget(target: MouseTarget) {
+					if (target.kind === "scroll-up") {
+						if (scrollByWheel(-3).render) {
+							tui.requestRender();
+						}
+						return;
+					}
+					if (target.kind === "scroll-down") {
+						if (scrollByWheel(3).render) {
+							tui.requestRender();
+						}
+						return;
+					}
+
+					clearCancelArmed();
+					expandQuestionnaire();
+
+					if (inputMode) {
+						const clickedQuestion = target.kind === "option" ? questions[target.questionIndex] : undefined;
+						const clickingActiveEditorOption =
+							target.kind === "option" &&
+							clickedQuestion?.id === inputQuestionId &&
+							target.optionIndex === inputOptionIndex;
+						const currentText = editor.getText();
+						if (clickingActiveEditorOption) {
+							if (currentText.trim().length > 0) {
+								const wasAnswerPurpose = inputPurpose === "answer";
+								editor.onSubmit?.(currentText);
+								if (wasAnswerPurpose && clickedQuestion && !clickedQuestion.multiple) {
+									manualScroll = false;
+									advanceAfterAnswer();
+								}
+							} else {
+								refresh();
+							}
+							return;
+						}
+						if (currentText.trim().length > 0) {
+							editor.onSubmit?.(currentText);
+						} else {
+							if (inputPurpose === "context" && inputQuestionId && inputOptionIndex !== null) {
+								const editedQuestion = questions.find((q) => q.id === inputQuestionId);
+								if (editedQuestion && contextValues(editedQuestion, inputOptionIndex).length > 0) {
+									saveContextAnswer(editedQuestion, inputOptionIndex, []);
+								}
+							} else if (inputPurpose === "answer" && inputQuestionId) {
+								const editedQuestion = questions.find((q) => q.id === inputQuestionId);
+								if (editedQuestion && editedQuestion.multiple && customValues(editedQuestion).length > 0) {
+									customEntries.set(editedQuestion.id, []);
+									saveMultipleAnswer(editedQuestion);
+								}
+							}
+							inputMode = false;
+							inputPurpose = "answer";
+							inputQuestionId = null;
+							inputOptionIndex = null;
+							editor.setText("");
+						}
+					}
+
+					if (target.kind === "question") {
+						if (!questions[target.questionIndex]) return;
+						currentTab = target.questionIndex;
+						manualScroll = true;
+						refresh();
+						return;
+					}
+
+					if (target.kind === "submit") {
+						currentTab = submitTab;
+						if (allAnswered()) {
+							submit(false);
+						} else {
+							manualScroll = true;
+							refresh();
+						}
+						return;
+					}
+
+					const question = questions[target.questionIndex];
+					if (!question) return;
+					currentTab = target.questionIndex;
+					setOptionIndex(question, target.optionIndex);
+					const opts = optionsFor(question);
+					const opt = opts[target.optionIndex];
+					if (!opt) return;
+					if (opt.isOther) {
+						manualScroll = true;
+						openCustomInput(question, "answer", target.optionIndex);
+						return;
+					}
+					if (question.multiple) {
+						manualScroll = true;
+						toggleMultipleOption(question, target.optionIndex);
+						return;
+					}
+					manualScroll = false;
+					saveSingleAnswer(question, opt.value, opt.label, false, target.optionIndex + 1);
+					advanceAfterAnswer();
+				}
+
+				function handleMouse(event: QuestionnaireMouseEvent) {
+					if (isSubmitted) {
+						return { handled: true, render: false };
+					}
+					if (event.type === "wheel") {
+						pressedTarget = undefined;
+						pressedLayoutTargets = undefined;
+						lastReleasePoint = undefined;
+						const delta =
+							typeof event.wheelDelta === "number" && Number.isFinite(event.wheelDelta)
+								? Math.trunc(event.wheelDelta)
+								: 0;
+						return scrollByWheel(delta);
+					}
+					if (event.button !== undefined && event.button !== "left") {
+						return undefined;
+					}
+					if (event.type === "press") {
+						lastReleasePoint = undefined;
+						const target = getMouseTargetAt(event);
+						pressedTarget = target;
+						pressedLayoutTargets = target ? [...visibleRowTargets] : undefined;
+						if (!target) {
+							return undefined;
+						}
+						previewMouseTarget(target);
+						return { handled: true, render: true };
+					}
+					if (event.type === "drag") {
+						if (!pressedTarget) return undefined;
+						return { handled: true, render: false };
+					}
+					if (event.type === "release") {
+						const currentPressed = pressedTarget;
+						const snapshot = pressedLayoutTargets;
+						pressedTarget = undefined;
+						pressedLayoutTargets = undefined;
+						if (!currentPressed) return undefined;
+						const target = getMouseTargetAt(event, snapshot);
+						if (target && sameMouseTarget(currentPressed, target)) {
+							lastReleasePoint = { x: event.x, y: event.y };
+							activateMouseTarget(currentPressed);
+							return { handled: true, render: true };
+						}
+						lastReleasePoint = undefined;
+						return { handled: true, render: false };
+					}
+					if (event.type === "click") {
+						if (
+							lastReleasePoint &&
+							lastReleasePoint.x === event.x &&
+							lastReleasePoint.y === event.y
+						) {
+							lastReleasePoint = undefined;
+							pressedTarget = undefined;
+							pressedLayoutTargets = undefined;
+							return { handled: true, render: true };
+						}
+						lastReleasePoint = undefined;
+						const snapshot = pressedLayoutTargets;
+						const target = getMouseTargetAt(event, snapshot) ?? pressedTarget;
+						pressedTarget = undefined;
+						pressedLayoutTargets = undefined;
+						if (!target) {
+							return undefined;
+						}
+						activateMouseTarget(target);
+						return { handled: true, render: true };
+					}
+					return undefined;
+				}
+
 				function render(width: number): string[] {
 					const renderWidth = Math.max(1, width);
+					lastRenderWidth = renderWidth;
 					const terminalRows = tui.terminal.rows;
 					const currentCollapseRequest = collapseStore.collapseLines;
 					if (
@@ -788,10 +1049,17 @@ export default function questionnaire(pi: ExtensionAPI) {
 					}
 
 					const lines: string[] = [];
+					const contentLineTargets: (MouseTarget | undefined)[] = [];
 					let activeLine = 0;
 					let activeEndLine = 0;
 					let activeQuestionLine = 0;
 					let activeQuestionEndLine = 0;
+
+					function markContentLines(startLine: number, endLine: number, target: MouseTarget) {
+						for (let lineIdx = startLine; lineIdx <= endLine; lineIdx++) {
+							contentLineTargets[lineIdx] = target;
+						}
+					}
 
 					function addWrapped(text: string) {
 						lines.push(...wrapTextWithAnsi(text.replace(/\t/g, "   "), renderWidth));
@@ -864,10 +1132,16 @@ export default function questionnaire(pi: ExtensionAPI) {
 								: `${marker} ${i + 1}. ${opt.label}${labelContext}${suffix}`;
 							const color = activeOption ? "accent" : "text";
 
+							const optionStartLine = lines.length;
 							addWrappedWithPrefix(prefix, theme.fg(color, label));
 							if (opt.description) {
 								addWrappedWithPrefix("     ", theme.fg("muted", opt.description));
 							}
+							markContentLines(optionStartLine, lines.length - 1, {
+								kind: "option",
+								questionIndex,
+								optionIndex: i,
+							});
 							if (activeOption) {
 								activeEndLine = Math.max(activeLine, lines.length - 1);
 							}
@@ -882,6 +1156,10 @@ export default function questionnaire(pi: ExtensionAPI) {
 						const prefix = activeQuestion ? theme.fg("accent", "> ") : "  ";
 						const label = isMulti ? theme.fg("muted", `${question.label}: `) : "";
 						addWrappedWithPrefix(prefix, `${label}${theme.fg("text", question.prompt)}${status}`);
+						markContentLines(questionLine, lines.length - 1, {
+							kind: "question",
+							questionIndex,
+						});
 						lines.push("");
 						renderOptions(question, questionIndex);
 						if (activeQuestion) {
@@ -902,7 +1180,8 @@ export default function questionnaire(pi: ExtensionAPI) {
 						lines.push("");
 					}
 
-					if (isMulti) {
+					if (showSubmit) {
+						const submitStartLine = lines.length;
 						const activeSubmit = currentTab === submitTab;
 						if (activeSubmit) {
 							activeLine = lines.length;
@@ -920,6 +1199,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 								.join(", ");
 							addWrappedWithPrefix("  ", theme.fg("warning", `Unanswered: ${missing}`));
 						}
+						markContentLines(submitStartLine, lines.length - 1, { kind: "submit" });
 						if (activeSubmit) {
 							activeEndLine = Math.max(activeLine, lines.length - 1);
 						}
@@ -952,6 +1232,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 					if (lines.length <= viewportHeight) {
 						lastMaxScroll = 0;
 						scrollOffset = 0;
+						visibleRowTargets = Array.from({ length: lines.length }, (_, idx) => contentLineTargets[idx]);
 						cachedWidth = renderWidth;
 						cachedRows = terminalRows;
 						cachedCollapseLines = currentCollapseRequest;
@@ -980,12 +1261,18 @@ export default function questionnaire(pi: ExtensionAPI) {
 					scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
 
 					const visible = lines.slice(scrollOffset, scrollOffset + viewportHeight);
+					visibleRowTargets = Array.from(
+						{ length: visible.length },
+						(_, idx) => contentLineTargets[scrollOffset + idx],
+					);
 					if (scrollOffset > 0) {
 						visible[0] = theme.fg("dim", `↑ ${scrollOffset} more`);
+						visibleRowTargets[0] = { kind: "scroll-up" };
 					}
 					const hiddenBelow = lines.length - (scrollOffset + viewportHeight);
 					if (hiddenBelow > 0) {
 						visible[visible.length - 1] = theme.fg("dim", `↓ ${hiddenBelow} more`);
+						visibleRowTargets[visible.length - 1] = { kind: "scroll-down" };
 					}
 					cachedWidth = renderWidth;
 					cachedRows = terminalRows;

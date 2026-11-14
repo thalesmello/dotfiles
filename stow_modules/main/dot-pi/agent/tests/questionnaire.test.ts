@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
 
-const STYLE_TAG_RE = /\[\/?[a-z]+\]|<CURSOR>/g;
+const STYLE_TAG_RE = /\[\/?[a-z]{2,}\]|<CURSOR>/g;
 
 function stripTestStyleTags(text: string): string {
 	return text.replace(STYLE_TAG_RE, "");
@@ -292,7 +292,16 @@ describe("questionnaire multiple-choice inline context", () => {
 		return {
 			resultPromise,
 			input: (data: string) => component.handleInput(data),
-			mouse: (event: { type?: string; wheelDelta?: number }) => component.handleMouse?.(event),
+			mouse: (event: {
+				type?: string;
+				button?: string;
+				x?: number;
+				y?: number;
+				width?: number;
+				height?: number;
+				wheelDelta?: number;
+				clickCount?: number;
+			}) => component.handleMouse?.(event),
 			render: (width = 80) => component.render(width) as string[],
 			setRows: (rows: number) => {
 				tui.terminal.rows = rows;
@@ -630,6 +639,197 @@ describe("questionnaire multiple-choice inline context", () => {
 		harness.input("down");
 		const afterKeyLines = harness.render(80).map(stripTestStyleTags);
 		expect(afterKeyLines.some((line) => line.includes("> ○ 2. Option 2"))).toBe(true);
+
+		harness.input("escape");
+		harness.input("escape");
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(true);
+	});
+
+	test("mouse clicking an option (or its description) selects and submits a single-select question", async () => {
+		const optionsWithDescriptions = [
+			{ value: "alpha", label: "Alpha", description: "First description" },
+			{ value: "beta", label: "Beta", description: "Second description" },
+		];
+		const harness = createHarness([{ id: "q1", prompt: "Pick one", options: optionsWithDescriptions }]);
+		const lines = harness.render(80).map(stripTestStyleTags);
+		const betaDescriptionRow = lines.findIndex((line) => line.includes("Second description"));
+		expect(betaDescriptionRow).toBeGreaterThan(0);
+
+		// Simulate Pi TUI's press -> release -> click sequence on Beta's description line.
+		// Never return focus: true, because done() runs synchronously during release/click
+		// and restores focus to the main editor before TuiAltScreen.applyMouseDispatchResult runs;
+		// returning focus: true would re-focus the disposed questionnaire component and freeze input.
+		const pressResult = harness.mouse({ type: "press", button: "left", x: 6, y: betaDescriptionRow });
+		expect(pressResult).toEqual({
+			handled: true,
+			render: true,
+		});
+		expect((pressResult as any)?.focus).toBeUndefined();
+
+		const releaseResult = harness.mouse({ type: "release", button: "left", x: 6, y: betaDescriptionRow });
+		expect(releaseResult).toEqual({
+			handled: true,
+			render: true,
+		});
+		expect((releaseResult as any)?.focus).toBeUndefined();
+
+		const clickResult = harness.mouse({ type: "click", button: "left", x: 6, y: betaDescriptionRow });
+		expect(clickResult).toEqual({
+			handled: true,
+			render: false,
+		});
+		expect((clickResult as any)?.focus).toBeUndefined();
+
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(false);
+		expect(result.details.answers).toHaveLength(1);
+		expect(result.details.answers[0].value).toBe("beta");
+		expect(result.details.answers[0].label).toBe("Beta");
+	});
+
+	test("mouse clicking toggles checkboxes on a multiple-choice question and submits when clicking Submit answers", async () => {
+		const threeOptions = [
+			{ value: "a", label: "Option A" },
+			{ value: "b", label: "Option B" },
+			{ value: "c", label: "Option C" },
+		];
+		const harness = createHarness([{ id: "q1", prompt: "Pick multiple", options: threeOptions, multiple: true }]);
+		let lines = harness.render(80).map(stripTestStyleTags);
+		const rowA = lines.findIndex((line) => line.includes("Option A"));
+		const rowB = lines.findIndex((line) => line.includes("Option B"));
+		const rowC = lines.findIndex((line) => line.includes("Option C"));
+		const submitRow = lines.findIndex((line) => line.includes("✓ Submit answers"));
+		expect(rowA).toBeGreaterThan(0);
+		expect(rowB).toBeGreaterThan(rowA);
+		expect(rowC).toBeGreaterThan(rowB);
+		expect(submitRow).toBeGreaterThan(rowC);
+
+		// Clicking Submit before any option is selected does not submit.
+		harness.mouse({ type: "click", button: "left", x: 4, y: submitRow });
+		expect(harness.getSubmitted()).toBeUndefined();
+
+		// Click A and C to check them, click A again to uncheck, then click B.
+		harness.mouse({ type: "click", button: "left", x: 4, y: rowA });
+		harness.mouse({ type: "click", button: "left", x: 4, y: rowC });
+		lines = harness.render(80).map(stripTestStyleTags);
+		expect(lines[rowA]).toContain("[x] Option A");
+		expect(lines[rowC]).toContain("[x] Option C");
+
+		harness.mouse({ type: "click", button: "left", x: 4, y: rowA });
+		harness.mouse({ type: "click", button: "left", x: 4, y: rowB });
+		lines = harness.render(80).map(stripTestStyleTags);
+		expect(lines[rowA]).toContain("[ ] Option A");
+		expect(lines[rowB]).toContain("[x] Option B");
+		expect(lines[rowC]).toContain("[x] Option C");
+
+		// Click Submit answers.
+		harness.mouse({ type: "click", button: "left", x: 4, y: submitRow });
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(false);
+		expect(result.details.answers[0].entries.map((entry: any) => entry.label)).toEqual(["Option B", "Option C"]);
+	});
+
+	test("mouse clicking answers multiple questions and submits on clicking Submit answers", async () => {
+		const harness = createHarness([
+			{
+				id: "scope",
+				label: "Scope",
+				prompt: "Which scope?",
+				options: [
+					{ value: "local", label: "Local" },
+					{ value: "global", label: "Global" },
+				],
+			},
+			{
+				id: "checks",
+				label: "Checks",
+				prompt: "Which checks?",
+				options: [
+					{ value: "unit", label: "Unit" },
+					{ value: "lint", label: "Lint" },
+				],
+				multiple: true,
+			},
+		]);
+
+		let lines = harness.render(80).map(stripTestStyleTags);
+		const globalRow = lines.findIndex((line) => line.includes("2. Global"));
+		const unitRow = lines.findIndex((line) => line.includes("[ ] Unit"));
+		const lintRow = lines.findIndex((line) => line.includes("[ ] Lint"));
+		const submitRow = lines.findIndex((line) => line.includes("✓ Submit answers"));
+
+		// Click Global on Q1 -> Q1 answered, advances focus to Q2 without submitting yet.
+		harness.mouse({ type: "click", button: "left", x: 4, y: globalRow });
+		expect(harness.getSubmitted()).toBeUndefined();
+		lines = harness.render(80).map(stripTestStyleTags);
+		expect(lines.some((line) => line.includes("Scope: Which scope? ✓"))).toBe(true);
+
+		// Click Unit and Lint on Q2.
+		harness.mouse({ type: "click", button: "left", x: 4, y: unitRow });
+		harness.mouse({ type: "click", button: "left", x: 4, y: lintRow });
+		expect(harness.getSubmitted()).toBeUndefined();
+
+		// Click Submit answers.
+		harness.mouse({ type: "click", button: "left", x: 4, y: submitRow });
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(false);
+		expect(result.details.answers.map((a: any) => ({ id: a.id, value: a.value }))).toEqual([
+			{ id: "scope", value: "global" },
+			{ id: "checks", value: "unit, lint" },
+		]);
+	});
+
+	test("mouse clicking Type something opens custom input and clicking another option cancels empty input", async () => {
+		const harness = createHarness([{ id: "q1", prompt: "Pick", options, multiple: false }]);
+		let lines = harness.render(80).map(stripTestStyleTags);
+		const otherRow = lines.findIndex((line) => line.includes("Type something."));
+		const rowA = lines.findIndex((line) => line.includes("1. A"));
+
+		// Click "Type something." to enter inline editing mode.
+		harness.mouse({ type: "click", button: "left", x: 4, y: otherRow });
+		lines = harness.render(80).map(stripTestStyleTags);
+		expect(lines[otherRow]).toContain("✎");
+
+		// Clicking Option A while custom input is still empty cancels input mode and selects Option A.
+		harness.mouse({ type: "click", button: "left", x: 4, y: rowA });
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(false);
+		expect(result.details.answers[0].value).toBe("a");
+	});
+
+	test("mouse clicking scrolled questionnaire selects the visible option at the scrolled offset", async () => {
+		const manyOptions = Array.from({ length: 10 }, (_, idx) => ({
+			value: `opt_${idx + 1}`,
+			label: `Option ${idx + 1}`,
+		}));
+		const harness = createHarness([{ id: "q1", label: "Q1", prompt: "Choose an option", options: manyOptions }]);
+		harness.setRows(16); // viewportHeight = 8
+
+		harness.render(80);
+		harness.mouse({ type: "wheel", wheelDelta: 5 });
+		const scrolledLines = harness.render(80).map(stripTestStyleTags);
+		expect(scrolledLines[0]).toBe("↑ 5 more");
+
+		const option8Row = scrolledLines.findIndex((line) => line.includes("8. Option 8"));
+		expect(option8Row).toBeGreaterThan(0);
+
+		harness.mouse({ type: "click", button: "left", x: 4, y: option8Row });
+		const result = await harness.resultPromise;
+		expect(result.details.cancelled).toBe(false);
+		expect(result.details.answers[0].value).toBe("opt_8");
+	});
+
+	test("pressing on one option and releasing on a different option cancels the click", async () => {
+		const harness = createHarness([{ id: "q1", prompt: "Pick", options, multiple: false }]);
+		const lines = harness.render(80).map(stripTestStyleTags);
+		const rowA = lines.findIndex((line) => line.includes("1. A"));
+		const rowB = lines.findIndex((line) => line.includes("2. B"));
+
+		harness.mouse({ type: "press", button: "left", x: 4, y: rowA });
+		harness.mouse({ type: "drag", button: "left", x: 4, y: rowB });
+		harness.mouse({ type: "release", button: "left", x: 4, y: rowB });
+		expect(harness.getSubmitted()).toBeUndefined();
 
 		harness.input("escape");
 		harness.input("escape");
