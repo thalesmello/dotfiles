@@ -5,7 +5,54 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, focused, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, nextCommand, window, layout } from "herdr";
+import { spaces, machines, panes, terminals, focused, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, nextCommand, window, layout } from "herdr";
+
+const PERL_SEND_SCRIPT = `use Socket;
+my ($t, $hex, $cols, $rows) = @ARGV;
+my $data = pack("H*", $hex);
+my $sock = $ENV{HC_SOCKET} || $ENV{HC_TERMINAL_SOCKET} || "$ENV{HOME}/.local/state/herdr-core/default/default.sock";
+socket(S, PF_UNIX, SOCK_STREAM, 0) && connect(S, sockaddr_un($sock)) or exit 1;
+syswrite(S, "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":1,\\"method\\":\\"hello\\",\\"params\\":{\\"framed\\":true}}\\n");
+my $buf = ""; while ($buf !~ /\\n/) { sysread(S, $buf, 4096, length($buf)) or exit 1; }
+my $req = "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":2,\\"method\\":\\"terminal.attach\\",\\"params\\":{\\"terminal\\":\\"$t\\",\\"cols\\":$cols,\\"rows\\":$rows}}";
+syswrite(S, pack("VCV", 0, 0, length($req)) . $req);
+while (1) {
+  my $hdr = ""; while (length($hdr) < 9) { sysread(S, $hdr, 9 - length($hdr), length($hdr)) or exit 1; }
+  my ($ch, $kind, $len) = unpack("VCV", $hdr);
+  my $body = ""; while (length($body) < $len) { sysread(S, $body, $len - length($body), length($body)) or exit 1; }
+  if ($ch == 0 && $kind == 0 && $body =~ /"id":2\\b.*"channel":(\\d+)/) {
+    syswrite(S, pack("VCV", $1, 0, length($data)) . $data . pack("VCV", $1, 2, 0));
+    last;
+  }
+}`;
+
+function sendRawHex(termAddr, hexBytes, termObj = null) {
+  if (!termAddr) return;
+  const t = termObj ?? (terminals() ?? []).find((x) => x.address === termAddr) ?? null;
+  const cols = String(t?.cols || 120);
+  const rows = String(t?.rows || 40);
+  exec("/usr/bin/perl", ["-e", PERL_SEND_SCRIPT, termAddr, hexBytes, cols, rows]).catch(() => {});
+}
+
+function isVimPane(p, termObj = null) {
+  const progKey = (p?.program?.key ?? "").toLowerCase();
+  const progName = (p?.program?.name ?? "").toLowerCase();
+  const fgName = (termObj?.foreground?.name ?? "").toLowerCase();
+  const title = (p?.title ?? termObj?.title ?? "").toLowerCase();
+  return (
+    progKey === "nvim" ||
+    progKey === "vim" ||
+    progName === "neovim" ||
+    progName === "nvim" ||
+    progName === "vim" ||
+    fgName === "nvim" ||
+    fgName === "vim" ||
+    title.startsWith("nvim:") ||
+    title.startsWith("vim:")
+  );
+}
+
+const CTRL_HEX = { h: "08", j: "0a", k: "0b", l: "0c" };
 
 function smartTabNav(dir) {
   const allSpaces = spaces() ?? [];
@@ -40,7 +87,9 @@ function activePaneContext() {
     tabPanes[0] ??
     allPanes[0] ??
     null;
-  return { f, sp, tb, tabId, tabPanes, p };
+  const termAddr = p?.terminal ?? f.terminal ?? null;
+  const termObj = termAddr ? ((terminals() ?? []).find((x) => x.address === termAddr) ?? null) : null;
+  return { f, sp, tb, tabId, tabPanes, p, termAddr, termObj };
 }
 
 function openNewTabPrompt() {
@@ -65,41 +114,38 @@ function openNewTabPrompt() {
 }
 
 function smartPaneNav(dir, letter) {
-  const { tb, tabPanes, p } = activePaneContext();
+  const { tb, tabPanes, p, termAddr, termObj } = activePaneContext();
   const noRoom = Boolean(tb?.zoomed || p?.zoomed || tabPanes.length <= 1);
-  const progKey = (p?.program?.key ?? "").toLowerCase();
-  const isVim = progKey === "nvim" || progKey === "vim" || (p?.title ?? "").startsWith("nvim:");
-  if (noRoom && isVim && p?.terminal) {
-    hc(["keys", p.terminal, "ctrl+space", `ctrl+${letter}`]);
+  if (noRoom && isVimPane(p, termObj) && termAddr && CTRL_HEX[letter]) {
+    sendRawHex(termAddr, `00${CTRL_HEX[letter]}`, termObj);
   } else {
     run("pane.go", { direction: dir });
   }
 }
 
 function smartScroll(to) {
-  const { f, p } = activePaneContext();
-  const term = p?.terminal ?? f.terminal ?? null;
+  const { p, termAddr, termObj } = activePaneContext();
   const progKey = (p?.program?.key ?? "").toLowerCase();
-  const title = p?.title ?? "";
+  const fgName = (termObj?.foreground?.name ?? "").toLowerCase();
+  const title = p?.title ?? termObj?.title ?? "";
   const shouldForward =
     Boolean(p?.status || p?.app || p?.program?.agent) ||
-    ["pi", "nvim", "vim", "less"].includes(progKey) ||
+    isVimPane(p, termObj) ||
+    ["pi", "less"].includes(progKey) ||
+    ["pi", "less"].includes(fgName) ||
     title.includes("herdr") ||
-    title.startsWith("nvim:") ||
     title.startsWith("π ");
-  if (shouldForward && term) {
-    hc(["keys", term, to === "top" ? "super+up" : "super+down"]);
+  if (shouldForward && termAddr) {
+    sendRawHex(termAddr, to === "top" ? "1b5b313b3941" : "1b5b313b3942", termObj);
   } else {
-    run("terminal.scroll", { to, ...(term ? { terminal: term } : {}) });
+    run("terminal.scroll", { to, ...(termAddr ? { terminal: termAddr } : {}) });
   }
 }
 
 function smartClose() {
-  const { f, sp, tabId, p } = activePaneContext();
-  const progKey = (p?.program?.key ?? "").toLowerCase();
-  const isVim = progKey === "nvim" || progKey === "vim" || (p?.title ?? "").startsWith("nvim:");
-  if (isVim && p?.terminal) {
-    hc(["keys", p.terminal, "ctrl+space", "backspace"]);
+  const { f, sp, tabId, p, termAddr, termObj } = activePaneContext();
+  if (isVimPane(p, termObj) && termAddr) {
+    sendRawHex(termAddr, "007f", termObj);
     return;
   }
   const env = [
@@ -107,7 +153,7 @@ function smartClose() {
     `HERDR_ACTIVE_PANE_ID=${JSON.stringify(p?.pane ?? f.pane ?? "")}`,
     `HERDR_ACTIVE_TAB_ID=${JSON.stringify(tabId)}`,
     `HERDR_ACTIVE_WORKSPACE_ID=${JSON.stringify(sp?.id ?? f.space ?? "")}`,
-    `HC_TERMINAL_ID=${JSON.stringify(p?.terminal ?? f.terminal ?? "")}`,
+    `HC_TERMINAL_ID=${JSON.stringify(termAddr ?? "")}`,
   ].join(" ");
   const inner = `export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" ${env}; ~/.config/herdr/scripts/smart-close.sh`;
   exec("sh", ["-c", `nohup sh -c ${JSON.stringify(inner)} >/dev/null 2>&1 </dev/null &`]);

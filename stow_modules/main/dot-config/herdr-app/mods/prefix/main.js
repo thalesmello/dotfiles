@@ -7,6 +7,7 @@ import {
   agents,
   spaces,
   panes,
+  terminals,
   focused,
   layout,
   run,
@@ -24,6 +25,53 @@ import {
   readTextFile,
   writeTextFile,
 } from "herdr";
+
+const PERL_SEND_SCRIPT = `use Socket;
+my ($t, $hex, $cols, $rows) = @ARGV;
+my $data = pack("H*", $hex);
+my $sock = $ENV{HC_SOCKET} || $ENV{HC_TERMINAL_SOCKET} || "$ENV{HOME}/.local/state/herdr-core/default/default.sock";
+socket(S, PF_UNIX, SOCK_STREAM, 0) && connect(S, sockaddr_un($sock)) or exit 1;
+syswrite(S, "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":1,\\"method\\":\\"hello\\",\\"params\\":{\\"framed\\":true}}\\n");
+my $buf = ""; while ($buf !~ /\\n/) { sysread(S, $buf, 4096, length($buf)) or exit 1; }
+my $req = "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":2,\\"method\\":\\"terminal.attach\\",\\"params\\":{\\"terminal\\":\\"$t\\",\\"cols\\":$cols,\\"rows\\":$rows}}";
+syswrite(S, pack("VCV", 0, 0, length($req)) . $req);
+while (1) {
+  my $hdr = ""; while (length($hdr) < 9) { sysread(S, $hdr, 9 - length($hdr), length($hdr)) or exit 1; }
+  my ($ch, $kind, $len) = unpack("VCV", $hdr);
+  my $body = ""; while (length($body) < $len) { sysread(S, $body, $len - length($body), length($body)) or exit 1; }
+  if ($ch == 0 && $kind == 0 && $body =~ /"id":2\\b.*"channel":(\\d+)/) {
+    syswrite(S, pack("VCV", $1, 0, length($data)) . $data . pack("VCV", $1, 2, 0));
+    last;
+  }
+}`;
+
+function sendRawHex(termAddr, hexBytes, termObj = null) {
+  if (!termAddr) return Promise.resolve();
+  const t = termObj ?? (terminals() ?? []).find((x) => x.address === termAddr) ?? null;
+  const cols = String(t?.cols || 120);
+  const rows = String(t?.rows || 40);
+  return exec("/usr/bin/perl", ["-e", PERL_SEND_SCRIPT, termAddr, hexBytes, cols, rows]).catch(() => {});
+}
+
+function isVimPane(p, termObj = null) {
+  const progKey = (p?.program?.key ?? "").toLowerCase();
+  const progName = (p?.program?.name ?? "").toLowerCase();
+  const fgName = (termObj?.foreground?.name ?? "").toLowerCase();
+  const title = (p?.title ?? termObj?.title ?? "").toLowerCase();
+  return (
+    progKey === "nvim" ||
+    progKey === "vim" ||
+    progName === "neovim" ||
+    progName === "nvim" ||
+    progName === "vim" ||
+    fgName === "nvim" ||
+    fgName === "vim" ||
+    title.startsWith("nvim:") ||
+    title.startsWith("vim:")
+  );
+}
+
+const CTRL_HEX = { h: "08", j: "0a", k: "0b", l: "0c" };
 
 function findNode(node, id) {
   if (node?.id === id) return node;
@@ -305,7 +353,7 @@ export default class Prefix extends View {
     // 1. Ctrl+Space again -> send literal Ctrl+Space to terminal
     if (ks === "ctrl-space" || (ctrl && key === "space")) {
       if (ctx.terminal) {
-        hc(["keys", ctx.terminal, "ctrl+space"]).finally(() => this.dismiss());
+        sendRawHex(ctx.terminal, "00").finally(() => this.dismiss());
       } else {
         this.dismiss();
       }
@@ -382,11 +430,10 @@ export default class Prefix extends View {
       const allPanes = panes() ?? [];
       const tabPanes = ctx.tab ? allPanes.filter((x) => x.tab === ctx.tab) : allPanes;
       const p = allPanes.find((x) => x.pane === ctx.pane) ?? tabPanes[0] ?? null;
+      const termObj = ctx.terminal ? ((terminals() ?? []).find((x) => x.address === ctx.terminal) ?? null) : null;
       const noRoom = Boolean(tb?.zoomed || p?.zoomed || tabPanes.length <= 1);
-      const progKey = (p?.program?.key ?? "").toLowerCase();
-      const isVim = progKey === "nvim" || progKey === "vim" || (p?.title ?? "").startsWith("nvim:");
-      if (noRoom && isVim && ctx.terminal) {
-        hc(["keys", ctx.terminal, "ctrl+space", `ctrl+${key}`]);
+      if (noRoom && isVimPane(p, termObj) && ctx.terminal && CTRL_HEX[key]) {
+        sendRawHex(ctx.terminal, `00${CTRL_HEX[key]}`, termObj);
       } else {
         run("pane.go", { direction: navDirs[key] });
       }
@@ -498,6 +545,13 @@ export default class Prefix extends View {
 
     // 6. Close bindings (smart-close, confirm-close, close tab, close workspace)
     if (key === "backspace" && !ctrl && !alt && !shift) {
+      const allPanes = panes() ?? [];
+      const p = allPanes.find((x) => x.pane === ctx.pane) ?? null;
+      const termObj = ctx.terminal ? ((terminals() ?? []).find((x) => x.address === ctx.terminal) ?? null) : null;
+      if (isVimPane(p, termObj) && ctx.terminal) {
+        sendRawHex(ctx.terminal, "007f", termObj).finally(() => this.dismiss());
+        return;
+      }
       runDetachedScript(overlayId, "~/.config/herdr/scripts/smart-close.sh", ctx);
       return;
     }
@@ -527,7 +581,7 @@ export default class Prefix extends View {
     }
     if (ks === "ctrl-c" || (ctrl && key === "c" && !alt && !shift)) {
       if (ctx.terminal) {
-        hc(["keys", ctx.terminal, "ctrl+l"]).finally(() => this.dismiss());
+        sendRawHex(ctx.terminal, "0c").finally(() => this.dismiss());
       } else {
         this.dismiss();
       }

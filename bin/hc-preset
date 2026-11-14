@@ -16,6 +16,7 @@ import re
 import shlex
 import shutil
 import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -306,6 +307,120 @@ def hc_rpc(method: str, params: dict[str, Any] | None = None, timeout: float = 5
                   "terminal.rm", "terminal.label", "terminal.keep", "doc.set", "machine.connect"}:
         require_reply(reply, method)
     return reply
+
+
+def encode_key_bytes(key: str) -> bytes | None:
+    k = key.strip()
+    kl = k.lower()
+    named = {
+        "ctrl+space": b"\x00",
+        "ctrl+@": b"\x00",
+        "backspace": b"\x7f",
+        "bs": b"\x7f",
+        "enter": b"\r",
+        "return": b"\r",
+        "tab": b"\t",
+        "esc": b"\x1b",
+        "escape": b"\x1b",
+        "space": b" ",
+        "up": b"\x1b[A",
+        "down": b"\x1b[B",
+        "right": b"\x1b[C",
+        "left": b"\x1b[D",
+        "super+up": b"\x1b[1;9A",
+        "cmd+up": b"\x1b[1;9A",
+        "super+down": b"\x1b[1;9B",
+        "cmd+down": b"\x1b[1;9B",
+        "ctrl+alt+up": b"\x1b[1;7A",
+        "ctrl+alt+down": b"\x1b[1;7B",
+    }
+    if kl in named:
+        return named[kl]
+    if kl.startswith("ctrl+") and len(kl) == 6 and "a" <= kl[5] <= "z":
+        return bytes([ord(kl[5]) - 96])
+    if kl.startswith("alt+") and len(k) == 5:
+        return b"\x1b" + k[4].encode("utf-8")
+    if len(k) == 1:
+        return k.encode("utf-8")
+    return None
+
+
+def hc_send_keys_instant(t_addr: str, keys: list[str], cols: int | None = None, rows: int | None = None) -> bool:
+    """Send keys immediately over a framed terminal.attach stream, bypassing terminal.keys's 3s quiet gate."""
+    pieces: list[bytes] = []
+    for k in keys:
+        enc = encode_key_bytes(k)
+        if enc is None:
+            return False
+        pieces.append(enc)
+    data = b"".join(pieces)
+    if not data:
+        return True
+    sock_path = hc_socket_path()
+    if not sock_path:
+        return False
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(2.0)
+    try:
+        s.connect(sock_path)
+        if not cols or not rows:
+            get_req = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "terminal.get", "params": {"terminal": t_addr}}) + "\n"
+            s.sendall(get_req.encode("utf-8"))
+            line1 = b""
+            while not line1.endswith(b"\n"):
+                chunk = s.recv(4096)
+                if not chunk:
+                    return False
+                line1 += chunk
+            t_info = (json.loads(line1.decode("utf-8", errors="replace")).get("result") or {})
+            cols = int(t_info.get("cols") or 120)
+            rows = int(t_info.get("rows") or 40)
+
+        s.sendall(b'{"jsonrpc":"2.0","id":2,"method":"hello","params":{"framed":true}}\n')
+        line2 = b""
+        while not line2.endswith(b"\n"):
+            chunk = s.recv(4096)
+            if not chunk:
+                return False
+            line2 += chunk
+
+        att_req = json.dumps(
+            {"jsonrpc": "2.0", "id": 3, "method": "terminal.attach", "params": {"terminal": t_addr, "cols": cols, "rows": rows}}
+        ).encode("utf-8")
+        s.sendall(struct.pack("<IBI", 0, 0, len(att_req)) + att_req)
+        term_ch: int | None = None
+        while True:
+            hdr = b""
+            while len(hdr) < 9:
+                chunk = s.recv(9 - len(hdr))
+                if not chunk:
+                    return False
+                hdr += chunk
+            ch, kind, length = struct.unpack("<IBI", hdr)
+            body = b""
+            while len(body) < length:
+                chunk = s.recv(length - len(body))
+                if not chunk:
+                    return False
+                body += chunk
+            if ch == 0 and kind == 0:
+                resp = json.loads(body.decode("utf-8", errors="replace"))
+                if resp.get("id") == 3:
+                    if "error" in resp:
+                        return False
+                    term_ch = (resp.get("result") or {}).get("channel")
+                    break
+        if term_ch is None:
+            return False
+        s.sendall(struct.pack("<IBI", term_ch, 0, len(data)) + data + struct.pack("<IBI", term_ch, 2, 0))
+        return True
+    except Exception:
+        return False
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
 
 
 def herdr_app_rpc(payload: dict[str, Any], timeout: float = 5.0) -> dict[str, Any] | None:
@@ -1024,6 +1139,17 @@ def handle_hc_rpc_compat(method: str, params: dict[str, Any]) -> dict[str, Any]:
         if not p:
             return {"id": "hc-preset", "error": {"code": "pane_not_found", "message": "Pane not found"}}
         return {"id": "hc-preset", "result": {"process_info": inspect_process_info(p)}}
+
+    if method == "pane.send_keys":
+        target = params.get("pane_id")
+        keys = [str(k) for k in (params.get("keys") or [])]
+        p = world.resolve_pane(target, hydrate=False)
+        if not p:
+            return {"id": "hc-preset", "error": {"code": "pane_not_found", "message": "Pane not found"}}
+        t_id = p["terminal_id"]
+        if not hc_send_keys_instant(t_id, keys):
+            hc_rpc("terminal.keys", {"terminal": t_id, "keys": keys})
+        return {"id": "hc-preset", "result": {"type": "ok"}}
 
     if method == "pane.report_metadata":
         p = world.resolve_pane(params.get("pane_id"))
@@ -2065,13 +2191,13 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
         if sub == "send-text":
             if len(args) < 2:
                 return print_err("invalid_args", "pane send-text requires <pane> <text>")
-            p = world.resolve_pane(args[0])
+            p = world.resolve_pane(args[0], hydrate=False)
             t_id = p["terminal_id"] if p else args[0]
             text = args[1]
             # Strip bracketed paste wrappers if caller added them manually
             if text.startswith("\x1b[200~") and text.endswith("\x1b[201~"):
                 text = text[6:-6]
-            # Send characters via terminal.keys so no automatic Enter is appended
+            # Send characters via instant stream or terminal.keys so no automatic Enter is appended
             keys_list: list[str] = []
             for ch in text:
                 if ch == "\n" or ch == "\r":
@@ -2083,14 +2209,16 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                 else:
                     keys_list.append(ch)
             if keys_list:
-                hc_rpc("terminal.keys", {"terminal": t_id, "keys": keys_list})
+                if not hc_send_keys_instant(t_id, keys_list):
+                    hc_rpc("terminal.keys", {"terminal": t_id, "keys": keys_list})
             return print_json({"result": {"type": "ok"}})
         if sub == "send-keys":
             if len(args) < 2:
                 return print_err("invalid_args", "pane send-keys requires <pane> <keys...>")
-            p = world.resolve_pane(args[0])
+            p = world.resolve_pane(args[0], hydrate=False)
             t_id = p["terminal_id"] if p else args[0]
-            hc_rpc("terminal.keys", {"terminal": t_id, "keys": args[1:]})
+            if not hc_send_keys_instant(t_id, args[1:]):
+                hc_rpc("terminal.keys", {"terminal": t_id, "keys": args[1:]})
             return print_json({"result": {"type": "ok"}})
         if sub == "focus":
             direction = None
