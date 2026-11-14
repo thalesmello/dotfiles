@@ -16,6 +16,14 @@ dir="${1:-next}"   # next | prev
 
 herdr=$(herdr_bin) || exit 0
 
+case "$herdr" in
+  *hc-preset)
+    if [ "${HC_PRESET_BACKEND:-}" = "hc" ] || [ -n "${HC_TERMINAL_ID:-}" ]; then
+      exec "$herdr" --backend hc smart-tab-nav "$dir"
+    fi
+    ;;
+esac
+
 target=$(
   { "$herdr" workspace list 2>/dev/null; "$herdr" tab list 2>/dev/null; } | jq -rs --arg dir "$dir" '
     ((.[0].result // .[0]).workspaces // []) as $ws

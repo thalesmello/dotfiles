@@ -118,6 +118,63 @@ class ErrorTests(unittest.TestCase):
         self.assertEqual(p1["agent_status"], "blocked")
         self.assertEqual(p2["agent_status"], "blocked")
 
+    def test_print_json_is_compact_for_sed_parsers(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            adapter.print_json({"result": {"pane": {"pane_id": "p123"}}})
+        self.assertIn('"pane_id":"p123"', buf.getvalue())
+
+    def test_do_space_new_inherits_focused_cwd_and_machine(self):
+        world = Mock()
+        world.resolve_pane.return_value = {"foreground_cwd": "/Users/test/src/repo", "cwd": "/Users/test"}
+        world.workspaces = [{"workspace_id": "ws1", "focused": True, "machine": "devserver", "cwd": "/Users/test"}]
+        with patch.object(adapter, "HcWorld", return_value=world), \
+                patch.object(adapter, "herdr_app_do", return_value={"space": "sp2"}) as do_mock, \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(adapter.main(["--backend", "hc", "do", "space.new"]), 0)
+            do_mock.assert_called_once_with(
+                "space.new",
+                {"machine": "devserver", "folder": "/Users/test/src/repo"},
+            )
+
+    def test_popup_open_exports_extra_env_and_prints_result(self):
+        world = Mock()
+        world.resolve_pane.return_value = {
+            "pane_id": "p1",
+            "tab_id": "tb1",
+            "workspace_id": "ws1",
+            "terminal_id": "t1",
+            "foreground_cwd": "/tmp",
+            "cwd": "/tmp",
+        }
+        proc_res = Mock(returncode=0, stdout='{"address":"t99"}')
+        buf = io.StringIO()
+        with patch.object(adapter, "resolve_plugin_entrypoint_command", return_value="/bin/true"), \
+                patch.object(adapter, "HcWorld", return_value=world), \
+                patch.object(adapter, "hc_bin", return_value="/bin/hc"), \
+                patch.object(adapter.subprocess, "run", return_value=proc_res) as run_mock, \
+                patch.object(adapter, "save_json_file"), \
+                patch.object(adapter, "herdr_app_do", return_value={"ok": True}), \
+                contextlib.redirect_stdout(buf):
+            rc = adapter.handle_popup_open("hc", "confirm-close", "confirm", "64", "9", ["ASCONFIRMCLOSE_PANE_ID=p1"])
+        self.assertEqual(rc, 0)
+        self.assertIn('"pane_id":"t99"', buf.getvalue())
+        cmd_line = run_mock.call_args[0][0][-1]
+        self.assertIn("ASCONFIRMCLOSE_PANE_ID=p1", cmd_line)
+
+    def test_fast_pane_visible_unwrap_uses_terminal_get_and_read(self):
+        env = {"HERDR_ACTIVE_PANE_ID": "p1", "HERDR_ACTIVE_TERMINAL_ID": "t19"}
+        t_resp = {"result": {"cols": 20, "foreground": {"name": "pi"}}}
+        r_resp = {"result": {"text": "01234567890123456789\n/foo/bar rest\n"}}
+        buf = io.StringIO()
+        with patch.dict(os.environ, env, clear=True), \
+                patch.object(adapter, "hc_rpc", side_effect=[t_resp, r_resp]) as rpc_mock, \
+                contextlib.redirect_stdout(buf):
+            rc = adapter.fast_hc_pane_visible_unwrap(["p1"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(buf.getvalue(), "01234567890123456789/foo/bar\nrest\n")
+        self.assertEqual(rpc_mock.call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -258,10 +258,49 @@ class HerdrRunner:
         return result
 
     def cli(self, *args: str) -> dict[str, Any]:
+        target_bin = self.bin_path or herdr_bin()
+        if os.path.basename(target_bin) == "hc-preset" and os.path.isfile(target_bin):
+            import contextlib
+            import importlib.machinery
+            import importlib.util
+            import io
+
+            mod = getattr(HerdrRunner, "_hc_preset_mod", None)
+            if mod is None or getattr(HerdrRunner, "_hc_preset_path", None) != target_bin:
+                loader = importlib.machinery.SourceFileLoader("_hc_preset_inline", target_bin)
+                spec = importlib.util.spec_from_loader(loader.name, loader)
+                if spec is not None:
+                    mod = importlib.util.module_from_spec(spec)
+                    loader.exec_module(mod)
+                    HerdrRunner._hc_preset_mod = mod  # type: ignore[attr-defined]
+                    HerdrRunner._hc_preset_path = target_bin  # type: ignore[attr-defined]
+            if mod is not None:
+                out_buf = io.StringIO()
+                err_buf = io.StringIO()
+                with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):
+                    rc = mod.main(list(args))
+                out = out_buf.getvalue().strip()
+                if out:
+                    try:
+                        env = json.loads(out.splitlines()[-1])
+                        if isinstance(env, dict):
+                            err = env.get("error")
+                            if isinstance(err, dict):
+                                raise CliError(str(err.get("code") or "error"), str(err.get("message") or ""))
+                            result = env.get("result")
+                            if isinstance(result, dict):
+                                return result
+                    except ValueError:
+                        pass
+                if rc != 0:
+                    msg = err_buf.getvalue().strip() or out or f"exit status {rc}"
+                    raise RuntimeError(f"herdr {' '.join(args)}: {msg}")
+                raise RuntimeError("herdr response has no result")
+
         import subprocess
 
         proc = subprocess.run(
-            [self.bin_path or herdr_bin(), *args],
+            [target_bin, *args],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
