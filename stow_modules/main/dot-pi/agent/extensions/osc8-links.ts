@@ -1831,6 +1831,9 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 	mdProto.render = function (this: typeof mdProto, width: number): string[] {
 		enableOsc8Hyperlinks(tui);
 		const cacheHolder = this as unknown as {
+			text?: string;
+			cachedText?: string;
+			cachedWidth?: number;
 			cachedLines?: string[];
 			cachedTokens?: unknown;
 			_osc8Gen?: number;
@@ -1839,6 +1842,13 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 			cacheHolder.cachedLines = undefined;
 			cacheHolder.cachedTokens = undefined;
 			cacheHolder._osc8Gen = state.generation;
+		}
+		if (
+			cacheHolder.cachedLines &&
+			cacheHolder.cachedText === cacheHolder.text &&
+			cacheHolder.cachedWidth === width
+		) {
+			return cacheHolder.cachedLines;
 		}
 		const origTransform = this.options.transform;
 		this.options.transform = (text: string, contentWidth: number) => {
@@ -2234,14 +2244,43 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 
 	tui.TruncatedText.prototype.render = function (this: piTui.TruncatedText, width: number): string[] {
 		enableOsc8Hyperlinks(tui);
-		const textHolder = this as unknown as { text: string };
+		const textHolder = this as unknown as {
+			text: string;
+			paddingX?: number;
+			paddingY?: number;
+			_osc8CachedText?: string;
+			_osc8CachedWidth?: number;
+			_osc8CachedPaddingX?: number;
+			_osc8CachedPaddingY?: number;
+			_osc8CachedLines?: string[];
+			_osc8Gen?: number;
+		};
+		if (textHolder._osc8Gen !== state.generation) {
+			textHolder._osc8CachedLines = undefined;
+			textHolder._osc8Gen = state.generation;
+		}
 		const rawText = textHolder.text;
 		if (!rawText) {
 			return state.origTruncatedTextRender.call(this, width);
 		}
+		if (
+			textHolder._osc8CachedLines &&
+			textHolder._osc8CachedText === rawText &&
+			textHolder._osc8CachedWidth === width &&
+			textHolder._osc8CachedPaddingX === textHolder.paddingX &&
+			textHolder._osc8CachedPaddingY === textHolder.paddingY
+		) {
+			return textHolder._osc8CachedLines;
+		}
 		textHolder.text = linkifyAnsiTextUrls(rawText);
 		try {
-			return state.origTruncatedTextRender.call(this, width);
+			const lines = state.origTruncatedTextRender.call(this, width);
+			textHolder._osc8CachedText = rawText;
+			textHolder._osc8CachedWidth = width;
+			textHolder._osc8CachedPaddingX = textHolder.paddingX;
+			textHolder._osc8CachedPaddingY = textHolder.paddingY;
+			textHolder._osc8CachedLines = lines;
+			return lines;
 		} finally {
 			textHolder.text = rawText;
 		}

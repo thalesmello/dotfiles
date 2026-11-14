@@ -661,11 +661,14 @@ let inPatchedRender = false;
  */
 function attachOpenTuiFrameBlockId(lines: string[], code: string): string[] | undefined {
 	if (lines.length === 0) return undefined;
-	const firstPlain = stripTerminalSequences(lines[0] ?? "").trimStart();
+	const topLine = lines[0]!;
+	// When open-tui's own copy-buttons patch produced this frame, it already
+	// embedded its APC marker and owns click + "Copied" state for the block.
+	if (topLine.includes("\x1b_open-tui:cb:")) return lines;
+	const firstPlain = stripTerminalSequences(topLine).trimStart();
 	if (!firstPlain.startsWith("╭─") || !firstPlain.endsWith("╮")) return undefined;
 	const state = getPatchState();
 	const id = registerBlock(state, code);
-	const topLine = lines[0]!;
 	const existingLabel = topLine.includes(COPY_BUTTON_LABEL)
 		? COPY_BUTTON_LABEL
 		: topLine.includes(OPEN_TUI_COPY_BUTTON_LABEL)

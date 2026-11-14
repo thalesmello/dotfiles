@@ -440,7 +440,13 @@ export function installCopyButtons(options: {
 			try {
 				let lines = run();
 				if (state.lines === lines) return applyMarkdownCopied(state, lines);
-				if (state.lines !== undefined && state.descriptors.size > 0 && !lines.some((line) => line.includes(markerPrefix))) {
+				if (state.descriptors.size === 0) {
+					cancelStalePress(this, []);
+					state.lines = lines;
+					state.regions = [];
+					return lines;
+				}
+				if (state.lines !== undefined && !lines.some((line) => line.includes(markerPrefix))) {
 					return applyMarkdownCopied(state, lines);
 				}
 				// A retained native block can outlive its description after a renderer change.
