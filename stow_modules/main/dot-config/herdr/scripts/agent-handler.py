@@ -62,11 +62,18 @@ WORKSPACE_STATUS_TOKENS = (
 )
 # Rotating half-circle spinner for working agents (matches symbols mode's ◐).
 WORKING_FRAMES = ["◐", "◓", "◑", "◒"]
-# Pi's titlebar-spinner example uses an 80ms frame interval.
-ANIMATION_SECS = 0.08
+# 250ms (4 fps) keeps the sidebar spinner smooth without flooding Herdr/ET with 12.5 Hz redraw RPCs.
+ANIMATION_SECS = 0.25
 # Refresh agent.list at most once per second during continuous spinner animation
 # unless woken immediately by an event hook (SIGUSR1) or state file change.
 AGENT_LIST_REFRESH_SECS = 1.0
+# On Linux, periodically check for detached `herdr` TUI clients that are stuck
+# in kernel `wait_woken` (writing to an unattached `etterminal` PTY whose buffer
+# filled up). Those clients stop reading `herdr-client.sock`, causing
+# `herdr server` to buffer rendered frames in memory/swap unboundedly.
+CLIENT_REAP_INTERVAL_SECS = 15.0
+CLIENT_STALL_TIMEOUT_SECS = 30.0
+CLIENT_TTY_IDLE_SECS = 60.0
 # Nerd Fonts Material Design email (nf-md-email), used as the manual unread
 # marker in the status slot. It reads larger than Font Awesome's envelope.
 # Falls back to tofu only if the outer terminal font is not a Nerd Font.
@@ -987,6 +994,68 @@ def drain_fd(fd: int) -> None:
             break
 
 
+def reap_stalled_herdr_clients(
+    stalled_since: dict[int, float],
+    now: float | None = None,
+) -> list[int]:
+    """Terminate local `herdr` TUI clients stuck writing to a dead PTY (`wait_woken`)."""
+    if not sys.platform.startswith("linux"):
+        return []
+    if now is None:
+        now = time.monotonic()
+    wall_now = time.time()
+    uid = os.getuid()
+    my_pid = os.getpid()
+    seen_stalled: set[int] = set()
+    reaped: list[int] = []
+
+    try:
+        entries = os.listdir("/proc")
+    except OSError:
+        return []
+
+    for name in entries:
+        if not name.isdigit():
+            continue
+        pid = int(name)
+        if pid == my_pid:
+            continue
+        proc_dir = f"/proc/{name}"
+        try:
+            if os.stat(proc_dir).st_uid != uid:
+                continue
+            comm = Path(f"{proc_dir}/comm").read_text(encoding="utf-8", errors="ignore").strip()
+            if comm != "herdr":
+                continue
+            cmdline = Path(f"{proc_dir}/cmdline").read_bytes().split(b"\x00")
+            args = [a.decode("utf-8", errors="ignore") for a in cmdline if a]
+            if not args or "server" in args[1:]:
+                continue
+            wchan = Path(f"{proc_dir}/wchan").read_text(encoding="utf-8", errors="ignore").strip()
+            if "wait_woken" not in wchan and "n_tty_write" not in wchan:
+                continue
+            tty_mtime = os.stat(f"{proc_dir}/fd/0").st_mtime
+            if (wall_now - tty_mtime) < CLIENT_TTY_IDLE_SECS:
+                continue
+        except OSError:
+            continue
+
+        seen_stalled.add(pid)
+        first_seen = stalled_since.setdefault(pid, now)
+        if (now - first_seen) >= CLIENT_STALL_TIMEOUT_SECS:
+            try:
+                os.kill(pid, signal.SIGTERM)
+                reaped.append(pid)
+                stalled_since.pop(pid, None)
+            except OSError:
+                pass
+
+    for pid in list(stalled_since):
+        if pid not in seen_stalled:
+            stalled_since.pop(pid, None)
+    return reaped
+
+
 def daemon_loop() -> int:
     sdir = state_dir()
     lock_path = sdir / "daemon.lock"
@@ -1058,11 +1127,13 @@ def daemon_loop() -> int:
     home_workspaces: set[str] = set()
     last_focused_agent: dict[str, Any] | None = None
     last_fetch_at = 0.0
+    last_reap_at = 0.0
+    stalled_clients: dict[int, float] = {}
     force_refresh = True
+    has_working = False
     frame = 0
 
     while True:
-        has_working = False
         try:
             cur_script_mtime = file_mtime_ns(script_path) or 0
             if script_mtime and cur_script_mtime != script_mtime:
@@ -1098,11 +1169,15 @@ def daemon_loop() -> int:
                 force_refresh = True
 
             now = time.monotonic()
+            if (now - last_reap_at) >= CLIENT_REAP_INTERVAL_SECS:
+                reap_stalled_herdr_clients(stalled_clients, now)
+                last_reap_at = now
+
             refreshing = (
                 force_refresh
                 or agents is None
                 or workspaces is None
-                or (now - last_fetch_at) >= AGENT_LIST_REFRESH_SECS
+                or (has_working and (now - last_fetch_at) >= AGENT_LIST_REFRESH_SECS)
             )
             check_view = force_refresh
             if refreshing:
@@ -1126,8 +1201,9 @@ def daemon_loop() -> int:
                     ws_cache.clear()
                     cache.clear()
                     view_active = None
+                    has_working = False
 
-            if workspaces is not None and agents is not None:
+            if (refreshing or has_working) and workspaces is not None and agents is not None:
                 home_workspaces, ws_working = sync_workspaces(
                     workspaces, agents, frame, ws_cache
                 )
@@ -1156,13 +1232,15 @@ def daemon_loop() -> int:
                     if sync_view(want_view):
                         view_active = want_view
 
-            frame = (frame + 1) % len(WORKING_FRAMES)
+                if has_working:
+                    frame = (frame + 1) % len(WORKING_FRAMES)
         except Exception:
             ws_cache.clear()
             cache.clear()
             workspaces = None
             agents = None
             view_active = None
+            has_working = False
 
         timeout = ANIMATION_SECS if has_working else (1.0 if agents is None else None)
         if kq is not None:
