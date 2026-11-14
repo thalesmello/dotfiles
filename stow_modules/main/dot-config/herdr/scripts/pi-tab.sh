@@ -19,8 +19,9 @@ name=$PROMPT_LINE
 [ -n "$name" ] || name=pi
 
 new=$("$herdr" tab create --label "$name" --focus \
-  | sed -n 's/.*"pane_id":"\([^"]*\)".*/\1/p' | head -1)
+  | sed -n 's/.*"pane_id":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
 [ -n "$new" ] || exit 1
 
 # exec so leaving Pi closes the tab instead of dropping back to fish.
 "$herdr" pane run "$new" exec pi
+(sleep 0.15; "$herdr" agent focus "$new" >/dev/null 2>&1) </dev/null >/dev/null 2>&1 &

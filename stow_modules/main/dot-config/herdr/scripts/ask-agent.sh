@@ -979,4 +979,8 @@ if [ "$category" = quick ] && [ "$agent" != codex ]; then
   append_quick_log "$session_id"
 fi
 
+if [ "$create_focus" = --focus ]; then
+  (sleep 0.15; "$herdr" agent focus "$pane" >/dev/null 2>&1) </dev/null >/dev/null 2>&1 &
+fi
+
 printf 'asked %s\n' "$slug"

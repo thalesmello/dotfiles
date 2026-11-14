@@ -70,7 +70,7 @@ if [ -n "$active_pane" ]; then
   export HERDR_ACTIVE_PANE_ID="$active_pane"
   unset HERDR_PANE_ID
   pane_cwd=$("$herdr" pane get "$active_pane" 2>/dev/null \
-    | sed -n 's/.*"foreground_cwd":"\([^"]*\)".*/\1/p' | head -1)
+    | sed -n 's/.*"foreground_cwd":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
   [ -n "$pane_cwd" ] && cd "$pane_cwd" 2>/dev/null
 fi
 

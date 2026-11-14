@@ -143,7 +143,7 @@ except Exception: pass')
     split_out=$("$herdr" pane split "$src" --direction right --focus \
         --env "HERDR_BIN_PATH=$herdr" 2>&1)
     new=$(printf '%s' "$split_out" \
-        | sed -n 's/.*"pane_id":"\([^"]*\)".*/\1/p' | head -1)
+        | sed -n 's/.*"pane_id":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
     [ -n "$new" ] || { rm -f "$snap"; herdr_die "pick-selection" \
         "pane split failed: $split_out"; }
 
@@ -165,6 +165,9 @@ fi
 # back on the pane the picks came from. Unless the action moved focus somewhere
 # deliberate -- `open` on a file lands nvim in its own split, and stealing that
 # back would be worse than not focusing at all -- which is what refocus=0 marks.
+self_pane=${HERDR_PANE_ID:-}
+HERDR_ACTIVE_PANE_ID=$pane
+export HERDR_ACTIVE_PANE_ID
 refocus=1
 focused_pane() {
     "$herdr" pane layout --pane "$pane" 2>/dev/null | python3 -c \
@@ -174,6 +177,7 @@ except Exception: pass'
 }
 focus_source() {
     [ "$refocus" = 1 ] || return 0
+    [ -n "${HERDR_PANE_ID:-}" ] || return 0
     "$herdr" agent focus "$pane" >/dev/null 2>&1
 }
 trap focus_source EXIT
@@ -270,6 +274,7 @@ open)
     # open-selection is the fallback for an untyped pick (rxpick only omits
     # the type in unnamed mode, which pick-selections never uses) and re-derives
     # the name from the text.
+    before_open=$(focused_pane)
     case "$pick_type" in
     url|implicit_url)
         relay_url=$match
@@ -298,8 +303,9 @@ open)
     # leave it there; anything else (a url in Chrome) leaves herdr's focus on
     # this split, which is about to close.
     now=$(focused_pane)
-    if [ -n "$now" ] && [ -n "$HERDR_PANE_ID" ] && [ "$now" != "$HERDR_PANE_ID" ]; then
+    if [ -n "$now" ] && [ "$now" != "${before_open:-$self_pane}" ]; then
         refocus=0
+        (sleep 0.15; "$herdr" agent focus "$now" >/dev/null 2>&1) </dev/null >/dev/null 2>&1 &
     fi
     ;;
 copy)
@@ -311,6 +317,9 @@ copy)
 
     b64=$(printf '%s' "$picks" | base64 | tr -d '\r\n')
     printf '\033]52;c;%s\007' "$b64"
+    if [ -z "${SSH_CONNECTION:-}" ] && command -v pbcopy >/dev/null 2>&1; then
+        printf '%s' "$picks" | pbcopy
+    fi
     ;;
 *)
     herdr_die "pick-selection" "unknown mode '$mode' (expected open or copy)"

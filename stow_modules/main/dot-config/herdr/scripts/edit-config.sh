@@ -45,7 +45,7 @@ self=$(cd "$(dirname "$0")" 2>/dev/null && pwd)/$(basename "$0")
 split_out=$("$herdr" pane split "$pane" --direction right --ratio 0.5 --focus \
     --env "HERDR_BIN_PATH=$herdr" 2>&1)
 new=$(printf '%s' "$split_out" \
-    | sed -n 's/.*"pane_id":"\([^"]*\)".*/\1/p' | head -1)
+    | sed -n 's/.*"pane_id":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
 [ -n "$new" ] || herdr_die "edit-config" "pane split failed: $split_out"
 
 "$herdr" pane zoom "$new" --on >/dev/null 2>&1

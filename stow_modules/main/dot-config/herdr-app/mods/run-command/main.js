@@ -6,15 +6,23 @@ import { panes, focused, spaces, home, hc, openOverlay, closeOverlay, props } fr
 export default class RunCommand extends View {
   init(_props, cx) {
     const f = focused() ?? {};
-    const allPanes = panes() ?? [];
-    const p = allPanes.find((x) => x.pane === f.pane) ?? allPanes.find((x) => x.focused) ?? allPanes[0] ?? null;
     const sp = (spaces() ?? []).find((s) => s.active) ?? null;
     const tb = sp?.tabs?.find((t) => t.active) ?? null;
+    const tabId = tb?.id ?? f.tab ?? "";
+    const allPanes = panes() ?? [];
+    const tabPanes = tabId ? allPanes.filter((x) => x.tab === tabId) : allPanes;
+    const p =
+      allPanes.find((x) => f.pane && x.pane === f.pane) ??
+      tabPanes.find((x) => x.focused) ??
+      allPanes.find((x) => x.focused) ??
+      tabPanes[0] ??
+      allPanes[0] ??
+      null;
     const cwd = p?.cwd ?? f.cwd ?? sp?.folder ?? home();
     const env = [
       `HC_PRESET_BACKEND="hc"`,
       `HERDR_ACTIVE_PANE_ID=${JSON.stringify(p?.pane ?? f.pane ?? "")}`,
-      `HERDR_ACTIVE_TAB_ID=${JSON.stringify(tb?.id ?? f.tab ?? "")}`,
+      `HERDR_ACTIVE_TAB_ID=${JSON.stringify(tabId)}`,
       `HERDR_ACTIVE_WORKSPACE_ID=${JSON.stringify(sp?.id ?? f.space ?? "")}`,
       `HC_TERMINAL_ID=${JSON.stringify(p?.terminal ?? f.terminal ?? "")}`,
     ].join(" ");
@@ -22,7 +30,7 @@ export default class RunCommand extends View {
     cx.spawn(async () => {
       try {
         const cmd = `export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" ${env}; ~/.config/herdr/scripts/run-command.sh`;
-        const r = await hc(["run", "--bg", "--rm", "--no-notify", "--cwd", cwd, "--", "sh", "-c", cmd]);
+        const r = await hc(["run", "--bg", "--rm", "--no-notify", "--json", "--cwd", cwd, "--", "sh", "-c", cmd]);
         closeOverlay(props().overlay);
         if (r.code === 0 && r.stdout) {
           const data = JSON.parse(r.stdout);

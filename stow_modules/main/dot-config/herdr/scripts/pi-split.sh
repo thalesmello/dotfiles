@@ -16,7 +16,7 @@ pane=$(herdr_current_pane)
 [ -n "$pane" ] || exit 1
 
 new=$("$herdr" pane split "$pane" --direction right --ratio 0.6 --focus \
-  | sed -n 's/.*"pane_id":"\([^"]*\)".*/\1/p' | head -1)
+  | sed -n 's/.*"pane_id":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
 [ -n "$new" ] || exit 1
 
 # exec so leaving Pi closes the pane instead of dropping back to fish.
