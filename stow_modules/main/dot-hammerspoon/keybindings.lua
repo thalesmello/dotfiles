@@ -473,7 +473,7 @@ function M.setup()
   end
 
   local function isHerdrApp()
-    return focusedWindowAppName() == "Herdr"
+    return Preset.isHerdrAppWindow()
   end
 
   -- True when Ghostty is frontmost, OR its quick (floating) terminal is focused.
@@ -517,11 +517,8 @@ function M.setup()
     local isCtrlTab = flags.ctrl and not flags.cmd and not flags.alt and code == hs.keycodes.map["tab"]
     if isCtrlTab then
       local focused = hs.window.focusedWindow()
-      local appName = focused and focused:application() and focused:application():name()
-      if appName == "Herdr" then
-        GhosttyPreset.focusTabWithFallback(flags.shift and "prev" or "next")
-        return true
-      end
+      local app = (focused and focused:application()) or hs.application.frontmostApplication()
+      local appName = app and app:name()
       if appName ~= "Ghostty" or not GhosttyPreset.isHerdrWindow() then return false end
       Preset.sendKeys({"ctrl", "space"})
       Preset.sendKeys({flags.shift and "leftbracket" or "rightbracket"})
@@ -565,8 +562,13 @@ function M.setup()
     local isDown = code == hs.keycodes.map["down"] and not flags.shift
     if not (isD or isT or isN or isPrevTab or isNextTab or isW or isB or isZoom or isUp or isDown or digit) then return false end
     local focused = hs.window.focusedWindow()
-    local appName = focused and focused:application() and focused:application():name()
-    local isGhosttyOrHerdrWindow = (appName == "Ghostty" or appName == "Herdr")
+    local app = (focused and focused:application()) or hs.application.frontmostApplication()
+    local appName = app and app:name()
+    -- In Herdr.app, keys.json + in-process mods handle splits, tabs, spaces,
+    -- smart-close (cmd+w), smart-scroll (cmd+up/down), sidebar, zoom, and
+    -- indexed selection natively with zero subprocess latency.
+    if appName == "Herdr" then return false end
+    local isGhosttyOrHerdrWindow = (appName == "Ghostty")
     -- close-pane-with-fallback drives keybinds only (no `front window`
     -- AppleScript), so unlike the split/tab fallbacks it works in the quick
     -- terminal too -- accept it there as well.

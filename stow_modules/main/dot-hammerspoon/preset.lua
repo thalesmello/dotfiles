@@ -380,8 +380,7 @@ end
 
 function M.isHerdrAppWindow()
   local win = hs.window.focusedWindow()
-  if not win then return false end
-  local app = win:application()
+  local app = (win and win:application()) or hs.application.frontmostApplication()
   return app ~= nil and app:name() == "Herdr"
 end
 

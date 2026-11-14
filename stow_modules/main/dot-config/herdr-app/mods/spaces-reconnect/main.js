@@ -5,7 +5,113 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
+import { spaces, machines, panes, focused, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, nextCommand, window, layout } from "herdr";
+
+function smartTabNav(dir) {
+  const allSpaces = spaces() ?? [];
+  const ring = [];
+  for (const sp of allSpaces) {
+    for (const tb of sp.tabs ?? []) {
+      ring.push({ spaceId: sp.id, tabId: tb.id, active: Boolean(sp.active && tb.active) });
+    }
+  }
+  if (ring.length === 0) return;
+  const idx = ring.findIndex((x) => x.active);
+  if (idx < 0) return;
+  const step = dir === "prev" ? -1 : 1;
+  const target = ring[(idx + step + ring.length) % ring.length];
+  if (target.spaceId !== ring[idx].spaceId) {
+    run("space.select", { id: target.spaceId });
+  }
+  run("tab.select", { id: target.tabId });
+}
+
+function activePaneContext() {
+  const f = focused() ?? {};
+  const sp = (spaces() ?? []).find((s) => s.active) ?? null;
+  const tb = sp?.tabs?.find((t) => t.active) ?? null;
+  const tabId = tb?.id ?? f.tab ?? "";
+  const allPanes = panes() ?? [];
+  const tabPanes = tabId ? allPanes.filter((x) => x.tab === tabId) : allPanes;
+  const p =
+    allPanes.find((x) => f.pane && x.pane === f.pane) ??
+    tabPanes.find((x) => x.focused) ??
+    allPanes.find((x) => x.focused) ??
+    tabPanes[0] ??
+    allPanes[0] ??
+    null;
+  return { f, sp, tb, tabId, tabPanes, p };
+}
+
+function openNewTabPrompt() {
+  const { f, sp, p } = activePaneContext();
+  const space = sp?.id ?? f.space ?? "";
+  const folder = p?.cwd ?? f.cwd ?? sp?.folder ?? "";
+  openOverlay({
+    mod: "prompt",
+    kind: "dialog",
+    width: 420,
+    props: {
+      title: "New Tab",
+      command: {
+        name: "tab.new",
+        args: {
+          ...(space ? { space } : {}),
+          ...(folder ? { folder } : {}),
+        },
+      },
+    },
+  });
+}
+
+function smartPaneNav(dir, letter) {
+  const { tb, tabPanes, p } = activePaneContext();
+  const noRoom = Boolean(tb?.zoomed || p?.zoomed || tabPanes.length <= 1);
+  const progKey = (p?.program?.key ?? "").toLowerCase();
+  const isVim = progKey === "nvim" || progKey === "vim" || (p?.title ?? "").startsWith("nvim:");
+  if (noRoom && isVim && p?.terminal) {
+    hc(["keys", p.terminal, "ctrl+space", `ctrl+${letter}`]);
+  } else {
+    run("pane.go", { direction: dir });
+  }
+}
+
+function smartScroll(to) {
+  const { f, p } = activePaneContext();
+  const term = p?.terminal ?? f.terminal ?? null;
+  const progKey = (p?.program?.key ?? "").toLowerCase();
+  const title = p?.title ?? "";
+  const shouldForward =
+    Boolean(p?.status || p?.app || p?.program?.agent) ||
+    ["pi", "nvim", "vim", "less"].includes(progKey) ||
+    title.includes("herdr") ||
+    title.startsWith("nvim:") ||
+    title.startsWith("π ");
+  if (shouldForward && term) {
+    hc(["keys", term, to === "top" ? "super+up" : "super+down"]);
+  } else {
+    run("terminal.scroll", { to, ...(term ? { terminal: term } : {}) });
+  }
+}
+
+function smartClose() {
+  const { f, sp, tabId, p } = activePaneContext();
+  const progKey = (p?.program?.key ?? "").toLowerCase();
+  const isVim = progKey === "nvim" || progKey === "vim" || (p?.title ?? "").startsWith("nvim:");
+  if (isVim && p?.terminal) {
+    hc(["keys", p.terminal, "ctrl+space", "backspace"]);
+    return;
+  }
+  const env = [
+    `HC_PRESET_BACKEND="hc"`,
+    `HERDR_ACTIVE_PANE_ID=${JSON.stringify(p?.pane ?? f.pane ?? "")}`,
+    `HERDR_ACTIVE_TAB_ID=${JSON.stringify(tabId)}`,
+    `HERDR_ACTIVE_WORKSPACE_ID=${JSON.stringify(sp?.id ?? f.space ?? "")}`,
+    `HC_TERMINAL_ID=${JSON.stringify(p?.terminal ?? f.terminal ?? "")}`,
+  ].join(" ");
+  const inner = `export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" ${env}; ~/.config/herdr/scripts/smart-close.sh`;
+  exec("sh", ["-c", `nohup sh -c ${JSON.stringify(inner)} >/dev/null 2>&1 </dev/null &`]);
+}
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -71,6 +177,21 @@ export default class Spaces extends View {
     cx.timer.every(15000, cx => this.refreshMachines(cx));
     // Refresh only when the refs could have changed (see `due`).
     cx.timer.every(250, (cx) => this.checkNew(cx));
+    cx.spawn(async () => {
+      for (;;) {
+        const cmd = await nextCommand();
+        if (cmd === "tab_next") smartTabNav("next");
+        else if (cmd === "tab_prev") smartTabNav("prev");
+        else if (cmd === "tab_new") openNewTabPrompt();
+        else if (cmd === "pane_left") smartPaneNav("left", "h");
+        else if (cmd === "pane_down") smartPaneNav("down", "j");
+        else if (cmd === "pane_up") smartPaneNav("up", "k");
+        else if (cmd === "pane_right") smartPaneNav("right", "l");
+        else if (cmd === "scroll_top") smartScroll("top");
+        else if (cmd === "scroll_bottom") smartScroll("bottom");
+        else if (cmd === "smart_close") smartClose();
+      }
+    });
   }
 
   checkNew(cx) {

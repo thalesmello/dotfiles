@@ -269,8 +269,8 @@ end
 function M.newTabWithFallback()
   log("newTabWithFallback")
   if isHerdrApp() then
-    log("  -> route: herdr-app tab.new")
-    runHcPreset({"do", "tab.new"})
+    log("  -> route: herdr-app tab-new-prompt")
+    runHcPreset({"tab-new-prompt"})
   elseif M.isMultiplexerWindow() then
     if isMoshMode() then
       log("  -> route: multiplexer (mosh prefix)")
@@ -492,8 +492,8 @@ function M.focusPaneWithFallback(direction)
   if not fallbackKey then return false end
   log("focusPaneWithFallback " .. direction)
   if isHerdrApp() then
-    log("  -> route: herdr-app smart-pane-nav " .. direction)
-    runHcScript("smart-pane-nav.sh", {direction, fallbackKey})
+    log("  -> route: herdr-app in-process ctrl+alt+" .. fallbackKey)
+    sendKeyToTerminal({"ctrl", "alt", fallbackKey})
   elseif M.isMultiplexerAppZoomedOrSingleSurface() then
     if isMoshMode() then
       -- Old prefix sequence: prefix, then ctrl+<hjkl>.
