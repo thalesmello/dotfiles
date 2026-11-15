@@ -166,6 +166,8 @@ export default class Spaces extends View {
     // Spaces made while this runs wait (at most a moment) for their git, so a
     // worktree appears under its repo instead of jumping there.
     this.shown = new Set(spaces().map((s) => s.id));
+    this.shownPanes = new Set((panes() ?? []).map((p) => p.pane).filter(Boolean));
+    this.pendingFocus = null;
     this.born = {};
     this.pressed = null;
     this.over = null;
@@ -197,8 +199,25 @@ export default class Spaces extends View {
   checkNew(cx) {
     const now = Date.now();
     const sp = spaces();
+    const ps = panes();
     for (const s of sp) if (!this.shown.has(s.id)) this.born[s.id] ??= now;
-    const due = this.due(now, sp, panes());
+    for (const p of ps) {
+      if (p.pane && !this.shownPanes.has(p.pane)) {
+        this.shownPanes.add(p.pane);
+        if (typeof p.pane === "string" && p.pane.startsWith("pf")) {
+          this.pendingFocus = { pane: p.pane, until: now + 2500 };
+          run("pane.focus", { pane: p.pane });
+        }
+      }
+    }
+    if (this.pendingFocus) {
+      if (now > this.pendingFocus.until) {
+        this.pendingFocus = null;
+      } else if (ps.some((p) => p.pane === this.pendingFocus.pane && !p.focused)) {
+        run("pane.focus", { pane: this.pendingFocus.pane });
+      }
+    }
+    const due = this.due(now, sp, ps);
     if (due.size) this.refreshGit(due, cx);
     if (sp.some((s) => !this.shown.has(s.id)) || this.orderingDue(now)) cx.notify();
   }

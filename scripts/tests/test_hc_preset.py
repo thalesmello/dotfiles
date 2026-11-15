@@ -36,6 +36,11 @@ class BackendTests(unittest.TestCase):
             self.assertEqual(adapter.detect_backend(), "hc")
             self.assertEqual(adapter.detect_backend("herdr"), "herdr")
 
+    def test_core_helper_compatibility_active_pane_stays_hc_without_legacy_env(self):
+        env = {"HERDR_ACTIVE_PANE_ID": "p123", "HC_TERMINAL_ID": "t3", "HC_TERMINAL_SOCKET": "/tmp/core.sock"}
+        with patch.dict(os.environ, env, clear=True):
+            self.assertEqual(adapter.detect_backend(), "hc")
+
     def test_core_terminal(self):
         with patch.dict(os.environ, {"HC_TERMINAL_ID": "t3"}, clear=True):
             self.assertEqual(adapter.detect_backend(), "hc")
@@ -174,6 +179,102 @@ class ErrorTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(buf.getvalue(), "01234567890123456789/foo/bar\nrest\n")
         self.assertEqual(rpc_mock.call_count, 2)
+
+    def test_doc_fallback_derives_workspace_label_and_matches_remote_terminal_ids(self):
+        def fake_hc_rpc(method, params=None, timeout=5.0):
+            if method == "terminal.list":
+                return {
+                    "result": {
+                        "terminals": [
+                            {
+                                "address": "t8",
+                                "state": "live",
+                                "cwd": "/home/user/src",
+                                "foreground": {"name": "pi", "cwd": "/home/user/src", "pid": 99},
+                                "labels": {"herdr.space": "sp1", "herdr.tab": "tb1", "where": "src / test"},
+                            }
+                        ]
+                    }
+                }
+            if method == "doc.get":
+                return {
+                    "result": {
+                        "version": 3,
+                        "value": {
+                            "spaces": [
+                                {
+                                    "id": "sp1",
+                                    "name": "",
+                                    "folder": "/home/user",
+                                    "tabs": [
+                                        {
+                                            "id": "tb1",
+                                            "name": "test",
+                                            "root": {
+                                                "id": "tb1",
+                                                "type": "row",
+                                                "children": [
+                                                    {"id": "p1", "type": "block", "content": {"terminal": "t8"}}
+                                                ],
+                                            },
+                                        }
+                                    ],
+                                }
+                            ]
+                        },
+                    }
+                }
+            return None
+
+        with patch.object(adapter, "herdr_app_rpc", return_value=None), \
+                patch.object(adapter, "hc_rpc", side_effect=fake_hc_rpc):
+            world = adapter.HcWorld()
+            self.assertEqual(world.workspaces[0]["label"], "src")
+            self.assertEqual(world.workspaces[0]["cwd"], "/home/user/src")
+            self.assertIsNotNone(world.resolve_pane("devserver/t8", hydrate=False))
+            self.assertEqual(world.resolve_pane("devserver/t8", hydrate=False)["pane_id"], "p1")
+
+    def test_remote_tab_create_and_rename_use_dict_labels_and_focus_prefix(self):
+        calls = []
+
+        def fake_hc_rpc(method, params=None, timeout=5.0):
+            calls.append((method, params))
+            if method == "terminal.list":
+                return {"result": {"terminals": []}}
+            if method == "doc.get":
+                return {
+                    "result": {
+                        "version": 1,
+                        "value": {"spaces": [{"id": "sp1", "name": "src", "folder": "/home/user/src", "tabs": []}]},
+                    }
+                }
+            if method == "terminal.run":
+                return {"result": {"address": "t9"}}
+            if method == "doc.set":
+                return {"result": {"version": 2}}
+            return {"result": {}}
+
+        with patch.object(adapter, "herdr_app_rpc", return_value=None), \
+                patch.object(adapter, "hc_rpc", side_effect=fake_hc_rpc):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rc = adapter.handle_hc_herdr_cli(
+                    ["tab", "create", "--workspace", "sp1", "--cwd", "/home/user/src", "--label", "ask-slug", "--focus"]
+                )
+            self.assertEqual(rc, 0)
+            out = adapter.json.loads(buf.getvalue())
+            self.assertTrue(out["result"]["root_pane"]["pane_id"].startswith("pf"))
+            run_call = next(p for m, p in calls if m == "terminal.run")
+            self.assertIsInstance(run_call["labels"], dict)
+            self.assertTrue(run_call["no_parent"])
+            self.assertTrue(run_call["outlive_parent"])
+
+            buf_rename = io.StringIO()
+            with contextlib.redirect_stdout(buf_rename):
+                rc_rename = adapter.handle_hc_herdr_cli(
+                    ["tab", "rename", out["result"]["tab"]["tab_id"], "renamed-slug"]
+                )
+            self.assertEqual(rc_rename, 0)
 
 
 if __name__ == "__main__":

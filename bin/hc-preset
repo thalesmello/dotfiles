@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -209,10 +210,13 @@ def detect_backend(forced: str | None = None) -> str:
         return "herdr"
     if has_hc and has_herdr:
         # If TERM_PROGRAM is ghostty (set by hc) while HERDR_ENV leaked, prefer hc;
-        # if HERDR_ACTIVE_PANE_ID is set (a herdr keybinding), prefer herdr.
-        if os.environ.get("HERDR_ACTIVE_PANE_ID"):
+        # if HERDR_ACTIVE_PANE_ID is set from a legacy herdr keybinding (with
+        # HERDR_ENV=1 or HERDR_SOCKET_PATH), prefer herdr.
+        if os.environ.get("HERDR_ACTIVE_PANE_ID") and (
+            os.environ.get("HERDR_ENV") == "1" or os.environ.get("HERDR_SOCKET_PATH")
+        ):
             return "herdr"
-        if os.environ.get("TERM_PROGRAM") == "ghostty":
+        if os.environ.get("TERM_PROGRAM") == "ghostty" or os.environ.get("HC_TERMINAL_SOCKET"):
             return "hc"
         return "herdr"
 
@@ -339,9 +343,22 @@ def herdr_app_do(command: str, args: dict[str, Any] | None = None, timeout: floa
     if args:
         payload["args"] = args
     reply = herdr_app_rpc(payload, timeout=timeout)
-    # Creation may use the headless core fallback only if there is no local
-    # window socket. Other app operations must never silently succeed.
-    if reply is None and command in {"space.new", "tab.new"}:
+    # Document-backed mutations may use the headless/remote core fallback only
+    # if there is no local window socket. Other app operations must never
+    # silently succeed.
+    if reply is None and command in {
+        "space.new",
+        "tab.new",
+        "space.rename",
+        "tab.rename",
+        "pane.split",
+        "pane.close",
+        "tab.close",
+        "space.close",
+        "pane.focus",
+        "tab.select",
+        "space.select",
+    }:
         return None
     return require_reply(reply, command)
 
@@ -451,6 +468,14 @@ class HcWorld:
         # Fallback to doc.get("herdr-app") if herdr-app window isn't open
         self.spaces_raw: list[dict[str, Any]] = self.app_ls.get("spaces") or []
         if not self.spaces_raw:
+            if not self._fetched_terminals:
+                self._fetched_terminals = True
+                term_resp = hc_rpc("terminal.list", {})
+                if term_resp and "result" in term_resp:
+                    self.terminals_raw = term_resp["result"].get("terminals") or []
+                    self.term_by_addr = {
+                        t["address"]: t for t in self.terminals_raw if isinstance(t, dict) and t.get("address")
+                    }
             doc_resp = hc_rpc("doc.get", {"name": "herdr-app"})
             doc_val = ((doc_resp or {}).get("result") or {}).get("value") or {}
             active_sp = self.view.get("active")
@@ -458,12 +483,26 @@ class HcWorld:
             for sp in doc_val.get("spaces") or []:
                 sp_id = sp.get("id")
                 tabs_list = []
+                first_term_cwd = ""
+                where_space = ""
                 for idx, tb in enumerate(sp.get("tabs") or []):
                     tb_id = tb.get("id")
                     panes_in_tab = collect_doc_panes(tb.get("root"))
                     terms_in_tab = []
+                    where_tab = ""
                     for p in panes_in_tab:
                         t_obj = self.term_by_addr.get(p["terminal"], {})
+                        fg_obj = t_obj.get("foreground") or {}
+                        t_cwd = fg_obj.get("cwd") or t_obj.get("cwd") or ""
+                        if not first_term_cwd and t_cwd:
+                            first_term_cwd = t_cwd
+                        t_where = (t_obj.get("labels") or {}).get("where") or ""
+                        if " / " in t_where:
+                            w_sp, w_tb = t_where.split(" / ", 1)
+                            if not where_space and w_sp.strip():
+                                where_space = w_sp.strip()
+                            if not where_tab and w_tb.strip():
+                                where_tab = w_tb.strip()
                         terms_in_tab.append(
                             {
                                 "terminal": p["terminal"],
@@ -477,17 +516,24 @@ class HcWorld:
                     tabs_list.append(
                         {
                             "id": tb_id,
-                            "name": tb.get("name") or str(idx + 1),
+                            "name": tb.get("name") or where_tab or str(idx + 1),
                             "active": active_tabs.get(sp_id) == tb_id if sp_id in active_tabs else idx == 0,
                             "settled": bool(((self.view.get("tabs") or {}).get(tb_id) or {}).get("settled")),
                             "terminals": terms_in_tab,
                         }
                     )
+                sp_folder = first_term_cwd or sp.get("folder") or os.path.expanduser("~")
+                sp_name = (
+                    sp.get("name")
+                    or where_space
+                    or os.path.basename((first_term_cwd or sp.get("folder") or "").rstrip("/"))
+                    or "~"
+                )
                 self.spaces_raw.append(
                     {
                         "id": sp_id,
-                        "name": sp.get("name") or os.path.basename(sp.get("folder") or "") or "~",
-                        "folder": sp.get("folder") or os.path.expanduser("~"),
+                        "name": sp_name,
+                        "folder": sp_folder,
                         "machine": sp.get("machine"),
                         "active": (sp_id == active_sp) if active_sp else False,
                         "tabs": tabs_list,
@@ -557,6 +603,7 @@ class HcWorld:
                         ws_id=ws_id,
                         p_idx=p_idx,
                         entry=entry,
+                        machine=sp.get("machine"),
                     )
                     self.panes.append(pane_obj)
                     if pane_obj.get("agent"):
@@ -592,8 +639,13 @@ class HcWorld:
         ws_id: str,
         p_idx: int,
         entry: dict[str, Any],
+        machine: str | None = None,
     ) -> dict[str, Any]:
         t_obj = self.term_by_addr.get(t_addr, {})
+        if not t_obj and "/" in t_addr:
+            t_obj = self.term_by_addr.get(t_addr.split("/", 1)[1], {})
+        if not machine and "/" in t_addr:
+            machine = t_addr.split("/", 1)[0]
         fg = t_obj.get("foreground") or {}
         fg_name = fg.get("name") or t_obj.get("agent") or ""
         fg_cwd = fg.get("cwd") or t_obj.get("cwd") or ""
@@ -664,6 +716,7 @@ class HcWorld:
             "terminal_id": t_addr,
             "tab_id": tb_id,
             "workspace_id": ws_id,
+            "machine": machine,
             "pane_index": p_idx,
             "cwd": cwd,
             "foreground_cwd": fg_cwd or cwd,
@@ -685,6 +738,20 @@ class HcWorld:
             "agent_session": agent_session,
         }
 
+    @staticmethod
+    def _pane_matches(p: dict[str, Any], candidate: str) -> bool:
+        if p["pane_id"] == candidate or p["terminal_id"] == candidate or p.get("label") == candidate:
+            return True
+        if "/" in candidate:
+            bare = candidate.split("/", 1)[1]
+            if p["terminal_id"] == bare or p["pane_id"] == bare:
+                return True
+        if "/" in str(p.get("terminal_id") or ""):
+            bare_t = str(p["terminal_id"]).split("/", 1)[1]
+            if bare_t == candidate:
+                return True
+        return False
+
     def hydrate_pane(self, p: dict[str, Any] | None) -> dict[str, Any] | None:
         if not p:
             return None
@@ -703,7 +770,15 @@ class HcWorld:
                 ws_id = p.get("workspace_id") or ""
                 p_idx = p.get("pane_index") or 0
                 entry = {"terminal": t_addr, "pane": p_id, "status": t_resp["result"].get("status")}
-            rebuilt = self._build_pane(p_id=p_id, t_addr=t_addr, tb_id=tb_id, ws_id=ws_id, p_idx=p_idx, entry=entry)
+            rebuilt = self._build_pane(
+                p_id=p_id,
+                t_addr=t_addr,
+                tb_id=tb_id,
+                ws_id=ws_id,
+                p_idx=p_idx,
+                entry=entry,
+                machine=p.get("machine"),
+            )
             p.update(rebuilt)
         return p
 
@@ -718,7 +793,7 @@ class HcWorld:
             ):
                 if candidate:
                     for p in self.panes:
-                        if p["pane_id"] == candidate or p["terminal_id"] == candidate or p.get("label") == candidate:
+                        if self._pane_matches(p, candidate):
                             found = p
                             break
                 if found:
@@ -732,7 +807,7 @@ class HcWorld:
                 found = self.panes[0]
         else:
             for p in self.panes:
-                if p["pane_id"] == target or p["terminal_id"] == target or p.get("label") == target:
+                if self._pane_matches(p, target):
                     found = p
                     break
 
@@ -956,13 +1031,13 @@ def handle_hc_rpc_compat(method: str, params: dict[str, Any]) -> dict[str, Any]:
             return {"id": "hc-preset", "error": {"code": "pane_not_found", "message": "Metadata target not found"}}
         if p:
             tokens = params.get("tokens") or {}
-            labels: list[str] = []
+            labels: dict[str, str] = {}
             for k, v in tokens.items():
-                labels.append(f"token.{k}={v if v is not None else ''}")
-                if k == "um_pin":
+                labels[f"token.{k}"] = str(v) if v is not None else ""
+                if k == "um_pin" and herdr_app_socket_path():
                     herdr_app_do("terminal.pin", {"terminal": p["terminal_id"], "pinned": bool(v)})
                 elif k == "book":
-                    labels.append(f"herdr.book={v if v is not None else ''}")
+                    labels["herdr.book"] = str(v) if v is not None else ""
             if labels:
                 hc_rpc("terminal.label", {"terminal": p["terminal_id"], "labels": labels})
         return {"id": "hc-preset", "result": {"type": "ok"}}
@@ -972,15 +1047,15 @@ def handle_hc_rpc_compat(method: str, params: dict[str, Any]) -> dict[str, Any]:
         if not p:
             return {"id": "hc-preset", "error": {"code": "pane_not_found", "message": "Agent target not found"}}
         if p:
-            labels = []
+            labels = {}
             if params.get("agent"):
-                labels.append(f"agent.kind={params['agent']}")
+                labels["agent.kind"] = str(params["agent"])
             if params.get("agent_session_path"):
-                labels.append(f"agent.session={params['agent_session_path']}")
-                labels.append("agent.session_kind=path")
+                labels["agent.session"] = str(params["agent_session_path"])
+                labels["agent.session_kind"] = "path"
             elif params.get("agent_session_id"):
-                labels.append(f"agent.session={params['agent_session_id']}")
-                labels.append("agent.session_kind=id")
+                labels["agent.session"] = str(params["agent_session_id"])
+                labels["agent.session_kind"] = "id"
             if labels:
                 hc_rpc("terminal.label", {"terminal": p["terminal_id"], "labels": labels})
         return {"id": "hc-preset", "result": {"type": "ok"}}
@@ -1022,7 +1097,11 @@ def equalize_hc_tab_splits(world: HcWorld, pane_id: str | None = None) -> bool:
     tab_id = p["tab_id"] if p else world.app_status.get("tab")
     if not tab_id:
         return False
-    doc_resp = hc_rpc("doc.get", {"name": "herdr-app"})
+    machine = p.get("machine") if p else None
+    doc_params: dict[str, Any] = {"name": "herdr-app"}
+    if machine:
+        doc_params["on"] = machine
+    doc_resp = hc_rpc("doc.get", doc_params)
     if not doc_resp or "result" not in doc_resp:
         return False
     doc = doc_resp["result"].get("value")
@@ -1049,7 +1128,10 @@ def equalize_hc_tab_splits(world: HcWorld, pane_id: str | None = None) -> bool:
                 balance_node(tb["root"])
                 changed = True
     if changed:
-        hc_rpc("doc.set", {"name": "herdr-app", "version": version, "value": doc})
+        set_params: dict[str, Any] = {"name": "herdr-app", "version": version, "value": doc}
+        if machine:
+            set_params["on"] = machine
+        hc_rpc("doc.set", set_params)
     return changed
 
 
@@ -1059,10 +1141,14 @@ def resize_hc_pane_direction(world: HcWorld, direction: str, pane_id: str | None
         return False
     tab_id = p["tab_id"]
     target_id = p["pane_id"]
+    machine = p.get("machine")
     want_type = "row" if direction in ("left", "right", "h", "l") else "column"
     sign = -1.0 if direction in ("left", "up", "h", "k") else 1.0
 
-    doc_resp = hc_rpc("doc.get", {"name": "herdr-app"})
+    doc_params: dict[str, Any] = {"name": "herdr-app"}
+    if machine:
+        doc_params["on"] = machine
+    doc_resp = hc_rpc("doc.get", doc_params)
     if not doc_resp or "result" not in doc_resp:
         return False
     doc = doc_resp["result"].get("value")
@@ -1111,14 +1197,20 @@ def resize_hc_pane_direction(world: HcWorld, direction: str, pane_id: str | None
         for tb in sp.get("tabs") or []:
             if tb.get("id") == tab_id and isinstance(tb.get("root"), dict):
                 if adjust_node(tb["root"]):
-                    hc_rpc("doc.set", {"name": "herdr-app", "version": version, "value": doc})
+                    set_params: dict[str, Any] = {"name": "herdr-app", "version": version, "value": doc}
+                    if machine:
+                        set_params["on"] = machine
+                    hc_rpc("doc.set", set_params)
                     return True
     return False
 
 
-def set_hc_split_ratio(tab_id: str, target_pane_id: str, ratio: float) -> None:
+def set_hc_split_ratio(tab_id: str, target_pane_id: str, ratio: float, machine: str | None = None) -> None:
     """Adjust the split weights so target_pane_id gets `ratio` and its sibling gets `1 - ratio`."""
-    doc_resp = hc_rpc("doc.get", {"name": "herdr-app"})
+    doc_params: dict[str, Any] = {"name": "herdr-app"}
+    if machine:
+        doc_params["on"] = machine
+    doc_resp = hc_rpc("doc.get", doc_params)
     if not doc_resp or "result" not in doc_resp:
         return
     doc = doc_resp["result"].get("value")
@@ -1144,7 +1236,10 @@ def set_hc_split_ratio(tab_id: str, target_pane_id: str, ratio: float) -> None:
         for tb in sp.get("tabs") or []:
             if tb.get("id") == tab_id and isinstance(tb.get("root"), dict):
                 if update_parent(tb["root"]):
-                    hc_rpc("doc.set", {"name": "herdr-app", "version": version, "value": doc})
+                    set_params: dict[str, Any] = {"name": "herdr-app", "version": version, "value": doc}
+                    if machine:
+                        set_params["on"] = machine
+                    hc_rpc("doc.set", set_params)
                 return
 
 
@@ -1250,6 +1345,7 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             label = None
             cwd: str | None = None
             focus = True
+            env_dict: dict[str, str] = {}
             i = 0
             while i < len(args):
                 a = args[i]
@@ -1260,6 +1356,9 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                     cwd = args[i + 1]
                     i += 2
                 elif a == "--env" and i + 1 < len(args):
+                    if "=" in args[i + 1]:
+                        k, v = args[i + 1].split("=", 1)
+                        env_dict[k] = v
                     i += 2
                 elif a == "--no-focus":
                     focus = False
@@ -1289,17 +1388,24 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             res = herdr_app_do("space.new", do_args)
             if not res:
                 # Headless / remote hc fallback: create space + tab via hc labels and herdr-app doc
-                sp_id = f"sp{int(time.time() * 1000):x}"
-                tb_id = f"tb{int(time.time() * 1000 + 1):x}"
-                p_id = f"p{int(time.time() * 1000 + 2):x}"
-                run_resp = hc_rpc(
-                    "terminal.run",
-                    {
-                        "cwd": cwd,
-                        "keep": True,
-                        "labels": [f"herdr.space={sp_id}", f"herdr.tab={tb_id}"],
+                sp_id = f"sp{uuid.uuid4().hex}"
+                tb_id = f"tb{uuid.uuid4().hex}"
+                p_id = f"{'pf' if focus else 'pn'}{uuid.uuid4().hex[:30]}"
+                ws_label = label or os.path.basename(cwd.rstrip("/")) or "~"
+                run_params: dict[str, Any] = {
+                    "cwd": cwd,
+                    "keep": True,
+                    "no_parent": True,
+                    "outlive_parent": True,
+                    "labels": {
+                        "herdr.space": sp_id,
+                        "herdr.tab": tb_id,
+                        "where": f"{ws_label} / 1",
                     },
-                )
+                }
+                if env_dict:
+                    run_params["env"] = env_dict
+                run_resp = hc_rpc("terminal.run", run_params)
                 if not run_resp or "result" not in run_resp:
                     return print_err("workspace_create_failed", "terminal.run failed")
                 t_id = run_resp["result"].get("address") or ""
@@ -1316,7 +1422,18 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                                 {
                                     "id": tb_id,
                                     "name": "",
-                                    "root": {"id": p_id, "type": "block", "content": {"terminal": t_id}},
+                                    "root": {
+                                        "id": tb_id,
+                                        "type": "row",
+                                        "children": [
+                                            {
+                                                "id": p_id,
+                                                "type": "block",
+                                                "size": {"weight": 1.0},
+                                                "content": {"terminal": t_id},
+                                            }
+                                        ],
+                                    },
                                 }
                             ],
                         }
@@ -1325,7 +1442,7 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                 return print_json(
                     {
                         "result": {
-                            "workspace": {"workspace_id": sp_id, "label": label or os.path.basename(cwd), "cwd": cwd},
+                            "workspace": {"workspace_id": sp_id, "label": ws_label, "cwd": cwd},
                             "tab": {"tab_id": tb_id, "workspace_id": sp_id, "label": "1"},
                             "root_pane": {"pane_id": p_id, "terminal_id": t_id, "tab_id": tb_id, "workspace_id": sp_id},
                         }
@@ -1359,7 +1476,17 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                 new_name = pos[0]
             else:
                 return print_err("invalid_args", "workspace rename requires a name")
-            herdr_app_do("space.rename", {"id": ws_id, "name": new_name})
+            res = herdr_app_do("space.rename", {"id": ws_id, "name": new_name})
+            if not res:
+                doc_resp = hc_rpc("doc.get", {"name": "herdr-app"})
+                if doc_resp and "result" in doc_resp:
+                    doc = doc_resp["result"].get("value") or {"spaces": []}
+                    ver = doc_resp["result"].get("version") or 0
+                    for sp in doc.get("spaces") or []:
+                        if sp.get("id") == ws_id:
+                            sp["name"] = new_name
+                            hc_rpc("doc.set", {"name": "herdr-app", "version": ver, "value": doc})
+                            break
             return print_json({"result": {"type": "ok"}})
         if sub == "focus":
             target = next((a for a in args if not a.startswith("-")), "")
@@ -1373,7 +1500,17 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             return print_json({"result": {"type": "ok"}})
         if sub == "close":
             target = next((a for a in args if not a.startswith("-")), world.app_status.get("space"))
-            herdr_app_do("space.close", {"id": target, "confirmed": True})
+            res = herdr_app_do("space.close", {"id": target, "confirmed": True})
+            if not res and target:
+                for p in [x for x in world.panes if x.get("workspace_id") == target]:
+                    if p.get("terminal_id"):
+                        hc_rpc("terminal.kill", {"terminal": p["terminal_id"]})
+                doc_resp = hc_rpc("doc.get", {"name": "herdr-app"})
+                if doc_resp and "result" in doc_resp:
+                    doc = doc_resp["result"].get("value") or {"spaces": []}
+                    ver = doc_resp["result"].get("version") or 0
+                    doc["spaces"] = [sp for sp in (doc.get("spaces") or []) if sp.get("id") != target]
+                    hc_rpc("doc.set", {"name": "herdr-app", "version": ver, "value": doc})
             return print_json({"result": {"type": "ok"}})
         if sub == "report-metadata":
             ws_id = None
@@ -1426,6 +1563,7 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             cwd = None
             label = None
             focus = True
+            env_dict = {}
             i = 0
             while i < len(args):
                 a = args[i]
@@ -1439,6 +1577,9 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                     label = args[i + 1]
                     i += 2
                 elif a == "--env" and i + 1 < len(args):
+                    if "=" in args[i + 1]:
+                        k, v = args[i + 1].split("=", 1)
+                        env_dict[k] = v
                     i += 2
                 elif a == "--no-focus":
                     focus = False
@@ -1450,9 +1591,10 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                     i += 1
             prev_pane = world.focused_pane_id
             do_args: dict[str, Any] = {}
+            ws_obj = None
             if ws_id:
-                ws = next((w for w in world.workspaces if w["workspace_id"] == ws_id or w["label"] == ws_id), None)
-                do_args["space"] = ws["workspace_id"] if ws else ws_id
+                ws_obj = next((w for w in world.workspaces if w["workspace_id"] == ws_id or w["label"] == ws_id), None)
+                do_args["space"] = ws_obj["workspace_id"] if ws_obj else ws_id
             if cwd:
                 do_args["folder"] = cwd
             if label:
@@ -1461,18 +1603,31 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             if not res:
                 # Headless / remote hc fallback: create tab in upstream herdr-app via hc labels + doc
                 cur_p = world.resolve_pane(None)
-                sp_id = do_args.get("space") or (cur_p["workspace_id"] if cur_p else (world.workspaces[0]["workspace_id"] if world.workspaces else f"sp{int(time.time() * 1000):x}"))
-                tb_id = f"tb{int(time.time() * 1000):x}"
-                p_id = f"p{int(time.time() * 1000 + 1):x}"
-                target_cwd = cwd or (cur_p["cwd"] if cur_p else os.getcwd())
-                run_resp = hc_rpc(
-                    "terminal.run",
-                    {
-                        "cwd": target_cwd,
-                        "keep": True,
-                        "labels": [f"herdr.space={sp_id}", f"herdr.tab={tb_id}"],
-                    },
+                sp_id = do_args.get("space") or (
+                    cur_p["workspace_id"]
+                    if cur_p
+                    else (world.workspaces[0]["workspace_id"] if world.workspaces else f"sp{uuid.uuid4().hex}")
                 )
+                if not ws_obj:
+                    ws_obj = next((w for w in world.workspaces if w["workspace_id"] == sp_id), None)
+                ws_label = (ws_obj.get("label") if ws_obj else None) or os.path.basename((cwd or os.getcwd()).rstrip("/")) or "~"
+                tb_id = f"tb{uuid.uuid4().hex}"
+                p_id = f"{'pf' if focus else 'pn'}{uuid.uuid4().hex[:30]}"
+                target_cwd = cwd or (cur_p["cwd"] if cur_p else os.getcwd())
+                run_params = {
+                    "cwd": target_cwd,
+                    "keep": True,
+                    "no_parent": True,
+                    "outlive_parent": True,
+                    "labels": {
+                        "herdr.space": sp_id,
+                        "herdr.tab": tb_id,
+                        "where": f"{ws_label} / {label or '1'}",
+                    },
+                }
+                if env_dict:
+                    run_params["env"] = env_dict
+                run_resp = hc_rpc("terminal.run", run_params)
                 if not run_resp or "result" not in run_resp:
                     return print_err("tab_create_failed", "terminal.run failed")
                 t_id = run_resp["result"].get("address") or ""
@@ -1486,7 +1641,18 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                                 {
                                     "id": tb_id,
                                     "name": label or "",
-                                    "root": {"id": p_id, "type": "block", "content": {"terminal": t_id}},
+                                    "root": {
+                                        "id": tb_id,
+                                        "type": "row",
+                                        "children": [
+                                            {
+                                                "id": p_id,
+                                                "type": "block",
+                                                "size": {"weight": 1.0},
+                                                "content": {"terminal": t_id},
+                                            }
+                                        ],
+                                    },
                                 }
                             )
                             hc_rpc("doc.set", {"name": "herdr-app", "version": ver, "value": doc})
@@ -1533,7 +1699,20 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                 new_name = pos[0]
             else:
                 return print_err("invalid_args", "tab rename requires a name")
-            herdr_app_do("tab.rename", {"id": tb_id, "name": new_name})
+            res = herdr_app_do("tab.rename", {"id": tb_id, "name": new_name})
+            if not res:
+                doc_resp = hc_rpc("doc.get", {"name": "herdr-app"})
+                if doc_resp and "result" in doc_resp:
+                    doc = doc_resp["result"].get("value") or {"spaces": []}
+                    ver = doc_resp["result"].get("version") or 0
+                    changed = False
+                    for sp in doc.get("spaces") or []:
+                        for tb in sp.get("tabs") or []:
+                            if tb.get("id") == tb_id:
+                                tb["name"] = new_name
+                                changed = True
+                    if changed:
+                        hc_rpc("doc.set", {"name": "herdr-app", "version": ver, "value": doc})
             return print_json({"result": {"type": "ok"}})
         if sub == "focus":
             target = next((a for a in args if not a.startswith("-")), "")
@@ -1544,7 +1723,18 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             return print_json({"result": {"type": "ok"}})
         if sub == "close":
             target = next((a for a in args if not a.startswith("-")), world.app_status.get("tab"))
-            herdr_app_do("tab.close", {"id": target, "confirmed": True})
+            res = herdr_app_do("tab.close", {"id": target, "confirmed": True})
+            if not res and target:
+                for p in [x for x in world.panes if x.get("tab_id") == target]:
+                    if p.get("terminal_id"):
+                        hc_rpc("terminal.kill", {"terminal": p["terminal_id"]})
+                doc_resp = hc_rpc("doc.get", {"name": "herdr-app"})
+                if doc_resp and "result" in doc_resp:
+                    doc = doc_resp["result"].get("value") or {"spaces": []}
+                    ver = doc_resp["result"].get("version") or 0
+                    for sp in doc.get("spaces") or []:
+                        sp["tabs"] = [tb for tb in (sp.get("tabs") or []) if tb.get("id") != target]
+                    hc_rpc("doc.set", {"name": "herdr-app", "version": ver, "value": doc})
             return print_json({"result": {"type": "ok"}})
 
     if group == "pane":
@@ -1668,12 +1858,104 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             if str(anchor["pane_id"]).startswith("p"):
                 do_args["pane"] = anchor["pane_id"]
             res = herdr_app_do("pane.split", do_args)
-            if not res or "error" in res:
+            if not res:
+                # Headless / remote hc fallback: spawn terminal and split block in herdr-app doc
+                target_cwd = cwd or anchor.get("foreground_cwd") or anchor.get("cwd") or os.getcwd()
+                env_dict = {}
+                for kv in env_vars:
+                    if "=" in kv:
+                        k, v = kv.split("=", 1)
+                        env_dict[k] = v
+                run_params = {
+                    "cwd": target_cwd,
+                    "keep": True,
+                    "no_parent": True,
+                    "outlive_parent": True,
+                    "labels": {
+                        "herdr.space": anchor["workspace_id"],
+                        "herdr.tab": anchor["tab_id"],
+                    },
+                }
+                if env_dict:
+                    run_params["env"] = env_dict
+                run_resp = hc_rpc("terminal.run", run_params)
+                if not run_resp or "result" not in run_resp:
+                    return print_err("pane_split_failed", "terminal.run failed")
+                new_term_id = run_resp["result"].get("address") or ""
+                new_pane_id = f"{'pf' if focus else 'pn'}{uuid.uuid4().hex[:30]}"
+                split_type = "column" if do_args["direction"] == "down" else "row"
+                w_old = float(ratio) if ratio is not None else 0.5
+                w_new = max(0.05, 1.0 - w_old)
+                doc_resp = hc_rpc("doc.get", {"name": "herdr-app"})
+                if doc_resp and "result" in doc_resp:
+                    doc = doc_resp["result"].get("value") or {"spaces": []}
+                    ver = doc_resp["result"].get("version") or 0
+
+                    def split_in_tree(node: dict[str, Any]) -> bool:
+                        children = node.get("children") or []
+                        for idx, c in enumerate(children):
+                            if not isinstance(c, dict):
+                                continue
+                            if c.get("id") == anchor["pane_id"] or (
+                                c.get("type") == "block"
+                                and (c.get("content") or {}).get("terminal") == anchor["terminal_id"]
+                            ):
+                                new_block = {
+                                    "id": new_pane_id,
+                                    "type": "block",
+                                    "size": {"weight": w_new},
+                                    "content": {"terminal": new_term_id},
+                                }
+                                if node.get("type") == split_type and len(children) == 1:
+                                    c["size"] = {"weight": w_old}
+                                    children.append(new_block)
+                                else:
+                                    c_copy = dict(c)
+                                    c_copy["size"] = {"weight": w_old}
+                                    children[idx] = {
+                                        "id": f"s{uuid.uuid4().hex[:30]}",
+                                        "type": split_type,
+                                        "size": c.get("size") or {"weight": 1.0},
+                                        "children": [c_copy, new_block],
+                                    }
+                                return True
+                            if split_in_tree(c):
+                                return True
+                        return False
+
+                    for sp in doc.get("spaces") or []:
+                        for tb in sp.get("tabs") or []:
+                            if tb.get("id") == anchor["tab_id"] and isinstance(tb.get("root"), dict):
+                                if split_in_tree(tb["root"]):
+                                    hc_rpc("doc.set", {"name": "herdr-app", "version": ver, "value": doc})
+                                break
+                return print_json(
+                    {
+                        "result": {
+                            "pane": {
+                                "pane_id": new_pane_id,
+                                "terminal_id": new_term_id,
+                                "tab_id": anchor["tab_id"],
+                                "workspace_id": anchor["workspace_id"],
+                            }
+                        }
+                    }
+                )
+            if "error" in res:
                 return print_err("pane_split_failed", str((res or {}).get("error") or "pane.split failed"))
             new_pane_id = res.get("pane") or res.get("terminal") or ""
-            new_term_id = res.get("terminal") or new_pane_id
+            new_term_id = res.get("terminal") or ""
+            if not new_term_id and new_pane_id.startswith("p"):
+                for _ in range(30):
+                    p_check = HcWorld().resolve_pane(new_pane_id)
+                    if p_check and p_check.get("terminal_id") and not str(p_check["terminal_id"]).startswith("p"):
+                        new_term_id = p_check["terminal_id"]
+                        break
+                    time.sleep(0.1)
+            if not new_term_id:
+                new_term_id = new_pane_id
             if ratio is not None and anchor.get("tab_id") and str(anchor["pane_id"]).startswith("p"):
-                set_hc_split_ratio(anchor["tab_id"], anchor["pane_id"], ratio)
+                set_hc_split_ratio(anchor["tab_id"], anchor["pane_id"], ratio, machine=anchor.get("machine"))
             if not focus and str(anchor["pane_id"]).startswith("p"):
                 herdr_app_do("pane.focus", {"pane": anchor["pane_id"]})
             # If cwd or env_vars were requested and differ from anchor cwd, prepare the shell
@@ -1704,6 +1986,12 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             target = args[0]
             cmd_text = " ".join(args[1:])
             p = world.resolve_pane(target)
+            if not p and target.startswith("p"):
+                for _ in range(30):
+                    p = HcWorld().resolve_pane(target)
+                    if p and p.get("terminal_id") and not str(p["terminal_id"]).startswith("p"):
+                        break
+                    time.sleep(0.1)
             t_id = p["terminal_id"] if p else target
             # Wait briefly if terminal was just created so shell prompt is ready
             hc_rpc("terminal.send", {"terminal": t_id, "text": cmd_text, "force": True})
@@ -1861,7 +2149,9 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             if not p:
                 return print_err("pane_not_found", "Pane not found")
             if str(p["pane_id"]).startswith("p"):
-                herdr_app_do("pane.close", {"pane": p["pane_id"]})
+                res = herdr_app_do("pane.close", {"pane": p["pane_id"]})
+                if not res:
+                    hc_rpc("terminal.kill", {"terminal": p["terminal_id"]})
             else:
                 hc_rpc("terminal.kill", {"terminal": p["terminal_id"]})
             return print_json({"result": {"type": "ok"}})
@@ -1898,24 +2188,26 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                 return print_err("pane_not_found", f"Pane {target} not found")
             t_id = p["terminal_id"]
             if new_ws:
-                new_sp = f"sp{int(time.time() * 1000):x}"
-                new_tb = f"tb{int(time.time() * 1000 + 1):x}"
-                hc_rpc("terminal.label", {"terminal": t_id, "labels": [f"herdr.space={new_sp}", f"herdr.tab={new_tb}"]})
+                new_sp = f"sp{uuid.uuid4().hex}"
+                new_tb = f"tb{uuid.uuid4().hex}"
+                hc_rpc("terminal.label", {"terminal": t_id, "labels": {"herdr.space": new_sp, "herdr.tab": new_tb}})
                 if label:
                     herdr_app_do("space.rename", {"id": new_sp, "name": label})
                 if tab_label:
                     herdr_app_do("tab.rename", {"id": new_tb, "name": tab_label})
-                herdr_app_do("pane.focus", {"terminal": t_id})
+                if herdr_app_socket_path():
+                    herdr_app_do("pane.focus", {"terminal": t_id})
                 return print_json({"result": {"move_result": {"pane": {"pane_id": p["pane_id"], "terminal_id": t_id}}}})
             if new_tab:
-                new_tb = f"tb{int(time.time() * 1000):x}"
+                new_tb = f"tb{uuid.uuid4().hex}"
                 hc_rpc(
                     "terminal.label",
-                    {"terminal": t_id, "labels": [f"herdr.space={p['workspace_id']}", f"herdr.tab={new_tb}"]},
+                    {"terminal": t_id, "labels": {"herdr.space": p["workspace_id"], "herdr.tab": new_tb}},
                 )
                 if label:
                     herdr_app_do("tab.rename", {"id": new_tb, "name": label})
-                herdr_app_do("pane.focus", {"terminal": t_id})
+                if herdr_app_socket_path():
+                    herdr_app_do("pane.focus", {"terminal": t_id})
                 return print_json({"result": {"move_result": {"pane": {"pane_id": p["pane_id"], "terminal_id": t_id}}}})
             return print_json({"result": {"type": "ok"}})
         if sub == "swap":
@@ -2001,9 +2293,9 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             t_id = p["terminal_id"]
             cmd_parts = [kind] + extra_args
             cmd_line = " ".join(shlex.quote(x) for x in cmd_parts)
-            labels = [f"agent.kind={kind}"]
+            labels = {"agent.kind": kind}
             if name:
-                labels.append(f"agent.name={name}")
+                labels["agent.name"] = name
             hc_rpc("terminal.label", {"terminal": t_id, "labels": labels})
             hc_rpc("terminal.send", {"terminal": t_id, "text": cmd_line, "force": True})
             return print_json({"result": {"agent": {"name": name or t_id, "pane_id": p["pane_id"], "agent": kind}}})
@@ -2221,10 +2513,21 @@ def handle_popup_open(
             if k and k not in export_keys:
                 export_keys.append(k)
     env_exports = " ".join(f"{k}={shlex.quote(env[k])}" for k in export_keys if k in env)
-    cwd = (active_p.get("foreground_cwd") or active_p.get("cwd")) if active_p else os.getcwd()
+    raw_cwd = (active_p.get("foreground_cwd") or active_p.get("cwd")) if active_p else os.getcwd()
+    machine = active_p.get("machine") if active_p else None
+    run_remote = bool(machine and plugin == "prompt-popups" and entrypoint in ("ask-agent", "pi-tab", "break-pane", "run-command"))
     full_line = f"export {env_exports}; {script_cmd}" if env_exports else script_cmd
+    run_cmd = [hc, "run", "--bg", "--rm", "--no-notify", "--json"]
+    if run_remote and machine:
+        run_cmd += ["--on", str(machine)]
+        if raw_cwd:
+            run_cmd += ["--cwd", raw_cwd]
+    else:
+        local_cwd = raw_cwd if (not machine and raw_cwd) else os.path.expanduser("~")
+        run_cmd += ["--cwd", local_cwd]
+    run_cmd += ["--", "sh", "-c", full_line]
     proc = subprocess.run(
-        [hc, "run", "--bg", "--rm", "--no-notify", "--json", "--cwd", cwd or os.getcwd(), "--", "sh", "-c", full_line],
+        run_cmd,
         capture_output=True,
         text=True,
     )

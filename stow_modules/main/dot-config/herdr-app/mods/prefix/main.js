@@ -53,6 +53,12 @@ function smartTabNav(dir) {
   run("tab.select", { id: target.tabId });
 }
 
+function stripMachinePrefix(id, machine) {
+  if (!id) return "";
+  if (machine && id.startsWith(`${machine}/`)) return id.slice(machine.length + 1);
+  return id;
+}
+
 function activeContext() {
   const f = focused() ?? {};
   const sp = (spaces() ?? []).find((s) => s.active) ?? null;
@@ -67,26 +73,32 @@ function activeContext() {
     tabPanes[0] ??
     allPanes[0] ??
     null;
+  const terminal = p?.terminal ?? f.terminal ?? "";
+  const termMachine = terminal.includes("/") ? terminal.split("/")[0] : "";
+  const machine = sp?.machine ?? p?.machine ?? f.machine ?? termMachine ?? null;
   return {
     pane: p?.pane ?? f.pane ?? "",
-    terminal: p?.terminal ?? f.terminal ?? "",
-    cwd: p?.cwd ?? f.cwd ?? sp?.folder ?? home(),
+    terminal,
+    cwd: p?.cwd ?? f.cwd ?? sp?.folder ?? (machine ? "" : home()),
     space: sp?.id ?? f.space ?? "",
     spaceName: sp?.name ?? "",
-    machine: sp?.machine ?? null,
+    machine,
     tab: tabId,
     tabName: tb?.name ?? "",
   };
 }
 
-function buildEnv(ctx, extra = {}) {
+function buildEnv(ctx, extra = {}, opts = {}) {
+  const remote = Boolean(opts.remote && ctx.machine);
+  const termId = remote ? stripMachinePrefix(ctx.terminal, ctx.machine) : (ctx.terminal || "");
   const env = {
     HC_PRESET_BACKEND: "hc",
-    HERDR_ACTIVE_PANE_ID: ctx.pane || ctx.terminal || "",
-    HERDR_ACTIVE_TERMINAL_ID: ctx.terminal || "",
+    HERDR_ACTIVE_PANE_ID: ctx.pane || termId || "",
+    HERDR_ACTIVE_TERMINAL_ID: termId,
     HERDR_ACTIVE_TAB_ID: ctx.tab || "",
     HERDR_ACTIVE_WORKSPACE_ID: ctx.space || "",
-    HC_TERMINAL_ID: ctx.terminal || "",
+    HERDR_ACTIVE_MACHINE: ctx.machine || "",
+    HC_TERMINAL_ID: termId,
     ...extra,
   };
   return Object.entries(env)
@@ -95,12 +107,14 @@ function buildEnv(ctx, extra = {}) {
     .join(" ");
 }
 
-function runDetachedScript(overlayId, scriptCmd, ctx, extraEnv = {}) {
-  const envExports = buildEnv(ctx, extraEnv);
-  const inner = `export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" ${envExports}; ${scriptCmd}`;
-  exec("sh", ["-c", `nohup sh -c ${JSON.stringify(inner)} >/dev/null 2>&1 </dev/null &`], {
-    cwd: ctx.cwd || home(),
-  })
+function runDetachedScript(overlayId, scriptCmd, ctx, extraEnv = {}, opts = {}) {
+  const onMachine = opts.remote ? (ctx.machine || "") : "";
+  const envExports = buildEnv(ctx, extraEnv, { remote: Boolean(onMachine) });
+  const inner = `export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/opt/chef/embedded/bin:/usr/local/bin:$PATH" ${envExports}; ${scriptCmd}`;
+  const execOpts = onMachine
+    ? { cwd: ctx.cwd || undefined, on: onMachine }
+    : { cwd: (!ctx.machine && ctx.cwd) ? ctx.cwd : home() };
+  exec("sh", ["-c", `nohup sh -c ${JSON.stringify(inner)} >/dev/null 2>&1 </dev/null &`], execOpts)
     .catch((err) => {
       console.log(`prefix script failed (${scriptCmd}): ${err}`);
     })
@@ -112,12 +126,24 @@ function runDetachedScript(overlayId, scriptCmd, ctx, extraEnv = {}) {
 function openTerminalPopup(overlayId, scriptCmd, ctx, opts = {}) {
   const width = opts.width ?? 680;
   const height = opts.height ?? 360;
-  const envExports = buildEnv(ctx, opts.env ?? {});
-  const full = `export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" ${envExports}; ${scriptCmd}`;
-  hc(["run", "--bg", "--rm", "--no-notify", "--json", "--cwd", ctx.cwd || home(), "--", "sh", "-c", full])
+  const onMachine = opts.local ? "" : (ctx.machine || "");
+  const envExports = buildEnv(ctx, opts.env ?? {}, { remote: Boolean(onMachine) });
+  const full = `export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/opt/chef/embedded/bin:/usr/local/bin:$PATH" ${envExports}; ${scriptCmd}`;
+  const args = ["run", "--bg", "--rm", "--no-notify", "--json"];
+  if (onMachine) {
+    args.push("--on", onMachine);
+    if (ctx.cwd) args.push("--cwd", ctx.cwd);
+  } else {
+    args.push("--cwd", (!ctx.machine && ctx.cwd) ? ctx.cwd : home());
+  }
+  args.push("--", "sh", "-c", full);
+  hc(args)
     .then((r) => {
       if (overlayId) closeOverlay(overlayId);
-      if (r.code !== 0) return;
+      if (r.code !== 0) {
+        notify({ title: "Popup failed", body: (r.stderr || r.stdout || `exit ${r.code}`).trim(), timeout: 3000 });
+        return;
+      }
       const data = JSON.parse(r.stdout || "{}");
       if (!data.address) return;
       openOverlay({
@@ -508,7 +534,7 @@ export default class Prefix extends View {
       return;
     }
     if (ks === "ctrl-r" || (ctrl && key === "r" && !alt && !shift)) {
-      runDetachedScript(overlayId, "~/src/dotfiles/bin/resume-agent", ctx);
+      runDetachedScript(overlayId, "~/src/dotfiles/bin/resume-agent", ctx, {}, { remote: true });
       return;
     }
     if (ks === "shift-r" || (key === "r" && shift && !ctrl && !alt)) {
@@ -523,7 +549,7 @@ export default class Prefix extends View {
       openTerminalPopup(overlayId, "~/.config/herdr/scripts/ask-agent.sh", ctx, {
         width: 780,
         height: 420,
-        env: { ASK_AGENT_CONTEXT: "1" },
+        env: { ASK_AGENT_CONTEXT: "1", ASK_AGENT_CWD: ctx.cwd || "" },
       });
       return;
     }
@@ -573,7 +599,11 @@ export default class Prefix extends View {
       return;
     }
     if (ks === "i" && !ctrl && !alt && !shift) {
-      openTerminalPopup(overlayId, "python3 ~/.config/herdr/scripts/herdr-recap.py picker", ctx, { width: 920, height: 620 });
+      openTerminalPopup(overlayId, "python3 ~/.config/herdr/scripts/herdr-recap.py picker", ctx, {
+        width: 920,
+        height: 620,
+        local: true,
+      });
       return;
     }
     if (ks === "shift-z" || (key === "z" && shift && !ctrl && !alt)) {
@@ -588,6 +618,7 @@ export default class Prefix extends View {
       openTerminalPopup(overlayId, "python3 ~/.config/herdr/scripts/herdr-snooze.py picker", ctx, {
         width: 820,
         height: 560,
+        local: true,
         env: { HERDR_SNOOZE_SCREEN: "list", SNOOZE_SCREEN: "list" },
       });
       return;
@@ -599,7 +630,11 @@ export default class Prefix extends View {
       return;
     }
     if (ks === "alt-s" || (key === "s" && alt && !shift && !ctrl)) {
-      openTerminalPopup(overlayId, "python3 ~/.config/herdr/scripts/herdr-settled.py picker", ctx, { width: 920, height: 620 });
+      openTerminalPopup(overlayId, "python3 ~/.config/herdr/scripts/herdr-settled.py picker", ctx, {
+        width: 920,
+        height: 620,
+        local: true,
+      });
       return;
     }
     if (ks === "alt-d" || (key === "d" && alt && !shift && !ctrl)) {
@@ -615,7 +650,7 @@ export default class Prefix extends View {
           overlayId,
           `~/.config/herdr/scripts/pick-selection.sh open ${JSON.stringify(target)}`,
           ctx,
-          { width: 0.85, height: 0.8 },
+          { width: 0.85, height: 0.8, local: true },
         );
       } else {
         this.dismiss();
@@ -634,7 +669,7 @@ export default class Prefix extends View {
           overlayId,
           `~/.config/herdr/scripts/pick-selection.sh copy ${JSON.stringify(target)}`,
           ctx,
-          { width: 0.85, height: 0.8 },
+          { width: 0.85, height: 0.8, local: true },
         );
       } else {
         this.dismiss();
