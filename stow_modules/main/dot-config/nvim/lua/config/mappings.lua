@@ -93,9 +93,10 @@ vim.keymap.set({ "n" }, "xp", '"xx"xp', { remap = false })
 
 vim.keymap.set("v", "@", ":<c-u>noautocmd '<,'> normal @", { noremap = true })
 vim.keymap.set("n", "<leader><leader>", "<c-^>", { noremap = true })
-vim.keymap.set("n", "<leader>o", function ()
-    return vim.deep_equal(vim.fn.getpos('.'), vim.fn.getpos("']")) and "`[" or "`]"
-  end, { noremap = true, expr = true })
+-- Disabled to avoid conflict with org.nvim's default <leader>o prefix
+-- vim.keymap.set("n", "<leader>o", function ()
+--     return vim.deep_equal(vim.fn.getpos('.'), vim.fn.getpos("']")) and "`[" or "`]"
+--   end, { noremap = true, expr = true })
 vim.keymap.set({"n", "x"}, "<leader>*", "*Nzz", { remap=true })
 vim.keymap.set("x", "<leader>c*", "*Ncgn", { remap=true })
 vim.keymap.set("n", "c*", "*Ncgn")
