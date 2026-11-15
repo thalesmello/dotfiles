@@ -139,12 +139,15 @@ function activeContext() {
 function buildEnv(ctx, extra = {}, opts = {}) {
   const remote = Boolean(opts.remote && ctx.machine);
   const termId = remote ? stripMachinePrefix(ctx.terminal, ctx.machine) : (ctx.terminal || "");
+  const paneId = remote ? stripMachinePrefix(ctx.pane, ctx.machine) : (ctx.pane || "");
+  const tabId = remote ? stripMachinePrefix(ctx.tab, ctx.machine) : (ctx.tab || "");
+  const spaceId = remote ? stripMachinePrefix(ctx.space, ctx.machine) : (ctx.space || "");
   const env = {
     HC_PRESET_BACKEND: "hc",
-    HERDR_ACTIVE_PANE_ID: ctx.pane || termId || "",
+    HERDR_ACTIVE_PANE_ID: paneId || termId || "",
     HERDR_ACTIVE_TERMINAL_ID: termId,
-    HERDR_ACTIVE_TAB_ID: ctx.tab || "",
-    HERDR_ACTIVE_WORKSPACE_ID: ctx.space || "",
+    HERDR_ACTIVE_TAB_ID: tabId,
+    HERDR_ACTIVE_WORKSPACE_ID: spaceId,
     HERDR_ACTIVE_MACHINE: ctx.machine || "",
     HC_TERMINAL_ID: termId,
     ...extra,

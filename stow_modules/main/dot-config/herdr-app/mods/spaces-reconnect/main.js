@@ -250,7 +250,8 @@ export default class Spaces extends View {
     for (const p of ps) {
       if (p.pane && !this.shownPanes.has(p.pane)) {
         this.shownPanes.add(p.pane);
-        if (typeof p.pane === "string" && p.pane.startsWith("pf")) {
+        const barePane = typeof p.pane === "string" ? (p.pane.split("/").pop() ?? "") : "";
+        if (barePane.startsWith("pf")) {
           this.pendingFocus = { pane: p.pane, until: now + 2500 };
           run("pane.focus", { pane: p.pane });
         }
