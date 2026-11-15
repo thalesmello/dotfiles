@@ -1,14 +1,8 @@
 local M = {}
 
--- Bindings keyed by a unique string. A shortcut string uniquely identifies a
--- physical chord (mode + mods + key), so keying on it means a later binding for
--- the same chord (e.g. local config overriding a main binding) overwrites the
--- earlier one in O(1). The palette then reflects what actually fires instead of
--- showing the stale binding too.
+-- Shortcut keys retain override precedence; anonymous and dynamic entries get
+-- separate namespaces. Registry keys never cross the native chooser bridge.
 local bindings = {}
-
--- Counter for bindings registered without a shortcut, so each still gets a
--- unique key instead of collapsing into one another.
 local anonCount = 0
 
 function M.registerBinding(name, fn, shortcut)
@@ -22,25 +16,40 @@ function M.registerBinding(name, fn, shortcut)
   bindings[key] = {name = name, fn = fn, shortcut = shortcut}
 end
 
+-- Resolve a state-dependent command each time the palette opens. Returning nil
+-- hides the entry. A stable id replaces earlier registration, without private
+-- table introspection or fake shortcut labels.
+function M.registerDynamicBinding(id, resolve)
+  assert(type(id) == "string" and type(resolve) == "function")
+  bindings["\0dynamic:" .. id] = {resolve = resolve}
+end
+
 function M.showCommandPalette()
-  -- hs.chooser can only bridge plain values (strings/numbers) onto choices, so
-  -- we stash the dictionary key on each choice and resolve the fn on selection.
-  local choices = {}
-  for key, binding in pairs(bindings) do
-    local text = binding.name
-    if binding.shortcut and binding.shortcut ~= "" then
-      text = text .. " (" .. binding.shortcut .. ")"
+  local choices, actions = {}, {}
+  for _, entry in pairs(bindings) do
+    local binding = entry.resolve and entry.resolve() or entry
+    if binding and binding.name and binding.fn then
+      local text = binding.name
+      if binding.shortcut and binding.shortcut ~= "" then
+        text = text .. " (" .. binding.shortcut .. ")"
+      end
+      local id = #choices + 1
+      choices[id] = {text = text, choiceId = id}
+      -- Snapshot the exact action shown, so a state change while the chooser
+      -- is open cannot turn a displayed Disable command into Enable.
+      actions[id] = binding.fn
     end
-    choices[#choices + 1] = {text = text, key = key}
   end
+  local completed = false
   local chooser = hs.chooser.new(function(choice)
-    if choice then
-      local binding = bindings[choice.key]
-      if binding and binding.fn then binding.fn() end
-    end
+    if completed then return end
+    completed = true
+    local action = choice and actions[choice.choiceId]
+    if action then action() end
   end)
   chooser:choices(choices)
   chooser:show()
+  return chooser
 end
 
 return M
