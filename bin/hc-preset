@@ -1373,6 +1373,107 @@ def set_hc_split_ratio(tab_id: str, target_pane_id: str, ratio: float, machine: 
                         set_params["on"] = machine
                     hc_rpc("doc.set", set_params)
                 return
+
+
+def move_hc_pane(
+    pane: dict[str, Any], *, new_workspace: bool, label: str | None = None,
+    tab_label: str | None = None, focus: bool = False,
+) -> dict[str, Any]:
+    """Move the existing layout node, not just its terminal's adoption labels.
+
+    Labels place *unadopted* terminals; changing them does not move a pane
+    already in the app document. Commit the source and destination together,
+    with names included, before syncing labels and asking the window to focus.
+    """
+    machine = pane.get("machine")
+
+    def local_id(value: str) -> str:
+        prefix = f"{machine}/" if machine else ""
+        return value[len(prefix):] if prefix and value.startswith(prefix) else value
+
+    def app_id(value: str) -> str:
+        return f"{machine}/{value}" if machine else value
+
+    terminal_id = local_id(pane["terminal_id"])
+    pane_id = local_id(pane["pane_id"])
+    space_id = local_id(pane["workspace_id"])
+    tab_id = local_id(pane["tab_id"])
+    doc_params: dict[str, Any] = {"name": "herdr-app"}
+    if machine:
+        doc_params["on"] = machine
+    reply = require_reply(hc_rpc("doc.get", doc_params), "pane.move doc.get")
+    result = reply.get("result") or {}
+    doc = result.get("value")
+    version = result.get("version")
+    if not isinstance(doc, dict) or version is None:
+        raise AdapterError("pane.move: no versioned layout document; nothing moved")
+    source = next((sp for sp in doc.get("spaces", []) if sp.get("id") == space_id), None)
+    source_tab = next((tb for tb in (source or {}).get("tabs", []) if tb.get("id") == tab_id), None)
+    if source_tab is None:
+        raise AdapterError("pane.move: source tab no longer exists; nothing moved")
+
+    moved = None
+
+    def detach(node: dict[str, Any]) -> dict[str, Any] | None:
+        nonlocal moved
+        if node.get("type") == "block":
+            content_terminal = (node.get("content") or {}).get("terminal")
+            if (node.get("id") or content_terminal) == pane_id and content_terminal == terminal_id:
+                if moved is not None:
+                    raise AdapterError("pane.move: duplicate source pane; nothing moved")
+                moved = node
+                return None
+            return node
+        children = node.get("children")
+        if isinstance(children, list):
+            kept_children = [kept for child in children if (kept := detach(child)) is not None]
+            return {**node, "children": kept_children} if kept_children else None
+        return node
+
+    root = source_tab.get("root")
+    if not isinstance(root, dict):
+        raise AdapterError("pane.move: source tab has no layout; nothing moved")
+    remaining = detach(root)
+    if moved is None:
+        raise AdapterError("pane.move: source pane no longer exists; nothing moved")
+    destination_space = f"sp{uuid.uuid4().hex}" if new_workspace else space_id
+    if remaining is None and new_workspace:
+        # A lone pane means the tab itself moves. Keep its ID and view state.
+        destination_tab = source_tab
+        if tab_label is not None:
+            destination_tab["name"] = tab_label
+        destination_tab["root"] = root
+    else:
+        destination_tab_id = f"tb{uuid.uuid4().hex}"
+        moved.pop("size", None)  # old split weight/px constraint does not belong in the new tab
+        destination_tab = {
+            "id": destination_tab_id,
+            "name": (tab_label if new_workspace else label) or "",
+            "root": {"id": destination_tab_id, "type": "row", "children": [moved]},
+        }
+    if remaining is None:
+        source["tabs"].remove(source_tab)
+    else:
+        source_tab["root"] = remaining
+    if new_workspace:
+        if not source["tabs"]:
+            doc["spaces"].remove(source)
+        doc["spaces"].append({
+            "id": destination_space, "name": label or "",
+            "folder": pane.get("foreground_cwd") or pane.get("cwd") or source.get("folder") or "",
+            "tabs": [destination_tab],
+        })
+    else:
+        source["tabs"].append(destination_tab)
+    destination_tab_id = destination_tab["id"]
+    require_reply(
+        hc_rpc("doc.set", {**doc_params, "version": version, "value": doc}), "pane.move doc.set",
+    )
+    label_params: dict[str, Any] = {
+        # terminal.label routes by address, unlike doc.get/set's `on` argument.
+        "terminal": app_id(terminal_id),
+        "labels": {"herdr.space": destination_space, "herdr.tab": destination_tab_id},
+    }
     try:
         require_reply(hc_rpc("terminal.label", label_params), "pane.move terminal.label")
     except AdapterError as exc:

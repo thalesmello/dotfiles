@@ -3,6 +3,7 @@
 Run: python3 -m unittest discover -s scripts/tests -p test_hc_preset.py
 """
 import contextlib
+import copy
 import importlib.machinery
 import importlib.util
 import io
@@ -275,6 +276,218 @@ class ErrorTests(unittest.TestCase):
                     ["tab", "rename", out["result"]["tab"]["tab_id"], "renamed-slug"]
                 )
             self.assertEqual(rc_rename, 0)
+
+
+class PaneMoveTests(unittest.TestCase):
+    def setUp(self):
+        self.pane = {"pane_id": "p1", "terminal_id": "t1", "tab_id": "tb1",
+                     "workspace_id": "sp1", "machine": None, "foreground_cwd": "/work/repo"}
+        self.leaf = {"id": "p1", "type": "block", "size": {"weight": 0.3},
+                     "content": {"terminal": "t1"}, "border": {"color": "accent"}}
+        self.other = {"id": "p2", "type": "block", "content": {"terminal": "t2"}}
+        self.doc = {"spaces": [{"id": "sp1", "name": "original", "folder": "/work",
+                                "tabs": [{"id": "tb1", "name": "task",
+                                          "root": {"id": "tb1", "type": "row", "gap": 6,
+                                                   "children": [self.leaf]}}]}]}
+        self.calls = []
+        self.saved = None
+
+    def rpc(self, method, params):
+        self.calls.append((method, copy.deepcopy(params)))
+        if method == "doc.get":
+            return {"result": {"value": copy.deepcopy(self.doc), "version": 7}}
+        if method == "doc.set":
+            self.saved = copy.deepcopy(params["value"])
+            return {"result": {"version": 8}}
+        if method == "terminal.label":
+            self.assertIsNotNone(self.saved, "commit layout before changing labels")
+            return {"result": {}}
+        self.fail(f"unexpected lifecycle/RPC operation: {method}")
+
+    def app_layout(self, doc):
+        prefix = f"{self.pane['machine']}/" if self.pane["machine"] else ""
+        return {"spaces": [{"id": prefix + sp["id"], "tabs": [
+            {"id": prefix + tb["id"], "terminals": [
+                {"pane": prefix + p["pane"], "terminal": prefix + p["terminal"]}
+                for p in adapter.collect_doc_panes(tb["root"])]}
+            for tb in sp["tabs"]]} for sp in doc["spaces"]]}
+
+    def move(self, **kwargs):
+        with patch.object(adapter, "hc_rpc", side_effect=self.rpc), \
+                patch.object(adapter, "herdr_app_socket_path", return_value=None):
+            return adapter.move_hc_pane(self.pane, **kwargs)
+
+    def test_lone_tab_moves_to_named_workspace_without_respawning(self):
+        original_tab = copy.deepcopy(self.doc["spaces"][0]["tabs"][0])
+        moved = self.move(new_workspace=True, label="Fix Tab Extraction", tab_label="Fix Tab Extraction")
+        self.assertEqual(len(self.saved["spaces"]), 1)  # remove empty source space
+        destination = self.saved["spaces"][0]
+        self.assertNotEqual(destination["id"], "sp1")
+        self.assertEqual(destination["name"], "Fix Tab Extraction")
+        self.assertEqual(destination["folder"], "/work/repo")
+        tab = destination["tabs"][0]
+        self.assertEqual(tab["id"], "tb1")  # keep the tab's view state
+        self.assertEqual(tab["name"], "Fix Tab Extraction")
+        self.assertEqual(tab["root"], original_tab["root"])
+        self.assertEqual(moved["pane_id"], "p1")
+        self.assertEqual(moved["terminal_id"], "t1")
+        self.assertEqual(moved["workspace_id"], destination["id"])
+        self.assertEqual([m for m, _ in self.calls], ["doc.get", "doc.set", "terminal.label"])
+        self.assertEqual(self.calls[1][1]["version"], 7)
+        self.assertEqual(self.calls[2][1]["labels"], {"herdr.space": destination["id"], "herdr.tab": "tb1"})
+
+    def test_extract_tab_leaves_other_tabs_in_source_space(self):
+        other_tab = {"id": "tb2", "name": "other", "root": {"id": "p2", "type": "block", "content": {"terminal": "t2"}}}
+        self.doc["spaces"][0]["tabs"].append(copy.deepcopy(other_tab))
+        self.move(new_workspace=True, label="new")
+        self.assertEqual(self.saved["spaces"][0]["tabs"], [other_tab])
+        self.assertEqual(self.saved["spaces"][1]["tabs"][0]["name"], "task")
+
+    def test_split_pane_moves_to_new_tab_and_prunes_empty_nested_splits(self):
+        root = self.doc["spaces"][0]["tabs"][0]["root"]
+        root["children"] = [{"id": "nested", "type": "column", "children": [self.leaf]}, self.other]
+        moved = self.move(new_workspace=False, label="extracted")
+        self.assertEqual(len(self.saved["spaces"]), 1)
+        tabs = self.saved["spaces"][0]["tabs"]
+        self.assertEqual(tabs[0]["root"]["children"], [self.other])
+        self.assertEqual(tabs[0]["root"]["gap"], 6)
+        self.assertEqual(tabs[1]["name"], "extracted")
+        new_leaf = tabs[1]["root"]["children"][0]
+        self.assertEqual(new_leaf["id"], "p1")
+        self.assertEqual(new_leaf["border"], self.leaf["border"])
+        self.assertNotIn("size", new_leaf)
+        self.assertEqual(moved["tab_id"], tabs[1]["id"])
+        self.assertEqual(moved["workspace_id"], "sp1")
+
+    def test_split_pane_moves_to_new_workspace_without_moving_other_panes(self):
+        self.doc["spaces"][0]["tabs"][0]["root"]["children"].append(self.other)
+        self.move(new_workspace=True, label="space", tab_label="tab")
+        self.assertEqual(self.saved["spaces"][0]["tabs"][0]["root"]["children"], [self.other])
+        self.assertEqual(self.saved["spaces"][1]["tabs"][0]["name"], "tab")
+        self.assertNotEqual(self.saved["spaces"][1]["tabs"][0]["id"], "tb1")
+
+    def test_mod_pane_is_preserved_not_mistaken_for_empty_tab(self):
+        mod = {"id": "pm", "type": "block", "content": {"mod": "files", "props": {"file": "foo"}}}
+        self.doc["spaces"][0]["tabs"][0]["root"]["children"].append(mod)
+        self.move(new_workspace=False)
+        tabs = self.saved["spaces"][0]["tabs"]
+        self.assertEqual(tabs[0]["root"]["children"], [mod])
+        self.assertEqual(tabs[1]["name"], "")
+
+    def test_lone_pane_new_tab_removes_empty_source_tab_but_keeps_space(self):
+        self.move(new_workspace=False)
+        tabs = self.saved["spaces"][0]["tabs"]
+        self.assertEqual(len(tabs), 1)
+        self.assertNotEqual(tabs[0]["id"], "tb1")
+        self.assertEqual(tabs[0]["name"], "")
+
+    def test_empty_workspace_label_uses_automatic_name(self):
+        self.move(new_workspace=True, label="", tab_label="")
+        self.assertEqual(self.saved["spaces"][0]["name"], "")
+        self.assertEqual(self.saved["spaces"][0]["tabs"][0]["name"], "")
+
+    def test_failed_or_uncertain_doc_write_does_not_relabel_or_focus(self):
+        for write_reply in ({"error": {"kind": "version_conflict"}}, None):
+            self.calls = []
+            def fail_write(method, params):
+                if method == "doc.set":
+                    self.calls.append((method, params))
+                    return write_reply
+                return self.rpc(method, params)
+            with patch.object(adapter, "hc_rpc", side_effect=fail_write), \
+                    patch.object(adapter, "herdr_app_do") as do:
+                with self.assertRaises(adapter.AdapterError):
+                    adapter.move_hc_pane(self.pane, new_workspace=True, focus=True)
+            self.assertEqual([m for m, _ in self.calls], ["doc.get", "doc.set"])
+            do.assert_not_called()
+
+    def test_missing_doc_or_stale_target_does_not_mutate(self):
+        for reply in (None, {"result": {"value": None, "version": 0}},
+                      {"result": {"value": {"spaces": []}, "version": 7}}):
+            with patch.object(adapter, "hc_rpc", return_value=reply) as rpc:
+                with self.assertRaises(adapter.AdapterError):
+                    adapter.move_hc_pane(self.pane, new_workspace=True)
+            rpc.assert_called_once_with("doc.get", {"name": "herdr-app"})
+        self.pane["pane_id"] = "stale"
+        with patch.object(adapter, "hc_rpc", side_effect=self.rpc):
+            with self.assertRaises(adapter.AdapterError):
+                adapter.move_hc_pane(self.pane, new_workspace=True)
+        self.assertEqual([m for m, _ in self.calls], ["doc.get"])
+
+    def test_headless_idless_pane_uses_terminal_as_pane_id(self):
+        self.leaf.pop("id")
+        self.pane["pane_id"] = "t1"
+        moved = self.move(new_workspace=True)
+        self.assertEqual(moved["pane_id"], "t1")
+        self.assertEqual(self.saved["spaces"][0]["tabs"][0]["root"]["children"], [self.leaf])
+
+    def test_label_failure_reports_already_saved_layout(self):
+        def fail_label(method, params):
+            if method == "terminal.label":
+                return {"error": {"kind": "not_found"}}
+            return self.rpc(method, params)
+        with patch.object(adapter, "hc_rpc", side_effect=fail_label), \
+                patch.object(adapter, "herdr_app_do") as do:
+            with self.assertRaisesRegex(adapter.AdapterError, "layout saved.*labels"):
+                adapter.move_hc_pane(self.pane, new_workspace=True, focus=True)
+        self.assertIsNotNone(self.saved)
+        do.assert_not_called()
+
+    def test_focus_waits_until_window_has_consumed_document(self):
+        def read_layout(payload):
+            self.assertEqual(payload, {"ls": True})
+            return self.app_layout(self.doc if read_layout.first else self.saved)
+        read_layout.first = True
+        def tick(_seconds):
+            read_layout.first = False
+        with patch.object(adapter, "hc_rpc", side_effect=self.rpc), \
+                patch.object(adapter, "herdr_app_socket_path", return_value="/tmp/app.sock"), \
+                patch.object(adapter, "herdr_app_rpc", side_effect=read_layout) as reads, \
+                patch.object(adapter.time, "sleep", side_effect=tick), \
+                patch.object(adapter, "herdr_app_do", return_value={"ok": True}) as do:
+            adapter.move_hc_pane(self.pane, new_workspace=True, label="named", focus=True)
+        self.assertEqual(reads.call_count, 2)
+        do.assert_called_once_with("pane.focus", {"terminal": "t1"})  # no racy rename
+
+    def test_window_timeout_reports_saved_move_without_retry_or_focus(self):
+        with patch.object(adapter, "hc_rpc", side_effect=self.rpc), \
+                patch.object(adapter, "herdr_app_socket_path", return_value="/tmp/app.sock"), \
+                patch.object(adapter, "herdr_app_rpc", return_value={"spaces": []}), \
+                patch.object(adapter.time, "monotonic", side_effect=[0, 6]), \
+                patch.object(adapter, "herdr_app_do") as do:
+            with self.assertRaisesRegex(adapter.AdapterError, "layout saved"):
+                adapter.move_hc_pane(self.pane, new_workspace=True, focus=True)
+        self.assertEqual([m for m, _ in self.calls], ["doc.get", "doc.set", "terminal.label"])
+        do.assert_not_called()
+
+    def test_remote_move_uses_local_ids_in_remote_doc_and_qualified_window_ids(self):
+        self.pane = {**self.pane, "machine": "devserver",
+                     **{key: "devserver/" + self.pane[key] for key in
+                        ("pane_id", "terminal_id", "tab_id", "workspace_id")}}
+        with patch.object(adapter, "hc_rpc", side_effect=self.rpc), \
+                patch.object(adapter, "herdr_app_socket_path", return_value="/tmp/app.sock"), \
+                patch.object(adapter, "herdr_app_rpc", side_effect=lambda _: self.app_layout(self.saved)), \
+                patch.object(adapter, "herdr_app_do", return_value={"ok": True}) as do:
+            moved = adapter.move_hc_pane(self.pane, new_workspace=True, label="remote", focus=True)
+        self.assertTrue(moved["workspace_id"].startswith("devserver/sp"))
+        for _, params in self.calls[:2]:
+            self.assertEqual(params["on"], "devserver")
+        self.assertNotIn("on", self.calls[2][1])  # terminal.label routes by qualified address
+        self.assertEqual(self.calls[2][1]["terminal"], "devserver/t1")
+        self.assertFalse(self.calls[2][1]["labels"]["herdr.space"].startswith("devserver/"))
+        do.assert_called_once_with("pane.focus", {"terminal": "devserver/t1"})
+
+    def test_cli_dispatch_honors_focus_flags_and_returns_destination_ids(self):
+        world = Mock()
+        world.resolve_pane.return_value = self.pane
+        for flag, expected_focus in (("--focus", True), ("--no-focus", False)):
+            with patch.object(adapter, "HcWorld", return_value=world), \
+                    patch.object(adapter, "move_hc_pane", return_value={**self.pane, "workspace_id": "sp2"}) as move, \
+                    contextlib.redirect_stdout(io.StringIO()) as out:
+                rc = adapter.handle_hc_herdr_cli(["pane", "move", "p1", "--new-workspace", "--label", "space", "--tab-label", "tab", flag])
+            self.assertEqual(rc, 0)
+            move.assert_called_once_with(self.pane, new_workspace=True, label="space", tab_label="tab", focus=expected_focus)
+            self.assertEqual(adapter.json.loads(out.getvalue())["result"]["move_result"]["pane"]["workspace_id"], "sp2")
 
 
 if __name__ == "__main__":
