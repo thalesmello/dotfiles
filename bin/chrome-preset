@@ -564,81 +564,390 @@ function chrome-preset
         end tell"
         or return 1
     case "focus-url"
-        argparse profile= -- $argv
+        argparse profile= cycle -- $argv
         or return 1
 
         set regex $argv[1]
         set -e argv[1]
 
-        # When --profile is given, scope the search to that profile's browser
-        # windows. Chrome scripting can't read a window's profile directly, but
-        # yabai sees the profile suffix in the window title (e.g. "… - Google
-        # Chrome - Thales (Personal)") — the same signal focus-profile-window
-        # uses. We hand those titles to the JXA below, which keeps only windows
-        # whose active-tab title correlates with one of them. With no profile (or
-        # no matching window) the search falls back to every window.
-        set -l titles
+        set -l profile_name ""
         if test -n "$_flag_profile"
-            set -l profile_name (chrome-preset get-profile-name "$_flag_profile")
-            set -l profile_regex (get-profile-regex --browser-only "$profile_name")
-            set titles (yabai-preset list-windows --regex "$profile_regex" | jq -r '.title')
+            set profile_name (chrome-preset get-profile-name "$_flag_profile" 2>/dev/null)
         end
 
-        # Find the first tab whose URL matches $regex and focus it — locate,
-        # select and activate in a SINGLE JXA round-trip. Only window names and
-        # tab URLs are fetched (one Apple Event each) and we stop at the first
-        # match, so this avoids list-tabs-json's extra id/title fetches, the jq
-        # subprocess, the separate focus-window osascript, and the slow chrome-cli
-        # activate process the previous implementation chained together.
-        #
-        # Inputs are passed via the environment (not string-interpolated) to avoid
-        # quoting/injection issues. Note the pattern is matched by JavaScript's
-        # RegExp rather than jq/Oniguruma; simple URL patterns behave identically.
-        set result (env CHROME_FOCUS_REGEX="$regex" CHROME_FOCUS_TITLES=(string join \n -- $titles) osascript -l JavaScript -e '
+        set -l cycle_flag ""
+        if set -q _flag_cycle
+            set cycle_flag "1"
+        end
+
+        # Query only in-memory yabai window fields (id, app, title, has-focus,
+        # is-minimized, frame) in a single call (~20ms). Unfiltered
+        # `yabai -m query --windows` queries live AX role/subrole attributes on
+        # every window of every app and can stall 500ms+ during video calls.
+        set -l all_yabai_json (yabai -m query --windows id,app,title,has-focus,is-minimized,frame 2>/dev/null | string collect)
+        test -n "$all_yabai_json"; or set all_yabai_json "[]"
+
+        # Fast path (~20ms, no osascript): when focusing Google Meet and yabai
+        # already sees a Chrome window whose active tab is a Meet room
+        # ("Meet - ..."), focus that yabai window directly unless 2+ un-badged
+        # Meet room windows exist (which need JXA DOM inspection to tell an
+        # active call from "You left the meeting") or --cycle is pressed while
+        # already focused on it.
+        if test "$all_yabai_json" != "[]"; and string match -rqi 'meet\\?\.google\\?\.com' -- "$regex"
+            set -l fast_match (echo "$all_yabai_json" | jq -r \
+                --arg profile "$profile_name" \
+                --arg cycle "$cycle_flag" '
+                def media_rank($t):
+                    if ($t | test(" - (Camera and microphone recording|Camera recording|Microphone recording|Tab sharing|Screen sharing|Desktop being shared|Sharing [^-]+|Presenting)( - High memory usage - [0-9.]+ [KMGT]?B)?( - Google Chrome( - .*)?| - [^-]+)?$"; "i")) then 2
+                    elif ($t | test(" - (Audio playing|Audio muted)( - High memory usage - [0-9.]+ [KMGT]?B)?( - Google Chrome( - .*)?| - [^-]+)?$"; "i")) then 1
+                    else 0 end;
+                def profile_ok($t):
+                    ($profile == "") or ($t | endswith(" - Google Chrome - " + $profile));
+
+                [ .[]
+                  | select(.app == "Google Chrome"
+                           and ((.title // "") | test("^Meet\\s*[-–—]"; "i"))
+                           and profile_ok(.title // ""))
+                  | . + { mrank: media_rank(.title // "") }
+                ]
+                | sort_by([-.mrank, (if ."is-minimized" then 1 else 0 end), .id])
+                | if length == 0 then
+                      ""
+                  elif (length > 1 and .[0].mrank == 0) then
+                      ""
+                  elif (length > 1 and .[0].mrank == .[1].mrank and $cycle != "1") then
+                      ""
+                  elif ($cycle == "1" and (.[0]."has-focus" == true)) then
+                      if length > 1 and (.[1].mrank == .[0].mrank) then
+                          "\(.[1].id):\(.[1]."is-minimized")"
+                      else
+                          ""
+                      end
+                  else
+                      "\(.[0].id):\(.[0]."is-minimized")"
+                  end
+            ' 2>/dev/null)
+
+            if test -n "$fast_match"
+                echo "$fast_match" | read -d: -l fast_id fast_min
+                term-preset hide-floating-terminal >/dev/null 2>&1 &
+                disown
+                if test "$fast_min" = "true"
+                    yabai -m window --deminimize "$fast_id" >/dev/null 2>&1
+                end
+                yabai -m window --focus "$fast_id" >/dev/null 2>&1
+                or wm-preset focus-window-id "$fast_id" >/dev/null 2>&1
+                return 0
+            end
+        end
+
+        # Fallback JXA path: rank all matching tabs across Chrome windows.
+        # DOM inspection (probeMeetDom) is only invoked when 2+ Meet room tabs
+        # exist and tie on window-title media score, avoiding tab.execute
+        # completely in the single-meeting case.
+        set result (env \
+            CHROME_FOCUS_REGEX="$regex" \
+            CHROME_FOCUS_PROFILE="$profile_name" \
+            CHROME_FOCUS_CYCLE="$cycle_flag" \
+            CHROME_YABAI_WINDOWS="$all_yabai_json" \
+            osascript -l JavaScript -e '
             ObjC.import("Foundation");
             const chrome = Application("Google Chrome");
             const env = $.NSProcessInfo.processInfo.environment;
-            const re = new RegExp(ObjC.unwrap(env.objectForKey("CHROME_FOCUS_REGEX")));
-            const rawTitles = ObjC.unwrap(env.objectForKey("CHROME_FOCUS_TITLES")) || "";
-            const titles = rawTitles ? rawTitles.split("\n").filter(t => t.length) : null;
-            const wins = chrome.windows;
-            let count;
-            try { count = wins.length; } catch (e) { count = 0; }
-            let found = false;
-            for (let wi = 0; wi < count && !found; wi++) {
-                const w = wins[wi];
+            const unwrap = k => ObjC.unwrap(env.objectForKey(k)) || "";
+            const re = new RegExp(unwrap("CHROME_FOCUS_REGEX"));
+            const wantProfile = unwrap("CHROME_FOCUS_PROFILE");
+            const cycle = unwrap("CHROME_FOCUS_CYCLE") === "1";
 
-                // Restrict to the profile windows. Chrome exposes no profile, and
-                // window.name() is middle-truncated (with an ellipsis) and lacks the
-                // profile suffix, so it cannot be matched. Instead correlate on the
-                // full active-tab title, which appears verbatim inside the yabai
-                // window title (e.g. "<tab title> - Google Chrome - Thales (Personal)").
-                if (titles) {
-                    let tabTitles, activeIdx;
-                    try { tabTitles = w.tabs.title(); activeIdx = w.activeTabIndex(); } catch (e) { continue; }
-                    const activeTitle = tabTitles[activeIdx - 1];
-                    if (!(activeTitle && titles.some(t => t.indexOf(activeTitle) !== -1))) {
-                        continue;
+            let yabaiWins = [];
+            try {
+                yabaiWins = JSON.parse(unwrap("CHROME_YABAI_WINDOWS") || "[]");
+            } catch (e) {
+                yabaiWins = [];
+            }
+
+            const MEDIA_RECORDING_RE = / - (Camera and microphone recording|Camera recording|Microphone recording|Tab sharing|Screen sharing|Desktop being shared|Sharing [^-]+|Presenting)$/i;
+            const MEDIA_AUDIO_RE = / - (Audio playing|Audio muted)$/i;
+            const MEMORY_RE = / - High memory usage - [0-9.]+ [KMGT]?B$/;
+            const BROWSER_SUFFIX_RE = / - Google Chrome(?: - (.*))?$/;
+            const MEET_HOST_RE = /^https?:\/\/meet\.google\.com(\/|[?#]|$)/i;
+            const MEET_ROOM_URL_RE = /^https?:\/\/meet\.google\.com\/([a-z]{3}-[a-z]{4}-[a-z]{3}(\b|[/?#]|$)|lookup\/)/i;
+            const MEET_ROOM_TITLE_RE = /^Meet\s*[-–—]/i;
+
+            const parsedYabaiWins = yabaiWins
+                .filter(yw => yw && yw.app === "Google Chrome" && yw.title && yw.title !== "Picture in Picture")
+                .map(yw => {
+                    const title = yw.title || "";
+                    const browserMatch = title.match(BROWSER_SUFFIX_RE);
+                    const isBrowser = !!browserMatch;
+                    let profile = "";
+                    let rawBase = title;
+                    if (browserMatch) {
+                        profile = browserMatch[1] || "";
+                        rawBase = title.slice(0, browserMatch.index);
+                    } else {
+                        const appSuffix = title.match(/ - ([^-]+)$/);
+                        if (appSuffix) {
+                            profile = appSuffix[1] || "";
+                            rawBase = title.slice(0, appSuffix.index);
+                        }
+                    }
+                    let mediaRank = 0;
+                    let baseTitle = rawBase;
+                    for (let pass = 0; pass < 2; pass++) {
+                        baseTitle = baseTitle.replace(MEMORY_RE, "");
+                        if (MEDIA_RECORDING_RE.test(baseTitle)) {
+                            mediaRank = Math.max(mediaRank, 2);
+                            baseTitle = baseTitle.replace(MEDIA_RECORDING_RE, "");
+                        } else if (MEDIA_AUDIO_RE.test(baseTitle)) {
+                            mediaRank = Math.max(mediaRank, 1);
+                            baseTitle = baseTitle.replace(MEDIA_AUDIO_RE, "");
+                        }
+                    }
+                    return {
+                        id: yw.id,
+                        title,
+                        rawBase,
+                        baseTitle,
+                        isBrowser,
+                        profile,
+                        mediaRank,
+                        hasFocus: !!yw["has-focus"],
+                        isMinimized: !!yw["is-minimized"],
+                        frame: yw.frame || null,
+                    };
+                });
+
+            const hasProfileWins = wantProfile !== ""
+                && parsedYabaiWins.some(yw => yw.isBrowser && yw.profile === wantProfile);
+            const claimedYabaiIds = new Set();
+
+            function correlateYabaiWindow(activeTitle, wName, bounds, isMin) {
+                let best = null;
+                let bestKey = null;
+                for (const yw of parsedYabaiWins) {
+                    let tier = null;
+                    if (activeTitle && (yw.baseTitle === activeTitle || yw.rawBase === activeTitle || yw.title === activeTitle)) {
+                        tier = 1;
+                    } else if (wName && (yw.rawBase === wName || yw.baseTitle === wName || yw.title === wName)) {
+                        tier = 2;
+                    } else if (activeTitle && (yw.baseTitle.startsWith(activeTitle) || yw.rawBase.startsWith(activeTitle))) {
+                        tier = 3;
+                    } else if (wName && (yw.baseTitle.startsWith(wName) || yw.rawBase.startsWith(wName))) {
+                        tier = 4;
+                    } else if (wName && wName.includes("…")) {
+                        const parts = wName.split("…");
+                        if (parts.length === 2 && yw.rawBase.startsWith(parts[0]) && yw.rawBase.endsWith(parts[1])) {
+                            tier = 5;
+                        }
+                    } else if (activeTitle && yw.rawBase.includes(activeTitle)) {
+                        tier = 6;
+                    }
+                    if (tier === null) continue;
+                    const claimedRank = claimedYabaiIds.has(yw.id) ? 1 : 0;
+                    const boundsRank = (bounds && yw.frame
+                        && isMin === yw.isMinimized
+                        && Math.abs(bounds.x - yw.frame.x) <= 10
+                        && Math.abs(bounds.y - yw.frame.y) <= 40
+                        && Math.abs(bounds.width - yw.frame.w) <= 10
+                        && Math.abs(bounds.height - yw.frame.h) <= 40) ? 0 : 1;
+                    const key = [tier, claimedRank, boundsRank];
+                    if (!bestKey
+                        || key[0] < bestKey[0]
+                        || (key[0] === bestKey[0] && key[1] < bestKey[1])
+                        || (key[0] === bestKey[0] && key[1] === bestKey[1] && key[2] < bestKey[2])) {
+                        best = yw;
+                        bestKey = key;
                     }
                 }
+                if (best) claimedYabaiIds.add(best.id);
+                return best;
+            }
 
-                let urls;
-                try { urls = w.tabs.url(); } catch (e) { continue; }
-                for (let i = 0; i < urls.length; i++) {
-                    if (urls[i] && re.test(urls[i])) {
-                        w.activeTabIndex = i + 1;
-                        w.index = 1;
-                        chrome.activate();
-                        found = true;
-                        break;
-                    }
+            function probeMeetDom(tab) {
+                try {
+                    const res = tab.execute({
+                        javascript: `(function() {
+                            try {
+                                if (document.querySelector("[aria-label*=\"Leave call\" i], [aria-label*=\"Sair da chamada\" i], [data-tooltip*=\"Leave call\" i], button[jsname=\"CQylAd\"]")) {
+                                    return 3;
+                                }
+                                if (document.querySelector("[aria-label*=\"Rejoin\" i], [aria-label*=\"Participar novamente\" i]")) {
+                                    return -2;
+                                }
+                                if (document.querySelector("[aria-label*=\"Join now\" i], [aria-label*=\"Ask to join\" i], [aria-label*=\"Participar agora\" i], [aria-label*=\"Pedir para participar\" i]")) {
+                                    return 1;
+                                }
+                                const text = (document.body && document.body.textContent) || "";
+                                if (/You left the meeting|Return to home screen|Call ended|You\x27ve been removed|meeting has ended|Você saiu da reunião|Voltar à tela inicial/i.test(text)) {
+                                    return -2;
+                                }
+                                if (/Ready to join\\?|Ask to join|Join now|Pronto para participar\\?/i.test(text)) {
+                                    return 1;
+                                }
+                                const mediaActive = Array.from(document.querySelectorAll("video, audio")).some(
+                                    el => el.srcObject && el.srcObject.active
+                                );
+                                if (mediaActive || document.querySelector("[data-participant-id], [data-self-name]")) {
+                                    return 2;
+                                }
+                                return 0;
+                            } catch (e) {
+                                return 0;
+                            }
+                        })()`
+                    });
+                    return typeof res === "number" ? res : 0;
+                } catch (e) {
+                    return 0;
                 }
             }
-            found ? "ok" : "not_found";
+
+            const wins = chrome.windows;
+            let wids, wnames;
+            try { wids = wins.id(); } catch (e) { wids = []; }
+            try { wnames = wins.name(); } catch (e) { wnames = []; }
+
+            const candidates = [];
+            for (let wi = 0; wi < wids.length; wi++) {
+                const wName = (wnames && wnames[wi]) || "";
+                if (wName === "Picture in Picture") continue;
+
+                const w = wins[wi];
+                let urls;
+                try { urls = w.tabs.url(); } catch (e) { continue; }
+
+                const matchingIndices = [];
+                for (let i = 0; i < urls.length; i++) {
+                    if (urls[i] && re.test(urls[i])) {
+                        matchingIndices.push(i);
+                    }
+                }
+                if (matchingIndices.length === 0) continue;
+
+                let tabTitles = [], activeIdx = 1, isMin = false, bounds = null;
+                try {
+                    tabTitles = w.tabs.title();
+                    activeIdx = w.activeTabIndex();
+                    isMin = !!w.minimized();
+                    bounds = w.bounds();
+                } catch (e) { continue; }
+
+                const activeTitle = (tabTitles && tabTitles[activeIdx - 1]) || "";
+                const yw = correlateYabaiWindow(activeTitle, wName, bounds, isMin);
+
+                if (hasProfileWins && !(yw && yw.isBrowser && yw.profile === wantProfile)) {
+                    continue;
+                }
+
+                let winMedia = yw ? yw.mediaRank : 0;
+                if (winMedia < 2 && MEDIA_RECORDING_RE.test(wName)) winMedia = 2;
+                else if (winMedia < 1 && MEDIA_AUDIO_RE.test(wName)) winMedia = 1;
+
+                for (const i of matchingIndices) {
+                    const url = urls[i] || "";
+                    const title = (tabTitles && tabTitles[i]) || "";
+                    const isActiveTab = (i + 1 === activeIdx) ? 1 : 0;
+                    const notMinimized = (!isMin && !(yw && yw.isMinimized)) ? 1 : 0;
+                    const mediaScore = isActiveTab ? winMedia : 0;
+                    const isMeet = MEET_HOST_RE.test(url);
+                    const isRoomUrl = isMeet && MEET_ROOM_URL_RE.test(url);
+                    const roomTitle = (isMeet && MEET_ROOM_TITLE_RE.test(title)) ? 1 : 0;
+
+                    candidates.push({
+                        win: w,
+                        tab: w.tabs[i],
+                        windowId: Number(wids[wi]) || wi,
+                        wi,
+                        tabIndex: i + 1,
+                        i,
+                        url,
+                        title,
+                        yw,
+                        isFocusedWindow: !!(yw && yw.hasFocus),
+                        isActiveTab,
+                        notMinimized,
+                        isRoomUrl,
+                        callRank: isRoomUrl ? 2 : 0,
+                        mediaScore,
+                        roomTitle,
+                    });
+                }
+            }
+
+            if (candidates.length === 0) {
+                "not_found";
+            } else {
+                // Only run DOM inspection when 2+ Meet room tabs exist and the
+                // top mediaScore doesn\x27t already pick a unique winner (or
+                // when --cycle is invoked while a top-media room tab is already
+                // focused).
+                const roomCands = candidates.filter(c => c.isRoomUrl);
+                if (roomCands.length > 1) {
+                    const maxMedia = Math.max(...roomCands.map(c => c.mediaScore));
+                    const topMediaCands = roomCands.filter(c => c.mediaScore === maxMedia);
+                    const topMediaFocused = topMediaCands.some(c => c.isFocusedWindow && c.isActiveTab === 1);
+                    if (topMediaCands.length > 1 || (cycle && topMediaFocused)) {
+                        for (const c of roomCands) {
+                            const domState = probeMeetDom(c.tab);
+                            if (domState === 3) c.callRank = 4;
+                            else if (domState === 2) c.callRank = 3;
+                            else if (domState === -2) c.callRank = 1;
+                            else c.callRank = 2;
+                        }
+                    }
+                }
+
+                for (const c of candidates) {
+                    c.sortKey = [c.callRank, c.mediaScore, c.roomTitle, c.isActiveTab, c.notMinimized, -c.wi, -c.i];
+                }
+
+                candidates.sort((a, b) => {
+                    for (let k = 0; k < a.sortKey.length; k++) {
+                        if (a.sortKey[k] !== b.sortKey[k]) return b.sortKey[k] - a.sortKey[k];
+                    }
+                    return 0;
+                });
+
+                let best = candidates[0];
+                if (cycle && candidates.length > 1) {
+                    const sameTier = candidates.filter(
+                        c => c.callRank === best.callRank
+                            && c.mediaScore === best.mediaScore
+                            && c.roomTitle === best.roomTitle
+                    );
+                    if (sameTier.length > 1) {
+                        sameTier.sort((a, b) => (a.windowId - b.windowId) || (a.tabIndex - b.tabIndex));
+                        const curIdx = sameTier.findIndex(c => c.isFocusedWindow && c.isActiveTab === 1);
+                        if (curIdx >= 0) {
+                            best = sameTier[(curIdx + 1) % sameTier.length];
+                        }
+                    }
+                }
+
+                best.win.activeTabIndex = best.tabIndex;
+                best.win.index = 1;
+                chrome.activate();
+                const yid = best.yw && best.yw.id ? String(best.yw.id) : "";
+                const ymin = best.yw && best.yw.isMinimized ? "true" : "false";
+                "ok:" + yid + ":" + ymin;
+            }
         ')
 
-        test "$result" = "ok"
-        or return 1
+        if string match -q 'ok:*' -- "$result"
+            echo "$result" | read -d: -l _ok yabai_window_id yabai_min
+            term-preset hide-floating-terminal >/dev/null 2>&1 &
+            disown
+            if test -n "$yabai_window_id"
+                if test "$yabai_min" = "true"
+                    yabai -m window --deminimize "$yabai_window_id" >/dev/null 2>&1
+                end
+                yabai -m window --focus "$yabai_window_id" >/dev/null 2>&1
+                or wm-preset focus-window-id "$yabai_window_id" >/dev/null 2>&1
+            end
+            return 0
+        end
+        return 1
     case "check-url"
         set regex $argv[1]
         set -e argv[1]
@@ -651,7 +960,7 @@ function chrome-preset
         or return 1
 
     case "focus-or-open-url"
-        argparse fallback= profile= label= -- $argv
+        argparse fallback= profile= label= cycle -- $argv
         or return 1
 
         set regex $argv[1]
@@ -665,10 +974,16 @@ function chrome-preset
         end
 
         if test -n "$_flag_label"
-            display-message "Open $_flag_label"
+            display-message "Open $_flag_label" >/dev/null 2>&1 &
+            disown
         end
 
-        chrome-preset focus-url --profile="$_flag_profile" "$regex"
+        set -l cycle_args
+        if set -q _flag_cycle
+            set cycle_args --cycle
+        end
+
+        chrome-preset focus-url $cycle_args --profile="$_flag_profile" "$regex"
         or chrome-preset open-url --newtab --profile="$_flag_profile" "$url"
         or return 1
     case "check-or-open-url"

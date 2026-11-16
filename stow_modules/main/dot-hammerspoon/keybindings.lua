@@ -42,7 +42,12 @@ local function isProcessRunning(name)
 end
 
 local function zoomMeetingWindowOpen()
-  local app = hs.application.get("us.zoom.xos")
+  -- Use applicationsForBundleID rather than hs.application.get: when Zoom is
+  -- not running, hs.application.get("us.zoom.xos") falls through to
+  -- hs.window.find(), which AX-sweeps every window of every running app on the
+  -- system (~1-6s on the main thread) before falling back to Google Meet.
+  local apps = hs.application.applicationsForBundleID("us.zoom.xos")
+  local app = apps and apps[1]
   if not app then return false end
   for _, win in ipairs(app:allWindows()) do
     if (win:title() or ""):match("^Zoom Meeting") then
@@ -825,7 +830,10 @@ function M.setup()
   default:bindOnce(hyper, "r", "Focus Chrome (alt)", function() task({"wm-preset", "focus-app", "Google Chrome"}) end)
   default:conditionalBindOnce(hyperShift, "w", "Focus Zoom/Meet", {
     {cond = zoomMeetingWindowOpen, function() task({"wm-preset", "alternate-window", "--title", "^Zoom Meeting"}) end},
-    {function() task({"chrome-preset", "focus-or-open-url", "meet.google.com", "--label", "Google Meet"}) end},
+    {function()
+      Preset.displayMessage("Open Google Meet")
+      task({"chrome-preset", "focus-or-open-url", "--cycle", "meet.google.com"})
+    end},
   })
   default:conditionalBindOnce(hyperShift, "s", "Toggle Mute Zoom/Meet", {
     {cond = zoomMeetingWindowOpen, function()
@@ -837,7 +845,7 @@ function M.setup()
     end},
     {function()
       Preset.displayMessage("Toggle Mute")
-      task({"chrome-preset", "focus-or-open-url", "meet.google.com", "--label", "Google Meet"})
+      task({"chrome-preset", "focus-or-open-url", "meet.google.com"})
       hs.timer.doAfter(0.5, function() hs.eventtap.keyStroke({"cmd"}, "d") end)
     end},
   })

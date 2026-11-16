@@ -55,7 +55,8 @@ local inMeeting = false
 local prompting = false
 
 local function zoomApp()
-  return hs.application.get(BUNDLE)
+  local apps = hs.application.applicationsForBundleID(BUNDLE)
+  return apps and apps[1] or nil
 end
 
 -- The main/idle window is "Zoom Workplace"; a live call adds "Zoom Meeting"
