@@ -223,4 +223,28 @@ describe("smooth-scroll extension", () => {
 		expect(doc.render(80)).toEqual(["row-1", "row-2"]);
 		expect(doc.renderCalls).toBe(2);
 	});
+
+	test("survives /reload over a legacy globalThis PatchState without undefined field errors and restores mouse mode", () => {
+		const sym = Symbol.for("pi.smoothScroll.patchState");
+		const holder = globalThis as any;
+		// Simulate an older PatchState left on globalThis before /reload:
+		delete holder[sym].transcriptGeneration;
+		delete holder[sym].restoredMouseScreens;
+		delete holder[sym].allMotionDisabledScreens;
+
+		const writes: string[] = [];
+		const screen = new host.TuiAltScreen();
+		(screen as any).terminal = { write: (d: string) => writes.push(d) };
+
+		for (const fn of handlers.get("session_shutdown") ?? []) fn({}, ctx);
+		for (const fn of handlers.get("session_start") ?? []) fn({}, ctx);
+
+		expect(() => screen.handleViewportInput("")).not.toThrow();
+		expect(() => screen.doRender()).not.toThrow();
+		expect(writes).toContain("\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1004h\x1b[?1006h");
+
+		const evDown = { direction: 1, x: 10, y: 10, button: 65 };
+		screen.routeWheel(evDown, 2);
+		expect(screen.primaryScrollView.scrollTop).toBe(2);
+	});
 });
