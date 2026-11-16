@@ -1097,6 +1097,12 @@ def hc_show_notification(title: str, body: str = "") -> None:
 # ---------------------------------------------------------------------------
 
 
+def is_model_pane_id(val: Any) -> bool:
+    s = str(val or "")
+    bare = s.rsplit("/", 1)[-1]
+    return bare.startswith("p") and len(bare) >= 2
+
+
 def handle_hc_rpc_compat(method: str, params: dict[str, Any]) -> dict[str, Any]:
     if method == "machine.connect":
         # Explicit retry after a human authenticates the --via transport.
@@ -1108,7 +1114,7 @@ def handle_hc_rpc_compat(method: str, params: dict[str, Any]) -> dict[str, Any]:
         p = world.resolve_pane(target, hydrate=False)
         if not p:
             return {"id": "hc-preset", "error": {"code": "pane_not_found", "message": f"Pane {target} not found"}}
-        if str(p["pane_id"]).startswith("p"):
+        if is_model_pane_id(p["pane_id"]):
             herdr_app_do("pane.focus", {"pane": p["pane_id"]})
         else:
             herdr_app_do("pane.focus", {"terminal": p["terminal_id"]})
@@ -1119,7 +1125,7 @@ def handle_hc_rpc_compat(method: str, params: dict[str, Any]) -> dict[str, Any]:
         p = world.resolve_pane(target, hydrate=False)
         if not p:
             return {"id": "hc-preset", "error": {"code": "pane_not_found", "message": f"Pane {target} not found"}}
-        if str(p["pane_id"]).startswith("p"):
+        if is_model_pane_id(p["pane_id"]):
             herdr_app_do("pane.close", {"pane": p["pane_id"]})
         else:
             hc_rpc("terminal.kill", {"terminal": p["terminal_id"]})
@@ -1367,6 +1373,36 @@ def set_hc_split_ratio(tab_id: str, target_pane_id: str, ratio: float, machine: 
                         set_params["on"] = machine
                     hc_rpc("doc.set", set_params)
                 return
+    try:
+        require_reply(hc_rpc("terminal.label", label_params), "pane.move terminal.label")
+    except AdapterError as exc:
+        raise AdapterError(f"pane.move: layout saved, but terminal labels could not be synced; inspect state before retrying: {exc}") from exc
+
+    if focus and herdr_app_socket_path():
+        # doc.set is acknowledged by the core before the window consumes its
+        # subscription. Read-only waits avoid focusing/renaming nonexistent IDs.
+        deadline = time.monotonic() + 5.0
+        while True:
+            layout = herdr_app_rpc({"ls": True}) or {}
+            ready = any(
+                sp.get("id") == app_id(destination_space)
+                and tb.get("id") == app_id(destination_tab_id)
+                and entry.get("pane") == app_id(pane_id)
+                and entry.get("terminal") == app_id(terminal_id)
+                for sp in layout.get("spaces", [])
+                for tb in sp.get("tabs", [])
+                for entry in tb.get("terminals", [])
+            )
+            if ready:
+                break
+            if time.monotonic() >= deadline:
+                raise AdapterError("pane.move: layout saved, but window has not observed it; inspect state before retrying")
+            time.sleep(0.05)
+        herdr_app_do("pane.focus", {"terminal": app_id(terminal_id)})
+    return {
+        "pane_id": app_id(pane_id), "terminal_id": app_id(terminal_id),
+        "workspace_id": app_id(destination_space), "tab_id": app_id(destination_tab_id),
+    }
 
 
 def print_json(data: Any) -> int:
@@ -2242,10 +2278,10 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             if direction:
                 herdr_app_do("pane.go", {"direction": direction})
                 return print_json({"result": {"type": "ok"}})
-            p = world.resolve_pane(target)
+            p = world.resolve_pane(target, hydrate=False)
             if not p:
                 return print_err("pane_not_found", f"Pane {target} not found")
-            if str(p["pane_id"]).startswith("p"):
+            if is_model_pane_id(p["pane_id"]):
                 herdr_app_do("pane.focus", {"pane": p["pane_id"]})
             else:
                 herdr_app_do("pane.focus", {"terminal": p["terminal_id"]})
@@ -2260,7 +2296,7 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                     want_on = False
                 elif not a.startswith("-"):
                     target = a
-            p = world.resolve_pane(target)
+            p = world.resolve_pane(target, hydrate=False)
             if not p:
                 return print_err("pane_not_found", "Pane not found")
             zoomed_pane = ((world.view.get("tabs") or {}).get(p["tab_id"]) or {}).get("zoomed")
@@ -2273,10 +2309,10 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             return print_json({"result": {"type": "ok"}})
         if sub == "close":
             target = next((a for a in args if not a.startswith("-")), None)
-            p = world.resolve_pane(target)
+            p = world.resolve_pane(target, hydrate=False)
             if not p:
                 return print_err("pane_not_found", "Pane not found")
-            if str(p["pane_id"]).startswith("p"):
+            if is_model_pane_id(p["pane_id"]):
                 res = herdr_app_do("pane.close", {"pane": p["pane_id"]})
                 if not res:
                     hc_rpc("terminal.kill", {"terminal": p["terminal_id"]})
@@ -2287,6 +2323,7 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             target = None
             new_tab = False
             new_ws = False
+            focus = False
             label = None
             tab_label = None
             i = 0
@@ -2305,6 +2342,7 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                     tab_label = args[i + 1]
                     i += 2
                 elif a in ("--focus", "--no-focus"):
+                    focus = a == "--focus"
                     i += 1
                 elif not a.startswith("-") and not target:
                     target = a
@@ -2314,29 +2352,9 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             p = world.resolve_pane(target)
             if not p:
                 return print_err("pane_not_found", f"Pane {target} not found")
-            t_id = p["terminal_id"]
-            if new_ws:
-                new_sp = f"sp{uuid.uuid4().hex}"
-                new_tb = f"tb{uuid.uuid4().hex}"
-                hc_rpc("terminal.label", {"terminal": t_id, "labels": {"herdr.space": new_sp, "herdr.tab": new_tb}})
-                if label:
-                    herdr_app_do("space.rename", {"id": new_sp, "name": label})
-                if tab_label:
-                    herdr_app_do("tab.rename", {"id": new_tb, "name": tab_label})
-                if herdr_app_socket_path():
-                    herdr_app_do("pane.focus", {"terminal": t_id})
-                return print_json({"result": {"move_result": {"pane": {"pane_id": p["pane_id"], "terminal_id": t_id}}}})
-            if new_tab:
-                new_tb = f"tb{uuid.uuid4().hex}"
-                hc_rpc(
-                    "terminal.label",
-                    {"terminal": t_id, "labels": {"herdr.space": p["workspace_id"], "herdr.tab": new_tb}},
-                )
-                if label:
-                    herdr_app_do("tab.rename", {"id": new_tb, "name": label})
-                if herdr_app_socket_path():
-                    herdr_app_do("pane.focus", {"terminal": t_id})
-                return print_json({"result": {"move_result": {"pane": {"pane_id": p["pane_id"], "terminal_id": t_id}}}})
+            if new_ws or new_tab:
+                moved = move_hc_pane(p, new_workspace=new_ws, label=label, tab_label=tab_label, focus=focus)
+                return print_json({"result": {"move_result": {"pane": moved}}})
             return print_json({"result": {"type": "ok"}})
         if sub == "swap":
             direction = None
@@ -2380,10 +2398,10 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             return print_json({"result": {"agent": p}})
         if sub == "focus":
             target = next((a for a in args if not a.startswith("-")), None)
-            p = world.resolve_pane(target)
+            p = world.resolve_pane(target, hydrate=False)
             if not p:
                 return print_err("agent_not_found", f"Target {target} not found")
-            if str(p["pane_id"]).startswith("p"):
+            if is_model_pane_id(p["pane_id"]):
                 herdr_app_do("pane.focus", {"pane": p["pane_id"]})
             else:
                 herdr_app_do("pane.focus", {"terminal": p["terminal_id"]})
@@ -2526,9 +2544,25 @@ def resolve_plugin_entrypoint_command(plugin: str, entrypoint: str) -> str | Non
         blocks = text.split("[[panes]]")[1:]
         for b in blocks:
             m_id = re.search(r'^\s*id\s*=\s*"([^"]+)"', b, re.M)
+            if not m_id or m_id.group(1) != entrypoint:
+                continue
             m_cmd = re.search(r'^\s*command\s*=\s*"([^"]+)"', b, re.M)
-            if m_id and m_cmd and m_id.group(1) == entrypoint:
-                return os.path.expanduser(m_cmd.group(1))
+            if m_cmd:
+                raw = os.path.expanduser(m_cmd.group(1))
+                if raw.startswith("./") or raw.startswith("../"):
+                    return str((manifest.parent / raw).resolve())
+                return raw
+            m_arr = re.search(r"^\s*command\s*=\s*(\[[^\]]+\])", b, re.M)
+            if m_arr:
+                arr = json.loads(m_arr.group(1))
+                if isinstance(arr, list) and arr:
+                    parts: list[str] = []
+                    for item in arr:
+                        tok = os.path.expanduser(str(item))
+                        if tok.startswith("./") or tok.startswith("../"):
+                            tok = str((manifest.parent / tok).resolve())
+                        parts.append(shlex.quote(tok))
+                    return " ".join(parts)
     except Exception:
         pass
     return None

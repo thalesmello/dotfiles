@@ -5,6 +5,7 @@ import { panes, focused, spaces, home, hc, openOverlay, closeOverlay, props } fr
 
 export default class RunCommand extends View {
   init(_props, cx) {
+    if (!props()?.overlay) return;
     const f = focused() ?? {};
     const sp = (spaces() ?? []).find((s) => s.active) ?? null;
     const tb = sp?.tabs?.find((t) => t.active) ?? null;

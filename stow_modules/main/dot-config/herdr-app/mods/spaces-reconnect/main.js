@@ -10,30 +10,58 @@ import { spaces, machines, panes, terminals, focused, run, openOverlay, exec, hc
 const isChecking = () => typeof checking === "function" && Boolean(checking());
 
 const PERL_SEND_SCRIPT = `use Socket;
-my ($t, $hex, $cols, $rows) = @ARGV;
+my ($t, $hex, $mode, $cols_in, $rows_in) = @ARGV;
 my $data = pack("H*", $hex);
 my $sock = $ENV{HC_SOCKET} || $ENV{HC_TERMINAL_SOCKET} || "$ENV{HOME}/.local/state/herdr-core/default/default.sock";
 socket(S, PF_UNIX, SOCK_STREAM, 0) && connect(S, sockaddr_un($sock)) or exit 1;
-syswrite(S, "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":1,\\"method\\":\\"hello\\",\\"params\\":{\\"framed\\":true}}\\n");
+my $cols = $cols_in || 120;
+my $rows = $rows_in || 40;
+if ($mode eq "smart" || $mode eq "vim") {
+  syswrite(S, "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":1,\\"method\\":\\"terminal.get\\",\\"params\\":{\\"terminal\\":\\"$t\\"}}\\n");
+  my $g = ""; while ($g !~ /\\n/) { sysread(S, $g, 4096, length($g)) or exit 1; }
+  my ($fg_block) = $g =~ /"foreground":(\\{[^}]*\\})/;
+  my ($fg) = $fg_block ? ($fg_block =~ /"name":"([^"]+)"/) : ();
+  my ($fpid) = $fg_block ? ($fg_block =~ /"pid":(\\d+)/) : ();
+  my ($spid) = $g =~ /"parent":(?:null|"[^"]*"),"pid":(\\d+)/;
+  my ($ti) = $g =~ /"title":"([^"]*)"/;
+  my ($c) = $g =~ /"cols":(\\d+)/; $cols = $c if $c;
+  my ($r) = $g =~ /"rows":(\\d+)/; $rows = $r if $r;
+  my $base = $fg ? $fg : ""; $base =~ s!.*/!!; $base =~ s/^-+//; $base =~ s/\\.real$//;
+  my $is_shell = ($base =~ /^(?:sh|bash|zsh|fish|dash|ksh|mksh|tcsh|csh|nu|nushell|pwsh|powershell|login)$/i);
+  my $is_vim = ($base =~ /^(?:n?vim|vi)$/i) || (!$is_shell && $ti && $ti =~ /^(?:n?vim):/i);
+  if (!$is_vim) {
+    exit 2 if $mode eq "vim";
+    if (!$base || $is_shell || ($fpid && $spid && $fpid == $spid)) {
+      exit 3;
+    }
+    print "$base\\n";
+    exit 2;
+  }
+}
+syswrite(S, "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":2,\\"method\\":\\"hello\\",\\"params\\":{\\"framed\\":true}}\\n");
 my $buf = ""; while ($buf !~ /\\n/) { sysread(S, $buf, 4096, length($buf)) or exit 1; }
-my $req = "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":2,\\"method\\":\\"terminal.attach\\",\\"params\\":{\\"terminal\\":\\"$t\\",\\"cols\\":$cols,\\"rows\\":$rows}}";
+my $req = "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":3,\\"method\\":\\"terminal.attach\\",\\"params\\":{\\"terminal\\":\\"$t\\",\\"cols\\":$cols,\\"rows\\":$rows}}";
 syswrite(S, pack("VCV", 0, 0, length($req)) . $req);
 while (1) {
   my $hdr = ""; while (length($hdr) < 9) { sysread(S, $hdr, 9 - length($hdr), length($hdr)) or exit 1; }
   my ($ch, $kind, $len) = unpack("VCV", $hdr);
   my $body = ""; while (length($body) < $len) { sysread(S, $body, $len - length($body), length($body)) or exit 1; }
-  if ($ch == 0 && $kind == 0 && $body =~ /"id":2\\b.*"channel":(\\d+)/) {
+  if ($ch == 0 && $kind == 0 && $body =~ /"id":3\\b.*"channel":(\\d+)/) {
     syswrite(S, pack("VCV", $1, 0, length($data)) . $data . pack("VCV", $1, 2, 0));
     last;
   }
 }`;
 
-function sendRawHex(termAddr, hexBytes, termObj = null) {
-  if (!termAddr) return;
+function sendRawHex(termAddr, hexBytes, termObj = null, mode = "raw") {
+  if (!termAddr) return Promise.resolve({ code: 1, stdout: "", stderr: "" });
   const t = termObj ?? (terminals() ?? []).find((x) => x.address === termAddr) ?? null;
   const cols = String(t?.cols || 120);
   const rows = String(t?.rows || 40);
-  exec("/usr/bin/perl", ["-e", PERL_SEND_SCRIPT, termAddr, hexBytes, cols, rows]).catch(() => {});
+  return exec("/usr/bin/perl", ["-e", PERL_SEND_SCRIPT, termAddr, hexBytes, mode, cols, rows]).catch(() => ({
+    code: 1,
+    stdout: "",
+    stderr: "",
+  }));
 }
 
 function isVimPane(p, termObj = null) {
@@ -55,6 +83,37 @@ function isVimPane(p, termObj = null) {
 }
 
 const CTRL_HEX = { h: "08", j: "0a", k: "0b", l: "0c" };
+
+function openConfirmClosePopup(p, procName) {
+  const paneId = p?.pane || p?.terminal || "";
+  if (!paneId) return;
+  const proc = procName || p?.app || p?.program?.key || p?.program?.name || "process";
+  const rawTitle = (p?.title ?? "").replace(/^[^\x00-\x7f]+\s*/, "").trim();
+  const title = rawTitle && rawTitle.toLowerCase() !== proc.toLowerCase() ? rawTitle : "";
+  const env = [
+    `HC_PRESET_BACKEND="hc"`,
+    `ASCONFIRMCLOSE_PANE_ID=${JSON.stringify(paneId)}`,
+    `ASCONFIRMCLOSE_PROCESS=${JSON.stringify(proc)}`,
+    ...(title ? [`ASCONFIRMCLOSE_TITLE=${JSON.stringify(title)}`] : []),
+  ].join(" ");
+  const cmd = `export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" ${env}; python3 ~/.config/herdr/scripts/confirm-close.py prompt`;
+  hc(["run", "--bg", "--rm", "--no-notify", "--json", "--cwd", home(), "--", "sh", "-c", cmd])
+    .then((r) => {
+      if (r.code !== 0) return;
+      const data = JSON.parse(r.stdout || "{}");
+      if (!data.address) return;
+      openOverlay({
+        kind: "dialog",
+        width: 580,
+        height: 220,
+        layout: {
+          type: "column",
+          children: [{ type: "block", content: { terminal: data.address } }],
+        },
+      });
+    })
+    .catch(() => {});
+}
 
 function smartTabNav(dir) {
   const allSpaces = spaces() ?? [];
@@ -118,11 +177,13 @@ function openNewTabPrompt() {
 function smartPaneNav(dir, letter) {
   const { tb, tabPanes, p, termAddr, termObj } = activePaneContext();
   const noRoom = Boolean(tb?.zoomed || p?.zoomed || tabPanes.length <= 1);
-  if (noRoom && isVimPane(p, termObj) && termAddr && CTRL_HEX[letter]) {
-    sendRawHex(termAddr, `00${CTRL_HEX[letter]}`, termObj);
-  } else {
+  if (!noRoom || !termAddr || !CTRL_HEX[letter] || p?.status) {
     run("pane.go", { direction: dir });
+    return;
   }
+  sendRawHex(termAddr, `00${CTRL_HEX[letter]}`, termObj, "vim").then((r) => {
+    if (r.code !== 0) run("pane.go", { direction: dir });
+  });
 }
 
 function smartScroll(to) {
@@ -131,34 +192,44 @@ function smartScroll(to) {
   const fgName = (termObj?.foreground?.name ?? "").toLowerCase();
   const title = p?.title ?? termObj?.title ?? "";
   const shouldForward =
-    Boolean(p?.status || p?.app || p?.program?.agent) ||
+    Boolean(p?.status || p?.program?.agent) ||
     isVimPane(p, termObj) ||
     ["pi", "less"].includes(progKey) ||
     ["pi", "less"].includes(fgName) ||
     title.includes("herdr") ||
     title.startsWith("π ");
   if (shouldForward && termAddr) {
-    sendRawHex(termAddr, to === "top" ? "1b5b313b3941" : "1b5b313b3942", termObj);
+    sendRawHex(termAddr, to === "top" ? "1b5b313b3941" : "1b5b313b3942", termObj, "raw");
   } else {
     run("terminal.scroll", { to, ...(termAddr ? { terminal: termAddr } : {}) });
   }
 }
 
 function smartClose() {
-  const { f, sp, tabId, p, termAddr, termObj } = activePaneContext();
-  if (isVimPane(p, termObj) && termAddr) {
-    sendRawHex(termAddr, "007f", termObj);
+  const { f, p, termAddr, termObj } = activePaneContext();
+  if (!f.pane && f.terminal) {
+    // An overlay dialog (such as confirm-close) has keyboard focus:
+    // repeating cmd+w sends ctrl+alt+w (\x1b\x17) to confirm closing.
+    sendRawHex(f.terminal, "1b17", null, "raw");
     return;
   }
-  const env = [
-    `HC_PRESET_BACKEND="hc"`,
-    `HERDR_ACTIVE_PANE_ID=${JSON.stringify(p?.pane ?? f.pane ?? "")}`,
-    `HERDR_ACTIVE_TAB_ID=${JSON.stringify(tabId)}`,
-    `HERDR_ACTIVE_WORKSPACE_ID=${JSON.stringify(sp?.id ?? f.space ?? "")}`,
-    `HC_TERMINAL_ID=${JSON.stringify(termAddr ?? "")}`,
-  ].join(" ");
-  const inner = `export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" ${env}; ~/.config/herdr/scripts/smart-close.sh`;
-  exec("sh", ["-c", `nohup sh -c ${JSON.stringify(inner)} >/dev/null 2>&1 </dev/null &`]);
+  if (!p || !termAddr) return;
+  if (p.status) {
+    openConfirmClosePopup(p, p.app || p.program?.key || p.program?.name || "agent");
+    return;
+  }
+  // Always query live foreground process via terminal.get ("smart" mode) rather
+  // than trusting cached p.program / termObj.foreground, which stay stale ("nvim")
+  // for 1-2s after nvim exits back to the shell.
+  sendRawHex(termAddr, "007f", termObj, "smart").then((r) => {
+    if (r.code === 0) return; // was vim, <c-space><bs> already sent
+    if (r.code === 3) {
+      run("pane.close", { pane: p.pane });
+      return;
+    }
+    const procName = (r.stdout || "").trim() || p.program?.name || "process";
+    openConfirmClosePopup(p, procName);
+  });
 }
 
 function find(node, id) {
@@ -555,6 +626,7 @@ export default class Spaces extends View {
       cx.notify();
     });
   }
+
 
   rebuilt(machine) {
     return machine?.state === "unreachable" && /^a different core answers there \("[^"]+"\)$/.test(machine.why ?? "");

@@ -27,30 +27,58 @@ import {
 } from "herdr";
 
 const PERL_SEND_SCRIPT = `use Socket;
-my ($t, $hex, $cols, $rows) = @ARGV;
+my ($t, $hex, $mode, $cols_in, $rows_in) = @ARGV;
 my $data = pack("H*", $hex);
 my $sock = $ENV{HC_SOCKET} || $ENV{HC_TERMINAL_SOCKET} || "$ENV{HOME}/.local/state/herdr-core/default/default.sock";
 socket(S, PF_UNIX, SOCK_STREAM, 0) && connect(S, sockaddr_un($sock)) or exit 1;
-syswrite(S, "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":1,\\"method\\":\\"hello\\",\\"params\\":{\\"framed\\":true}}\\n");
+my $cols = $cols_in || 120;
+my $rows = $rows_in || 40;
+if ($mode eq "smart" || $mode eq "vim") {
+  syswrite(S, "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":1,\\"method\\":\\"terminal.get\\",\\"params\\":{\\"terminal\\":\\"$t\\"}}\\n");
+  my $g = ""; while ($g !~ /\\n/) { sysread(S, $g, 4096, length($g)) or exit 1; }
+  my ($fg_block) = $g =~ /"foreground":(\\{[^}]*\\})/;
+  my ($fg) = $fg_block ? ($fg_block =~ /"name":"([^"]+)"/) : ();
+  my ($fpid) = $fg_block ? ($fg_block =~ /"pid":(\\d+)/) : ();
+  my ($spid) = $g =~ /"parent":(?:null|"[^"]*"),"pid":(\\d+)/;
+  my ($ti) = $g =~ /"title":"([^"]*)"/;
+  my ($c) = $g =~ /"cols":(\\d+)/; $cols = $c if $c;
+  my ($r) = $g =~ /"rows":(\\d+)/; $rows = $r if $r;
+  my $base = $fg ? $fg : ""; $base =~ s!.*/!!; $base =~ s/^-+//; $base =~ s/\\.real$//;
+  my $is_shell = ($base =~ /^(?:sh|bash|zsh|fish|dash|ksh|mksh|tcsh|csh|nu|nushell|pwsh|powershell|login)$/i);
+  my $is_vim = ($base =~ /^(?:n?vim|vi)$/i) || (!$is_shell && $ti && $ti =~ /^(?:n?vim):/i);
+  if (!$is_vim) {
+    exit 2 if $mode eq "vim";
+    if (!$base || $is_shell || ($fpid && $spid && $fpid == $spid)) {
+      exit 3;
+    }
+    print "$base\\n";
+    exit 2;
+  }
+}
+syswrite(S, "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":2,\\"method\\":\\"hello\\",\\"params\\":{\\"framed\\":true}}\\n");
 my $buf = ""; while ($buf !~ /\\n/) { sysread(S, $buf, 4096, length($buf)) or exit 1; }
-my $req = "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":2,\\"method\\":\\"terminal.attach\\",\\"params\\":{\\"terminal\\":\\"$t\\",\\"cols\\":$cols,\\"rows\\":$rows}}";
+my $req = "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":3,\\"method\\":\\"terminal.attach\\",\\"params\\":{\\"terminal\\":\\"$t\\",\\"cols\\":$cols,\\"rows\\":$rows}}";
 syswrite(S, pack("VCV", 0, 0, length($req)) . $req);
 while (1) {
   my $hdr = ""; while (length($hdr) < 9) { sysread(S, $hdr, 9 - length($hdr), length($hdr)) or exit 1; }
   my ($ch, $kind, $len) = unpack("VCV", $hdr);
   my $body = ""; while (length($body) < $len) { sysread(S, $body, $len - length($body), length($body)) or exit 1; }
-  if ($ch == 0 && $kind == 0 && $body =~ /"id":2\\b.*"channel":(\\d+)/) {
+  if ($ch == 0 && $kind == 0 && $body =~ /"id":3\\b.*"channel":(\\d+)/) {
     syswrite(S, pack("VCV", $1, 0, length($data)) . $data . pack("VCV", $1, 2, 0));
     last;
   }
 }`;
 
-function sendRawHex(termAddr, hexBytes, termObj = null) {
-  if (!termAddr) return Promise.resolve();
+function sendRawHex(termAddr, hexBytes, termObj = null, mode = "raw") {
+  if (!termAddr) return Promise.resolve({ code: 1, stdout: "", stderr: "" });
   const t = termObj ?? (terminals() ?? []).find((x) => x.address === termAddr) ?? null;
   const cols = String(t?.cols || 120);
   const rows = String(t?.rows || 40);
-  return exec("/usr/bin/perl", ["-e", PERL_SEND_SCRIPT, termAddr, hexBytes, cols, rows]).catch(() => {});
+  return exec("/usr/bin/perl", ["-e", PERL_SEND_SCRIPT, termAddr, hexBytes, mode, cols, rows]).catch(() => ({
+    code: 1,
+    stdout: "",
+    stderr: "",
+  }));
 }
 
 function isVimPane(p, termObj = null) {
@@ -72,6 +100,43 @@ function isVimPane(p, termObj = null) {
 }
 
 const CTRL_HEX = { h: "08", j: "0a", k: "0b", l: "0c" };
+
+function openConfirmClosePopup(overlayId, p, procName) {
+  const paneId = p?.pane || p?.terminal || "";
+  if (!paneId) {
+    if (overlayId) closeOverlay(overlayId);
+    return;
+  }
+  const proc = procName || p?.app || p?.program?.key || p?.program?.name || "process";
+  const rawTitle = (p?.title ?? "").replace(/^[^\x00-\x7f]+\s*/, "").trim();
+  const title = rawTitle && rawTitle.toLowerCase() !== proc.toLowerCase() ? rawTitle : "";
+  const env = [
+    `HC_PRESET_BACKEND="hc"`,
+    `ASCONFIRMCLOSE_PANE_ID=${JSON.stringify(paneId)}`,
+    `ASCONFIRMCLOSE_PROCESS=${JSON.stringify(proc)}`,
+    ...(title ? [`ASCONFIRMCLOSE_TITLE=${JSON.stringify(title)}`] : []),
+  ].join(" ");
+  const cmd = `export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" ${env}; python3 ~/.config/herdr/scripts/confirm-close.py prompt`;
+  hc(["run", "--bg", "--rm", "--no-notify", "--json", "--cwd", home(), "--", "sh", "-c", cmd])
+    .then((r) => {
+      if (overlayId) closeOverlay(overlayId);
+      if (r.code !== 0) return;
+      const data = JSON.parse(r.stdout || "{}");
+      if (!data.address) return;
+      openOverlay({
+        kind: "dialog",
+        width: 580,
+        height: 220,
+        layout: {
+          type: "column",
+          children: [{ type: "block", content: { terminal: data.address } }],
+        },
+      });
+    })
+    .catch(() => {
+      if (overlayId) closeOverlay(overlayId);
+    });
+}
 
 function findNode(node, id) {
   if (node?.id === id) return node;
@@ -367,9 +432,9 @@ export default class Prefix extends View {
     const shiftedDigit = SHIFTED_DIGITS[ch] ?? (shift && /^[1-9]$/.test(key) ? Number(key) : null);
     if (shiftedDigit && !ctrl && !alt) {
       this.dismiss();
-      const list = agents() ?? [];
-      const target = list[shiftedDigit - 1];
-      if (target?.address) run("agent.focus", { terminal: target.address });
+      const order = (shared("layout") === "transition" ? shared("agents.visibleOrder") : null) ?? (agents() ?? []).map(a => a.address);
+      const target = order[shiftedDigit - 1];
+      if (target) run("agent.focus", { terminal: target });
       return;
     }
     if (/^[1-9]$/.test(key) && alt && !ctrl && !shift) {
@@ -427,7 +492,6 @@ export default class Prefix extends View {
       return;
     }
     if (navDirs[key] && ctrl && !alt && !shift) {
-      this.dismiss();
       const sp = (spaces() ?? []).find((s) => s.active) ?? null;
       const tb = sp?.tabs?.find((t) => t.active) ?? null;
       const allPanes = panes() ?? [];
@@ -435,11 +499,15 @@ export default class Prefix extends View {
       const p = allPanes.find((x) => x.pane === ctx.pane) ?? tabPanes[0] ?? null;
       const termObj = ctx.terminal ? ((terminals() ?? []).find((x) => x.address === ctx.terminal) ?? null) : null;
       const noRoom = Boolean(tb?.zoomed || p?.zoomed || tabPanes.length <= 1);
-      if (noRoom && isVimPane(p, termObj) && ctx.terminal && CTRL_HEX[key]) {
-        sendRawHex(ctx.terminal, `00${CTRL_HEX[key]}`, termObj);
-      } else {
+      if (!noRoom || !ctx.terminal || !CTRL_HEX[key] || p?.status) {
+        this.dismiss();
         run("pane.go", { direction: navDirs[key] });
+        return;
       }
+      sendRawHex(ctx.terminal, `00${CTRL_HEX[key]}`, termObj, "vim").then((r) => {
+        this.dismiss();
+        if (r.code !== 0) run("pane.go", { direction: navDirs[key] });
+      });
       return;
     }
 
@@ -537,12 +605,12 @@ export default class Prefix extends View {
     }
     if (ks === "ctrl-," || (ctrl && key === ",")) {
       this.dismiss();
-      run("agent.prev");
+      run(shared("layout") === "transition" ? "agents-snooze.prev" : "agent.prev");
       return;
     }
     if (ks === "ctrl-." || (ctrl && key === ".")) {
       this.dismiss();
-      run("agent.next");
+      run(shared("layout") === "transition" ? "agents-snooze.next" : "agent.next");
       return;
     }
 
@@ -551,14 +619,36 @@ export default class Prefix extends View {
       const allPanes = panes() ?? [];
       const p = allPanes.find((x) => x.pane === ctx.pane) ?? null;
       const termObj = ctx.terminal ? ((terminals() ?? []).find((x) => x.address === ctx.terminal) ?? null) : null;
-      if (isVimPane(p, termObj) && ctx.terminal) {
-        sendRawHex(ctx.terminal, "007f", termObj).finally(() => this.dismiss());
+      if (p?.status) {
+        openConfirmClosePopup(overlayId, p, p.app || p.program?.key || p.program?.name || "agent");
+        return;
+      }
+      if (ctx.terminal) {
+        sendRawHex(ctx.terminal, "007f", termObj, "smart").then((r) => {
+          if (r.code === 0) {
+            this.dismiss();
+            return;
+          }
+          if (r.code === 3 && p?.pane) {
+            this.dismiss();
+            run("pane.close", { pane: p.pane });
+            return;
+          }
+          const procName = (r.stdout || "").trim() || p?.program?.name || "process";
+          openConfirmClosePopup(overlayId, p ?? { pane: ctx.pane, terminal: ctx.terminal }, procName);
+        });
         return;
       }
       runDetachedScript(overlayId, "~/.config/herdr/scripts/smart-close.sh", ctx);
       return;
     }
     if ((key === "backspace" && ctrl && !alt && !shift) || (ks === "x" && !ctrl && !alt && !shift)) {
+      const allPanes = panes() ?? [];
+      const p = allPanes.find((x) => x.pane === ctx.pane) ?? null;
+      if (p?.status) {
+        openConfirmClosePopup(overlayId, p, p.app || p.program?.key || p.program?.name || "agent");
+        return;
+      }
       runDetachedScript(overlayId, "~/.config/herdr/scripts/confirm-close.py close", ctx);
       return;
     }
@@ -683,16 +773,15 @@ export default class Prefix extends View {
       return;
     }
     if (ks === "ctrl-z" || (key === "z" && ctrl && !shift && !alt)) {
-      const curSort = shared("agents.sort") ?? "priority";
-      setShared("agents.sort", curSort === "priority" ? "grouped" : "priority");
       runDetachedScript(overlayId, "~/.config/herdr/scripts/herdr-snooze.py toggle", ctx);
       return;
     }
     if (ks === "alt-s" || (key === "s" && alt && !shift && !ctrl)) {
+      // The archive and transcripts belong to the focused terminal's machine.
+      // openTerminalPopup strips its qualified IDs and runs through hc --on.
       openTerminalPopup(overlayId, "python3 ~/.config/herdr/scripts/herdr-settled.py picker", ctx, {
         width: 920,
         height: 620,
-        local: true,
       });
       return;
     }
@@ -718,7 +807,7 @@ export default class Prefix extends View {
     }
     if (ks === "shift-o" || (key === "o" && shift && !ctrl && !alt)) {
       this.dismiss();
-      run("agent.next");
+      run(shared("layout") === "transition" ? "agents-snooze.next" : "agent.next");
       return;
     }
     if (ks === "y" && !ctrl && !alt && !shift) {
