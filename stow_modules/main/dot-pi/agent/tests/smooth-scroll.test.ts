@@ -86,13 +86,50 @@ export class TuiAltScreen {
 	renderRequested = false;
 	stopped = false;
 	altScreenActive = true;
+	mouseEnabled = true;
+	mouseTrackingMode = 0;
+	terminalWrites: string[] = [];
+	terminal = {
+		write: (data: string) => {
+			this.terminalWrites.push(data);
+			// Ghostty-style tracking: one active mode, not independent flags.
+			for (const match of data.matchAll(/\\x1b\\[\\?(1000|1002|1003)([hl])/g)) {
+				this.mouseTrackingMode = match[2] === "h" ? Number(match[1]) : 0;
+			}
+		},
+	};
+	beforeTerminalStart() {
+		this.altScreenActive = true;
+		if (this.mouseEnabled) this.terminal.write("\\x1b[?1000h\\x1b[?1002h\\x1b[?1003h\\x1b[?1006h");
+	}
 	routedDeltas: number[] = [];
 	primaryScrollView: ScrollView;
 	constructor(scrollView?: ScrollView) {
 		this.primaryScrollView = scrollView ?? new ScrollView(new Container());
 	}
 	getPrimaryScrollView() { return this.primaryScrollView; }
-	handleViewportInput(data: string): unknown { return { consume: false, data }; }
+	handleViewportInput(data: string): unknown {
+		const match = data.match(/^\\x1b\\[<(64|65);(\\d+);(\\d+)M$/);
+		if (match) {
+			const button = Number(match[1]);
+			const direction = button === 64 ? -1 : 1;
+			this.routeWheel({ direction, button, x: Number(match[2]), y: Number(match[3]) },
+				direction * this.wheelScroll.next(direction, performance.now()));
+			return { consume: true };
+		}
+		if (data === "\\x1b[5~") {
+			this.primaryScrollView.scrollTop -= 10;
+			this.requestRender();
+			return { consume: true };
+		}
+		return { consume: false, data };
+	}
+	emitTerminalWheel(direction: number) {
+		// No SGR input reaches Pi when terminal tracking is disabled.
+		if (this.mouseTrackingMode !== 0) {
+			this.handleViewportInput(direction < 0 ? "\\x1b[<64;10;10M" : "\\x1b[<65;10;10M");
+		}
+	}
 	routeWheel(_event: { direction: number; x: number; y: number; button: number }, delta: number) {
 		this.routedDeltas.push(delta);
 		this.primaryScrollView.scrollTop += delta;
@@ -146,6 +183,51 @@ describe("smooth-scroll extension", () => {
 	};
 
 	extMod.default(fakePi);
+
+	test("switches Herdr to button-motion tracking without losing raw wheel or keyboard input", () => {
+		const previous = process.env.HC_TERMINAL_ID;
+		process.env.HC_TERMINAL_ID = "test-scroll";
+		try {
+			const screen = new host.TuiAltScreen();
+			screen.beforeTerminalStart();
+			expect(screen.mouseTrackingMode).toBe(1002);
+			expect(screen.terminalWrites.at(-1)).toBe("\x1b[?1003l\x1b[?1002h");
+			screen.emitTerminalWheel(-1);
+			expect(screen.routedDeltas).toEqual([-1]);
+			expect(screen.getPrimaryScrollView().scrollTop).toBe(-1);
+			screen.handleViewportInput("\x1b[5~");
+			expect(screen.getPrimaryScrollView().scrollTop).toBe(-11);
+			// Ordinary renders/inputs should not rewrite the mouse mode.
+			screen.doRender();
+			expect(screen.terminalWrites.length).toBe(2);
+		} finally {
+			if (previous === undefined) delete process.env.HC_TERMINAL_ID;
+			else process.env.HC_TERMINAL_ID = previous;
+		}
+	});
+
+	test("does not enable tracking when fullscreen mouse input is disabled", () => {
+		const screen = new host.TuiAltScreen();
+		screen.mouseEnabled = false;
+		screen.beforeTerminalStart();
+		screen.doRender();
+		expect(screen.terminalWrites).toEqual([]);
+		expect(screen.mouseTrackingMode).toBe(0);
+	});
+
+	test("upgrades persistent patch state left by a pre-generation extension on reload", () => {
+		const state = (globalThis as any)[Symbol.for("pi.smoothScroll.patchState")];
+		delete state.transcriptGeneration;
+		delete state.allMotionDisabledScreens;
+		for (const handler of handlers.get("session_shutdown") ?? []) handler({}, ctx);
+		for (const handler of handlers.get("session_start") ?? []) handler({}, ctx);
+		expect(state.transcriptGeneration).toBe(1);
+		expect(state.allMotionDisabledScreens).toBeInstanceOf(WeakSet);
+		const screen = new host.TuiAltScreen();
+		expect(() => screen.beforeTerminalStart()).not.toThrow();
+		screen.emitTerminalWheel(-1);
+		expect(screen.routedDeltas).toEqual([-1]);
+	});
 
 	test("normalizes coalesced ET/Herdr wheel bursts in WheelScrollAccelerator", () => {
 		const screen = new host.TuiAltScreen();
@@ -222,29 +304,5 @@ describe("smooth-scroll extension", () => {
 		doc.invalidate();
 		expect(doc.render(80)).toEqual(["row-1", "row-2"]);
 		expect(doc.renderCalls).toBe(2);
-	});
-
-	test("survives /reload over a legacy globalThis PatchState without undefined field errors and restores mouse mode", () => {
-		const sym = Symbol.for("pi.smoothScroll.patchState");
-		const holder = globalThis as any;
-		// Simulate an older PatchState left on globalThis before /reload:
-		delete holder[sym].transcriptGeneration;
-		delete holder[sym].restoredMouseScreens;
-		delete holder[sym].allMotionDisabledScreens;
-
-		const writes: string[] = [];
-		const screen = new host.TuiAltScreen();
-		(screen as any).terminal = { write: (d: string) => writes.push(d) };
-
-		for (const fn of handlers.get("session_shutdown") ?? []) fn({}, ctx);
-		for (const fn of handlers.get("session_start") ?? []) fn({}, ctx);
-
-		expect(() => screen.handleViewportInput("")).not.toThrow();
-		expect(() => screen.doRender()).not.toThrow();
-		expect(writes).toContain("\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1004h\x1b[?1006h");
-
-		const evDown = { direction: 1, x: 10, y: 10, button: 65 };
-		screen.routeWheel(evDown, 2);
-		expect(screen.primaryScrollView.scrollTop).toBe(2);
 	});
 });
