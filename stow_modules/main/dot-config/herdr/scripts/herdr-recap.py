@@ -28,6 +28,7 @@ import fcntl
 import glob
 import hashlib
 import io
+import importlib.util
 import json
 import multiprocessing
 import os
@@ -245,7 +246,19 @@ class HerdrError(RuntimeError):
         self.code = code
 
 
+def hc_backend():
+    name = "_herdr_recap_hc"
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name("recap_hc.py"))
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
 def socket_path() -> str:
+    if hc_backend().enabled():
+        return hc_backend().adapter().hc_socket_path() or "hc"
     value = os.environ.get("HERDR_SOCKET_PATH")
     if value:
         return value
@@ -253,6 +266,11 @@ def socket_path() -> str:
 
 
 def herdr_call(method: str, params: dict[str, Any] | None = None, timeout: float = 5.0) -> Any:
+    if hc_backend().enabled():
+        try:
+            return hc_backend().call(method, params or {}, timeout)
+        except Exception as exc:
+            raise HerdrError("hc", str(exc)) from exc
     payload = {"id": f"recap:{int(time.time()*1000)}:{random.randrange(1000000):06d}", "method": method, "params": params or {}}
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     client.settimeout(timeout)
@@ -299,6 +317,8 @@ class AgentInfo:
     tokens: dict[str, str] = dataclasses.field(default_factory=dict)
     state_change_seq: int = 0
     agent_session: dict[str, Any] = dataclasses.field(default_factory=dict)
+    terminal_id: str = ""
+    machine: str = ""
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AgentInfo":
@@ -309,10 +329,11 @@ class AgentInfo:
             pane_id=str(data.get("pane_id") or ""), workspace_id=str(data.get("workspace_id") or ""),
             tab_id=str(data.get("tab_id") or ""), agent=str(data.get("agent") or ""),
             name=str(data.get("name") or ""), status=str(data.get("agent_status") or ""),
-            focused=bool(data.get("focused")), cwd=str(data.get("cwd") or ""),
+            focused=bool(data.get("focused")), cwd=str(data.get("foreground_cwd") or data.get("cwd") or ""),
             title=str(data.get("terminal_title_stripped") or ""), shown=str(data.get("title") or ""),
             tokens={str(k): str(v) for k, v in tokens.items()}, state_change_seq=int(data.get("state_change_seq") or 0),
-            agent_session=session,
+            agent_session=session, terminal_id=str(data.get("terminal_id") or ""),
+            machine=str(data.get("machine") or ""),
         )
 
 
@@ -347,8 +368,8 @@ def agent_snapshot() -> tuple[list[AgentInfo], list[WorkspaceInfo]]:
     return list_agents(), list_workspaces()
 
 
-def repository_snapshot(cwd: str) -> tuple[str, GitChanges]:
-    return git_branch(cwd), read_changes(cwd)
+def repository_snapshot(cwd: str, machine: str = "") -> tuple[str, GitChanges]:
+    return git_branch(cwd, machine), read_changes(cwd, machine)
 
 
 def session_snapshot(cfg: Config, agent: AgentInfo) -> tuple[AgentSession, Recap | None, bool]:
@@ -490,6 +511,9 @@ def format_snooze_until(until: _dt.datetime, now: _dt.datetime | None = None) ->
 
 
 def toggle_pin_agent(pane_id: str) -> None:
+    if hc_backend().enabled():
+        herdr_call("terminal.pin", {"pane_id": pane_id})
+        return
     # Pin state is owned by agent-handler.py (pinned.json + the um_pin
     # token + the Agents-panel sort), the same script config.toml's
     # prefix+p runs. Shell out to it rather than duplicating that state.
@@ -738,6 +762,9 @@ def resolve_codex(agent: AgentInfo) -> AgentSession:
 
 def resolve_pi(agent: AgentInfo) -> AgentSession:
     session = AgentSession(agent="pi", cwd=agent.cwd)
+    if hc_backend().enabled() and agent.terminal_id:
+        session.id, session.transcript = hc_backend().pi_session(agent, state_dir() / "remote-transcripts")
+        return session
     value = agent.agent_session.get("value")
     if agent.agent_session.get("kind") == "path" and isinstance(value, str):
         session.id, session.transcript = value, value
@@ -820,6 +847,8 @@ def resolve_memex(cfg: Config, agent: AgentInfo) -> AgentSession:
 
 
 def resolve_session(cfg: Config, agent: AgentInfo) -> AgentSession:
+    if agent.machine and agent.agent != "pi":
+        raise NothingYet("Remote recaps currently support Pi sessions only")
     if agent.agent == "claude":
         session = resolve_claude(agent.pane_id, agent)
     elif agent.agent == "codex":
@@ -844,7 +873,8 @@ def recap_capable(cfg: Config, agent: AgentInfo) -> bool:
     if agent.agent in ("claude", "codex"):
         return True
     if agent.agent == "pi":
-        return agent.agent_session.get("kind") == "path" and bool(agent.agent_session.get("value"))
+        return (hc_backend().enabled() and bool(agent.terminal_id)) or (
+            agent.agent_session.get("kind") == "path" and bool(agent.agent_session.get("value")))
     return agent.agent in ("opencode", "hermes") and agent.agent_session.get("kind") == "id" and bool(agent.agent_session.get("value"))
 
 
@@ -1022,7 +1052,12 @@ def spoken_text(message: dict[str, Any]) -> str:
     return ""
 
 
-def git_branch(directory: str) -> str:
+def git_branch(directory: str, machine: str = "") -> str:
+    if machine:
+        try:
+            return clean(hc_backend().exec_on(machine, ["git", "-C", directory, "branch", "--show-current"]).strip())
+        except Exception:
+            return ""
     current = Path(directory) if directory else Path()
     while str(current) not in ("", "/", "."):
         git_path = current / ".git"
@@ -1059,12 +1094,14 @@ class GitChanges:
         return (self.files, self.added, self.deleted, self.ahead, self.behind) == (0, 0, 0, 0, 0)
 
 
-def read_changes(directory: str) -> GitChanges:
+def read_changes(directory: str, machine: str = "") -> GitChanges:
     if not directory:
         return GitChanges()
     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0")
     def git(*args: str) -> str:
         try:
+            if machine:
+                return hc_backend().exec_on(machine, ["git", "--no-optional-locks", "-C", directory, *args])
             return subprocess.run(["git", "-C", directory, *args], capture_output=True, text=True, timeout=3, env=env).stdout
         except Exception:
             return ""
@@ -2681,10 +2718,10 @@ class Model:
                     self.end_rename(entry)
                 else:
                     self.send_rename(entry)
-            branch_key = agent.cwd + "\0" + str(agent.state_change_seq)
+            branch_key = agent.machine + "\0" + agent.cwd + "\0" + str(agent.state_change_seq)
             if agent.cwd and entry.branch_at != branch_key:
                 entry.branch_at = branch_key
-                self.submit("changes", agent.pane_id, lambda cwd=agent.cwd: repository_snapshot(cwd))
+                self.submit("changes", agent.pane_id, lambda cwd=agent.cwd, machine=agent.machine: repository_snapshot(cwd, machine))
             if not recap_capable(self.cfg, agent):
                 entry.session, entry.recap, entry.note = None, None, "Recaps aren't available for this agent."
                 continue
@@ -4543,8 +4580,8 @@ def debug_list(cfg: Config) -> int:
             continue
         print(f"    session {session.id}  source {session.agent}  config {session.config_dir}")
         print(f"    transcript {session.transcript}")
-        meta, changes = session.meta, read_changes(agent.cwd)
-        print(f"    branch {meta.branch!r} (folder {git_branch(agent.cwd)!r})  model {meta.model}  mode {meta.mode!r}  tasks {meta.tasks_done}/{meta.tasks_total}  changes {changes}")
+        meta, changes = session.meta, read_changes(agent.cwd, agent.machine)
+        print(f"    branch {meta.branch!r} (folder {git_branch(agent.cwd, agent.machine)!r})  model {meta.model}  mode {meta.mode!r}  tasks {meta.tasks_done}/{meta.tasks_total}  changes {changes}")
         print(f"    active {meta.active}  prompted {meta.prompt_at}  pending {meta.pending!r}")
         print(f"    last prompt {shorten(meta.last_prompt, 80)!r}")
         cached = load_recap(session.id)
