@@ -27,7 +27,7 @@ import {
 	type PrioritizedSegment,
 } from "./utils.ts";
 import type { FooterState, ModelMeta, UsageTotals } from "./state.ts";
-import { getUsageTotals } from "./state.ts";
+import { getContextUsageCached, getUsageTotals } from "./state.ts";
 
 export function shortHostname(hostname: string): string {
 	return hostname.split(".")[0] ?? "";
@@ -58,7 +58,7 @@ function renderBar(theme: Theme, pct: number, barWidth: number, ascii: boolean):
 
 /** Compact context form: icon + percentage, no bar or token counts. */
 function renderContextCompact(theme: Theme, ctx: ExtensionContext, glyphs: IconGlyphs): string {
-	const contextUsage = ctx.getContextUsage();
+	const contextUsage = getContextUsageCached(ctx);
 	const contextWindow = contextUsage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
 	if (contextWindow <= 0) return "";
 	const contextPct = contextUsage?.percent ?? 0;
@@ -150,7 +150,7 @@ function renderContextBar(
 	glyphs: IconGlyphs,
 	iconMode: OpenTuiConfig["icons"]["mode"],
 ): string {
-	const contextUsage = ctx.getContextUsage();
+	const contextUsage = getContextUsageCached(ctx);
 	const contextWindow = contextUsage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
 	const contextTokens = contextUsage?.tokens ?? 0;
 	const contextPct = contextUsage?.percent ?? 0;
@@ -545,22 +545,85 @@ export function installFooter(
 	ctx.ui.setFooter((tui, theme, footerData) => {
 		mounted = true;
 		let disposed = false;
-		hooks.setRequestRender(() => tui.requestRender());
+		let contentCache: {
+			width: number;
+			leafId: string | null;
+			modelId: string | undefined;
+			effort: string | undefined;
+			colors: Theme["colors"];
+			git: GitStatus;
+			runtime: RuntimeInfo | null;
+			lastDoneIn: number | undefined;
+			statusesKey: string;
+			result: ReturnType<typeof renderFooterContent>;
+		} | undefined;
+		hooks.setRequestRender(() => {
+			contentCache = undefined;
+			tui.requestRender();
+		});
 		const unsubBranch = footerData.onBranchChange(() => {
+			contentCache = undefined;
 			hooks.scheduleGitRefresh();
 			tui.requestRender();
 		});
-		const getContent = (width: number) => renderFooterContent(
-			ctx,
-			getState,
-			getConfig,
-			getModelMeta,
-			theme,
-			footerData,
-			width,
-			hooks.getLiveTps ?? (() => null),
-			hooks.getExtensionSegments ?? (() => []),
-		);
+		const getContent = (width: number) => {
+			const state = getState();
+			const meta = getModelMeta();
+			const leafId = ctx.sessionManager.getLeafId();
+			const modelId = ctx.model?.id;
+			let statusesKey = "";
+			if (getConfig().footerSegments.extensionStatuses) {
+				for (const [k, v] of footerData.getExtensionStatuses()) {
+					statusesKey += `${k}=${v}\0`;
+				}
+			}
+			const canCache =
+				state.workingSince === undefined &&
+				(hooks.getExtensionSegments?.().length ?? 0) === 0;
+			if (
+				canCache &&
+				contentCache &&
+				contentCache.width === width &&
+				contentCache.leafId === leafId &&
+				contentCache.modelId === modelId &&
+				contentCache.effort === meta.effort &&
+				contentCache.colors === theme.colors &&
+				contentCache.git === state.git &&
+				contentCache.runtime === state.runtime &&
+				contentCache.lastDoneIn === state.lastDoneIn &&
+				contentCache.statusesKey === statusesKey
+			) {
+				return contentCache.result;
+			}
+			const result = renderFooterContent(
+				ctx,
+				getState,
+				getConfig,
+				getModelMeta,
+				theme,
+				footerData,
+				width,
+				hooks.getLiveTps ?? (() => null),
+				hooks.getExtensionSegments ?? (() => []),
+			);
+			if (canCache) {
+				contentCache = {
+					width,
+					leafId,
+					modelId,
+					effort: meta.effort,
+					colors: theme.colors,
+					git: state.git,
+					runtime: state.runtime,
+					lastDoneIn: state.lastDoneIn,
+					statusesKey,
+					result,
+				};
+			} else {
+				contentCache = undefined;
+			}
+			return result;
+		};
 
 		renderInline = (width) => getContent(width).inlineLines;
 
@@ -569,11 +632,14 @@ export function installFooter(
 				if (disposed) return;
 				disposed = true;
 				mounted = false;
+				contentCache = undefined;
 				unsubBranch();
 				hooks.setRequestRender(undefined);
 				renderInline = () => undefined;
 			},
-			invalidate() {},
+			invalidate() {
+				contentCache = undefined;
+			},
 			render(width: number): string[] {
 				if (width <= 0) return [""];
 				const { mainLines, extensionLines } = getContent(width);

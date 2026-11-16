@@ -1828,7 +1828,11 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 	state.generation += 1;
 	globalHolder[PATCH_STATE_SYMBOL] = state;
 
+	let inMarkdownRender = false;
 	mdProto.render = function (this: typeof mdProto, width: number): string[] {
+		if (inMarkdownRender) {
+			return state.origMarkdownRender.call(this as unknown as piTui.Markdown, width);
+		}
 		enableOsc8Hyperlinks(tui);
 		const cacheHolder = this as unknown as {
 			text?: string;
@@ -1855,9 +1859,11 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 			const transformed = origTransform ? origTransform(text, contentWidth) : text;
 			return normalizeMarkdownForOsc8(transformed);
 		};
+		inMarkdownRender = true;
 		try {
 			return state.origMarkdownRender.call(this as unknown as piTui.Markdown, width);
 		} finally {
+			inMarkdownRender = false;
 			this.options.transform = origTransform;
 		}
 	};
@@ -2011,6 +2017,7 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 		return result;
 	};
 
+	let inMarkdownRenderToken = false;
 	mdProto.renderToken = function (
 		this: typeof mdProto,
 		token: any,
@@ -2018,7 +2025,16 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 		nextTokenType?: string,
 		styleContext?: any,
 	): string[] {
-		const lines = state.origMarkdownRenderToken.call(this, token, width, nextTokenType, styleContext);
+		if (inMarkdownRenderToken) {
+			return state.origMarkdownRenderToken.call(this, token, width, nextTokenType, styleContext);
+		}
+		inMarkdownRenderToken = true;
+		let lines: string[];
+		try {
+			lines = state.origMarkdownRenderToken.call(this, token, width, nextTokenType, styleContext);
+		} finally {
+			inMarkdownRenderToken = false;
+		}
 		const linkedLines = lines.map((line) => linkifyAnsiLineUrls(line));
 		const tokenType = token?.type;
 		if (
@@ -2474,7 +2490,14 @@ export default function osc8LinksExtension(pi: ExtensionAPI): void {
 		if (typeof sm?.getSessionFile === "function") {
 			indexSessionFileIfNeeded(sm.getSessionFile(), ctx?.cwd);
 		}
-		installOsc8LinkRendering(piTui);
+		enableOsc8Hyperlinks(piTui);
+		const globalHolder = globalThis as Record<symbol, PatchState | undefined>;
+		const state = globalHolder[PATCH_STATE_SYMBOL];
+		if (state) {
+			state.generation += 1;
+		} else {
+			installOsc8LinkRendering(piTui);
+		}
 	});
 	pi.on("tool_call", (event, ctx) => {
 		if (ctx?.cwd) setSessionCwd(ctx.cwd);

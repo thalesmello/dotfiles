@@ -2777,6 +2777,19 @@ async function readGitStatus(cwd, options = {}) {
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/state.ts
 var usageCache;
+var contextUsageCache;
+function getContextUsageCached(ctx) {
+  const { sessionManager } = ctx;
+  const leafId = sessionManager.getLeafId();
+  const modelId = ctx.model?.id;
+  const contextWindow = ctx.model?.contextWindow;
+  if (contextUsageCache && contextUsageCache.sessionManager === sessionManager && contextUsageCache.leafId === leafId && contextUsageCache.modelId === modelId && contextUsageCache.contextWindow === contextWindow) {
+    return contextUsageCache.usage;
+  }
+  const usage = ctx.getContextUsage();
+  contextUsageCache = { sessionManager, leafId, modelId, contextWindow, usage };
+  return usage;
+}
 function getUsageTotals(ctx) {
   const { sessionManager } = ctx;
   const leafId = sessionManager.getLeafId();
@@ -2821,6 +2834,7 @@ function getUsageTotals(ctx) {
 }
 function invalidateUsageCache() {
   usageCache = undefined;
+  contextUsageCache = undefined;
 }
 function createInitialState() {
   return {
@@ -2854,7 +2868,7 @@ function renderBar(theme, pct, barWidth, ascii) {
   return theme.fg("dim", "[") + theme.fg(color, filledCell.repeat(filled)) + theme.fg("dim", emptyCell.repeat(empty)) + theme.fg("dim", "]");
 }
 function renderContextCompact(theme, ctx, glyphs) {
-  const contextUsage = ctx.getContextUsage();
+  const contextUsage = getContextUsageCached(ctx);
   const contextWindow = contextUsage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
   if (contextWindow <= 0)
     return "";
@@ -2923,7 +2937,7 @@ function renderTimerSegment(theme, state, glyphs) {
   return "";
 }
 function renderContextBar(theme, ctx, width, glyphs, iconMode) {
-  const contextUsage = ctx.getContextUsage();
+  const contextUsage = getContextUsageCached(ctx);
   const contextWindow = contextUsage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
   const contextTokens = contextUsage?.tokens ?? 0;
   const contextPct = contextUsage?.percent ?? 0;
@@ -3192,12 +3206,50 @@ function installFooter(ctx, getState, getConfig, getModelMeta, hooks) {
   ctx.ui.setFooter((tui, theme, footerData) => {
     mounted = true;
     let disposed = false;
-    hooks.setRequestRender(() => tui.requestRender());
+    let contentCache;
+    hooks.setRequestRender(() => {
+      contentCache = undefined;
+      tui.requestRender();
+    });
     const unsubBranch = footerData.onBranchChange(() => {
+      contentCache = undefined;
       hooks.scheduleGitRefresh();
       tui.requestRender();
     });
-    const getContent = (width) => renderFooterContent(ctx, getState, getConfig, getModelMeta, theme, footerData, width, hooks.getLiveTps ?? (() => null), hooks.getExtensionSegments ?? (() => []));
+    const getContent = (width) => {
+      const state = getState();
+      const meta = getModelMeta();
+      const leafId = ctx.sessionManager.getLeafId();
+      const modelId = ctx.model?.id;
+      let statusesKey = "";
+      if (getConfig().footerSegments.extensionStatuses) {
+        for (const [k, v] of footerData.getExtensionStatuses()) {
+          statusesKey += `${k}=${v}\0`;
+        }
+      }
+      const canCache = state.workingSince === undefined && (hooks.getExtensionSegments?.().length ?? 0) === 0;
+      if (canCache && contentCache && contentCache.width === width && contentCache.leafId === leafId && contentCache.modelId === modelId && contentCache.effort === meta.effort && contentCache.colors === theme.colors && contentCache.git === state.git && contentCache.runtime === state.runtime && contentCache.lastDoneIn === state.lastDoneIn && contentCache.statusesKey === statusesKey) {
+        return contentCache.result;
+      }
+      const result = renderFooterContent(ctx, getState, getConfig, getModelMeta, theme, footerData, width, hooks.getLiveTps ?? (() => null), hooks.getExtensionSegments ?? (() => []));
+      if (canCache) {
+        contentCache = {
+          width,
+          leafId,
+          modelId,
+          effort: meta.effort,
+          colors: theme.colors,
+          git: state.git,
+          runtime: state.runtime,
+          lastDoneIn: state.lastDoneIn,
+          statusesKey,
+          result
+        };
+      } else {
+        contentCache = undefined;
+      }
+      return result;
+    };
     renderInline = (width) => getContent(width).inlineLines;
     return {
       dispose() {
@@ -3205,13 +3257,16 @@ function installFooter(ctx, getState, getConfig, getModelMeta, hooks) {
           return;
         disposed = true;
         mounted = false;
+        contentCache = undefined;
         unsubBranch();
         hooks.setRequestRender(undefined);
         renderInline = () => {
           return;
         };
       },
-      invalidate() {},
+      invalidate() {
+        contentCache = undefined;
+      },
       render(width) {
         if (width <= 0)
           return [""];

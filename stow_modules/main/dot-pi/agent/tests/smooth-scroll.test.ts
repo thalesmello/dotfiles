@@ -206,10 +206,16 @@ describe("smooth-scroll extension", () => {
 		expect(doc.render(80)).toEqual(["row-1", "row-2"]);
 		expect(doc.renderCalls).toBe(1);
 
-		// Pure wheel scroll step sets inPureScrollRender = true:
+		// Pure wheel scroll step reuses cached lines:
 		screen.routeWheel({ direction: 1, x: 5, y: 5, button: 65 }, 1);
 		expect(doc.render(80)).toEqual(["row-1", "row-2"]);
 		// Cached lines reused without re-running child.render:
+		expect(doc.renderCalls).toBe(1);
+
+		// Non-wheel requestRender(false) (e.g. keyboard scroll, scrollbar hide timer, footer tick)
+		// keeps the transcript cache intact:
+		screen.requestRender(false);
+		expect(doc.render(80)).toEqual(["row-1", "row-2"]);
 		expect(doc.renderCalls).toBe(1);
 
 		// Mutating or invalidating the container marks the cache dirty:

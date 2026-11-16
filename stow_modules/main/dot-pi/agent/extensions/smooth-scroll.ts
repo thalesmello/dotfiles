@@ -42,14 +42,26 @@ const PATCH_STATE_SYMBOL = Symbol.for("pi.smoothScroll.patchState");
 const FRAME_INTERVAL_MS = 16;
 const BURST_WINDOW_MS = 8;
 const GESTURE_GAP_MS = 200;
-const REFERENCE_GAP_MS = 60;
-const MAX_BURST_AUTO_LINES = 2;
+const REFERENCE_GAP_MS = 90;
+const MAX_BURST_AUTO_LINES = 5;
+const DISABLE_ALL_MOTION_MOUSE = "\x1b[?1003l";
+
+function shouldDisableAllMotionMouse(env = process.env): boolean {
+	return Boolean(env.HC_TERMINAL_ID || env.HERDR_ENV || env.SSH_CONNECTION || env.SSH_TTY || env.ET_VERSION);
+}
 
 interface WheelEventLike {
 	direction: number;
 	x: number;
 	y: number;
 	button: number;
+}
+
+interface RawMouseEventLike {
+	button: number;
+	x: number;
+	y: number;
+	release: boolean;
 }
 
 interface WheelScrollAcceleratorLike {
@@ -59,20 +71,25 @@ interface WheelScrollAcceleratorLike {
 	lastDirection: number;
 	averageGap?: number;
 	carry: number;
-	 _burstCount?: number;
-	 _packetTime?: number;
+	_burstCount?: number;
+	_burstStep?: number;
+	_packetTime?: number;
 	next(direction: number, now: number): number;
 	reset(): void;
 }
 
 interface AltScreenLike {
 	wheelScroll?: WheelScrollAcceleratorLike;
+	terminal?: { write?: (data: string) => void };
+	mouseEnabled?: boolean;
 	renderRequested?: boolean;
 	stopped?: boolean;
 	altScreenActive?: boolean;
 	currentLayout?: { primaryScrollView?: ScrollViewLike };
 	getPrimaryScrollView?: () => ScrollViewLike;
+	beforeTerminalStart?(): void;
 	routeWheel(event: WheelEventLike, delta: number): void;
+	handleMouseEvent?(event: RawMouseEventLike): void;
 	handleViewportInput?(data: string): unknown;
 	requestRender(force?: boolean): void;
 	doRender(): void;
@@ -95,6 +112,7 @@ interface TranscriptCacheEntry {
 	width: number;
 	lines: string[];
 	mouseLayout: unknown;
+	generation: number;
 	dirty: boolean;
 }
 
@@ -102,9 +120,13 @@ interface PatchState {
 	installed: boolean;
 	enabled: boolean;
 	inPureScrollRender: boolean;
+	transcriptGeneration: number;
+	origBeforeTerminalStart?: (this: AltScreenLike) => void;
 	origRouteWheel?: (this: AltScreenLike, event: WheelEventLike, delta: number) => void;
+	origHandleMouseEvent?: (this: AltScreenLike, event: RawMouseEventLike) => void;
 	origHandleViewportInput?: (this: AltScreenLike, data: string) => unknown;
 	origRequestRender?: (this: AltScreenLike, force?: boolean) => void;
+	origDoRender?: (this: AltScreenLike) => void;
 	origContainerRender?: (this: Container, width: number) => string[];
 	origContainerInvalidate?: (this: Container) => void;
 	origContainerAddChild?: (this: Container, component: unknown) => void;
@@ -117,6 +139,7 @@ interface PatchState {
 	pacers: WeakMap<object, PacerState>;
 	transcriptCache: WeakMap<object, TranscriptCacheEntry>;
 	patchedAccelerators: WeakSet<object>;
+	allMotionDisabledScreens: WeakSet<object>;
 }
 
 function getPatchState(): PatchState {
@@ -126,12 +149,22 @@ function getPatchState(): PatchState {
 			installed: false,
 			enabled: true,
 			inPureScrollRender: false,
+			transcriptGeneration: 1,
 			pacers: new WeakMap(),
 			transcriptCache: new WeakMap(),
 			patchedAccelerators: new WeakSet(),
+			allMotionDisabledScreens: new WeakSet(),
 		};
 	}
 	return holder[PATCH_STATE_SYMBOL]!;
+}
+
+function disableAllMotionIfNeeded(screen: AltScreenLike): void {
+	const state = getPatchState();
+	if (!state.enabled || state.allMotionDisabledScreens.has(screen)) return;
+	if (!screen.altScreenActive || screen.mouseEnabled === false || !shouldDisableAllMotionMouse()) return;
+	state.allMotionDisabledScreens.add(screen);
+	screen.terminal?.write?.(DISABLE_ALL_MOTION_MOUSE);
 }
 
 function patchAcceleratorInstance(accel: WheelScrollAcceleratorLike | undefined): void {
@@ -154,13 +187,12 @@ function patchAcceleratorInstance(accel: WheelScrollAcceleratorLike | undefined)
 		const gapFromPacket = now - packetTime;
 
 		// Coalesced events inside the same ET/Herdr PTY read (< 5ms apart):
-		// count them toward the burst and return 1 line each so the frame pacer
-		// can animate them smoothly at 60fps instead of lumping a 6-line jump
-		// on the first event and 1-line clamps on the rest.
+		// count them toward the burst and return the current burst step instead of
+		// lumping a 6-line jump on the first event and 1-line clamps on the rest.
 		if (direction === this.lastDirection && gapFromPacket >= 0 && gapFromPacket < 5) {
 			this._burstCount = (this._burstCount ?? 1) + 1;
 			this.lastTime = now;
-			return 1;
+			return this._burstStep ?? 1;
 		}
 
 		const prevBurst = Math.max(1, this._burstCount ?? 1);
@@ -173,15 +205,17 @@ function patchAcceleratorInstance(accel: WheelScrollAcceleratorLike | undefined)
 		if (!sameGesture) {
 			this.averageGap = undefined;
 			this.carry = 0;
+			this._burstStep = 1;
 			return 1;
 		}
 
 		// If the previous packet was already a multi-event burst, the client
-		// terminal (e.g. Ghostty on macOS) is already sending high-frequency
-		// trackpad events; keep 1 line per event so we don't double-accelerate.
+		// terminal is sending high-frequency trackpad events; keep 1 line per
+		// event when packet gap per event is high, or gentle acceleration on fast flicks.
 		if (prevBurst > 1) {
 			this.averageGap = gapFromPacket / prevBurst;
 			this.carry = 0;
+			this._burstStep = 1;
 			return 1;
 		}
 
@@ -190,11 +224,13 @@ function patchAcceleratorInstance(accel: WheelScrollAcceleratorLike | undefined)
 		const lines = Math.min(MAX_BURST_AUTO_LINES, Math.max(1, REFERENCE_GAP_MS / this.averageGap)) + this.carry;
 		const whole = Math.floor(lines);
 		this.carry = lines - whole;
+		this._burstStep = Math.min(2, whole);
 		return whole;
 	};
 
 	accel.reset = function patchedReset(): void {
 		this._burstCount = 1;
+		this._burstStep = 1;
 		this._packetTime = Number.NEGATIVE_INFINITY;
 		origReset();
 	};
@@ -203,6 +239,7 @@ function patchAcceleratorInstance(accel: WheelScrollAcceleratorLike | undefined)
 function markAllTranscriptCachesDirty(): void {
 	const state = getPatchState();
 	state.inPureScrollRender = false;
+	state.transcriptGeneration += 1;
 }
 
 function getPacer(screen: AltScreenLike): PacerState {
@@ -227,34 +264,32 @@ function stopPacer(pacer: PacerState): void {
 	pacer.pendingDelta = 0;
 }
 
-function takeSmoothStep(pending: number): number {
-	const sign = Math.sign(pending);
-	const abs = Math.abs(pending);
-	if (abs <= 2) return sign * 1;
-	return sign * Math.max(1, Math.ceil(abs * 0.4));
+function flushPendingWheelDelta(screen: AltScreenLike, pacer: PacerState): void {
+	const state = getPatchState();
+	if (pacer.timer !== undefined) {
+		clearTimeout(pacer.timer);
+		pacer.timer = undefined;
+	}
+	if (!state.installed || !state.enabled || screen.stopped || !screen.altScreenActive || pacer.pendingDelta === 0 || !pacer.lastEvent) {
+		pacer.pendingDelta = 0;
+		return;
+	}
+	const step = pacer.pendingDelta;
+	pacer.pendingDelta = 0;
+	pacer.lastRouteAt = performance.now();
+	pacer.inPacedStep = true;
+	try {
+		state.origRouteWheel!.call(screen, pacer.lastEvent, step);
+	} finally {
+		pacer.inPacedStep = false;
+	}
 }
 
 function scheduleDrain(screen: AltScreenLike, pacer: PacerState): void {
 	if (pacer.timer !== undefined) return;
 	pacer.timer = setTimeout(() => {
 		pacer.timer = undefined;
-		const state = getPatchState();
-		if (!state.installed || !state.enabled || screen.stopped || !screen.altScreenActive || pacer.pendingDelta === 0 || !pacer.lastEvent) {
-			pacer.pendingDelta = 0;
-			return;
-		}
-		const step = takeSmoothStep(pacer.pendingDelta);
-		pacer.pendingDelta -= step;
-		pacer.lastRouteAt = performance.now();
-		pacer.inPacedStep = true;
-		try {
-			state.origRouteWheel!.call(screen, pacer.lastEvent, step);
-		} finally {
-			pacer.inPacedStep = false;
-		}
-		if (pacer.pendingDelta !== 0) {
-			scheduleDrain(screen, pacer);
-		}
+		flushPendingWheelDelta(screen, pacer);
 	}, FRAME_INTERVAL_MS);
 	pacer.timer.unref?.();
 }
@@ -272,16 +307,54 @@ function installSmoothScroll(): boolean {
 		return false;
 	}
 
+	state.origBeforeTerminalStart = altProto.beforeTerminalStart;
 	state.origRouteWheel = altProto.routeWheel;
+	state.origHandleMouseEvent = altProto.handleMouseEvent;
 	state.origHandleViewportInput = altProto.handleViewportInput;
 	state.origRequestRender = altProto.requestRender;
+	state.origDoRender = altProto.doRender;
+
+	if (typeof state.origBeforeTerminalStart === "function") {
+		const origBeforeTerminalStart = state.origBeforeTerminalStart;
+		altProto.beforeTerminalStart = function patchedBeforeTerminalStart(this: AltScreenLike): void {
+			state.allMotionDisabledScreens.delete(this);
+			origBeforeTerminalStart.call(this);
+			disableAllMotionIfNeeded(this);
+		};
+	}
+
 	if (typeof state.origHandleViewportInput === "function") {
 		const origHandleViewportInput = state.origHandleViewportInput;
 		altProto.handleViewportInput = function patchedHandleViewportInput(this: AltScreenLike, data: string): unknown {
+			disableAllMotionIfNeeded(this);
 			patchAcceleratorInstance(this.wheelScroll);
 			return origHandleViewportInput.call(this, data);
 		};
 	}
+
+	if (typeof state.origHandleMouseEvent === "function") {
+		const origHandleMouseEvent = state.origHandleMouseEvent;
+		altProto.handleMouseEvent = function patchedHandleMouseEvent(this: AltScreenLike, event: RawMouseEventLike): void {
+			// Non-motion mouse press/release may toggle a code-block/message "Copied" label.
+			if (event && (event.button & 32) === 0) {
+				state.transcriptGeneration += 1;
+			}
+			return origHandleMouseEvent.call(this, event);
+		};
+	}
+
+	if (typeof state.origDoRender === "function") {
+		const origDoRender = state.origDoRender;
+		altProto.doRender = function patchedDoRender(this: AltScreenLike): void {
+			disableAllMotionIfNeeded(this);
+			const pacer = state.pacers.get(this);
+			if (pacer && pacer.pendingDelta !== 0) {
+				flushPendingWheelDelta(this, pacer);
+			}
+			return origDoRender.call(this);
+		};
+	}
+
 	state.origContainerRender = containerProto.render as (this: Container, width: number) => string[];
 	state.origContainerInvalidate = containerProto.invalidate as (this: Container) => void;
 	state.origContainerAddChild = containerProto.addChild as (this: Container, component: unknown) => void;
@@ -293,16 +366,13 @@ function installSmoothScroll(): boolean {
 	state.origTextInvalidate = textProto.invalidate as (this: Text) => void;
 
 	altProto.requestRender = function patchedRequestRender(this: AltScreenLike, force = false): void {
-		const pacer = state.pacers.get(this);
-		if (force || !pacer?.inPacedStep) {
-			state.inPureScrollRender = false;
-			const primaryChild = this.getPrimaryScrollView?.()?.child;
-			if (primaryChild && typeof primaryChild === "object") {
-				const cached = state.transcriptCache.get(primaryChild);
-				if (cached) cached.dirty = true;
-			}
+		if (force) {
+			markAllTranscriptCachesDirty();
 		} else {
-			state.inPureScrollRender = true;
+			const pacer = state.pacers.get(this);
+			if (pacer?.inPacedStep) {
+				state.inPureScrollRender = true;
+			}
 		}
 		return state.origRequestRender!.call(this, force);
 	};
@@ -330,15 +400,7 @@ function installSmoothScroll(): boolean {
 		const inBurst = this.renderRequested === true || now - pacer.lastRouteAt < BURST_WINDOW_MS;
 
 		if (!inBurst && pacer.timer === undefined) {
-			const step = takeSmoothStep(pacer.pendingDelta);
-			pacer.pendingDelta -= step;
-			pacer.lastRouteAt = now;
-			pacer.inPacedStep = true;
-			try {
-				state.origRouteWheel!.call(this, event, step);
-			} finally {
-				pacer.inPacedStep = false;
-			}
+			flushPendingWheelDelta(this, pacer);
 		}
 
 		if (pacer.pendingDelta !== 0) {
@@ -347,9 +409,9 @@ function installSmoothScroll(): boolean {
 	};
 
 	containerProto.render = function patchedContainerRender(this: Container, width: number): string[] {
-		if (state.enabled && state.inPureScrollRender) {
+		if (state.enabled) {
 			const cached = state.transcriptCache.get(this);
-			if (cached && !cached.dirty && cached.width === width) {
+			if (cached && !cached.dirty && cached.generation === state.transcriptGeneration && cached.width === width) {
 				(this as unknown as { mouseLayout: unknown }).mouseLayout = cached.mouseLayout;
 				return cached.lines;
 			}
@@ -360,6 +422,7 @@ function installSmoothScroll(): boolean {
 			existing.width = width;
 			existing.lines = lines;
 			existing.mouseLayout = (this as unknown as { mouseLayout: unknown }).mouseLayout;
+			existing.generation = state.transcriptGeneration;
 			existing.dirty = false;
 		}
 		return lines;
@@ -379,6 +442,7 @@ function installSmoothScroll(): boolean {
 					width: -1,
 					lines: [],
 					mouseLayout: undefined,
+					generation: -1,
 					dirty: true,
 				});
 			}
@@ -418,9 +482,12 @@ function uninstallSmoothScroll(): void {
 	const markdownProto = Markdown.prototype as unknown as Record<string, unknown>;
 	const textProto = Text.prototype as unknown as Record<string, unknown>;
 
+	if (state.origBeforeTerminalStart) altProto.beforeTerminalStart = state.origBeforeTerminalStart;
 	if (state.origRouteWheel) altProto.routeWheel = state.origRouteWheel;
+	if (state.origHandleMouseEvent) altProto.handleMouseEvent = state.origHandleMouseEvent;
 	if (state.origHandleViewportInput) altProto.handleViewportInput = state.origHandleViewportInput;
 	if (state.origRequestRender) altProto.requestRender = state.origRequestRender;
+	if (state.origDoRender) altProto.doRender = state.origDoRender;
 	if (state.origContainerRender) containerProto.render = state.origContainerRender;
 	if (state.origContainerInvalidate) containerProto.invalidate = state.origContainerInvalidate;
 	if (state.origContainerAddChild) containerProto.addChild = state.origContainerAddChild;

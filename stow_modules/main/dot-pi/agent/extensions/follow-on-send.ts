@@ -414,11 +414,18 @@ const activeEditorRenders = new WeakSet<object>();
 function recordTranscriptLayout(view: TranscriptViewLike, contentHeight: number, viewportHeight: number): void {
 	transcriptView = new WeakRef(view);
 	collapseLinesAtLastLayout = getScrollCollapseStore().collapseLines;
-	const lastMessageStartRow = findLastMessageStartRow(view.child);
+	let cachedLastRow: number | undefined;
+	let computedLastRow = false;
 	transcriptMetrics = {
 		contentHeight,
 		viewportHeight,
-		...(lastMessageStartRow === undefined ? {} : { lastMessageStartRow }),
+		get lastMessageStartRow(): number | undefined {
+			if (!computedLastRow) {
+				computedLastRow = true;
+				cachedLastRow = findLastMessageStartRow(view.child);
+			}
+			return cachedLastRow;
+		},
 	};
 }
 

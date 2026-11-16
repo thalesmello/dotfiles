@@ -27,6 +27,33 @@ let usageCache: {
 	totals: UsageTotals;
 } | undefined;
 
+let contextUsageCache: {
+	sessionManager: ExtensionContext["sessionManager"];
+	leafId: string | null;
+	modelId: string | undefined;
+	contextWindow: number | undefined;
+	usage: ReturnType<ExtensionContext["getContextUsage"]>;
+} | undefined;
+
+export function getContextUsageCached(ctx: ExtensionContext): ReturnType<ExtensionContext["getContextUsage"]> {
+	const { sessionManager } = ctx;
+	const leafId = sessionManager.getLeafId();
+	const modelId = ctx.model?.id;
+	const contextWindow = ctx.model?.contextWindow;
+	if (
+		contextUsageCache &&
+		contextUsageCache.sessionManager === sessionManager &&
+		contextUsageCache.leafId === leafId &&
+		contextUsageCache.modelId === modelId &&
+		contextUsageCache.contextWindow === contextWindow
+	) {
+		return contextUsageCache.usage;
+	}
+	const usage = ctx.getContextUsage();
+	contextUsageCache = { sessionManager, leafId, modelId, contextWindow, usage };
+	return usage;
+}
+
 export function getUsageTotals(ctx: ExtensionContext): UsageTotals {
 	const { sessionManager } = ctx;
 	const leafId = sessionManager.getLeafId();
@@ -71,6 +98,7 @@ export function getUsageTotals(ctx: ExtensionContext): UsageTotals {
 
 export function invalidateUsageCache(): void {
 	usageCache = undefined;
+	contextUsageCache = undefined;
 }
 
 export function createInitialState(): FooterState {
