@@ -40,7 +40,7 @@
               "id": "agents",
               "type": "block",
               "content": {
-                "mod": "agents"
+                "mod": "agents-snooze"
               },
               "size": {
                 "weight": 1

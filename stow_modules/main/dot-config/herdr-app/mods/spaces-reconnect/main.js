@@ -5,7 +5,9 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, terminals, focused, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, nextCommand, window, layout } from "herdr";
+import { spaces, machines, panes, terminals, focused, run, openOverlay, exec, hc, home, theme, shared, setShared, watchFolder, nextCommand, window, layout, checking } from "herdr";
+
+const isChecking = () => typeof checking === "function" && Boolean(checking());
 
 const PERL_SEND_SCRIPT = `use Socket;
 my ($t, $hex, $cols, $rows) = @ARGV;
@@ -185,6 +187,111 @@ const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
 // for this often, in repos the list shows, while the window is in front.
 const FALLBACK = 60000;
+const AUTO_TITLE_PENDING_MS = 5000;
+
+const GENERIC_TITLES = new Set([
+  "",
+  "pi",
+  "claude",
+  "claude code",
+  "codex",
+  "gemini",
+  "opencode",
+  "amp",
+  "cursor",
+  "cursor-agent",
+  "droid",
+  "kiro",
+  "aider",
+  "grok",
+  "hermes",
+  "kilo",
+  "qwen",
+  "qwen-code",
+  "devin",
+  "cline",
+  "copilot",
+  "kimi",
+  "maki",
+  "terminal",
+  "shell",
+  "fish",
+  "zsh",
+  "bash",
+  "sh",
+  "dash",
+  "ksh",
+  "nu",
+  "tmux",
+  "working",
+  "thinking",
+]);
+
+export function isSlug(value) {
+  const text = String(value ?? "").trim();
+  return Boolean(text && !/\s/.test(text) && (text.includes("-") || text.includes("_")));
+}
+
+export function cleanAgentTitle(rawTitle, lead, space) {
+  const raw = String(rawTitle ?? "").replace(/[\x00-\x1f\x7f-\x9f]+/g, " ").trim();
+  if (!raw || raw === "π") return "";
+  const cwd = lead?.cwd || space?.folder || "";
+  const cwdBase = cwd ? base(cwd) : "";
+
+  let candidate = raw;
+  if (candidate.startsWith("π - ")) {
+    const rest = candidate.slice(4).trim();
+    if (!rest || (cwdBase && rest.toLowerCase() === cwdBase.toLowerCase())) return "";
+    if (cwdBase && rest.toLowerCase().endsWith(` - ${cwdBase.toLowerCase()}`)) {
+      candidate = rest.slice(0, -(cwdBase.length + 3)).trim();
+    } else if (!rest.includes(" - ")) {
+      return "";
+    } else {
+      candidate = rest;
+    }
+  }
+
+  const pathCheck = candidate.replace(/^[^\p{L}\p{N}~/\\]+/u, "");
+  if (/^[~/]|^[A-Za-z]:\\|^\\\\/.test(pathCheck)) return "";
+
+  let live = candidate
+    .replace(/^[^\p{L}\p{N}\p{Ps}\p{Pi}]+/u, "")
+    .replace(/^\[ [!.] \] /, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (cwdBase && live.toLowerCase().endsWith(` | ${cwdBase.toLowerCase()}`)) {
+    live = live.slice(0, -(cwdBase.length + 3)).trim();
+  }
+
+  if (!live || live.includes("@") || isSlug(live)) return "";
+  if (/^(nvim|vim):/i.test(live) || /^(fish|zsh|bash|sh|dash|ksh|nu)\s+[~/]/i.test(live)) return "";
+
+  const lower = live.toLowerCase();
+  if (GENERIC_TITLES.has(lower)) return "";
+  const termFull = String(lead?.terminal ?? "").toLowerCase();
+  const termBare = (termFull.split("/").pop() ?? "").toLowerCase();
+  if (lower === termFull || (termBare && lower === termBare)) return "";
+  if (lead?.program?.name && lower === lead.program.name.toLowerCase()) return "";
+  if (lead?.program?.key && lower === lead.program.key.toLowerCase()) return "";
+  if (cwdBase && lower === cwdBase.toLowerCase()) return "";
+  if (cwd && lower === cwd.toLowerCase()) return "";
+
+  return live;
+}
+
+export function isDefaultOrSlugTabName(tab, lead, space) {
+  if (!tab?.named) return true;
+  const name = String(tab.name ?? "").trim();
+  if (!name || /^\d+$/.test(name)) return true;
+  if (isSlug(name)) return true;
+  const lower = name.toLowerCase();
+  if (GENERIC_TITLES.has(lower) || lower === "ask") return true;
+  if (lead?.program?.name && lower === lead.program.name.toLowerCase()) return true;
+  if (lead?.program?.key && lower === lead.program.key.toLowerCase()) return true;
+  if (space?.name && lower === String(space.name).trim().toLowerCase()) return true;
+  return false;
+}
 
 // What a stored color name looks like on an avatar (the same in every mod
 // that draws space avatars): one strong color per hue, light and dark alike.
@@ -218,9 +325,19 @@ export default class Spaces extends View {
     this.pressed = null;
     this.over = null;
     this.machines = [];
+    try {
+      this.autoTitles = JSON.parse(localStorage.getItem("tabs.autoTitles") ?? "{}");
+    } catch {
+      this.autoTitles = {};
+    }
+    if (!this.autoTitles || typeof this.autoTitles !== "object" || Array.isArray(this.autoTitles)) {
+      this.autoTitles = {};
+    }
     this.reconnecting = JSON.parse(localStorage.getItem("machines.reconnecting") ?? "{}");
     for (const state of Object.values(this.reconnecting)) state.busy = false;
     this.folded = new Set(JSON.parse(localStorage.getItem("machines.folded") ?? "[]"));
+    if (isChecking()) return;
+    this.syncAutoTitles(Date.now(), spaces(), panes());
     this.refreshMachines(cx);
     cx.timer.every(15000, cx => this.refreshMachines(cx));
     // Refresh only when the refs could have changed (see `due`).
@@ -264,9 +381,132 @@ export default class Spaces extends View {
         run("pane.focus", { pane: this.pendingFocus.pane });
       }
     }
+    this.syncAutoTitles(now, sp, ps);
     const due = this.due(now, sp, ps);
     if (due.size) this.refreshGit(due, cx);
     if (sp.some((s) => !this.shown.has(s.id)) || this.orderingDue(now)) cx.notify();
+  }
+
+  syncAutoTitles(now, sp, ps) {
+    if (isChecking()) return;
+    const machineList = machines() ?? [];
+    const isMachineReady = (name) => {
+      const m = machineList.find((x) => (x.name ?? null) === (name ?? null));
+      return m ? m.layout === "ready" : name == null;
+    };
+
+    const agentsByTab = new Map();
+    for (const p of ps) {
+      if (!p.terminal || !p.tab) continue;
+      if (p.program?.agent || p.app || p.status) {
+        let list = agentsByTab.get(p.tab);
+        if (!list) {
+          list = [];
+          agentsByTab.set(p.tab, list);
+        }
+        list.push(p);
+      }
+    }
+
+    let dirty = false;
+    const liveTabIds = new Set();
+
+    for (const s of sp) {
+      const machineReady = isMachineReady(s.machine ?? null);
+      for (const tab of s.tabs ?? []) {
+        liveTabIds.add(tab.id);
+        const tabAgents = agentsByTab.get(tab.id) ?? [];
+        if (tabAgents.length !== 1) continue;
+
+        const lead = tabAgents[0];
+        const wantTitle = cleanAgentTitle(lead.title, lead, s);
+        let rec = this.autoTitles[tab.id];
+
+        if (rec && rec.terminal && rec.terminal !== lead.terminal) {
+          if (!tab.named || isDefaultOrSlugTabName(tab, lead, s) || tab.name === rec.title) {
+            delete this.autoTitles[tab.id];
+            rec = null;
+            dirty = true;
+          }
+        }
+
+        if (!tab.named && rec && !(rec.pendingUntil && now < rec.pendingUntil && tab.name === rec.fromName)) {
+          delete this.autoTitles[tab.id];
+          rec = null;
+          dirty = true;
+        }
+
+        if (rec) {
+          if (rec.pendingUntil && now < rec.pendingUntil && tab.name === rec.fromName) {
+            continue;
+          }
+          if (rec.pendingUntil && now >= rec.pendingUntil && tab.name === rec.fromName) {
+            delete this.autoTitles[tab.id];
+            rec = null;
+            dirty = true;
+          } else if (rec.yielded) {
+            continue;
+          } else if (tab.name !== rec.title) {
+            this.autoTitles[tab.id] = {
+              terminal: lead.terminal,
+              title: rec.title,
+              yielded: true,
+              manualName: tab.name,
+            };
+            dirty = true;
+            continue;
+          } else {
+            if (rec.pendingUntil || rec.fromName !== undefined) {
+              rec = { terminal: lead.terminal, title: rec.title };
+              this.autoTitles[tab.id] = rec;
+              dirty = true;
+            }
+            if (wantTitle && wantTitle !== tab.name && machineReady) {
+              run("tab.rename", { id: tab.id, name: wantTitle });
+              this.autoTitles[tab.id] = {
+                terminal: lead.terminal,
+                title: wantTitle,
+                fromName: tab.name,
+                pendingUntil: now + AUTO_TITLE_PENDING_MS,
+              };
+              dirty = true;
+            }
+            continue;
+          }
+        }
+
+        if (!wantTitle) continue;
+
+        if (tab.name === wantTitle) {
+          this.autoTitles[tab.id] = { terminal: lead.terminal, title: wantTitle };
+          dirty = true;
+          continue;
+        }
+
+        if (isDefaultOrSlugTabName(tab, lead, s) && machineReady) {
+          run("tab.rename", { id: tab.id, name: wantTitle });
+          this.autoTitles[tab.id] = {
+            terminal: lead.terminal,
+            title: wantTitle,
+            fromName: tab.name,
+            pendingUntil: now + AUTO_TITLE_PENDING_MS,
+          };
+          dirty = true;
+        }
+      }
+    }
+
+    for (const id of Object.keys(this.autoTitles)) {
+      const machine = id.includes("/") ? id.split("/")[0] : null;
+      if (isMachineReady(machine) && !liveTabIds.has(id)) {
+        delete this.autoTitles[id];
+        dirty = true;
+      }
+    }
+
+    if (dirty) {
+      localStorage.setItem("tabs.autoTitles", JSON.stringify(this.autoTitles));
+    }
   }
 
   // Places whose git could have changed: new ones (a new space, a cd), where a
