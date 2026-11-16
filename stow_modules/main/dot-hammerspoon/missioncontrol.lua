@@ -20,6 +20,57 @@ local IGNORED_OWNERS = {
   ["BetterDisplay"] = true,
 }
 
+local WINDOW_NAME_MAX = 46
+local HUD_MAX_ITEMS = 8
+
+local function cleanText(s)
+  if type(s) ~= "string" then return "" end
+  return (s:gsub("%s+", " "):match("^%s*(.-)%s*$")) or ""
+end
+
+local function truncate(s, max)
+  local len = utf8.len(s)
+  if not len then return #s > max and (s:sub(1, max) .. "…") or s end
+  if len <= max then return s end
+  return s:sub(1, (utf8.offset(s, max + 1) or (max + 1)) - 1) .. "…"
+end
+
+local function shortApp(name)
+  if name == "Google Chrome" then return "Chrome" end
+  return name
+end
+
+local function formatWindowName(id, win)
+  local app = cleanText(win and win.app)
+  local title = cleanText(win and win.title)
+  local short = shortApp(app)
+  local label
+  if title ~= "" and app ~= "" and title ~= app and title ~= short then
+    label = short .. " — " .. title
+  elseif title ~= "" then
+    label = title
+  elseif app ~= "" then
+    label = app
+  else
+    label = "Window " .. tostring(id)
+  end
+  return truncate(label, WINDOW_NAME_MAX)
+end
+
+local function formatHUDLines(items)
+  local lines = {}
+  local total = #(items or {})
+  if total == 0 then return lines end
+  local limit = total > HUD_MAX_ITEMS and (HUD_MAX_ITEMS - 1) or total
+  for i = 1, limit do
+    lines[#lines + 1] = items[i]
+  end
+  if total > limit then
+    lines[#lines + 1] = string.format("+ %d more…", total - limit)
+  end
+  return lines
+end
+
 -- Inspect on-screen CGWindows synchronously in-process. While Mission Control
 -- (or App Expose) is up, WindowManager (macOS 27+) or Dock (earlier macOS)
 -- owns shield/icon windows at layers 17-19, and the window preview tiles at
@@ -27,10 +78,11 @@ local IGNORED_OWNERS = {
 -- order.
 local function inspectMissionControl(pt)
   local windows = hs.window.list(true)
-  if type(windows) ~= "table" then return false, {} end
+  if type(windows) ~= "table" then return false, {}, {} end
 
   local active = false
   local candidates = {}
+  local cgById = {}
   local x = pt and pt.x
   local y = pt and pt.y
 
@@ -39,47 +91,108 @@ local function inspectMissionControl(pt)
     local layer = entry.kCGWindowLayer
     if (owner == "WindowManager" or owner == "Dock") and type(layer) == "number" and layer >= 17 and layer < 20 then
       active = true
-    elseif x and y and layer == 0 and not IGNORED_OWNERS[owner or ""] then
-      local b = entry.kCGWindowBounds
+    elseif layer == 0 and not IGNORED_OWNERS[owner or ""] then
       local wid = entry.kCGWindowNumber
-      if type(b) == "table" and wid
-        and x >= b.X and x < (b.X + b.Width)
-        and y >= b.Y and y < (b.Y + b.Height) then
-        candidates[#candidates + 1] = tostring(wid)
+      if wid then
+        local id = tostring(wid)
+        if not cgById[id] then
+          cgById[id] = {
+            id = wid,
+            pid = entry.kCGWindowOwnerPID,
+            app = owner,
+            title = entry.kCGWindowName,
+          }
+        end
+        local b = entry.kCGWindowBounds
+        if x and y and type(b) == "table"
+          and x >= b.X and x < (b.X + b.Width)
+          and y >= b.Y and y < (b.Y + b.Height) then
+          candidates[#candidates + 1] = id
+        end
       end
     end
   end
 
-  return active, candidates
+  return active, candidates, cgById
 end
 
-local function withWindowUnderCursor(candidates, callback)
-  if not candidates or #candidates == 0 then
-    callback(nil, nil)
-    return
-  end
-
+local function queryYabaiWindows(callback)
   shell.task({"yabai", "-m", "query", "--windows", print_stdout = false}, function(ok, out)
+    local byId = {}
     if ok and out ~= "" then
       local decodedOk, windows = pcall(hs.json.decode, out)
       if decodedOk and type(windows) == "table" then
-        local byId = {}
         for _, w in ipairs(windows) do
           if type(w) == "table" and w.id ~= nil and w.role ~= "AXHelpTag" then
             byId[tostring(w.id)] = w
           end
         end
-        for _, id in ipairs(candidates) do
-          if byId[id] then
-            callback(id, byId[id])
-            return
-          end
-        end
+      end
+    end
+    callback(byId)
+  end)
+end
+
+local function withWindowUnderCursor(candidates, callback)
+  if not candidates or #candidates == 0 then
+    callback(nil, nil, {})
+    return
+  end
+
+  queryYabaiWindows(function(byId)
+    for _, id in ipairs(candidates) do
+      if byId[id] then
+        callback(id, byId[id], byId)
+        return
       end
     end
 
-    callback(candidates[1], nil)
+    callback(candidates[1], nil, byId)
   end)
+end
+
+local function lookupWindow(id, byId, cgById)
+  id = tostring(id or "")
+  local win = byId and byId[id] or nil
+  local cg = cgById and cgById[id] or nil
+  if win and cg and cleanText(win.title) == "" and cleanText(cg.title) ~= "" then
+    return {
+      id = win.id or cg.id,
+      pid = win.pid or cg.pid,
+      app = win.app or cg.app,
+      title = cg.title,
+    }
+  end
+  return win or cg
+end
+
+local function collectHoldTargets(ids, byId, cgById)
+  local windowNames = {}
+  local appNames = {}
+  local seenApps = {}
+  for _, rawId in ipairs(ids or {}) do
+    local id = tostring(rawId)
+    local win = lookupWindow(id, byId, cgById)
+    windowNames[#windowNames + 1] = formatWindowName(id, win)
+    local app = cleanText(win and win.app)
+    if app ~= "" and not seenApps[app] then
+      seenApps[app] = true
+      appNames[#appNames + 1] = truncate(app, WINDOW_NAME_MAX)
+    end
+  end
+  return windowNames, appNames
+end
+
+local function killWindowApp(win)
+  if not win then return end
+  local app = (win.pid and hs.application.applicationForPID(win.pid))
+    or (win.app and hs.application.find(win.app, true, true))
+  if app then app:kill() end
+end
+
+local function clearArgListAfterAction()
+  ArgList.clear({noRestore = true})
+  _G._ArgListSelectionCycleStage = nil
 end
 
 local function closeWindowUnderCursor(candidates)
@@ -90,14 +203,56 @@ local function closeWindowUnderCursor(candidates)
   end)
 end
 
+local function closeArgListWindows(ids)
+  ids = (ids and #ids > 0) and ids or ArgList.itemsWithLast()
+  if #ids == 0 then return end
+  util.log("missioncontrol: closing arglist windows", #ids)
+  clearArgListAfterAction()
+  for _, id in ipairs(ids) do
+    shell.task({"yabai", "-m", "window", tostring(id), "--close"})
+  end
+end
+
 local function quitAppUnderCursor(candidates)
-  util.log("missioncontrol: cmd+right click hold, quitting app under cursor")
+  util.log("missioncontrol: cmd+right/middle click hold, quitting app under cursor")
   withWindowUnderCursor(candidates, function(id, win)
     if not id or not win then return end
-    local app = (win.pid and hs.application.applicationForPID(win.pid))
-      or (win.app and hs.application.find(win.app, true, true))
-    if app then app:kill() end
+    killWindowApp(win)
   end)
+end
+
+local function quitArgListApps(ids, byId, cgById)
+  ids = (ids and #ids > 0) and ids or ArgList.itemsWithLast()
+  if #ids == 0 then return end
+  util.log("missioncontrol: cmd+right click hold, quitting arglist apps for windows", #ids)
+
+  local function run(windowMap)
+    local _, _, currentCgById = inspectMissionControl(nil)
+    local fallbackCg = cgById or currentCgById
+    local killedPids = {}
+    local killedApps = {}
+    for _, rawId in ipairs(ids) do
+      local id = tostring(rawId)
+      local win = lookupWindow(id, windowMap, fallbackCg)
+      if win then
+        local pidKey = win.pid and tostring(win.pid) or nil
+        local appKey = cleanText(win.app)
+        if appKey == "" then appKey = nil end
+        if not (pidKey and killedPids[pidKey]) and not (appKey and killedApps[appKey]) then
+          if pidKey then killedPids[pidKey] = true end
+          if appKey then killedApps[appKey] = true end
+          killWindowApp(win)
+        end
+      end
+    end
+    clearArgListAfterAction()
+  end
+
+  if byId then
+    run(byId)
+  else
+    queryYabaiWindows(run)
+  end
 end
 
 local function toggleWindowUnderCursorInArgList(candidates)
@@ -119,8 +274,9 @@ end
 --   right click (< 0.2s)                -> toggle the tile under the cursor in ArgList (mark)
 --   Cmd+right / middle click (< 0.2s)   -> close that window
 --   hold > 0.2s                         -> show countdown HUD; releasing before 1s cancels (no action)
---   right click, hold 1s                -> close that window
---   Cmd+right / middle click, hold 1s   -> quit that window's app
+--   right click, hold 1s                -> close that window (or all ArgList windows if hovering an ArgList window)
+--   Cmd+right, hold 1s                  -> quit that window's app (or all ArgList apps if hovering an ArgList window)
+--   middle click, hold 1s               -> quit that window's app
 -- On macOS 27+, WindowManager treats right/middle clicks on Mission Control
 -- tiles as window-selection clicks unless the click is swallowed, and its
 -- ExposeShieldWindow sits above the tiles so yabai's `mouse` selector cannot
@@ -226,12 +382,14 @@ end
 
 -- Hold-progress HUD, mirroring HoldToQuit.spoon's canvas (same size, ring
 -- and colors) so holding right click reads like holding Cmd+Q.
-local HUD_WIDTH, HUD_HEIGHT = 360, 220
-local HUD_PROGRESS, HUD_GLYPH, HUD_TITLE, HUD_STATUS = 3, 5, 6, 7
+local HUD_WIDTH, HUD_BASE_HEIGHT = 400, 220
+local HUD_LINE_HEIGHT = 20
+local HUD_BG, HUD_PROGRESS, HUD_GLYPH, HUD_TITLE, HUD_ITEMS, HUD_STATUS = 1, 3, 5, 6, 7, 8
 local HUD_COLORS = {
   background = { white = 0.06, alpha = 0.88 },
   border = { white = 1.0, alpha = 0.14 },
   text = { white = 1.0, alpha = 1.0 },
+  itemText = { white = 0.92, alpha = 0.92 },
   muted = { white = 1.0, alpha = 0.68 },
   track = { white = 1.0, alpha = 0.16 },
   progress = { red = 0.25, green = 0.62, blue = 1.0, alpha = 0.96 },
@@ -253,25 +411,31 @@ function M.setup()
   -- Hold state (shared by right click and middle click):
   --   < 0.2s release  -> single-click action (no HUD shown)
   --   0.2s..1s hold   -> countdown HUD shown; release cancels without action
-  --   >= 1s hold      -> close window (right) or quit app (Cmd+right / middle)
+  --   >= 1s hold      -> close window(s) (right) or quit app(s) (Cmd+right / middle)
   local holdingButton = nil -- "right" | "middle" | nil
   local holdFired = false
   local holdCmd = false
   local holdCandidates = nil
+  local holdCgById = nil
+  local holdWindowsById = nil
+  local holdResolved = false
+  local holdIsArgList = false
+  local holdArgListIds = nil
+  local holdWindowNames = nil
+  local holdAppNames = nil
   local holdStartedAt = nil
-  local holdAppName = nil
   local holdSeq = 0
-  local progressTimer, hud, hudVisible = nil, nil, false
+  local progressTimer, hud, hudVisible, hudCurrentHeight = nil, nil, false, HUD_BASE_HEIGHT
 
   local function ensureHUD()
     if hud then return hud end
-    hud = hs.canvas.new({ x = 0, y = 0, w = HUD_WIDTH, h = HUD_HEIGHT })
+    hud = hs.canvas.new({ x = 0, y = 0, w = HUD_WIDTH, h = HUD_BASE_HEIGHT })
     hud:level("overlay")
     hud:behavior({ "canJoinAllSpaces", "stationary" })
     hud:clickActivating(false)
     hud:appendElements({
       { type = "rectangle", action = "strokeAndFill",
-        frame = { x = 0, y = 0, w = HUD_WIDTH, h = HUD_HEIGHT },
+        frame = { x = 0, y = 0, w = HUD_WIDTH, h = HUD_BASE_HEIGHT },
         roundedRectRadii = { xRadius = 20, yRadius = 20 },
         fillColor = HUD_COLORS.background, strokeColor = HUD_COLORS.border, strokeWidth = 1,
         withShadow = true, shadow = { blurRadius = 24, color = { white = 0, alpha = 0.42 }, offset = { h = -2, w = 0 } } },
@@ -287,12 +451,16 @@ function M.setup()
         frame = { x = HUD_WIDTH / 2 - 60, y = 68, w = 120, h = 32 },
         textSize = 24, textAlignment = "center", textColor = HUD_COLORS.text },
       { type = "text", action = "fill", text = "Hold to close window",
-        frame = { x = 24, y = 140, w = HUD_WIDTH - 48, h = 34 },
-        textSize = 20, textAlignment = "center", textColor = HUD_COLORS.text },
+        frame = { x = 24, y = 138, w = HUD_WIDTH - 48, h = 28 },
+        textSize = 20, textAlignment = "center", textLineBreak = "truncateTail", textColor = HUD_COLORS.text },
+      { type = "text", action = "fill", text = "",
+        frame = { x = 24, y = 170, w = HUD_WIDTH - 48, h = 0 },
+        textSize = 14, textAlignment = "center", textLineBreak = "clip", textColor = HUD_COLORS.itemText },
       { type = "text", action = "fill", text = "Release to cancel",
         frame = { x = 24, y = 174, w = HUD_WIDTH - 48, h = 28 },
         textSize = 14, textAlignment = "center", textColor = HUD_COLORS.muted },
     })
+    hudCurrentHeight = HUD_BASE_HEIGHT
     return hud
   end
 
@@ -316,7 +484,13 @@ function M.setup()
     holdingButton = nil
     holdStartedAt = nil
     holdCandidates = nil
-    holdAppName = nil
+    holdCgById = nil
+    holdWindowsById = nil
+    holdResolved = false
+    holdIsArgList = false
+    holdArgListIds = nil
+    holdWindowNames = nil
+    holdAppNames = nil
   end
 
   _G.MissionControlHoldCleanup = function()
@@ -329,33 +503,94 @@ function M.setup()
     return holdingButton == "middle" or holdCmd
   end
 
+  local function applyResolvedTarget(button, id, byId, cgById)
+    local useArgList = (button == "right") and not ArgList.isEmpty() and (id ~= nil and ArgList.contains(id))
+    holdIsArgList = useArgList
+    if useArgList then
+      local ids = ArgList.itemsWithLast()
+      holdArgListIds = ids
+      holdWindowNames, holdAppNames = collectHoldTargets(ids, byId, cgById)
+    else
+      holdArgListIds = nil
+      local targetIds = id and { id } or {}
+      holdWindowNames, holdAppNames = collectHoldTargets(targetIds, byId, cgById)
+    end
+  end
+
   local function holdLabels()
     if isQuitHold() then
-      return "Hold to quit " .. (holdAppName or "app"), "⏻"
+      local apps = holdAppNames or {}
+      local count = #apps
+      local title = count > 1 and ("Hold to quit " .. count .. " apps") or "Hold to quit app"
+      return title, "⏻", formatHUDLines(apps)
     end
-    return "Hold to close window", "✕"
+    local windows = holdWindowNames or {}
+    local count = #windows
+    local title = count > 1 and ("Hold to close " .. count .. " windows") or "Hold to close window"
+    return title, "✕", formatHUDLines(windows)
   end
 
   local function renderHUD(elapsed)
     local c = ensureHUD()
-    if not hudVisible then
+    local title, glyph, lines = holdLabels()
+    local lineCount = #lines
+    local itemsHeight = lineCount > 0 and (lineCount * HUD_LINE_HEIGHT + 4) or 0
+    local statusY = lineCount > 0 and (170 + itemsHeight + 8) or 174
+    local hudHeight = lineCount > 0 and (statusY + 28 + 16) or HUD_BASE_HEIGHT
+
+    if not hudVisible or hudCurrentHeight ~= hudHeight then
       local screen = (hs.mouse.getCurrentScreen and hs.mouse.getCurrentScreen()) or hs.screen.mainScreen()
       local sf = screen:frame()
-      c:topLeft({
+      c:frame({
         x = math.floor(sf.x + (sf.w - HUD_WIDTH) / 2),
-        y = math.floor(sf.y + (sf.h - HUD_HEIGHT) / 2),
+        y = math.floor(sf.y + (sf.h - hudHeight) / 2),
+        w = HUD_WIDTH,
+        h = hudHeight,
       })
-      c:show()
-      hudVisible = true
+      c:elementAttribute(HUD_BG, "frame", { x = 0, y = 0, w = HUD_WIDTH, h = hudHeight })
+      c:elementAttribute(HUD_ITEMS, "frame", { x = 24, y = 170, w = HUD_WIDTH - 48, h = itemsHeight })
+      c:elementAttribute(HUD_STATUS, "frame", { x = 24, y = statusY, w = HUD_WIDTH - 48, h = 28 })
+      hudCurrentHeight = hudHeight
+      if not hudVisible then
+        c:show()
+        hudVisible = true
+      end
     end
+
     local progress = math.min(1, math.max(0, elapsed / HOLD_SECONDS))
     -- A 360° arc collapses to an empty path; keep it just shy of full.
     c:elementAttribute(HUD_PROGRESS, "endAngle", -90 + (progress >= 1 and 359.9 or 360 * progress))
-    local title, glyph = holdLabels()
     c:elementAttribute(HUD_GLYPH, "text", glyph)
     c:elementAttribute(HUD_TITLE, "text", title)
+    c:elementAttribute(HUD_ITEMS, "text", table.concat(lines, "\n"))
     c:elementAttribute(HUD_STATUS, "text",
       string.format("Release to cancel · %.1fs", math.max(0, HOLD_SECONDS - elapsed)))
+  end
+
+  local function executeHoldAction(button, candidates, quit, resolved, useArgList, argListIds, byId, cgById)
+    local function run(isArgList, ids, windowMap)
+      if isArgList then
+        if quit then
+          quitArgListApps(ids, windowMap, cgById)
+        else
+          closeArgListWindows(ids)
+        end
+      elseif quit then
+        quitAppUnderCursor(candidates)
+      else
+        closeWindowUnderCursor(candidates)
+      end
+    end
+
+    if resolved then
+      run(useArgList, argListIds, byId)
+      return
+    end
+
+    withWindowUnderCursor(candidates, function(id, _, windowMap)
+      local isArgList = (button == "right") and not ArgList.isEmpty() and (id ~= nil and ArgList.contains(id))
+      run(isArgList, isArgList and ArgList.itemsWithLast() or nil, windowMap)
+    end)
   end
 
   local function tickHold()
@@ -365,17 +600,20 @@ function M.setup()
     local elapsed = hs.timer.secondsSinceEpoch() - holdStartedAt
 
     if elapsed >= HOLD_SECONDS then
-      local candidates, quit = holdCandidates, isQuitHold()
+      local button = holdingButton
+      local candidates = holdCandidates
+      local quit = isQuitHold()
+      local resolved = holdResolved
+      local useArgList = holdIsArgList
+      local argListIds = holdArgListIds
+      local byId = holdWindowsById
+      local cgById = holdCgById
       cancelHold()
       -- The release that follows must not also run the quick action.
       holdFired = true
       -- Mission Control may have been dismissed mid-hold; don't act blind.
       if not (inspectMissionControl(nil)) then return end
-      if quit then
-        quitAppUnderCursor(candidates)
-      else
-        closeWindowUnderCursor(candidates)
-      end
+      executeHoldAction(button, candidates, quit, resolved, useArgList, argListIds, byId, cgById)
       return
     end
 
@@ -384,19 +622,23 @@ function M.setup()
     end
   end
 
-  local function startHold(button, candidates, cmd)
+  local function startHold(button, candidates, cmd, cgById)
     cancelHold()
     holdFired = false
     holdingButton = button
     holdCmd = cmd
     holdCandidates = candidates
+    holdCgById = cgById
     holdStartedAt = hs.timer.secondsSinceEpoch()
+    applyResolvedTarget(button, candidates[1], nil, cgById)
     holdSeq = holdSeq + 1
     local seq = holdSeq
     util.log("missioncontrol: startHold", button, "candidates=", #candidates, "cmd=", tostring(cmd))
-    withWindowUnderCursor(candidates, function(_, win)
+    withWindowUnderCursor(candidates, function(id, _, byId)
       if not holdingButton or seq ~= holdSeq then return end
-      holdAppName = win and win.app or nil
+      holdResolved = true
+      holdWindowsById = byId
+      applyResolvedTarget(button, id, byId, cgById)
     end)
     progressTimer = hs.timer.doEvery(1 / 30, tickHold)
   end
@@ -440,13 +682,13 @@ function M.setup()
     local eventType = event:getType()
 
     if eventType == eventTypes.rightMouseDown then
-      local active, candidates = inspectMissionControl(event:location())
+      local active, candidates, cgById = inspectMissionControl(event:location())
       swallowingRight = active
       if active then
         util.log("missioncontrol: rightMouseDown active=true candidates=", #candidates)
       end
       if active and candidates and #candidates > 0 then
-        startHold("right", candidates, event:getFlags().cmd and true or false)
+        startHold("right", candidates, event:getFlags().cmd and true or false, cgById)
       end
       return active
     elseif eventType == eventTypes.rightMouseDragged then
@@ -461,13 +703,13 @@ function M.setup()
     if button ~= 2 then return false end
 
     if eventType == eventTypes.otherMouseDown then
-      local active, candidates = inspectMissionControl(event:location())
+      local active, candidates, cgById = inspectMissionControl(event:location())
       swallowingMiddle = active
       if active then
         util.log("missioncontrol: otherMouseDown active=true candidates=", #candidates)
       end
       if active and candidates and #candidates > 0 then
-        startHold("middle", candidates, true)
+        startHold("middle", candidates, true, cgById)
       end
       return active
     elseif eventType == eventTypes.otherMouseDragged then
