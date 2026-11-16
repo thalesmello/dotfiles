@@ -804,18 +804,22 @@ function chrome-preset
             }
 
             const wins = chrome.windows;
-            let wids, wnames;
-            try { wids = wins.id(); } catch (e) { wids = []; }
+            let wnames = [], allUrls = null;
             try { wnames = wins.name(); } catch (e) { wnames = []; }
+            // Fetch every tab URL of every window in ONE Apple Event
+            // (2D array: allUrls[wi][ti]) instead of one Apple Event per window.
+            try { allUrls = wins.tabs.url(); } catch (e) { allUrls = null; }
 
-            const candidates = [];
-            for (let wi = 0; wi < wids.length; wi++) {
-                const wName = (wnames && wnames[wi]) || "";
+            const winCount = wnames.length;
+            const matchingWins = [];
+            for (let wi = 0; wi < winCount; wi++) {
+                const wName = wnames[wi] || "";
                 if (wName === "Picture in Picture") continue;
 
-                const w = wins[wi];
-                let urls;
-                try { urls = w.tabs.url(); } catch (e) { continue; }
+                let urls = allUrls ? allUrls[wi] : null;
+                if (!urls) {
+                    try { urls = wins[wi].tabs.url(); } catch (e) { continue; }
+                }
 
                 const matchingIndices = [];
                 for (let i = 0; i < urls.length; i++) {
@@ -825,19 +829,55 @@ function chrome-preset
                 }
                 if (matchingIndices.length === 0) continue;
 
-                let tabTitles = [], activeIdx = 1, isMin = false, bounds = null;
-                try {
-                    tabTitles = w.tabs.title();
-                    activeIdx = w.activeTabIndex();
-                    isMin = !!w.minimized();
-                    bounds = w.bounds();
-                } catch (e) { continue; }
-
-                const activeTitle = (tabTitles && tabTitles[activeIdx - 1]) || "";
-                const yw = correlateYabaiWindow(activeTitle, wName, bounds, isMin);
+                let yw = correlateYabaiWindow("", wName, null, false);
+                if (!yw) {
+                    try {
+                        const activeTitle = wins[wi].activeTab.title() || "";
+                        yw = correlateYabaiWindow(activeTitle, wName, null, false);
+                    } catch (e) {}
+                }
 
                 if (hasProfileWins && !(yw && yw.isBrowser && yw.profile === wantProfile)) {
                     continue;
+                }
+
+                matchingWins.push({ wi, wName, urls, matchingIndices, yw });
+            }
+
+            // Count total matching tabs and Meet room tabs across all matching
+            // windows before making any per-window Apple Event calls.
+            let totalMatches = 0;
+            let totalRoomMatches = 0;
+            for (const mw of matchingWins) {
+                for (const i of mw.matchingIndices) {
+                    totalMatches++;
+                    const u = mw.urls[i] || "";
+                    if (MEET_HOST_RE.test(u) && MEET_ROOM_URL_RE.test(u)) {
+                        totalRoomMatches++;
+                    }
+                }
+            }
+
+            // Ultra-fast single-target path: when there is only 1 matching tab
+            // total, OR only 1 Meet room tab (e.g. 1 active meeting + N landing
+            // pages), we already know the winner from URLs alone without
+            // fetching tab titles, activeTabIndex, bounds, or running DOM JS.
+            const needDisambiguation = totalMatches > 1 && totalRoomMatches !== 1;
+
+            const candidates = [];
+            for (const mw of matchingWins) {
+                const { wi, wName, urls, matchingIndices, yw } = mw;
+                const w = wins[wi];
+
+                let tabTitles = null, activeIdx = -1, isMin = false;
+                if (needDisambiguation) {
+                    try {
+                        activeIdx = w.activeTabIndex();
+                        tabTitles = w.tabs.title();
+                    } catch (e) { continue; }
+                }
+                if (yw) {
+                    isMin = yw.isMinimized;
                 }
 
                 let winMedia = yw ? yw.mediaRank : 0;
@@ -847,9 +887,9 @@ function chrome-preset
                 for (const i of matchingIndices) {
                     const url = urls[i] || "";
                     const title = (tabTitles && tabTitles[i]) || "";
-                    const isActiveTab = (i + 1 === activeIdx) ? 1 : 0;
-                    const notMinimized = (!isMin && !(yw && yw.isMinimized)) ? 1 : 0;
-                    const mediaScore = isActiveTab ? winMedia : 0;
+                    const isActiveTab = (activeIdx === i + 1) ? 1 : 0;
+                    const notMinimized = !isMin ? 1 : 0;
+                    const mediaScore = (activeIdx === -1 || isActiveTab) ? winMedia : 0;
                     const isMeet = MEET_HOST_RE.test(url);
                     const isRoomUrl = isMeet && MEET_ROOM_URL_RE.test(url);
                     const roomTitle = (isMeet && MEET_ROOM_TITLE_RE.test(title)) ? 1 : 0;
@@ -857,7 +897,7 @@ function chrome-preset
                     candidates.push({
                         win: w,
                         tab: w.tabs[i],
-                        windowId: Number(wids[wi]) || wi,
+                        windowId: yw ? Number(yw.id) : wi,
                         wi,
                         tabIndex: i + 1,
                         i,
