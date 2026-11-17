@@ -565,7 +565,7 @@ export default class Spaces extends View {
     this.pressed = null;
     this.over = null;
     this.machines = [];
-    this.initFocusHistory();
+    // Keyboard actions and focus history now live in the visible tab bar.
     try {
       this.autoTitles = JSON.parse(localStorage.getItem("tabs.autoTitles") ?? "{}");
     } catch {
@@ -580,30 +580,11 @@ export default class Spaces extends View {
     if (isChecking()) return;
     const initSpaces = spaces();
     const initPanes = panes();
-    this.syncFocusHistory(Date.now(), initSpaces, initPanes, focused());
     this.syncAutoTitles(Date.now(), initSpaces, initPanes);
     this.refreshMachines(cx);
     cx.timer.every(15000, cx => this.refreshMachines(cx));
     // Refresh only when the refs could have changed (see `due`).
     cx.timer.every(250, (cx) => this.checkNew(cx));
-    cx.spawn(async () => {
-      for (;;) {
-        const cmd = await nextCommand();
-        if (cmd === "tab_next") smartTabNav("next");
-        else if (cmd === "tab_prev") smartTabNav("prev");
-        else if (cmd === "tab_new") openNewTabPrompt();
-        else if (cmd === "pane_left") smartPaneNav("left", "h");
-        else if (cmd === "pane_down") smartPaneNav("down", "j");
-        else if (cmd === "pane_up") smartPaneNav("up", "k");
-        else if (cmd === "pane_right") smartPaneNav("right", "l");
-        else if (cmd === "scroll_top") smartScroll("top");
-        else if (cmd === "scroll_bottom") smartScroll("bottom");
-        else if (cmd === "smart_close") smartClose();
-        else if (cmd === "focus_back") this.focusJumplist("back", Date.now(), spaces(), panes(), focused(), this.consumePrefixActivePane());
-        else if (cmd === "focus_forward") this.focusJumplist("forward", Date.now(), spaces(), panes(), focused(), this.consumePrefixActivePane());
-        else if (cmd === "attention_jump") this.attentionJump(Date.now(), spaces(), panes(), focused(), this.consumePrefixActivePane());
-      }
-    });
   }
 
   initFocusHistory() {
@@ -910,7 +891,6 @@ export default class Spaces extends View {
     const now = Date.now();
     const sp = spaces();
     const ps = panes();
-    this.syncFocusHistory(now, sp, ps, focused());
     for (const s of sp) if (!this.shown.has(s.id)) this.born[s.id] ??= now;
     for (const p of ps) {
       if (p.pane && !this.shownPanes.has(p.pane)) {

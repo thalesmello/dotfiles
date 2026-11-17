@@ -9,7 +9,8 @@ import { spawn } from 'node:child_process';
 
 function fixture(name) {
   const className = name === 'prefix' ? 'Prefix' : 'Spaces';
-  const source = fs.readFileSync(new URL(`../../stow_modules/main/dot-config/herdr-app/mods/${name}/main.js`, import.meta.url), 'utf8')
+  const entry = name === 'tabs-shortcuts' ? 'shortcuts.js' : 'main.js';
+  const source = fs.readFileSync(new URL(`../../stow_modules/main/dot-config/herdr-app/mods/${name}/${entry}`, import.meta.url), 'utf8')
     .replace(/^import[\s\S]*?from ["'][^"']+["'];\n/gm, '')
     .replace(`export default class ${className}`, `class ${className}`)
     .replace(/^export (?=(?:async )?(?:function|const|let|class)\b)/gm, '');
@@ -35,7 +36,7 @@ function fixture(name) {
     },
     exec: (_cmd, args) => { sends.push(args); return new Promise(r => { resolveSend = r; }); },
   });
-  vm.runInContext(source + `\nthis.getContext = ${name === 'prefix' ? 'activeContext' : 'activePaneContext'};\nthis.confirm = openConfirmClosePopup;\nthis.PrefixClass = ${className};`
+  vm.runInContext(source + `\nthis.getContext = ${name === 'prefix' ? 'activeContext' : 'activePaneContext'};\nthis.confirm = openConfirmClosePopup;\nthis.PrefixClass = ${name === 'tabs-shortcuts' ? 'View' : className};`
     + '\nthis.perl = PERL_SEND_SCRIPT;'
     + (name === 'prefix' ? '' : '\nthis.close = smartClose;'), context);
   const prefix = name === 'prefix' ? new context.PrefixClass() : null;
@@ -55,7 +56,7 @@ function fixture(name) {
     resolve(value) { resolveSend(value); }, prefix };
 }
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
-for (const name of ['prefix', 'spaces-reconnect']) {
+for (const name of ['prefix', 'spaces-reconnect', 'tabs-shortcuts']) {
   // A split's second pane is the target, not the first pane/history entry.
   const a = fixture(name);
   assert.equal(a.snapshot().pane, 'p2'); a.close();

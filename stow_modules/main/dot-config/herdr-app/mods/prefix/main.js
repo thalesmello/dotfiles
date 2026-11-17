@@ -899,7 +899,7 @@ export default class Prefix extends View {
     if (isTabKey && !shift && key !== "backtab" && ks !== "shift-tab" && !ctrl && !alt) {
       if (ctx.qualifiedPane || ctx.pane) setShared("focusHistory.activePane", ctx.qualifiedPane || ctx.pane);
       this.dismiss();
-      run("spaces-reconnect.attention_jump");
+      run("tabs-shortcuts.attention_jump");
       return;
     }
     if (
@@ -909,13 +909,13 @@ export default class Prefix extends View {
     ) {
       if (ctx.qualifiedPane || ctx.pane) setShared("focusHistory.activePane", ctx.qualifiedPane || ctx.pane);
       this.dismiss();
-      run("spaces-reconnect.focus_back");
+      run("tabs-shortcuts.focus_back");
       return;
     }
     if (ks === "ctrl-i" || (ctrl && key === "i" && !alt && !shift)) {
       if (ctx.qualifiedPane || ctx.pane) setShared("focusHistory.activePane", ctx.qualifiedPane || ctx.pane);
       this.dismiss();
-      run("spaces-reconnect.focus_forward");
+      run("tabs-shortcuts.focus_forward");
       return;
     }
 
