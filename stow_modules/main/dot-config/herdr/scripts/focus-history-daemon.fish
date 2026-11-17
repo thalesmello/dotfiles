@@ -42,7 +42,47 @@ def state_dir() -> Path:
     return path
 
 
+def herdr_app_home() -> str:
+    return os.environ.get("HERDR_APP_HOME") or os.path.expanduser("~/.config/herdr-app")
+
+
+def herdr_app_socket_path() -> str | None:
+    candidate = os.path.join(herdr_app_home(), "herdr-app.sock")
+    return candidate if os.path.exists(candidate) else None
+
+
+def hc_socket_path() -> str | None:
+    for env_key in ("HC_SOCKET", "HC_TERMINAL_SOCKET"):
+        val = os.environ.get(env_key)
+        if val and os.path.exists(val):
+            return val
+    session = os.environ.get("HC_SESSION") or "default"
+    base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+    candidate = os.path.join(base, "herdr-core", session, f"{session}.sock")
+    return candidate if os.path.exists(candidate) else None
+
+
+def is_hc_mode(sock_path: str | None = None) -> bool:
+    if sock_path and (sock_path.endswith("herdr-app.sock") or "/herdr-core/" in sock_path):
+        return True
+    forced = (os.environ.get("HC_PRESET_BACKEND") or "").strip().lower()
+    if forced in ("hc", "herdr"):
+        return forced == "hc"
+    env_sock = os.environ.get("HERDR_SOCKET_PATH")
+    if env_sock and os.path.exists(env_sock):
+        return False
+    if os.environ.get("HERDR_ENV") == "1" and not (
+        os.environ.get("HC_TERMINAL_SOCKET") or os.environ.get("TERM_PROGRAM") == "ghostty"
+    ):
+        return False
+    if any(os.environ.get(k) for k in ("HERDR_APP_HOME", "HC_SOCKET", "HC_TERMINAL_SOCKET", "HC_TERMINAL_ID")):
+        return True
+    return bool(herdr_app_socket_path())
+
+
 def socket_path() -> str | None:
+    if is_hc_mode():
+        return herdr_app_socket_path()
     env_sock = os.environ.get("HERDR_SOCKET_PATH")
     if env_sock and os.path.exists(env_sock):
         return env_sock
@@ -52,7 +92,7 @@ def socket_path() -> str | None:
     ):
         if os.path.exists(candidate):
             return candidate
-    return None
+    return herdr_app_socket_path()
 
 
 def file_key(path: str | None) -> str | None:
@@ -65,12 +105,7 @@ def file_key(path: str | None) -> str | None:
     return f"{path}:{st.st_dev}:{st.st_ino}:{int(st.st_mtime)}"
 
 
-def request(sock_path: str, method: str, params: dict[str, Any], timeout: float = 2.0) -> dict[str, Any]:
-    payload = {
-        "id": "focus-history",
-        "method": method,
-        "params": params,
-    }
+def send_json_line(sock_path: str, payload: dict[str, Any], timeout: float = 2.0) -> dict[str, Any]:
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     client.settimeout(timeout)
     try:
@@ -100,6 +135,15 @@ def request(sock_path: str, method: str, params: dict[str, Any], timeout: float 
         return {}
 
 
+def request(sock_path: str, method: str, params: dict[str, Any], timeout: float = 2.0) -> dict[str, Any]:
+    payload = {
+        "id": "focus-history",
+        "method": method,
+        "params": params,
+    }
+    return send_json_line(sock_path, payload, timeout=timeout)
+
+
 def pane_id_from_context(sock_path: str | None = None) -> str | None:
     for name in ("HERDR_ACTIVE_PANE_ID", "HERDR_PANE_ID"):
         val = os.environ.get(name)
@@ -126,6 +170,25 @@ def pane_id_from_context(sock_path: str | None = None) -> str | None:
 
 
 def query_focused_pane(sock_path: str | None) -> str | None:
+    if is_hc_mode(sock_path):
+        app_sock = sock_path if (sock_path and sock_path.endswith("herdr-app.sock")) else herdr_app_socket_path()
+        if app_sock:
+            status = send_json_line(app_sock, {"status": True}, timeout=1.5)
+            focused_pane = status.get("focused_pane") if isinstance(status, dict) else None
+            if isinstance(focused_pane, str) and focused_pane:
+                return focused_pane
+        try:
+            view_path = Path(herdr_app_home()) / "view.json"
+            view = json.loads(view_path.read_text(encoding="utf-8"))
+            active_space = view.get("active")
+            active_tab = (view.get("spaces") or {}).get(active_space or "")
+            if active_tab:
+                focused_pane = ((view.get("tabs") or {}).get(active_tab) or {}).get("focused")
+                if isinstance(focused_pane, str) and focused_pane:
+                    return focused_pane
+        except Exception:
+            pass
+        return None
     if not sock_path:
         return None
     resp = request(sock_path, "pane.list", {})
@@ -145,6 +208,7 @@ def record_pane(pane_id: str | None, sdir: Path | None = None) -> bool:
     if not pane_id:
         return False
     sdir = sdir or state_dir()
+    sync_socket_state(sdir, socket_path())
     lock_file = sdir / "journal.lock"
     journal = sdir / "journal"
     seq_file = sdir / "seq"
@@ -190,13 +254,14 @@ def sync_socket_state(sdir: Path, sock_path: str | None) -> bool:
         with lock_file.open("a+", encoding="utf-8") as lf:
             fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
             try:
-                (sdir / "journal").write_text("", encoding="utf-8")
-                (sdir / "seq").write_text("0\n", encoding="utf-8")
-                for stale_name in ("walk", "walk-state"):
-                    try:
-                        (sdir / stale_name).unlink()
-                    except OSError:
-                        pass
+                if recorded_key:
+                    (sdir / "journal").write_text("", encoding="utf-8")
+                    (sdir / "seq").write_text("0\n", encoding="utf-8")
+                    for stale_name in ("walk", "walk-state"):
+                        try:
+                            (sdir / stale_name).unlink()
+                        except OSError:
+                            pass
                 key_file.write_text(current_key + "\n", encoding="utf-8")
             finally:
                 fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
@@ -289,6 +354,12 @@ def ensure_daemon(seed_pane: str | None = None) -> int:
     sdir = state_dir()
     sock_path = socket_path()
     if not sock_path:
+        initial = seed_pane or pane_id_from_context(None)
+        if initial:
+            if not (sdir / "started").is_file():
+                (sdir / "started").write_text(f"{int(time.time())}\n", encoding="utf-8")
+            record_pane(initial, sdir)
+            return 0
         return 1
 
     if not daemon_healthy(sdir, sock_path):
@@ -343,6 +414,26 @@ def run_daemon() -> int:
     if initial:
         record_pane(initial, sdir)
 
+    if is_hc_mode(sock_path):
+        try:
+            candidate: str | None = None
+            while pid_path.is_file() and file_key(sock_path) == expected_key:
+                cur = query_focused_pane(sock_path)
+                if cur:
+                    if cur == candidate:
+                        record_pane(cur, sdir)
+                    candidate = cur
+                time.sleep(0.25)
+        except OSError:
+            pass
+        finally:
+            try:
+                fcntl.flock(lock_fh.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+            lock_fh.close()
+        return 0
+
     subscribe_msg = (
         json.dumps(
             {
@@ -378,7 +469,7 @@ def run_daemon() -> int:
                     if msg.get("event") == "pane_focused" and isinstance(msg.get("pane_id"), str):
                         record_pane(msg["pane_id"], sdir)
             except socket.timeout:
-                if file_key(sock_path) != expected_key:
+                if not pid_path.is_file() or file_key(sock_path) != expected_key:
                     break
     except OSError:
         pass

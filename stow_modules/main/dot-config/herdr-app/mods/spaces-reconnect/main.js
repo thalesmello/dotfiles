@@ -5,7 +5,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, terminals, focused, run, openOverlay, exec, hc, home, theme, shared, setShared, watchFolder, nextCommand, window, layout, checking } from "herdr";
+import { agents, spaces, machines, panes, terminals, focused, run, openOverlay, notify, exec, hc, home, theme, shared, setShared, watchFolder, nextCommand, window, layout, checking } from "herdr";
 
 const isChecking = () => typeof checking === "function" && Boolean(checking());
 
@@ -134,6 +134,31 @@ function smartTabNav(dir) {
   run("tab.select", { id: target.tabId });
 }
 
+export function resolveFocusedPaneId(sp = spaces(), ps = panes(), foc = focused()) {
+  const allPanes = ps ?? [];
+  if (!allPanes.length) return null;
+  if (foc?.pane) {
+    const direct = allPanes.find((x) => x.pane === foc.pane);
+    if (direct?.pane) return direct.pane;
+  }
+  const activeSpace = (sp ?? []).find((s) => s.active) ?? null;
+  const activeTab = activeSpace?.tabs?.find((t) => t.active) ?? null;
+  const tabId = activeTab?.id ?? foc?.tab ?? "";
+  const tabPanes = tabId ? allPanes.filter((x) => x.tab === tabId) : allPanes;
+  const focusedInTab = tabPanes.find((x) => x.focused);
+  if (focusedInTab?.pane) return focusedInTab.pane;
+  if (foc?.terminal) {
+    const byTerm =
+      tabPanes.find((x) => x.terminal === foc.terminal) ??
+      allPanes.find((x) => x.terminal === foc.terminal);
+    if (byTerm?.pane) return byTerm.pane;
+  }
+  const focusedAnywhere = allPanes.find((x) => x.focused);
+  if (focusedAnywhere?.pane) return focusedAnywhere.pane;
+  if (tabPanes.length === 1 && tabPanes[0]?.pane) return tabPanes[0].pane;
+  return null;
+}
+
 function activePaneContext() {
   const f = focused() ?? {};
   const sp = (spaces() ?? []).find((s) => s.active) ?? null;
@@ -141,10 +166,12 @@ function activePaneContext() {
   const tabId = tb?.id ?? f.tab ?? "";
   const allPanes = panes() ?? [];
   const tabPanes = tabId ? allPanes.filter((x) => x.tab === tabId) : allPanes;
+  const lastPane = typeof shared === "function" ? shared("focusHistory")?.journal?.at?.(-1) : null;
   const p =
     allPanes.find((x) => f.pane && x.pane === f.pane) ??
     tabPanes.find((x) => x.focused) ??
     allPanes.find((x) => x.focused) ??
+    (lastPane ? tabPanes.find((x) => x.pane === lastPane) : null) ??
     tabPanes[0] ??
     allPanes[0] ??
     null;
@@ -392,10 +419,12 @@ export default class Spaces extends View {
     this.shown = new Set(spaces().map((s) => s.id));
     this.shownPanes = new Set((panes() ?? []).map((p) => p.pane).filter(Boolean));
     this.pendingFocus = null;
+    this.pendingHistoryTarget = null;
     this.born = {};
     this.pressed = null;
     this.over = null;
     this.machines = [];
+    this.initFocusHistory();
     try {
       this.autoTitles = JSON.parse(localStorage.getItem("tabs.autoTitles") ?? "{}");
     } catch {
@@ -408,7 +437,10 @@ export default class Spaces extends View {
     for (const state of Object.values(this.reconnecting)) state.busy = false;
     this.folded = new Set(JSON.parse(localStorage.getItem("machines.folded") ?? "[]"));
     if (isChecking()) return;
-    this.syncAutoTitles(Date.now(), spaces(), panes());
+    const initSpaces = spaces();
+    const initPanes = panes();
+    this.syncFocusHistory(Date.now(), initSpaces, initPanes, focused());
+    this.syncAutoTitles(Date.now(), initSpaces, initPanes);
     this.refreshMachines(cx);
     cx.timer.every(15000, cx => this.refreshMachines(cx));
     // Refresh only when the refs could have changed (see `due`).
@@ -426,14 +458,279 @@ export default class Spaces extends View {
         else if (cmd === "scroll_top") smartScroll("top");
         else if (cmd === "scroll_bottom") smartScroll("bottom");
         else if (cmd === "smart_close") smartClose();
+        else if (cmd === "focus_back") this.focusJumplist("back", Date.now(), spaces(), panes(), focused(), this.consumePrefixActivePane());
+        else if (cmd === "focus_forward") this.focusJumplist("forward", Date.now(), spaces(), panes(), focused(), this.consumePrefixActivePane());
+        else if (cmd === "attention_jump") this.attentionJump(Date.now(), spaces(), panes(), focused(), this.consumePrefixActivePane());
       }
     });
+  }
+
+  initFocusHistory() {
+    let loaded = null;
+    try {
+      loaded = JSON.parse(localStorage.getItem("focusHistory") ?? "null");
+    } catch {
+      loaded = null;
+    }
+    this.focusHistory = {
+      journal: Array.isArray(loaded?.journal) ? loaded.journal.filter((x) => typeof x === "string" && x) : [],
+      seq: typeof loaded?.seq === "number" && loaded.seq >= 0 ? loaded.seq : 0,
+      walk: Array.isArray(loaded?.walk) ? loaded.walk.filter((x) => typeof x === "string" && x) : [],
+      walkState:
+        loaded?.walkState && typeof loaded.walkState === "object" && !Array.isArray(loaded.walkState)
+          ? loaded.walkState
+          : null,
+    };
+    if (typeof setShared === "function") setShared("focusHistory", this.focusHistory);
+  }
+
+  saveFocusHistory() {
+    try {
+      localStorage.setItem("focusHistory", JSON.stringify(this.focusHistory));
+    } catch {}
+    if (typeof setShared === "function") setShared("focusHistory", this.focusHistory);
+  }
+
+  consumePrefixActivePane() {
+    if (typeof shared !== "function") return null;
+    const val = shared("focusHistory.activePane");
+    if (val && typeof setShared === "function") setShared("focusHistory.activePane", null);
+    return typeof val === "string" && val ? val : null;
+  }
+
+  notifyToast(title, body) {
+    if (typeof notify === "function") {
+      notify({ title, ...(body ? { body } : {}), timeout: 1500 });
+    }
+  }
+
+  recordFocusPane(paneId, syncDisk = true) {
+    if (!this.focusHistory) this.initFocusHistory();
+    const id = typeof paneId === "string" ? paneId.trim() : "";
+    if (!id) return false;
+    const fh = this.focusHistory;
+    if (fh.journal.length > 0 && fh.journal[fh.journal.length - 1] === id) {
+      return false;
+    }
+    fh.journal.push(id);
+    if (fh.journal.length > 2000) {
+      fh.journal = fh.journal.slice(-500);
+    }
+    fh.seq = (fh.seq || 0) + 1;
+    this.saveFocusHistory();
+    if (syncDisk && !isChecking() && typeof exec === "function" && typeof home === "function") {
+      exec("python3", [`${home()}/.config/herdr/scripts/focus-history-daemon.fish`, "record", id]).catch(() => {});
+    }
+    return true;
+  }
+
+  syncFocusHistory(now = Date.now(), sp = spaces(), ps = panes(), foc = focused()) {
+    if (!this.focusHistory) this.initFocusHistory();
+    const cur = resolveFocusedPaneId(sp, ps, foc);
+    if (!cur) return;
+    if (this.pendingHistoryTarget) {
+      if (cur === this.pendingHistoryTarget.pane) {
+        this.pendingHistoryTarget = null;
+      } else if (cur === this.pendingHistoryTarget.fromPane && now < this.pendingHistoryTarget.until) {
+        return;
+      } else {
+        this.pendingHistoryTarget = null;
+      }
+    }
+    this.recordFocusPane(cur);
+  }
+
+  focusJumplist(direction, now = Date.now(), sp = spaces(), ps = panes(), foc = focused(), currentOverride = null) {
+    if (!this.focusHistory) this.initFocusHistory();
+    if (direction !== "back" && direction !== "forward") return false;
+    const allPanes = ps ?? [];
+    const live = new Set(allPanes.map((p) => p.pane).filter(Boolean));
+    let current =
+      (this.pendingHistoryTarget && now < this.pendingHistoryTarget.until ? this.pendingHistoryTarget.pane : null) ||
+      (currentOverride && live.has(currentOverride) ? currentOverride : null) ||
+      resolveFocusedPaneId(sp, allPanes, foc) ||
+      this.focusHistory.journal.at(-1) ||
+      "";
+    if (!current) {
+      this.notifyToast("Focus jumplist failed", "No focused pane");
+      return false;
+    }
+
+    this.recordFocusPane(current);
+
+    const fh = this.focusHistory;
+    const trail = fh.journal;
+    const curSeq = fh.seq;
+
+    let index = -1;
+    let walk = [];
+    const ws = fh.walkState;
+    if (
+      ws &&
+      typeof ws.index === "number" &&
+      ws.expectedPane === current &&
+      typeof ws.seq === "number" &&
+      curSeq - ws.seq >= 0 &&
+      curSeq - ws.seq <= 1 &&
+      Array.isArray(fh.walk) &&
+      fh.walk.length > 1
+    ) {
+      index = ws.index;
+      walk = fh.walk;
+    }
+
+    if (index < 0) {
+      if (direction === "forward") {
+        this.notifyToast("No forward history");
+        return false;
+      }
+      if (trail.length === 0) {
+        this.notifyToast("No focus history yet");
+        return false;
+      }
+      walk = [current];
+      for (let i = trail.length - 1; i >= 0; i--) {
+        const p = trail[i];
+        if (!p || walk.includes(p) || !live.has(p)) continue;
+        walk.push(p);
+      }
+      if (walk.length <= 1) {
+        fh.walk = [];
+        fh.walkState = null;
+        this.saveFocusHistory();
+        this.notifyToast("Start of focus history");
+        return false;
+      }
+      index = 0;
+      fh.walk = walk;
+    }
+
+    let targetIndex = index;
+    while (true) {
+      if (direction === "back") {
+        targetIndex += 1;
+        if (targetIndex >= walk.length) {
+          fh.walkState = { index, expectedPane: current, seq: curSeq };
+          this.saveFocusHistory();
+          this.notifyToast("Start of focus history");
+          return false;
+        }
+      } else {
+        targetIndex -= 1;
+        if (targetIndex < 0) {
+          fh.walkState = { index, expectedPane: current, seq: curSeq };
+          this.saveFocusHistory();
+          this.notifyToast("End of focus history");
+          return false;
+        }
+      }
+      if (live.has(walk[targetIndex])) break;
+    }
+
+    const target = walk[targetIndex];
+    this.pendingHistoryTarget = { pane: target, fromPane: current, until: now + 1500 };
+    run("pane.focus", { pane: target });
+    this.recordFocusPane(target);
+    fh.walkState = { index: targetIndex, expectedPane: target, seq: fh.seq };
+    this.saveFocusHistory();
+
+    const steps = targetIndex;
+    if (direction === "back") {
+      this.notifyToast(`← ${target}`, `${steps} back`);
+    } else if (steps === 0) {
+      this.notifyToast(`→ ${target}`);
+    } else {
+      this.notifyToast(`→ ${target}`, `${steps} back`);
+    }
+    return true;
+  }
+
+  attentionJump(now = Date.now(), sp = spaces(), ps = panes(), foc = focused(), currentOverride = null) {
+    if (!this.focusHistory) this.initFocusHistory();
+    const allPanes = ps ?? [];
+    const live = new Set(allPanes.map((p) => p.pane).filter(Boolean));
+    const currentPane =
+      (this.pendingHistoryTarget && now < this.pendingHistoryTarget.until ? this.pendingHistoryTarget.pane : null) ||
+      (currentOverride && live.has(currentOverride) ? currentOverride : null) ||
+      resolveFocusedPaneId(sp, allPanes, foc) ||
+      this.focusHistory.journal.at(-1) ||
+      "";
+    if (currentPane) this.recordFocusPane(currentPane);
+
+    const agentList = (typeof agents === "function" ? agents() : null) ?? [];
+    const snoozeState = (typeof shared === "function" ? shared("agents.snooze") : null) ?? {};
+    const snoozePanes = snoozeState.panes ?? {};
+    const snoozeWorkspaces = snoozeState.workspaces ?? {};
+    const isSnoozed = (a) => {
+      const pEntry = snoozePanes[a.pane] ?? Object.values(snoozePanes).find((e) => e?.terminal_id === a.address);
+      if (pEntry && pEntry.until > now) return true;
+      const wEntry = a.space ? snoozeWorkspaces[a.space] : null;
+      return Boolean(wEntry && wEntry.until > now);
+    };
+
+    let changed = {};
+    try {
+      changed = JSON.parse(localStorage.getItem("changed") ?? "{}") ?? {};
+    } catch {
+      changed = {};
+    }
+
+    const candidates = [];
+    for (let i = 0; i < agentList.length; i++) {
+      const a = agentList[i];
+      if (!a?.pane || !live.has(a.pane)) continue;
+      if (isSnoozed(a)) continue;
+      const status = a.status === "error" ? "blocked" : a.status;
+      if (status !== "blocked" && status !== "done") continue;
+      const since = changed[a.address]?.at ?? 0;
+      const seq = a.seq ?? 0;
+      candidates.push({
+        agent: a,
+        status,
+        pinned: Boolean(a.pinned),
+        since,
+        seq,
+        index: i,
+        focused: currentPane ? a.pane === currentPane : Boolean(a.focused),
+      });
+    }
+
+    candidates.sort((x, y) => {
+      if (x.pinned !== y.pinned) return x.pinned ? -1 : 1;
+      if (x.status !== y.status) return x.status === "blocked" ? -1 : 1;
+      if (y.since !== x.since) return y.since - x.since;
+      if (y.seq !== x.seq) return y.seq - x.seq;
+      return x.index - y.index;
+    });
+
+    const focIdx = candidates.findIndex((c) => c.focused);
+    const rotated =
+      focIdx >= 0 ? [...candidates.slice(focIdx + 1), ...candidates.slice(0, focIdx)] : candidates;
+    const picked = rotated.filter((c) => !c.focused);
+
+    if (picked.length === 0) {
+      return this.focusJumplist("forward", now, sp, allPanes, foc, currentPane);
+    }
+
+    const chosen = picked[0];
+    const targetPane = chosen.agent.pane;
+    const kind = chosen.agent.program?.key || chosen.agent.program?.name?.toLowerCase() || chosen.agent.app || "agent";
+    const label = `${kind} ${chosen.status}`;
+
+    this.pendingHistoryTarget = { pane: targetPane, fromPane: currentPane, until: now + 1500 };
+    run("pane.focus", { pane: targetPane });
+    this.recordFocusPane(targetPane);
+
+    const others = picked.length - 1;
+    this.notifyToast(others > 0 ? `→ ${label} (+${others} more)` : `→ ${label}`);
+    return true;
   }
 
   checkNew(cx) {
     const now = Date.now();
     const sp = spaces();
     const ps = panes();
+    this.syncFocusHistory(now, sp, ps, focused());
     for (const s of sp) if (!this.shown.has(s.id)) this.born[s.id] ??= now;
     for (const p of ps) {
       if (p.pane && !this.shownPanes.has(p.pane)) {
@@ -961,6 +1258,7 @@ export default class Spaces extends View {
     const collapsed = narrow();
     const palette = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1"];
     const sp = spaces();
+    if (!isChecking()) this.syncFocusHistory(Date.now(), sp, panes(), focused());
     const ids = new Set(sp.map(p => p.id));
     const kept = Object.fromEntries(Object.entries(shared("space.colors") ?? {}).filter(([id]) => ids.has(id)));
     let changed = Object.keys(kept).length !== Object.keys(shared("space.colors") ?? {}).length;

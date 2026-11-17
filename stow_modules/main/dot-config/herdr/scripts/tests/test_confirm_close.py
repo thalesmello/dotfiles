@@ -715,5 +715,95 @@ class AttentionJumpOrderTest(unittest.TestCase):
         self.assertEqual(target2, "w2:p1")
 
 
+class FocusJumplistHcModeTest(unittest.TestCase):
+    JUMPLIST = os.path.join(_HERE, "..", "focus-jumplist.fish")
+    DAEMON = os.path.join(_HERE, "..", "focus-history-daemon.fish")
+
+    def test_jumplist_back_and_forward_work_in_hc_mode_without_legacy_socket(self):
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmp:
+            panes_file = os.path.join(tmp, "panes.json")
+            calls_file = os.path.join(tmp, "calls.log")
+            fake_bin = os.path.join(tmp, "hc-preset")
+            with open(panes_file, "w", encoding="utf-8") as handle:
+                json.dump(
+                    {
+                        "result": {
+                            "panes": [
+                                {"pane_id": "p1", "focused": False},
+                                {"pane_id": "p2", "focused": False},
+                                {"pane_id": "devserver/p3", "focused": True},
+                            ]
+                        }
+                    },
+                    handle,
+                )
+            with open(fake_bin, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "#!/bin/sh\n"
+                    f'echo "$*" >> "{calls_file}"\n'
+                    'if [ "$1" = "pane" ] && [ "$2" = "list" ]; then\n'
+                    f'  cat "{panes_file}"\n'
+                    "  exit 0\n"
+                    "fi\n"
+                    'if [ "$1" = "rpc" ] && [ "$2" = "pane.focus" ]; then\n'
+                    '  echo \'{"result":{"type":"ok"}}\'\n'
+                    "  exit 0\n"
+                    "fi\n"
+                    "exit 0\n"
+                )
+            os.chmod(fake_bin, 0o755)
+            env = dict(os.environ)
+            env["HOME"] = tmp
+            env["PATH"] = f"{tmp}:{env.get('PATH', '')}"
+            env["XDG_STATE_HOME"] = os.path.join(tmp, "state")
+            env["HC_PRESET_BACKEND"] = "hc"
+            env["HERDR_APP_HOME"] = os.path.join(tmp, "herdr-app")
+            os.makedirs(env["HERDR_APP_HOME"], exist_ok=True)
+            env["HERDR_BIN_PATH"] = fake_bin
+
+            for p in ("p1", "p2", "devserver/p3"):
+                subprocess.run(
+                    ["python3", self.DAEMON, "record", p],
+                    env=env,
+                    check=True,
+                )
+
+            def step(direction, current_pane):
+                step_env = dict(env)
+                step_env["HERDR_ACTIVE_PANE_ID"] = current_pane
+                proc = subprocess.run(
+                    ["fish", self.JUMPLIST, direction],
+                    env=step_env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+
+            step("back", "devserver/p3")
+            step("back", "p2")
+            step("forward", "p1")
+            step("forward", "p2")
+
+            with open(calls_file, "r", encoding="utf-8") as handle:
+                rpc_focus = [
+                    line.strip()
+                    for line in handle
+                    if line.startswith("rpc pane.focus ")
+                ]
+            self.assertEqual(
+                rpc_focus,
+                [
+                    'rpc pane.focus {"pane_id":"p2"}',
+                    'rpc pane.focus {"pane_id":"p1"}',
+                    'rpc pane.focus {"pane_id":"p2"}',
+                    'rpc pane.focus {"pane_id":"devserver/p3"}',
+                ],
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

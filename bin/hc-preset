@@ -573,6 +573,7 @@ class HcWorld:
                         pass
 
         self.view = load_json_file(Path(herdr_app_home()) / "view.json", {})
+        self.snooze = load_json_file(Path(herdr_app_home()) / "data" / "snooze" / "snoozed.json", {})
         self.ws_tokens = get_workspace_tokens()
 
         self.term_by_addr: dict[str, dict[str, Any]] = {
@@ -793,6 +794,8 @@ class HcWorld:
                     break
             if not agent_kind and base_fg not in SHELL_NAMES and base_fg:
                 agent_kind = base_fg
+            if not agent_kind and raw_status in ("idle", "working", "done", "blocked"):
+                agent_kind = "pi"
 
         # Determine status (respecting herdr-app seen state for done vs idle)
         agent_status = raw_status
@@ -809,10 +812,28 @@ class HcWorld:
         for k, v in labels.items():
             if k.startswith("token."):
                 tokens[k[6:]] = v
-        if labels.get("herdr.pinned"):
+        if labels.get("herdr.pinned") or entry.get("pinned"):
             tokens.setdefault("um_pin", "󰐃")
         if labels.get("herdr.book"):
             tokens.setdefault("book", labels["herdr.book"])
+        snooze_state = getattr(self, "snooze", None)
+        if isinstance(snooze_state, dict):
+            now_ms = int(time.time() * 1000)
+            snooze_panes = snooze_state.get("panes") or {}
+            snooze_ws = snooze_state.get("workspaces") or {}
+            p_snooze = snooze_panes.get(p_id) or next(
+                (
+                    e
+                    for e in snooze_panes.values()
+                    if isinstance(e, dict) and e.get("terminal_id") == t_addr
+                ),
+                None,
+            )
+            ws_snooze = snooze_ws.get(ws_id) if ws_id else None
+            if (isinstance(p_snooze, dict) and int(p_snooze.get("until") or 0) > now_ms) or (
+                isinstance(ws_snooze, dict) and int(ws_snooze.get("until") or 0) > now_ms
+            ):
+                tokens.setdefault("herdr_snooze", "1")
 
         agent_session = None
         if labels.get("agent.session"):
@@ -3332,11 +3353,11 @@ def main(argv: list[str]) -> int:
                 return 0
             return 1
         else:
-            val = os.environ.get("HERDR_ACTIVE_PANE_ID") or os.environ.get("HC_TERMINAL_ID")
+            val = os.environ.get("HERDR_ACTIVE_PANE_ID")
             if not val:
                 world = HcWorld()
-                p = world.resolve_pane(None)
-                val = p["pane_id"] if p else None
+                p = world.resolve_pane(None, hydrate=False)
+                val = p["pane_id"] if p else os.environ.get("HC_TERMINAL_ID")
             if val:
                 sys.stdout.write(val + "\n")
                 return 0
@@ -3421,6 +3442,15 @@ def main(argv: list[str]) -> int:
 
     # 2. `herdr-preset` subcommands
     if cmd in PRESET_COMMANDS:
+        if cmd in ("open-url", "copy", "paste"):
+            bin_map = {"open-url": "herdr-open", "copy": "herdr-copy", "paste": "herdr-paste"}
+            here = os.path.dirname(os.path.abspath(__file__))
+            target_bin = os.path.join(here, bin_map[cmd])
+            if not (os.path.isfile(target_bin) and os.access(target_bin, os.X_OK)):
+                target_bin = find_bin(bin_map[cmd]) or ""
+            if not target_bin:
+                return print_err("herdr_preset_missing", f"{bin_map[cmd]} not found")
+            os.execv(target_bin, [target_bin] + cmd_args)
         if backend == "hc" and cmd in ("ensure-local-plugins-installed", "install-local-plugins"):
             if "--quiet" not in cmd_args:
                 sys.stdout.write(f"hc-preset {cmd}: skipped in hc mode (mods live in ~/.config/herdr-app/mods)\n")

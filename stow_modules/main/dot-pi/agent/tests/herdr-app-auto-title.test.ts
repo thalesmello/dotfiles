@@ -3,8 +3,12 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 let mockSpaces: any[] = [];
 let mockMachines: any[] = [{ name: null, layout: "ready" }];
 let mockPanes: any[] = [];
+let mockAgents: any[] = [];
+let mockFocused: any = null;
 let mockChecking = false;
 const runCalls: Array<{ name: string; args: any }> = [];
+const notifyCalls: Array<{ title: string; body?: string; timeout?: number }> = [];
+const sharedStore = new Map<string, any>();
 
 mock.module("gpui-kit", () => ({
 	View: class {},
@@ -18,22 +22,29 @@ mock.module("gpui-base", () => ({
 }));
 
 mock.module("herdr", () => ({
+	agents: () => mockAgents,
 	spaces: () => mockSpaces,
 	machines: () => mockMachines,
 	panes: () => mockPanes,
 	terminals: () => [],
-	focused: () => null,
+	focused: () => mockFocused,
 	run: (name: string, args?: any) => {
 		runCalls.push({ name, args });
 		return null;
 	},
 	openOverlay: () => "",
+	notify: (payload: any) => {
+		notifyCalls.push(payload);
+	},
 	exec: async () => ({ code: 0, stdout: "", stderr: "" }),
 	hc: async () => ({ code: 0, stdout: "{}", stderr: "" }),
 	home: () => "/Users/thalesmello",
 	theme: () => ({}),
-	shared: () => null,
-	setShared: () => null,
+	shared: (key: string) => sharedStore.get(key) ?? null,
+	setShared: (key: string, val: any) => {
+		sharedStore.set(key, val);
+		return null;
+	},
 	watchFolder: () => Object.assign(Promise.resolve([]), { cancel() {} }),
 	nextCommand: () => new Promise(() => {}),
 	window: () => ({ active: true, platform: "macos" }),
@@ -60,14 +71,40 @@ const {
 	cleanAgentTitle,
 	isDefaultOrSlugTabName,
 	isSlug,
+	resolveFocusedPaneId,
 } = await import("../../../dot-config/herdr-app/mods/spaces-reconnect/main.js");
 
 function createView() {
 	const view = Object.create(Spaces.prototype);
 	view.autoTitles = JSON.parse(store.get("tabs.autoTitles") ?? "{}");
+	view.pendingHistoryTarget = null;
+	view.initFocusHistory();
 	return view as {
 		autoTitles: Record<string, any>;
+		focusHistory: {
+			journal: string[];
+			seq: number;
+			walk: string[];
+			walkState: { index: number; expectedPane: string; seq: number } | null;
+		};
+		pendingHistoryTarget: { pane: string; fromPane: string; until: number } | null;
 		syncAutoTitles(now: number, sp: any[], ps: any[]): void;
+		syncFocusHistory(now?: number, sp?: any[], ps?: any[], foc?: any): void;
+		focusJumplist(
+			direction: "back" | "forward",
+			now?: number,
+			sp?: any[],
+			ps?: any[],
+			foc?: any,
+			currentOverride?: string | null,
+		): boolean;
+		attentionJump(
+			now?: number,
+			sp?: any[],
+			ps?: any[],
+			foc?: any,
+			currentOverride?: string | null,
+		): boolean;
 	};
 }
 
@@ -387,5 +424,155 @@ describe("Spaces.prototype.syncAutoTitles", () => {
 		runCalls.length = 0;
 		view.syncAutoTitles(6500, sp, ps);
 		expect(runCalls).toEqual([{ name: "tab.rename", args: { id: "tb1", name: "First Agent Task" } }]);
+	});
+});
+
+describe("Spaces focus-history jumplist and attention jump", () => {
+	beforeEach(() => {
+		store.clear();
+		sharedStore.clear();
+		runCalls.length = 0;
+		notifyCalls.length = 0;
+		mockChecking = false;
+		mockSpaces = [
+			{
+				id: "sp1",
+				name: "src",
+				active: true,
+				tabs: [
+					{ id: "tb1", name: "1", active: true },
+					{ id: "tb2", name: "2", active: false },
+				],
+			},
+		];
+		mockPanes = [
+			{ pane: "p1", terminal: "t1", tab: "tb1", focused: true },
+			{ pane: "p2", terminal: "t2", tab: "tb1", focused: false },
+			{ pane: "p3", terminal: "t3", tab: "tb2", focused: false },
+		];
+		mockAgents = [];
+		mockFocused = { pane: "p1", terminal: "t1", tab: "tb1", space: "sp1" };
+	});
+
+	test("records focus transitions, suppresses consecutive duplicates, and walks back and forward", () => {
+		const view = createView();
+
+		// Focus p1 -> p2 -> p3 -> p2
+		view.syncFocusHistory(1000, mockSpaces, mockPanes, { pane: "p1" });
+		view.syncFocusHistory(1100, mockSpaces, mockPanes, { pane: "p1" }); // duplicate
+		view.syncFocusHistory(1200, mockSpaces, mockPanes, { pane: "p2" });
+		view.syncFocusHistory(1300, mockSpaces, mockPanes, { pane: "p3" });
+
+		expect(view.focusHistory.journal).toEqual(["p1", "p2", "p3"]);
+		expect(view.focusHistory.seq).toBe(3);
+
+		// Step back from p3 -> p2
+		expect(view.focusJumplist("back", 1400, mockSpaces, mockPanes, { pane: "p3" })).toBe(true);
+		expect(runCalls.at(-1)).toEqual({ name: "pane.focus", args: { pane: "p2" } });
+		expect(notifyCalls.at(-1)?.title).toBe("← p2");
+		expect(notifyCalls.at(-1)?.body).toBe("1 back");
+
+		// While p2 focus is still in flight (focused() still reports p3), syncFocusHistory must not re-record p3
+		view.syncFocusHistory(1450, mockSpaces, mockPanes, { pane: "p3" });
+		expect(view.focusHistory.journal.at(-1)).toBe("p2");
+
+		// Once p2 lands, step back again -> p1
+		view.syncFocusHistory(1500, mockSpaces, mockPanes, { pane: "p2" });
+		expect(view.focusJumplist("back", 1600, mockSpaces, mockPanes, { pane: "p2" })).toBe(true);
+		expect(runCalls.at(-1)).toEqual({ name: "pane.focus", args: { pane: "p1" } });
+		expect(notifyCalls.at(-1)?.title).toBe("← p1");
+		expect(notifyCalls.at(-1)?.body).toBe("2 back");
+
+		// Further back hits start of focus history
+		expect(view.focusJumplist("back", 1700, mockSpaces, mockPanes, { pane: "p1" })).toBe(false);
+		expect(notifyCalls.at(-1)?.title).toBe("Start of focus history");
+
+		// Step forward -> p2 -> p3
+		expect(view.focusJumplist("forward", 1800, mockSpaces, mockPanes, { pane: "p1" })).toBe(true);
+		expect(runCalls.at(-1)).toEqual({ name: "pane.focus", args: { pane: "p2" } });
+		expect(notifyCalls.at(-1)?.title).toBe("→ p2");
+		expect(notifyCalls.at(-1)?.body).toBe("1 back");
+
+		expect(view.focusJumplist("forward", 1900, mockSpaces, mockPanes, { pane: "p2" })).toBe(true);
+		expect(runCalls.at(-1)).toEqual({ name: "pane.focus", args: { pane: "p3" } });
+		expect(notifyCalls.at(-1)?.title).toBe("→ p3");
+		expect(notifyCalls.at(-1)?.body).toBeUndefined();
+
+		// Further forward hits end of focus history
+		expect(view.focusJumplist("forward", 2000, mockSpaces, mockPanes, { pane: "p3" })).toBe(false);
+		expect(notifyCalls.at(-1)?.title).toBe("End of focus history");
+	});
+
+	test("ignores ephemeral overlay focus in split tabs and skips closed panes during walk", () => {
+		const view = createView();
+		view.syncFocusHistory(1000, mockSpaces, mockPanes, { pane: "p1" });
+		view.syncFocusHistory(1100, mockSpaces, mockPanes, { pane: "p2" });
+		view.syncFocusHistory(1200, mockSpaces, mockPanes, { pane: "p3" });
+
+		// Ephemeral popup terminal t99 focused with no pane: must not pollute journal or pick p1 in split tab tb1
+		mockPanes[0].focused = false;
+		mockPanes[1].focused = false;
+		expect(resolveFocusedPaneId(mockSpaces, mockPanes, { pane: null, terminal: "t99" })).toBeNull();
+		view.syncFocusHistory(1250, mockSpaces, mockPanes, { pane: null, terminal: "t99" });
+		expect(view.focusHistory.journal).toEqual(["p1", "p2", "p3"]);
+
+		// Close p2, then walk back from p3 -> should skip closed p2 and land on p1
+		mockPanes = [
+			{ pane: "p1", terminal: "t1", tab: "tb1", focused: false },
+			{ pane: "p3", terminal: "t3", tab: "tb2", focused: true },
+		];
+		expect(view.focusJumplist("back", 1300, mockSpaces, mockPanes, { pane: "p3" })).toBe(true);
+		expect(runCalls.at(-1)).toEqual({ name: "pane.focus", args: { pane: "p1" } });
+	});
+
+	test("attentionJump focuses blocked/done agents in smart priority order and falls back to forward history", () => {
+		const view = createView();
+		mockPanes = [
+			{ pane: "p1", terminal: "t1", tab: "tb1", focused: true },
+			{ pane: "p2", terminal: "t2", tab: "tb1", focused: false },
+			{ pane: "p3", terminal: "t3", tab: "tb2", focused: false },
+			{ pane: "devserver/p4", terminal: "devserver/t4", tab: "tb2", focused: false },
+		];
+		store.set(
+			"changed",
+			JSON.stringify({
+				t2: { s: "blocked", at: 1000 },
+				t3: { s: "done", at: 3000 },
+				"devserver/t4": { s: "blocked", at: 2000 },
+			}),
+		);
+		mockAgents = [
+			{ address: "t1", pane: "p1", status: "idle", seq: 10, focused: true, program: { key: "pi" } },
+			{ address: "t2", pane: "p2", status: "blocked", seq: 20, focused: false, program: { key: "pi" } },
+			{ address: "t3", pane: "p3", status: "done", seq: 30, focused: false, program: { key: "claude" } },
+			{
+				address: "devserver/t4",
+				pane: "devserver/p4",
+				status: "blocked",
+				seq: 25,
+				focused: false,
+				program: { key: "codex" },
+			},
+		];
+
+		// 1. Jumps to devserver/p4 first (blocked, newer timestamp 2000 > 1000)
+		expect(view.attentionJump(5000, mockSpaces, mockPanes, { pane: "p1" })).toBe(true);
+		expect(runCalls.at(-1)).toEqual({ name: "pane.focus", args: { pane: "devserver/p4" } });
+		expect(notifyCalls.at(-1)?.title).toBe("→ codex blocked (+2 more)");
+
+		// 2. While on devserver/p4 (still blocked), pressing Tab again rotates past it to p2 (blocked) -> then p3 (done)
+		expect(view.attentionJump(5100, mockSpaces, mockPanes, { pane: "devserver/p4" })).toBe(true);
+		expect(runCalls.at(-1)).toEqual({ name: "pane.focus", args: { pane: "p2" } });
+
+		// 3. When no agents need attention, Tab falls back to forward jumplist history
+		mockAgents = [];
+		// Walk back from p2 -> devserver/p4 first
+		expect(view.focusJumplist("back", 5200, mockSpaces, mockPanes, { pane: "p2" })).toBe(true);
+		expect(runCalls.at(-1)).toEqual({ name: "pane.focus", args: { pane: "devserver/p4" } });
+
+		// Now attentionJump steps forward back to p2
+		expect(view.attentionJump(5300, mockSpaces, mockPanes, { pane: "devserver/p4" })).toBe(true);
+		expect(runCalls.at(-1)).toEqual({ name: "pane.focus", args: { pane: "p2" } });
+		expect(notifyCalls.at(-1)?.title).toBe("→ p2");
 	});
 });

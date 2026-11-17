@@ -179,10 +179,12 @@ function activeContext() {
   const tabId = tb?.id ?? f.tab ?? "";
   const allPanes = panes() ?? [];
   const tabPanes = tabId ? allPanes.filter((x) => x.tab === tabId) : allPanes;
+  const lastPane = typeof shared === "function" ? shared("focusHistory")?.journal?.at?.(-1) : null;
   const p =
     allPanes.find((x) => f.pane && x.pane === f.pane) ??
     tabPanes.find((x) => x.focused) ??
     allPanes.find((x) => x.focused) ??
+    (lastPane ? tabPanes.find((x) => x.pane === lastPane) : null) ??
     tabPanes[0] ??
     allPanes[0] ??
     null;
@@ -706,16 +708,27 @@ export default class Prefix extends View {
     }
 
     // 8. Attention Jump & Focus History Jumplist
-    if (key === "tab" && !shift && !ctrl && !alt) {
-      runDetachedScript(overlayId, "~/.config/herdr/scripts/attention-jump.fish", ctx);
+    const isTabKey = key === "tab" || key === "backtab" || ks === "tab" || ks === "shift-tab";
+    if (isTabKey && !shift && key !== "backtab" && ks !== "shift-tab" && !ctrl && !alt) {
+      if (ctx.pane) setShared("focusHistory.activePane", ctx.pane);
+      this.dismiss();
+      run("spaces-reconnect.attention_jump");
       return;
     }
-    if ((key === "tab" && shift) || ks === "ctrl-o" || (ctrl && key === "o")) {
-      runDetachedScript(overlayId, "~/.config/herdr/scripts/focus-jumplist.fish back", ctx);
+    if (
+      (isTabKey && (shift || key === "backtab" || ks === "shift-tab") && !ctrl && !alt) ||
+      ks === "ctrl-o" ||
+      (ctrl && key === "o" && !alt && !shift)
+    ) {
+      if (ctx.pane) setShared("focusHistory.activePane", ctx.pane);
+      this.dismiss();
+      run("spaces-reconnect.focus_back");
       return;
     }
-    if (ks === "ctrl-i" || (ctrl && key === "i")) {
-      runDetachedScript(overlayId, "~/.config/herdr/scripts/focus-jumplist.fish forward", ctx);
+    if (ks === "ctrl-i" || (ctrl && key === "i" && !alt && !shift)) {
+      if (ctx.pane) setShared("focusHistory.activePane", ctx.pane);
+      this.dismiss();
+      run("spaces-reconnect.focus_forward");
       return;
     }
 

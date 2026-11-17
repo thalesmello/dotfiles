@@ -61,7 +61,21 @@ function herdr_socket
         return 0
     end
 
-    for candidate in $HOME/.config/herdr/herdr.sock $HOME/.local/state/herdr/herdr.sock $HOME/.local/state/herdr-core/default/default.sock
+    set -l app_home $HOME/.config/herdr-app
+    if set -q HERDR_APP_HOME; and test -n "$HERDR_APP_HOME"
+        set app_home $HERDR_APP_HOME
+    end
+
+    if test "$HC_PRESET_BACKEND" = hc; or begin not set -q HERDR_ENV; and set -q HC_TERMINAL_ID; end
+        for candidate in $app_home/herdr-app.sock $HOME/.local/state/herdr-core/default/default.sock
+            if test -S $candidate
+                echo $candidate
+                return 0
+            end
+        end
+    end
+
+    for candidate in $HOME/.config/herdr/herdr.sock $HOME/.local/state/herdr/herdr.sock $app_home/herdr-app.sock $HOME/.local/state/herdr-core/default/default.sock
         if test -S $candidate
             echo $candidate
             return 0
@@ -112,13 +126,8 @@ function herdr_current_pane
         return 0
     end
 
-    if set -q HC_TERMINAL_ID; and test -n "$HC_TERMINAL_ID"
-        echo $HC_TERMINAL_ID
-        return 0
-    end
-
-    # Last fallback asks which pane is focused, for launches outside a pane/key
-    # context.
+    # Ask which pane is focused (in hc mode, HC_TERMINAL_ID is a terminal address
+    # like t1 while pane IDs in pane.list are p1).
     set -l bin (herdr_bin); or return 1
     set -l pane ($bin current-id 2>/dev/null)
     if test -n "$pane"
@@ -127,8 +136,15 @@ function herdr_current_pane
     end
     set pane ($bin pane list 2>/dev/null |
         jq -r 'first((.result // .).panes[] | select(.focused) | .pane_id) // empty')
-    test -n "$pane"; or return 1
-    echo $pane
+    if test -n "$pane"
+        echo $pane
+        return 0
+    end
+    if set -q HC_TERMINAL_ID; and test -n "$HC_TERMINAL_ID"
+        echo $HC_TERMINAL_ID
+        return 0
+    end
+    return 1
 end
 
 # herdr_focus_pane <pane_id> -- focus any pane, switching workspace and tab.
