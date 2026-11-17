@@ -235,14 +235,26 @@ export default class Agents extends View {
     });
   }
 
-  snoozed(pane, terminal, now = Date.now()) {
+  snoozeEntry(pane, terminal) {
     const entries = this.snooze.panes ?? {};
-    const entry = entries[pane] ?? Object.values(entries).find(e => e.terminal_id === terminal);
+    return (pane && entries[pane]) || (terminal && Object.values(entries).find(e => e.terminal_id === terminal)) || null;
+  }
+
+  snoozed(pane, terminal, now = Date.now()) {
+    const entry = this.snoozeEntry(pane, terminal);
     return Boolean(entry && entry.until > now);
   }
 
-  visibleAgent(a, now = Date.now(), foc = null) {
+  snoozeLabel(a, now = Date.now()) {
+    const entry = this.snoozeEntry(a.pane, a.address);
+    if (!entry || entry.until <= now) return null;
+    return entry.when ? `Snoozed until ${entry.when}` : `Snoozed ${duration(entry.until - now)}`;
+  }
+
+  visibleAgent(a, now = Date.now(), foc = this.agentScreenFocus) {
     const asleep = this.snoozed(a.pane, a.address, now);
+    // The badge is live, but hiding is deferred just like status sorting.
+    if (asleep && Agents.isAgentFocused(a, foc)) return true;
     const mode = this.snooze.view?.showing;
     if (mode === "snoozed") return asleep || a.status === "blocked";
     if (mode !== "all" && asleep && a.status !== "blocked") return false;
@@ -405,11 +417,13 @@ export default class Agents extends View {
         .when(l === "└" || l === "├", el => el.border_b(1.5).rounded_bl(6))))
       .when(Boolean(pic), el => el.child(div().mr(8).child(pic)))
       .child(div().flex_1().truncate().text_color(on ? t.foreground : t.muted).child(k.name || k.template || k.program?.name || k.address))
-      .child(this.status(t, { status: st }, compact));
+      .child(this.status(t, { address: k.address, status: st }, compact));
   }
 
   // compact: a ! for blocked where a header already says "Needs you".
   status(t, a, compact = false) {
+    const sleeping = this.snoozeLabel(a);
+    if (sleeping) return div().flex_none().px(compact ? 3 : 6).h(18).rounded(5).bg(t.dim + "26").text_size(10.5).font_medium().text_color(t.muted).flex().items_center().tooltip(sleeping).child(compact ? "z" : sleeping);
     const color = t[a.status] ?? t.dim;
     if (a.status === "working") return svg("mods/workspace-chrome/spinner.svg").size(12).mx(1).flex_none().text_color(t.working).spin(900);
     if (a.status === "blocked" && compact) return div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(10.5).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!");
@@ -436,7 +450,7 @@ export default class Agents extends View {
     const shown = rawFocus?.agent;
     const now = Date.now();
     this.track(list, now);
-    list = list.filter((a) => this.visibleAgent(a, now, foc));
+    list = list.filter((a) => this.visibleAgent(a, now));
     this.listed = new Map(list.map((a) => [a.address, a.status]));
     const all = terminals();
     this.migratePins(all);

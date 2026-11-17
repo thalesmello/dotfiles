@@ -8,14 +8,23 @@ when an agent comes to need you, and the four-hour Just woke list/tokens.
 
 How hiding works
     A snoozed pane carries `snoozed` and `herdr_snooze` metadata tokens, and
-    the Agents view is filtered to `not(exists herdr_snooze)`. Tokens carry
-    a TTL, so Herdr itself drops them at the deadline with no daemon running.
+    the Agents view filters snoozed agents out except the current um_active
+    agent: it gets the badge immediately, but keeps its frozen position until
+    focus leaves. Tokens carry a TTL, so Herdr itself drops them at the
+    deadline with no daemon running.
 
 What `tick` is for
     The token TTL is capped at 24h, tokens and the view die with the server,
     and Herdr has ONE agent view that any caller can replace. `tick` (startup
     hook + a few event hooks) reconciles the state file against all three. It
     reads one small file and exits when nothing is snoozed.
+
+Herdr Core/App
+    snooze_hc.py adapts the transport and picker; the personal agents-snooze
+    mod filters the app's panel and reconciles status changes/deadlines.
+    State lives in HERDR_APP_HOME/data/snooze, separately from all legacy
+    sessions. Core labels have no TTL: the mod checks deadlines itself and
+    the existing sleeper retries reconciliation if the app is unavailable.
 
 Python 3.11+, standard library only.
 """
@@ -24,6 +33,7 @@ import contextlib
 import copy
 import fcntl
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -36,6 +46,7 @@ import time
 import unicodedata
 import uuid
 from datetime import datetime, timedelta
+from functools import lru_cache
 
 PLUGIN_ID = os.environ.get("HERDR_PLUGIN_ID") or "herdr-snooze"
 SOURCE = "plugin:" + PLUGIN_ID
@@ -55,7 +66,13 @@ WOKE_BADGE = "\U000F0020"  # nf-md-alarm (Nerd Font; replaces the ⏰ emoji)
 # ours?" go by MARK; `snoozed` is only for display.
 MARK = "herdr_snooze"
 
-VIEW_FILTER = {"op": "not", "filter": {"op": "exists", "field": {"token": MARK}}}
+# agent-handler already marks the focused agent and freezes its um_sort.
+# Snoozing changes the badge immediately, but must not remove that row until
+# a different pane is focused and agent-handler clears um_active.
+VIEW_FILTER = {"op": "any", "filters": [
+    {"op": "not", "filter": {"op": "exists", "field": {"token": MARK}}},
+    {"op": "exists", "field": {"token": "um_active"}},
+]}
 # The snoozed list also lets blocked agents through: it is the one panel state
 # that hides your active agents, and one of them needing you is exactly what
 # the panel exists to show.
@@ -186,7 +203,19 @@ def default_socket():
     return os.path.join(base, "herdr", "herdr.sock")
 
 
+def hc_backend():
+    name = "_herdr_snooze_hc"
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, os.path.join(os.path.dirname(__file__), "snooze_hc.py"))
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
 def socket_path():
+    if hc_backend().enabled():
+        return hc_backend().adapter().hc_socket_path() or "hc"
     return os.environ.get("HERDR_SOCKET_PATH") or default_socket()
 
 
@@ -266,6 +295,8 @@ def state_dir():
     """This session's state directory: sessions/<key>/ in the plugin's. run.sh's
     fast path must agree on where state can live: every sessions/*/, plus
     0.1.0's single file at the top (see recover_legacy)."""
+    if hc_backend().enabled():
+        return hc_backend().state_dir()
     return os.path.join(plugin_state_dir(), "sessions", session_key())
 
 
@@ -346,6 +377,11 @@ class HerdrError(Exception):
 
 def call(method, params=None, timeout=5.0):
     """One request per connection: the server answers a line and hangs up."""
+    if hc_backend().enabled():
+        try:
+            return hc_backend().call(method, params or {}, timeout)
+        except Exception as error:
+            raise HerdrError("hc", str(error)) from error
     path = socket_path()
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.settimeout(timeout)
@@ -1106,7 +1142,14 @@ def follow_terminals(state, panes, live):
 
 def agent_identity(pane):
     """Which kind of agent runs in a pane, or None when there's no agent."""
-    return {"agent": pane["agent"]} if pane.get("agent") else None
+    if not pane.get("agent"):
+        return None
+    identity = {"agent": pane["agent"]}
+    if hc_backend().enabled():
+        pid = (pane.get("foreground") or {}).get("pid")
+        if pid:
+            identity["pid"] = pid
+    return identity
 
 
 def replaced(entry, pane):
@@ -1133,7 +1176,8 @@ def replaced(entry, pane):
     if not isinstance(recorded, dict):
         entry["agent_id"] = current
         return False
-    return recorded.get("agent") != current["agent"]
+    return (recorded.get("agent") != current["agent"] or
+            bool(recorded.get("pid") and current.get("pid") and recorded["pid"] != current["pid"]))
 
 
 # An agent herdr reports arriving this soon after a snooze began is the
@@ -1270,6 +1314,10 @@ def panel_mode(sock=None, state_home=None, config_home=None):
     client wins; herdr saves it per client, in a file named by a hash of the
     client socket (the API socket with "-client" before ".sock"). Otherwise
     [ui] agent_panel_sort in config.toml, otherwise herdr's default."""
+    if hc_backend().enabled():
+        shared = hc_backend().adapter().load_json_file(
+            os.path.join(hc_backend().adapter().herdr_app_home(), "shared.json"), {})
+        return "spaces" if shared.get("agents.sort") == "grouped" else "priority"
     sock = sock or socket_path()
     root, ext = os.path.splitext(sock)
     client_sock = root + "-client" + ext if ext == ".sock" else sock + "-client"
@@ -1775,10 +1823,10 @@ class RawTerminal:
         self.pending = []
         self.saved = termios.tcgetattr(self.fd)
         tty.setraw(self.fd)
-        try:
-            self.rows = os.get_terminal_size(self.fd).lines
-        except OSError:
-            self.rows = 24
+        self.rows, self.cols = 24, 80
+        self.frame = None
+        self.frame_size = None
+        self.resize()
         sys.stdout.write("\x1b[?25l")
         return self
 
@@ -1803,9 +1851,90 @@ class RawTerminal:
             self.pending = split_keys(data) or [b""]
         return decode_key(self.pending.pop(0))
 
+    def resize(self):
+        try:
+            size = os.get_terminal_size(self.fd)
+            self.rows, self.cols = size.lines, size.columns
+        except OSError:
+            pass
+
+    def wait_key(self, timeout):
+        import select
+
+        if self.pending or select.select([self.fd], [], [], timeout)[0]:
+            return self.key()
+        return "timeout", b""
+
     def draw(self, lines):
-        sys.stdout.write("\x1b[2J\x1b[H" + "\r\n".join(lines))
-        sys.stdout.flush()
+        self.resize()
+        size = (self.rows, self.cols)
+        frame = [clip_ansi(line, self.cols) for line in lines[:self.rows]]
+        previous = self.frame if self.frame_size == size else None
+        output = ["\x1b[2J\x1b[H"] if previous is None else []
+        for i in range(max(len(frame), len(previous or []))):
+            line = frame[i] if i < len(frame) else ""
+            old = previous[i] if previous is not None and i < len(previous) else ""
+            if previous is None or line != old:
+                output.append("\x1b[%d;1H\x1b[2K%s" % (i + 1, line))
+        if output:
+            # One write/flush per changed frame; arrows normally change two
+            # rows, not the entire screen. Identical frames emit no bytes.
+            sys.stdout.write("".join(output))
+            sys.stdout.flush()
+        self.frame, self.frame_size = frame, size
+
+
+def _display_clusters(text):
+    """Keep combining marks, emoji selectors/keycaps and ZWJ sequences intact."""
+    cluster = ""
+    for char in text:
+        code = ord(char)
+        regional = 0x1F1E6 <= code <= 0x1F1FF
+        paired_flag = regional and len(cluster) == 1 and 0x1F1E6 <= ord(cluster) <= 0x1F1FF
+        attached = unicodedata.category(char) in ("Mn", "Me", "Cf") or 0x1F3FB <= code <= 0x1F3FF
+        if cluster and not (attached or cluster.endswith("\u200d") or paired_flag):
+            yield cluster
+            cluster = ""
+        cluster += char
+    if cluster:
+        yield cluster
+
+
+@lru_cache(maxsize=512)
+def _cluster_width(cluster):
+    if len(cluster) == 1 and ord(cluster) < 128:
+        return 1
+    bases = [char for char in cluster if unicodedata.category(char) not in ("Mn", "Me", "Cf") and not 0x1F3FB <= ord(char) <= 0x1F3FF]
+    sizes = [2 if unicodedata.east_asian_width(char) in ("W", "F") else 1 for char in bases]
+    # FE0F promotes text symbols (heart, copyright, etc.) to emoji width;
+    # keycaps/flags are two cells too. ZWJ emoji draw as one joined glyph.
+    if bases and all(0x1F1E6 <= ord(char) <= 0x1F1FF for char in bases):
+        return 2
+    if "\u200d" in cluster and bases and all(0x1F000 <= ord(char) <= 0x1FAFF or 0x2600 <= ord(char) <= 0x27BF for char in bases):
+        return max(2, max(sizes))
+    if "\ufe0f" in cluster or "\u20e3" in cluster:
+        return max(2, sum(sizes))
+    if not bases and any(0x1F3FB <= ord(char) <= 0x1F3FF for char in cluster):
+        return 2
+    return sum(sizes)
+
+
+@lru_cache(maxsize=512)
+def clip_ansi(text, width):
+    """Keep SGR colours, but never wrap a rendered line past the viewport."""
+    parts = re.split(r"(\x1b\[[0-9;]*m)", text)
+    out, cells = [], 0
+    for part in parts:
+        if part.startswith("\x1b["):
+            out.append(part)
+            continue
+        for cluster in _display_clusters(part):
+            size = _cluster_width(cluster)
+            if cells + size > width:
+                return "".join(out) + RESET
+            out.append(cluster)
+            cells += size
+    return "".join(out)
 
 
 def clip(text, width):
@@ -1834,7 +1963,9 @@ def menu(term, header, items, footer, selected=0):
     while True:
         # Keep the selection on screen when there are more rows than the popup
         # has lines; the blank lines above and below double as "more" markers.
-        room = max(3, getattr(term, "rows", 100) - len(header) - 5)
+        if hasattr(term, "resize"):
+            term.resize()
+        room = max(1, getattr(term, "rows", 100) - len(header) - 5)
         top = 0 if len(items) <= room else min(max(0, selected - room // 2), len(items) - room)
         above, below = top, max(0, len(items) - top - room)
         lines = [""] + header + ["  " + DIM + "↑ %d more" % above + RESET if above else ""]
@@ -1851,7 +1982,9 @@ def menu(term, header, items, footer, selected=0):
                   "  " + DIM + footer + RESET]
         term.draw(lines)
 
-        name, raw = term.key()
+        name, raw = term.wait_key(0.5) if hasattr(term, "wait_key") else term.key()
+        if name == "timeout":
+            continue
         if name in ("esc", "eof"):
             return None
         pos = selectable.index(selected)
@@ -2077,11 +2210,18 @@ def _manage_rows(state, panes, labels):
     return rows
 
 
+MANAGE_REFRESH_S = 2.0
+
+
 def picker_manage(term, config, demo=False):
     selected = 0
     flash = ""
+    refresh_at = 0
+    rows = []
     while True:
-        if demo:
+        refresh = time.monotonic() >= refresh_at
+        selected_ref = (rows[selected]["kind"], rows[selected]["id"]) if rows and selected < len(rows) else None
+        if refresh and demo:
             now = now_ms()
             panes = [
                 {"pane_id": "w1:p1", "workspace_id": "w1", "agent": "claude", "agent_status": "blocked", "title": "Fix the login bug", "tokens": {}},
@@ -2090,25 +2230,42 @@ def picker_manage(term, config, demo=False):
             ]
             state = {"panes": {"w2:p1": {"until": now + 3600000, "via": "pane", "workspace_id": "w2"}}, "workspaces": {}, "woke": {"w1:p1": {"at": now - 60000, "reason": "it's done"}}}
             labels = {"w1": "storefront", "w2": "docs"}
-        else:
+        elif refresh:
             try:
-                panes = call("pane.list").get("panes", [])
-                spaces = call("workspace.list").get("workspaces", [])
+                if hc_backend().enabled():
+                    snapshot = call("snooze.snapshot")
+                    panes, spaces = snapshot.get("panes", []), snapshot.get("workspaces", [])
+                else:
+                    panes = call("pane.list").get("panes", [])
+                    spaces = call("workspace.list").get("workspaces", [])
             except Exception as problem:
                 term.draw(["", "  " + BOLD + "Snooze didn't work" + RESET, "", "  " + clip(str(problem), 60), "", "  " + DIM + "press any key" + RESET])
                 term.key()
                 return None
             labels = {w.get("workspace_id"): w.get("label") or w.get("workspace_id") for w in spaces}
             state = read_state()
-        rows = _manage_rows(state, panes, labels)
+        if refresh:
+            rows = _manage_rows(state, panes, labels)
+            if selected_ref:
+                selected = next((i for i, row in enumerate(rows) if (row["kind"], row["id"]) == selected_ref), min(selected, max(0, len(rows) - 1)))
+            refresh_at = time.monotonic() + MANAGE_REFRESH_S
         selectable = [i for i, row in enumerate(rows) if row["kind"] != "header"]
         if selectable and selected not in selectable:
-            selected = selectable[0]
+            selected = next((i for i in selectable if i >= selected), selectable[-1])
+        # Poll live state on a timer, not on arrows, and keep the selected row
+        # on screen. Printing more than the terminal height causes scrolling
+        # even when a subsequent clear-screen tries to undo it.
+        if hasattr(term, "resize"):
+            term.resize()
+        room = max(1, getattr(term, "rows", 100) - 7)
+        top = 0 if len(rows) <= room else min(max(0, selected - room // 2), len(rows) - room)
+        above, below = top, max(0, len(rows) - top - room)
         now = now_ms()
-        lines = ["  " + BOLD + CYAN + DEFAULT_BADGE + " Snooze" + RESET, ""]
+        lines = ["  " + BOLD + CYAN + DEFAULT_BADGE + " Snooze" + RESET, "",
+                 "  " + DIM + "↑ %d more" % above + RESET if above else ""]
         if not rows:
             lines.append("  " + DIM + "No agents running." + RESET)
-        for i, row in enumerate(rows):
+        for i, row in list(enumerate(rows))[top:top + room]:
             if row["kind"] == "header":
                 lines.append(" " + BOLD + CYAN + row["title"] + RESET + DIM + " %d" % row["count"] + RESET)
                 continue
@@ -2136,9 +2293,13 @@ def picker_manage(term, config, demo=False):
                 lines.append(" " + REVERSE + line + " " + RESET)
             else:
                 lines.append(" " + colour + marker + RESET + " %-46s " % clip(text, 46) + colour + right + RESET)
-        lines += ["", "  " + (BOLD + YELLOW + clip(flash, 64) + RESET if flash else ""), "  " + DIM + "\u2191\u2193 move \u00b7 enter go \u00b7 s snooze \u00b7 w wake \u00b7 S space \u00b7 r recap \u00b7 W wake all \u00b7 esc close" + RESET]
+        lines += ["  " + DIM + "↓ %d more" % below + RESET if below else "", "",
+                  "  " + (BOLD + YELLOW + clip(flash, 64) + RESET if flash else ""),
+                  "  " + DIM + "\u2191\u2193 move \u00b7 enter go \u00b7 s snooze \u00b7 w wake \u00b7 S space \u00b7 r recap \u00b7 W wake all \u00b7 esc close" + RESET]
         term.draw(lines)
-        name, raw = term.key()
+        name, raw = term.wait_key(max(0, refresh_at - time.monotonic())) if hasattr(term, "wait_key") else term.key()
+        if name == "timeout":
+            continue
         if name in ("esc", "eof"):
             return None
         if not selectable:
@@ -2177,10 +2338,12 @@ def picker_manage(term, config, demo=False):
                         wake(config, workspace_ids=[row["id"]])
                     else:
                         wake(config, pane_ids=[row["id"]])
+                refresh_at = 0
                 flash = "Woke " + row["title"]
             elif typed == "W":
                 if not demo:
                     wake(config, everything=True)
+                refresh_at = 0
                 flash = "Woke everything"
             elif typed == "s" or (typed == "S" and row.get("space")):
                 if demo:
@@ -2193,6 +2356,7 @@ def picker_manage(term, config, demo=False):
                     pane = row["pane"]
                     tokens = pane.get("tokens") or {}
                     outcome = picker_for_target(term, config, "pane", row["id"], row["title"], pane.get("agent") or "", expect=agent_identity(pane), status=pane.get("agent_status") or "", pr=str(tokens.get("pr") or "") if can_wait_for(WHEN_MERGED, pane) else "", snoozed=bool(row.get("snoozed")))
+                refresh_at = 0
                 flash = outcome or flash
             elif typed == "r" and row["kind"] == "pane":
                 refs = _popup_refs()
@@ -2542,9 +2706,10 @@ def hook_event():
 
 
 def _tick_once(args, detected=None, received=None):
-    prune_stale_sessions()
-    if os.path.exists(os.path.join(plugin_state_dir(), "snoozed.json")):
-        recover_legacy(load_config())
+    if not hc_backend().enabled():
+        prune_stale_sessions()
+        if os.path.exists(os.path.join(plugin_state_dir(), "snoozed.json")):
+            recover_legacy(load_config())
     if is_idle(read_state()):
         # Nothing to do. If a file is there anyway (every entry in it was
         # malformed and dropped), remove it: while it exists, run.sh starts

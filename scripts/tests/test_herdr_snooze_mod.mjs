@@ -84,4 +84,32 @@ assert.equal(panel.frozenSort.t1, undefined, 't1 unfreezes after focus leaves p1
 assert.deepEqual({ ...panel.unfocusedSort.t1 }, { rank: 1, since: 5000, seq: 30 });
 assert.deepEqual({ ...panel.frozenSort.t2 }, { rank: 2, since: 2000, seq: 20 });
 
-console.log('24 snooze/sort panel assertions passed');
+// Snoozing labels immediately, but neither hides nor unfreezes the current screen.
+const screen = { pane: 'p1', terminal: 't1', space: 'sp1', tab: 'tb1' };
+const active = { address: 't1', pane: 'p1', status: 'working', seq: 30, focused: false };
+panel.snooze = { panes: { p1: { until: now + 60000, terminal_id: 't1' } }, view: {} };
+panel.agentScreenFocus = screen;
+assert.equal(panel.snoozeLabel(active, now), 'Snoozed 1m');
+assert.equal(panel.visibleAgent(active, now), true, 'focused snoozed agent stays visible');
+const popup = { pane: null, terminal: 'popup', space: 'sp1', tab: 'tb1' };
+const popupFocus = ctx.Agents.screenFocus(popup, [active], screen);
+assert.deepEqual({ ...popupFocus }, screen, 'opening the snooze popup does not leave the underlying screen');
+const reloadedFocus = ctx.Agents.screenFocus({ ...popup, agent: 't1' }, [{ ...active, tab: 'tb1' }]);
+assert.equal(reloadedFocus.pane, 'p1', 'reloading with a popup open restores the underlying agent focus');
+panel.frozenSort = { t1: { rank: 3, since: 1000, seq: 10 } };
+panel.unfocusedSort = {};
+panel.updateFrozenSort([active], new Map([['t1', panel.rank(active)]]), popupFocus);
+assert.equal(panel.visibleAgent(active, now, popupFocus), true);
+assert.deepEqual({ ...panel.frozenSort.t1 }, { rank: 3, since: 1000, seq: 10 });
+const shell = { pane: 'shell-pane', terminal: 'shell', space: 'sp1', tab: 'tb1' };
+assert.equal(ctx.Agents.screenFocus(shell, [active], screen), shell);
+assert.equal(panel.visibleAgent(active, now, shell), false, 'switching to another pane applies the hide');
+const otherTab = { pane: null, terminal: 'popup-2', space: 'sp1', tab: 'tb2' };
+assert.equal(ctx.Agents.screenFocus(otherTab, [active], screen), otherTab, 'another tab releases the freeze');
+const remoteScreen = { pane: 'remote/p1', terminal: 'remote/t1', space: 'remote/sp1', tab: 'remote/tb1' };
+assert.equal(panel.visibleAgent(active, now, remoteScreen), false, 'qualified remote focus is a different screen');
+panel.snooze.panes = {};
+assert.equal(panel.snoozeLabel(active, now), null, 'wake removes the label immediately');
+assert.equal(panel.visibleAgent(active, now, shell), true);
+
+console.log('Snooze visibility, focused sort freeze, and deferred hiding assertions passed');

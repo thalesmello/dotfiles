@@ -101,6 +101,10 @@
     "cmd-ctrl-8": "space.select:8",
     "cmd-ctrl-9": "space.select:9"
   },
+  "layout:transition": {
+    "cmd-]": "agents-snooze.next",
+    "cmd-[": "agents-snooze.prev"
+  },
   "terminal": {
     "cmd-f": "terminal.search",
     "cmd-c": "terminal.copy",
