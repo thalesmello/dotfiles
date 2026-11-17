@@ -143,6 +143,27 @@ class ErrorTests(unittest.TestCase):
                 {"machine": "devserver", "folder": "/Users/test/src/repo"},
             )
 
+    def test_workspace_create_can_pin_machine_despite_remote_focus(self):
+        world = Mock()
+        world.focused_pane_id = "devserver/p1"
+        world.resolve_pane.return_value = None
+        world.workspaces = [{"workspace_id": "devserver/ws1", "focused": True,
+                             "machine": "devserver", "cwd": "/home/test"}]
+        for flags, expected_machine in (([], "devserver"),
+                                        (["--machine", ""], ""),
+                                        (["--machine", "other"], "other")):
+            with self.subTest(flags=flags), \
+                    patch.object(adapter, "HcWorld", return_value=world), \
+                    patch.object(adapter, "herdr_app_do", return_value={"space": "sp2"}) as do_mock, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(adapter.handle_hc_herdr_cli(
+                    ["workspace", "create", "--label", "qq", "--cwd", "/Users/test/src/qq"] + flags
+                ), 0)
+                do_mock.assert_called_once_with(
+                    "space.new", {"name": "qq", "folder": "/Users/test/src/qq",
+                                  "machine": expected_machine},
+                )
+
     def test_popup_open_exports_extra_env_and_prints_result(self):
         world = Mock()
         world.resolve_pane.return_value = {

@@ -1607,6 +1607,7 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
         if sub == "create":
             label = None
             cwd: str | None = None
+            machine: str | None = None
             focus = True
             env_dict: dict[str, str] = {}
             i = 0
@@ -1617,6 +1618,9 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                     i += 2
                 elif a == "--cwd" and i + 1 < len(args):
                     cwd = args[i + 1]
+                    i += 2
+                elif a == "--machine" and i + 1 < len(args):
+                    machine = args[i + 1]
                     i += 2
                 elif a == "--env" and i + 1 < len(args):
                     if "=" in args[i + 1]:
@@ -1646,7 +1650,11 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             do_args: dict[str, Any] = {"folder": cwd}
             if label:
                 do_args["name"] = label
-            if active_ws and active_ws.get("machine"):
+            if machine is not None:
+                # An explicit empty machine means this computer, not whichever
+                # remote space became focused while a popup was dispatching.
+                do_args["machine"] = machine
+            elif active_ws and active_ws.get("machine"):
                 do_args["machine"] = active_ws["machine"]
             res = herdr_app_do("space.new", do_args)
             if not res:

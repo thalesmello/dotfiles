@@ -570,6 +570,9 @@ except Exception:
 }
 
 workspace_with_label() {
+  # The window lists spaces from every connected machine. This script creates
+  # directories and prompt files on its own machine, so only reuse its local
+  # spaces (remote popups run this script on the remote host itself).
   "$herdr" workspace list 2>/dev/null | python3 -c '
 import json, sys
 
@@ -578,7 +581,8 @@ try:
     workspaces = json.load(sys.stdin)["result"]["workspaces"]
 except Exception:
     workspaces = []
-print(next((w["workspace_id"] for w in workspaces if w.get("label") == label), ""))
+print(next((w["workspace_id"] for w in workspaces
+            if w.get("label") == label and not w.get("machine")), ""))
 ' "$1"
 }
 
@@ -644,7 +648,19 @@ if [ -n "$workspace" ]; then
     --label "$slug" --env "PATH=$ASK_PATH" "$create_focus") \
     || herdr_die 'ask' "could not create tab in the $workspace_label workspace"
 else
+  # Pin hc creation to this machine even if focus moved to a remote space while
+  # routing (especially for a Ctrl+Enter background dispatch). The legacy
+  # single-machine CLI does not need or accept this adapter option.
+  workspace_machine_args=()
+  case "$herdr" in
+    *hc-preset)
+      if [ "$("$herdr" backend 2>/dev/null)" = hc ]; then
+        workspace_machine_args=(--machine '')
+      fi
+      ;;
+  esac
   created=$("$herdr" workspace create --label "$workspace_label" --cwd "$dir" \
+    ${workspace_machine_args[@]+"${workspace_machine_args[@]}"} \
     --env "PATH=$ASK_PATH" "$create_focus") \
     || herdr_die 'ask' "could not create the $workspace_label workspace"
 fi
