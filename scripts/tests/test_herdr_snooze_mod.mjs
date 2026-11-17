@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const file = new URL('../../stow_modules/main/dot-config/herdr-app/mods/agents-snooze/main.js', import.meta.url);
+const file = new URL('../../stow_modules/main/dot-config/herdr-app/mods/agent-render/main.js', import.meta.url);
 const source = fs.readFileSync(file, 'utf8')
   .replace(/^import .*;$/gm, '')
   .replace('export default class Agents', 'class Agents') + '\nthis.Agents = Agents; this.SORTS = SORTS; this.sortOf = sortOf;';

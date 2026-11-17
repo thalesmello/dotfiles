@@ -58,7 +58,7 @@ const host = {
   setAgentOrder: (addresses) => { order = Array.from(addresses); }, run() {},
   localStorage: { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) },
 };
-const Agents = loadMod('agents-snooze', 'Agents', host);
+const Agents = loadMod('agent-render', 'Agents', host);
 const panel = new Agents();
 panel.init({}, cx);
 let tree = panel.render(cx);

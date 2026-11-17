@@ -771,12 +771,12 @@ export default class Prefix extends View {
     }
     if (ks === "ctrl-," || (ctrl && key === ",")) {
       this.dismiss();
-      run(shared("layout") === "transition" ? "agents-snooze.prev" : "agent.prev");
+      run(shared("layout") === "transition" ? "agent-render.prev" : "agent.prev");
       return;
     }
     if (ks === "ctrl-." || (ctrl && key === ".")) {
       this.dismiss();
-      run(shared("layout") === "transition" ? "agents-snooze.next" : "agent.next");
+      run(shared("layout") === "transition" ? "agent-render.next" : "agent.next");
       return;
     }
 
@@ -1019,7 +1019,7 @@ export default class Prefix extends View {
     }
     if (ks === "shift-o" || (key === "o" && shift && !ctrl && !alt)) {
       this.dismiss();
-      run(shared("layout") === "transition" ? "agents-snooze.next" : "agent.next");
+      run(shared("layout") === "transition" ? "agent-render.next" : "agent.next");
       return;
     }
     if (ks === "y" && !ctrl && !alt && !shift) {

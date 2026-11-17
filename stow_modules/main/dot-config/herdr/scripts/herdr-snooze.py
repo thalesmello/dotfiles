@@ -20,7 +20,7 @@ What `tick` is for
     reads one small file and exits when nothing is snoozed.
 
 Herdr Core/App
-    snooze_hc.py adapts the transport and picker; the personal agents-snooze
+    snooze_hc.py adapts the transport and picker; the personal agent-render
     mod filters the app's panel and reconciles status changes/deadlines.
     State lives in HERDR_APP_HOME/data/snooze, separately from all legacy
     sessions. Core labels have no TTL: the mod checks deadlines itself and
