@@ -48,7 +48,7 @@ if ($mode eq "smart" || $mode eq "vim") {
   my $is_vim = ($base =~ /^(?:n?vim|vi)$/i) || (!$is_shell && $ti && $ti =~ /^(?:n?vim):/i);
   if (!$is_vim) {
     exit 2 if $mode eq "vim";
-    if (!$base || $is_shell || ($fpid && $spid && $fpid == $spid)) {
+    if ($is_shell) {
       exit 3;
     }
     print "$base\\n";
@@ -100,13 +100,18 @@ function isVimPane(p, termObj = null) {
 }
 
 const CTRL_HEX = { h: "08", j: "0a", k: "0b", l: "0c" };
+const pendingClosePopups = new Set();
 
 function openConfirmClosePopup(overlayId, p, procName) {
-  const paneId = p?.pane || p?.terminal || "";
-  if (!paneId) {
+  // Freeze both IDs. A delayed popup must never adopt the new focused pane.
+  const paneId = p?.pane || "";
+  const target = (panes() ?? []).find((x) => x.pane === paneId && x.terminal === p?.terminal);
+  if (!paneId || !target?.terminal) {
     if (overlayId) closeOverlay(overlayId);
     return;
   }
+  if (pendingClosePopups.has(paneId)) return;
+  pendingClosePopups.add(paneId);
   const proc = procName || p?.app || p?.program?.key || p?.program?.name || "process";
   const rawTitle = (p?.title ?? "").replace(/^[^\x00-\x7f]+\s*/, "").trim();
   const title = rawTitle && rawTitle.toLowerCase() !== proc.toLowerCase() ? rawTitle : "";
@@ -114,16 +119,23 @@ function openConfirmClosePopup(overlayId, p, procName) {
     `HC_PRESET_BACKEND="hc"`,
     `HERDR_APP_HOME=${JSON.stringify(appHome())}`,
     `ASCONFIRMCLOSE_PANE_ID=${JSON.stringify(paneId)}`,
+    `ASCONFIRMCLOSE_TERMINAL_ID=${JSON.stringify(target.terminal)}`,
     `ASCONFIRMCLOSE_PROCESS=${JSON.stringify(proc)}`,
     ...(title ? [`ASCONFIRMCLOSE_TITLE=${JSON.stringify(title)}`] : []),
   ].join(" ");
-  const cmd = `export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" ${env}; python3 ~/.config/herdr/scripts/confirm-close.py prompt`;
+  const cmd = `export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" ${env}; python3 ~/.config/herdr/scripts/confirm-close.py prompt --local-app`;
   hc(["run", "--bg", "--rm", "--no-notify", "--json", "--cwd", home(), "--", "sh", "-c", cmd])
     .then((r) => {
       if (overlayId) closeOverlay(overlayId);
       if (r.code !== 0) return;
       const data = JSON.parse(r.stdout || "{}");
       if (!data.address) return;
+      const f = focused() ?? {};
+      if (!(panes() ?? []).some((x) => x.pane === paneId && x.terminal === target.terminal)
+          || (f.pane && f.pane !== paneId) || (!f.pane && f.terminal && f.terminal !== target.terminal)) {
+        hc(["kill", data.address]).catch(() => {});
+        return;
+      }
       openOverlay({
         kind: "dialog",
         width: 580,
@@ -136,7 +148,8 @@ function openConfirmClosePopup(overlayId, p, procName) {
     })
     .catch(() => {
       if (overlayId) closeOverlay(overlayId);
-    });
+    })
+    .finally(() => pendingClosePopups.delete(paneId));
 }
 
 function findNode(node, id) {
@@ -194,23 +207,22 @@ function activeContext() {
         return true;
       })
     : allPanes;
-  const lastPane = typeof shared === "function" ? shared("focusHistory")?.journal?.at?.(-1) : null;
-  const p =
-    (f.terminal ? tabPanes.find((x) => x.terminal === f.terminal) ?? allPanes.find((x) => x.terminal === f.terminal) : null) ??
-    (f.pane ? tabPanes.find((x) => x.pane === f.pane || qualifyPaneId(x.pane, spMachine) === f.pane) : null) ??
-    tabPanes.find((x) => x.focused) ??
-    (f.pane ? allPanes.find((x) => x.pane === f.pane) : null) ??
-    allPanes.find((x) => x.focused) ??
-    (lastPane ? tabPanes.find((x) => qualifyPaneId(x.pane, spMachine) === lastPane || x.pane === lastPane) : null) ??
-    tabPanes[0] ??
-    allPanes[0] ??
-    null;
-  const terminal = p?.terminal ?? f.terminal ?? "";
-  const termMachine = terminal.includes("/") ? terminal.split("/")[0] : "";
+  // Keyboard focus is authoritative. History/the first pane are not safe
+  // substitutes, especially while a confirmation or terminal block has focus.
+  const p = f.pane
+    ? (f.terminal ? allPanes.find((x) => (x.pane === f.pane || qualifyPaneId(x.pane, spMachine) === f.pane) && x.terminal === f.terminal) ?? null : null) ??
+      tabPanes.find((x) => x.pane === f.pane || qualifyPaneId(x.pane, spMachine) === f.pane) ??
+      allPanes.find((x) => x.pane === f.pane) ??
+      null
+    : (!f.terminal ? tabPanes.find((x) => x.focused) ?? null : null);
+  const terminal = f.shown ?? p?.terminal ?? f.terminal ?? "";
+  const baseTerm = p?.terminal ?? f.terminal ?? "";
+  const termMachine = baseTerm.includes("/") ? baseTerm.split("/")[0] : "";
   const machine = sp?.machine ?? p?.machine ?? f.machine ?? termMachine ?? null;
-  const rawPane = p?.pane ?? f.pane ?? "";
+  const rawPane = p?.pane ?? "";
   return {
-    pane: qualifyPaneId(rawPane, machine),
+    pane: rawPane,
+    qualifiedPane: qualifyPaneId(rawPane, machine),
     rawPane,
     terminal,
     cwd: p?.cwd ?? f.cwd ?? sp?.folder ?? (machine ? "" : home()),
@@ -637,6 +649,19 @@ export default class Prefix extends View {
     }
 
     // 6. Close bindings (smart-close, confirm-close, close tab, close workspace)
+    const closesPane = (key === "backspace" && !alt && !shift) || (ks === "x" && !ctrl && !alt && !shift);
+    if (closesPane && !ctx.pane) {
+      // Repeated prefix close inside the confirmation goes to that popup,
+      // never to an inferred source pane underneath it.
+      if (ctx.terminal) sendRawHex(ctx.terminal, ks === "x" ? "0078" : ctrl ? "0008" : "007f");
+      this.dismiss();
+      return;
+    }
+    if (closesPane && !(panes() ?? []).some((p) => p.pane === ctx.pane && p.terminal === ctx.terminal)) {
+      this.dismiss();
+      notify({ title: "Pane changed; close cancelled", level: "warning", timeout: 3000 });
+      return;
+    }
     if (key === "backspace" && !ctrl && !alt && !shift) {
       const allPanes = panes() ?? [];
       const p = allPanes.find((x) => x.pane === ctx.pane) ?? null;
@@ -653,7 +678,11 @@ export default class Prefix extends View {
           }
           if (r.code === 3 && p?.pane) {
             this.dismiss();
-            run("pane.close", { pane: p.pane });
+            if ((panes() ?? []).some((x) => x.pane === p.pane && x.terminal === ctx.terminal)) {
+              hc(["kill", ctx.terminal]).then((result) => {
+                if (result.code !== 0) notify({ title: "Could not close terminal", body: result.stderr || result.stdout, level: "error" });
+              }).catch((err) => notify({ title: "Could not close terminal", body: String(err), level: "error" }));
+            }
             return;
           }
           const procName = (r.stdout || "").trim() || p?.program?.name || "process";
@@ -671,7 +700,7 @@ export default class Prefix extends View {
         openConfirmClosePopup(overlayId, p, p.app || p.program?.key || p.program?.name || "agent");
         return;
       }
-      runDetachedScript(overlayId, "~/.config/herdr/scripts/confirm-close.py close", ctx);
+      runDetachedScript(overlayId, "~/.config/herdr/scripts/confirm-close.py close", ctx, { ASCONFIRMCLOSE_TERMINAL_ID: ctx.terminal });
       return;
     }
     if (key === "backspace" && shift && !ctrl && !alt) {
@@ -730,7 +759,7 @@ export default class Prefix extends View {
     // 8. Attention Jump & Focus History Jumplist
     const isTabKey = key === "tab" || key === "backtab" || ks === "tab" || ks === "shift-tab";
     if (isTabKey && !shift && key !== "backtab" && ks !== "shift-tab" && !ctrl && !alt) {
-      if (ctx.pane) setShared("focusHistory.activePane", ctx.pane);
+      if (ctx.qualifiedPane || ctx.pane) setShared("focusHistory.activePane", ctx.qualifiedPane || ctx.pane);
       this.dismiss();
       run("spaces-reconnect.attention_jump");
       return;
@@ -740,13 +769,13 @@ export default class Prefix extends View {
       ks === "ctrl-o" ||
       (ctrl && key === "o" && !alt && !shift)
     ) {
-      if (ctx.pane) setShared("focusHistory.activePane", ctx.pane);
+      if (ctx.qualifiedPane || ctx.pane) setShared("focusHistory.activePane", ctx.qualifiedPane || ctx.pane);
       this.dismiss();
       run("spaces-reconnect.focus_back");
       return;
     }
     if (ks === "ctrl-i" || (ctrl && key === "i" && !alt && !shift)) {
-      if (ctx.pane) setShared("focusHistory.activePane", ctx.pane);
+      if (ctx.qualifiedPane || ctx.pane) setShared("focusHistory.activePane", ctx.qualifiedPane || ctx.pane);
       this.dismiss();
       run("spaces-reconnect.focus_forward");
       return;

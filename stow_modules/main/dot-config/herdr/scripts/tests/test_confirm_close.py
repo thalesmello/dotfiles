@@ -149,6 +149,34 @@ class RunCloseTest(unittest.TestCase):
         self.assertEqual(self.run_close(runner), "closed")
         self.assertEqual([m for m, _ in runner.calls], ["pane.process_info", "pane.close"])
 
+    def test_app_inspection_pins_busy_popup_terminal(self):
+        runner = FakeRunner(dict(BUSY, terminal_id="remote/t1", inspection_complete=True))
+        self.assertEqual(self.run_close(runner, expected_terminal="remote/t1"), "prompted")
+        self.assertEqual(runner.calls[-1][1]["env"][cc.ENV_TERMINAL_ID], "remote/t1")
+
+    def test_app_idle_close_pins_inspected_terminal(self):
+        runner = FakeRunner(dict(IDLE, terminal_id="t1", inspection_complete=True))
+        self.assertEqual(self.run_close(runner), "closed")
+        self.assertEqual(runner.calls[-1], ("pane.close", {"pane_id": "w1:p1", "terminal_id": "t1"}))
+
+    def test_app_unknown_inspection_never_auto_closes(self):
+        runner = FakeRunner(dict(IDLE, terminal_id="t1", inspection_complete=False))
+        self.assertEqual(self.run_close(runner), "prompted")
+        self.assertNotIn("pane.close", [m for m, _ in runner.calls])
+        self.assertEqual(runner.calls[-1][1]["env"][cc.ENV_TERMINAL_ID], "t1")
+        self.assertEqual(runner.calls[-1][1]["env"][cc.ENV_PROCESS], cc.UNKNOWN_PROCESS)
+
+    def test_changed_terminal_after_selection_cancels_before_mutating(self):
+        runner = FakeRunner(dict(IDLE, terminal_id="t2", inspection_complete=True))
+        with self.assertRaises(cc.CliError):
+            self.run_close(runner, expected_terminal="t1")
+        self.assertEqual([m for m, _ in runner.calls], ["pane.process_info"])
+
+    def test_inspection_error_popup_keeps_selected_terminal(self):
+        runner = FakeRunner(info_error=RuntimeError("offline"))
+        self.assertEqual(self.run_close(runner, expected_terminal="remote/t1"), "prompted")
+        self.assertEqual(runner.calls[-1][1]["env"][cc.ENV_TERMINAL_ID], "remote/t1")
+
     def test_busy_opens_popup(self):
         runner = FakeRunner(BUSY)
         self.assertEqual(self.run_close(runner), "prompted")

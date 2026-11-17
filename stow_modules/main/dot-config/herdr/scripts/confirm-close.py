@@ -37,6 +37,7 @@ UPSTREAM_PLUGIN_ID = "asumaran.asconfirmclose"
 PROMPT_ENTRYPOINT = "confirm"
 
 ENV_PANE_ID = "ASCONFIRMCLOSE_PANE_ID"
+ENV_TERMINAL_ID = "ASCONFIRMCLOSE_TERMINAL_ID"
 ENV_PROCESS = "ASCONFIRMCLOSE_PROCESS"
 ENV_CMDLINE = "ASCONFIRMCLOSE_CMDLINE"
 ENV_TITLE = "ASCONFIRMCLOSE_TITLE"
@@ -333,6 +334,61 @@ class HerdrRunner:
             except Exception:
                 pass
         return self.cli(*cli_args)
+
+
+def local_json_request(path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """One local IPC request. No subprocess, remote script, or adapter import."""
+    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    client.settimeout(10.0)
+    try:
+        client.connect(path)
+        client.sendall((json.dumps(payload) + "\n").encode())
+        data = bytearray()
+        while b"\n" not in data:
+            chunk = client.recv(65536)
+            if not chunk:
+                raise RuntimeError("Local close controller received no complete reply; do not retry blindly")
+            data.extend(chunk)
+            if len(data) > 8 * 1024 * 1024:
+                raise RuntimeError("Local close controller reply is too large")
+    finally:
+        client.close()
+    reply = json.loads(data.split(b"\n", 1)[0])
+    if not isinstance(reply, dict):
+        raise RuntimeError("Invalid local close controller reply")
+    if reply.get("error"):
+        raise RuntimeError(str(reply["error"]))
+    return reply
+
+
+def local_app_close(pane_id: str, terminal_id: str) -> None:
+    """Close a captured local/remote terminal from the window machine only.
+
+    The dialog must be launched by the local core. Its own terminal socket
+    identifies that core; a qualified target is routed by the core connection,
+    never by executing confirm-close.py/hc-preset on the target machine.
+    Native pane cleanup and the sidebar observer handle successor focus.
+    """
+    if not pane_id or not terminal_id:
+        raise CliError("missing_target", "A local confirmation requires both captured pane and terminal IDs")
+    app_home = os.environ.get("HERDR_APP_HOME") or os.path.expanduser("~/.config/herdr-app")
+    view = local_json_request(os.path.join(app_home, "herdr-app.sock"), {"ls": True})
+    pane = next((p for space in view.get("spaces", []) for tab in space.get("tabs", [])
+                 for p in tab.get("terminals", []) if p.get("pane") == pane_id), None)
+    if pane is not None:
+        if pane.get("terminal") != terminal_id:
+            raise CliError("pane_changed", "The confirmed pane's terminal changed; close cancelled")
+    elif pane_id != terminal_id:
+        raise CliError("pane_not_found", "The confirmed pane no longer exists; close cancelled")
+    core_socket = os.environ.get("HC_TERMINAL_SOCKET")
+    if not core_socket:
+        raise CliError("local_core_required", "Open this confirmation through the local Herdr window")
+    # JSON-RPC to the dialog's LOCAL core. Keep remote addresses qualified.
+    reply = local_json_request(core_socket, {
+        "jsonrpc": "2.0", "id": 1, "method": "terminal.kill", "params": {"terminal": terminal_id},
+    })
+    if "result" not in reply:
+        raise RuntimeError("No acknowledged close result; inspect state before retrying")
 
 
 def process_display_name(entry: dict[str, Any]) -> str:
@@ -759,7 +815,8 @@ def focus_agent_pane(runner: HerdrRunner, pane_id: str) -> None:
             pass
 
 
-def close_pane(runner: HerdrRunner, pane_id: str, focus_next_agent: bool = True) -> None:
+def close_pane(runner: HerdrRunner, pane_id: str, focus_next_agent: bool = True,
+               expected_terminal: str = "") -> None:
     next_target = next_agent_to_focus(runner, pane_id) if focus_next_agent else None
     if next_target:
         # Focus the next agent BEFORE closing `pane_id`. If `pane.close` ran
@@ -771,8 +828,13 @@ def close_pane(runner: HerdrRunner, pane_id: str, focus_next_agent: bool = True)
         # first means `pane.close` closes `pane_id`'s tab in the background
         # while the client is already on `next_target`.
         focus_agent_pane(runner, next_target)
+    params = {"pane_id": pane_id}
+    cli_args = ["pane", "close", pane_id]
+    if expected_terminal:
+        params["terminal_id"] = expected_terminal
+        cli_args = ["rpc", "pane.close", json.dumps(params)]
     try:
-        runner.call("pane.close", {"pane_id": pane_id}, ["pane", "close", pane_id])
+        runner.call("pane.close", params, cli_args)
     except Exception:
         if next_target:
             focus_agent_pane(runner, pane_id)
@@ -814,11 +876,14 @@ def open_confirm_popup(
     cfg: Config,
     pane_id: str,
     verdict: Verdict,
+    expected_terminal: str = "",
 ) -> None:
     env: dict[str, str] = {
         ENV_PANE_ID: pane_id,
         ENV_PROCESS: verdict.process,
     }
+    if expected_terminal:
+        env[ENV_TERMINAL_ID] = expected_terminal
     if verdict.cmdline:
         env[ENV_CMDLINE] = verdict.cmdline
     if verdict.title:
@@ -835,6 +900,8 @@ def open_confirm_popup(
         "--env", f"{ENV_PANE_ID}={pane_id}",
         "--env", f"{ENV_PROCESS}={verdict.process}",
     ]
+    if expected_terminal:
+        cli_args.extend(["--env", f"{ENV_TERMINAL_ID}={expected_terminal}"])
     if verdict.cmdline:
         cli_args.extend(["--env", f"{ENV_CMDLINE}={verdict.cmdline}"])
     if verdict.title:
@@ -862,6 +929,7 @@ def run_close(
     pane_id: str = "",
     forward_vim: bool = False,
     log: Any = sys.stderr,
+    expected_terminal: str = "",
 ) -> str:
     if not pane_id:
         pane_id = current_pane_id(runner)
@@ -878,6 +946,16 @@ def run_close(
         print(f"process-info failed ({exc}); asking before closing", file=log)
         verdict = Verdict(busy=True, process=UNKNOWN_PROCESS)
     else:
+        inspected_terminal = info.get("terminal_id")
+        if inspected_terminal:
+            if expected_terminal and expected_terminal != inspected_terminal:
+                raise CliError("pane_changed", "The selected terminal changed; close cancelled")
+            expected_terminal = inspected_terminal
+        if info.get("inspection_complete") is False:
+            verdict = Verdict(busy=True, process=UNKNOWN_PROCESS)
+            verdict.title = fetch_agent_title(runner, pane_id)
+            open_confirm_popup(runner, cfg, pane_id, verdict, expected_terminal=expected_terminal)
+            return "prompted"
         if forward_vim and is_vim_process(info):
             send_keys(runner, pane_id, ["ctrl+space", "backspace"])
             return "forwarded"
@@ -885,7 +963,7 @@ def run_close(
         verdict = classify(info, cfg.ignore_set())
 
     if not verdict.busy:
-        close_pane(runner, pane_id, focus_next_agent=has_process)
+        close_pane(runner, pane_id, focus_next_agent=has_process, expected_terminal=expected_terminal)
         print(f"closed idle pane {pane_id}", file=log)
         return "closed"
 
@@ -893,7 +971,7 @@ def run_close(
     # is about to be killed; its session title does. Best-effort only: a
     # failed lookup must never block or break the confirmation.
     verdict.title = fetch_agent_title(runner, pane_id)
-    open_confirm_popup(runner, cfg, pane_id, verdict)
+    open_confirm_popup(runner, cfg, pane_id, verdict, expected_terminal=expected_terminal)
     print(f"pane {pane_id} is running {verdict.process}; opened confirmation", file=log)
     return "prompted"
 
@@ -1176,7 +1254,9 @@ def usage() -> None:
   close [--pane ID] [--forward-vim]
           inspect the focused pane and close it, or open the confirmation
           popup when a process is running in it
-  prompt  the confirmation popup (reads {ENV_PANE_ID}, {ENV_PROCESS}, {ENV_CMDLINE}, {ENV_TITLE})
+  prompt [--local-app]
+          the confirmation popup (reads {ENV_PANE_ID}, {ENV_TERMINAL_ID}, {ENV_PROCESS}, {ENV_CMDLINE}, {ENV_TITLE})
+          --local-app uses only local window/core IPC, never an adapter or remote script
 
 flags:
   -version, --version   print the version and exit""",
@@ -1223,14 +1303,15 @@ def main(argv: list[str] | None = None) -> int:
         if not pane_id:
             pane_id = os.environ.get("HERDR_ACTIVE_PANE_ID") or os.environ.get("HERDR_PANE_ID") or ""
         try:
-            run_close(runner, cfg, pane_id=pane_id, forward_vim=forward_vim, log=sys.stderr)
+            run_close(runner, cfg, pane_id=pane_id, forward_vim=forward_vim, log=sys.stderr,
+                      expected_terminal=os.environ.get(ENV_TERMINAL_ID) or os.environ.get("HERDR_ACTIVE_TERMINAL_ID", ""))
             return 0
         except Exception as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
 
     if cmd == "prompt":
-        if rest:
+        if rest not in ([], ["--local-app"]):
             usage()
             return 2
         pane_id = os.environ.get(ENV_PANE_ID, "")
@@ -1240,7 +1321,11 @@ def main(argv: list[str] | None = None) -> int:
         process = os.environ.get(ENV_PROCESS) or UNKNOWN_PROCESS
         cmdline = os.environ.get(ENV_CMDLINE, "")
         title = os.environ.get(ENV_TITLE, "")
-        return run_prompt(pane_id, process, cmdline, lambda: close_pane(runner, pane_id), title=title)
+        terminal_id = os.environ.get(ENV_TERMINAL_ID, "")
+        local_mode = bool(rest) or os.environ.get("HC_PRESET_BACKEND", "").strip().lower() == "hc"
+        close_fn = (lambda: local_app_close(pane_id, terminal_id)) if local_mode else (
+            lambda: close_pane(runner, pane_id, expected_terminal=terminal_id))
+        return run_prompt(pane_id, process, cmdline, close_fn, title=title)
 
     usage()
     return 2

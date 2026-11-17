@@ -152,6 +152,7 @@ for (const [name, className] of [['prefix', 'Prefix'], ['spaces-reconnect', 'Spa
   const customHome = '/tmp/custom app home';
   const context = vm.createContext({ View: class {}, console,
     appHome: () => customHome, home: () => '/tmp/home', closeOverlay() {},
+    panes: () => [{ pane: 'remote/p1', terminal: 'remote/t1' }],
     hc: args => { calls.push(args); return Promise.resolve({ code: 1 }); },
   });
   vm.runInContext(modSource + '\nthis.confirm = openConfirmClosePopup;' + (name === 'prefix' ? '\nthis.buildEnv = buildEnv;' : ''), context);
@@ -162,6 +163,7 @@ for (const [name, className] of [['prefix', 'Prefix'], ['spaces-reconnect', 'Spa
   const command = calls[0].at(-1);
   assert.ok(command.includes(`HERDR_APP_HOME=${JSON.stringify(customHome)}`));
   assert.ok(command.includes('ASCONFIRMCLOSE_PANE_ID="remote/p1"'));
+  assert.ok(command.includes('prompt --local-app'), 'close controller uses local window/core IPC, not hc-preset');
   assert.equal(calls[0].includes('--on'), false, 'confirmation runs locally, keeping qualified target IDs');
   if (name === 'prefix') {
     assert.ok(context.buildEnv({ pane: 'remote/p1', terminal: 'remote/t1', machine: 'remote' }).includes('HERDR_APP_HOME='));

@@ -31,7 +31,7 @@ if ($mode eq "smart" || $mode eq "vim") {
   my $is_vim = ($base =~ /^(?:n?vim|vi)$/i) || (!$is_shell && $ti && $ti =~ /^(?:n?vim):/i);
   if (!$is_vim) {
     exit 2 if $mode eq "vim";
-    if (!$base || $is_shell || ($fpid && $spid && $fpid == $spid)) {
+    if ($is_shell) {
       exit 3;
     }
     print "$base\\n";
@@ -83,10 +83,13 @@ function isVimPane(p, termObj = null) {
 }
 
 const CTRL_HEX = { h: "08", j: "0a", k: "0b", l: "0c" };
+const pendingClosePopups = new Set();
 
 function openConfirmClosePopup(p, procName) {
-  const paneId = p?.pane || p?.terminal || "";
-  if (!paneId) return;
+  const paneId = p?.pane || "";
+  const target = (panes() ?? []).find((x) => x.pane === paneId && x.terminal === p?.terminal);
+  if (!paneId || !target?.terminal || pendingClosePopups.has(paneId)) return;
+  pendingClosePopups.add(paneId);
   const proc = procName || p?.app || p?.program?.key || p?.program?.name || "process";
   const rawTitle = (p?.title ?? "").replace(/^[^\x00-\x7f]+\s*/, "").trim();
   const title = rawTitle && rawTitle.toLowerCase() !== proc.toLowerCase() ? rawTitle : "";
@@ -94,15 +97,22 @@ function openConfirmClosePopup(p, procName) {
     `HC_PRESET_BACKEND="hc"`,
     `HERDR_APP_HOME=${JSON.stringify(appHome())}`,
     `ASCONFIRMCLOSE_PANE_ID=${JSON.stringify(paneId)}`,
+    `ASCONFIRMCLOSE_TERMINAL_ID=${JSON.stringify(target.terminal)}`,
     `ASCONFIRMCLOSE_PROCESS=${JSON.stringify(proc)}`,
     ...(title ? [`ASCONFIRMCLOSE_TITLE=${JSON.stringify(title)}`] : []),
   ].join(" ");
-  const cmd = `export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" ${env}; python3 ~/.config/herdr/scripts/confirm-close.py prompt`;
+  const cmd = `export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" ${env}; python3 ~/.config/herdr/scripts/confirm-close.py prompt --local-app`;
   hc(["run", "--bg", "--rm", "--no-notify", "--json", "--cwd", home(), "--", "sh", "-c", cmd])
     .then((r) => {
       if (r.code !== 0) return;
       const data = JSON.parse(r.stdout || "{}");
       if (!data.address) return;
+      const f = focused() ?? {};
+      if (!(panes() ?? []).some((x) => x.pane === paneId && x.terminal === target.terminal)
+          || (f.pane && f.pane !== paneId) || (!f.pane && f.terminal && f.terminal !== target.terminal)) {
+        hc(["kill", data.address]).catch(() => {});
+        return;
+      }
       openOverlay({
         kind: "dialog",
         width: 580,
@@ -113,7 +123,8 @@ function openConfirmClosePopup(p, procName) {
         },
       });
     })
-    .catch(() => {});
+    .catch(() => {})
+    .finally(() => pendingClosePopups.delete(paneId));
 }
 
 function smartTabNav(dir) {
@@ -289,15 +300,15 @@ function activePaneContext() {
   const tabId = tb?.id ?? f.tab ?? "";
   const allPanes = panes() ?? [];
   const tabPanes = tabId ? panesInTab(allPanes, tabId, sp) : allPanes;
-  const lastPane = typeof shared === "function" ? shared("focusHistory")?.journal?.at?.(-1) : null;
-  const resolved = resolveFocusedPane(allSpaces, allPanes, f);
-  const p =
-    resolved?.pane ??
-    (lastPane ? tabPanes.find((x) => canonicalPaneKey(x, allSpaces, sp) === lastPane || x.pane === lastPane) : null) ??
-    tabPanes[0] ??
-    allPanes[0] ??
-    null;
-  const termAddr = p?.terminal ?? f.terminal ?? null;
+  // Do not guess from the first pane or focus history when a popup/block
+  // has the keyboard. Such guesses can terminate an unrelated agent.
+  const p = f.pane
+    ? (f.terminal ? allPanes.find((x) => (x.pane === f.pane || qualifyPaneId(x.pane, sp?.machine ?? null) === f.pane) && x.terminal === f.terminal) ?? null : null) ??
+      tabPanes.find((x) => x.pane === f.pane || qualifyPaneId(x.pane, sp?.machine ?? null) === f.pane) ??
+      allPanes.find((x) => x.pane === f.pane) ??
+      null
+    : (!f.terminal ? tabPanes.find((x) => x.focused) ?? null : null);
+  const termAddr = f.shown ?? p?.terminal ?? f.terminal ?? null;
   const termObj = termAddr ? ((terminals() ?? []).find((x) => x.address === termAddr) ?? null) : null;
   return { f, sp, tb, tabId, tabPanes, p, termAddr, termObj };
 }
@@ -363,6 +374,10 @@ function smartClose() {
     return;
   }
   if (!p || !termAddr) return;
+  if (p.terminal !== termAddr) {
+    notify({ title: "Close cancelled: this pane is showing another terminal", level: "warning", timeout: 3000 });
+    return;
+  }
   if (p.status) {
     openConfirmClosePopup(p, p.app || p.program?.key || p.program?.name || "agent");
     return;
@@ -373,7 +388,11 @@ function smartClose() {
   sendRawHex(termAddr, "007f", termObj, "smart").then((r) => {
     if (r.code === 0) return; // was vim, <c-space><bs> already sent
     if (r.code === 3) {
-      run("pane.close", { pane: p.pane });
+      if ((panes() ?? []).some((x) => x.pane === p.pane && x.terminal === termAddr)) {
+        hc(["kill", termAddr]).then((result) => {
+          if (result.code !== 0) notify({ title: "Could not close terminal", body: result.stderr || result.stdout, level: "error" });
+        }).catch((err) => notify({ title: "Could not close terminal", body: String(err), level: "error" }));
+      }
       return;
     }
     const procName = (r.stdout || "").trim() || p.program?.name || "process";

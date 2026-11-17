@@ -308,6 +308,7 @@ class ErrorTests(unittest.TestCase):
             return None
 
         with patch.object(adapter, "herdr_app_rpc", return_value=None), \
+                patch.object(adapter, "herdr_app_socket_path", return_value=None), \
                 patch.object(adapter, "hc_rpc", side_effect=fake_hc_rpc):
             world = adapter.HcWorld()
             self.assertEqual(world.workspaces[0]["label"], "src")

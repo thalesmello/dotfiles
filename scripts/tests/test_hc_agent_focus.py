@@ -103,6 +103,7 @@ class AgentFocusTests(unittest.TestCase):
                 self.assert_native_focus(terminal)
 
     def test_remote_source_layout_and_cli_rpc_close_are_exact_in_both_orders(self):
+        self.core_rpc.return_value = {"result": {"type": "ok"}}
         for reverse in (False, True):
             if reverse:
                 self.world.panes.reverse()
@@ -114,15 +115,12 @@ class AgentFocusTests(unittest.TestCase):
                     self.assertEqual(reply["result"]["layout"]["tab_id"], "devserver/tb2")
                     for args in (["pane", "close", target],
                                  ["rpc", "pane.close", json.dumps({"pane_id": target})]):
-                        self.native_rpc.reset_mock()
+                        self.core_rpc.reset_mock()
                         status, reply = self.dispatch(args)
                         self.assertEqual(status, 0)
                         self.assertEqual(reply["result"], {"type": "ok"})
-                        self.native_rpc.assert_called_once_with(
-                            "/tmp/mocked-agent-focus.sock",
-                            {"do": "pane.close", "args": {"pane": "devserver/p1"}}, timeout=5.0,
-                        )
-        self.core_rpc.assert_not_called()
+                        self.core_rpc.assert_called_once_with("terminal.kill", {"terminal": "devserver/t1"})
+        self.native_rpc.assert_not_called()
 
     def test_absent_qualified_source_never_aliases_local_pane_or_terminal(self):
         self.world.panes = self.world.panes[:1]
@@ -159,6 +157,76 @@ class AgentFocusTests(unittest.TestCase):
             self.assertEqual(build.call_args.kwargs["t_addr"], "devserver/t1")
             self.assertEqual(build.call_args.kwargs["p_id"], "devserver/t1")
 
+    def test_stale_caller_context_never_falls_back_to_focused_or_popup_terminal(self):
+        for source in ("gone", "devserver/p-gone", "devserver/t-gone"):
+            with self.subTest(source=source), patch.dict(os.environ, {
+                    "HERDR_ACTIVE_PANE_ID": source, "HC_TERMINAL_ID": "t1"}):
+                for args in (["pane", "close"], ["rpc", "pane.close", "{}"]):
+                    status, reply = self.dispatch(args)
+                    self.assertEqual(status, 1)
+                    self.assertIn("error", reply)
+        self.native_rpc.assert_not_called()
+        self.core_rpc.assert_not_called()
+
+    def test_stale_local_id_never_aliases_remote_terminal(self):
+        self.world.panes = self.world.panes[1:]
+        status, reply = self.dispatch(["pane", "close", "t1"])
+        self.assertEqual(status, 1)
+        self.assertIn("error", reply)
+        self.native_rpc.assert_not_called()
+
+    def test_confirmation_binds_both_pane_and_terminal(self):
+        status, reply = self.dispatch(["rpc", "pane.close", json.dumps({
+            "pane_id": "p1", "terminal_id": "devserver/t1"})])
+        self.assertEqual(status, 1)
+        self.assertEqual(reply["error"]["code"], "pane_changed")
+        self.native_rpc.assert_not_called()
+        self.core_rpc.assert_not_called()
+
+    def test_close_does_not_escalate_or_retry_an_uncertain_core_result(self):
+        for reply in (None, {"error": {"message": "offline"}}):
+            self.core_rpc.reset_mock()
+            self.core_rpc.return_value = reply
+            with self.assertRaises(adapter.AdapterError):
+                self.dispatch(["rpc", "pane.close", '{"pane_id":"p1","terminal_id":"t1"}'])
+            self.core_rpc.assert_called_once_with("terminal.kill", {"terminal": "t1"})
+        self.native_rpc.assert_not_called()
+
+    def test_window_with_unavailable_status_never_enables_legacy_aliases(self):
+        self.world.app_status = {}
+        self.world.panes = self.world.panes[:1]
+        for target in ("devserver/p1", "devserver/t1"):
+            status, reply = self.dispatch(["rpc", "pane.close", json.dumps({"pane_id": target})])
+            self.assertEqual(status, 1)
+            self.assertEqual(reply["error"]["code"], "pane_not_found")
+        self.native_rpc.assert_not_called()
+        self.assertTrue(all(call.args[0] == "terminal.get" for call in self.core_rpc.call_args_list))
+
+    def test_close_stays_on_captured_terminal_after_focus_moves_remote(self):
+        self.world.focused_pane_id = "devserver/p1"
+        self.world.app_status["focused_pane"] = "devserver/p1"
+        self.core_rpc.return_value = {"result": {"type": "ok"}}
+        status, reply = self.dispatch(["rpc", "pane.close", '{"pane_id":"p1","terminal_id":"t1"}'])
+        self.assertEqual(status, 0)
+        self.core_rpc.assert_called_once_with("terminal.kill", {"terminal": "t1"})
+        self.native_rpc.assert_not_called()
+
+    def test_exec_replaced_shell_uses_live_foreground_not_launch_argv(self):
+        close_spec = importlib.util.spec_from_file_location("exec_close_classifier",
+            PATH.parent.parent / "stow_modules/main/dot-config/herdr/scripts/confirm-close.py")
+        close = importlib.util.module_from_spec(close_spec)
+        close_spec.loader.exec_module(close)
+        for name in ("pi", "less", "fish"):
+            info = adapter.inspect_process_info({
+                "pane_id": "p1", "terminal_id": "t1", "pid": 5, "argv": ["fish"],
+                "foreground": {"pid": 5, "name": name, "argv": [name]},
+            })
+            self.assertTrue(info["inspection_complete"])
+            self.assertEqual([p["name"] for p in info["foreground_processes"]], [name])
+            self.assertEqual(close.classify(info).busy, name != "fish")
+        self.core_rpc.assert_not_called()
+        self.native_rpc.assert_not_called()
+
     def test_current_target_preserves_resolver_default(self):
         status, reply = self.dispatch(["agent", "focus"])
         self.assertEqual(status, 0)
@@ -191,7 +259,7 @@ class AgentFocusTests(unittest.TestCase):
         self.world.panes[1]["machine"] = "devserver"
         with tempfile.TemporaryDirectory(prefix="custom app home ") as app_home, \
                 patch.dict(os.environ, {"HERDR_APP_HOME": app_home, "HERDR_ACTIVE_PANE_ID": "devserver/p1"}), \
-                patch.object(adapter, "resolve_plugin_entrypoint_command", return_value="/bin/true"), \
+                patch.object(adapter, "resolve_plugin_entrypoint_command", side_effect=AssertionError("confirmation must not resolve a target entrypoint")), \
                 patch.object(self.world, "hydrate_pane", side_effect=lambda p: p), \
                 patch.object(adapter, "hc_bin", return_value="/bin/hc"), \
                 patch.object(adapter, "save_json_file"), \
@@ -203,6 +271,18 @@ class AgentFocusTests(unittest.TestCase):
             self.assertNotIn("--on", args)
             self.assertIn("HERDR_APP_HOME=" + adapter.shlex.quote(app_home), args[-1])
             self.assertIn("ASCONFIRMCLOSE_PANE_ID=devserver/p1", args[-1])
+            self.assertIn("ASCONFIRMCLOSE_TERMINAL_ID=devserver/t1", args[-1])
+            self.assertIn("prompt --local-app", args[-1])
+            self.assertNotIn("HC_TERMINAL_ID=", args[-1])
+
+    def test_confirmation_refuses_to_launch_on_headless_target_machine(self):
+        self.app_socket.return_value = None
+        with patch.object(adapter.subprocess, "run", side_effect=AssertionError("must not start a remote confirmation")):
+            status, reply = self.dispatch(["popup-open", "confirm-close", "confirm", "64", "9"])
+        self.assertEqual(status, 1)
+        self.assertEqual(reply["error"]["code"], "local_window_required")
+        self.native_rpc.assert_not_called()
+        self.core_rpc.assert_not_called()
 
     def test_window_missing_reply_or_native_error_does_not_silently_succeed(self):
         for reply in (None, {"error": "no such agent"}):
