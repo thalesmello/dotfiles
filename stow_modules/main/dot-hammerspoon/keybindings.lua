@@ -295,9 +295,6 @@ function M.setup()
 
   -- Command palette
   default:bindOnce(hyperShift, ";", "Command Palette", showCommandPalette)
-  -- Shared focus timer. Work-machine local bindings applied below override
-  -- this chord only to route distracting windows to their auto-hide timer.
-  require("focusTimer").setup({default = default, hyperShift = hyperShift})
 
   ---------------------------------------------------------------
   -- Palette-only commands
@@ -801,6 +798,10 @@ function M.setup()
   default:bindEnter(hyper, "space", "Enter Service Mode", service)
   default:bindEnter(hyperShift, "i", "Enter Invoke Mode", invoke)
   default:bindEnter(hyper, "'", "Enter Chrome Mode", chrome)
+
+  -- Register after Service's entry chord exists so its palette shortcut has
+  -- the same key as the work-machine override applied below.
+  require("focusTimer").setup({default = default, hyperShift = hyperShift, service = service, hyper = hyper})
 
   -- Karabiner Mouse Layer
   default:bindOnce({}, "F18", "Enter Second Mouse Layer", function() task({"karabiner-preset", "enable-layer", "mouse-second-layer"}) end)

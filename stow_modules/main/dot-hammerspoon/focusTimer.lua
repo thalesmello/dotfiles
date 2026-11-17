@@ -3,8 +3,22 @@
 -- meta-dotfiles overrides the shortcut in distracting windows when enabled.
 -- No ticking HUD: only a short selection toast and 1.2s of fireworks at the end.
 local Preset = require("preset")
+local TimerReadout = require("timerReadout")
 local util = require("util")
 local M = {}
+local startListeners = {}
+
+-- Local extensions can coordinate another timer without making this shared
+-- module depend on work-specific rules. Notify before starting/restoring focus.
+function M.onStart(callback)
+  assert(type(callback) == "function")
+  startListeners[callback] = true
+  return function() startListeners[callback] = nil end
+end
+
+local function notifyStart()
+  for callback in pairs(startListeners) do callback() end
+end
 
 local SETTINGS_KEY = "focus_timer.session"
 local INCREMENTS = {
@@ -139,13 +153,37 @@ function M.cycle()
     Preset.displayMessage("Focus timer off", 0.5)
     return
   end
+  notifyStart()
   st.deadline = hs.timer.secondsSinceEpoch() + increment.seconds
   save()
   armTimer()
   Preset.displayMessage("Focus timer: " .. increment.label, 0.5)
 end
 
+-- Treat an elapsed deadline whose completion callback is still queued as active
+-- until that callback clears it, so another alarm cannot start in that gap.
+function M.isActive()
+  return st.deadline ~= nil
+end
+
+function M.remaining()
+  if not M.isActive() then return nil end
+  return math.max(0, st.deadline - hs.timer.secondsSinceEpoch())
+end
+
+function M.remainingMessage()
+  local remaining = M.remaining()
+  if remaining == nil then return "No timer running" end
+  local seconds = math.ceil(remaining)
+  return string.format("Focus timer: %d:%02d remaining", math.floor(seconds / 60), seconds % 60)
+end
+
+function M.showRemaining()
+  TimerReadout.show(M.remainingMessage, 3)
+end
+
 function M.setup(ctx)
+  TimerReadout.clear()
   stopTimer()
   clearFireworks()
   local saved = hs.settings.get(SETTINGS_KEY)
@@ -153,6 +191,7 @@ function M.setup(ctx)
   if type(saved) == "table" then
     local index, deadline = tonumber(saved.index), tonumber(saved.deadline)
     if index and INCREMENTS[index] and deadline and deadline > 0 and deadline < math.huge then
+      notifyStart()
       st.index, st.deadline = index, deadline
       armTimer()
     end
@@ -168,6 +207,9 @@ function M.setup(ctx)
       end
       M.cycle()
     end)
+    if ctx.service then
+      ctx.service:bindOnce(ctx.hyper, "t", "Timer: Time Remaining", M.showRemaining)
+    end
   end
 end
 

@@ -4,6 +4,7 @@ local modulePath = root .. "/stow_modules/main/dot-hammerspoon/focusTimer.lua"
 local now, settings, timers, canvases, messages, logs
 local failCanvasSetup, failCanvasDraw
 local focusedWindow
+local liveReadout
 local screens = {
   {x = 0, y = 0, w = 1920, h = 1080},
   {x = -2560, y = -300, w = 2560, h = 1440},
@@ -13,6 +14,7 @@ local function reset()
   now, settings, timers, canvases, messages, logs = 1000, {}, {}, {}, {}, {}
   failCanvasSetup, failCanvasDraw = false, false
   focusedWindow = nil
+  liveReadout = nil
   _G._FocusTimerState = nil
 end
 
@@ -86,6 +88,16 @@ _G.hs = {
     end,
   },
 }
+package.preload["timerReadout"] = function()
+  return {
+    show = function(reader, duration)
+      assert(duration == 3)
+      liveReadout = reader
+      messages[#messages + 1] = reader()
+    end,
+    clear = function() liveReadout = nil end,
+  }
+end
 package.preload["preset"] = function() return {displayMessage = function(msg) messages[#messages + 1] = msg end} end
 package.preload["util"] = function() return {log = function(msg) logs[#logs + 1] = msg end} end
 
@@ -198,14 +210,24 @@ assert(not _G._FocusTimerState.animationTimer)
 -- Main-stow default hotkey works without loading ANY meta-dotfiles module.
 reset()
 M = dofile(modulePath)
-local shortcut, modifiers = nil, {"ctrl", "alt", "cmd", "shift"}
+local shortcut, showRemaining, modifiers = nil, nil, {"ctrl", "alt", "cmd", "shift"}
+local hyper = {"ctrl", "alt", "cmd"}
 M.setup({
   default = {bindOnce = function(_, mods, key, name, fn)
     assert(mods == modifiers and key == "t" and name == "Focus: Cycle Timer")
     shortcut = fn
   end},
   hyperShift = modifiers,
+  hyper = hyper,
+  service = {bindOnce = function(_, mods, key, name, fn)
+    assert(mods == hyper and key == "t" and name == "Timer: Time Remaining")
+    showRemaining = fn
+  end},
 })
+assert(showRemaining, "shared setup must register Service > hyper+t")
+showRemaining()
+assert(messages[#messages] == "No timer running" and not M.isActive())
+assert(M.remaining() == nil)
 assert(shortcut, "shared setup must register the default shortcut")
 shortcut()
 assert(messages[#messages] == "No focused window")
@@ -216,5 +238,75 @@ assert(messages[#messages] == "Focus timer: 2min")
 assert(_G._FocusTimerState.deadline == now + 120)
 shortcut()
 assert(messages[#messages] == "Focus timer: 25min")
+local deadline = _G._FocusTimerState.deadline
+advance(25.2)
+showRemaining()
+assert(messages[#messages] == "Focus timer: 24:35 remaining")
+assert(M.isActive() and M.remaining() > 0)
+assert(_G._FocusTimerState.deadline == deadline, "readout must not change the deadline")
+advance(1)
+assert(liveReadout() == "Focus timer: 24:34 remaining", "readout must be a live provider, not a snapshot")
+assert(_G._FocusTimerState.deadline == deadline)
+
+-- Coordination hooks fire before a new focus session and on restoration, but
+-- never on Off; extensions can unsubscribe across their own repeated setup.
+reset()
+M = dofile(modulePath)
+M.setup()
+local starts = 0
+local stopListening = M.onStart(function()
+  starts = starts + 1
+  if starts == 1 then assert(not M.isActive(), "notify before activating focus") end
+end)
+M.cycle()
+assert(starts == 1)
+M.setup()
+assert(starts == 2, "restoring focus should notify existing extensions")
+M.cycle()
+M.cycle()
+assert(starts == 4)
+M.cycle() -- off
+assert(starts == 4 and not M.isActive())
+stopListening()
+M.cycle()
+assert(starts == 4, "unsubscribed extensions must not be called")
+
+-- Real Mode/palette integration: local Service status replaces the shared
+-- command under the SAME fully-resolved chord, rather than leaving a '?' entry.
+reset()
+local choices, selected
+hs.hotkey = {bind = function() return {} end}
+hs.chooser = {new = function(callback)
+  selected = callback
+  return {choices = function(_, value) choices = value end, show = function() end}
+end}
+local palette = dofile(root .. "/stow_modules/main/dot-hammerspoon/palette.lua")
+package.loaded["palette"] = palette
+local Mode = dofile(root .. "/stow_modules/main/dot-hammerspoon/mode.lua").Mode
+local default = setmetatable({_prefix = ""}, Mode)
+local service = setmetatable({_name = "Service"}, Mode)
+default:bindEnter(hyper, "space", "Enter Service Mode", service)
+M = dofile(modulePath)
+M.setup({default = default, hyperShift = modifiers, hyper = hyper, service = service})
+service:bindOnce(hyper, "t", "Timer: Time Remaining", function()
+  messages[#messages + 1] = "Anti-distraction timer: 1:30 remaining"
+end)
+palette.showCommandPalette()
+local statusChoice, statusCount = nil, 0
+for _, choice in ipairs(choices) do
+  if choice.text:find("Timer: Time Remaining", 1, true) then
+    statusChoice, statusCount = choice, statusCount + 1
+    assert(choice.text:find("✦space [Service] > ✦t", 1, true))
+    assert(not choice.text:find("?", 1, true))
+  end
+end
+assert(statusCount == 1, "main/local status must occupy one palette entry")
+selected(statusChoice)
+assert(messages[#messages] == "Anti-distraction timer: 1:30 remaining")
+local file = assert(io.open(root .. "/stow_modules/main/dot-hammerspoon/keybindings.lua", "r"))
+local bindingsSource = file:read("*a"); file:close()
+local enter = assert(bindingsSource:find('default:bindEnter(hyper, "space", "Enter Service Mode", service)', 1, true))
+local setup = assert(bindingsSource:find('require("focusTimer").setup', 1, true))
+assert(setup > enter, "main setup must follow Service entry-chord registration")
 
 print("ALL FOCUS TIMER TESTS PASSED!")

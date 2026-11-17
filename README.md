@@ -64,14 +64,21 @@ The main Hammerspoon config binds **hyper+shift+t** to a manual focus timer:
 **2min → 25min → 5min → off**. Each selection starts the chosen duration from
 now. The timer runs across window/app switches and Hammerspoon restarts, with
 no countdown display; completion shows about 1.2 seconds of fireworks on every
-monitor without changing focus or minimizing windows.
+monitor without changing focus or minimizing windows. **Service → hyper+t**
+shows a live countdown for 3 seconds (or “No timer running”), updated in
+place with a fade during the final second, without restarting the timer or
+extending the message.
 
 Implementation: `stow_modules/main/dot-hammerspoon/focusTimer.lua`.
-Run its tests from this repo with `lua tests/focus_timer_test.lua`.
+Run its tests from this repo with `lua tests/focus_timer_test.lua` and
+`lua tests/timer_readout_test.lua`.
 
 Work machines can override shortcut routing in `meta-dotfiles`: distracting
 windows use the auto-hide alarm when enabled; other windows (or all windows
-when auto-hiding is disabled) use this shared focus timer.
+when auto-hiding is disabled) use this shared focus timer. Starting focus cancels
+any auto-hide session. While focus is running, it owns the shortcut in every
+window and suppresses auto-hiding; Service → hyper+t reports whichever timer
+is active.
 
 ## macOS settings
 

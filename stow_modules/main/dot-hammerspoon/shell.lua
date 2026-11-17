@@ -88,6 +88,8 @@ function M.task(args, callback)
 
   _RunningTasks[t] = true
   t:start()
+  -- Callers with cancellable background work can retain and terminate it.
+  return t
 end
 
 M.taskAsync = a.wrap(M.task)
