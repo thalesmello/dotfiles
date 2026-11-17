@@ -1,6 +1,6 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, ScrollHandle } from "gpui-base";
-import { spaces, panes, run, openOverlay, theme, window, shared, layout, settings, nextCommand, checking } from "herdr";
+import { spaces, panes, run, openOverlay, theme, window, shared, setShared, layout, settings, nextCommand, checking } from "herdr";
 import { smartClose, smartPaneNav, smartTabNav, openNewTabPrompt, smartScroll } from "./shortcuts.js";
 import { FocusHistoryController } from "./focus-history.js";
 
@@ -11,6 +11,18 @@ function find(node, id) {
     if (found) return found;
   }
   return null;
+}
+
+// Match the sidebar button: collapse to the rail, then restore its previous width.
+function toggleSidebarSize() {
+  const sidebar = find(layout(), "sidebar");
+  if (!sidebar) return;
+  const width = sidebar.size?.px ?? 268;
+  const collapsed = width < 160;
+  if (!collapsed) setShared("sidebar.width", width);
+  setShared("sidebar.collapsed", !collapsed);
+  run("layout.resize", { id: "sidebar", px: collapsed ? (shared("sidebar.width") ?? 268) : window()?.platform === "macos" ? 76 : 44 });
+  if (sidebar.hidden) run("layout.show", { id: "sidebar" });
 }
 
 // Same as the agents mod: drops a status glyph, keeps a leading bracket or quote.
@@ -55,6 +67,7 @@ export default class Tabs extends View {
         else if (cmd === "tab_new") openNewTabPrompt();
         else if (cmd === "scroll_top") smartScroll("top");
         else if (cmd === "scroll_bottom") smartScroll("bottom");
+        else if (cmd === "sidebar_size_toggle") toggleSidebarSize();
       }
     });
   }

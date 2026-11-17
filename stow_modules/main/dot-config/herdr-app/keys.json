@@ -62,6 +62,7 @@
     "cmd-/": "app.help",
     "cmd-shift-/": "app.help",
     "cmd-b": "layout.toggle:sidebar",
+    "cmd-shift-b": "tabs-shortcuts.sidebar_size_toggle",
     "ctrl-alt-b": "layout.toggle:sidebar",
     "cmd-ctrl-b": "layout.toggle:sidebar",
     "cmd-=": "app.zoom_in",
