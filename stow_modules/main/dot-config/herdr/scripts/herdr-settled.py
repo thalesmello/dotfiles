@@ -16,7 +16,7 @@ This script is the missing archive, in three parts:
            settled, automatically. While panes are live, tick also remembers
            their titles, so a settled entry keeps the name it had on screen.
 
-  picker   (prefix+alt+s, a popup) Every section in one list -- Pinned,
+  picker   (prefix+alt+shift+s in herdr-app) Every section in one list -- Pinned,
            Blocked, Working, Done, Active, Snoozed (all live), then Settled.
            Selecting a settled row previews its last few messages read from
            the TAIL of its transcript: no agent is started and no recap is
@@ -28,6 +28,10 @@ This script is the missing archive, in three parts:
            for the recorded conversation -- the same trick as
            `herdr-preset resume-agent`, ported below because resume-agent
            resolves by live pane and a settled session has none.
+
+Herdr-app prefix+alt+s uses picker --all-machines: only settled sessions from
+connected Cores, with Tab switching the machine filter. Archives and transcript
+previews remain on their owning machine; this combined view never syncs them.
 
 State: one JSON file per herdr session under the plugin state dir,
 {"settled": {<conversation>: {...}}, "seen": {<conversation>: {...}}}.
@@ -1215,6 +1219,9 @@ class Picker:
             lines.append(DIM + "/" + self.query + RESET)
         return (lines + [""] * height)[:height]
 
+    def header_lines(self, _term):
+        return []
+
     def draw(self, term):
         # Layout, fixed on every frame: header at the top, list (left) +
         # cheatsheet sidebar (right) in the middle, the last-messages
@@ -1228,7 +1235,7 @@ class Picker:
         left_w = term.cols - sidebar_w
         width = max(20, left_w - 4)
         height = max(6, term.rows - self.PREVIEW_LINES - 1)  # +1: the status bar
-        header = []  # no in-content heading: the popup itself is named Agent Sessions (see name_self)
+        header = self.header_lines(term)  # machine-local picker keeps its original empty heading
         row = self.rows[self.selected] if self.rows else None
         preview = []
         if self.confirm:
@@ -1420,8 +1427,13 @@ def run_picker():
 def _picker_loop(picker, term):
     if True:
         while True:
+            refresh = getattr(picker, "refresh_background", None)
+            if refresh:
+                refresh()
+            if getattr(picker, "completed_restore", False):
+                break
             picker.draw(term)
-            name, raw = term.key(timeout=0.03 if picker.filter_pending() else None)
+            name, raw = term.key(timeout=0.03 if picker.filter_pending() else getattr(picker, "key_timeout", None))
             if name is None:
                 picker.poll_filter()
                 continue
@@ -1432,7 +1444,9 @@ def _picker_loop(picker, term):
                     picker.confirm_settle()
                 continue
             if picker.searching:
-                if name in ("esc", "eof"):
+                if name in ("tab", "shift-tab") and hasattr(picker, "machine_choices"):
+                    picker.cycle_filter(-1 if name == "shift-tab" else 1)
+                elif name in ("esc", "eof"):
                     picker.query = ""
                     picker.searching = False
                     picker.request_filter("search")
@@ -1538,8 +1552,11 @@ def handoff_snooze():
 
 USAGE = """usage: herdr-settled.py <command>
   tick                          capture closed sessions into the registry (hooks run this)
-  picker                        the popup: every section, live + settled
-  open                          open the picker as a named plugin popup (prefix+alt+s runs this)
+  picker                        machine-local popup: every section, live + settled
+  picker --all-machines         connected-machine settled-only popup; Tab cycles machines
+  export-json                   (Core) structured machine-local settled metadata
+  preview-json <conversation>   (Core) bounded machine-local transcript preview
+  open                          legacy named-plugin popup entrypoint
   list                          settled sessions, one per line
   reopen <conversation>         reopen a settled session in a new tab
   settle <pane_id>              settle a live agent: freeze it, then close its pane
@@ -1577,13 +1594,27 @@ def main(argv):
         if command == "list":
             # A failed snapshot is NOT proof of closure. Existing rows remain.
             tick()
+        if command == "export-json" and not args:
+            import settled_machines
+            print(json.dumps(settled_machines.export_local(sys.modules[__name__])))
+            return 0
+        if command == "preview-json" and len(args) == 1:
+            import settled_machines
+            print(json.dumps(settled_machines.preview_local(sys.modules[__name__], args[0])))
+            return 0
+        if command == "action-worker-json" and len(args) == 5:
+            import settled_machines
+            return settled_machines.action_worker(sys.modules[__name__], *args)
+        if command == "picker" and args == ["--all-machines"]:
+            import settled_picker
+            return settled_picker.run(sys.modules[__name__])
         if command in ("open", "handoff-snooze"):
             raise HerdrError("unsupported", "Core popup actions require the desktop popup mod; use picker")
     elif command in ("watch", "ensure-watch"):
         raise HerdrError("unsupported", "watch/ensure-watch require the Core backend")
     if command == "tick":
         return tick()
-    if command == "picker":
+    if command == "picker" and not args:
         return run_picker()
     if command == "open":
         return open_picker()

@@ -839,12 +839,23 @@ export default class Prefix extends View {
       runDetachedScript(overlayId, "~/.config/herdr/scripts/herdr-snooze.py toggle", ctx);
       return;
     }
-    if (ks === "alt-s" || (key === "s" && alt && !shift && !ctrl)) {
-      // The archive and transcripts belong to the focused terminal's machine.
-      // openTerminalPopup strips its qualified IDs and runs through hc --on.
+    if ((key === "s" && alt && shift && !ctrl) || ks === "alt-shift-s" || ks === "shift-alt-s") {
+      // The original picker runs only on the focused terminal's own machine.
       openTerminalPopup(overlayId, "python3 ~/.config/herdr/scripts/herdr-settled.py picker", ctx, {
         width: 920,
         height: 620,
+      });
+      return;
+    }
+    if (ks === "alt-s" || (key === "s" && alt && !shift && !ctrl)) {
+      // Coordinate through this desktop's Core so all of its connected machines
+      // are reachable, even when the underlying focused tab is remote.
+      openTerminalPopup(overlayId, "python3 ~/.config/herdr/scripts/herdr-settled.py picker --all-machines", ctx, {
+        width: 920,
+        height: 620,
+        local: true,
+        // Keep the picker terminal's Core identity for viewport-size queries.
+        env: { HC_TERMINAL_ID: "" },
       });
       return;
     }

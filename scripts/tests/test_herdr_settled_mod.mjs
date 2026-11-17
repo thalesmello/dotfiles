@@ -13,8 +13,8 @@ function load(name, klass, globals) {
   return context[klass];
 }
 
-// Prefix+Alt+S runs the picker on its originating machine, not the desktop.
-for (const machine of ['', 'devserver']) {
+// Alt+S coordinates on the desktop; Alt+Shift+S preserves the originating machine.
+for (const machine of ['', 'devserver']) for (const localMode of [false, true]) {
   const launches = [], overlays = [];
   const Prefix = load('prefix', 'Prefix', {
     hc: async args => { launches.push(args); return { code: 0, stdout: '{"address":"picker"}' }; },
@@ -30,17 +30,21 @@ for (const machine of ['', 'devserver']) {
   prefix.mode = 'prefix';
   prefix.init({}, { focus_handle: () => ({ focus() {} }), timer: { after() {} }, spawn: fn => fn({}) });
   assert.equal(prefix.ctx.machine, machine, 'capture the focused space machine when prefix opens');
-  prefix.onKey({ keystroke: 'alt-s', key: 's', modifiers: { alt: true } }, { stop_propagation() {} });
+  prefix.onKey({ keystroke: localMode ? 'alt-shift-s' : 'alt-s', key: 's', modifiers: { alt: true, shift: localMode } }, { stop_propagation() {} });
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(launches.length, 1);
   const args = launches[0];
-  assert.equal(args.includes('--on'), Boolean(machine));
-  if (machine) assert.equal(args[args.indexOf('--on') + 1], machine);
-  assert.equal(args[args.indexOf('--cwd') + 1], prefix.ctx.cwd);
+  const remote = Boolean(machine && localMode);
+  assert.equal(args.includes('--on'), remote);
+  if (remote) assert.equal(args[args.indexOf('--on') + 1], machine);
+  assert.equal(args[args.indexOf('--cwd') + 1], machine && !localMode ? '/Users/local' : prefix.ctx.cwd);
   assert.match(args.at(-1), /herdr-settled.py picker/);
+  assert.equal(args.at(-1).includes('--all-machines'), !localMode);
   assert.match(args.at(-1), /HC_PRESET_BACKEND="hc"/);
-  assert.match(args.at(-1), /HERDR_ACTIVE_TERMINAL_ID="t1"/);
-  assert.match(args.at(-1), /HERDR_ACTIVE_PANE_ID="p1"/);
+  assert.equal(/\bHC_TERMINAL_ID=/.test(args.at(-1)), localMode, 'combined picker must retain its own Core terminal identity');
+  const expectedPrefix = machine && !localMode ? 'devserver/' : '';
+  assert.ok(args.at(-1).includes(`HERDR_ACTIVE_TERMINAL_ID="${expectedPrefix}t1"`));
+  assert.ok(args.at(-1).includes(`HERDR_ACTIVE_PANE_ID="${expectedPrefix}p1"`));
   assert.equal(overlays[0].layout.children[0].content.terminal, 'picker');
 }
 
