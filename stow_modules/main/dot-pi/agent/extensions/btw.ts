@@ -1,7 +1,7 @@
 import type { UserMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { BorderedLoader, DynamicBorder, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
-import { Container, Markdown, matchesKey, Text } from "@earendil-works/pi-tui";
+import { BorderedLoader } from "@earendil-works/pi-coding-agent";
+import { showSideChannelAnswer } from "./lib/side-channel-panel.ts";
 
 const SYSTEM_PROMPT = `You are /btw, a private side-channel helper inside a Pi session.
 Answer the user's question about the supplied prompt snapshot without changing or continuing the main conversation.
@@ -154,7 +154,8 @@ async function askBtw(question: string, ctx: ExtensionCommandContext, signal: Ab
 			{ signal },
 		);
 
-		if (response.stopReason === "aborted") return null;
+		if (signal.aborted || response.stopReason === "aborted") return null;
+		if (response.stopReason === "error") return { error: response.errorMessage || "Model request failed" };
 
 		const answer = response.content
 			.filter((part): part is { type: "text"; text: string } => part.type === "text")
@@ -167,32 +168,6 @@ async function askBtw(question: string, ctx: ExtensionCommandContext, signal: Ab
 		if (signal.aborted) return null;
 		return { error: error instanceof Error ? error.message : String(error) };
 	}
-}
-
-async function showAnswer(question: string, answer: string, ctx: ExtensionCommandContext): Promise<void> {
-	await ctx.ui.custom((_tui, theme, _kb, done) => {
-		const container = new Container();
-		const border = new DynamicBorder((s: string) => theme.fg("accent", s));
-		const mdTheme = getMarkdownTheme();
-		const title = theme.fg("accent", theme.bold("/btw"));
-		const body = [`**Q:** ${question}`, "", answer].join("\n");
-
-		container.addChild(border);
-		container.addChild(new Text(title, 1, 0));
-		container.addChild(new Markdown(body, 1, 1, mdTheme));
-		container.addChild(new Text(theme.fg("dim", "Press Enter or Esc to close"), 1, 0));
-		container.addChild(border);
-
-		return {
-			render: (width: number) => container.render(width),
-			invalidate: () => container.invalidate(),
-			handleInput: (data: string) => {
-				if (matchesKey(data, "enter") || matchesKey(data, "escape")) {
-					done(undefined);
-				}
-			},
-		};
-	});
 }
 
 export default function btw(pi: ExtensionAPI) {
@@ -238,7 +213,7 @@ export default function btw(pi: ExtensionAPI) {
 				return;
 			}
 
-			await showAnswer(question, result.answer, ctx);
+			await showSideChannelAnswer("/btw", `**Q:** ${question}`, result.answer, ctx);
 		},
 	});
 }

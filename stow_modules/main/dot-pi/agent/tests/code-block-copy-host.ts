@@ -180,6 +180,7 @@ export class FakeAltScreen {
 	clipboard: string[] = [];
 	flashes: string[] = [];
 	renderRequests = 0;
+	mouseEvents: Array<{ button: number; x: number; y: number; release?: boolean }> = [];
 
 	setTranscript(lines: string[]): void {
 		this.previousScreen = [...lines];
@@ -317,6 +318,16 @@ export class FakeAltScreen {
 	}
 
 	stopSelectionAutoScroll(): void {}
+
+	/** Dispatch wheel input separately from selection, as the real fullscreen TUI does. */
+	handleMouseEvent(event: { button: number; x: number; y: number; release?: boolean }): void {
+		this.mouseEvents.push(event);
+		if ((event.button & 64) !== 0) {
+			this.scrollView.scrollTop += (event.button & 1) !== 0 ? 1 : -1;
+			return;
+		}
+		this.handleSelectionMouseEvent(event);
+	}
 
 	/** Simplified built-in: press anchors, drag extends, release copies on select. */
 	handleSelectionMouseEvent(event: { button: number; x: number; y: number; release?: boolean }): void {

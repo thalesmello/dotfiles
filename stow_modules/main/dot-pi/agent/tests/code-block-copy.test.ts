@@ -244,6 +244,58 @@ describe("code-block-copy extension", () => {
 		expect(notifications.at(-1)?.message).toContain("active");
 	});
 
+	test("wheel input cannot recurse when reload leaves a wrapper around an old mouse patch", async () => {
+		const prototype: any = FakeAltScreen.prototype;
+		const stale = prototype.handleMouseEvent;
+		await emit("session_shutdown");
+		const base = prototype.handleMouseEvent;
+		// A later extension restores a wrapper that captured our previous patch
+		// after our shutdown marked the mouse patch uninstalled.
+		prototype.handleMouseEvent = function (event: any) { stale.call(this, event); };
+		try {
+			await emit("session_start");
+			const screen = new FakeAltScreen();
+			const up = { button: 64, x: 2, y: 2 };
+			const down = { button: 65, x: 2, y: 2 };
+			expect(() => screen.handleMouseEvent(up)).not.toThrow();
+			expect(() => screen.handleMouseEvent(down)).not.toThrow();
+			expect(screen.mouseEvents).toEqual([up, down]);
+			expect(screen.scrollView.scrollTop).toBe(0);
+		} finally {
+			await emit("session_shutdown");
+			prototype.handleMouseEvent = base;
+			await emit("session_start");
+		}
+	});
+
+	test("selection and copy-button clicks survive stale wrappers after reload", async () => {
+		const prototype: any = FakeAltScreen.prototype;
+		const keys = ["getActiveSelectionText", "applySelection", "handleSelectionMouseEvent", "handleMouseEvent"];
+		const stale = Object.fromEntries(keys.map((key) => [key, prototype[key]]));
+		await emit("session_shutdown");
+		const base = Object.fromEntries(keys.map((key) => [key, prototype[key]]));
+		for (const key of keys) prototype[key] = function (...args: any[]) { return stale[key].apply(this, args); };
+		try {
+			await emit("session_start");
+			const selected = new FakeAltScreen();
+			selected.setTranscript(["alpha", "beta"]);
+			selected.setSelection({ row: 0, col: 0 }, { row: 1, col: 3 });
+			expect(selected.getActiveSelectionText()).toBe("alpha\nbeta");
+			expect(selected.applySelection(["alpha", "beta"])[0]).toContain("\x1b[7m");
+			const screen = new FakeAltScreen();
+			const lines = renderTranscript();
+			screen.setTranscript(lines);
+			const col = strip(lines[4]).indexOf("Copy");
+			screen.handleMouseEvent({ button: 0, x: col, y: 4 });
+			screen.handleMouseEvent({ button: 3, x: col, y: 4, release: true });
+			expect(screen.clipboard).toEqual([CODE]);
+		} finally {
+			await emit("session_shutdown");
+			for (const key of keys) prototype[key] = base[key];
+			await emit("session_start");
+		}
+	});
+
 	test("clicking code (not the button) copies nothing", () => {
 		const screen = new FakeAltScreen();
 		screen.setTranscript(renderTranscript());

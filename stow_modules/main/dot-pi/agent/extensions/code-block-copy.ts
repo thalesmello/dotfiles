@@ -65,18 +65,13 @@
  *   selection covers before delegating to the previous implementation.
  *
  * Patch state lives on `globalThis` under a Symbol (the osc8-links.ts
- * pattern), so a /reload or a session replacement never wraps a method
- * twice, and shutdown only restores a method when this patch is still the
- * outermost one (selection-manager.ts may sit on top of the selection
- * methods; its own shutdown restore then puts this patch back). One
- * consequence of that layering: after a /reload the prototype can be
- * left pointing at the *previous* module incarnation's patched
- * functions (restored by the outer wrapper's shutdown after this
- * extension's own shutdown had already run). Install therefore checks
- * for that case -- our stored patch sitting outermost but not identical
- * to this incarnation's function -- and swaps in the fresh function, so
- * a reload actually picks up new code instead of silently keeping the
- * old behaviour.
+ * pattern). Fullscreen mouse/selection wrappers capture their predecessor
+ * per function, rather than reading a mutable global orig* pointer.
+ * Shutdown makes those wrappers inert even when another extension sits
+ * on top, and only restores methods that are still outermost. A stale
+ * wrapper restored after /reload therefore delegates safely instead of
+ * recursively calling itself through the updated global state.
+ * Markdown patches retain their guarded outer-wrapper integration.
  *
  * Clicking requires fullscreen mode (`tuiMode: "fullscreen"`), where pi
  * owns the mouse. In regular mode the terminal owns mouse and selection,
@@ -783,9 +778,8 @@ function patchedRender(this: MarkdownInternals, width: number): string[] {
 // Alt-screen patches: click to copy, and a button that is not selectable
 // ---------------------------------------------------------------------------
 
-function patchedGetSelectionText(this: AltScreenInternals): string | undefined {
-	const state = getPatchState();
-	const text = state.origGetSelectionText!.call(this);
+function patchedGetSelectionText(this: AltScreenInternals, original: GetSelectionTextFn): string | undefined {
+	const text = original.call(this);
 	if (text === undefined || !hasButtonLabel(text)) return text;
 	// Button lines are not text the user can select: drop them wholesale.
 	// Match on the visible label alone here: pi's column slicing can drop
@@ -894,8 +888,7 @@ function showCopiedButtons(screen: string[]): string[] {
 	return changed ? result : screen;
 }
 
-function patchedApplySelection(this: AltScreenInternals, screen: string[], layout?: unknown): string[] {
-	const state = getPatchState();
+function patchedApplySelection(this: AltScreenInternals, original: ApplySelectionFn, screen: string[], layout?: unknown): string[] {
 	let processed = screen;
 	try {
 		processed = showCopiedButtons(processed);
@@ -907,7 +900,7 @@ function patchedApplySelection(this: AltScreenInternals, screen: string[], layou
 	} catch {
 		// Keep whatever showCopiedButtons produced.
 	}
-	return state.origApplySelection!.call(this, processed, layout);
+	return original.call(this, processed, layout);
 }
 
 function tryHandleCopyButtonRelease(internals: AltScreenInternals, event: RawMouseEvent): boolean {
@@ -949,19 +942,16 @@ function tryHandleCopyButtonRelease(internals: AltScreenInternals, event: RawMou
 	return false;
 }
 
-function patchedHandleMouseEvent(this: AltScreenInternals, event: RawMouseEvent): void {
-	const state = getPatchState();
+function patchedHandleMouseEvent(this: AltScreenInternals, original: HandleSelectionMouseFn, event: RawMouseEvent): void {
 	// Intercept a release on a tagged code-block copy button before
 	// TuiAltScreen.handleMouseEvent dispatches `release` to layout components
 	// (such as open-tui's Markdown.handleMouse, which would otherwise consume
 	// the release before handleSelectionMouseEvent runs).
 	if (tryHandleCopyButtonRelease(this, event)) return;
-	state.origHandleMouseEvent!.call(this, event);
+	original.call(this, event);
 }
 
-function patchedHandleSelectionMouse(this: AltScreenInternals, event: RawMouseEvent): void {
-	const state = getPatchState();
-	const original = state.origHandleSelectionMouse!;
+function patchedHandleSelectionMouse(this: AltScreenInternals, original: HandleSelectionMouseFn, event: RawMouseEvent): void {
 	if (tryHandleCopyButtonRelease(this, event)) return;
 	original.call(this, event);
 }
@@ -969,6 +959,43 @@ function patchedHandleSelectionMouse(this: AltScreenInternals, event: RawMouseEv
 // ---------------------------------------------------------------------------
 // Install / restore
 // ---------------------------------------------------------------------------
+
+interface ChainedPatch<Fn> {
+	__inactive?: boolean;
+	__prev?: Fn;
+}
+
+function unwrapInactivePatch<Fn>(fn: Fn | undefined): Fn | undefined {
+	let current = fn as (Fn & ChainedPatch<Fn>) | undefined;
+	const seen = new Set<Fn>();
+	while (current?.__inactive && current.__prev && !seen.has(current)) {
+		seen.add(current);
+		current = current.__prev as Fn & ChainedPatch<Fn>;
+	}
+	return current;
+}
+
+function patchDelegate<Fn>(patch: Fn | undefined, fallback: Fn | undefined): Fn {
+	return unwrapInactivePatch((patch as ChainedPatch<Fn> | undefined)?.__prev ?? fallback)!;
+}
+
+/** Capture a predecessor per wrapper. Never delegate through mutable global orig* fields. */
+function createAltScreenPatch<Args extends unknown[], Result>(
+	original: (this: AltScreenInternals, ...args: Args) => Result,
+	handler: (this: AltScreenInternals, delegate: typeof original, ...args: Args) => Result,
+): typeof original & ChainedPatch<typeof original> {
+	const delegate = unwrapInactivePatch(original)!;
+	const patch = function (this: AltScreenInternals, ...args: Args): Result {
+		if (patch.__inactive) return delegate.apply(this, args);
+		return handler.call(this, delegate, ...args);
+	} as typeof original & ChainedPatch<typeof original>;
+	patch.__prev = delegate;
+	return patch;
+}
+
+function deactivatePatch<Fn>(patch: Fn | undefined): void {
+	if (patch) (patch as ChainedPatch<Fn>).__inactive = true;
+}
 
 interface MarkdownPrototypeLike {
 	renderToken?: RenderTokenFn;
@@ -991,6 +1018,7 @@ function replaceStalePatch<T>(
 	store: (fn: T | undefined) => void,
 ): void {
 	if (current !== undefined && stored !== undefined && current === stored && stored !== fresh) {
+		if ((stored as ChainedPatch<T>).__prev) deactivatePatch(stored);
 		apply(fresh);
 		store(fresh);
 	}
@@ -1062,15 +1090,17 @@ function installCodeBlockCopy(): { markdown: boolean; altScreen: boolean } {
 	let altScreen = state.selectionTextInstalled && state.applySelectionInstalled && state.clickInstalled;
 	const prototype = TuiAltScreen.prototype as unknown as AltScreenPrototypeLike;
 	if (!state.selectionTextInstalled && typeof prototype.getActiveSelectionText === "function") {
-		state.origGetSelectionText = prototype.getActiveSelectionText;
-		state.patchedGetSelectionText = patchedGetSelectionText as GetSelectionTextFn;
+		// Preserve legacy orig* roots for old module incarnations still buried
+		// under another extension; new wrappers use their own captured delegate.
+		state.origGetSelectionText ??= prototype.getActiveSelectionText;
+		state.patchedGetSelectionText = createAltScreenPatch(prototype.getActiveSelectionText, patchedGetSelectionText);
 		prototype.getActiveSelectionText = state.patchedGetSelectionText;
 		state.selectionTextInstalled = true;
 	} else if (state.selectionTextInstalled) {
 		replaceStalePatch(
 			prototype.getActiveSelectionText,
 			state.patchedGetSelectionText,
-			patchedGetSelectionText as GetSelectionTextFn,
+			createAltScreenPatch(patchDelegate(state.patchedGetSelectionText, state.origGetSelectionText), patchedGetSelectionText),
 			(fn) => {
 				prototype.getActiveSelectionText = fn;
 			},
@@ -1080,15 +1110,15 @@ function installCodeBlockCopy(): { markdown: boolean; altScreen: boolean } {
 		);
 	}
 	if (!state.applySelectionInstalled && typeof prototype.applySelection === "function") {
-		state.origApplySelection = prototype.applySelection;
-		state.patchedApplySelection = patchedApplySelection as ApplySelectionFn;
+		state.origApplySelection ??= prototype.applySelection;
+		state.patchedApplySelection = createAltScreenPatch(prototype.applySelection, patchedApplySelection);
 		prototype.applySelection = state.patchedApplySelection;
 		state.applySelectionInstalled = true;
 	} else if (state.applySelectionInstalled) {
 		replaceStalePatch(
 			prototype.applySelection,
 			state.patchedApplySelection,
-			patchedApplySelection as ApplySelectionFn,
+			createAltScreenPatch(patchDelegate(state.patchedApplySelection, state.origApplySelection), patchedApplySelection),
 			(fn) => {
 				prototype.applySelection = fn;
 			},
@@ -1098,15 +1128,15 @@ function installCodeBlockCopy(): { markdown: boolean; altScreen: boolean } {
 		);
 	}
 	if (!state.clickInstalled && typeof prototype.handleSelectionMouseEvent === "function") {
-		state.origHandleSelectionMouse = prototype.handleSelectionMouseEvent;
-		state.patchedHandleSelectionMouse = patchedHandleSelectionMouse as HandleSelectionMouseFn;
+		state.origHandleSelectionMouse ??= prototype.handleSelectionMouseEvent;
+		state.patchedHandleSelectionMouse = createAltScreenPatch(prototype.handleSelectionMouseEvent, patchedHandleSelectionMouse);
 		prototype.handleSelectionMouseEvent = state.patchedHandleSelectionMouse;
 		state.clickInstalled = true;
 	} else if (state.clickInstalled) {
 		replaceStalePatch(
 			prototype.handleSelectionMouseEvent,
 			state.patchedHandleSelectionMouse,
-			patchedHandleSelectionMouse as HandleSelectionMouseFn,
+			createAltScreenPatch(patchDelegate(state.patchedHandleSelectionMouse, state.origHandleSelectionMouse), patchedHandleSelectionMouse),
 			(fn) => {
 				prototype.handleSelectionMouseEvent = fn;
 			},
@@ -1116,15 +1146,15 @@ function installCodeBlockCopy(): { markdown: boolean; altScreen: boolean } {
 		);
 	}
 	if (!state.mouseEventInstalled && typeof prototype.handleMouseEvent === "function") {
-		state.origHandleMouseEvent = prototype.handleMouseEvent;
-		state.patchedHandleMouseEvent = patchedHandleMouseEvent as HandleSelectionMouseFn;
+		state.origHandleMouseEvent ??= prototype.handleMouseEvent;
+		state.patchedHandleMouseEvent = createAltScreenPatch(prototype.handleMouseEvent, patchedHandleMouseEvent);
 		prototype.handleMouseEvent = state.patchedHandleMouseEvent;
 		state.mouseEventInstalled = true;
 	} else if (state.mouseEventInstalled) {
 		replaceStalePatch(
 			prototype.handleMouseEvent,
 			state.patchedHandleMouseEvent,
-			patchedHandleMouseEvent as HandleSelectionMouseFn,
+			createAltScreenPatch(patchDelegate(state.patchedHandleMouseEvent, state.origHandleMouseEvent), patchedHandleMouseEvent),
 			(fn) => {
 				prototype.handleMouseEvent = fn;
 			},
@@ -1162,10 +1192,8 @@ function uninstallCodeBlockCopy(): void {
 	const state = getPatchState();
 	clearCopiedFeedback(state);
 
-	// Only restore a method when this patch is still the outermost one.
-	// If another extension (selection-manager) wrapped ours after we
-	// installed, its own shutdown restore puts our patch back, and our
-	// installed flags correctly stay set for the next session.
+	// Markdown keeps its guarded outer-wrapper integration. Fullscreen
+	// mouse/selection wrappers below are deactivated even when buried.
 	const markdownPrototype = Markdown.prototype as unknown as MarkdownPrototypeLike;
 	if (state.markdownInstalled && markdownPrototype.renderToken === state.patchedRenderToken) {
 		markdownPrototype.renderToken = state.wrappedRenderToken ?? state.origRenderToken;
@@ -1178,22 +1206,28 @@ function uninstallCodeBlockCopy(): void {
 		state.wrappedRender = undefined;
 	}
 	const altPrototype = TuiAltScreen.prototype as unknown as AltScreenPrototypeLike;
+	// A buried wrapper can be restored by another extension after our shutdown.
+	// Make it inert even when it is not outermost; its immutable delegate stays safe.
+	deactivatePatch(state.patchedGetSelectionText);
+	deactivatePatch(state.patchedApplySelection);
+	deactivatePatch(state.patchedHandleSelectionMouse);
+	deactivatePatch(state.patchedHandleMouseEvent);
 	if (state.selectionTextInstalled && altPrototype.getActiveSelectionText === state.patchedGetSelectionText) {
-		altPrototype.getActiveSelectionText = state.origGetSelectionText;
-		state.selectionTextInstalled = false;
+		altPrototype.getActiveSelectionText = patchDelegate(state.patchedGetSelectionText, state.origGetSelectionText);
 	}
 	if (state.applySelectionInstalled && altPrototype.applySelection === state.patchedApplySelection) {
-		altPrototype.applySelection = state.origApplySelection;
-		state.applySelectionInstalled = false;
+		altPrototype.applySelection = patchDelegate(state.patchedApplySelection, state.origApplySelection);
 	}
 	if (state.clickInstalled && altPrototype.handleSelectionMouseEvent === state.patchedHandleSelectionMouse) {
-		altPrototype.handleSelectionMouseEvent = state.origHandleSelectionMouse;
-		state.clickInstalled = false;
+		altPrototype.handleSelectionMouseEvent = patchDelegate(state.patchedHandleSelectionMouse, state.origHandleSelectionMouse);
 	}
 	if (state.mouseEventInstalled && altPrototype.handleMouseEvent === state.patchedHandleMouseEvent) {
-		altPrototype.handleMouseEvent = state.origHandleMouseEvent;
-		state.mouseEventInstalled = false;
+		altPrototype.handleMouseEvent = patchDelegate(state.patchedHandleMouseEvent, state.origHandleMouseEvent);
 	}
+	state.selectionTextInstalled = false;
+	state.applySelectionInstalled = false;
+	state.clickInstalled = false;
+	state.mouseEventInstalled = false;
 }
 
 function isInstalled(): boolean {
