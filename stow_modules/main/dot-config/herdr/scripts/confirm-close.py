@@ -635,6 +635,51 @@ def pick_next_agent(
     return remaining[min(target_idx, len(remaining) - 1)]["pane_id"]
 
 
+def app_agent_order(runner: HerdrRunner) -> list[str] | None:
+    """The window's published sidebar order, never the TUI's ranking/state.
+
+    Popup helpers run on the window's machine, even for a remote pane. Keep
+    terminal addresses qualified so local t1 and remote/t1 remain distinct.
+    None means a legacy runner; [] means an app with no usable order yet.
+    """
+    if runner.socket_path or (runner.bin_path and os.path.basename(runner.bin_path) == "herdr"):
+        return None
+    app_home = os.environ.get("HERDR_APP_HOME") or os.path.expanduser("~/.config/herdr-app")
+    backend = (os.environ.get("HC_PRESET_BACKEND") or "").strip().lower()
+    if backend == "herdr":
+        return None
+    if backend != "hc" and not os.environ.get("HC_TERMINAL_ID") and not os.path.exists(os.path.join(app_home, "herdr-app.sock")):
+        return None
+    try:
+        with open(os.path.join(app_home, "shared.json"), encoding="utf-8") as handle:
+            state = json.load(handle)
+        order = state.get("agents.visibleOrder") if isinstance(state, dict) else None
+        if isinstance(order, list) and all(isinstance(address, str) for address in order):
+            return list(dict.fromkeys(order))
+    except (OSError, ValueError):
+        pass
+    return []
+
+
+def pick_app_next_agent(agents: list[dict[str, Any]], pane_id: str, order: list[str]) -> str | None:
+    """Pick a live successor from the app's order; at the end, use the previous.
+
+    Do not append agents absent from the sidebar (hidden/snoozed/nested), or
+    strip machine prefixes. Stale entries are skipped without re-ranking.
+    """
+    valid = [a for a in agents if isinstance(a, dict) and a.get("pane_id") and a.get("terminal_id")]
+    closing = next((a for a in valid if a["pane_id"] == pane_id or a["terminal_id"] == pane_id), None)
+    if not closing or any(a.get("focused") and a is not closing for a in valid):
+        return None
+    address = closing["terminal_id"]
+    if address not in order:
+        return None
+    index = order.index(address)
+    candidates = order[index + 1:] + list(reversed(order[:index]))
+    live = {a["terminal_id"]: a["pane_id"] for a in valid if a is not closing}
+    return next((live[target] for target in candidates if target in live), None)
+
+
 def next_agent_to_focus(runner: HerdrRunner, pane_id: str) -> str | None:
     """Return the next agent pane to focus when closing `pane_id`, or None.
 
@@ -664,6 +709,13 @@ def next_agent_to_focus(runner: HerdrRunner, pane_id: str) -> str | None:
     if not isinstance(agents, list):
         return None
 
+    order = app_agent_order(runner)
+    if order is not None:
+        # A missing layout cannot prove this was the tab's last pane. Leave
+        # focus alone rather than risk jumping away from a surviving sibling.
+        if not isinstance(layout, dict) or not isinstance(layout.get("panes"), list):
+            return None
+        return pick_app_next_agent(agents, pane_id, order)
     sdir = agent_handler_state_dir(runner.socket_path)
     mode = load_panel_mode(sdir)
     frozen = load_frozen_sorts(sdir)

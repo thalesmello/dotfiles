@@ -2,7 +2,7 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, window, layout, checking, appHome, home, readTextFile, watchFolder, exec, nextCommand } from "herdr";
+import { agents, terminals, panes, focused, spaces, machines, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, window, layout, checking, appHome, home, readTextFile, watchFolder, exec, nextCommand } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -89,9 +89,74 @@ export default class Agents extends View {
     return Boolean(a?.focused);
   }
 
+  static screenFocus(foc, list, previous = null) {
+    // A prefix/menu or its terminal popup is not a move to another screen.
+    // Keep the underlying model pane's frozen position until a real pane/tab
+    // changes. A model agent shown outside a pane still counts as a screen.
+    if (!foc || foc.pane || list.some(a => a.address === foc.terminal)) return foc;
+    if (previous && previous.space === foc.space && previous.tab === foc.tab) return previous;
+    // Recover the same context when this mod reloads with a popup open.
+    const underlying = !previous && list.find(a => a.address === foc.agent && a.tab === foc.tab);
+    if (underlying) return { ...foc, pane: underlying.pane, terminal: underlying.address };
+    return foc;
+  }
+
   static computeLiveRank(a, subStatuses = []) {
     if (subStatuses.some((s) => s === "blocked")) return RANK.blocked;
     return RANK[a?.status] ?? 0;
+  }
+
+  // Keep the pre-close order, including the focused row's frozen position.
+  // Walk forward first; at the end of the list, fall back to previous rows.
+  static closeCandidates(order, address) {
+    const index = order.indexOf(address);
+    return index < 0 ? [] : [...order.slice(index + 1), ...order.slice(0, index).reverse()];
+  }
+
+  machineReady(address) {
+    const slash = address.indexOf("/");
+    const machine = slash < 0 ? null : address.slice(0, slash);
+    return machines().some(m => (m.name ?? null) === machine && m.layout === "ready");
+  }
+
+  reconcileClosedAgentFocus(list, foc) {
+    if (checking()) return foc;
+    const previous = this.closeFocus;
+    if (!previous) return foc;
+    // An unavailable remote layout is not a close. Drop the snapshot so a
+    // later reconnect cannot unexpectedly steal focus either.
+    if (!this.machineReady(previous.address)) {
+      this.closeFocus = null;
+      return foc;
+    }
+    if (list.some(a => a.address === previous.address)) return foc;
+    const allPanes = panes();
+    // An agent can return to its shell or move panes without closing its tab.
+    if (allPanes.some(p => p.pane === previous.pane || p.terminal === previous.address)) return foc;
+    this.closeFocus = null; // one close -> one focus; never retry on later renders
+    if (allPanes.some(p => p.tab === previous.tab)) return foc;
+    const live = new Set(list.map(a => a.address));
+    const target = previous.candidates.find(address => live.has(address) && this.machineReady(address));
+    if (!target || foc?.terminal === target) return foc;
+    // Native agent.focus selects the target's space AND tab. pane.focus alone
+    // does not show another tab; qualified addresses work across machines.
+    run("agent.focus", { terminal: target });
+    return focused() ?? foc;
+  }
+
+  rememberCloseFocus(list, foc, order) {
+    if (checking()) return;
+    const agent = list.find(a => Agents.isAgentFocused(a, foc));
+    if (agent && order.includes(agent.address) && this.machineReady(agent.address)) {
+      this.closeFocus = {
+        address: agent.address, pane: agent.pane, tab: agent.tab,
+        candidates: Agents.closeCandidates(order, agent.address),
+      };
+    } else if (!this.closeFocus || foc?.pane !== this.closeFocus.pane) {
+      this.closeFocus = null;
+    }
+    // If the agent exited into its shell, retain its last sidebar position
+    // until that pane closes or the person explicitly focuses another pane.
   }
 
   init(_props, cx) {
@@ -365,8 +430,10 @@ export default class Agents extends View {
       this.snoozeSignature = signature;
       if (this.hasSnoozes() && !checking()) this.tickSnooze(cx);
     }
-    const foc = focused();
-    const shown = foc?.agent;
+    const rawFocus = this.reconcileClosedAgentFocus(list, focused());
+    const foc = Agents.screenFocus(rawFocus, list, this.agentScreenFocus);
+    this.agentScreenFocus = foc;
+    const shown = rawFocus?.agent;
     const now = Date.now();
     this.track(list, now);
     list = list.filter((a) => this.visibleAgent(a, now, foc));
@@ -406,6 +473,7 @@ export default class Agents extends View {
     setAgentOrder(list.map((a) => a.address));
     const addresses = list.map(a => a.address);
     if (JSON.stringify(shared("agents.visibleOrder")) !== JSON.stringify(addresses)) setShared("agents.visibleOrder", addresses);
+    this.rememberCloseFocus(list, foc, addresses);
 
     const withKids = (a, i) => {
       const subs = collapsed ? [] : this.tree(all, a.address);

@@ -5,7 +5,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, spaces, machines, panes, terminals, focused, run, openOverlay, notify, exec, hc, home, theme, shared, setShared, watchFolder, nextCommand, window, layout, checking } from "herdr";
+import { agents, spaces, machines, panes, terminals, focused, run, openOverlay, notify, exec, hc, home, appHome, theme, shared, setShared, watchFolder, nextCommand, window, layout, checking } from "herdr";
 
 const isChecking = () => typeof checking === "function" && Boolean(checking());
 
@@ -92,6 +92,7 @@ function openConfirmClosePopup(p, procName) {
   const title = rawTitle && rawTitle.toLowerCase() !== proc.toLowerCase() ? rawTitle : "";
   const env = [
     `HC_PRESET_BACKEND="hc"`,
+    `HERDR_APP_HOME=${JSON.stringify(appHome())}`,
     `ASCONFIRMCLOSE_PANE_ID=${JSON.stringify(paneId)}`,
     `ASCONFIRMCLOSE_PROCESS=${JSON.stringify(proc)}`,
     ...(title ? [`ASCONFIRMCLOSE_TITLE=${JSON.stringify(title)}`] : []),

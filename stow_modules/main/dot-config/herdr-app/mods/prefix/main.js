@@ -112,6 +112,7 @@ function openConfirmClosePopup(overlayId, p, procName) {
   const title = rawTitle && rawTitle.toLowerCase() !== proc.toLowerCase() ? rawTitle : "";
   const env = [
     `HC_PRESET_BACKEND="hc"`,
+    `HERDR_APP_HOME=${JSON.stringify(appHome())}`,
     `ASCONFIRMCLOSE_PANE_ID=${JSON.stringify(paneId)}`,
     `ASCONFIRMCLOSE_PROCESS=${JSON.stringify(proc)}`,
     ...(title ? [`ASCONFIRMCLOSE_TITLE=${JSON.stringify(title)}`] : []),
@@ -211,6 +212,7 @@ function buildEnv(ctx, extra = {}, opts = {}) {
   const spaceId = remote ? stripMachinePrefix(ctx.space, ctx.machine) : (ctx.space || "");
   const env = {
     HC_PRESET_BACKEND: "hc",
+    ...(!remote ? { HERDR_APP_HOME: appHome() } : {}),
     HERDR_ACTIVE_PANE_ID: paneId || termId || "",
     HERDR_ACTIVE_TERMINAL_ID: termId,
     HERDR_ACTIVE_TAB_ID: tabId,

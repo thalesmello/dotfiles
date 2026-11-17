@@ -471,6 +471,7 @@ def herdr_app_do(command: str, args: dict[str, Any] | None = None, timeout: floa
         "tab.close",
         "space.close",
         "pane.focus",
+        "agent.focus",
         "tab.select",
         "space.select",
     }:
@@ -920,6 +921,17 @@ class HcWorld:
 
     def resolve_pane(self, target: str | None = None, hydrate: bool = True) -> dict[str, Any] | None:
         found: dict[str, Any] | None = None
+        window_backed = bool(getattr(self, "app_status", {}))
+
+        def match(candidate: str) -> dict[str, Any] | None:
+            # Search every exact ID before considering legacy bare-ID aliases.
+            # In a window, a missing qualified ID must NEVER alias a local pane;
+            # retain aliases only for headless adapters running on that core.
+            exact = next((p for p in self.panes if candidate in (p["pane_id"], p["terminal_id"])), None)
+            if exact is not None or (window_backed and "/" in candidate):
+                return exact
+            return next((p for p in self.panes if self._pane_matches(p, candidate)), None)
+
         if not target or target == "--current":
             for candidate in (
                 os.environ.get("HERDR_ACTIVE_PANE_ID"),
@@ -928,10 +940,7 @@ class HcWorld:
                 self.focused_pane_id,
             ):
                 if candidate:
-                    for p in self.panes:
-                        if self._pane_matches(p, candidate):
-                            found = p
-                            break
+                    found = match(candidate)
                 if found:
                     break
             if not found:
@@ -942,10 +951,7 @@ class HcWorld:
             if not found and self.panes:
                 found = self.panes[0]
         else:
-            for p in self.panes:
-                if self._pane_matches(p, target):
-                    found = p
-                    break
+            found = match(target)
 
         if found:
             return self.hydrate_pane(found) if hydrate else found
@@ -958,6 +964,8 @@ class HcWorld:
         if t_resp and "result" in t_resp:
             t_obj = t_resp["result"]
             t_addr = t_obj.get("address") or target
+            if "/" in target and "/" not in t_addr:
+                t_addr = f"{target.split('/', 1)[0]}/{t_addr}"
             self.term_by_addr[t_addr] = t_obj
             labels = t_obj.get("labels") or {}
             return self._build_pane(
@@ -1124,12 +1132,27 @@ def is_model_pane_id(val: Any) -> bool:
     return bare.startswith("p") and len(bare) >= 2
 
 
+def focus_hc_agent(world: HcWorld, target: str | None) -> bool:
+    p = world.resolve_pane(target, hydrate=False)
+    if p is None:
+        return False
+    # Native agent.focus selects the terminal's space/tab as well as its pane.
+    herdr_app_do("agent.focus", {"terminal": p["terminal_id"]})
+    return True
+
+
 def handle_hc_rpc_compat(method: str, params: dict[str, Any]) -> dict[str, Any]:
     if method == "machine.connect":
         # Explicit retry after a human authenticates the --via transport.
         # This preserves the saved machine/remote core identity and terminals.
         return require_reply(hc_rpc(method, params, timeout=60), method)
     world = HcWorld(fetch_terminals=method in ("agent.list", "pane.list"))
+    if method == "agent.focus":
+        target = params.get("target") or params.get("pane_id") or params.get("terminal")
+        if not focus_hc_agent(world, target):
+            return {"id": "hc-preset", "error": {"code": "agent_not_found", "message": f"Target {target} not found"}}
+        return {"id": "hc-preset", "result": {"type": "ok"}}
+
     if method == "pane.focus":
         target = params.get("pane_id") or params.get("target")
         p = world.resolve_pane(target, hydrate=False)
@@ -2528,13 +2551,8 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             return print_json({"result": {"agent": p}})
         if sub == "focus":
             target = next((a for a in args if not a.startswith("-")), None)
-            p = world.resolve_pane(target, hydrate=False)
-            if not p:
+            if not focus_hc_agent(world, target):
                 return print_err("agent_not_found", f"Target {target} not found")
-            if is_model_pane_id(p["pane_id"]):
-                herdr_app_do("pane.focus", {"pane": p["pane_id"]})
-            else:
-                herdr_app_do("pane.focus", {"terminal": p["terminal_id"]})
             return print_json({"result": {"type": "ok"}})
         if sub == "read":
             return handle_hc_herdr_cli(["pane", "read"] + args)
@@ -2791,6 +2809,7 @@ def handle_popup_open(
         return 1
     export_keys = [
         "HC_PRESET_BACKEND",
+        "HERDR_APP_HOME",
         "HERDR_ACTIVE_PANE_ID",
         "HERDR_ACTIVE_TAB_ID",
         "HERDR_ACTIVE_WORKSPACE_ID",
