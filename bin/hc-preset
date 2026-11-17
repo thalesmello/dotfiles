@@ -2175,6 +2175,7 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             cwd: str | None = None
             focus = True
             env_vars: list[str] = []
+            launch_argv: list[str] | None = None
             i = 0
             while i < len(args):
                 a = args[i]
@@ -2193,6 +2194,18 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                 elif a == "--env" and i + 1 < len(args):
                     env_vars.append(args[i + 1])
                     i += 2
+                elif a == "--argv":
+                    if i + 1 >= len(args):
+                        return print_err("invalid_args", "--argv requires a JSON array of program arguments")
+                    try:
+                        launch_argv = json.loads(args[i + 1])
+                    except (ValueError, TypeError):
+                        return print_err("invalid_args", "--argv requires a JSON array of program arguments")
+                    if (not isinstance(launch_argv, list) or not launch_argv
+                            or not all(isinstance(arg, str) for arg in launch_argv)
+                            or not launch_argv[0]):
+                        return print_err("invalid_args", "--argv requires a non-empty array of strings")
+                    i += 2
                 elif a == "--pane" and i + 1 < len(args):
                     target = args[i + 1]
                     i += 2
@@ -2209,12 +2222,18 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                     i += 1
                 else:
                     i += 1
+            # pane.split's window API has no cwd/env overrides. Never send shell
+            # setup text into a directly launched program (especially an editor).
+            if launch_argv is not None and (cwd is not None or env_vars):
+                return print_err("invalid_args", "--argv cannot be combined with --cwd or --env")
             anchor = world.resolve_pane(target)
             if not anchor:
                 return print_err("pane_not_found", f"Anchor pane {target} not found")
             do_args: dict[str, Any] = {"direction": "down" if direction in ("down", "horizontal", "below") else "right"}
-            if str(anchor["pane_id"]).startswith("p"):
+            if is_model_pane_id(anchor["pane_id"]):
                 do_args["pane"] = anchor["pane_id"]
+            if launch_argv is not None:
+                do_args["argv"] = launch_argv
             res = herdr_app_do("pane.split", do_args)
             if not res:
                 # Headless / remote hc fallback: spawn terminal and split block in herdr-app doc
@@ -2226,7 +2245,7 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                         env_dict[k] = v
                 run_params = {
                     "cwd": target_cwd,
-                    "keep": True,
+                    "keep": launch_argv is None,
                     "no_parent": True,
                     "outlive_parent": True,
                     "labels": {
@@ -2236,6 +2255,8 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                 }
                 if env_dict:
                     run_params["env"] = env_dict
+                if launch_argv is not None:
+                    run_params["argv"] = launch_argv
                 run_resp = hc_rpc("terminal.run", run_params)
                 if not run_resp or "result" not in run_resp:
                     return print_err("pane_split_failed", "terminal.run failed")
@@ -2312,9 +2333,9 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
                     time.sleep(0.1)
             if not new_term_id:
                 new_term_id = new_pane_id
-            if ratio is not None and anchor.get("tab_id") and str(anchor["pane_id"]).startswith("p"):
+            if ratio is not None and anchor.get("tab_id") and is_model_pane_id(anchor["pane_id"]):
                 set_hc_split_ratio(anchor["tab_id"], anchor["pane_id"], ratio, machine=anchor.get("machine"))
-            if not focus and str(anchor["pane_id"]).startswith("p"):
+            if not focus and is_model_pane_id(anchor["pane_id"]):
                 herdr_app_do("pane.focus", {"pane": anchor["pane_id"]})
             # If cwd or env_vars were requested and differ from anchor cwd, prepare the shell
             init_cmds = []

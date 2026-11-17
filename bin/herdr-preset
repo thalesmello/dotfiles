@@ -717,21 +717,34 @@ function herdr-preset
             set -l focus_out ($bin pane focus "$nvim_target" 2>&1; or $bin agent focus "$nvim_target" 2>&1)
             or echo "$tag: warning: could not focus nvim pane '$nvim_target': $focus_out" >&2
         else
-            # No reachable nvim in this tab: make a vertical split running nvim on
-            # the file, splitting off the pane that was active. `exec` so quitting
-            # nvim closes the pane.
-            set -l split_out ($bin pane split "$anchor" --direction right --focus 2>&1)
+            # Launch nvim with the split in hc mode: sending a follow-up command
+            # to a new shell incurs Core's settle/paste/Enter delivery delays.
+            # Legacy herdr still uses its immediate pane run path below.
+            set -l backend (string lower -- (string trim -- "$HC_PRESET_BACKEND"))
+            if not contains -- "$backend" hc herdr
+                set backend ($bin backend 2>/dev/null)
+            end
+            set -l split_args pane split "$anchor" --direction right --focus
+            if test "$backend" = hc
+                set -l launch_argv (jq -cn --arg file "$file" '["nvim", "--", $file]')
+                or return 1
+                set -a split_args --argv "$launch_argv"
+            end
+            set -l split_out ($bin $split_args 2>&1)
             set -l new (printf '%s' "$split_out" | jq -r '.result.pane.pane_id // empty' 2>/dev/null)
             test -n "$new"; or begin
                 echo "$tag: pane split failed for anchor '$anchor'" >&2
                 echo "  pane split output: $split_out" >&2
                 return 1
             end
-            set -l run_out ($bin pane run "$new" "exec nvim $(string escape -- $file)" 2>&1)
-            or begin
-                echo "$tag: pane run (exec nvim) failed in pane '$new'" >&2
-                echo "  pane run output: $run_out" >&2
-                return 1
+            if test "$backend" != hc
+                # exec so quitting nvim closes the legacy shell pane too.
+                set -l run_out ($bin pane run "$new" "exec nvim $(string escape -- $file)" 2>&1)
+                or begin
+                    echo "$tag: pane run (exec nvim) failed in pane '$new'" >&2
+                    echo "  pane run output: $run_out" >&2
+                    return 1
+                end
             end
         end
 
