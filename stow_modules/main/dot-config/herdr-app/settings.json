@@ -1,14 +1,17 @@
 {
-  "zoom": 0.9,
-  "theme": "catppuccin-frappe",
-  "font": "Inconsolata LGC Nerd Font Mono",
-  "font_size": 18,
-  "font_ligatures": false,
-  "minimum_contrast": 1.1,
-  "option_as_alt": "left",
-  "clipboard_write": true,
   "pane_scrollbars": true,
+  "clipboard_write": true,
+  "zoom": 0.8999999761581421,
   "sounds": {
     "enabled": true
-  }
+  },
+  "font": "Inconsolata LGC Nerd Font Mono",
+  "font_size": 18.0,
+  "font_ligatures": false,
+  "terminal_line_height": 1.0,
+  "terminal_cell_width": 1.0,
+  "terminal_scroll_speed": 1.0,
+  "minimum_contrast": 1.100000023841858,
+  "option_as_alt": "left",
+  "theme": "catppuccin-frappe"
 }
