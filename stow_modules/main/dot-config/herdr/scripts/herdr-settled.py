@@ -62,6 +62,7 @@ STATUS_SECTION = {"blocked": "Blocked", "working": "Working", "done": "Done"}
 TAIL_BYTES = 256 * 1024
 PREVIEW_MESSAGES = 3
 SNOOZE_DEFAULT = "1h"
+_hc_mode = False  # Core opts in at CLI dispatch; legacy import APIs stay intact.
 
 
 # ── paths ────────────────────────────────────────────────────────────────────
@@ -480,11 +481,11 @@ _RESUME_SPEC = {
         "fallback": ["resume", "--last"],
         "drop_value": set(),
         "drop_opt": set(),
-        "drop_bool": set(),
+        "drop_bool": {"--last"},
         "keep_value": {"-c", "--config", "-m", "--model", "-p", "--profile",
                        "-s", "--sandbox", "-a", "--ask-for-approval", "-i",
                        "--image", "-C", "--cd", "--add-dir"},
-        "bool_flags": {"--full-auto", "--dangerously-bypass-approvals-and-sandbox", "--oss", "--search"},
+        "bool_flags": {"--full-auto", "--dangerously-bypass-approvals-and-sandbox", "--oss", "--search", "--no-daemon"},
         "subcommand": "resume",
     },
     "pi": {
@@ -493,9 +494,10 @@ _RESUME_SPEC = {
         "fallback": ["--continue"],
         "drop_value": {"--session", "--session-id", "--fork"},
         "drop_opt": {"--resume", "-r"},
-        "drop_bool": {"--continue", "-c", "--no-session"},
+        "drop_bool": {"--continue", "-c", "--no-session", "-p", "--print"},
         "keep_value": {"--model", "-m", "--name", "-n", "--system", "--tools",
-                       "--session-dir", "--meta-agent-role", "--startup-context-mode"},
+                       "--session-dir", "--meta-agent-role", "--startup-context-mode",
+                       "--provider", "--thinking"},
         "bool_flags": {"--verbose", "--quiet"},
         "subcommand": None,
     },
@@ -547,9 +549,9 @@ def resume_command(entry):
         elif f in spec["drop_bool"]:
             i += 1
         elif spec["subcommand"] and tok == spec["subcommand"]:
-            if i + 1 < len(rest):
-                prior = selected(rest[i + 1]) or prior
-            break
+            selection = selected(rest[i + 1]) if i + 1 < len(rest) else None
+            prior = selection or prior
+            i += 2 if selection else 1  # options after `resume <id>` survive too
         elif f in spec["keep_value"] and not inline:
             kept += rest[i:i + 2]
             i += 2
@@ -569,6 +571,8 @@ def resume_command(entry):
     if base in (agent, agent + ".real", spec["bin"], spec["bin"] + ".real"):
         argv0 = spec["bin"]
     tail = spec["resume"](value or prior) if (value or prior) else spec["fallback"]
+    if _hc_mode and agent == "codex" and "--no-daemon" not in kept:
+        kept.insert(0, "--no-daemon")
     return shlex.join([argv0] + kept + tail)
 
 
@@ -1300,13 +1304,29 @@ class Picker:
         if row is None:
             return False
         targets = [r for r in self.rows if self.row_id(r) in self.marked] or [row]
+        if _hc_mode and (action in ("pin", "snooze") or
+                         (action == "enter" and row.get("kind") == "live")):
+            self.flash = "this legacy-only action is unsupported by machine-local Settled"
+            return False
         if action == "enter":
             if row.get("kind") == "live":
                 call("agent.focus", {"target": row["pane_id"]})
                 self.flash = "jumped to %s" % row["pane_id"]
                 return True
-            self.flash = reopen(row["key"])
-            return True
+            try:
+                self.flash = reopen(row["key"])
+            except (RuntimeError, OSError, ValueError) as problem:
+                self.flash = "Restore failed: %s" % problem
+                try:
+                    self.reload()
+                except (RuntimeError, OSError, ValueError):
+                    pass  # Keep existing rows if the same outage prevents refresh.
+                return False
+            try:
+                self.reload()
+            except (RuntimeError, OSError, ValueError):
+                pass
+            return self.flash.startswith(("reopened in ", "already open in "))
         if action == "settle":
             live = [r for r in targets if r.get("kind") == "live"]
             if not live:
@@ -1338,9 +1358,15 @@ class Picker:
             gone = [forget(r["key"]) for r in targets if r.get("kind") == "settled"]
             self.flash = "; ".join(gone) or "only settled rows can be forgotten"
         elif action == "undo":
-            key = last_settled_key()
-            self.flash = reopen(key) if key else "nothing settled to undo"
-            return bool(key)
+            try:
+                key = last_settled_key()
+            except (RuntimeError, OSError, ValueError) as problem:
+                self.flash = "Restore failed: %s" % problem
+                return False
+            if key:
+                return self.act("enter", {"kind": "settled", "key": key})
+            self.flash = "nothing settled to undo"
+            return False
         self.marked.clear()
         self.reload()
         return False
@@ -1431,6 +1457,9 @@ def _picker_loop(picker, term):
             elif name == "shift-tab":
                 picker.cycle_filter(-1)
             elif raw == b"\x1bz":
+                if _hc_mode:
+                    picker.flash = "snooze popup handoff is legacy-only; use the desktop snooze mod"
+                    continue
                 # Alt+Z: the snooze list (the same popup prefix+alt+z opens).
                 picker.handoff_snooze = True
                 break
@@ -1518,6 +1547,8 @@ USAGE = """usage: herdr-settled.py <command>
                                 settle a finished conversation in a pane that stays open (e.g. pi /new)
   forget <conversation>         drop a settled entry (never touches the transcript)
   resume-cmd <conversation>     print the command reopen would run
+  watch                         (Core) event-driven machine-local archive watcher
+  ensure-watch                  (Core) start one hidden Core watcher, returning immediately
   handoff-snooze                (internal) open the snooze picker after this popup closes"""
 
 
@@ -1526,6 +1557,30 @@ def main(argv):
         print(USAGE)
         return 2
     command, args = argv[0], argv[1:]
+    # Keep legacy socket/plugin behavior unchanged. Core never uses App ls or
+    # the legacy store to infer closure, including on remote/headless machines.
+    import settled_hc
+    if settled_hc.enabled():
+        if not _hc_mode:
+            settled_hc.install(sys.modules[__name__])
+        if command == "ensure-watch" and not args:
+            return settled_hc.ensure_watch(os.path.abspath(__file__))
+        if command == "watch":
+            if not args:
+                return settled_hc.watch()
+            if args == ["--wait-lock"]:
+                return settled_hc.watch(wait_lock=True)
+            if len(args) == 2 and args[0] == "--lock-fd":
+                return settled_hc.watch(int(args[1]))
+            print(USAGE)
+            return 2
+        if command == "list":
+            # A failed snapshot is NOT proof of closure. Existing rows remain.
+            tick()
+        if command in ("open", "handoff-snooze"):
+            raise HerdrError("unsupported", "Core popup actions require the desktop popup mod; use picker")
+    elif command in ("watch", "ensure-watch"):
+        raise HerdrError("unsupported", "watch/ensure-watch require the Core backend")
     if command == "tick":
         return tick()
     if command == "picker":
@@ -1554,7 +1609,9 @@ def main(argv):
         print(forget(args[0]))
         return 0
     if command == "resume-cmd" and len(args) == 1:
-        entry = (read_registry().get("settled") or {}).get(args[0])
+        state = read_registry()
+        key = settled_hc.resolve_key(state, args[0]) if _hc_mode else args[0]
+        entry = (state.get("settled") or {}).get(key)
         if entry is None:
             print("not settled: %s" % args[0], file=sys.stderr)
             return 1
@@ -1571,6 +1628,6 @@ def main(argv):
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
-    except (OSError, HerdrError) as problem:
+    except (OSError, HerdrError, RuntimeError, ValueError) as problem:
         print("settled:", problem, file=sys.stderr)
         sys.exit(1)

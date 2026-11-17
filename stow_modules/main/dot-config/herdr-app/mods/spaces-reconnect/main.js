@@ -750,6 +750,7 @@ export default class Spaces extends View {
       }
     }
     this.syncAutoTitles(now, sp, ps);
+    if (this.pendingRestoredFocus) this.focusRestoredChats(cx, ps, now);
     const due = this.due(now, sp, ps);
     if (due.size) this.refreshGit(due, cx);
     if (sp.some((s) => !this.shown.has(s.id)) || this.orderingDue(now)) cx.notify();
@@ -920,10 +921,70 @@ export default class Spaces extends View {
   refreshMachines(cx) {
     cx.spawn(async cx => {
       try { const r = await hc(["machine", "ls", "--json"]); if (r.code === 0) this.machines = (JSON.parse(r.stdout).machines ?? []).filter((m) => !m.temporary); } catch {}
+      this.ensureSettledWatchers(cx);
       cx.notify();
     });
   }
 
+  focusRestoredChats(_cx, ps, now) {
+    if (isChecking()) return;
+    const consumed = new Set(shared("settled.focusedTokens") ?? []);
+    let pending = this.pendingRestoredFocus;
+    if (pending && focused()?.terminal === pending.address) {
+      this.pendingRestoredFocus = null;
+      for (const token of pending.tokens) consumed.add(token);
+      setShared("settled.focusedTokens", [...consumed]);
+      return;
+    }
+    if (!pending) {
+      const ready = terminals().filter(t => t.state === "live" && t.labels?.["settled.focus_token"] &&
+        !consumed.has(t.labels["settled.focus_token"]) && ps.some(p => p.terminal === t.address));
+      if (!ready.length) return; // Core doc may be committed before this screen adopts it.
+      ready.sort((a, b) => Number(b.labels["settled.focus_at_ms"] ?? 0) - Number(a.labels["settled.focus_at_ms"] ?? 0));
+      pending = this.pendingRestoredFocus = { address: ready[0].address, until: now + 2500,
+        tokens: ready.map(t => t.labels["settled.focus_token"]) };
+    }
+    const pane = ps.find(p => p.terminal === pending.address);
+    if (!pane || now > pending.until) {
+      this.pendingRestoredFocus = null;
+      for (const token of pending.tokens) consumed.add(token);
+      setShared("settled.focusedTokens", [...consumed]);
+      notify({ title: "Restored chat", body: "The chat opened, but could not be focused automatically.",
+        action: { name: "agent.focus", args: { terminal: pending.address } } });
+      return;
+    }
+    const space = spaces().find(s => s.tabs?.some(t => t.id === pane.tab));
+    if (space) run("space.select", { id: space.id });
+    run("tab.select", { id: pane.tab });
+    run("pane.focus", { pane: pane.pane });
+  }
+
+  ensureSettledWatchers(cx) {
+    if (isChecking()) return;
+    this.settledStarting ??= new Set();
+    this.settledChecked ??= new Map();
+    // Each helper watches only its own Core, including native pane/tab/space
+    // closes. A remote disconnect never looks like a local session closing.
+    const targets = [null, ...this.machines.filter(m => m.state === "connected" && !m.temporary).map(m => m.name)];
+    for (const on of this.settledChecked.keys()) if (!targets.includes(on)) this.settledChecked.delete(on);
+    for (const on of targets) {
+      // Recover a stopped watcher gently; startup and reconnection check at once.
+      if (this.settledStarting.has(on) || Date.now() - (this.settledChecked.get(on) ?? -Infinity) < 60000) continue;
+      this.settledStarting.add(on);
+      cx.spawn(async () => {
+        try {
+          const command = 'export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/opt/chef/embedded/bin:/usr/local/bin:$PATH" HC_PRESET_BACKEND=hc; exec python3 "$HOME/.config/herdr/scripts/herdr-settled.py" ensure-watch';
+          const r = await exec("sh", ["-c", command], { on });
+          if (r.code === 0) this.settledChecked.set(on, Date.now());
+          else console.log(`Settled watcher (${on ?? "local"}): ${r.stderr || r.stdout}`);
+        } catch (error) {
+          console.log(`Settled watcher (${on ?? "local"}): ${error}`);
+        } finally {
+          this.settledStarting.delete(on);
+        }
+      });
+    }
+  }
 
   rebuilt(machine) {
     return machine?.state === "unreachable" && /^a different core answers there \("[^"]+"\)$/.test(machine.why ?? "");
@@ -1253,7 +1314,8 @@ export default class Spaces extends View {
       .child(div().absolute().right(5).text_color(tone(t, w.status)).child(glyph(w.status))));
   }
 
-  render() {
+  render(cx) {
+    if (!isChecking()) this.focusRestoredChats(cx, panes(), Date.now());
     const t = theme();
     const collapsed = narrow();
     const palette = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1"];
