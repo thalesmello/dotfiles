@@ -11,8 +11,10 @@
 #   project    -> a `project:NAME` word in the prompt overrides the others:
 #                 reuse/create the NAME workspace, start in ~/src/NAME
 #                 (created if missing), and name the tab after the slug
-#   machine:NAME -> run the same routing and creation on a connected hc machine;
-#                   combine with qq, config, prototype, or project:NAME
+#   machine:NAME -> override the selected pane's machine for this ask;
+#                   "local" means the machine running the Herdr window.
+#                   Combine with qq, config, prototype, or project:NAME.
+#                   Without a selector, use the pane where the popup opened.
 #
 # Bound as a `type = "popup"` command so the prompt runs in a herdr-rendered PTY
 # where interactive input works -- a detached `type = "shell"` command has no
@@ -224,14 +226,11 @@ else
     prefill=$(context_prefill_for_cwd "${ASK_AGENT_CWD:-$(active_pane_cwd)}")
     [ -n "$prefill" ] && prefill="${prefill% } "
   fi
-  if [ -n "${ASK_AGENT_MACHINE:-}" ]; then
-    prefill="machine:$ASK_AGENT_MACHINE $prefill"
-  fi
   if [ -n "${ASK_AGENT_COMPLETION_WARNING:-}" ]; then
     printf '%s\n' "$ASK_AGENT_COMPLETION_WARNING"
   fi
-  # Machine choices come from the coordinating core, not directory names.
-  machine_names='[]'
+  # Include this computer as well as the coordinating core's connections.
+  machine_names='["local"]'
   case "$herdr" in
     *hc-preset)
       if [ "$("$herdr" backend 2>/dev/null)" = hc ]; then
@@ -277,16 +276,16 @@ fi
 # Remove the selector before agent/model routing. The target repeats the normal
 # flow using its own HOME and PATH, so project directories, try directories,
 # trust state, multiline prompt files and quick-question logs all live there.
-machine=${ASK_AGENT_MACHINE:-}
-machine_re='(^|[[:space:]])machine:([^[:space:]]*)'
+machine=${ASK_AGENT_MACHINE:-local}
+machine_re='(^|[[:space:]])machine:[[:blank:]]*([^[:space:]]*)'
 if [[ "$question" =~ $machine_re ]]; then
   machine=${BASH_REMATCH[2]}
-  [ -n "$machine" ] || herdr_die 'ask' 'machine: needs a connected machine name'
+  [ -n "$machine" ] || herdr_die 'ask' 'machine: needs a machine name (local or a connected machine)'
   question=$(python3 - "$question" <<'PYMACHINE'
 import re
 import sys
 q = sys.argv[1]
-matches = list(re.finditer(r"(?<!\S)machine:\S*", q))
+matches = list(re.finditer(r"(?<!\S)machine:[ \t]*\S*", q))
 if len(matches) != 1:
     raise SystemExit("specify only one machine: selector")
 print((q[:matches[0].start()] + q[matches[0].end():]).strip())
@@ -294,6 +293,8 @@ PYMACHINE
   ) || herdr_die 'ask' 'specify only one machine: selector'
   [ -n "${question// /}" ] || exit 0
 fi
+# An explicit local selector must override a remote pane's implicit default.
+[ "$machine" != local ] || machine=''
 if [ -n "$machine" ]; then
   [ "$("$herdr" backend 2>/dev/null)" = hc ] \
     || herdr_die 'ask' 'machine: routing requires herdr-core'

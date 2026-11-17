@@ -1,5 +1,7 @@
 """Literal completion/key handling and connected-machine discovery; no live IPC."""
+import contextlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -40,6 +42,10 @@ class CompletionTests(unittest.TestCase):
     def test_subsequence_matching(self):
         self.assertEqual(self.edit(b"machine:ds\r\r"), (0, "machine:devserver "))
 
+    def test_local_selector_autocompletes(self):
+        self.assertEqual(self.edit(b"machine:l\tqq hi\r", 'machine:=["local","devserver"]'),
+                         (0, "machine:local qq hi"))
+
     def test_exact_choice_submits_without_accepting_menu(self):
         self.assertEqual(self.edit(b"machine:devserver\r"), (0, "machine:devserver"))
 
@@ -77,6 +83,20 @@ class MachineDiscoveryTests(unittest.TestCase):
             self.assertEqual(helper.connected_machines("/bin/hc"), ["devserver", "work-mac"])
             run.assert_called_once_with(["/bin/hc", "machine", "ls"],
                                         capture_output=True, text=True, timeout=10)
+
+    def test_completion_lists_local_and_connected_machines(self):
+        output = io.StringIO()
+        with patch.object(helper.shutil, "which", return_value="/bin/hc"), \
+                patch.object(helper, "connected_machines", return_value=["devserver"]), \
+                contextlib.redirect_stdout(output):
+            self.assertEqual(helper.main(["machines"]), 0)
+        self.assertEqual(json.loads(output.getvalue()), ["local", "devserver"])
+
+    def test_local_completion_is_available_without_a_core(self):
+        output = io.StringIO()
+        with patch.object(helper.shutil, "which", return_value=None), contextlib.redirect_stdout(output):
+            self.assertEqual(helper.main(["machines"]), 0)
+        self.assertEqual(json.loads(output.getvalue()), ["local"])
 
     def test_unknown_machine_is_rejected_before_exec(self):
         with patch.object(helper, "connected_machines", return_value=["devserver"]), \

@@ -105,7 +105,7 @@ def main(argv: list[str]) -> int:
             names = connected_machines(hc) if hc else []
         except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired):
             names = []
-        print(json.dumps(names))
+        print(json.dumps(["local", *(name for name in names if name != "local")]))
         return 0
     if len(argv) != 5 or argv[0] != "dispatch":
         raise ValueError("usage: ask-machine.py machines | dispatch MACHINE FOCUS SCRIPT ADAPTER")

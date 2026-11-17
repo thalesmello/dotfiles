@@ -62,7 +62,7 @@ else:
 
 class AskWorkspaceTests(unittest.TestCase):
     def run_ask(self, workspaces, question="qq tell me a joke about mac vs linux", backend="hc",
-                machines=None, focus=False, default_machine="", expected_rc=0):
+                machines=None, focus=False, default_machine="", expected_rc=0, interactive=False, queued=None):
         with tempfile.TemporaryDirectory() as temp:
             home = Path(temp)
             bin_dir = home / ".local/bin"
@@ -79,6 +79,35 @@ class AskWorkspaceTests(unittest.TestCase):
                 stub = bin_dir / name
                 stub.write_text("#!/bin/sh\n" + body + "\n")
                 stub.chmod(0o755)
+            prompt_python = bin_dir / "prompt-python"
+            prompt_python.write_text('''#!/usr/bin/env python3
+import json
+import os
+from pathlib import Path
+import sys
+with open(os.environ["ASK_TEST_CALLS"], "a") as f:
+    f.write(json.dumps(["prompt"] + sys.argv[1:]) + "\\n")
+queued = json.loads(os.environ["ASK_TEST_QUEUED"])
+if queued:
+    directory = Path(sys.argv[sys.argv.index("--submit-dir") + 1])
+    for i, question in enumerate(queued):
+        (directory / f"{i}.prompt").write_text(question)
+    for question in queued:
+        if os.read(int(os.environ["ASK_TEST_QUEUE_READ_FD"]), 1) != b"1":
+            raise SystemExit(1)
+Path(os.environ["PROMPT_LIB_RESULT_FILE"]).write_text(os.environ["ASK_TEST_QUESTION"])
+''')
+            prompt_python.chmod(0o755)
+            nohup = bin_dir / "nohup"
+            nohup.write_text('''#!/usr/bin/env python3
+import os
+import subprocess
+import sys
+rc = subprocess.call(sys.argv[1:])
+os.write(int(os.environ["ASK_TEST_QUEUE_WRITE_FD"]), b"1" if rc == 0 else b"0")
+raise SystemExit(rc)
+''')
+            nohup.chmod(0o755)
             hc = bin_dir / "hc"
             hc.write_text(FAKE_HC)
             hc.chmod(0o755)
@@ -99,6 +128,7 @@ class AskWorkspaceTests(unittest.TestCase):
             prompt.write_text(question)
             calls_file = home / "calls.jsonl"
             calls_file.touch()
+            queue_fds = os.pipe() if queued else ()
             env = {**os.environ, "HOME": temp, "PATH": "/usr/bin:/bin",
                    "ASK_TEST_CALLS": str(calls_file),
                    "ASK_TEST_WORKSPACES": json.dumps(workspaces),
@@ -106,12 +136,23 @@ class AskWorkspaceTests(unittest.TestCase):
                    "ASK_TEST_REMOTE_HOME": str(remote),
                    "ASK_TEST_MACHINES": json.dumps({"machines": machines or []}),
                    "ASK_AGENT_MACHINE": default_machine,
+                   "ASK_AGENT_CONTEXT": "0",
+                   "ASK_TEST_QUESTION": question,
+                   "ASK_TEST_QUEUED": json.dumps(queued or []),
+                   "ASK_TEST_QUEUE_READ_FD": str(queue_fds[0]) if queued else "",
+                   "ASK_TEST_QUEUE_WRITE_FD": str(queue_fds[1]) if queued else "",
+                   "PROMPT_LIB_PYTHON": str(prompt_python),
                    "ASK_AGENT_SHELL_WAIT_ATTEMPTS": "1",
                    "ASK_AGENT_DETECT_WAIT_ATTEMPTS": "1",
                    "HERDR_DIE_HOLD_CHARS": "999999"}
             mode = "--dispatch-foreground" if focus else "--dispatch"
-            result = subprocess.run(["/bin/bash", str(SCRIPT), mode, str(prompt)],
-                                    env=env, capture_output=True, text=True, timeout=15)
+            args = [] if interactive else [mode, str(prompt)]
+            try:
+                result = subprocess.run(["/bin/bash", str(SCRIPT), *args], pass_fds=queue_fds,
+                                        env=env, capture_output=True, text=True, timeout=15)
+            finally:
+                for fd in queue_fds:
+                    os.close(fd)
             self.assertEqual(result.returncode, expected_rc, result.stdout + result.stderr)
             calls = [json.loads(line) for line in calls_file.read_text().splitlines()]
             creates = [c for c in calls if c[:2] in
@@ -120,10 +161,12 @@ class AskWorkspaceTests(unittest.TestCase):
             self.last_result = result
             self.last_remote_home = str(remote)
             self.last_prompt_files = {str(p): p.read_text() for p in (remote / "tmp").glob("ask-agent-*.md")}
-            self.assertEqual(len(creates), 1 if expected_rc == 0 else 0)
+            self.last_creates = creates
+            self.assertEqual(len(creates), (len(queued or []) + bool(question)) if expected_rc == 0 else 0)
             if expected_rc == 0:
                 self.assertIn(["pane", "run", "p-test"], [c[:3] for c in calls])
-                self.assertIn("asked mac-linux-joke", result.stdout)
+                if question:
+                    self.assertIn("asked mac-linux-joke", result.stdout)
             return creates[0] if creates else None, temp
 
     def test_remote_only_qq_creates_local_workspace(self):
@@ -181,6 +224,41 @@ class AskWorkspaceTests(unittest.TestCase):
         create, home = self.run_ask([], default_machine="devserver",
                                    machines=[{"name": "devserver", "state": "connected"}])
         self.assertEqual(create[create.index("--cwd") + 1], f"{home}/remote/src/qq")
+        self.assertEqual(sum(c[:2] == ["hc", "exec"] for c in self.last_calls), 1)
+
+    def test_local_selector_overrides_remote_pane_default(self):
+        for selector in ("machine:local", "machine: local"):
+            with self.subTest(selector=selector):
+                create, home = self.run_ask([], f"{selector} qq tell me a joke", default_machine="devserver")
+                self.assertEqual(create[create.index("--cwd") + 1], f"{home}/src/qq")
+                self.assertFalse(any(c[:2] == ["hc", "exec"] for c in self.last_calls))
+                self.assertNotIn(selector, next(c[3] for c in self.last_calls if c[:2] == ["pane", "run"]))
+
+    def test_omitted_machine_uses_local_pane_default(self):
+        create, home = self.run_ask([], default_machine="local")
+        self.assertEqual(create[create.index("--cwd") + 1], f"{home}/src/qq")
+        self.assertFalse(any(c[:2] == ["hc", "exec"] for c in self.last_calls))
+
+    def test_explicit_remote_overrides_a_different_pane_default(self):
+        create, home = self.run_ask([], "machine:devserver qq tell me a joke", default_machine="other",
+                                   machines=[{"name": "devserver", "state": "connected"}])
+        self.assertEqual(create[create.index("--cwd") + 1], f"{home}/remote/src/qq")
+
+    def test_remote_default_is_implicit_not_inserted_into_prompt(self):
+        create, home = self.run_ask([], default_machine="devserver", interactive=True,
+                                   machines=[{"name": "devserver", "state": "connected"}])
+        prompt_call = next(c for c in self.last_calls if c[0] == "prompt")
+        self.assertEqual(prompt_call[-2], "")
+        self.assertIn('machine:=["local", "devserver"]', prompt_call)
+        self.assertEqual(create[create.index("--cwd") + 1], f"{home}/remote/src/qq")
+
+    def test_queued_local_override_does_not_change_remote_default(self):
+        _, home = self.run_ask([], question="", default_machine="devserver", interactive=True,
+                               machines=[{"name": "devserver", "state": "connected"}],
+                               queued=["machine:local qq first question", "qq second question"])
+        directories = sorted(c[c.index("--cwd") + 1] for c in self.last_creates)
+        self.assertEqual(directories, sorted([f"{home}/src/qq", f"{home}/remote/src/qq"]))
+        self.assertTrue(all("--no-focus" in c for c in self.last_creates))
         self.assertEqual(sum(c[:2] == ["hc", "exec"] for c in self.last_calls), 1)
 
     def test_unknown_machine_fails_before_workspace_creation(self):

@@ -2829,18 +2829,34 @@ def handle_popup_open(
         return print_err("popup_not_found", f"No entrypoint {plugin}/{entrypoint}")
 
     world = HcWorld()
-    active_p = world.resolve_pane(None)
+    is_ask = plugin == "prompt-popups" and entrypoint == "ask-agent"
+    # Capture the selected pane before the popup takes focus. The caller's
+    # terminal/environment may belong to a different machine or an older pane.
+    selected_pane = (os.environ.get("ASK_AGENT_SOURCE_PANE_ID") or world.focused_pane_id) if is_ask else None
+    if is_ask and not selected_pane:
+        return print_err("pane_not_found", "Select a pane before opening ask-agent")
+    active_p = world.resolve_pane(selected_pane)
+    if selected_pane and not active_p:
+        return print_err("pane_not_found", "The selected pane is no longer available")
+    source_terminal = os.environ.get("ASK_AGENT_SOURCE_TERMINAL_ID") if is_ask else None
+    if source_terminal and active_p["terminal_id"] != source_terminal:
+        return print_err("pane_changed", "The pane's terminal changed before ask-agent opened")
     env = dict(os.environ)
     env["HC_PRESET_BACKEND"] = "hc"
     if active_p:
-        env.setdefault("HERDR_ACTIVE_PANE_ID", active_p["pane_id"])
-        env.setdefault("HERDR_ACTIVE_TAB_ID", active_p["tab_id"])
-        env.setdefault("HERDR_ACTIVE_WORKSPACE_ID", active_p["workspace_id"])
-        env.setdefault("HC_TERMINAL_ID", active_p["terminal_id"])
+        context = {"HERDR_ACTIVE_PANE_ID": active_p["pane_id"],
+                   "HERDR_ACTIVE_TAB_ID": active_p["tab_id"],
+                   "HERDR_ACTIVE_WORKSPACE_ID": active_p["workspace_id"],
+                   "HC_TERMINAL_ID": active_p["terminal_id"]}
+        if not is_ask:
+            for key, value in context.items():
+                env.setdefault(key, value)
     for pair in env_pairs:
         if "=" in pair:
             k, v = pair.split("=", 1)
             env[k] = v
+    if is_ask and active_p:
+        env.update(context)
     if is_close:
         close_p = world.resolve_pane(env.get("ASCONFIRMCLOSE_PANE_ID") or None)
         if not close_p:
@@ -2881,11 +2897,14 @@ def handle_popup_open(
     hc = hc_bin()
     if not hc:
         return 1
-    # Keep the ask editor on the coordinating machine so machine: completion
-    # and dispatch can reach all its connections. Preserve the old default for
-    # asks opened from a remote space, unless the prompt names another machine.
-    if plugin == "prompt-popups" and entrypoint == "ask-agent" and active_p and active_p.get("machine"):
-        env.setdefault("ASK_AGENT_MACHINE", active_p["machine"])
+    # The editor runs here; its implicit target is the selected pane's machine.
+    # Keep that target out of the prompt so machine: remains an optional override.
+    if is_ask:
+        env["ASK_AGENT_MACHINE"] = (active_p.get("machine") if active_p else None) or "local"
+        for key in ("ASK_AGENT_SRC", "ASK_AGENT_PROJECT_CHOICES", "ASK_AGENT_TRY_CHOICES",
+                    "ASK_AGENT_COMPLETION_WARNING"):
+            env.pop(key, None)
+    if is_ask and active_p and active_p.get("machine"):
         # A failed lookup must never offer this computer's directories for a
         # remote request. Keep an empty menu and show the failure in the popup.
         env["ASK_AGENT_PROJECT_CHOICES"] = "[]"
@@ -2926,6 +2945,7 @@ def handle_popup_open(
         "HERDR_ACTIVE_WORKSPACE_ID",
         "HC_TERMINAL_ID",
         "ASK_AGENT_CONTEXT",
+        "ASK_AGENT_CWD",
         "ASK_AGENT_MACHINE",
         "ASK_AGENT_SRC",
         "ASK_AGENT_PROJECT_CHOICES",
@@ -2952,6 +2972,10 @@ def handle_popup_open(
     run_remote = bool(machine and plugin == "prompt-popups" and entrypoint in ("pi-tab", "break-pane", "run-command"))
     full_line = f"export {env_exports}; {script_cmd}" if env_exports else script_cmd
     run_cmd = [hc, "run", "--bg", "--rm", "--no-notify", "--json"]
+    if is_ask:
+        # The prefix launches this coordinator as a short-lived process. Its
+        # exit must not kill the interactive prompt before the user submits it.
+        run_cmd.append("--outlive-parent")
     if run_remote and machine:
         run_cmd += ["--on", str(machine)]
         if raw_cwd:

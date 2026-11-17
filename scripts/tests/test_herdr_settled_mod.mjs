@@ -20,7 +20,7 @@ for (const machine of ['', 'devserver']) for (const localMode of [false, true]) 
     hc: async args => { launches.push(args); return { code: 0, stdout: '{"address":"picker"}' }; },
     props: () => ({ overlay: 'prefix' }), closeOverlay: () => {},
     openOverlay: spec => overlays.push(spec), home: () => '/Users/local',
-    notify: () => {},
+    notify: () => {}, checking: () => false,
     focused: () => ({ pane: machine ? 'devserver/p1' : 'p1', terminal: machine ? 'devserver/t1' : 't1' }),
     spaces: () => [{ id: machine ? 'devserver/sp1' : 'sp1', active: true, machine, tabs: [{ id: machine ? 'devserver/tb1' : 'tb1', active: true }] }],
     panes: () => [{ pane: machine ? 'devserver/p1' : 'p1', terminal: machine ? 'devserver/t1' : 't1', tab: machine ? 'devserver/tb1' : 'tb1', cwd: machine ? '/home/remote/src' : '/Users/local/src' }],

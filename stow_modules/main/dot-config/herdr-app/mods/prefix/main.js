@@ -22,6 +22,7 @@ import {
   setShared,
   home,
   appHome,
+  checking,
   readTextFile,
   writeTextFile,
 } from "herdr";
@@ -334,6 +335,7 @@ export default class Prefix extends View {
     this.mode = "prefix"; // "prefix" | "resize"
     this.ctx = activeContext();
     this.handle = cx.focus_handle();
+    if (checking()) return;
     this.handle.focus();
     cx.timer.after(30, () => this.handle.focus());
 
@@ -740,14 +742,20 @@ export default class Prefix extends View {
       return;
     }
     if (ks === "a" && !ctrl && !alt && !shift) {
-      openTerminalPopup(overlayId, "~/.config/herdr/scripts/ask-agent.sh", ctx, { width: 780, height: 420 });
+      // The editor always runs on this desktop. Only agent creation is remote;
+      // use the shared launcher rather than openTerminalPopup's --on default.
+      runDetachedScript(overlayId, "hc-preset --backend hc popup-open prompt-popups ask-agent 65% 52.5%", ctx, {
+        ASK_AGENT_SOURCE_PANE_ID: ctx.qualifiedPane || ctx.pane || ctx.terminal,
+        ASK_AGENT_SOURCE_TERMINAL_ID: ctx.terminal,
+      });
       return;
     }
     if (ks === "shift-a" || (key === "a" && shift && !ctrl && !alt)) {
-      openTerminalPopup(overlayId, "~/.config/herdr/scripts/ask-agent.sh", ctx, {
-        width: 780,
-        height: 420,
-        env: { ASK_AGENT_CONTEXT: "1", ASK_AGENT_CWD: ctx.cwd || "" },
+      runDetachedScript(overlayId, "hc-preset --backend hc popup-open prompt-popups ask-agent 65% 52.5%", ctx, {
+        ASK_AGENT_SOURCE_PANE_ID: ctx.qualifiedPane || ctx.pane || ctx.terminal,
+        ASK_AGENT_SOURCE_TERMINAL_ID: ctx.terminal,
+        ASK_AGENT_CONTEXT: "1",
+        ASK_AGENT_CWD: ctx.cwd || "",
       });
       return;
     }

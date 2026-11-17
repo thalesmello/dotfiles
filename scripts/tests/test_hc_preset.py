@@ -220,6 +220,108 @@ class ErrorTests(unittest.TestCase):
                     self.assertEqual(command[command.index("--on") + 1], "devserver")
                     self.assertNotIn("ASK_AGENT_MACHINE", command[-1])
 
+    def test_ask_default_uses_selected_pane_not_inherited_caller_machine(self):
+        for machine in (None, "devserver"):
+            with self.subTest(machine=machine), tempfile.TemporaryDirectory() as temp:
+                prefix = f"{machine}/" if machine else ""
+                pane = {"pane_id": prefix + "p-selected", "tab_id": prefix + "tb-selected",
+                        "workspace_id": prefix + "sp-selected", "terminal_id": prefix + "t-selected",
+                        "machine": machine, "foreground_cwd": temp}
+                world = Mock()
+                world.focused_pane_id = pane["pane_id"]
+                world.resolve_pane.side_effect = lambda target: pane if target == pane["pane_id"] else None
+                env = {"HOME": temp, "ASK_AGENT_MACHINE": "stale-server", "HC_TERMINAL_ID": "old-terminal",
+                       "HERDR_ACTIVE_PANE_ID": "old-pane", "ASK_AGENT_SRC": "/stale/src"}
+                with patch.dict(os.environ, env, clear=True), \
+                        patch.object(adapter, "resolve_plugin_entrypoint_command", return_value="/bin/true"), \
+                        patch.object(adapter, "HcWorld", return_value=world), \
+                        patch.object(adapter, "hc_bin", return_value="/bin/hc"), \
+                        patch.object(adapter, "herdr_app_home", return_value=temp), \
+                        patch.object(adapter.subprocess, "run", return_value=Mock(returncode=0, stdout='{"address":"t99"}')) as run, \
+                        patch.object(adapter, "save_json_file"), \
+                        patch.object(adapter, "herdr_app_do", return_value={"ok": True}), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(adapter.handle_popup_open(
+                        "hc", "prompt-popups", "ask-agent", env_pairs=["HERDR_ACTIVE_PANE_ID=old-pane"]), 0)
+                    world.resolve_pane.assert_called_once_with(pane["pane_id"])
+                    command = run.call_args[0][0]
+                    self.assertNotIn("--on", command)
+                    self.assertIn(f"ASK_AGENT_MACHINE={machine or 'local'}", command[-1])
+                    self.assertIn(f"HERDR_ACTIVE_PANE_ID={pane['pane_id']}", command[-1])
+                    self.assertIn(f"HC_TERMINAL_ID={pane['terminal_id']}", command[-1])
+                    self.assertNotIn("stale-server", command[-1])
+                    self.assertNotIn("/stale/src", command[-1])
+
+    def test_prefix_ask_uses_captured_remote_pane_but_launches_editor_locally(self):
+        world = Mock()
+        world.focused_pane_id = "p-new-local"
+        pane = {"pane_id": "devserver/p-original", "tab_id": "devserver/tb1",
+                "workspace_id": "devserver/sp1", "terminal_id": "devserver/t-original",
+                "machine": "devserver", "foreground_cwd": "/home/remote/src/repo"}
+        world.resolve_pane.side_effect = lambda target: pane if target == pane["pane_id"] else None
+        choices = adapter.json.dumps({"src": "/home/remote/src", "projects": ["repo"], "tries": []})
+        with tempfile.TemporaryDirectory() as temp, \
+                patch.dict(os.environ, {"HOME": temp, "ASK_AGENT_SOURCE_PANE_ID": pane["pane_id"],
+                                        "ASK_AGENT_SOURCE_TERMINAL_ID": pane["terminal_id"],
+                                        "ASK_AGENT_CONTEXT": "1", "ASK_AGENT_CWD": pane["foreground_cwd"]}, clear=True), \
+                patch.object(adapter, "resolve_plugin_entrypoint_command", return_value="/bin/true"), \
+                patch.object(adapter, "HcWorld", return_value=world), \
+                patch.object(adapter, "hc_bin", return_value="/bin/hc"), \
+                patch.object(adapter, "herdr_app_home", return_value=temp), \
+                patch.object(adapter.subprocess, "run", side_effect=[Mock(returncode=0, stdout=choices),
+                                                                    Mock(returncode=0, stdout='{"address":"t99"}')]) as run, \
+                patch.object(adapter, "save_json_file") as save, \
+                patch.object(adapter, "herdr_app_do", return_value={"ok": True}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(adapter.handle_popup_open("hc", "prompt-popups", "ask-agent", "65%", "52.5%"), 0)
+            world.resolve_pane.assert_called_once_with(pane["pane_id"])
+            launch = run.call_args_list[1][0][0]
+            self.assertIn("--outlive-parent", launch)
+            self.assertNotIn("--on", launch)
+            self.assertEqual(launch[launch.index("--cwd") + 1], temp)
+            self.assertIn("ASK_AGENT_MACHINE=devserver", launch[-1])
+            self.assertIn("ASK_AGENT_CWD=/home/remote/src/repo", launch[-1])
+            self.assertIn("ASK_AGENT_CONTEXT=1", launch[-1])
+            self.assertEqual(save.call_args[0][1]["width"], 780)
+            self.assertEqual(save.call_args[0][1]["height"], 420)
+
+    def test_prefix_ask_cancels_if_captured_terminal_changed(self):
+        world = Mock()
+        world.focused_pane_id = "p-new-local"
+        world.resolve_pane.return_value = {"terminal_id": "devserver/t-other"}
+        with patch.dict(os.environ, {"ASK_AGENT_SOURCE_PANE_ID": "devserver/p-original",
+                                     "ASK_AGENT_SOURCE_TERMINAL_ID": "devserver/t-original"}), \
+                patch.object(adapter, "HcWorld", return_value=world), \
+                patch.object(adapter, "resolve_plugin_entrypoint_command", return_value="/bin/true"), \
+                patch.object(adapter.subprocess, "run") as run, \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(adapter.handle_popup_open("hc", "prompt-popups", "ask-agent"), 1)
+            run.assert_not_called()
+
+    def test_ask_without_a_selected_pane_does_not_use_stale_context(self):
+        world = Mock()
+        world.focused_pane_id = None
+        world.resolve_pane.return_value = {"machine": "stale-server"}
+        with patch.dict(os.environ, {"HERDR_ACTIVE_PANE_ID": "stale-server/p-old"}), \
+                patch.object(adapter, "HcWorld", return_value=world), \
+                patch.object(adapter, "resolve_plugin_entrypoint_command", return_value="/bin/true"), \
+                patch.object(adapter.subprocess, "run") as run, \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(adapter.handle_popup_open("hc", "prompt-popups", "ask-agent"), 1)
+            world.resolve_pane.assert_not_called()
+            run.assert_not_called()
+
+    def test_ask_cancels_if_selected_pane_is_gone(self):
+        world = Mock()
+        world.focused_pane_id = "devserver/p-gone"
+        world.resolve_pane.return_value = None
+        with patch.object(adapter, "HcWorld", return_value=world), \
+                patch.object(adapter, "resolve_plugin_entrypoint_command", return_value="/bin/true"), \
+                patch.object(adapter.subprocess, "run") as run, \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(adapter.handle_popup_open("hc", "prompt-popups", "ask-agent"), 1)
+            run.assert_not_called()
+
     def test_remote_ask_exports_target_project_and_try_choices(self):
         world = Mock()
         world.resolve_pane.return_value = {
