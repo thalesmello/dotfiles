@@ -2,6 +2,7 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
+import { hasBookmark, renderAgentStatus, renderAgentIndicators } from "./agent-render.js";
 import { agents, terminals, panes, focused, spaces, machines, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, window, layout, checking, appHome, home, readTextFile, watchFolder, exec, nextCommand } from "herdr";
 
 function find(node, id) {
@@ -205,7 +206,31 @@ export default class Agents extends View {
     if (!Array.isArray(this.pendingPins)) this.pendingPins = [];
     if (!this.pendingPins.length) localStorage.removeItem("pins");
     this.migratingPins = new Set();
+    if (!checking() && localStorage.getItem("rendererStateVersion") !== "1") {
+      cx.spawn(async (cx) => this.migrateRendererState(cx));
+    }
     cx.timer.every(30000, (cx) => cx.notify());
+  }
+
+  // Renaming the general agent mod must not reset durations or focused order.
+  async migrateRendererState(cx) {
+    try {
+      const raw = await readTextFile(`${appHome()}/data/agents-snooze/store.json`);
+      const old = raw ? JSON.parse(raw) : {};
+      const changed = JSON.parse(old.changed ?? "{}");
+      for (const [address, snapshot] of Object.entries(changed)) {
+        if (!this.changed[address] || this.changed[address].s === snapshot.s) this.changed[address] = snapshot;
+      }
+      // updateFrozenSort prunes any snapshot whose agent is no longer focused.
+      this.frozenSort = { ...this.frozenSort, ...JSON.parse(old.frozenSort ?? "{}") };
+      const pins = JSON.parse(old.pins ?? "[]");
+      this.pendingPins = [...new Set([...this.pendingPins, ...pins])];
+      localStorage.setItem("changed", JSON.stringify(this.changed));
+      localStorage.setItem("frozenSort", JSON.stringify(this.frozenSort));
+      if (this.pendingPins.length) localStorage.setItem("pins", JSON.stringify(this.pendingPins));
+      localStorage.setItem("rendererStateVersion", "1");
+      cx.notify();
+    } catch (error) { console.log(`agent renderer migration: ${error}`); }
   }
 
   hasSnoozes() {
@@ -424,17 +449,18 @@ export default class Agents extends View {
       .child(this.status(t, { address: k.address, status: st }, compact));
   }
 
-  // compact: a ! for blocked where a header already says "Needs you".
   status(t, a, compact = false) {
+    return renderAgentIndicators(t, a, {
+      compact, bookmarked: this.bookmarked?.has(a.address),
+      indicator: this.statusIndicator(t, a, compact),
+    });
+  }
+
+  // Only the snooze override belongs to this mod; common indicators are shared.
+  statusIndicator(t, a, compact = false) {
     const sleeping = this.snoozeLabel(a);
     if (sleeping) return div().flex_none().px(compact ? 3 : 6).h(18).rounded(5).bg(t.dim + "26").text_size(10.5).font_medium().text_color(t.muted).flex().items_center().tooltip(sleeping).child(compact ? "z" : sleeping);
-    const color = t[a.status] ?? t.dim;
-    if (a.status === "working") return svg("mods/workspace-chrome/spinner.svg").size(12).mx(1).flex_none().text_color(t.working).spin(900);
-    if (a.status === "blocked" && compact) return div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(10.5).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!");
-    if (a.status === "blocked") return div().flex_none().px(6).h(18).rounded(5).bg(t.blocked + "26").text_size(10.5).font_semibold().text_color(t.blocked).flex().items_center().child("Needs you");
-    // Idle: a ring; done: a dot.
-    if (a.status === "idle") return div().size(7).mx(3).flex_none().rounded(4).border(1.5).border_color(t.idle ?? t.dim);
-    return div().size(7).mx(3).flex_none().rounded(4).bg(a.status === "done" ? color : t.dim + "00");
+    return renderAgentStatus(t, a, compact);
   }
 
   render(cx) {
@@ -457,6 +483,7 @@ export default class Agents extends View {
     list = list.filter((a) => this.visibleAgent(a, now));
     this.listed = new Map(list.map((a) => [a.address, a.status]));
     const all = terminals();
+    this.bookmarked = new Set(all.filter(k => hasBookmark(k.labels)).map(k => k.address));
     this.migratePins(all);
     // A kept sub-agent (one with a pane) is in agents() too: where a tree shows
     // it, it gets no row of its own, unless it's pinned.
@@ -554,14 +581,14 @@ export default class Agents extends View {
         return h_flex()
           .id(`ag-${a.address}`)
           .h(26)
-          .px(8)
+          .px(this.bookmarked.has(a.address) ? 4 : 8)
           .flex_none()
           .items_center()
-          .gap(4)
+          .gap(this.bookmarked.has(a.address) ? 2 : 4)
           .hover((s) => s.bg(t.hover))
           .on_click(() => run("pane.focus", { pane: a.pane }))
           .child(div().flex_1().min_w(0).whitespace_nowrap().text_right().text_color(t.muted).child(String(i + 1)))
-          .child(h_flex().w(14).flex_none().items_center().justify_center().child(this.status(t, a, true)));
+          .child(h_flex().min_w(14).flex_none().items_center().justify_center().child(this.status(t, a, true)));
       }
       const when = this.since(a);
       const idle = a.status === "idle" && !a.focused;

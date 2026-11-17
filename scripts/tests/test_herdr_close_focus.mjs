@@ -10,7 +10,9 @@ function element() {
     : () => proxy });
   return proxy;
 }
-const source = fs.readFileSync(new URL('../../stow_modules/main/dot-config/herdr-app/mods/agent-render/main.js', import.meta.url), 'utf8')
+const rendererSource = fs.readFileSync(new URL('../../stow_modules/main/dot-config/herdr-app/mods/agent-render/agent-render.js', import.meta.url), 'utf8')
+  .replace(/^import .*;$/gm, '').replace(/export function /g, 'function ');
+const source = rendererSource + '\n' + fs.readFileSync(new URL('../../stow_modules/main/dot-config/herdr-app/mods/agent-render/main.js', import.meta.url), 'utf8')
   .replace(/^import .*;$/gm, '').replace('export default class Agents', 'class Agents') + '\nthis.Agents = Agents;';
 const agent = (address, seq, tab = `tab-${address}`) => ({
   address, pane: `pane-${address}`, tab, space: `space-${address}`, space_name: 'Test',

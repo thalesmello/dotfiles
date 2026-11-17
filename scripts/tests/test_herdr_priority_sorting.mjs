@@ -33,6 +33,11 @@ function loadMod(name, className, host) {
     .replace(/^import[\s\S]*?from ["'][^"']+["'];\n/gm, '')
     .replace(`export default class ${className}`, `class ${className}`);
   const context = vm.createContext({ View: class {}, console, ...host });
+  if (name === 'agent-render') {
+    const rendererSource = fs.readFileSync(new URL('../../stow_modules/main/dot-config/herdr-app/mods/agent-render/agent-render.js', import.meta.url), 'utf8')
+      .replace(/^import .*;$/gm, '').replace(/export function /g, 'function ');
+    vm.runInContext(rendererSource, context);
+  }
   vm.runInContext(`${source}\nthis.Mod = ${className};`, context);
   return context.Mod;
 }
