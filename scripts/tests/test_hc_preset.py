@@ -9,6 +9,7 @@ import importlib.util
 import io
 import os
 from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
@@ -188,6 +189,64 @@ class ErrorTests(unittest.TestCase):
         self.assertIn('"pane_id":"t99"', buf.getvalue())
         cmd_line = run_mock.call_args[0][0][-1]
         self.assertIn("ASCONFIRMCLOSE_PANE_ID=p1", cmd_line)
+
+    def test_remote_ask_popup_stays_local_and_keeps_default_target(self):
+        world = Mock()
+        world.resolve_pane.return_value = {
+            "pane_id": "devserver/p1", "tab_id": "devserver/tb1",
+            "workspace_id": "devserver/ws1", "terminal_id": "devserver/t1",
+            "machine": "devserver", "foreground_cwd": "/home/test/src/repo",
+        }
+        for entrypoint in ("ask-agent", "pi-tab"):
+            with self.subTest(entrypoint=entrypoint), tempfile.TemporaryDirectory() as temp, \
+                    patch.dict(os.environ, {"HOME": temp}, clear=True), \
+                    patch.object(adapter, "resolve_plugin_entrypoint_command", return_value="/bin/true"), \
+                    patch.object(adapter, "HcWorld", return_value=world), \
+                    patch.object(adapter, "hc_bin", return_value="/bin/hc"), \
+                    patch.object(adapter, "herdr_app_home", return_value=temp), \
+                    patch.object(adapter.subprocess, "run", return_value=Mock(returncode=0, stdout='{"address":"t99"}')) as run, \
+                    patch.object(adapter, "save_json_file"), \
+                    patch.object(adapter, "herdr_app_do", return_value={"ok": True}), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(adapter.handle_popup_open("hc", "prompt-popups", entrypoint), 0)
+                command = run.call_args[0][0]
+                if entrypoint == "ask-agent":
+                    self.assertNotIn("--on", command)
+                    self.assertIn("ASK_AGENT_MACHINE=devserver", command[-1])
+                    self.assertIn("ASK_AGENT_PROJECT_CHOICES='[]'", command[-1])
+                    self.assertIn("ASK_AGENT_COMPLETION_WARNING=", command[-1])
+                    self.assertEqual(command[command.index("--cwd") + 1], temp)
+                else:
+                    self.assertEqual(command[command.index("--on") + 1], "devserver")
+                    self.assertNotIn("ASK_AGENT_MACHINE", command[-1])
+
+    def test_remote_ask_exports_target_project_and_try_choices(self):
+        world = Mock()
+        world.resolve_pane.return_value = {
+            "pane_id": "devserver/p1", "tab_id": "devserver/tb1", "workspace_id": "devserver/ws1",
+            "terminal_id": "devserver/t1", "machine": "devserver", "foreground_cwd": "/home/test/src/repo",
+        }
+        choices = adapter.json.dumps({"src": "/home/test/src", "projects": ["repo"], "tries": ["2026-11-16-test"]})
+        with tempfile.TemporaryDirectory() as temp, \
+                patch.dict(os.environ, {"HOME": temp}, clear=True), \
+                patch.object(adapter, "resolve_plugin_entrypoint_command", return_value="/bin/true"), \
+                patch.object(adapter, "HcWorld", return_value=world), \
+                patch.object(adapter, "hc_bin", return_value="/bin/hc"), \
+                patch.object(adapter, "herdr_app_home", return_value=temp), \
+                patch.object(adapter.subprocess, "run", side_effect=[Mock(returncode=0, stdout=choices),
+                                                                    Mock(returncode=0, stdout='{"address":"t99"}')]) as run, \
+                patch.object(adapter, "save_json_file"), \
+                patch.object(adapter, "herdr_app_do", return_value={"ok": True}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(adapter.handle_popup_open("hc", "prompt-popups", "ask-agent"), 0)
+            lookup = run.call_args_list[0][0][0]
+            self.assertEqual(lookup[lookup.index("--on") + 1], "devserver")
+            self.assertIn("/opt/homebrew/bin", lookup[lookup.index("-c") + 1])
+            line = run.call_args_list[1][0][0][-1]
+            self.assertIn("ASK_AGENT_SRC=/home/test/src", line)
+            self.assertIn("ASK_AGENT_PROJECT_CHOICES='[\"repo\"]'", line)
+            self.assertIn("ASK_AGENT_TRY_CHOICES='[\"2026-11-16-test\"]'", line)
+            self.assertNotIn("ASK_AGENT_COMPLETION_WARNING", line)
 
     def test_fast_pane_visible_unwrap_uses_terminal_get_and_read(self):
         env = {"HERDR_ACTIVE_PANE_ID": "p1", "HERDR_ACTIVE_TERMINAL_ID": "t19"}

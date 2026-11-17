@@ -28,6 +28,9 @@ _prompt_temp_file() {
 #                      DIR's subdirectories, filtered by the text after T;
 #                      Tab/Enter picks, Up/Down or ctrl-n/ctrl-p move, Esc
 #                      closes the menu, e.g. --complete "project:=$HOME/src"
+#   --complete-values T=JSON_ARRAY
+#                      the same menu, using literal choices rather than a
+#                      directory, e.g. --complete-values 'machine:=["devserver"]'
 #   --submit-dir DIR   Ctrl+Enter writes the current buffer to a new
 #                      *.prompt file in DIR (atomically, one per press),
 #                      clears it, and keeps editing instead of returning,
@@ -45,7 +48,7 @@ prompt_line() {
 
   while [ "$#" -gt 0 ]; do
     case $1 in
-      --highlight|--complete|--submit-dir)
+      --highlight|--complete|--complete-values|--submit-dir)
         [ "$#" -ge 2 ] || { printf 'prompt_line: %s needs a value\n' "$1" >&2; return 2; }
         _opts+=("$1" "$2")
         shift 2

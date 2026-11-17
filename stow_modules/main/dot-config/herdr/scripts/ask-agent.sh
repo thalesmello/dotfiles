@@ -11,6 +11,8 @@
 #   project    -> a `project:NAME` word in the prompt overrides the others:
 #                 reuse/create the NAME workspace, start in ~/src/NAME
 #                 (created if missing), and name the tab after the slug
+#   machine:NAME -> run the same routing and creation on a connected hc machine;
+#                   combine with qq, config, prototype, or project:NAME
 #
 # Bound as a `type = "popup"` command so the prompt runs in a herdr-rendered PTY
 # where interactive input works -- a detached `type = "shell"` command has no
@@ -111,6 +113,10 @@ Examples:
 QUICK_WORKSPACE_LABEL=qq
 SRC_WORKSPACE_LABEL=src
 herdr=$(herdr_bin) || herdr_die 'ask' 'herdr CLI not found'
+if [ -n "${ASK_AGENT_RESULT_FILE:-}" ]; then
+  [ "$("$herdr" backend 2>/dev/null)" = hc ] \
+    || herdr_die 'ask' 'target needs hc-preset to create the agent in herdr-core'
+fi
 
 # --- 1. the question -------------------------------------------------------
 
@@ -165,7 +171,7 @@ except Exception:
 }
 
 context_prefill_for_cwd() {
-  python3 - "${1:-}" "$HOME/src" <<'PY'
+  python3 - "${1:-}" "${ASK_AGENT_SRC:-$HOME/src}" <<'PY'
 import os
 import sys
 
@@ -201,8 +207,9 @@ trim_whitespace() {
 }
 
 create_focus=--focus
-if [ "${1:-}" = --dispatch ]; then
+if [ "${1:-}" = --dispatch ] || [ "${1:-}" = --dispatch-foreground ]; then
   create_focus=--no-focus
+  [ "${1:-}" != --dispatch-foreground ] || create_focus=--focus
   # Background re-exec for one Ctrl+Enter question. The file holds the exact
   # prompt buffer (newlines included); remove it once read.
   dispatch_file=${2:-}
@@ -217,6 +224,26 @@ else
     prefill=$(context_prefill_for_cwd "${ASK_AGENT_CWD:-$(active_pane_cwd)}")
     [ -n "$prefill" ] && prefill="${prefill% } "
   fi
+  if [ -n "${ASK_AGENT_MACHINE:-}" ]; then
+    prefill="machine:$ASK_AGENT_MACHINE $prefill"
+  fi
+  if [ -n "${ASK_AGENT_COMPLETION_WARNING:-}" ]; then
+    printf '%s\n' "$ASK_AGENT_COMPLETION_WARNING"
+  fi
+  # Machine choices come from the coordinating core, not directory names.
+  machine_names='[]'
+  case "$herdr" in
+    *hc-preset)
+      if [ "$("$herdr" backend 2>/dev/null)" = hc ]; then
+        machine_names=$(python3 "$here/ask-machine.py" machines)
+      fi
+      ;;
+  esac
+  project_completion_args=(--complete "project:tries/=$HOME/src/tries" --complete "project:=$HOME/src")
+  if [ -n "${ASK_AGENT_PROJECT_CHOICES:-}" ] && [ -n "${ASK_AGENT_TRY_CHOICES:-}" ]; then
+    project_completion_args=(--complete-values "project:tries/=$ASK_AGENT_TRY_CHOICES"
+                             --complete-values "project:=$ASK_AGENT_PROJECT_CHOICES")
+  fi
   # Highlight the words that steer routing below, and complete project:NAME from
   # the directories under ~/src (plus project:tries/NAME from ~/src/tries).
   background_queue_dir=$(mktemp -d "${TMPDIR:-/tmp}/ask-agent-queue.XXXXXX") \
@@ -227,8 +254,8 @@ else
   prompt_line \
     --submit-dir "$background_queue_dir" \
     --highlight pi,codex,claude,prototype,qq,config \
-    --complete "project:tries/=$HOME/src/tries" \
-    --complete "project:=$HOME/src" \
+    "${project_completion_args[@]}" \
+    --complete-values "machine:=$machine_names" \
     'Ask: ' "$prefill" ask || prompt_status=$?
   # Stop the watcher once the prompt returns: it launches anything queued
   # just before Enter/Esc and then exits, so no Ctrl+Enter question is lost
@@ -245,7 +272,40 @@ else
   fi
 fi
 
-# --- 1b. the project ------------------------------------------------------
+# --- 1b. the machine ------------------------------------------------------
+
+# Remove the selector before agent/model routing. The target repeats the normal
+# flow using its own HOME and PATH, so project directories, try directories,
+# trust state, multiline prompt files and quick-question logs all live there.
+machine=${ASK_AGENT_MACHINE:-}
+machine_re='(^|[[:space:]])machine:([^[:space:]]*)'
+if [[ "$question" =~ $machine_re ]]; then
+  machine=${BASH_REMATCH[2]}
+  [ -n "$machine" ] || herdr_die 'ask' 'machine: needs a connected machine name'
+  question=$(python3 - "$question" <<'PYMACHINE'
+import re
+import sys
+q = sys.argv[1]
+matches = list(re.finditer(r"(?<!\S)machine:\S*", q))
+if len(matches) != 1:
+    raise SystemExit("specify only one machine: selector")
+print((q[:matches[0].start()] + q[matches[0].end():]).strip())
+PYMACHINE
+  ) || herdr_die 'ask' 'specify only one machine: selector'
+  [ -n "${question// /}" ] || exit 0
+fi
+if [ -n "$machine" ]; then
+  [ "$("$herdr" backend 2>/dev/null)" = hc ] \
+    || herdr_die 'ask' 'machine: routing requires herdr-core'
+  printf 'dispatching to %s...\n' "$machine"
+  remote_output=$(printf '%s' "$question" | python3 "$here/ask-machine.py" \
+    dispatch "$machine" "$create_focus" "$here/ask-agent.sh" "$herdr" 2>&1) \
+    || herdr_die 'ask' "could not dispatch to $machine: $remote_output"
+  printf '%s\n' "$remote_output"
+  exit 0
+fi
+
+# --- 1c. the project ------------------------------------------------------
 
 # A `project:NAME` (or `project:tries/NAME`) word pins the session to
 # ~/src/NAME (or ~/src/tries/NAME) and its workspace.
@@ -999,4 +1059,9 @@ if [ "$create_focus" = --focus ]; then
   (sleep 0.15; "$herdr" agent focus "$pane" >/dev/null 2>&1) </dev/null >/dev/null 2>&1 &
 fi
 
+# Internal remote dispatcher handshake, written only after a successful launch.
+if [ -n "${ASK_AGENT_RESULT_FILE:-}" ]; then
+  printf '%s\n' "$created" >"$ASK_AGENT_RESULT_FILE" \
+    || herdr_die 'ask' 'agent started, but could not report the launch result'
+fi
 printf 'asked %s\n' "$slug"

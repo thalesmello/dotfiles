@@ -105,6 +105,7 @@ completion token is a whitespace-delimited word that starts with its trigger.
 from __future__ import annotations
 
 import datetime as _dt
+import json
 import os
 import random
 import re
@@ -170,6 +171,16 @@ class DirSource:
             elif _is_subsequence(q, low):
                 subsequence.append(name)
         return prefix + substring + subsequence
+
+
+class ValueSource(DirSource):
+    """Literal choices with the same matching and menu behavior as directories."""
+
+    def __init__(self, values: list[str]) -> None:
+        self._names = sorted(set(values))
+
+    def names(self) -> list[str]:
+        return self._names
 
 
 def _is_subsequence(needle: str, hay: str) -> bool:
@@ -431,7 +442,7 @@ class Prompt:
         prefill: str,
         history_name: str,
         highlight: Optional[set[str]] = None,
-        complete: Optional[list[tuple[str, str]]] = None,
+        complete: Optional[list[tuple[str, str | list[str]]]] = None,
         submit_dir: Optional[str] = None,
         submit_enabled: bool = False,
     ) -> None:
@@ -445,7 +456,10 @@ class Prompt:
         self.submitted: list[str] = []
         self.submit_count = 0
         self.highlight = {w.lower() for w in (highlight or ())}
-        self.completions = [(trig, DirSource(path)) for trig, path in (complete or [])]
+        self.completions = [
+            (trig, ValueSource(source) if isinstance(source, list) else DirSource(source))
+            for trig, source in (complete or [])
+        ]
         self.menu_sel = 0
         self.menu_top = 0
         self.menu_query: Optional[str] = None
@@ -1452,12 +1466,26 @@ def _parse_complete(spec: str) -> tuple[str, str]:
     return trigger, path
 
 
-def parse_line_options(argv: list[str]) -> tuple[set[str], list[tuple[str, str]], Optional[str], list[str]]:
+def _parse_complete_values(spec: str) -> tuple[str, list[str]]:
+    trigger, sep, raw = spec.partition("=")
+    try:
+        values = json.loads(raw)
+    except ValueError:
+        values = None
+    if (not sep or not trigger or not isinstance(values, list)
+            or any(not isinstance(v, str) or not v or any(c.isspace() for c in v) for v in values)):
+        raise ValueError(f"--complete-values expects TRIGGER=JSON_STRING_ARRAY, got {spec!r}")
+    return trigger, values
+
+
+def parse_line_options(argv: list[str]) -> tuple[set[str], list[tuple[str, str | list[str]]], Optional[str], list[str]]:
     """Split leading options from the positional `line` arguments.
 
     --highlight WORDS   comma-separated words to highlight (repeatable)
     --complete T=DIR    a word starting with T opens a menu of DIR's
                         subdirectories, filtered by what follows T (repeatable)
+    --complete-values T=JSON_ARRAY
+                        the same menu, using literal string choices (repeatable)
     --submit-dir DIR    Ctrl+Enter writes the current buffer to a new file
                         in DIR and clears it instead of accepting, so the
                         caller can act on it in the background while a new
@@ -1465,7 +1493,7 @@ def parse_line_options(argv: list[str]) -> tuple[set[str], list[tuple[str, str]]
     --                  end of options
     """
     highlight: set[str] = set()
-    complete: list[tuple[str, str]] = []
+    complete: list[tuple[str, str | list[str]]] = []
     submit_dir: Optional[str] = None
     i = 0
     while i < len(argv):
@@ -1473,7 +1501,7 @@ def parse_line_options(argv: list[str]) -> tuple[set[str], list[tuple[str, str]]
         if arg == "--":
             i += 1
             break
-        if arg in ("--highlight", "--complete", "--submit-dir"):
+        if arg in ("--highlight", "--complete", "--complete-values", "--submit-dir"):
             if i + 1 >= len(argv):
                 raise ValueError(f"{arg} needs a value")
             value = argv[i + 1]
@@ -1481,6 +1509,8 @@ def parse_line_options(argv: list[str]) -> tuple[set[str], list[tuple[str, str]]
                 highlight.update(w.strip().lower() for w in value.split(",") if w.strip())
             elif arg == "--complete":
                 complete.append(_parse_complete(value))
+            elif arg == "--complete-values":
+                complete.append(_parse_complete_values(value))
             else:
                 submit_dir = value
             i += 2

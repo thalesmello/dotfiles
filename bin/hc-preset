@@ -2807,6 +2807,43 @@ def handle_popup_open(
     hc = hc_bin()
     if not hc:
         return 1
+    # Keep the ask editor on the coordinating machine so machine: completion
+    # and dispatch can reach all its connections. Preserve the old default for
+    # asks opened from a remote space, unless the prompt names another machine.
+    if plugin == "prompt-popups" and entrypoint == "ask-agent" and active_p and active_p.get("machine"):
+        env.setdefault("ASK_AGENT_MACHINE", active_p["machine"])
+        # A failed lookup must never offer this computer's directories for a
+        # remote request. Keep an empty menu and show the failure in the popup.
+        env["ASK_AGENT_PROJECT_CHOICES"] = "[]"
+        env["ASK_AGENT_TRY_CHOICES"] = "[]"
+        env["ASK_AGENT_COMPLETION_WARNING"] = f"Could not load projects on {active_p['machine']}; type project:NAME manually."
+        # Preserve remote project completion/context while the editor runs here.
+        choices_code = (
+            "import json; from pathlib import Path; src=Path.home()/'src'; "
+            "names=lambda p: sorted(d.name for d in p.iterdir() if d.is_dir() and not d.name.startswith('.') and not any(c.isspace() for c in d.name)) if p.is_dir() else []; "
+            "print(json.dumps({'src':str(src),'projects':names(src),'tries':names(src/'tries')}))"
+        )
+        remote_python = ('export PATH="$HOME/.local/bin:$HOME/src/dotfiles/bin:/opt/homebrew/bin:'
+                         '/opt/chef/embedded/bin:/usr/local/bin:$PATH"; exec python3 -c "$1"')
+        choices_result = subprocess.run(
+            [hc, "exec", "--on", active_p["machine"], "--timeout", "10", "/bin/sh", "-c",
+             remote_python, "ask-python", choices_code],
+            capture_output=True, text=True,
+        )
+        if choices_result.returncode == 0:
+            try:
+                choices = json.loads(choices_result.stdout)
+                if (not isinstance(choices.get("src"), str)
+                        or any(not isinstance(choices.get(key), list)
+                               or any(not isinstance(n, str) or not n or any(c.isspace() for c in n)
+                                      for n in choices[key]) for key in ("projects", "tries"))):
+                    raise ValueError("invalid remote completion choices")
+                env["ASK_AGENT_SRC"] = choices["src"]
+                env["ASK_AGENT_PROJECT_CHOICES"] = json.dumps(choices["projects"])
+                env["ASK_AGENT_TRY_CHOICES"] = json.dumps(choices["tries"])
+                env.pop("ASK_AGENT_COMPLETION_WARNING", None)
+            except (ValueError, KeyError, TypeError, AttributeError):
+                pass
     export_keys = [
         "HC_PRESET_BACKEND",
         "HERDR_APP_HOME",
@@ -2815,6 +2852,11 @@ def handle_popup_open(
         "HERDR_ACTIVE_WORKSPACE_ID",
         "HC_TERMINAL_ID",
         "ASK_AGENT_CONTEXT",
+        "ASK_AGENT_MACHINE",
+        "ASK_AGENT_SRC",
+        "ASK_AGENT_PROJECT_CHOICES",
+        "ASK_AGENT_TRY_CHOICES",
+        "ASK_AGENT_COMPLETION_WARNING",
         "HERDR_SNOOZE_SCREEN",
         "SNOOZE_SCREEN",
     ]
@@ -2826,7 +2868,7 @@ def handle_popup_open(
     env_exports = " ".join(f"{k}={shlex.quote(env[k])}" for k in export_keys if k in env)
     raw_cwd = (active_p.get("foreground_cwd") or active_p.get("cwd")) if active_p else os.getcwd()
     machine = active_p.get("machine") if active_p else None
-    run_remote = bool(machine and plugin == "prompt-popups" and entrypoint in ("ask-agent", "pi-tab", "break-pane", "run-command"))
+    run_remote = bool(machine and plugin == "prompt-popups" and entrypoint in ("pi-tab", "break-pane", "run-command"))
     full_line = f"export {env_exports}; {script_cmd}" if env_exports else script_cmd
     run_cmd = [hc, "run", "--bg", "--rm", "--no-notify", "--json"]
     if run_remote and machine:
