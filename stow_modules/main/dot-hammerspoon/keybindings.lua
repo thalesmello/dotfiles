@@ -295,6 +295,9 @@ function M.setup()
 
   -- Command palette
   default:bindOnce(hyperShift, ";", "Command Palette", showCommandPalette)
+  -- Shared focus timer. Work-machine local bindings applied below override
+  -- this chord only to route distracting windows to their auto-hide timer.
+  require("focusTimer").setup({default = default, hyperShift = hyperShift})
 
   ---------------------------------------------------------------
   -- Palette-only commands

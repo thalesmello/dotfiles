@@ -58,6 +58,21 @@ mkdir -p ~/.local/bin && fish_add_path ~/.local/bin
 mkdir -p ~/go/bin && fish_add_path ~/go/bin
 ```
 
+## Focus timer
+
+The main Hammerspoon config binds **hyper+shift+t** to a manual focus timer:
+**2min → 25min → 5min → off**. Each selection starts the chosen duration from
+now. The timer runs across window/app switches and Hammerspoon restarts, with
+no countdown display; completion shows about 1.2 seconds of fireworks on every
+monitor without changing focus or minimizing windows.
+
+Implementation: `stow_modules/main/dot-hammerspoon/focusTimer.lua`.
+Run its tests from this repo with `lua tests/focus_timer_test.lua`.
+
+Work machines can override shortcut routing in `meta-dotfiles`: distracting
+windows use the auto-hide alarm when enabled; other windows (or all windows
+when auto-hiding is disabled) use this shared focus timer.
+
 ## macOS settings
 
 Apply system `defaults` preferences and Spotlight exclusions (`scripts/spotlight-exclusions.txt`):
