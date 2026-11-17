@@ -390,7 +390,9 @@ keymaps:
     toggle continuous mode: Command+ShiftRight
     toggle continuous mode until closed: null
     toggle free mode: F14
-    toggle overlay: ctrl+cmd+option+;
+    toggle overlay:
+    - ctrl+cmd+option+;
+    - F16
     toggle overlay lock: Control+ShiftRight
     undo last key:
     - Escape

@@ -102,6 +102,18 @@ local function setMapping(srcHid, dstHid, sync)
   end
 end
 
+-- Recreate (not merely restart) the tap to place Hyper normalization before
+-- another application's newly-created session tap. Keep the callback closure
+-- so an in-flight Caps hold retains its used/timing state.
+local tapHandler
+function M.rearm()
+  if not tapHandler then return end
+  if _G._CapsHyperTap then _G._CapsHyperTap:stop() end
+  local types = hs.eventtap.event.types
+  _G._CapsHyperTap = hs.eventtap.new({types.keyDown, types.keyUp}, tapHandler)
+  _G._CapsHyperTap:start()
+end
+
 -- Arm the remap and the F19 eventtap.
 local function enable(threshold)
   -- Restore Caps Lock when Hammerspoon reloads/quits so it isn't left as a dead
@@ -123,7 +135,7 @@ local function enable(threshold)
   local downAt = 0
 
   local types = hs.eventtap.event.types
-  _G._CapsHyperTap = hs.eventtap.new({types.keyDown, types.keyUp}, function(event)
+  tapHandler = function(event)
     local code = event:getKeyCode()
 
     if code == f19 then
@@ -161,8 +173,8 @@ local function enable(threshold)
     end
 
     return false
-  end)
-  _G._CapsHyperTap:start()
+  end
+  M.rearm()
 end
 
 function M.setup(opts)

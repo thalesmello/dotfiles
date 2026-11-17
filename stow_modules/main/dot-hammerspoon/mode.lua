@@ -68,13 +68,15 @@ function Mode:displayPrefix()
 end
 
 function Mode:bindOnce(mods, key, name, fn)
+  local hotkey
   if self._modal then
     self._modal:bind(mods, key, function() self._modal:exit(); fn() end)
   else
-    hs.hotkey.bind(mods, key, fn)
+    hotkey = hs.hotkey.bind(mods, key, fn)
   end
   local shortcut = self:displayPrefix() .. formatShortcut(mods, key)
   palette.registerBinding(name, fn, shortcut)
+  return hotkey
 end
 
 -- Bind a key in `self` that enters `targetMode`, and record how the target is

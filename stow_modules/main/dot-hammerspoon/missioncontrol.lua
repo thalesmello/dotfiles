@@ -17,6 +17,8 @@ local IGNORED_OWNERS = {
   ["borders"] = true,
   ["hs"] = true,
   ["Mouseless"] = true,
+  ["Neru"] = true,
+  ["neru"] = true,
   ["BetterDisplay"] = true,
 }
 

@@ -295,6 +295,8 @@ function M.setup()
 
   -- Command palette
   default:bindOnce(hyperShift, ";", "Command Palette", showCommandPalette)
+  -- Disabled by default; explicitly select the Neru profile from the palette.
+  local navigation = require("neruNavigation").setup({default = default, hyper = hyper})
 
   ---------------------------------------------------------------
   -- Palette-only commands
@@ -1425,7 +1427,8 @@ function M.setup()
 
   restart:bindOnce(hyper, "y", "Restart WM", function() task({"yabai-preset", "restart-wm"}) end)
   restart:bindOnce(hyper, "a", "Restart Alfred", function() Preset.displayMessage("Restart Alfred"); fish('killall Alfred; sleep 2; and open -a "Alfred 5"') end)
-  restart:bindOnce(hyper, "m", "Restart Mouseless", function() Preset.displayMessage("Restart Mouseless"); fish('killall mouseless; sleep 2; and open -a "Mouseless"') end)
+  restart:bindOnce(hyper, "n", "Start / Restart Neru (quit Mouseless)", navigation.restartNeru)
+  restart:bindOnce(hyper, "m", "Restart Mouseless (quit Neru)", navigation.restartMouseless)
   restart:bindOnce(hyper, "v", "Restart NVIM Ghost", function() Preset.displayMessage("Restart NVIM Ghost"); fish("neovim-ghost kill; sleep 2; and neovim-ghost start --spawn") end)
   restart:bindOnce(hyper, "k", "Restart Karabiner", function() Preset.displayMessage("Restart Karabiner"); fish('launchctl kickstart -k gui/(id -u)/org.pqrs.service.agent.karabiner_console_user_server') end)
   restart:bindOnce(hyper, "h", "Restart Hammerspoon", function() Preset.displayMessage("Restarting Hammerspoon"); hs.reload() end)

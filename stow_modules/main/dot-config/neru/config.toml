@@ -1,0 +1,436 @@
+#:schema https://raw.githubusercontent.com/y3owk1n/neru/v1.63.0/schemas/config.schema.json
+# Active configuration for v1.63.0. Hammerspoon owns launchers and continuous clicks.
+# Hammerspoon owns global launchers. Mode-local keys stay here.
+
+[general]
+passthrough_unbounded_keys = true
+should_exit_after_passthrough = false
+
+[hotkeys]
+
+[sticky_modifiers]
+enabled = false
+
+# Mouseless palette in both system appearances; alpha is set by each UI.
+[theme.light]
+surface = "#7A4949"
+accent = "#B87671"
+accent_alt = "#FF8A00"
+on_accent_alt = "#FEFEFE"
+text = "#FEFEFE"
+
+[theme.dark]
+surface = "#7A4949"
+accent = "#B87671"
+accent_alt = "#FF8A00"
+on_accent_alt = "#FEFEFE"
+text = "#FEFEFE"
+
+[macros]
+# Neru performs the click. Hammerspoon only closes the mode when continuous
+# clicks are off. Keeping this decision there avoids rewriting hotkeys.
+after_click = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').afterClick()\""
+confirm_left = ["action left_click --bail-on-error", "macro after_click"]
+confirm_right = ["action right_click --bail-on-error", "macro after_click"]
+confirm_middle = ["action middle_click --bail-on-error", "macro after_click"]
+confirm_move = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').moveOnly()\""
+confirm_move_bare = ["action move_mouse --bare --bail-on-error", "macro after_click"]
+open_recursive = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').openRecursive()\""
+open_grid = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').openGrid()\""
+# Commit the virtual selection before pressing OR releasing a drag button.
+toggle_drag = ["action move_mouse --selection --bail-on-error", "action left_click --toggle"]
+start_hold = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').startHold()\""
+
+[hints]
+strategy = "axtree"
+include_menubar_hints = true
+include_dock_hints = true
+
+[hints.ui]
+placement = "top"
+# Homebrew's variable font registers this named Bold instance in CoreText.
+font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
+font_size = 12
+# Neru exposes no text-shadow setting. Dark badges provide the contrast.
+background_color = "#E67A4949"
+text_color = "#FFFEFEFE"
+matched_text_color = "#FFFF8A00"
+border_color = "#C0B87671"
+border_width = 1
+
+[hints.search_input_ui]
+font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
+font_size = 12
+
+[hints.hotkeys]
+"F16" = "macro open_grid"
+"Space" = "macro confirm_left"
+"Enter" = "macro confirm_left"
+"Shift+Space" = "macro confirm_move_bare"
+"Shift+Enter" = "macro confirm_move_bare"
+"Shift+L" = "__disabled__"
+"/" = "action search_hints --confirm-on-label"
+"Alt+Space" = "macro confirm_right"
+"Alt+Enter" = "macro confirm_right"
+"Ctrl+Space" = "macro confirm_middle"
+"Ctrl+Enter" = "macro confirm_middle"
+"Cmd+Space" = "macro confirm_middle"
+"Cmd+Enter" = "macro confirm_middle"
+"Ctrl+Alt+Enter" = "action left_click --toggle"
+
+# Hold the modifier while completing a hint label to choose its mouse button.
+[hints.select_with]
+alt = "action right_click"
+cmd = "action middle_click"
+ctrl = "action middle_click"
+shift = "action move_mouse"
+
+# Cmd+Right Shift uses a 5x3 grid, alternating left/right QWERTY key sets.
+# The Grid palette entry swaps only the marked block to Mouseless's layout.
+[recursive_grid]
+capture_scope = "screen"
+min_size_width = 1
+min_size_height = 1
+# BEGIN NERU MANAGED LAYOUT
+grid_cols = 5
+grid_rows = 3
+keys = "qwertasdfgzxcvb"
+max_depth = 10
+layers = [
+  { depth = 1, grid_cols = 5, grid_rows = 3, keys = "yuiophjkl;nm,./" },
+  { depth = 3, grid_cols = 5, grid_rows = 3, keys = "yuiophjkl;nm,./" },
+  { depth = 5, grid_cols = 5, grid_rows = 3, keys = "yuiophjkl;nm,./" },
+  { depth = 7, grid_cols = 5, grid_rows = 3, keys = "yuiophjkl;nm,./" },
+  { depth = 9, grid_cols = 5, grid_rows = 3, keys = "yuiophjkl;nm,./" },
+]
+# END NERU MANAGED LAYOUT
+
+[recursive_grid.animation]
+enabled = false
+
+[recursive_grid.ui]
+font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
+font_size = 12
+# Mouseless palette, in Neru's alpha-first #AARRGGBB format.
+# Recursive Grid uses one shared cell fill; this is a darker red variant.
+highlight_color = "#80180C10"      # near-black burgundy, 50% opacity
+text_color = "#FFFEFEFE"           # nearly-white labels
+# Current level only; next-level previews are disabled.
+sub_key_preview = false
+sub_key_preview_font_size = 10
+sub_key_preview_text_color = "#FFFFFFFF"
+line_color = "#80B87671"           # separators at 50% opacity, matching the background
+line_width = 2
+label_background = true
+label_background_color = "#D9000000" # black shadow-like contrast behind labels
+label_background_padding_x = 4
+label_background_padding_y = 2
+label_background_border_radius = 3
+label_background_border_width = 0
+
+[recursive_grid.hotkeys]
+"F16" = "idle"
+"Escape" = "action backspace"
+"Shift+Escape" = "idle"
+# Aim with a virtual selection. Dragging temporarily enables real-pointer follow.
+"`" = "__disabled__"
+# Aim without clicking, then confirm. Hyper+Shift+/ toggles continuous clicks.
+"Space" = "macro confirm_left"
+"Enter" = "macro confirm_left"
+"Shift+Space" = "macro confirm_move"
+"Shift+Enter" = "macro confirm_move"
+"Alt+Space" = "macro confirm_right"
+"Alt+Enter" = "macro confirm_right"
+"Ctrl+Space" = "macro start_hold"
+"Ctrl+Enter" = "macro start_hold"
+"Cmd+Space" = "macro confirm_middle"
+"Cmd+Enter" = "macro confirm_middle"
+"Ctrl+Backspace" = "action reset"
+"Alt+Backspace" = "action backspace"
+"Ctrl+Shift+Backspace" = "action backspace"
+"Ctrl+Shift+Escape" = "action backspace"
+"Tab" = "action move_monitor"
+"Shift+Tab" = "action move_monitor --previous"
+# Keep Option/Cmd/Ctrl+Enter for clicks; use this for explicit drag toggling.
+"Ctrl+Alt+Enter" = "macro toggle_drag"
+# Shift-held aiming and Shift+Ctrl dragging must still select grid cells.
+"Shift+A" = "action feed --mode a"
+"Shift+B" = "action feed --mode b"
+"Shift+C" = "action feed --mode c"
+"Shift+D" = "action feed --mode d"
+"Shift+E" = "action feed --mode e"
+"Shift+F" = "action feed --mode f"
+"Shift+G" = "action feed --mode g"
+"Shift+H" = "action feed --mode h"
+"Shift+I" = "action feed --mode i"
+"Shift+J" = "action feed --mode j"
+"Shift+K" = "action feed --mode k"
+"Shift+L" = "action feed --mode l"
+"Shift+M" = "action feed --mode m"
+"Shift+N" = "action feed --mode n"
+"Shift+O" = "action feed --mode o"
+"Shift+P" = "action feed --mode p"
+"Shift+Q" = "action feed --mode q"
+"Shift+R" = "action feed --mode r"
+"Shift+S" = "action feed --mode s"
+"Shift+T" = "action feed --mode t"
+"Shift+U" = "action feed --mode u"
+"Shift+V" = "action feed --mode v"
+"Shift+W" = "action feed --mode w"
+"Shift+X" = "action feed --mode x"
+"Shift+Y" = "action feed --mode y"
+"Shift+Z" = "action feed --mode z"
+"Shift+;" = "action feed --mode ;"
+"Shift+," = "action feed --mode ,"
+"Shift+." = "action feed --mode ."
+"Shift+/" = "action feed --mode /"
+"Ctrl+Shift+A" = "action feed --mode a"
+"Ctrl+Shift+B" = "action feed --mode b"
+"Ctrl+Shift+C" = "action feed --mode c"
+"Ctrl+Shift+D" = "action feed --mode d"
+"Ctrl+Shift+E" = "action feed --mode e"
+"Ctrl+Shift+F" = "action feed --mode f"
+"Ctrl+Shift+G" = "action feed --mode g"
+"Ctrl+Shift+H" = "action feed --mode h"
+"Ctrl+Shift+I" = "action feed --mode i"
+"Ctrl+Shift+J" = "action feed --mode j"
+"Ctrl+Shift+K" = "action feed --mode k"
+"Ctrl+Shift+L" = "action feed --mode l"
+"Ctrl+Shift+M" = "action feed --mode m"
+"Ctrl+Shift+N" = "action feed --mode n"
+"Ctrl+Shift+O" = "action feed --mode o"
+"Ctrl+Shift+P" = "action feed --mode p"
+"Ctrl+Shift+Q" = "action feed --mode q"
+"Ctrl+Shift+R" = "action feed --mode r"
+"Ctrl+Shift+S" = "action feed --mode s"
+"Ctrl+Shift+T" = "action feed --mode t"
+"Ctrl+Shift+U" = "action feed --mode u"
+"Ctrl+Shift+V" = "action feed --mode v"
+"Ctrl+Shift+W" = "action feed --mode w"
+"Ctrl+Shift+X" = "action feed --mode x"
+"Ctrl+Shift+Y" = "action feed --mode y"
+"Ctrl+Shift+Z" = "action feed --mode z"
+"Ctrl+Shift+;" = "action feed --mode ;"
+"Ctrl+Shift+," = "action feed --mode ,"
+"Ctrl+Shift+." = "action feed --mode ."
+"Ctrl+Shift+/" = "action feed --mode /"
+"Ctrl+Shift+Up" = "action move_mouse_relative --dx=0 --dy=-10"
+"Ctrl+Shift+Down" = "action move_mouse_relative --dx=0 --dy=10"
+"Ctrl+Shift+Left" = "action move_mouse_relative --dx=-10 --dy=0"
+"Ctrl+Shift+Right" = "action move_mouse_relative --dx=10 --dy=0"
+
+# Three-character addresses: left-hand prefix, right-hand column, left-hand row.
+# Continue alternating with right-hand keys in the final 3x3 subgrid.
+[grid]
+characters = "qwertasdfgzxcvb"
+row_labels = "qwertasdfgzxcvb"
+col_labels = "yuiophjklnm"
+sublayer_keys = "uiojklm,."
+max_label_length = 3
+
+[grid.hotkeys]
+"F16" = "idle"
+"`" = "__disabled__"
+"Space" = "macro confirm_left"
+"Enter" = "macro confirm_left"
+"Shift+Space" = "macro confirm_move"
+"Shift+Enter" = "macro confirm_move"
+"Alt+Space" = "macro confirm_right"
+"Alt+Enter" = "macro confirm_right"
+"Ctrl+Space" = "macro start_hold"
+"Ctrl+Enter" = "macro start_hold"
+"Cmd+Space" = "macro confirm_middle"
+"Cmd+Enter" = "macro confirm_middle"
+"Ctrl+Alt+Enter" = "macro toggle_drag"
+"Ctrl+Backspace" = "action reset"
+"Ctrl+Shift+Backspace" = "action backspace"
+"Ctrl+Shift+Escape" = "action backspace"
+"Shift+Escape" = "idle"
+"Tab" = "action move_monitor"
+# Allow row/column/subgrid selection while the Ctrl+Shift drag chord is held.
+"Ctrl+Shift+A" = "action feed --mode a"
+"Ctrl+Shift+B" = "action feed --mode b"
+"Ctrl+Shift+C" = "action feed --mode c"
+"Ctrl+Shift+D" = "action feed --mode d"
+"Ctrl+Shift+E" = "action feed --mode e"
+"Ctrl+Shift+F" = "action feed --mode f"
+"Ctrl+Shift+G" = "action feed --mode g"
+"Ctrl+Shift+H" = "action feed --mode h"
+"Ctrl+Shift+I" = "action feed --mode i"
+"Ctrl+Shift+J" = "action feed --mode j"
+"Ctrl+Shift+K" = "action feed --mode k"
+"Ctrl+Shift+L" = "action feed --mode l"
+"Ctrl+Shift+M" = "action feed --mode m"
+"Ctrl+Shift+N" = "action feed --mode n"
+"Ctrl+Shift+O" = "action feed --mode o"
+"Ctrl+Shift+P" = "action feed --mode p"
+"Ctrl+Shift+Q" = "action feed --mode q"
+"Ctrl+Shift+R" = "action feed --mode r"
+"Ctrl+Shift+S" = "action feed --mode s"
+"Ctrl+Shift+T" = "action feed --mode t"
+"Ctrl+Shift+U" = "action feed --mode u"
+"Ctrl+Shift+V" = "action feed --mode v"
+"Ctrl+Shift+W" = "action feed --mode w"
+"Ctrl+Shift+X" = "action feed --mode x"
+"Ctrl+Shift+Y" = "action feed --mode y"
+"Ctrl+Shift+Z" = "action feed --mode z"
+"Ctrl+Shift+;" = "action feed --mode ;"
+"Ctrl+Shift+," = "action feed --mode ,"
+"Ctrl+Shift+." = "action feed --mode ."
+"Ctrl+Shift+/" = "action feed --mode /"
+"Ctrl+Shift+Up" = "action move_mouse_relative --dx=0 --dy=-10"
+"Ctrl+Shift+Down" = "action move_mouse_relative --dx=0 --dy=10"
+"Ctrl+Shift+Left" = "action move_mouse_relative --dx=-10 --dy=0"
+"Ctrl+Shift+Right" = "action move_mouse_relative --dx=10 --dy=0"
+
+[grid.ui]
+font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
+font_size = 12
+# Standard Grid supports separate base and selected-cell fills.
+background_color = "#80180C10"
+matched_background_color = "#80180C10" # same fill as Recursive Grid
+text_color = "#FFFEFEFE"
+matched_text_color = "#FFFEFEFE"
+border_color = "#00B87671"
+matched_border_color = "#00FF8A00"
+border_width = 0
+
+[scroll]
+scroll_step = 60
+scroll_step_half = 200
+
+[scroll.hotkeys]
+"F16" = "macro open_grid"
+"Cmd+Ctrl+Alt+d" = "action page_down"
+"Cmd+Ctrl+Alt+u" = "action page_up"
+"Space" = "macro confirm_left"
+"Enter" = "macro confirm_left"
+"Shift+Space" = "macro confirm_move_bare"
+"Shift+Enter" = "macro confirm_move_bare"
+"Alt+Space" = "macro confirm_right"
+"Alt+Enter" = "macro confirm_right"
+"Ctrl+Space" = "macro confirm_middle"
+"Ctrl+Enter" = "macro confirm_middle"
+"Cmd+Space" = "macro confirm_middle"
+"Cmd+Enter" = "macro confirm_middle"
+"Ctrl+Alt+Enter" = "action left_click --toggle"
+"g" = "action go_top"
+"gg" = "__disabled__"
+"Shift+G" = "action go_bottom"
+"Tab" = "action move_monitor"
+"Shift+Tab" = "action move_monitor --previous"
+"w" = "action move_mouse_relative --dx=0 --dy=-15"
+"a" = "action move_mouse_relative --dx=-15 --dy=0"
+"s" = "action move_mouse_relative --dx=0 --dy=15"
+"e" = "action move_mouse_relative --dx=15 --dy=0"
+"Shift+W" = "action move_mouse_relative --dx=0 --dy=-45"
+"Shift+A" = "action move_mouse_relative --dx=-45 --dy=0"
+"Shift+S" = "action move_mouse_relative --dx=0 --dy=45"
+"Shift+E" = "action move_mouse_relative --dx=45 --dy=0"
+"Alt+W" = "action move_mouse_relative --dx=0 --dy=-5"
+"Alt+A" = "action move_mouse_relative --dx=-5 --dy=0"
+"Alt+S" = "action move_mouse_relative --dx=0 --dy=5"
+"Alt+E" = "action move_mouse_relative --dx=5 --dy=0"
+"Ctrl+Shift+W" = "action move_mouse_relative --dx=0 --dy=-15"
+"Ctrl+Shift+A" = "action move_mouse_relative --dx=-15 --dy=0"
+"Ctrl+Shift+S" = "action move_mouse_relative --dx=0 --dy=15"
+"Ctrl+Shift+E" = "action move_mouse_relative --dx=15 --dy=0"
+"Ctrl+Shift+Up" = "action move_mouse_relative --dx=0 --dy=-10"
+"Ctrl+Shift+Down" = "action move_mouse_relative --dx=0 --dy=10"
+"Ctrl+Shift+Left" = "action move_mouse_relative --dx=-10 --dy=0"
+"Ctrl+Shift+Right" = "action move_mouse_relative --dx=10 --dy=0"
+
+[vim.ui]
+font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
+cursor_color = "#B3FF8A00"
+selection_color = "#4DB87671"
+match_color = "#B3FF8A00"
+container_color = "#997A4949"
+status_background_color = "#E67A4949"
+status_text_color = "#FFFEFEFE"
+
+[vim.hotkeys]
+"F16" = "macro open_grid"
+"Tab" = ["action move_monitor --bail-on-error", "vim --capture-scope screen"]
+"Shift+Tab" = ["action move_monitor --previous --bail-on-error", "vim --capture-scope screen"]
+"Shift+Space" = "action feed --mode g h"
+"Shift+Enter" = ["action feed --mode g h", "idle"]
+# Feed Vim's own click mappings so these target its text cursor, not a stale
+# system pointer. Space stays in Vim; Enter variants click then leave.
+"Alt+Space" = "action feed --mode g r"
+"Alt+Enter" = ["action feed --mode g r", "idle"]
+"Ctrl+Space" = "macro start_hold"
+"Ctrl+Enter" = "macro start_hold"
+"Cmd+Space" = "action feed --mode g m"
+"Cmd+Enter" = ["action feed --mode g m", "idle"]
+
+# Preserve Vim's own character targeting and visual-mode Return (drag/select).
+# Normal Return clicks then :q; Space clicks and rereads without leaving Vim.
+[vim.keymaps.normal]
+"<CR>" = "<Plug>(left-click):q<CR>"
+"<Space>" = "<Plug>(left-click)"
+
+[vim.keymaps.visual]
+"<Space>" = "<Plug>(left-click)"
+"gr" = "<Plug>(right-click)"
+"gm" = "<Plug>(middle-click)"
+"gh" = "<Plug>(move-mouse)"
+
+[bisect.ui]
+font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
+font_size = 12
+highlight_color = "#407A4949"
+text_color = "#FFFEFEFE"
+line_color = "#FFB87671"
+line_width = 2
+label_background = true
+label_background_color = "#D9000000"
+
+[bisect.hotkeys]
+"F16" = "macro open_grid"
+"Space" = "macro confirm_left"
+"Enter" = "macro confirm_left"
+"Shift+Space" = "macro confirm_move"
+"Shift+Enter" = "macro confirm_move"
+"Alt+Space" = "macro confirm_right"
+"Alt+Enter" = "macro confirm_right"
+"Ctrl+Space" = "macro confirm_middle"
+"Ctrl+Enter" = "macro confirm_middle"
+"Cmd+Space" = "macro confirm_middle"
+"Cmd+Enter" = "macro confirm_middle"
+"Ctrl+Alt+Enter" = "action left_click --toggle"
+
+[monitor_select]
+enabled = true
+
+[monitor_select.ui]
+font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
+subtitle_font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
+background_color = "#E67A4949"
+text_color = "#FFFEFEFE"
+border_color = "#C0B87671"
+
+[monitor_select.hotkeys]
+"F16" = "macro open_grid"
+
+[mode_indicator.ui]
+font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
+background_color = "#E67A4949"
+text_color = "#FFFEFEFE"
+border_color = "#C0B87671"
+
+[virtual_pointer.ui]
+text_color = "#B3FF8A00"
+
+[held_repeat]
+enabled = true
+initial_delay_ms = 50
+interval_ms = 30
+
+[smooth_cursor]
+move_mouse_enabled = true
+max_duration = 100
+
+[smooth_scroll]
+enabled = true
+max_duration = 150

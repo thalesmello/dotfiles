@@ -195,8 +195,11 @@
             [:##left_command [["command-pressed-once" 1] :##left_command] nil {:delayed {:invoked ["command-pressed-once" 0] :canceled ["command-pressed-once" 0]}}]
             ; [:!Cq nil ["command-q-once" 1] {:alone :!Cq :afterup ["command-q-once" 0]}]
             ; [:!Cq [[:msg "Double press Cmd+Q to Quit"] ["command-q-once" 1]] nil {:delayed {:invoked ["command-q-once" 0] :canceled ["command-q-once" 0]}}]
-            ; opens mouseless
-            [:##right_shift :right_shift nil {:alone :!CTOsemicolon :params {:alone 150}}]
+            ; Dedicated chord: Cmd+Right Shift emits clean Cmd+F16 immediately.
+            ; No Shift output and no tap timeout; use Left Shift for Cmd+Shift shortcuts.
+            [:!Cright_shift :!Cf16]
+            ; Tap alone: F16 opens/closes regular Grid, or Mouseless in fallback.
+            [:##right_shift :right_shift nil {:alone :f16 :params {:alone 150}}]
             ]
     }
 

@@ -43,6 +43,30 @@ stow local
 ln "$(pwd)/mouseless/config.yaml" "$HOME/Library/Containers/net.sonuscape.mouseless/Data/.mouseless/configs/config.yaml"
 ```
 
+### Neru navigation
+
+See [the Neru configuration plan](docs/neru-config-plan.md) for the active
+Right Shift/F16 regular Grid, Cmd+Right Shift Recursive Grid, Hyper+; UI hints, Hammerspoon profile switch,
+restart bindings, and test commands. Keep Mouseless installed. Its newer live config
+may be under `~/Library/Application Support/Mouseless/configs/config.yaml`;
+add F16 to that file's overlay shortcuts without replacing it with the legacy
+repo config. Use Restart → Hyper+n for Neru and Restart → Hyper+m for
+Mouseless; the commands quit the competing app before starting the chosen one.
+Right Shift opens regular Grid with three-character left→right→left labels
+and a right-hand fine-adjustment subgrid (`uio / jkl / m,.`). Main labels use
+letters only; static Grid borders are hidden while Recursive Grid lines stay
+visible. Cmd+Right Shift sends clean Cmd+F16 through Karabiner: it opens the
+5×3 Recursive Grid normally and toggles continuous mode inside regular Grid.
+Both grids hold the real cursor while aiming. Space/Enter click; Shift variants
+move without clicking. Continuous actions reset the grid to its base layer.
+Neru uses Atkinson Hyperlegible Mono Bold, installed and tracked via Homebrew.
+Vim Tab/Shift+Tab switch displays; Scroll also accepts Hyper+d/u for paging.
+Ctrl+Space/Enter starts a held left-button drag in both grids and Vim; select
+the destination then bare Space/Enter drops. Grids return to base after hold-start.
+Neru config saves hot-reload automatically after a 250ms debounce.
+Escape backtracks in Recursive Grid; Shift+Escape quits. In Vim, Enter variants
+exit after their action while Space variants stay open.
+
 Include the local bin folder in the PATH
 
 ```
