@@ -40,6 +40,7 @@ open_grid = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').openGrid()
 # Commit the virtual selection before pressing OR releasing a drag button.
 toggle_drag = ["action move_mouse --selection --bail-on-error", "action left_click --toggle"]
 start_hold = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').startHold()\""
+toggle_continuous = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').toggleContinuous()\""
 
 [hints]
 strategy = "axtree"
@@ -64,6 +65,11 @@ font_size = 12
 
 [hints.hotkeys]
 "F16" = "macro open_grid"
+"Cmd+F16" = "macro toggle_continuous"
+# Hints belong to the focused window, so swapping display moves the cursor
+# there and leaves Hints; reopen Hints on that display's focused window.
+"Tab" = ["action move_monitor --bail-on-error", "idle"]
+"Shift+Tab" = ["action move_monitor --previous --bail-on-error", "idle"]
 "Space" = "macro confirm_left"
 "Enter" = "macro confirm_left"
 "Shift+Space" = "macro confirm_move_bare"
@@ -130,6 +136,7 @@ label_background_border_width = 0
 
 [recursive_grid.hotkeys]
 "F16" = "idle"
+"Cmd+F16" = "macro toggle_continuous"
 "Escape" = "action backspace"
 "Shift+Escape" = "idle"
 # Aim with a virtual selection. Dragging temporarily enables real-pointer follow.
@@ -230,6 +237,7 @@ max_label_length = 3
 
 [grid.hotkeys]
 "F16" = "idle"
+"Cmd+F16" = "macro toggle_continuous"
 "`" = "__disabled__"
 "Space" = "macro confirm_left"
 "Enter" = "macro confirm_left"
@@ -301,6 +309,7 @@ scroll_step_half = 200
 
 [scroll.hotkeys]
 "F16" = "macro open_grid"
+"Cmd+F16" = "macro toggle_continuous"
 "Cmd+Ctrl+Alt+d" = "action page_down"
 "Cmd+Ctrl+Alt+u" = "action page_up"
 "Space" = "macro confirm_left"
@@ -351,6 +360,7 @@ status_text_color = "#FFFEFEFE"
 
 [vim.hotkeys]
 "F16" = "macro open_grid"
+"Cmd+F16" = "macro toggle_continuous"
 "Tab" = ["action move_monitor --bail-on-error", "vim --capture-scope screen"]
 "Shift+Tab" = ["action move_monitor --previous --bail-on-error", "vim --capture-scope screen"]
 "Shift+Space" = "action feed --mode g h"
@@ -388,6 +398,7 @@ label_background_color = "#D9000000"
 
 [bisect.hotkeys]
 "F16" = "macro open_grid"
+"Cmd+F16" = "macro toggle_continuous"
 "Space" = "macro confirm_left"
 "Enter" = "macro confirm_left"
 "Shift+Space" = "macro confirm_move"
@@ -412,6 +423,7 @@ border_color = "#C0B87671"
 
 [monitor_select.hotkeys]
 "F16" = "macro open_grid"
+"Cmd+F16" = "macro toggle_continuous"
 
 [mode_indicator.ui]
 font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"

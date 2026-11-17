@@ -3,7 +3,9 @@
 Neru v1.63.0 is installed and configured in `~/src/dotfiles`.
 `~/.config/neru` links to `stow_modules/main/dot-config/neru`.
 Hammerspoon owns global shortcuts; Neru's `[hotkeys]` table stays empty.
-Mouseless remains installed for fallback. No Neru login service is registered.
+Mouseless remains installed for fallback. Neru's official login service is
+installed (`neru services install`): launchd agent `com.y3owk1n.neru`,
+RunAtLoad, starts at login. Manage it with `neru services status|start|stop|restart`.
 
 ## Current shortcuts
 
@@ -14,8 +16,7 @@ Mouseless remains installed for fallback. No Neru login service is registered.
 | Hyper+, | Vim, immediately ready for its `s` text jump |
 | Hyper+d | Open Scroll; page down while Scroll is active |
 | Hyper+u in Scroll | Page up (plain d/u also remain available) |
-| **Hyper+Shift+/** | Toggle **continuous clicks** ON/OFF |
-| **Cmd+Right Shift → Cmd+F16** | Recursive Grid; continuous toggle inside regular Grid |
+| **Cmd+Right Shift → Cmd+F16** | Recursive Grid from idle; **continuous toggle in every active mode** |
 | Escape in Recursive Grid | Backtrack, like Backspace |
 | Shift+Escape | Quit the active grid |
 | Right Shift again / Cmd+Right Shift again | Toggle regular / recursive Grid closed |
@@ -44,16 +45,17 @@ normal/continuous completion policy. Grid/RG/Bisect commit their virtual
 selection; Hints/Scroll use the real pointer. At Grid's empty root, move-only
 falls back to the existing cursor rather than failing for lack of selection.
 
-**Continuous mode** is off by default and toggled with Hyper+Shift+/ or the
-palette's Continuous Clicks entry. It persists across Hammerspoon reloads.
+**Continuous mode** is off by default and toggled with Cmd+F16 in any active
+mode (Cmd+Right Shift physically), or the palette's Continuous Clicks entry.
+There is no Hyper+Shift+/ binding. The status message names no shortcut.
+It persists across Hammerspoon reloads.
 When on, confirmation clicks/moves reset Grid/Recursive Grid to their base
 layer and keep the overlay open for consecutive targets. Backspace still
 backtracks; Ctrl+Backspace manually resets. Cmd+Right Shift toggles continuous
-mode while regular Grid is open; otherwise it opens Recursive Grid.
+mode in every active mode; from idle it opens Recursive Grid.
 In Recursive Grid, Escape also backtracks; at the root it does nothing, just
-like Backspace. Use Shift+Escape or Cmd+Right Shift again to quit Recursive
-Grid. Right Shift opens regular Grid instead. Continuous clicks stay on
-Hyper+Shift+/; Cmd+Right Shift is the recursive-grid launcher outside regular Grid.
+like Backspace. Use Shift+Escape or Right Shift again to quit Recursive
+Grid. Right Shift opens regular Grid instead.
 UI Hints uses Neru's native `--repeat` while continuous mode is on, so selecting
 one hint clicks and redraws hints. Toggling inside Hints refreshes that session.
 
@@ -186,7 +188,10 @@ button. An immediate drop during base reset cancels at the source.
 - W/A/S/E move the pointer in Scroll. Shift triples movement; Option slows it.
 - h/j/k/l scroll; d/u page; g goes top and Shift+G bottom (`gg` disabled).
 - Arrow keys nudge; held-key repeat is enabled.
-- Tab changes monitors in mouse modes; Hints retains Tab to cycle hints.
+- Tab changes monitors in mouse modes. In Hints, Tab/Shift+Tab move the
+  cursor to the next/previous display and exit Hints (hints belong to the
+  focused window, so reopen Hints there). During an active hint search, Tab
+  still cycles search matches.
 - Shift+Ctrl holds the left button while navigating, excluding Cmd/Option/Hyper.
 - Shift+Ctrl dragging first commits the virtual target, temporarily enables
   cursor follow, and only then posts local mouse-down while the chord is still
@@ -220,7 +225,9 @@ There is no silent fallback on command failure.
 
 Restart commands quit the competing app and the target's old instance, verify
 process exit, then start only the requested app. A service that automatically
-respawns it prevents verified exit and fails closed; no service is enabled.
+respawns it prevents verified exit and fails closed. The login service's
+KeepAlive can respawn the daemon after a kill; the profile switch then pauses
+it with `neru stop`, so Mouseless still gets exclusive keyboard capture.
 A normal palette switch may pause Neru rather than quit it entirely.
 
 An identity/generation-checked watch stream tracks mode changes. Late output

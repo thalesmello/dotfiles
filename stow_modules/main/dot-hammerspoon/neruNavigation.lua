@@ -108,7 +108,7 @@ function M.setup(ctx)
       end
       if not ok and valid then
         state.dragDesired = false
-        message("Could not prepare drag; use Ctrl+Option+Enter or try again")
+        message("Could not prepare drag; try again")
       end
       -- A preparation can complete after release or a mode transition. Undo
       -- its follow change before preparing a new session; never send a down.
@@ -287,14 +287,14 @@ function M.setup(ctx)
     if state.closed or state.busy or state.backend ~= "neru" or state.dragLatched then return end
     if not gridModes[state.mode] and state.mode ~= "vim" then return end
     if state.dragHeld or state.dragPreparing or state.dragCleanupBlocked then
-      message("Finish the current modifier drag before starting a held drag"); return
+      message("Finish the current drag first"); return
     end
     state.dragLatched = true
     state.holdToken = state.holdToken + 1
     local token = state.holdToken
     commitCursor(function(ok)
       if not state.dragLatched or token ~= state.holdToken then return end
-      if not ok then state.dragLatched = false; message("Could not start the mouse hold"); return end
+      if not ok then state.dragLatched = false; message("Could not start drag"); return end
       setDrag(true) -- local ordered down: no delayed CLI mouse-down can outlive cancellation
       if gridModes[state.mode] then
         state.holdResetting = true
@@ -337,15 +337,18 @@ function M.setup(ctx)
     if state.backend ~= "neru" or state.busy then return end
     state.continuous = not state.continuous
     hs.settings.set("neruNavigation.continuous", state.continuous)
-    message("Continuous clicks " .. (state.continuous and "ON" or "OFF") .. " (Hyper+Shift+/)")
+    message("Continuous clicks " .. (state.continuous and "ON" or "OFF"))
     if state.mode == "hints" then
       local hints = "hints --strategy axtree --action left_click" .. (state.continuous and " --repeat" or "")
       command({"run", "idle", hints})
     end
   end
 
+  state.toggleContinuous = toggleContinuous
   local function commandGrid()
-    if state.mode == "grid" then toggleContinuous() else state.openRecursive() end
+    -- Cmd+F16 is the continuous toggle in every active mode. From idle it is
+    -- still the Recursive Grid launcher.
+    if state.mode ~= "idle" then toggleContinuous() else state.openRecursive() end
   end
 
   -- A persisted Neru setting must not steal Mouseless's keys on reload if
@@ -369,10 +372,6 @@ function M.setup(ctx)
     "Neru: Recursive / Continuous Grid (Cmd+Right Shift)", commandGrid)
   bind(ctx.hyper, ",", "Neru: Screen Text Jump", {"run", "--stop-on-error", "vim", "action feed --mode s"})
   bind(ctx.hyper, "d", "Neru: Scroll", {"scroll", "--toggle"})
-  local continuousMods = {table.unpack(ctx.hyper)}
-  continuousMods[#continuousMods + 1] = "shift"
-  state.handles[#state.handles + 1] = ctx.default:bindOnce(continuousMods, "/",
-    "Neru: Toggle Continuous Clicks", toggleContinuous)
   enableHandles(state.backend == "neru")
 
   local function finishSwitch(backend)
@@ -647,6 +646,10 @@ end
 
 function M.moveOnly()
   if instance and not instance.closed then instance.moveOnly() end
+end
+
+function M.toggleContinuous()
+  if instance and not instance.closed then instance.toggleContinuous() end
 end
 
 function M.startHold()

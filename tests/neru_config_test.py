@@ -152,6 +152,20 @@ class NeruConfigTest(unittest.TestCase):
         self.assertEqual(self.config["vim"]["hotkeys"]["Shift+Enter"], ["action feed --mode g h", "idle"])
         self.assertEqual(self.config["vim"]["keymaps"]["visual"]["gh"], "<Plug>(move-mouse)")
 
+    def test_hints_tab_switches_monitors(self):
+        keys = self.config["hints"]["hotkeys"]
+        self.assertEqual(keys["Tab"], ["action move_monitor --bail-on-error", "idle"])
+        self.assertEqual(keys["Shift+Tab"], ["action move_monitor --previous --bail-on-error", "idle"])
+
+    def test_cmd_f16_toggles_continuous_in_every_mode(self):
+        for mode in ("hints", "recursive_grid", "grid", "scroll", "vim", "bisect", "monitor_select"):
+            self.assertEqual(self.config[mode]["hotkeys"]["Cmd+F16"], "macro toggle_continuous")
+        self.assertIn("toggleContinuous", self.config["macros"]["toggle_continuous"])
+        source = Path("stow_modules/main/dot-hammerspoon/neruNavigation.lua").read_text()
+        self.assertNotIn('bindOnce(continuousMods, "/"', source)
+        self.assertNotIn("(Hyper+Shift+/)", source)
+        self.assertNotIn("Ctrl+Option+Enter or try again", source)
+
     def test_vim_tab_switches_displays_and_refreshes_screen_text(self):
         keys = self.config["vim"]["hotkeys"]
         self.assertEqual(keys["Tab"], ["action move_monitor --bail-on-error", "vim --capture-scope screen"])

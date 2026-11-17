@@ -55,8 +55,10 @@ Mouseless; the commands quit the competing app before starting the chosen one.
 Right Shift opens regular Grid with three-character left→right→left labels
 and a right-hand fine-adjustment subgrid (`uio / jkl / m,.`). Main labels use
 letters only; static Grid borders are hidden while Recursive Grid lines stay
-visible. Cmd+Right Shift sends clean Cmd+F16 through Karabiner: it opens the
-5×3 Recursive Grid normally and toggles continuous mode inside regular Grid.
+visible. Cmd+Right Shift sends clean Cmd+F16 through Karabiner: from idle it
+opens the 5×3 Recursive Grid; in any active mode it toggles continuous clicks
+(there is no Hyper+Shift+/ binding). In Hints, Tab swaps displays and exits.
+Neru starts at login via `neru services install` (launchd `com.y3owk1n.neru`).
 Both grids hold the real cursor while aiming. Space/Enter click; Shift variants
 move without clicking. Continuous actions reset the grid to its base layer.
 Neru uses Atkinson Hyperlegible Mono Bold, installed and tracked via Homebrew.
