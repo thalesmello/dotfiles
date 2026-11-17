@@ -141,6 +141,7 @@
     "cmd-left": "send:\u0001",
     "cmd-right": "send:\u0005",
     "cmd-backspace": "send:\u0015",
+    "cmd-z": "send:\u001f",
     "ctrl-alt-up": "send:\u001b[1;9A",
     "ctrl-alt-down": "send:\u001b[1;9B"
   }
