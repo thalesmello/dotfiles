@@ -229,8 +229,8 @@ label_background_border_width = 0
 # Three-character addresses: left-hand prefix, right-hand column, left-hand row.
 # Continue alternating with right-hand keys in the final 3x3 subgrid.
 [grid]
-characters = "qwertasdfgzxcvb"
-row_labels = "qwertasdfgzxcvb"
+characters = "wertasdfgzxcvb"
+row_labels = "wertasdfgzxcvb"
 col_labels = "yuiophjklnm"
 sublayer_keys = "uiojklm,."
 max_label_length = 3

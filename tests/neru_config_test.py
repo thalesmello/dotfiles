@@ -102,7 +102,9 @@ class NeruConfigTest(unittest.TestCase):
 
     def test_native_grid_alternates_three_label_keys_and_right_subgrid(self):
         grid = self.config["grid"]
-        left, right = "qwertasdfgzxcvb", "yuiophjklnm"
+        left, right = "wertasdfgzxcvb", "yuiophjklnm"
+        self.assertNotIn("q", grid["characters"])
+        self.assertNotIn("q", grid["row_labels"])
         self.assertEqual(grid["characters"], left)
         self.assertEqual(grid["row_labels"], left)
         self.assertEqual(grid["col_labels"], right)
