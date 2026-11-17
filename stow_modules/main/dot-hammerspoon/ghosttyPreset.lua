@@ -805,6 +805,10 @@ end
 -- Returns true if a pending command consumed the ready signal, false otherwise.
 function M.onHerdrCommandReady()
   if not pendingHerdrCmd or pendingHerdrCmd.dispatched then
+    if stagedHerdrCmd ~= nil then
+      M.setTransientContents(stagedHerdrCmd)
+      return true
+    end
     return false
   end
 

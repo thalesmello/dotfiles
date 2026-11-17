@@ -1,6 +1,7 @@
 local util = require("util")
 local Preset = require("preset")
 local GhosttyPreset = require("ghosttyPreset")
+local shell = require("shell")
 
 -- Requests relayed from a Herdr pane through the clipboard.
 --
@@ -59,8 +60,8 @@ local COPY_MAX_RECORDS = 64
 local COPY_TIMEOUT = 5
 
 -- Must match bin/herdr-paste. Records are
---   Q:<id>:<socket path b64>:<herdr-paste path b64>   asking to paste
---   R:<id>                                            receiver ready for cmd+v
+--   Q:<id>:<socket path b64>:<herdr-paste path b64>[:<hc core id>]   asking to paste
+--   R:<id>                                                           receiver ready for cmd+v
 local PASTE_PREFIX = "\30HERDR_PASTE_V1:2c8e4f6b91a74d0c8e3b5a72d1f09c46:"
 local PASTE_SUFFIX = "\31"
 
@@ -721,11 +722,115 @@ local function drivePastePopup(app, command)
   end)
 end
 
+-- Resolve a direct (popup-free) delivery route when the requester's socket is
+-- either on this Mac or on a remote machine managed by herdr-core (`hc`).
+local function resolveDirectPasteRoute(sock, bin, coreId, app)
+  if hs.fs.attributes(sock, "mode") == "socket"
+      and hs.fs.attributes(bin, "mode") == "file" then
+    return { kind = "local", bin = bin }
+  end
+
+  local stateHome = os.getenv("XDG_STATE_HOME")
+    or ((os.getenv("HOME") or "") .. "/.local/state")
+  local machinesPath = stateHome .. "/herdr-core/default/machines.json"
+  local file = io.open(machinesPath, "r")
+  if not file then return nil end
+  local raw = file:read("*a")
+  file:close()
+  if not raw or raw == "" then return nil end
+
+  local ok, machines = pcall(hs.json.decode, raw)
+  if not ok or type(machines) ~= "table" then return nil end
+
+  local machineName = nil
+  if type(coreId) == "string" and coreId ~= "" then
+    local want = coreId:lower()
+    for _, entry in ipairs(machines) do
+      if type(entry) == "table"
+          and type(entry.id) == "string"
+          and entry.id:lower() == want
+          and type(entry.name) == "string"
+          and entry.name:match("^[A-Za-z0-9._-]+$") then
+        machineName = entry.name
+        break
+      end
+    end
+  elseif app and app:name() == "Herdr" and #machines == 1 then
+    local only = machines[1]
+    if type(only) == "table"
+        and type(only.name) == "string"
+        and only.name:match("^[A-Za-z0-9._-]+$") then
+      machineName = only.name
+    end
+  end
+
+  if not machineName then return nil end
+
+  local hcPath = shell.resolvePath("hc")
+    or ((os.getenv("HOME") or "") .. "/.local/bin/hc")
+  if not hcPath or not hs.fs.attributes(hcPath, "mode") then return nil end
+
+  return {
+    kind = "hc",
+    hc = hcPath,
+    machine = machineName,
+    bin = bin,
+  }
+end
+
+local function runDirectPasteTask(route, args, inputText, callback)
+  local execPath
+  local taskArgs
+  if route.kind == "local" then
+    execPath = route.bin
+    taskArgs = args
+  else
+    execPath = route.hc
+    taskArgs = { "exec" }
+    if inputText ~= nil then taskArgs[#taskArgs + 1] = "-i" end
+    taskArgs[#taskArgs + 1] = "--on"
+    taskArgs[#taskArgs + 1] = route.machine
+    taskArgs[#taskArgs + 1] = "--"
+    taskArgs[#taskArgs + 1] = route.bin
+    for _, a in ipairs(args) do
+      taskArgs[#taskArgs + 1] = a
+    end
+  end
+
+  _G._RunningTasks = _G._RunningTasks or {}
+  local t
+  t = hs.task.new(execPath, function(exitCode, _stdOut, stdErr)
+    _G._RunningTasks[t] = nil
+    if callback then
+      callback(exitCode == 0, (stdErr or ""):gsub("%s+$", ""))
+    end
+  end, taskArgs)
+  if type(_G._TaskEnv) == "table" then
+    t:setEnvironment(_G._TaskEnv)
+  end
+  if inputText ~= nil then
+    t:setInput(inputText)
+  end
+  _G._RunningTasks[t] = true
+  if not t:start() then
+    _G._RunningTasks[t] = nil
+    if callback then callback(false, "could not start direct paste task") end
+  end
+end
+
 -- Say no back to the pane instead of just dropping the request. The pane is
 -- BLOCKED waiting -- it may be nvim's clipboard provider, with the editor
 -- frozen behind it -- and its own timeout is a minute away.
-local function declinePaste(app, bin, sock)
-  drivePastePopup(app, string.format("'%s' --decline '%s'", bin, sock))
+local function declinePaste(app, bin, sock, coreId)
+  local popupCmd = string.format("'%s' --decline '%s'", bin, sock)
+  local route = resolveDirectPasteRoute(sock, bin, coreId, app)
+  if route then
+    runDirectPasteTask(route, { "--decline", sock }, nil, function(ok)
+      if not ok then drivePastePopup(app, popupCmd) end
+    end)
+    return
+  end
+  drivePastePopup(app, popupCmd)
 end
 
 local function beginPaste(fields)
@@ -745,6 +850,7 @@ local function beginPaste(fields)
   local id = fields[2]
   local sock = decodeRelayPath(fields[3])
   local bin = decodeRelayPath(fields[4])
+  local coreId = type(fields[5]) == "string" and fields[5]:match("^%x+$") or nil
 
   if not (id and id:match("^%x+$") and sock and bin) or not bin:match("/herdr%-paste$") then
     util.log("herdrRelay: ignoring malformed paste request")
@@ -758,12 +864,12 @@ local function beginPaste(fields)
 
   if not text or text == "" then
     hs.alert.show("Herdr paste: the clipboard holds no text", 3)
-    return declinePaste(terminal, bin, sock)
+    return declinePaste(terminal, bin, sock, coreId)
   end
   if #text > PASTE_MAX_BYTES then
     hs.alert.show(string.format("Herdr paste: %s is too much to type through a pty",
       humanSize(#text)), 4)
-    return declinePaste(terminal, bin, sock)
+    return declinePaste(terminal, bin, sock, coreId)
   end
 
   -- blockAlert is backed by NSAlert, which needs Hammerspoon frontmost to be
@@ -779,18 +885,34 @@ local function beginPaste(fields)
     "informational"
   )
   if terminal then terminal:activate(true) end
-  if button ~= "Paste" then return declinePaste(terminal, bin, sock) end
+  if button ~= "Paste" then return declinePaste(terminal, bin, sock, coreId) end
 
-  pasteRequest = {
-    id = id,
-    text = text,
-    snapshot = snapshot,
-    timer = hs.timer.doAfter(PASTE_READY_TIMEOUT, function()
-      failPaste("the paste receiver never opened")
-    end),
-  }
+  local function startPopupPaste()
+    pasteRequest = {
+      id = id,
+      text = text,
+      snapshot = snapshot,
+      timer = hs.timer.doAfter(PASTE_READY_TIMEOUT, function()
+        failPaste("the paste receiver never opened")
+      end),
+    }
+    drivePastePopup(terminal, string.format("'%s' --receive '%s' --id %s", bin, sock, id))
+  end
 
-  drivePastePopup(terminal, string.format("'%s' --receive '%s' --id %s", bin, sock, id))
+  local route = resolveDirectPasteRoute(sock, bin, coreId, terminal)
+  if route then
+    runDirectPasteTask(route, { "--deliver", sock }, text, function(ok, err)
+      if ok then
+        Preset.displayMessage("Pasted " .. humanSize(#text) .. " into Herdr", 1.5)
+      else
+        util.log("herdrRelay: direct paste delivery failed, falling back to popup:", tostring(err))
+        startPopupPaste()
+      end
+    end)
+    return
+  end
+
+  startPopupPaste()
 end
 
 local function readyPaste(fields)

@@ -115,7 +115,7 @@ resolve_tty() {
     while [ "$_hop" -lt 8 ]; do
         _hop=$(( _hop + 1 ))
         _pid=$(ps -o ppid= -p "$_pid" 2>/dev/null | tr -d ' ')
-        [ -n "$_pid" ] && [ "$_pid" -gt 1 ] 2>/dev/null || return 1
+        [ -n "$_pid" ] && [ "$_pid" -gt 1 ] 2>/dev/null || break
 
         # `??` on macOS, `?` on Linux: no controlling terminal. Otherwise it is
         # a device name relative to /dev (ttys004, pts/3).
@@ -126,6 +126,20 @@ resolve_tty() {
             *) [ -w "/dev/$_t" ] && { printf '/dev/%s\n' "$_t"; return 0; } ;;
         esac
     done
+
+    # Fallback when detached inside an hc terminal ($HC_TERMINAL_ID): resolve the
+    # terminal's shell pid via `hc get` and look up its controlling pty.
+    if [ -n "${HC_TERMINAL_ID:-}" ] && command -v hc >/dev/null 2>&1; then
+        _hc_pid=$(hc get "$HC_TERMINAL_ID" --json 2>/dev/null | sed -n 's/.*"pid":\([0-9][0-9]*\).*/\1/p' | head -n 1)
+        if [ -n "$_hc_pid" ]; then
+            _t=$(ps -o tty= -p "$_hc_pid" 2>/dev/null | tr -d ' ')
+            case $_t in
+                ""|"?"|"??"|"-") ;;
+                /dev/*) [ -w "$_t" ] && { printf '%s\n' "$_t"; return 0; } ;;
+                *) [ -w "/dev/$_t" ] && { printf '/dev/%s\n' "$_t"; return 0; } ;;
+            esac
+        fi
+    fi
     return 1
 }
 

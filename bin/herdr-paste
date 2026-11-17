@@ -109,9 +109,9 @@ def terminal_path():
             out = subprocess.run(["ps", "-o", "ppid=,tty=", "-p", str(pid)],
                                  capture_output=True, text=True, timeout=5).stdout.split()
         except (OSError, subprocess.SubprocessError):
-            return None
+            break
         if len(out) < 1 or not out[0].isdigit() or int(out[0]) <= 1:
-            return None
+            break
         pid = int(out[0])
         # `??` on macOS, `?` on Linux: no controlling terminal. Otherwise a
         # device name relative to /dev (ttys004, pts/3).
@@ -121,7 +121,46 @@ def terminal_path():
         path = name if name.startswith("/dev/") else "/dev/" + name
         if os.access(path, os.W_OK):
             return path
+
+    # Fallback when detached inside an hc terminal ($HC_TERMINAL_ID): resolve
+    # the terminal's shell pid via `hc get` and look up its controlling pty.
+    hc_term = os.environ.get("HC_TERMINAL_ID")
+    if hc_term:
+        try:
+            hc_out = subprocess.run(["hc", "get", hc_term, "--json"],
+                                    capture_output=True, text=True, timeout=5).stdout
+            m = re.search(r'"pid"\s*:\s*(\d+)', hc_out)
+            if m:
+                tty_name = subprocess.run(["ps", "-o", "tty=", "-p", m.group(1)],
+                                          capture_output=True, text=True, timeout=5).stdout.strip()
+                if tty_name not in ("", "?", "??", "-"):
+                    path = tty_name if tty_name.startswith("/dev/") else "/dev/" + tty_name
+                    if os.access(path, os.W_OK):
+                        return path
+        except (OSError, subprocess.SubprocessError):
+            pass
     return None
+
+
+def hc_core_id():
+    """Hex id of the herdr-core instance hosting this terminal, if any."""
+    if not (os.environ.get("HC_TERMINAL_ID")
+            or os.environ.get("HC_TERMINAL_SOCKET")
+            or os.environ.get("HC_SOCKET")):
+        return ""
+    session = os.environ.get("HC_SESSION") or "default"
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", session):
+        return ""
+    state_home = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+    core_json = os.path.join(state_home, "herdr-core", session, "core.json")
+    try:
+        with open(core_json, "r", encoding="utf-8") as fh:
+            m = re.search(r'"id"\s*:\s*"([0-9a-fA-F]+)"', fh.read())
+            if m:
+                return m.group(1).lower()
+    except OSError:
+        pass
+    return ""
 
 
 # --------------------------------------------------------------------------
@@ -159,9 +198,12 @@ def request(timeout):
         server.listen(1)
         server.settimeout(timeout)
 
-        emit("%s%s:%s:Q:%s:%s:%s%s"
-             % (RS, VERSION, NAMESPACE, ident, b64(sock_path), b64(self_path), US),
-             tty_out)
+        core_id = hc_core_id()
+        record = ("%s%s:%s:Q:%s:%s:%s"
+                  % (RS, VERSION, NAMESPACE, ident, b64(sock_path), b64(self_path))
+                  + ((":" + core_id) if core_id else "")
+                  + US)
+        emit(record, tty_out)
 
         try:
             conn, _ = server.accept()
@@ -208,12 +250,19 @@ def read_all(conn):
 def decline(sock_path):
     """Tell the requester the Mac said no, so it stops waiting.
 
-    Driven through the popup exactly like the receiver is -- it is the only way
-    back to the server -- because the alternative is leaving the pane blocked
-    until its timeout, and the pane may be nvim's clipboard provider, which
-    freezes the editor for as long as it waits.
+    Driven through the popup (or directly via hc exec) -- because the
+    alternative is leaving the pane blocked until its timeout, and the pane
+    may be nvim's clipboard provider, which freezes the editor for as long as
+    it waits.
     """
     report(sock_path, error="the request was declined on the Mac")
+
+
+def deliver(sock_path):
+    """Deliver raw clipboard bytes from stdin directly to the requester socket."""
+    payload = sys.stdin.buffer.read()
+    if not report(sock_path, payload=payload):
+        raise SystemExit(1)
 
 
 def receive(sock_path, ident, timeout):
@@ -299,13 +348,14 @@ def report(sock_path, payload=None, error=None):
         # The requester is gone (interrupted, timed out). Nothing to report to,
         # and nothing worth leaving on the popup's screen.
         sys.stderr.write("herdr-paste: cannot reach %s (%s)\n" % (sock_path, exc))
-        return
+        return False
     with conn:
         if error is not None:
             conn.sendall(b"ERR " + error.encode() + b"\n")
         else:
             conn.sendall(b"OK %d\n" % len(payload))
             conn.sendall(payload)
+    return True
 
 
 # --------------------------------------------------------------------------
@@ -330,6 +380,8 @@ def main():
     parser = argparse.ArgumentParser(add_help=True, description=__doc__)
     parser.add_argument("--receive", metavar="SOCKET",
                         help="internal: catch the paste in a herdr popup")
+    parser.add_argument("--deliver", metavar="SOCKET",
+                        help="internal: deliver stdin bytes directly to the requester socket")
     parser.add_argument("--decline", metavar="SOCKET",
                         help="internal: report that the Mac said no")
     parser.add_argument("--id", metavar="ID", default="",
@@ -340,6 +392,8 @@ def main():
 
     if args.decline:
         decline(args.decline)
+    elif args.deliver:
+        deliver(args.deliver)
     elif args.receive:
         # Shorter than the requester's: by the time this runs the user has
         # already said yes, and everything left is machine-paced.

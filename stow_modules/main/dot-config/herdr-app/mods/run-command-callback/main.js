@@ -22,21 +22,34 @@ export default class RunCommandCallback extends View {
     const rawTerm = p?.terminal ?? f.terminal ?? "";
     const termMachine = rawTerm.includes("/") ? rawTerm.split("/")[0] : "";
     const machine = sp?.machine ?? p?.machine ?? f.machine ?? termMachine ?? "";
-    const rawCwd = p?.cwd ?? f.cwd ?? sp?.folder ?? "";
-    const cwd = (!machine && rawCwd) ? rawCwd : home();
+    const stripMachine = (id) =>
+      id && machine && id.startsWith(`${machine}/`) ? id.slice(machine.length + 1) : (id ?? "");
+    const localTerm = stripMachine(rawTerm);
+    const localPane = stripMachine(p?.pane ?? f.pane ?? "");
+    const localTab = stripMachine(tabId);
+    const localSpace = stripMachine(sp?.id ?? f.space ?? "");
+    const cwd = p?.cwd ?? f.cwd ?? sp?.folder ?? (machine ? "" : home());
     const env = [
       `HC_PRESET_BACKEND="hc"`,
-      `HERDR_ACTIVE_PANE_ID=${JSON.stringify(p?.pane ?? f.pane ?? "")}`,
-      `HERDR_ACTIVE_TAB_ID=${JSON.stringify(tabId)}`,
-      `HERDR_ACTIVE_WORKSPACE_ID=${JSON.stringify(sp?.id ?? f.space ?? "")}`,
+      `HERDR_ACTIVE_PANE_ID=${JSON.stringify(localPane || localTerm || "")}`,
+      `HERDR_ACTIVE_TAB_ID=${JSON.stringify(localTab)}`,
+      `HERDR_ACTIVE_WORKSPACE_ID=${JSON.stringify(localSpace)}`,
       `HERDR_ACTIVE_MACHINE=${JSON.stringify(machine)}`,
-      `HC_TERMINAL_ID=${JSON.stringify(rawTerm)}`,
+      `HC_TERMINAL_ID=${JSON.stringify(localTerm)}`,
     ].join(" ");
 
     cx.spawn(async () => {
       try {
         const cmd = `export PATH="$HOME/src/dotfiles/bin:$HOME/.local/bin:/opt/homebrew/bin:/opt/chef/embedded/bin:/usr/local/bin:$PATH" ${env}; ~/.config/herdr/scripts/run-command.sh --callback`;
-        const r = await hc(["run", "--bg", "--rm", "--no-notify", "--json", "--cwd", cwd, "--", "sh", "-c", cmd]);
+        const args = ["run", "--bg", "--rm", "--no-notify", "--json"];
+        if (machine) {
+          args.push("--on", machine);
+          if (cwd) args.push("--cwd", cwd);
+        } else {
+          args.push("--cwd", cwd || home());
+        }
+        args.push("--", "sh", "-c", cmd);
+        const r = await hc(args);
         closeOverlay(props().overlay);
         if (r.code === 0 && r.stdout) {
           const data = JSON.parse(r.stdout);

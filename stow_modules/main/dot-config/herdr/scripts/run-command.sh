@@ -28,12 +28,45 @@
 if [ "${1:-}" = "--callback" ]; then
   stty -icanon -echo min 1 time 0 2>/dev/null
   # Base64 of "\036HERDR_RUN_CMD_READY_V1:e4a91c7d3b6048f291c5d0a87e3b6f12\037"
-  printf 'Command: \033]52;c;HkhFUkRSX1JVTl9DTURfUkVBRFlfVjE6ZTRhOTFjN2QzYjYwNDhmMjkxYzVkMGE4N2UzYjZmMTIf\007'
+  ready_osc52=$'\033]52;c;HkhFUkRSX1JVTl9DTURfUkVBRFlfVjE6ZTRhOTFjN2QzYjYwNDhmMjkxYzVkMGE4N2UzYjZmMTIf\007'
+  printf 'Command: %s' "$ready_osc52"
 
-  IFS= read -r -d '' -n 1 first || first=''
-  if [ -z "$first" ] || [ "$first" = $'\r' ] || [ "$first" = $'\n' ] \
-    || [ "$first" = $'\e' ] || [ "$first" = $'\003' ] \
-    || [ "$first" = $'\004' ] || [ "$first" = $'\007' ]; then
+  # In Herdr.app, hc run --bg starts this script before openOverlay attaches the
+  # UI viewer to the terminal, and herdr-core does not replay OSC 52 sequences
+  # emitted prior to terminal.attach. Re-emit the readiness token while waiting
+  # for the first pasted character so a viewer attaching after startup still
+  # receives it.
+  first=''
+  got_first=0
+  for wait_s in 0.08 0.16 0.35; do
+    if IFS= read -r -t "$wait_s" -d '' -n 1 first; then
+      got_first=1
+      break
+    fi
+    [ "$?" -le 128 ] && break
+    printf '%s' "$ready_osc52"
+  done
+  while [ "$got_first" -eq 0 ]; do
+    if IFS= read -r -t 0.4 -d '' -n 1 first; then
+      got_first=1
+      break
+    fi
+    [ "$?" -le 128 ] && break
+    printf '%s' "$ready_osc52"
+  done
+
+  if [ "$first" = $'\e' ]; then
+    # Distinguish a bare Escape keypress from a bracketed-paste opener (\e[200~).
+    IFS= read -r -t 0.05 -d '' -n 5 esc_seq || esc_seq=''
+    if [ "$esc_seq" = '[200~' ]; then
+      first=''
+    else
+      stty sane 2>/dev/null
+      printf '\n'
+      exit 0
+    fi
+  elif [ -z "$first" ] || [ "$first" = $'\r' ] || [ "$first" = $'\n' ] \
+    || [ "$first" = $'\003' ] || [ "$first" = $'\004' ] || [ "$first" = $'\007' ]; then
     stty sane 2>/dev/null
     printf '\n'
     exit 0
@@ -69,9 +102,11 @@ active_pane="${HERDR_ACTIVE_PANE_ID:-$(herdr_current_pane 2>/dev/null || true)}"
 if [ -n "$active_pane" ]; then
   export HERDR_ACTIVE_PANE_ID="$active_pane"
   unset HERDR_PANE_ID
-  pane_cwd=$("$herdr" pane get "$active_pane" 2>/dev/null \
-    | sed -n 's/.*"foreground_cwd":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
-  [ -n "$pane_cwd" ] && cd "$pane_cwd" 2>/dev/null
+  if [ "${HC_PRESET_BACKEND:-}" != "hc" ]; then
+    pane_cwd=$("$herdr" pane get "$active_pane" 2>/dev/null \
+      | sed -n 's/.*"foreground_cwd":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    [ -n "$pane_cwd" ] && cd "$pane_cwd" 2>/dev/null
+  fi
 fi
 
 eval "$cmd"
