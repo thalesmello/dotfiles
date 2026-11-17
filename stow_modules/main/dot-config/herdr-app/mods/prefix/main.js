@@ -25,6 +25,7 @@ import {
   checking,
   readTextFile,
   writeTextFile,
+  watchFolder,
 } from "herdr";
 
 const PERL_SEND_SCRIPT = `use Socket;
@@ -333,6 +334,12 @@ const SHIFTED_DIGITS = {
 export default class Prefix extends View {
   init(_props, cx) {
     this.mode = "prefix"; // "prefix" | "resize"
+    this.resizeQueue = [];
+    this.resizing = false;
+    this.resizeReady = null;
+    this.resizeStartup = null;
+    this.resizeFinish = null;
+    this.closed = false;
     this.ctx = activeContext();
     this.handle = cx.focus_handle();
     if (checking()) return;
@@ -393,22 +400,144 @@ export default class Prefix extends View {
     run("layout.resize", { id: "sidebar", px: next });
   }
 
+  startResizeWorker(cx) {
+    if (this.resizeReady || checking() || !this.ctx.pane || !this.ctx.tab) return;
+    const dir = `${appHome()}/data`;
+    const descriptor = `${dir}/prefix-resize-${Date.now()}-${Math.random().toString(36).slice(2)}.json`;
+    const startup = { cancelled: false, worker: null, watch: null, timer: null, reject: null };
+    this.resizeStartup = startup;
+    this.resizeReady = new Promise((resolve, reject) => {
+      startup.reject = reject;
+      // Bound the entire launch/read/watch sequence, not only the file watch.
+      startup.timer = cx.timer.after(10000, (cx) => {
+        startup.cancelled = true;
+        startup.watch?.cancel();
+        reject(new Error("Resize worker startup timed out"));
+        cx.spawn(() => this.stopResizeWorker(startup));
+      });
+      cx.spawn(async () => {
+        try {
+          // Arm before launching: readiness cannot fall between a read and its watch.
+          startup.watch = watchFolder(dir);
+          const launch = await hc([
+            "run", "--bg", "--rm", "--no-notify", "--no-parent", "--json",
+            "--cwd", home(), "--", "python3", `${appHome()}/mods/prefix/resize.py`,
+            "--serve", JSON.stringify(this.ctx), descriptor,
+          ]);
+          if (launch.code !== 0) throw new Error(launch.stderr || "Cannot start local resize worker");
+          startup.worker = JSON.parse(launch.stdout).address;
+          if (!startup.worker) throw new Error("Resize worker has no terminal address");
+          // A late launch is still owned by this attempt and explicitly cleaned up.
+          while (!this.closed && !startup.cancelled) {
+            const raw = await readTextFile(descriptor);
+            if (raw && !startup.cancelled && !this.closed) {
+              const endpoint = JSON.parse(raw);
+              resolve(`http://127.0.0.1:${endpoint.port}/${endpoint.token}`);
+              return;
+            }
+            if (startup.cancelled || this.closed) break;
+            await startup.watch;
+            startup.watch = watchFolder(dir);
+          }
+          throw new Error("Resize mode closed or startup cancelled");
+        } catch (error) {
+          await this.stopResizeWorker(startup);
+          reject(error);
+        } finally {
+          startup.timer.cancel();
+          startup.watch?.cancel();
+          startup.watch = null;
+        }
+      });
+    });
+    // Starting early is optional; display an error only if a resize key needs it.
+    this.resizeReady.catch(() => {});
+  }
+
+  queueResize(direction, cx) {
+    if (checking() || this.resizeFinish || !this.ctx.pane || !this.ctx.tab) return;
+    this.startResizeWorker(cx);
+    this.resizeQueue.push(direction);
+    if (this.resizing) return;
+    this.resizing = true;
+    cx.spawn(async (cx) => {
+      try {
+        const endpoint = await this.resizeReady;
+        while (this.resizeQueue.length) {
+          const directions = this.resizeQueue.splice(0, 256);
+          const response = await Promise.race([
+            fetch(`${endpoint}/resize`, { method: "POST", body: JSON.stringify({ directions }) }),
+            cx.sleep(6000).then(() => { throw new Error("Resize request timed out (not replayed)"); }),
+          ]);
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.error || "Resize failed");
+        }
+      } catch (error) {
+        this.resizeQueue.length = 0;
+        const failed = this.resizeStartup;
+        if (failed) {
+          failed.cancelled = true;
+          failed.timer.cancel();
+          failed.watch?.cancel();
+          cx.spawn(() => this.stopResizeWorker(failed));
+        }
+        // A later key gets a new worker after idle expiry/failure. Never replay this batch.
+        this.resizeReady = null;
+        this.resizeStartup = null;
+        notify({ title: "Resize failed", body: String(error), timeout: 3000 });
+      } finally {
+        this.resizing = false;
+        if (this.resizeFinish) this.finishResize(this.resizeFinish);
+      }
+    });
+  }
+
+  finishResize(action) {
+    if (action !== "equalize") {
+      this.dismiss();
+    } else if (this.resizing) {
+      this.resizeFinish = action;
+    } else {
+      runDetachedScript(props().overlay, "~/.config/herdr/scripts/even-layout.sh", this.ctx);
+    }
+  }
+
+  async stopResizeWorker(startup) {
+    if (startup?.worker) {
+      await exec("hc", ["kill", startup.worker]).catch(() => {});
+      await exec("hc", ["rm", startup.worker]).catch(() => {});
+    }
+  }
+
+  async close() {
+    this.closed = true;
+    this.resizeQueue.length = 0;
+    const startup = this.resizeStartup;
+    if (startup) {
+      startup.cancelled = true;
+      startup.timer.cancel();
+      startup.watch?.cancel();
+      startup.reject(new Error("Resize mode closed"));
+      await this.stopResizeWorker(startup);
+    }
+  }
+
   handleResizeModeKey(e, cx) {
     const k = (e.key || "").toLowerCase();
     if (k === "escape" || k === "enter" || k === "q") {
-      this.dismiss();
+      this.finishResize("dismiss");
       cx.stop_propagation();
       return;
     }
     const dirMap = { h: "left", left: "left", j: "down", down: "down", k: "up", up: "up", l: "right", right: "right" };
     const dir = dirMap[k];
     if (dir) {
-      runDetachedScript(null, `hc-preset --backend hc resize-pane ${dir}`, this.ctx);
+      this.queueResize(dir, cx);
       cx.stop_propagation();
       return;
     }
     if (k === "=") {
-      runDetachedScript(props().overlay, "~/.config/herdr/scripts/even-layout.sh", this.ctx);
+      this.finishResize("equalize");
       cx.stop_propagation();
     }
   }
@@ -450,6 +579,7 @@ export default class Prefix extends View {
     // Enter resize mode (stays open until Esc)
     if (ks === "r" && !ctrl && !alt && !shift) {
       this.mode = "resize";
+      this.startResizeWorker(cx);
       cx.notify();
       return;
     }
@@ -1008,7 +1138,7 @@ export default class Prefix extends View {
                 div()
                   .text_size(13)
                   .font_medium()
-                  .child(isResize ? "h/l resize sidebar · = equalize · Esc done" : "Ctrl-Space active — press key"),
+                  .child(isResize ? "h/j/k/l resize panes · = equalize · Esc done" : "Ctrl-Space active — press key"),
               ),
           )
           .child(div().text_size(11).text_color(t.dim).child("? help · Esc cancel")),
