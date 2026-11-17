@@ -81,18 +81,20 @@ UNREAD_GLYPH = "󰇮"
 # Nerd Fonts Material Design pin (nf-md-pin), rendered alongside the current
 # status glyph when an agent chat is pinned.
 PIN_GLYPH = "󰐃"
-# Sidebar panel order, top to bottom: pinned, blocked, done, idle, unknown,
-# working; most recent state change first within a status. Herdr's native
-# "priority" sort puts working above idle, so the sort runs on a reported
+# Sidebar panel order, top to bottom: pinned, working, blocked, done, idle,
+# unknown; most recent state change first within a status. Herdr's native
+# "priority" sort has a different status order, so this sort uses a reported
 # token instead of the opaque "attention" rank: um_sort is the status rank
 # digit followed by the inverted state_change_seq (zero-padded, so plain
 # lexicographic order is rank ascending, then newest first).
 #
-# The focused agent's um_sort is FROZEN: while an agent has focus, its token
-# stops tracking status/seq, so submitting a prompt (idle -> working) does
-# not move it out of its pile mid-thought. Other agents keep sorting live
-# around it. When focus moves to another agent or pane, the token unfreezes
-# and the agent lands wherever its current status puts it.
+# Explicit focused exception: the focused agent's um_sort is FULLY frozen
+# (rank AND seq). A status change caused by focusing it or submitting a prompt
+# (idle/done -> working, working -> done, ...) does not move it until focus
+# moves to another agent or pane; then it unfreezes to the live working-first
+# order. Other agents keep sorting live around it.
+# Tokens are versioned ("R:012d:v2"); legacy 14-char tokens are migrated by
+# usable_sort (old rank digit -> new, captured status preserved).
 RANK_TOKEN = "um_rank"
 SORT_TOKEN = "um_sort"
 # Set to "1" on the focused agent only. The agent-view filter language has
@@ -107,11 +109,11 @@ HOME_TOKEN = "um_home"
 HOME_ACTIVE_TOKEN = "um_home_active"
 HOME_DISPLAY = "home"
 STATUS_RANK = {
-    "blocked": "0",
-    "done": "1",
-    "idle": "2",
-    "unknown": "3",
-    "working": "4",
+    "working": "0",
+    "blocked": "1",
+    "done": "2",
+    "idle": "3",
+    "unknown": "4",
 }
 VIEW_SORT = [
     {"field": {"token": PIN_TOKEN}, "order": "asc"},
@@ -120,22 +122,46 @@ VIEW_SORT = [
 ]
 
 
+SORT_VERSION = "v2"
+# Sort tokens before v2 were 14 chars ("R:012d") with this rank mapping.
+OLD_STATUS_RANK = {
+    "blocked": "0",
+    "done": "1",
+    "idle": "2",
+    "unknown": "3",
+    "working": "4",
+}
+_OLD_TO_NEW_RANK = {
+    OLD_STATUS_RANK[s]: STATUS_RANK[s] for s in STATUS_RANK
+}
+
+
 def sort_token(status: str, seq: int) -> str:
     rank = STATUS_RANK.get(status, STATUS_RANK["unknown"])
-    return f"{rank}:{999_999_999_999 - seq:012d}"
+    return f"{rank}:{999_999_999_999 - seq:012d}:{SORT_VERSION}"
 
 
 def usable_sort(value: Any) -> str | None:
-    """A captured sort token, or None if it is missing/malformed. A token
-    encoding seq 0 is the token_patch default for "seq unknown", not a real
-    position, so it never counts as a frozen position worth keeping."""
-    if not isinstance(value, str) or len(value) != 14 or value[1] != ":":
+    """A captured sort token in v2 form, or None if missing/malformed.
+    Legacy 14-char tokens are migrated by re-encoding the old rank digit to
+    the new mapping (an encoding migration only: the captured status is
+    preserved, never re-derived from live status). A token encoding seq 0 is
+    the token_patch default for "seq unknown", not a real position, so it
+    never counts as a frozen position worth keeping."""
+    if not isinstance(value, str) or len(value) not in (14, 17) or value[1] != ":":
         return None
-    if value[:1] not in STATUS_RANK.values() or not value[2:].isdigit():
+    digits = value[2:14]
+    if not digits.isdigit() or 999_999_999_999 - int(digits) <= 0:
         return None
-    if 999_999_999_999 - int(value[2:]) <= 0:
+    if len(value) == 17:
+        if value[14:] != f":{SORT_VERSION}" or value[:1] not in STATUS_RANK.values():
+            return None
+        return value
+    rank = _OLD_TO_NEW_RANK.get(value[:1])
+    if rank is None:
         return None
-    return value
+    return f"{rank}:{digits}:{SORT_VERSION}"
+
 
 # prefix+w cycles the Agents panel through these modes (config.toml binds
 # it to `cycle-panel`): grouped (workspace order) -> smart priority (the
@@ -157,7 +183,7 @@ GROUPED_SORT = [
 ]
 # Working-hidden mode: same um_sort order as smart priority, but working
 # agents are filtered out -- except the focused one, which stays visible
-# (in its frozen position) until focus moves to another agent or pane.
+# at its fully frozen sort position until focus moves away.
 NOT_WORKING_FILTER = {
     "op": "any",
     "filters": [
@@ -394,8 +420,7 @@ def token_patch(
     tokens[SORT_TOKEN] = sort_value
     tokens[ACTIVE_TOKEN] = "1" if active else None
     tokens[HOME_TOKEN] = HOME_DISPLAY if in_home else None
-    # The rank digit of the (possibly frozen) sort token; kept for readers
-    # that only need the effective category.
+    # The captured rank digit (also frozen under focus), for category readers.
     tokens[RANK_TOKEN] = sort_value[:1]
     if marked:
         tokens[VISIBLE_TOKENS["unread"]] = UNREAD_GLYPH
@@ -425,9 +450,8 @@ def report(
     pinned: bool = False,
     frame: int = 0,
 ) -> None:
-    # Keep whatever sort token the pane already carries: a mark/pin toggle
-    # must not re-sort the agent (notably not unfreeze the focused one).
-    # Without one, fall back to the pane's own seq, not seq 0.
+    # A mark/pin toggle keeps the captured sort token, including a focused
+    # agent's frozen rank and sequence. Without a token, use the pane's seq.
     existing = usable_sort((pane.get("tokens") or {}).get(SORT_TOKEN))
     if existing is None:
         seq = pane.get("state_change_seq")
@@ -838,10 +862,9 @@ def sync_agents(
         seq = agent.get("state_change_seq")
         live_sort = sort_token(status, seq if isinstance(seq, int) else 0)
         if agent.get("focused"):
-            # Freeze: keep the sort token the agent already had (from the
-            # frozen file, or the one the server still carries) so status
-            # changes under focus do not move it. First sight while focused
-            # captures the live token.
+            # Freeze both captured rank and sequence until focus moves away.
+            # usable_sort upgrades legacy encodings without changing the
+            # captured status category, even if the agent is now working.
             previous = usable_sort((agent.get("tokens") or {}).get(SORT_TOKEN))
             effective_sort = usable_sort(frozen.get(key)) or previous or live_sort
             frozen[key] = effective_sort

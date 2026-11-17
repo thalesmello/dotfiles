@@ -488,28 +488,55 @@ def fetch_agent_title(runner: HerdrRunner, pane_id: str) -> str:
 
 
 STATUS_RANK = {
+    "working": "0",
+    "blocked": "1",
+    "done": "2",
+    "idle": "3",
+    "unknown": "4",
+}
+PANEL_MODES = ("grouped", "smart", "hidden")
+
+
+SORT_VERSION = "v2"
+# Sort tokens before v2 were 14 chars ("R:012d") with this rank mapping.
+OLD_STATUS_RANK = {
     "blocked": "0",
     "done": "1",
     "idle": "2",
     "unknown": "3",
     "working": "4",
 }
-PANEL_MODES = ("grouped", "smart", "hidden")
+_OLD_TO_NEW_RANK = {
+    OLD_STATUS_RANK[s]: STATUS_RANK[s] for s in STATUS_RANK
+}
 
 
 def sort_token(status: str, seq: int) -> str:
     rank = STATUS_RANK.get(status, STATUS_RANK["unknown"])
-    return f"{rank}:{999_999_999_999 - seq:012d}"
+    return f"{rank}:{999_999_999_999 - seq:012d}:{SORT_VERSION}"
 
 
 def usable_sort(value: Any) -> str | None:
-    if not isinstance(value, str) or len(value) != 14 or value[1] != ":":
+    """A captured sort token in v2 form, or None if missing/malformed.
+    Legacy 14-char tokens are migrated by re-encoding the old rank digit to
+    the new mapping (an encoding migration only: the captured status is
+    preserved, never re-derived from live status). A token encoding seq 0 is
+    the token_patch default for "seq unknown", not a real position, so it
+    never counts as a frozen position worth keeping."""
+    if not isinstance(value, str) or len(value) not in (14, 17) or value[1] != ":":
         return None
-    if value[:1] not in STATUS_RANK.values() or not value[2:].isdigit():
+    digits = value[2:14]
+    if not digits.isdigit() or 999_999_999_999 - int(digits) <= 0:
         return None
-    if 999_999_999_999 - int(value[2:]) <= 0:
+    if len(value) == 17:
+        if value[14:] != f":{SORT_VERSION}" or value[:1] not in STATUS_RANK.values():
+            return None
+        return value
+    rank = _OLD_TO_NEW_RANK.get(value[:1])
+    if rank is None:
         return None
-    return value
+    return f"{rank}:{digits}:{SORT_VERSION}"
+
 
 
 def agent_handler_state_dir(socket_path: str | None = None) -> str | None:

@@ -476,7 +476,7 @@ class CloseFocusBehaviorTest(unittest.TestCase):
 
     def test_respects_frozen_um_sort_and_pins(self):
         # w1:p1 turned from done to idle when focused, but its um_sort token is
-        # frozen at rank 1 (done). The next agent after it is the other done
+        # frozen at done. The next agent after it is the other done
         # agent (w2:p1), not the idle agent below w3:p1.
         agents = [
             {"pane_id": "w1:p1", "agent": "pi", "agent_status": "idle",
@@ -490,6 +490,51 @@ class CloseFocusBehaviorTest(unittest.TestCase):
              "tokens": {"um_sort": cc.sort_token("idle", 90)}},
         ]
         self.assertEqual(cc.pick_next_agent(agents, "w1:p1"), "w2:p1")
+
+    def test_frozen_working_stays_working_when_done_then_unfreezes(self):
+        agents = [
+            {"pane_id": "w1:p1", "agent": "pi", "agent_status": "done",
+             "state_change_seq": 100, "focused": True,
+             "tokens": {"um_sort": cc.sort_token("working", 50)}},
+            {"pane_id": "w2:p1", "agent": "pi", "agent_status": "working",
+             "state_change_seq": 40, "focused": False,
+             "tokens": {"um_sort": cc.sort_token("working", 40)}},
+            {"pane_id": "w3:p1", "agent": "pi", "agent_status": "done",
+             "state_change_seq": 30, "focused": False,
+             "tokens": {"um_sort": cc.sort_token("done", 30)}},
+        ]
+        # Frozen w1 (working, seq 50) is first, w2 second, w3 third; closing w1 -> w2.
+        self.assertEqual(cc.pick_next_agent(agents, "w1:p1"), "w2:p1")
+        # Focus left: live token (done) puts it after w2 (working), before older done w3.
+        agents[0]["focused"] = False
+        agents[0]["tokens"] = {"um_sort": cc.sort_token("done", 100)}
+        self.assertEqual(cc.pick_next_agent(agents, "w2:p1"), "w1:p1")
+
+    def test_legacy_token_migrates_preserving_captured_status(self):
+        # Old mapping: done=1, working=4. Captured done must stay done.
+        self.assertEqual(cc.usable_sort("1:" + "%012d" % (999_999_999_999 - 50)),
+                         cc.sort_token("done", 50))
+        self.assertEqual(cc.usable_sort("4:" + "%012d" % (999_999_999_999 - 50)),
+                         cc.sort_token("working", 50))
+        self.assertEqual(len(cc.sort_token("idle", 1)), 17)
+        self.assertIsNone(cc.usable_sort("0:%012d:v3" % 5))
+        self.assertIsNone(cc.usable_sort("0:%012d:v2" % 999_999_999_999))
+        agents = [
+            {"pane_id": "w1:p1", "agent": "pi", "agent_status": "working",
+             "state_change_seq": 100, "focused": True,
+             "tokens": {"um_sort": "1:" + "%012d" % (999_999_999_999 - 50)}},
+            {"pane_id": "w2:p1", "agent": "pi", "agent_status": "blocked",
+             "state_change_seq": 30, "focused": False},
+            {"pane_id": "w3:p1", "agent": "pi", "agent_status": "idle",
+             "state_change_seq": 30, "focused": False},
+        ]
+        # w1 captured done: order blocked w2, done w1, idle w3 -> closing w1 gives w3.
+        self.assertEqual(cc.pick_next_agent(agents, "w1:p1"), "w3:p1")
+
+    def test_status_ranks(self):
+        self.assertEqual(
+            [cc.STATUS_RANK[s] for s in ("working", "blocked", "done", "idle", "unknown")],
+            ["0", "1", "2", "3", "4"])
 
     def test_grouped_and_hidden_panel_modes(self):
         agents = [

@@ -811,10 +811,12 @@ status_indicators = "symbols"
 
 # Agent panel ordering: "spaces" (grouped by space) or "priority" (attention queue).
 # Native priority is only the fallback when no plugin owns the agent view:
-# agent-handler always owns it with a custom sort -- pinned, blocked, done,
-# idle, unknown, working (working at the bottom, unlike native priority),
-# most recent state change first within a status -- except the focused
-# agent, whose position freezes until focus moves to another agent or pane.
+# agent-handler always owns it with a custom sort -- pinned, working, blocked,
+# done, idle, unknown, most recent state change first within a status.
+# Explicit exception: the focused agent is fully frozen (rank and seq), so a
+# status change from focusing it or submitting a prompt does not move it until
+# focus moves to another agent or pane; then it unfreezes to the live order.
+# "working hidden" mode is TUI-only and hides non-focused working agents.
 # See VIEW_SORT and the um_sort token in scripts/agent-handler.py; herdr-snooze mirrors that sort
 # in KNOWN_VIEWS while it holds the view. The manual unread marker below is
 # display-only; it does not re-sort.

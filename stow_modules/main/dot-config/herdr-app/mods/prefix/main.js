@@ -772,9 +772,10 @@ export default class Prefix extends View {
     }
     if (ks === "w" && !ctrl && !alt && !shift) {
       this.dismiss();
-      const curSort = shared("agents.sort") ?? "priority";
-      const order = ["grouped", "priority", "hidden"];
-      const labels = { grouped: "grouped", priority: "smart priority", hidden: "working hidden" };
+      // Legacy "hidden" is treated as priority; app sections fold instead.
+      const curSort = shared("agents.sort") === "grouped" ? "grouped" : "priority";
+      const order = ["grouped", "priority"];
+      const labels = { grouped: "grouped", priority: "smart priority" };
       const nextSort = order[(order.indexOf(curSort) + 1) % order.length];
       setShared("agents.sort", nextSort);
       notify({ title: `Agents panel: ${labels[nextSort] ?? nextSort}`, timeout: 1500 });

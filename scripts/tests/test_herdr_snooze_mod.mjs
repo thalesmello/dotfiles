@@ -5,8 +5,15 @@ import vm from 'node:vm';
 const file = new URL('../../stow_modules/main/dot-config/herdr-app/mods/agents-snooze/main.js', import.meta.url);
 const source = fs.readFileSync(file, 'utf8')
   .replace(/^import .*;$/gm, '')
-  .replace('export default class Agents', 'class Agents') + '\nthis.Agents = Agents;';
-const ctx = vm.createContext({ View: class {}, Object, Date, Set, Map, console });
+  .replace('export default class Agents', 'class Agents') + '\nthis.Agents = Agents; this.SORTS = SORTS; this.sortOf = sortOf;';
+const sharedState = new Map();
+const storage = new Map();
+const ctx = vm.createContext({
+  View: class {}, Object, Date, Set, Map, console,
+  shared: (key) => sharedState.get(key),
+  setShared: (key, value) => sharedState.set(key, value),
+  localStorage: { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value) },
+});
 vm.runInContext(source, ctx);
 const panel = new ctx.Agents();
 const now = Date.now();
@@ -26,17 +33,22 @@ panel.snooze.view.showing = 'all';
 assert.equal(panel.visibleAgent(local, now), true);
 assert.equal(panel.visibleAgent(remote, now), true);
 panel.snooze.hide_working = true;
-assert.equal(panel.visibleAgent({ ...remote, status: 'working' }, now), false);
+assert.equal(panel.visibleAgent({ ...remote, status: 'working' }, now), true, 'app ignores legacy hide_working state');
 assert.equal(panel.visibleAgent({ ...remote, status: 'working', focused: true }, now), true);
+sharedState.set('agents.sort', 'hidden');
+assert.equal(ctx.sortOf().id, 'priority', 'former hidden sort falls back to smart priority');
+assert.equal(panel.visibleAgent({ ...remote, status: 'working' }, now), true, 'former hidden sort never hides working agents');
+assert.deepEqual(Array.from(ctx.SORTS, (s) => s.id), ['priority', 'grouped'], 'app offers only two sort modes');
+sharedState.delete('agents.sort');
 const child = [{ address: 't1', parent: 'parent', state: 'live' }];
 assert.equal(panel.tree(child, 'parent').length, 1, 'all-live mode also shows snoozed children');
 panel.snooze.view = {};
 assert.equal(panel.tree(child, 'parent').length, 0);
 
-// Priority rank order: blocked (4) > done (3) > idle (2) > working (1)
+// Priority rank order: working (5) > blocked (4) > done (3) > idle (2)
+assert.ok(panel.rank({ status: 'working' }) > panel.rank({ status: 'blocked' }), 'working sorts first');
 assert.ok(panel.rank({ status: 'blocked' }) > panel.rank({ status: 'done' }));
 assert.ok(panel.rank({ status: 'done' }) > panel.rank({ status: 'idle' }));
-assert.ok(panel.rank({ status: 'idle' }) > panel.rank({ status: 'working' }), 'working sorts below idle');
 assert.equal(
   ctx.Agents.computeLiveRank({ status: 'working' }, ['idle']),
   panel.rank({ status: 'working' }),
@@ -44,11 +56,21 @@ assert.equal(
 );
 assert.equal(
   ctx.Agents.computeLiveRank({ status: 'working' }, ['blocked']),
+  panel.rank({ status: 'working' }),
+  'blocked sub-agent never demotes a working parent',
+);
+assert.equal(
+  ctx.Agents.computeLiveRank({ status: 'idle' }, ['blocked', 'working']),
+  panel.rank({ status: 'working' }),
+  'any working sub-agent places its parent tree in the top section',
+);
+assert.equal(
+  ctx.Agents.computeLiveRank({ status: 'done' }, ['blocked']),
   panel.rank({ status: 'blocked' }),
-  'blocked sub-agent promotes parent to blocked',
+  'blocked sub-agent still promotes a non-working parent',
 );
 
-// Frozen focused agent sort: does not resort until focus switches to another agent or pane
+// Focus freezes the entire sort snapshot until focus leaves, including section rank.
 panel.changed = {
   t1: { s: 'idle', at: 1000 },
   t2: { s: 'idle', at: 2000 },
@@ -64,7 +86,12 @@ panel.updateFrozenSort(list1, urgency1, { pane: 'p9', terminal: 't9' });
 assert.equal(panel.frozenSort.t1, undefined);
 assert.deepEqual({ ...panel.unfocusedSort.t1 }, { rank: 3, since: 1000, seq: 10 });
 
-// User focuses t1: herdr-app flips t1 from done -> idle, and user submits a prompt (idle -> working, at: 5000, seq: 30)
+// Focusing t1 acknowledges Done -> Idle. Its captured Done position must remain.
+const acknowledged = list1.map((a) => a.address === 't1' ? { ...a, status: 'idle', seq: 25, focused: true } : a);
+panel.updateFrozenSort(acknowledged, new Map(acknowledged.map((a) => [a.address, panel.rank(a)])), { pane: 'p1', terminal: 't1' });
+assert.deepEqual({ ...panel.frozenSort.t1 }, { rank: 3, since: 1000, seq: 10 });
+
+// Submitting a prompt (Idle -> Working) must still keep that same Done position.
 panel.changed.t1 = { s: 'working', at: 5000 };
 const list2 = [
   { address: 't1', pane: 'p1', status: 'working', seq: 30, focused: true },
@@ -75,14 +102,28 @@ panel.updateFrozenSort(list2, urgency2, { pane: 'p1', terminal: 't1' });
 assert.deepEqual(
   { ...panel.frozenSort.t1 },
   { rank: 3, since: 1000, seq: 10 },
-  'focused agent stays frozen at its pre-focus Done rank/timestamp while working',
+  'focused agent stays at its pre-focus Done rank/timestamp/seq while working',
 );
 
-// Focus moves to a different pane (p2 / t2): t1 unfreezes and resorts to working
+// Completing under the same focus does not alter the captured position either.
+const completed = list2.map((a) => a.address === 't1' ? { ...a, status: 'done', seq: 40 } : a);
+panel.updateFrozenSort(completed, new Map(completed.map((a) => [a.address, panel.rank(a)])), { pane: 'p1', terminal: 't1' });
+assert.deepEqual({ ...panel.frozenSort.t1 }, { rank: 3, since: 1000, seq: 10 });
+
+// Focus moves to a different pane (p2 / t2): t1 unfreezes.
 panel.updateFrozenSort(list2, urgency2, { pane: 'p2', terminal: 't2' });
 assert.equal(panel.frozenSort.t1, undefined, 't1 unfreezes after focus leaves p1');
-assert.deepEqual({ ...panel.unfocusedSort.t1 }, { rank: 1, since: 5000, seq: 30 });
+assert.deepEqual({ ...panel.unfocusedSort.t1 }, { rank: 5, since: 5000, seq: 30 });
 assert.deepEqual({ ...panel.frozenSort.t2 }, { rank: 2, since: 2000, seq: 20 });
+
+// A newly focused Working agent stays in Working when it completes, until focus leaves.
+panel.updateFrozenSort(list2, urgency2, { pane: 'p1', terminal: 't1' });
+assert.deepEqual({ ...panel.frozenSort.t1 }, { rank: 5, since: 5000, seq: 30 });
+panel.updateFrozenSort(completed, new Map(completed.map((a) => [a.address, panel.rank(a)])), { pane: 'p1', terminal: 't1' });
+assert.deepEqual({ ...panel.frozenSort.t1 }, { rank: 5, since: 5000, seq: 30 });
+panel.updateFrozenSort(completed, new Map(completed.map((a) => [a.address, panel.rank(a)])), { pane: 'p9', terminal: 't9' });
+assert.equal(panel.frozenSort.t1, undefined);
+assert.equal(panel.unfocusedSort.t1.rank, 3, 'completion resorts only once focus leaves');
 
 // Snoozing labels immediately, but neither hides nor unfreezes the current screen.
 const screen = { pane: 'p1', terminal: 't1', space: 'sp1', tab: 'tb1' };
@@ -98,7 +139,7 @@ const reloadedFocus = ctx.Agents.screenFocus({ ...popup, agent: 't1' }, [{ ...ac
 assert.equal(reloadedFocus.pane, 'p1', 'reloading with a popup open restores the underlying agent focus');
 panel.frozenSort = { t1: { rank: 3, since: 1000, seq: 10 } };
 panel.unfocusedSort = {};
-panel.updateFrozenSort([active], new Map([['t1', panel.rank(active)]]), popupFocus);
+panel.updateFrozenSort([active], new Map([['t1', 5]]), popupFocus);
 assert.equal(panel.visibleAgent(active, now, popupFocus), true);
 assert.deepEqual({ ...panel.frozenSort.t1 }, { rank: 3, since: 1000, seq: 10 });
 const shell = { pane: 'shell-pane', terminal: 'shell', space: 'sp1', tab: 'tb1' };
@@ -112,4 +153,4 @@ panel.snooze.panes = {};
 assert.equal(panel.snoozeLabel(active, now), null, 'wake removes the label immediately');
 assert.equal(panel.visibleAgent(active, now, shell), true);
 
-console.log('Snooze visibility, focused sort freeze, and deferred hiding assertions passed');
+console.log('Snooze visibility, deferred hide/badge, working-first ranks, and full focused-sort freeze assertions passed');

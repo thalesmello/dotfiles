@@ -1,4 +1,4 @@
-// Agents in grouped or priority views; parents take their most urgent sub-agent's place.
+// Agents in grouped or priority views; working parents or sub-agents lead the list.
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -50,9 +50,10 @@ function title(tab, l) {
   return (tab.name === prog || !tab.named) && telling ? live : tab.name;
 }
 // Sidebar priority order matches agent-handler.py:
-// pinned, then blocked ("Needs you") > done ("Done") > idle ("Idle") > working ("Working" at bottom).
-// While an agent has focus, its sort rank/timestamp/seq are frozen until focus moves to another agent or pane.
-const RANK = { blocked: 4, done: 3, idle: 2, working: 1 };
+// pinned, then working ("Working") > blocked ("Needs you") > done ("Done") > idle ("Idle").
+// While focused, an agent keeps its captured section/rank/timestamp/seq until
+// focus moves to another agent or pane, even when focusing or prompting changes its status.
+const RANK = { working: 5, blocked: 4, done: 3, idle: 2 };
 // A sub-agent without a pane isn't in agents(): its raw word, error counting as
 // blocked. It's never done: it reports to its parent, and the parent's done is the news.
 const kidStatus = (k, listed) => {
@@ -62,11 +63,10 @@ const kidStatus = (k, listed) => {
 const SORTS = [
   { id: "priority", label: "Smart priority", icon: "clock" },
   { id: "grouped", label: "Grouped by space", icon: "layers" },
-  { id: "hidden", label: "Working hidden", icon: "clock" },
 ];
 const sortOf = () => SORTS.find((s) => s.id === shared("agents.sort")) ?? SORTS[0];
-const SECTION = { 4: "Needs you", 3: "Done", 2: "Idle", 1: "Working" };
-const SECTION_STATUS = { 4: "blocked", 3: "done", 1: "working" };
+const SECTION = { 5: "Working", 4: "Needs you", 3: "Done", 2: "Idle" };
+const SECTION_STATUS = { 5: "working", 4: "blocked", 3: "done" };
 
 function duration(ms) {
   const m = Math.floor(ms / 60000);
@@ -102,7 +102,8 @@ export default class Agents extends View {
   }
 
   static computeLiveRank(a, subStatuses = []) {
-    if (subStatuses.some((s) => s === "blocked")) return RANK.blocked;
+    if (a?.status === "working" || subStatuses.includes("working")) return RANK.working;
+    if (subStatuses.includes("blocked")) return RANK.blocked;
     return RANK[a?.status] ?? 0;
   }
 
@@ -195,6 +196,10 @@ export default class Agents extends View {
     if (!this.changed || typeof this.changed !== "object" || Array.isArray(this.changed)) this.changed = {};
     try { this.frozenSort = JSON.parse(localStorage.getItem("frozenSort") ?? "{}"); } catch { this.frozenSort = {}; }
     if (!this.frozenSort || typeof this.frozenSort !== "object" || Array.isArray(this.frozenSort)) this.frozenSort = {};
+    // Upgrade the old Working rank without changing the captured status section.
+    for (const snapshot of Object.values(this.frozenSort)) {
+      if (snapshot?.rank === 1) snapshot.rank = RANK.working;
+    }
     this.unfocusedSort = {};
     try { this.pendingPins = JSON.parse(localStorage.getItem("pins") ?? "[]"); } catch { this.pendingPins = []; }
     if (!Array.isArray(this.pendingPins)) this.pendingPins = [];
@@ -204,7 +209,7 @@ export default class Agents extends View {
   }
 
   hasSnoozes() {
-    return Object.keys(this.snooze.panes ?? {}).length || Object.keys(this.snooze.workspaces ?? {}).length || Object.keys(this.snooze.woke ?? {}).length || this.snooze.view?.applied || this.snooze.hide_working;
+    return Object.keys(this.snooze.panes ?? {}).length || Object.keys(this.snooze.workspaces ?? {}).length || Object.keys(this.snooze.woke ?? {}).length || this.snooze.view?.applied;
   }
 
   async refreshSnooze(cx) {
@@ -258,10 +263,9 @@ export default class Agents extends View {
     const mode = this.snooze.view?.showing;
     if (mode === "snoozed") return asleep || a.status === "blocked";
     if (mode !== "all" && asleep && a.status !== "blocked") return false;
-    const hideWorking = Boolean(
-      this.snooze.hide_working || (typeof shared === "function" && shared("agents.sort") === "hidden"),
-    );
-    return !hideWorking || a.status !== "working" || Agents.isAgentFocused(a, foc);
+    // Working can be folded as a section in the app. Ignore legacy TUI-only
+    // hide_working state (and the former "hidden" sort mode).
+    return true;
   }
 
   // Stamps agents whose state changed. Done and idle count as one: looking at a
@@ -681,7 +685,7 @@ export default class Agents extends View {
                 .text_size(11)
                 .text_color(t.dim)
                 .hover((s) => s.text_color(t.foreground))
-                .on_click(() => openOverlay({ mod: "agents-snooze", kind: "popup", width: 200, height: 140, props: { sortMenu: true } }))
+                .on_click(() => openOverlay({ mod: "agents-snooze", kind: "popup", width: 200, height: 105, props: { sortMenu: true } }))
                 .tooltip(`Sort agents: ${sort.label}`)
                 .child(svg(`mods/workspace-chrome/${sort.icon}.svg`).size(14)),
             ),
