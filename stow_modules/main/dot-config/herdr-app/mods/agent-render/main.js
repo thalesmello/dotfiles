@@ -578,17 +578,24 @@ export default class Agents extends View {
       // An agent on another machine (`vps/t7`) says which.
       const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
       if (collapsed) {
-        return h_flex()
+        const roomy = (find(layout(), "sidebar")?.size?.px ?? 76) >= 60;
+        return h_flex().flex_none().justify_center().child(h_flex()
           .id(`ag-${a.address}`)
+          .w(roomy ? 60 : 40)
           .h(26)
-          .px(this.bookmarked.has(a.address) ? 4 : 8)
+          .px(roomy ? 2 : 0)
           .flex_none()
+          .rounded(6)
           .items_center()
-          .gap(this.bookmarked.has(a.address) ? 2 : 4)
+          .gap(roomy ? 2 : 0)
+          .when(a.focused, (el) => el.bg(t.selected))
+          .cursor_pointer()
+          .tooltip(`${i + 1} · ${label(a) || a.space_name || a.address}`)
           .hover((s) => s.bg(t.hover))
           .on_click(() => run("pane.focus", { pane: a.pane }))
-          .child(div().flex_1().min_w(0).whitespace_nowrap().text_right().text_color(t.muted).child(String(i + 1)))
-          .child(h_flex().min_w(14).flex_none().items_center().justify_center().child(this.status(t, a, true)));
+          .child(div().flex_1().min_w(0).whitespace_nowrap().text_size(roomy ? 13 : 11).text_right().text_color(a.focused ? t.foreground : t.muted).child(String(i + 1)))
+          // Keep the status at the same edge even when a bookmark is added.
+          .child(h_flex().w(26).flex_none().items_center().justify_end().child(this.status(t, a, true))));
       }
       const when = this.since(a);
       const idle = a.status === "idle" && !a.focused;

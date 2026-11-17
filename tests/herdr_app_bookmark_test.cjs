@@ -40,7 +40,7 @@ function setup() {
     machines: () => [], focused: () => null, checking: () => true, props: () => ({}),
     shared: k => data.shared[k], setShared: (k, v) => { data.shared[k] = v; },
     setAgentOrder() {}, run() { throw new Error('Unexpected host mutation'); },
-    theme: () => ({ accent: '#aabbcc', dim: '#777777', muted: '#888888', idle: '#777777' }),
+    theme: () => ({ accent: '#aabbcc', dim: '#777777', muted: '#888888', idle: '#777777', selected: '#334455' }),
     layout: () => ({ id: 'sidebar', size: { px: data.width } }),
     appHome: () => '/mock', readTextFile: async () => JSON.stringify(data.legacyStore ?? {}),
     localStorage: { getItem: k => storage.get(k), setItem: (k, v) => storage.set(k, v), removeItem: k => storage.delete(k) }, Date,
@@ -49,7 +49,7 @@ function setup() {
   vm.runInContext(source, context);
   const view = new context.Agents();
   view.init({}, cx);
-  return { data, view, cx, storage, hasBookmark: context.hasBookmark, renderAgentIndicators: context.renderAgentIndicators, theme: context.theme() };
+  return { data, view, cx, storage, context, hasBookmark: context.hasBookmark, renderAgentIndicators: context.renderAgentIndicators, theme: context.theme() };
 }
 
 function nodes(root) {
@@ -120,6 +120,41 @@ test('bookmark coexists with every status and snooze, in grouped and rail views'
   const root = view.render(cx);
   assert.equal(bookmarks(root).length, 1);
   assert.ok(nodes(root).some(n => n.childNodes.includes('z')));
+});
+
+test('rail number and status columns align across spaces, agents, and bookmarks', () => {
+  const { data, view, cx, context, theme } = setup();
+  const spacesSource = fs.readFileSync(path.join(__dirname,
+    '../stow_modules/main/dot-config/herdr-app/mods/spaces-reconnect/main.js'), 'utf8');
+  const compact = spacesSource.slice(spacesSource.indexOf('  compact({ w, i }, t) {'),
+    spacesSource.indexOf('\n  render(cx) {', spacesSource.indexOf('  compact({ w, i }, t) {')));
+  context.railCell = el => builder('row').flex_none().justify_center().child(el);
+  context.tone = (t, status) => t[status];
+  context.glyph = () => '●';
+  vm.runInContext(`class RailSpaces { ${compact} }; globalThis.railSpaces = new RailSpaces();`, context);
+  data.shared['agents.sort'] = 'grouped';
+  data.agents = Array.from({ length: 12 }, (_, i) => ({ ...agent(`t${i + 1}`), seq: i + 1, focused: i === 9 }));
+  data.terminals = data.agents.map(a => ({ address: a.address, state: 'live', labels: {} }));
+  for (const width of [76, 44]) {
+    data.width = width;
+    const space = context.railSpaces.compact({ w: { id: 'sp', name: 'Repo', active: true, status: 'done' }, i: 9 }, theme).childNodes[0];
+    for (const marked of [false, true]) {
+      data.terminals[9].labels = marked ? { 'token.book': '󰂺' } : {};
+      const row = nodes(view.render(cx)).find(n => n.styles.id?.[0] === 'ag-t10');
+      assert.ok(row);
+      for (const key of ['w', 'px', 'gap', 'h', 'rounded'])
+        assert.equal(JSON.stringify(row.styles[key]), JSON.stringify(space.styles[key]), `${key} aligns at ${width}px`);
+      assert.equal(row.styles.w[0], width === 76 ? 60 : 40);
+      assert.equal(row.childNodes[1].styles.w[0], 26, 'bookmark does not resize the status column');
+      assert.equal(space.childNodes[1].styles.w[0], 26);
+      assert.equal(row.childNodes[0].childNodes[0], '10');
+      assert.equal(space.childNodes[0].childNodes[0], '10');
+      assert.equal(space.childNodes[1].styles.absolute, undefined, 'status participates in layout, not an overlapping overlay');
+      assert.equal(row.styles.bg[0], theme.selected, 'focused agent is highlighted');
+      assert.ok(row.styles.tooltip[0].startsWith('10 · '));
+      assert.equal(bookmarks(row).length, marked ? 1 : 0);
+    }
+  }
 });
 
 test('sub-agent rows use their own mark, not the parent or section mark', () => {

@@ -1459,19 +1459,24 @@ export default class Spaces extends View {
   }
 
   compact({ w, i }, t) {
+    const roomy = (find(layout(), "sidebar")?.size?.px ?? 76) >= 60;
     return railCell(h_flex()
       .id(`space-${w.id}`)
-      .relative()
-      .w(RAIL_CELL)
+      .w(roomy ? 60 : 40)
       .h(26)
+      .px(roomy ? 2 : 0)
+      .gap(roomy ? 2 : 0)
       .rounded(6)
-      .justify_center()
       .items_center()
+      .cursor_pointer()
+      .tooltip(`${i + 1} · ${w.name}`)
       .when(w.active, (el) => el.bg(t.selected))
       .when(!w.active, (el) => el.hover((s) => s.bg(t.hover)))
       .on_click(() => run("space.select", { id: w.id }))
-      .child(div().text_color(w.active ? t.foreground : t.muted).child(String(i + 1)))
-      .child(div().absolute().right(5).text_color(tone(t, w.status)).child(glyph(w.status))));
+      .child(div().flex_1().min_w(0).whitespace_nowrap().text_size(roomy ? 13 : 11).text_right().text_color(w.active ? t.foreground : t.muted).child(String(i + 1)))
+      // A separate status column cannot overlap one- or two-digit numbers.
+      .child(h_flex().w(26).flex_none().items_center().justify_end()
+        .child(div().w(14).flex_none().text_center().text_color(tone(t, w.status)).child(glyph(w.status)))));
   }
 
   render(cx) {
