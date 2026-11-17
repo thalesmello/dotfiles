@@ -173,27 +173,45 @@ function stripMachinePrefix(id, machine) {
   return id;
 }
 
+function qualifyPaneId(id, machine) {
+  if (!id) return "";
+  if (!machine || id.includes("/")) return id;
+  return `${machine}/${id}`;
+}
+
 function activeContext() {
   const f = focused() ?? {};
   const sp = (spaces() ?? []).find((s) => s.active) ?? null;
   const tb = sp?.tabs?.find((t) => t.active) ?? null;
   const tabId = tb?.id ?? f.tab ?? "";
   const allPanes = panes() ?? [];
-  const tabPanes = tabId ? allPanes.filter((x) => x.tab === tabId) : allPanes;
+  const spMachine = sp?.machine ?? null;
+  const tabPanes = tabId
+    ? allPanes.filter((x) => {
+        if (x.tab !== tabId) return false;
+        const xMach = x.machine ?? (typeof x.terminal === "string" && x.terminal.includes("/") ? x.terminal.split("/")[0] : null);
+        if (sp !== null && xMach !== spMachine) return false;
+        return true;
+      })
+    : allPanes;
   const lastPane = typeof shared === "function" ? shared("focusHistory")?.journal?.at?.(-1) : null;
   const p =
-    allPanes.find((x) => f.pane && x.pane === f.pane) ??
+    (f.terminal ? tabPanes.find((x) => x.terminal === f.terminal) ?? allPanes.find((x) => x.terminal === f.terminal) : null) ??
+    (f.pane ? tabPanes.find((x) => x.pane === f.pane || qualifyPaneId(x.pane, spMachine) === f.pane) : null) ??
     tabPanes.find((x) => x.focused) ??
+    (f.pane ? allPanes.find((x) => x.pane === f.pane) : null) ??
     allPanes.find((x) => x.focused) ??
-    (lastPane ? tabPanes.find((x) => x.pane === lastPane) : null) ??
+    (lastPane ? tabPanes.find((x) => qualifyPaneId(x.pane, spMachine) === lastPane || x.pane === lastPane) : null) ??
     tabPanes[0] ??
     allPanes[0] ??
     null;
   const terminal = p?.terminal ?? f.terminal ?? "";
   const termMachine = terminal.includes("/") ? terminal.split("/")[0] : "";
   const machine = sp?.machine ?? p?.machine ?? f.machine ?? termMachine ?? null;
+  const rawPane = p?.pane ?? f.pane ?? "";
   return {
-    pane: p?.pane ?? f.pane ?? "",
+    pane: qualifyPaneId(rawPane, machine),
+    rawPane,
     terminal,
     cwd: p?.cwd ?? f.cwd ?? sp?.folder ?? (machine ? "" : home()),
     space: sp?.id ?? f.space ?? "",

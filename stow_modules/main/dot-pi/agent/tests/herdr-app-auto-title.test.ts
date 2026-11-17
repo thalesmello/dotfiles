@@ -575,4 +575,86 @@ describe("Spaces focus-history jumplist and attention jump", () => {
 		expect(runCalls.at(-1)).toEqual({ name: "pane.focus", args: { pane: "p2" } });
 		expect(notifyCalls.at(-1)?.title).toBe("→ p2");
 	});
+
+	test("tracks and jumps across machines even when local and remote pane IDs collide (p1 vs devserver p1)", () => {
+		const view = createView();
+		const crossSpaces = [
+			{
+				id: "local-sp1",
+				name: "laptop",
+				machine: null,
+				active: true,
+				tabs: [{ id: "tb1", name: "1", active: true }],
+			},
+			{
+				id: "devserver/sp1",
+				name: "src",
+				machine: "devserver",
+				active: false,
+				tabs: [
+					{ id: "tb1", name: "1", active: true },
+					{ id: "tb2", name: "2", active: false },
+				],
+			},
+		];
+		const crossPanes = [
+			{ pane: "p1", terminal: "t1", tab: "tb1", focused: true },
+			{ pane: "p1", terminal: "devserver/t1", tab: "tb1", focused: false },
+			{ pane: "p2", terminal: "devserver/t2", tab: "tb2", focused: false },
+		];
+
+		// 1. Focus local p1 (t1)
+		view.syncFocusHistory(1000, crossSpaces, crossPanes, { pane: "p1", terminal: "t1" });
+		expect(view.focusHistory.journal).toEqual(["p1"]);
+
+		// 2. Switch to devserver p1 (devserver/t1) — even though raw pane is "p1", it records "devserver/p1"
+		crossSpaces[0].active = false;
+		crossSpaces[1].active = true;
+		crossPanes[0].focused = false;
+		crossPanes[1].focused = true;
+		view.syncFocusHistory(1100, crossSpaces, crossPanes, { pane: "p1", terminal: "devserver/t1" });
+		expect(view.focusHistory.journal).toEqual(["p1", "devserver/p1"]);
+
+		// 3. Switch to devserver p2 (devserver/t2) in tab tb2
+		crossSpaces[1].tabs[0].active = false;
+		crossSpaces[1].tabs[1].active = true;
+		crossPanes[1].focused = false;
+		crossPanes[2].focused = true;
+		view.syncFocusHistory(1200, crossSpaces, crossPanes, { pane: "p2", terminal: "devserver/t2" });
+		expect(view.focusHistory.journal).toEqual(["p1", "devserver/p1", "devserver/p2"]);
+
+		// 4. Jump back from devserver/p2 -> devserver/p1 (selects tb1 and focuses terminal devserver/t1)
+		runCalls.length = 0;
+		expect(
+			view.focusJumplist("back", 1300, crossSpaces, crossPanes, { pane: "p2", terminal: "devserver/t2" }),
+		).toBe(true);
+		expect(runCalls).toEqual([
+			{ name: "tab.select", args: { id: "tb1" } },
+			{ name: "pane.focus", args: { terminal: "devserver/t1" } },
+		]);
+
+		// 5. Jump back from devserver/p1 -> local p1 (switches space across machines to local-sp1 and focuses p1)
+		crossSpaces[1].tabs[0].active = true;
+		crossSpaces[1].tabs[1].active = false;
+		runCalls.length = 0;
+		expect(
+			view.focusJumplist("back", 1400, crossSpaces, crossPanes, { pane: "p1", terminal: "devserver/t1" }),
+		).toBe(true);
+		expect(runCalls).toEqual([
+			{ name: "space.select", args: { id: "local-sp1" } },
+			{ name: "pane.focus", args: { pane: "p1" } },
+		]);
+
+		// 6. Jump forward from local p1 -> devserver/p1 (switches space back to devserver/sp1)
+		crossSpaces[0].active = true;
+		crossSpaces[1].active = false;
+		runCalls.length = 0;
+		expect(view.focusJumplist("forward", 1500, crossSpaces, crossPanes, { pane: "p1", terminal: "t1" })).toBe(
+			true,
+		);
+		expect(runCalls).toEqual([
+			{ name: "space.select", args: { id: "devserver/sp1" } },
+			{ name: "pane.focus", args: { terminal: "devserver/t1" } },
+		]);
+	});
 });

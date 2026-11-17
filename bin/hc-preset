@@ -704,9 +704,15 @@ class HcWorld:
                 )
                 for p_idx, entry in enumerate(tb.get("terminals") or []):
                     t_addr = entry.get("terminal")
-                    p_id = entry.get("pane") or t_addr
+                    raw_p_id = entry.get("pane") or t_addr
                     if not t_addr:
                         continue
+                    sp_machine = sp.get("machine")
+                    p_id = (
+                        f"{sp_machine}/{raw_p_id}"
+                        if sp_machine and raw_p_id and "/" not in str(raw_p_id)
+                        else raw_p_id
+                    )
                     seen_terms.add(t_addr)
                     self.pane_to_term[p_id] = t_addr
                     self.pane_to_term[t_addr] = t_addr
@@ -720,7 +726,7 @@ class HcWorld:
                         ws_id=ws_id,
                         p_idx=p_idx,
                         entry=entry,
-                        machine=sp.get("machine"),
+                        machine=sp_machine,
                     )
                     self.panes.append(pane_obj)
                     if pane_obj.get("agent"):
@@ -1141,6 +1147,23 @@ def focus_hc_agent(world: HcWorld, target: str | None) -> bool:
     return True
 
 
+def focus_hc_pane(world: HcWorld, p: dict[str, Any]) -> None:
+    ws_id = p.get("workspace_id")
+    tb_id = p.get("tab_id")
+    cur_ws = (world.app_status or {}).get("space")
+    cur_tb = (world.app_status or {}).get("tab")
+    if ws_id and cur_ws and ws_id != cur_ws:
+        herdr_app_do("space.select", {"id": ws_id})
+    if tb_id and cur_tb and tb_id != cur_tb:
+        herdr_app_do("tab.select", {"id": tb_id})
+    if p.get("machine") and "/" not in str(p.get("pane_id") or "") and p.get("terminal_id"):
+        herdr_app_do("pane.focus", {"terminal": p["terminal_id"]})
+    elif is_model_pane_id(p["pane_id"]):
+        herdr_app_do("pane.focus", {"pane": p["pane_id"]})
+    else:
+        herdr_app_do("pane.focus", {"terminal": p["terminal_id"]})
+
+
 def handle_hc_rpc_compat(method: str, params: dict[str, Any]) -> dict[str, Any]:
     if method == "machine.connect":
         # Explicit retry after a human authenticates the --via transport.
@@ -1158,10 +1181,7 @@ def handle_hc_rpc_compat(method: str, params: dict[str, Any]) -> dict[str, Any]:
         p = world.resolve_pane(target, hydrate=False)
         if not p:
             return {"id": "hc-preset", "error": {"code": "pane_not_found", "message": f"Pane {target} not found"}}
-        if is_model_pane_id(p["pane_id"]):
-            herdr_app_do("pane.focus", {"pane": p["pane_id"]})
-        else:
-            herdr_app_do("pane.focus", {"terminal": p["terminal_id"]})
+        focus_hc_pane(world, p)
         return {"id": "hc-preset", "result": {"type": "ok"}}
 
     if method == "pane.close":
@@ -2434,10 +2454,7 @@ def handle_hc_herdr_cli(argv: list[str]) -> int:
             p = world.resolve_pane(target, hydrate=False)
             if not p:
                 return print_err("pane_not_found", f"Pane {target} not found")
-            if is_model_pane_id(p["pane_id"]):
-                herdr_app_do("pane.focus", {"pane": p["pane_id"]})
-            else:
-                herdr_app_do("pane.focus", {"terminal": p["terminal_id"]})
+            focus_hc_pane(world, p)
             return print_json({"result": {"type": "ok"}})
         if sub == "zoom":
             target = None

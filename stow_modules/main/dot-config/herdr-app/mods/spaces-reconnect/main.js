@@ -135,44 +135,165 @@ function smartTabNav(dir) {
   run("tab.select", { id: target.tabId });
 }
 
-export function resolveFocusedPaneId(sp = spaces(), ps = panes(), foc = focused()) {
+export function paneMachine(p, sp = null) {
+  if (sp?.machine) return sp.machine;
+  if (p?.machine) return p.machine;
+  if (typeof p?.terminal === "string" && p.terminal.includes("/")) return p.terminal.split("/")[0];
+  if (typeof p?.pane === "string" && p.pane.includes("/")) return p.pane.split("/")[0];
+  if (typeof p?.tab === "string" && p.tab.includes("/")) return p.tab.split("/")[0];
+  return null;
+}
+
+export function qualifyPaneId(paneId, machine = null) {
+  const raw = typeof paneId === "string" ? paneId.trim() : "";
+  if (!raw) return "";
+  if (!machine || raw.includes("/")) return raw;
+  return `${machine}/${raw}`;
+}
+
+function findSpaceForPane(p, allSpaces) {
+  if (!p) return null;
+  const pMach = paneMachine(p);
+  if (p.tab) {
+    const byTabAndMachine = (allSpaces ?? []).find(
+      (s) => (s.machine ?? null) === pMach && (s.tabs ?? []).some((t) => t.id === p.tab),
+    );
+    if (byTabAndMachine) return byTabAndMachine;
+    const byTab = (allSpaces ?? []).find((s) => (s.tabs ?? []).some((t) => t.id === p.tab));
+    if (byTab) return byTab;
+  }
+  if (pMach !== null) {
+    return (allSpaces ?? []).find((s) => (s.machine ?? null) === pMach) ?? null;
+  }
+  return null;
+}
+
+export function canonicalPaneKey(p, allSpaces = null, spHint = null) {
+  if (!p) return "";
+  const sp = spHint ?? (allSpaces ? findSpaceForPane(p, allSpaces) : null);
+  const mach = paneMachine(p, sp);
+  return qualifyPaneId(p.pane || p.terminal || "", mach);
+}
+
+function panesInTab(allPanes, tabId, space = null) {
+  if (!tabId) return allPanes ?? [];
+  const mach = space?.machine ?? (tabId.includes("/") ? tabId.split("/")[0] : null);
+  const matching = (allPanes ?? []).filter((x) => {
+    if (x.tab !== tabId) return false;
+    if (space !== null && space !== undefined) {
+      const xMach = paneMachine(x);
+      if (xMach !== null && mach !== null && xMach !== mach) return false;
+      if (mach === null && xMach !== null) return false;
+    }
+    return true;
+  });
+  return matching.length ? matching : (allPanes ?? []).filter((x) => x.tab === tabId);
+}
+
+export function resolveFocusedPane(sp = spaces(), ps = panes(), foc = focused()) {
+  const allSpaces = sp ?? [];
   const allPanes = ps ?? [];
   if (!allPanes.length) return null;
-  if (foc?.pane) {
-    const direct = allPanes.find((x) => x.pane === foc.pane);
-    if (direct?.pane) return direct.pane;
-  }
-  const activeSpace = (sp ?? []).find((s) => s.active) ?? null;
+
+  const activeSpace = allSpaces.find((s) => s.active) ?? null;
   const activeTab = activeSpace?.tabs?.find((t) => t.active) ?? null;
   const tabId = activeTab?.id ?? foc?.tab ?? "";
-  const tabPanes = tabId ? allPanes.filter((x) => x.tab === tabId) : allPanes;
-  const focusedInTab = tabPanes.find((x) => x.focused);
-  if (focusedInTab?.pane) return focusedInTab.pane;
+  const tabPanes = tabId ? panesInTab(allPanes, tabId, activeSpace) : allPanes;
+
+  // 1. foc.terminal is always machine-qualified ("t1" vs "devserver/t1") and
+  //    never matches an ephemeral overlay terminal (which is not in allPanes).
   if (foc?.terminal) {
-    const byTerm =
-      tabPanes.find((x) => x.terminal === foc.terminal) ??
-      allPanes.find((x) => x.terminal === foc.terminal);
-    if (byTerm?.pane) return byTerm.pane;
+    const inTabByTerm = tabPanes.find((x) => x.terminal === foc.terminal);
+    if (inTabByTerm) return { pane: inTabByTerm, space: activeSpace ?? findSpaceForPane(inTabByTerm, allSpaces) };
+    const anyByTerm = allPanes.find((x) => x.terminal === foc.terminal);
+    if (anyByTerm) return { pane: anyByTerm, space: findSpaceForPane(anyByTerm, allSpaces) };
   }
+
+  // 2. foc.pane: check within the active space/tab first so an unqualified "p1"
+  //    on a remote machine never collides with local "p1".
+  if (foc?.pane) {
+    const focMach =
+      foc.machine ??
+      (typeof foc.terminal === "string" && foc.terminal.includes("/") ? foc.terminal.split("/")[0] : null) ??
+      (typeof foc.pane === "string" && foc.pane.includes("/") ? foc.pane.split("/")[0] : null) ??
+      activeSpace?.machine ??
+      null;
+    const wantKey = qualifyPaneId(foc.pane, focMach);
+    const inTabByPane = tabPanes.find(
+      (x) => x.pane === foc.pane || canonicalPaneKey(x, allSpaces, activeSpace) === wantKey,
+    );
+    if (inTabByPane) return { pane: inTabByPane, space: activeSpace ?? findSpaceForPane(inTabByPane, allSpaces) };
+    const anyByKey = allPanes.find((x) => canonicalPaneKey(x, allSpaces) === wantKey);
+    if (anyByKey) return { pane: anyByKey, space: findSpaceForPane(anyByKey, allSpaces) };
+    const anyByRaw = allPanes.find((x) => x.pane === foc.pane);
+    if (anyByRaw) return { pane: anyByRaw, space: findSpaceForPane(anyByRaw, allSpaces) };
+  }
+
+  // 3. Focused flag in active tab, then across all panes.
+  const focusedInTab = tabPanes.find((x) => x.focused);
+  if (focusedInTab) return { pane: focusedInTab, space: activeSpace ?? findSpaceForPane(focusedInTab, allSpaces) };
   const focusedAnywhere = allPanes.find((x) => x.focused);
-  if (focusedAnywhere?.pane) return focusedAnywhere.pane;
-  if (tabPanes.length === 1 && tabPanes[0]?.pane) return tabPanes[0].pane;
+  if (focusedAnywhere) return { pane: focusedAnywhere, space: findSpaceForPane(focusedAnywhere, allSpaces) };
+
+  // 4. Single-pane active tab.
+  if (tabPanes.length === 1 && tabPanes[0]) {
+    return { pane: tabPanes[0], space: activeSpace ?? findSpaceForPane(tabPanes[0], allSpaces) };
+  }
   return null;
+}
+
+export function resolveFocusedPaneId(sp = spaces(), ps = panes(), foc = focused()) {
+  const resolved = resolveFocusedPane(sp, ps, foc);
+  if (!resolved?.pane) return null;
+  return canonicalPaneKey(resolved.pane, sp ?? [], resolved.space) || null;
+}
+
+function resolvePaneByKey(targetKey, allSpaces, allPanes) {
+  if (!targetKey) return null;
+  for (const p of allPanes ?? []) {
+    const sp = findSpaceForPane(p, allSpaces);
+    const key = canonicalPaneKey(p, allSpaces, sp);
+    if (key === targetKey || p.pane === targetKey || p.terminal === targetKey) {
+      return { pane: p, space: sp, key };
+    }
+  }
+  return null;
+}
+
+function focusResolvedPane(targetObj) {
+  if (!targetObj?.pane) return false;
+  const { pane: p, space: sp } = targetObj;
+  if (sp?.id && !sp.active) {
+    run("space.select", { id: sp.id });
+  }
+  if (p.tab) {
+    const tb = (sp?.tabs ?? []).find((t) => t.id === p.tab);
+    if (tb && !tb.active) {
+      run("tab.select", { id: p.tab });
+    }
+  }
+  const mach = paneMachine(p, sp);
+  if (mach && p.terminal && (!p.pane || !String(p.pane).includes("/"))) {
+    run("pane.focus", { terminal: p.terminal });
+  } else {
+    run("pane.focus", { pane: p.pane || p.terminal });
+  }
+  return true;
 }
 
 function activePaneContext() {
   const f = focused() ?? {};
-  const sp = (spaces() ?? []).find((s) => s.active) ?? null;
+  const allSpaces = spaces() ?? [];
+  const sp = allSpaces.find((s) => s.active) ?? null;
   const tb = sp?.tabs?.find((t) => t.active) ?? null;
   const tabId = tb?.id ?? f.tab ?? "";
   const allPanes = panes() ?? [];
-  const tabPanes = tabId ? allPanes.filter((x) => x.tab === tabId) : allPanes;
+  const tabPanes = tabId ? panesInTab(allPanes, tabId, sp) : allPanes;
   const lastPane = typeof shared === "function" ? shared("focusHistory")?.journal?.at?.(-1) : null;
+  const resolved = resolveFocusedPane(allSpaces, allPanes, f);
   const p =
-    allPanes.find((x) => f.pane && x.pane === f.pane) ??
-    tabPanes.find((x) => x.focused) ??
-    allPanes.find((x) => x.focused) ??
-    (lastPane ? tabPanes.find((x) => x.pane === lastPane) : null) ??
+    resolved?.pane ??
+    (lastPane ? tabPanes.find((x) => canonicalPaneKey(x, allSpaces, sp) === lastPane || x.pane === lastPane) : null) ??
     tabPanes[0] ??
     allPanes[0] ??
     null;
@@ -544,13 +665,26 @@ export default class Spaces extends View {
   focusJumplist(direction, now = Date.now(), sp = spaces(), ps = panes(), foc = focused(), currentOverride = null) {
     if (!this.focusHistory) this.initFocusHistory();
     if (direction !== "back" && direction !== "forward") return false;
+    const allSpaces = sp ?? [];
     const allPanes = ps ?? [];
-    const live = new Set(allPanes.map((p) => p.pane).filter(Boolean));
+    const liveMap = new Map();
+    for (const p of allPanes) {
+      const pSpace = findSpaceForPane(p, allSpaces);
+      const key = canonicalPaneKey(p, allSpaces, pSpace);
+      if (key) liveMap.set(key, { pane: p, space: pSpace, key });
+      if (p.pane && !liveMap.has(p.pane)) liveMap.set(p.pane, { pane: p, space: pSpace, key: key || p.pane });
+    }
+    const resolveKey = (raw) => {
+      if (!raw) return "";
+      const hit = liveMap.get(raw) ?? resolvePaneByKey(raw, allSpaces, allPanes);
+      return hit?.key || raw;
+    };
+
     let current =
       (this.pendingHistoryTarget && now < this.pendingHistoryTarget.until ? this.pendingHistoryTarget.pane : null) ||
-      (currentOverride && live.has(currentOverride) ? currentOverride : null) ||
-      resolveFocusedPaneId(sp, allPanes, foc) ||
-      this.focusHistory.journal.at(-1) ||
+      (currentOverride && liveMap.has(resolveKey(currentOverride)) ? resolveKey(currentOverride) : null) ||
+      resolveFocusedPaneId(allSpaces, allPanes, foc) ||
+      resolveKey(this.focusHistory.journal.at(-1)) ||
       "";
     if (!current) {
       this.notifyToast("Focus jumplist failed", "No focused pane");
@@ -569,7 +703,7 @@ export default class Spaces extends View {
     if (
       ws &&
       typeof ws.index === "number" &&
-      ws.expectedPane === current &&
+      resolveKey(ws.expectedPane) === current &&
       typeof ws.seq === "number" &&
       curSeq - ws.seq >= 0 &&
       curSeq - ws.seq <= 1 &&
@@ -577,7 +711,7 @@ export default class Spaces extends View {
       fh.walk.length > 1
     ) {
       index = ws.index;
-      walk = fh.walk;
+      walk = fh.walk.map(resolveKey);
     }
 
     if (index < 0) {
@@ -591,9 +725,9 @@ export default class Spaces extends View {
       }
       walk = [current];
       for (let i = trail.length - 1; i >= 0; i--) {
-        const p = trail[i];
-        if (!p || walk.includes(p) || !live.has(p)) continue;
-        walk.push(p);
+        const pKey = resolveKey(trail[i]);
+        if (!pKey || walk.includes(pKey) || !liveMap.has(pKey)) continue;
+        walk.push(pKey);
       }
       if (walk.length <= 1) {
         fh.walk = [];
@@ -625,12 +759,17 @@ export default class Spaces extends View {
           return false;
         }
       }
-      if (live.has(walk[targetIndex])) break;
+      if (liveMap.has(walk[targetIndex])) break;
     }
 
     const target = walk[targetIndex];
+    const targetObj = liveMap.get(target) ?? resolvePaneByKey(target, allSpaces, allPanes);
     this.pendingHistoryTarget = { pane: target, fromPane: current, until: now + 1500 };
-    run("pane.focus", { pane: target });
+    if (targetObj) {
+      focusResolvedPane(targetObj);
+    } else {
+      run("pane.focus", { pane: target });
+    }
     this.recordFocusPane(target);
     fh.walkState = { index: targetIndex, expectedPane: target, seq: fh.seq };
     this.saveFocusHistory();
@@ -648,13 +787,27 @@ export default class Spaces extends View {
 
   attentionJump(now = Date.now(), sp = spaces(), ps = panes(), foc = focused(), currentOverride = null) {
     if (!this.focusHistory) this.initFocusHistory();
+    const allSpaces = sp ?? [];
     const allPanes = ps ?? [];
-    const live = new Set(allPanes.map((p) => p.pane).filter(Boolean));
+    const liveMap = new Map();
+    for (const p of allPanes) {
+      const pSpace = findSpaceForPane(p, allSpaces);
+      const key = canonicalPaneKey(p, allSpaces, pSpace);
+      if (key) liveMap.set(key, { pane: p, space: pSpace, key });
+      if (p.terminal) liveMap.set(p.terminal, { pane: p, space: pSpace, key: key || p.pane });
+      if (p.pane && !liveMap.has(p.pane)) liveMap.set(p.pane, { pane: p, space: pSpace, key: key || p.pane });
+    }
+    const resolveKey = (raw) => {
+      if (!raw) return "";
+      const hit = liveMap.get(raw) ?? resolvePaneByKey(raw, allSpaces, allPanes);
+      return hit?.key || raw;
+    };
+
     const currentPane =
       (this.pendingHistoryTarget && now < this.pendingHistoryTarget.until ? this.pendingHistoryTarget.pane : null) ||
-      (currentOverride && live.has(currentOverride) ? currentOverride : null) ||
-      resolveFocusedPaneId(sp, allPanes, foc) ||
-      this.focusHistory.journal.at(-1) ||
+      (currentOverride && liveMap.has(resolveKey(currentOverride)) ? resolveKey(currentOverride) : null) ||
+      resolveFocusedPaneId(allSpaces, allPanes, foc) ||
+      resolveKey(this.focusHistory.journal.at(-1)) ||
       "";
     if (currentPane) this.recordFocusPane(currentPane);
 
@@ -662,8 +815,11 @@ export default class Spaces extends View {
     const snoozeState = (typeof shared === "function" ? shared("agents.snooze") : null) ?? {};
     const snoozePanes = snoozeState.panes ?? {};
     const snoozeWorkspaces = snoozeState.workspaces ?? {};
-    const isSnoozed = (a) => {
-      const pEntry = snoozePanes[a.pane] ?? Object.values(snoozePanes).find((e) => e?.terminal_id === a.address);
+    const isSnoozed = (a, pKey) => {
+      const pEntry =
+        snoozePanes[pKey] ??
+        snoozePanes[a.pane] ??
+        Object.values(snoozePanes).find((e) => e?.terminal_id === a.address);
       if (pEntry && pEntry.until > now) return true;
       const wEntry = a.space ? snoozeWorkspaces[a.space] : null;
       return Boolean(wEntry && wEntry.until > now);
@@ -679,20 +835,24 @@ export default class Spaces extends View {
     const candidates = [];
     for (let i = 0; i < agentList.length; i++) {
       const a = agentList[i];
-      if (!a?.pane || !live.has(a.pane)) continue;
-      if (isSnoozed(a)) continue;
+      const targetObj = (a?.address && liveMap.get(a.address)) || (a?.pane && liveMap.get(a.pane)) || null;
+      if (!targetObj) continue;
+      const pKey = targetObj.key;
+      if (isSnoozed(a, pKey)) continue;
       const status = a.status === "error" ? "blocked" : a.status;
       if (status !== "blocked" && status !== "done") continue;
       const since = changed[a.address]?.at ?? 0;
       const seq = a.seq ?? 0;
       candidates.push({
         agent: a,
+        targetObj,
+        paneKey: pKey,
         status,
         pinned: Boolean(a.pinned),
         since,
         seq,
         index: i,
-        focused: currentPane ? a.pane === currentPane : Boolean(a.focused),
+        focused: currentPane ? pKey === currentPane : Boolean(a.focused),
       });
     }
 
@@ -710,16 +870,16 @@ export default class Spaces extends View {
     const picked = rotated.filter((c) => !c.focused);
 
     if (picked.length === 0) {
-      return this.focusJumplist("forward", now, sp, allPanes, foc, currentPane);
+      return this.focusJumplist("forward", now, allSpaces, allPanes, foc, currentPane);
     }
 
     const chosen = picked[0];
-    const targetPane = chosen.agent.pane;
+    const targetPane = chosen.paneKey;
     const kind = chosen.agent.program?.key || chosen.agent.program?.name?.toLowerCase() || chosen.agent.app || "agent";
     const label = `${kind} ${chosen.status}`;
 
     this.pendingHistoryTarget = { pane: targetPane, fromPane: currentPane, until: now + 1500 };
-    run("pane.focus", { pane: targetPane });
+    focusResolvedPane(chosen.targetObj);
     this.recordFocusPane(targetPane);
 
     const others = picked.length - 1;
