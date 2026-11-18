@@ -588,11 +588,11 @@ local function opacityFixture(mode, alpha, level)
   e:emit(mode or NATIVE)
   return e
 end
-test("opacity burst waits 400ms and redraws the same grid only once", function()
+test("opacity burst waits 150ms and updates the same grid only once", function()
   for _, mode in ipairs({NATIVE, GRID}) do
     local e = opacityFixture(mode)
     e:opacity(-0.05); e:opacity(-0.05); e:opacity(0.05)
-    eq(e.state.opacityTimer.delay, 0.4); e:noPending()
+    eq(e.state.opacityTimer.delay, 0.15); e:noPending()
     e:tick(); e:tick(); e:noPending() -- superseded timers cannot redraw
     e:tick()
     e:reply({"neru", "set-grid-opacity", "--value", "0.4500"}, true)
