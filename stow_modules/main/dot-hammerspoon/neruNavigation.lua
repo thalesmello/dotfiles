@@ -370,7 +370,7 @@ function M.setup(ctx)
     "Neru: Grid / Idle (Right Shift)", state.rightShift)
   state.handles[#state.handles + 1] = ctx.default:bindOnce({"cmd"}, "F16",
     "Neru: Recursive / Continuous Grid (Cmd+Right Shift)", commandGrid)
-  bind(ctx.hyper, ",", "Neru: Screen Text Jump", {"run", "--stop-on-error", "vim", "action feed --mode s"})
+  bind(ctx.hyper, ",", "Neru: Vim Text Mode", {"vim", "--toggle"})
   bind(ctx.hyper, "d", "Neru: Scroll", {"scroll", "--toggle"})
   enableHandles(state.backend == "neru")
 

@@ -13,7 +13,7 @@ RunAtLoad, starts at login. Manage it with `neru services status|start|stop|rest
 | --- | --- |
 | Hyper+; | UI hints; select a label to click |
 | Tap Right Shift / F16 | **Regular Grid**, with alternating-hand labels |
-| Hyper+, | Vim, immediately ready for its `s` text jump |
+| Hyper+, | Vim text mode (press `s` inside it to start a labeled jump) |
 | Hyper+d | Open Scroll; page down while Scroll is active |
 | Hyper+u in Scroll | Page up (plain d/u also remain available) |
 | **Cmd+Right Shift → Cmd+F16** | Recursive Grid from idle; **continuous toggle in every active mode** |
