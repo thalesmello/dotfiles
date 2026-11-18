@@ -169,6 +169,13 @@ Neru exposes no configurable text-shadow setting in this version. Instead:
 Colors are written in Neru's alpha-first `#AARRGGBB` format. Recursive Grid has
 one shared cell fill; native Grid can have distinct base/selected fills.
 
+In either grid, `-` / `=` adjust fill opacity in 5-percentage-point steps,
+clamped to 5–95%. The grid reloads/reopens once after a 400ms pause in these
+keypresses, rather than once per press. This resets the selection to the base;
+separator colors remain unchanged. Closing before the timeout loads the new
+colors without reopening. Space clicks do not run an opacity flash or reload.
+A state-preserving, one-second visual peek is not implemented in stock Neru.
+
 ## Held drag workflow
 
 In Grid, Recursive Grid and Vim:

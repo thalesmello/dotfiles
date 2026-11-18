@@ -169,7 +169,14 @@ function M.setup(ctx)
   end
   state.syncKarabinerGrid = syncKarabinerGrid
 
+  local function cancelOpacityRedraw()
+    state.opacityGeneration = (state.opacityGeneration or 0) + 1
+    if state.opacityTimer then state.opacityTimer:stop(); state.opacityTimer = nil end
+    state.opacityReloading = nil
+  end
+
   local function stopWatch()
+    cancelOpacityRedraw()
     state.watchEpoch = state.watchEpoch + 1
     local watcher = state.watch
     state.watch = nil
@@ -197,6 +204,7 @@ function M.setup(ctx)
       syncKarabinerGrid()
       reconcileDrag()
     elseif event.event == "mode_enter" then
+      cancelOpacityRedraw() -- a new mode must not be reopened by an old timer/reply
       resetDrag()
       state.mode = event.mode
       rearmTaps()
@@ -207,9 +215,14 @@ function M.setup(ctx)
       state.mode = "idle"
       cancelScrollIdle()
       syncKarabinerGrid()
-      if state.opacityPending then
-        state.opacityPending = false
-        command({"config", "reload"}) -- deferred opacity: apply after close, no flicker
+      if state.opacityReloading and not state.opacityReloading.exited then
+        state.opacityReloading.exited = true -- expected exit from our own reload
+      else
+        cancelOpacityRedraw()
+        if state.opacityPending then
+          state.opacityPending = false
+          command({"config", "reload"}) -- user closed before debounce: load without reopening
+        end
       end
       resetDrag()
     end
@@ -226,6 +239,8 @@ function M.setup(ctx)
       state.watchEpoch = state.watchEpoch + 1
       state.watch = nil
       state.mode = "idle"
+      cancelOpacityRedraw()
+      syncKarabinerGrid()
       resetDrag()
       message("Neru status stream ended; reload Hammerspoon after restarting Neru")
     end, function(task, stdout)
@@ -351,26 +366,34 @@ function M.setup(ctx)
       local finish = body:find("\n[", start + 1, true) or (#body + 1)
       return body:sub(1, start - 1) .. fn(body:sub(start, finish - 1)) .. body:sub(finish)
     end
+    local matches = 0
+    local function replaceColor(sec, key)
+      local updated, count = sec:gsub('(' .. key .. '%s*=%s*"#)%x%x(180C10")',
+        function(prefix, rgb) return prefix .. alpha .. rgb end)
+      matches = matches + count
+      return updated
+    end
     local updated = editSection(text, "[recursive_grid.ui]", function(sec)
-      return sec:gsub('(highlight_color = "#)%x%x(180C10")', '%1' .. alpha .. '%2')
+      return replaceColor(sec, "highlight_color")
     end)
     if updated then
       updated = editSection(updated, "[grid.ui]", function(sec)
-        return sec:gsub('(background_color = "#)%x%x(180C10")', '%1' .. alpha .. '%2')
-          :gsub('(matched_background_color = "#)%x%x(180C10")', '%1' .. alpha .. '%2')
+        sec = replaceColor(sec, "matched_background_color")
+        return replaceColor(sec, "\nbackground_color")
       end)
     end
-    if not updated or updated == text then return false end
+    if not updated or matches ~= 3 then return false end
+    if updated == text then return true, false end -- valid colors, already at this level
     local tmp = path .. ".opacity.tmp"
     local out = io.open(tmp, "w")
     if not out then return false end
     out:write(updated); out:close()
     if not os.rename(tmp, path) then os.remove(tmp); return false end
     if state.configWatcher then state.configWatcher.markCurrent() end
-    return true
+    return true, true
   end
   local function baseAlpha()
-    local level = hs.settings.get("neruNavigation.gridOpacity") or 0.50
+    local level = math.min(0.95, math.max(0.05, hs.settings.get("neruNavigation.gridOpacity") or 0.50))
     return string.format("%02X", math.floor(level * 255 + 0.5))
   end
   local function reopenGrid(mode)
@@ -380,20 +403,39 @@ function M.setup(ctx)
     else launch({"grid", "--cursor-selection-mode", "hold"}) end
   end
 
-  -- Grid opacity tuning (-/= keys): write the fill alpha now and defer the
-  -- reload to grid close, so tuning causes no flicker.
+  -- Write each adjustment now, but reload/reopen only after a 400ms pause
+  -- in -/= presses. A burst redraws once, never toggles the grid closed.
   state.adjustOpacity = function(delta)
-    if state.closed or state.busy or not gridModes[state.mode] then return end
+    if state.closed or state.busy or state.backend ~= "neru" or not gridModes[state.mode] then return end
     local level = hs.settings.get("neruNavigation.gridOpacity") or 0.50
     level = math.min(0.95, math.max(0.05, level + delta))
-    hs.settings.set("neruNavigation.gridOpacity", level)
     local alpha = string.format("%02X", math.floor(level * 255 + 0.5))
-    if not writeFillAlpha(alpha) then message("Grid colors not found in Neru config"); return end
-    -- No reload now (that flickers: it closes and reopens the grid). The new
-    -- level is applied by the mode_exit reload in readWatchLine, so it takes
-    -- effect on the next grid open with zero flicker.
+    local ok, changed = writeFillAlpha(alpha)
+    if not ok then message("Grid colors not found in Neru config"); return end
+    hs.settings.set("neruNavigation.gridOpacity", level)
+    message("Grid opacity " .. math.floor(level * 100 + 0.5) .. "%")
+    if not changed and not state.opacityPending then return end -- clamp/no-op, not an error
     state.opacityPending = true
-    message("Grid opacity " .. math.floor(level * 100 + 0.5) .. "% (applies on next open)")
+    cancelOpacityRedraw()
+    local generation, mode = state.opacityGeneration, state.mode
+    state.opacityTimer = hs.timer.doAfter(0.4, function()
+      if state.closed or state.busy or state.backend ~= "neru" or
+        generation ~= state.opacityGeneration or state.mode ~= mode then return end
+      state.opacityTimer = nil
+      state.opacityPending = false
+      local request = {mode = mode}
+      state.opacityReloading = request
+      command({"config", "reload"}, function(reloaded)
+        if state.opacityReloading ~= request then return end
+        state.opacityReloading = nil
+        if not reloaded then
+          message("Opacity reload failed; previous configuration kept")
+        elseif not request.cancelled and not state.busy and state.backend == "neru" and
+          (state.mode == "idle" or state.mode == mode) then
+          reopenGrid(mode)
+        end
+      end)
+    end)
   end
 
   state.moveOnly = function(exitAfter)
@@ -689,6 +731,9 @@ function M.setup(ctx)
     if event:getType() == eventTypes.keyDown then
       if state.mode == "scroll" then armScrollIdle() end -- any keystroke is activity
       local code = event:getKeyCode()
+      if state.opacityReloading and (code == 53 or code == 106 or code == 36) then
+        state.opacityReloading.cancelled = true -- Escape/F16/Enter must not reopen after reload
+      end
       if state.consumedDropKeys[code] then return true end
       if (code == 49 or code == 36) and next(state.consumedDropKeys) then
         state.consumedDropKeys[code] = true
@@ -756,9 +801,8 @@ function M.setup(ctx)
   -- Recover from a flash whose restore timer died with a previous Lua state
   -- (reload/crash mid-flash): if the file's fill differs from the tuned
   -- level, it is a stale flash value; restore it and resync the daemon.
-  if writeFillAlpha(baseAlpha()) and state.backend == "neru" then
-    command({"config", "reload"})
-  end
+  local _, restored = writeFillAlpha(baseAlpha())
+  if restored and state.backend == "neru" then command({"config", "reload"}) end
   if state.backend == "neru" then startWatch(); CapsHyper.rearm() end
   return state
 end

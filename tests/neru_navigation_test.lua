@@ -42,7 +42,12 @@ local function fixture(backend, store, mouseless)
       e.handles[#e.handles + 1] = h; return h
     end},
     application = {get = function(name) return e.apps[name] end},
-    timer = {doAfter = function(_, fn) e.timers[#e.timers + 1] = fn end},
+    timer = {doAfter = function(delay, fn)
+      local timer = {delay = delay, stopped = false}
+      function timer:stop() self.stopped = true end
+      e.timers[#e.timers + 1] = function() if not timer.stopped then fn() end end
+      return timer
+    end},
     mouse = {absolutePosition = function() return {x = 100, y = 200} end},
     eventtap = {
       checkKeyboardModifiers = function() return e.flags end,
@@ -104,7 +109,24 @@ local function fixture(backend, store, mouseless)
   local mod = dofile(ROOT .. "neruNavigation.lua")
   e.module = mod
   local ctx = {default = setmetatable({}, Mode), hyper = {"ctrl", "alt", "cmd"}}
-  function e:setup() self.state = mod.setup(ctx) end
+  -- Config I/O is virtual: opacity tests must never edit the live desktop config.
+  function e:withConfig(fn)
+    local open, rename, remove = io.open, os.rename, os.remove
+    io.open = function(path, mode)
+      if mode == "r" then
+        if not self.config then return nil end
+        return {read = function() return self.config end, close = function() end}
+      end
+      return {write = function(_, text) self.tmpConfig = text end, close = function() end}
+    end
+    os.rename = function() self.config = self.tmpConfig; self.tmpConfig = nil; return true end
+    os.remove = function() self.tmpConfig = nil end
+    local ok, err = pcall(fn)
+    io.open, os.rename, os.remove = open, rename, remove
+    if not ok then error(err) end
+  end
+  function e:setup() self:withConfig(function() self.state = mod.setup(ctx) end) end
+  function e:opacity(delta) self:withConfig(function() self.state.adjustOpacity(delta) end) end
   function e:profile(id) self.dynamic[id]().fn() end
   function e:reply(args, ok, output)
     local c = table.remove(self.pending, 1); assert(c, "missing task"); argvEq(c.args, args); c.done(ok, output or "")
@@ -556,12 +578,73 @@ test("grid modes publish the neru-grid Karabiner variable", function()
   for _, c in ipairs(e.calls) do if c.args[1] == "karabiner_cli" then found = c.args end end
   argvEq(found, {"karabiner_cli", "--set-variables", '{"neru-grid":0}'})
 end)
-test("pending opacity reloads only after the grid closes", function()
-  local e = fixture("neru"); e:emit(NATIVE)
-  e.state.opacityPending = true
-  e:emit(EXIT)
+local function opacityFixture(mode, alpha, level)
+  local e = fixture("neru", {["neruNavigation.gridOpacity"] = level or 0.5})
+  e.config = '[recursive_grid.ui]\nhighlight_color = "#' .. (alpha or "80") .. '180C10"\n' ..
+    'line_color = "#8CB87671"\n[grid.ui]\nbackground_color = "#' .. (alpha or "80") .. '180C10"\n' ..
+    'matched_background_color = "#' .. (alpha or "80") .. '180C10"\nline_color = "#00000000"\n'
+  e:emit(mode or NATIVE)
+  return e
+end
+test("opacity burst waits 400ms and redraws the same grid only once", function()
+  for _, mode in ipairs({NATIVE, GRID}) do
+    local e = opacityFixture(mode)
+    e:opacity(-0.05); e:opacity(-0.05); e:opacity(0.05)
+    eq(e.state.opacityTimer.delay, 0.4); e:noPending()
+    e:tick(); e:tick(); e:noPending() -- superseded timers cannot redraw
+    e:tick(); e:emit(EXIT) -- reload exits mode BEFORE its reply
+    e:reply({"neru", "config", "reload"}, true)
+    e:reply({"neru", mode == GRID and "recursive_grid" or "grid", "--cursor-selection-mode", "hold"}, true)
+    e:noPending(); eq(e.state.opacityPending, false)
+    assert(e.config:find('line_color = "#8CB87671"', 1, true))
+    assert(e.config:find('line_color = "#00000000"', 1, true))
+    eq(select(2, e.config:gsub('#73180C10', '')), 3)
+  end
+end)
+test("opacity at the 5 percent floor is a valid no-op, not missing color", function()
+  local e = opacityFixture(NATIVE, "0D", 0.05)
+  e:opacity(-0.05); e:opacity(-0.05)
+  eq(e.store["neruNavigation.gridOpacity"], 0.05)
+  eq(e.messages[#e.messages], "Grid opacity 5%")
+  eq(#e.timers, 0); e:noPending()
+end)
+test("opacity clamps low and high saved values", function()
+  local e = opacityFixture(NATIVE, "00", 0)
+  e:opacity(-0.05)
+  eq(e.store["neruNavigation.gridOpacity"], 0.05)
+  eq(select(2, e.config:gsub('#0D180C10', '')), 3)
+  local high = opacityFixture(NATIVE, "F2", 0.95)
+  high:opacity(0.05); eq(high.store["neruNavigation.gridOpacity"], 0.95)
+  eq(#high.timers, 0)
+end)
+test("missing opacity colors report an error without changing settings", function()
+  local e = opacityFixture(); e.config = '[grid.ui]\n'
+  e:opacity(-0.05)
+  eq(e.messages[#e.messages], "Grid colors not found in Neru config")
+  eq(e.store["neruNavigation.gridOpacity"], 0.5); eq(#e.timers, 0)
+end)
+test("closing before opacity debounce loads colors but never reopens", function()
+  local e = opacityFixture(); e:opacity(-0.05); e:emit(EXIT)
+  e:reply({"neru", "config", "reload"}, true)
+  e:tick(); e:noPending(); eq(e.state.opacityPending, false)
+end)
+test("new mode during opacity reload cannot resurrect the old grid", function()
+  local e = opacityFixture(); e:opacity(-0.05); e:tick(); e:emit(EXIT); e:emit(VIM)
   e:reply({"neru", "config", "reload"}, true); e:noPending()
-  eq(e.state.opacityPending, false)
+end)
+test("Escape during opacity reload prevents reopening", function()
+  local e = opacityFixture(); e:opacity(-0.05); e:tick(); e:emit(EXIT)
+  e.state.inputHandler({getType = function() return 10 end, getKeyCode = function() return 53 end})
+  e:reply({"neru", "config", "reload"}, true); e:noPending()
+end)
+test("failed opacity reload never reopens", function()
+  local e = opacityFixture(); e:opacity(-0.05); e:tick()
+  e:reply({"neru", "config", "reload"}, false); e:noPending()
+  eq(e.messages[#e.messages], "Opacity reload failed; previous configuration kept")
+end)
+test("shutdown cancels a pending opacity redraw", function()
+  local e = opacityFixture(); e:opacity(-0.05); e.state.close()
+  e:tick(); e:noPending()
 end)
 test("Right Shift exits either grid rather than switching layouts", function()
   for _,mode in ipairs({GRID,NATIVE}) do
