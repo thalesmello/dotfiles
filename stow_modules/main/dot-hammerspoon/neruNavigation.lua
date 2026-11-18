@@ -191,6 +191,15 @@ function M.setup(ctx)
     elseif event.event == "mode_exit" then
       state.mode = "idle"
       cancelScrollIdle()
+      if state.opacityFlashReloading then
+        state.opacityFlashReloading = false -- our own flash/restore reload
+      elseif state.opacityFlashing then
+        -- Left the grid mid-flash: restore the fill for the next open.
+        if state.flashTimer then state.flashTimer:stop() end
+        state.opacityFlashing = false
+        writeFillAlpha(baseAlpha())
+        command({"config", "reload"})
+      end
       resetDrag()
     end
   end
@@ -275,12 +284,13 @@ function M.setup(ctx)
   -- to leave its overlay up; it never schedules a delayed mouse-down.
   -- Space-family keys pass "stay"; Enter-family keys pass "exit". With no
   -- argument (drop cleanup), the continuous-mode preference decides.
-  state.afterClick = function(how)
+  state.afterClick = function(how, flash)
     if state.closed or state.busy or state.mode == "vim" or state.mode == "monitor_select" then return end
     if how == "exit" then
       command({"idle"})
     elseif how == "stay" then
-      if gridModes[state.mode] then command({"run", "action reset"})
+      if gridModes[state.mode] and flash then state.flashOpacity()
+      elseif gridModes[state.mode] then command({"run", "action reset"})
       elseif state.mode == "hints" then command({"action", "refresh_hints"}) end
     elseif not state.continuous then
       command({"idle"})
@@ -305,26 +315,18 @@ function M.setup(ctx)
     end
   end
 
-  -- Grid opacity tuning (-/= keys): edit the fill alphas, reload once, and
-  -- reopen the same grid (a config reload always exits the open mode).
-  state.adjustOpacity = function(delta)
-    if state.closed or state.busy or not gridModes[state.mode] then return end
-    local level = hs.settings.get("neruNavigation.gridOpacity") or 0.50
-    level = math.min(0.95, math.max(0.05, level + delta))
-    hs.settings.set("neruNavigation.gridOpacity", level)
-    local alpha = string.format("%02X", math.floor(level * 255 + 0.5))
+  -- Write a fill alpha into both grid UI sections of the config file.
+  local function writeFillAlpha(alpha)
     local path = os.getenv("HOME") .. "/.config/neru/config.toml"
     local f = io.open(path, "r")
-    if not f then message("Could not read Neru config for opacity"); return end
+    if not f then return false end
     local text = f:read("*a"); f:close()
-    -- Scope edits to the two grid UI sections: other modes reuse #B87671.
     local function editSection(body, header, fn)
       local start = body:find(header, 1, true)
       if not start then return nil end
       local finish = body:find("\n[", start + 1, true) or (#body + 1)
       return body:sub(1, start - 1) .. fn(body:sub(start, finish - 1)) .. body:sub(finish)
     end
-    -- Only the fills tune. The separator (line_color) is deliberately untouched.
     local updated = editSection(text, "[recursive_grid.ui]", function(sec)
       return sec:gsub('(highlight_color = "#)%x%x(180C10")', '%1' .. alpha .. '%2')
     end)
@@ -334,13 +336,66 @@ function M.setup(ctx)
           :gsub('(matched_background_color = "#)%x%x(180C10")', '%1' .. alpha .. '%2')
       end)
     end
-    if updated == text then message("Grid colors not found in Neru config"); return end
+    if not updated or updated == text then return false end
     local tmp = path .. ".opacity.tmp"
     local out = io.open(tmp, "w")
-    if not out then message("Could not write Neru config for opacity"); return end
+    if not out then return false end
     out:write(updated); out:close()
-    if not os.rename(tmp, path) then os.remove(tmp); message("Could not save grid opacity"); return end
+    if not os.rename(tmp, path) then os.remove(tmp); return false end
     if state.configWatcher then state.configWatcher.markCurrent() end
+    return true
+  end
+  local function baseAlpha()
+    local level = hs.settings.get("neruNavigation.gridOpacity") or 0.50
+    return string.format("%02X", math.floor(level * 255 + 0.5))
+  end
+  local function reopenGrid(mode)
+    if mode == "recursive_grid" then state.openRecursive()
+    else launch({"grid", "--cursor-selection-mode", "hold", "--toggle"}) end
+  end
+
+  -- After a Space-family click in a grid: cut the fill to 30% of its level
+  -- for one second so the result under the grid is visible, then restore.
+  state.flashOpacity = function()
+    if state.opacityFlashing then -- another click extends the window
+      if state.flashTimer then state.flashTimer:stop() end
+      state.flashTimer = hs.timer.doAfter(1, function() state.restoreOpacity() end)
+      return
+    end
+    local level = hs.settings.get("neruNavigation.gridOpacity") or 0.50
+    local flash = string.format("%02X", math.max(13, math.floor(level * 0.3 * 255 + 0.5)))
+    if not writeFillAlpha(flash) then command({"run", "action reset"}); return end
+    state.opacityFlashing, state.opacityFlashReloading = true, true
+    local mode = state.mode
+    command({"config", "reload"}, function(ok)
+      if not ok then state.opacityFlashing = false; writeFillAlpha(baseAlpha()); return end
+      reopenGrid(mode)
+      state.flashTimer = hs.timer.doAfter(1, function() state.restoreOpacity() end)
+    end)
+  end
+  state.restoreOpacity = function()
+    if not state.opacityFlashing then return end
+    state.opacityFlashing, state.flashTimer = false, nil
+    if not writeFillAlpha(baseAlpha()) then return end
+    local mode = state.mode
+    command({"config", "reload"}, function(ok)
+      if ok and gridModes[mode] and state.mode == mode then reopenGrid(mode) end
+    end)
+  end
+
+  -- Grid opacity tuning (-/= keys): edit the fill alphas, reload once, and
+  -- reopen the same grid (a config reload always exits the open mode).
+  state.adjustOpacity = function(delta)
+    if state.closed or state.busy or not gridModes[state.mode] then return end
+    local level = hs.settings.get("neruNavigation.gridOpacity") or 0.50
+    level = math.min(0.95, math.max(0.05, level + delta))
+    hs.settings.set("neruNavigation.gridOpacity", level)
+    local alpha = string.format("%02X", math.floor(level * 255 + 0.5))
+    if state.opacityFlashing then -- tuning during a flash replaces it
+      if state.flashTimer then state.flashTimer:stop() end
+      state.opacityFlashing = false
+    end
+    if not writeFillAlpha(alpha) then message("Grid colors not found in Neru config"); return end
     local mode = state.mode
     message("Grid opacity " .. math.floor(level * 100 + 0.5) .. "%")
     command({"config", "reload"}, function(ok)
@@ -681,6 +736,11 @@ function M.setup(ctx)
     state.closed, state.epoch = true, state.epoch + 1
     -- A reload can interrupt a modifier drag before its key-up. Exit Neru
     -- explicitly so its tracked mouse buttons are released even then.
+    if state.opacityFlashing then
+      if state.flashTimer then state.flashTimer:stop() end
+      state.opacityFlashing = false
+      writeFillAlpha(baseAlpha()) -- file corrected; daemon picks it up next load
+    end
     if state.backend == "neru" then shell.task({"neru", "idle"}) end
     for _, handle in ipairs(state.handles) do handle:delete() end
     stopWatch()
@@ -721,8 +781,8 @@ function M.moveOnly(exitAfter)
   if instance and not instance.closed then instance.moveOnly(exitAfter) end
 end
 
-function M.afterClick(how)
-  if instance and not instance.closed then instance.afterClick(how) end
+function M.afterClick(how, flash)
+  if instance and not instance.closed then instance.afterClick(how, flash) end
 end
 
 function M.toggleContinuous()

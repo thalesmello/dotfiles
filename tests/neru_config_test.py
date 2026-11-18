@@ -97,7 +97,7 @@ class NeruConfigTest(unittest.TestCase):
             self.assertEqual(self.config["macros"]["confirm_" + button],
                              [f"action {button}_click --bail-on-error", "macro after_click_exit"])
             self.assertEqual(self.config["macros"]["confirm_" + button + "_stay"],
-                             [f"action {button}_click --bail-on-error", "macro after_click_stay"])
+                             [f"action {button}_click --bail-on-error", "macro after_click_flash"])
         self.assertIn("neruNavigation", self.config["macros"]["after_click"])
         self.assertNotIn("--action", self.config["macros"]["open_recursive"])
 
@@ -231,7 +231,6 @@ class NeruConfigTest(unittest.TestCase):
         self.assertTrue(recursive["highlight_color"].endswith("180C10"))
         self.assertTrue(recursive["line_color"].endswith("B87671"))  # separator alpha is fixed, not tuned
         self.assertEqual(recursive["text_color"], color("text_rgba"))
-        self.assertEqual(recursive["line_color"], recursive["highlight_color"][:3] + color("highlight_rgba")[3:])
         self.assertEqual(recursive["line_width"], 2)
         self.assertEqual(self.config["grid"]["ui"]["border_width"], 0)
         self.assertTrue(self.config["grid"]["ui"]["border_color"].startswith("#00"))

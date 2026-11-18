@@ -31,14 +31,15 @@ text = "#FEFEFE"
 # clicks are off. Keeping this decision there avoids rewriting hotkeys.
 after_click = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').afterClick()\""
 after_click_stay = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').afterClick('stay')\""
+after_click_flash = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').afterClick('stay', true)\""
 after_click_exit = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').afterClick('exit')\""
 # Enter-family clicks exit the mode; Space-family clicks reset and stay.
 confirm_left = ["action left_click --bail-on-error", "macro after_click_exit"]
-confirm_left_stay = ["action left_click --bail-on-error", "macro after_click_stay"]
+confirm_left_stay = ["action left_click --bail-on-error", "macro after_click_flash"]
 confirm_right = ["action right_click --bail-on-error", "macro after_click_exit"]
-confirm_right_stay = ["action right_click --bail-on-error", "macro after_click_stay"]
+confirm_right_stay = ["action right_click --bail-on-error", "macro after_click_flash"]
 confirm_middle = ["action middle_click --bail-on-error", "macro after_click_exit"]
-confirm_middle_stay = ["action middle_click --bail-on-error", "macro after_click_stay"]
+confirm_middle_stay = ["action middle_click --bail-on-error", "macro after_click_flash"]
 confirm_move = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').moveOnly()\""
 confirm_move_exit = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').moveOnly(true)\""
 confirm_move_bare = ["action move_mouse --bare --bail-on-error", "macro after_click_stay"]
@@ -129,7 +130,7 @@ font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
 font_size = 12
 # Mouseless palette, in Neru's alpha-first #AARRGGBB format.
 # Recursive Grid uses one shared cell fill; this is a darker red variant.
-highlight_color = "#8C180C10"      # near-black burgundy, 50% opacity
+highlight_color = "#99180C10"      # near-black burgundy, 50% opacity
 text_color = "#FFFEFEFE"           # nearly-white labels
 # Current level only; next-level previews are disabled.
 sub_key_preview = false
@@ -310,8 +311,8 @@ max_label_length = 3
 font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
 font_size = 12
 # Standard Grid supports separate base and selected-cell fills.
-background_color = "#8C180C10"
-matched_background_color = "#8C180C10" # same fill as Recursive Grid
+background_color = "#99180C10"
+matched_background_color = "#99180C10" # same fill as Recursive Grid
 text_color = "#FFFEFEFE"
 matched_text_color = "#FFFEFEFE"
 border_color = "#00B87671"
