@@ -48,7 +48,7 @@ local function fixture(backend, store, mouseless)
       e.timers[#e.timers + 1] = function() if not timer.stopped then fn() end end
       return timer
     end},
-    mouse = {absolutePosition = function() return {x = 100, y = 200} end},
+    mouse = {absolutePosition = function() return e.cursorPoint or {x = 100, y = 200} end},
     eventtap = {
       checkKeyboardModifiers = function() return e.flags end,
       event = {
@@ -661,6 +661,14 @@ test("rapid grid click keys queue and repeat at the original point after reset",
     e:reply(CLICK_STAY, true)
   end
   e:noPending(); eq(e.state.clickBusy, false)
+end)
+test("repeat click coordinates serialize real NSPoint floats as integers", function()
+  local e = fixture("neru"); e:emit(NATIVE); e.cursorPoint = {x=1210.0, y=780.0}
+  e.state.confirmClick("left", false)
+  e:reply({"neru", "action", "move_mouse", "--selection"}, true); e:emit(EXIT); e:reply(CLICK_EXIT, true)
+  e.state.confirmClick("left", false)
+  e:reply({"neru", "action", "move_mouse", "--x", "1210", "--y", "780"}, true)
+  e:reply(CLICK_EXIT, true); e:noPending()
 end)
 test("Enter repeats are captured briefly after exiting to idle", function()
   local e = fixture("neru"); e:emit(NATIVE); e.state.confirmClick("left", true)

@@ -416,8 +416,11 @@ function M.setup(ctx)
     end
     if canRepeat(request.button) then
       local point = state.lastGridClick.point
-      command({"action", "move_mouse", "--x", tostring(point.x), "--y", tostring(point.y)}, function(ok)
-        if ok then clickedAt(point) else state.clickBusy = false; state.clickQueue = {} end
+      -- hs.mouse returns NSPoint doubles (e.g. 1210.0), but Neru's CLI
+      -- coordinate flags accept integers only. tostring would reject repeats.
+      command({"action", "move_mouse", "--x", string.format("%.0f", point.x), "--y", string.format("%.0f", point.y)}, function(ok)
+        if ok then clickedAt(point)
+        else state.clickBusy = false; state.clickQueue = {}; message("Could not repeat click: target move failed") end
       end)
     else
       commitCursor(function(ok)
