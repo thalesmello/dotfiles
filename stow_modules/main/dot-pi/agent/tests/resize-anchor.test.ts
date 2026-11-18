@@ -629,4 +629,333 @@ describe("resize-anchor extension", () => {
 
 		await emit("session_shutdown");
 	});
+
+	describe("zen look toggles (render-time globalThis.piZenSwitch detection)", () => {
+		const look = () => (globalThis as any).piZenSwitch?.look ?? "pi";
+		const setLook = (value: "pi" | "zen") => {
+			(globalThis as any).piZenSwitch = { look: value };
+		};
+
+		class ZenHidden {
+			constructor(readonly inner: ParagraphComponent) {}
+			render(width: number): string[] {
+				return look() === "zen" ? [] : this.inner.render(width);
+			}
+		}
+
+		/** Same constructor name as pi's real chat container (isPlainGroupingContainer requires it). */
+		class Container extends FakeContainer {}
+
+		/** Leaf exposing its source `.text` like pi's Markdown/Text components. */
+		class TextLeaf {
+			constructor(public text: string) {}
+			render(width: number): string[] {
+				return wrapWords(this.text, Math.max(1, width - 2)).map((l) => ` ${l}`);
+			}
+		}
+
+		/** Thinking block: visible only in the pi look. */
+		class ThinkingLeaf extends TextLeaf {
+			render(width: number): string[] {
+				return look() === "zen" ? [] : super.render(width);
+			}
+		}
+
+		const LONG = (name: string) =>
+			`${name} marker: this paragraph is long enough that it wraps over several rows at both wide and narrow zen column widths.`;
+
+		function buildDoc(opts: { tool?: boolean; narrow?: boolean; thinking?: boolean } = {}) {
+			const narrow = opts.narrow ?? true;
+			const doc = new FakeContainer();
+			// Own render wrapper on the DOCUMENT, like pi-zen's column wrapper.
+			const originalRender = doc.render;
+			doc.render = function (this: FakeContainer, width: number): string[] {
+				return originalRender.call(this, narrow && look() === "zen" ? Math.max(1, width - 20) : width);
+			};
+			const header = new ZenHidden(new ParagraphComponent("Pi header banner with version and keybinding hints that wrap"));
+			const resources = new ZenHidden(new ParagraphComponent("Resources: skills, prompts, extensions, themes listed here"));
+			const chat = new Container();
+			doc.addChild(header);
+			doc.addChild(resources);
+			doc.addChild(chat);
+			const owners: Record<string, any> = {};
+			const names = ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta"];
+			for (const name of names) {
+				if (opts.tool && name === "Gamma") {
+					const tool = {
+						lines: [`  tool-output-one ${name}`, `  tool-output-two ${name}`, `  tool-output-three ${name}`],
+						render(_w: number) {
+							return look() === "zen" ? [] : this.lines;
+						},
+					};
+					owners[name] = tool;
+					chat.addChild(tool);
+				} else {
+					const owner = new FakeContainer();
+					if (opts.thinking && name === "Delta") {
+						owner.addChild(new ThinkingLeaf("Thinking: pondering a long chain of reasoning steps before answering at all."));
+					}
+					owner.addChild(new TextLeaf(LONG(name)));
+					owners[name] = owner;
+					chat.addChild(owner);
+				}
+				chat.addChild(new SpacerComponent(1));
+			}
+			return { doc, chat, owners };
+		}
+
+		const H = 6;
+		const rowOf = (lines: string[], needle: string) => lines.findIndex((l) => l.includes(needle));
+		const topText = (view: any, lines: string[]) => lines[view.scrollTop]!;
+
+		async function withZen(fn: () => Promise<void> | void) {
+			try {
+				await emit("session_start");
+				await fn();
+			} finally {
+				delete (globalThis as any).piZenSwitch;
+				await emit("session_shutdown");
+			}
+		}
+
+		test("mid-chat top line survives pi -> zen -> pi with header/resources hidden and a narrower column", () =>
+			withZen(() => {
+				const { doc } = buildDoc();
+				const view = new FakeScrollView(doc, { follow: "end", primary: true });
+				const l0 = layoutScrollView(view, 80, H);
+				const row = rowOf(l0, "Gamma marker");
+				view.scrollTo(row + 1, { disableFollow: true });
+				layoutScrollView(view, 80, H);
+				const original = topText(view, l0).trim();
+				const originalTop = view.scrollTop;
+				const word = original.split(/\s+/)[0]!;
+
+				setLook("zen");
+				const lz = layoutScrollView(view, 80, H);
+				expect(view.isFollowingEnd).toBe(false);
+				expect(lz[view.scrollTop]).toContain(word);
+
+				setLook("pi");
+				layoutScrollView(view, 80, H);
+				expect(view.scrollTop).toBe(originalTop);
+			}));
+
+		test("zero scrollTop in the startup header anchors to the first chat block in both looks", () =>
+			withZen(() => {
+				const { doc } = buildDoc();
+				const view = new FakeScrollView(doc, { follow: "end", primary: true });
+				layoutScrollView(view, 80, H);
+				view.scrollTo(0, { disableFollow: true });
+				const l0 = layoutScrollView(view, 80, H);
+				expect(view.scrollTop).toBe(0);
+				expect(l0[0]).toContain("Pi header");
+
+				setLook("zen");
+				const lz = layoutScrollView(view, 80, H);
+				expect(lz[view.scrollTop]).toContain("Alpha marker");
+				expect(rowOf(lz, "Alpha marker")).toBe(view.scrollTop);
+				expect(view.isFollowingEnd).toBe(false);
+
+				setLook("pi");
+				const lb = layoutScrollView(view, 80, H);
+				// Restoring pi keeps the first CHAT row visible instead of returning into the header.
+				expect(view.scrollTop).toBe(rowOf(lb, "Alpha marker"));
+				expect(lb[view.scrollTop]).toContain("Alpha marker");
+			}));
+
+		test("zero scrollTop starting in zen keeps the first chat row when switching to pi and back", () =>
+			withZen(() => {
+				setLook("zen");
+				const { doc } = buildDoc();
+				const view = new FakeScrollView(doc, { follow: "end", primary: true });
+				layoutScrollView(view, 80, H);
+				view.scrollTo(0, { disableFollow: true });
+				const lz = layoutScrollView(view, 80, H);
+				expect(view.scrollTop).toBe(0);
+				expect(lz[0]).toContain("Alpha marker");
+
+				setLook("pi");
+				const lp = layoutScrollView(view, 80, H);
+				expect(view.scrollTop).toBe(rowOf(lp, "Alpha marker"));
+				expect(lp[view.scrollTop]).toContain("Alpha marker");
+
+				setLook("zen");
+				const lz2 = layoutScrollView(view, 80, H);
+				expect(lz2[view.scrollTop]).toContain("Alpha marker");
+			}));
+
+		test("fixed content width: only header/resources hide, no narrowing, top chat line is preserved", () =>
+			withZen(() => {
+				const { doc } = buildDoc({ narrow: false });
+				const view = new FakeScrollView(doc, { follow: "end", primary: true });
+				const l0 = layoutScrollView(view, 80, H);
+				const row = rowOf(l0, "Beta marker");
+				view.scrollTo(row, { disableFollow: true });
+				layoutScrollView(view, 80, H);
+				const originalTop = view.scrollTop;
+
+				setLook("zen");
+				const lz = layoutScrollView(view, 80, H);
+				expect(lz.length).toBeLessThan(l0.length);
+				expect(lz[view.scrollTop]).toContain("Beta marker");
+				expect(view.scrollTop).toBeLessThan(originalTop);
+
+				setLook("pi");
+				layoutScrollView(view, 80, H);
+				expect(view.scrollTop).toBe(originalTop);
+			}));
+
+		test("following the bottom captures the top visible line, disables follow, and resolves before painting", () =>
+			withZen(() => {
+				const { doc } = buildDoc();
+				const view = new FakeScrollView(doc, { follow: "end", primary: true });
+				const l0 = layoutScrollView(view, 80, H);
+				expect(view.isFollowingEnd).toBe(true);
+				const word = l0[view.scrollTop]!.trim().split(/\s+/)[0]!;
+
+				setLook("zen");
+				const lz = layoutScrollView(view, 80, H);
+				// Same call that observed the mode change already paints the anchored row.
+				expect(view.isFollowingEnd).toBe(false);
+				expect(lz[view.scrollTop]).toContain(word);
+			}));
+
+		test("replaced text leaf after invalidation matches by recorded text even with preceding thinking removed", () =>
+			withZen(() => {
+				const { doc, owners } = buildDoc({ thinking: true });
+				const view = new FakeScrollView(doc, { follow: "end", primary: true });
+				const l0 = layoutScrollView(view, 80, H);
+				const row = rowOf(l0, "Delta marker");
+				view.scrollTo(row, { disableFollow: true });
+				layoutScrollView(view, 80, H);
+				const originalTop = view.scrollTop;
+
+				// invalidate() recreates the text leaf under the same owner (same source text).
+				const idx = owners.Delta.children.length - 1;
+				owners.Delta.children[idx] = new TextLeaf(LONG("Delta"));
+
+				// In zen the thinking block above disappears, so owner-proportional offsets would miss.
+				setLook("zen");
+				const lz = layoutScrollView(view, 80, H);
+				expect(lz[view.scrollTop]).toContain("Delta marker");
+				expect(view.scrollTop).toBe(rowOf(lz, "Delta marker"));
+
+				setLook("pi");
+				const lb = layoutScrollView(view, 80, H);
+				expect(lb[view.scrollTop]).toContain("Delta marker");
+				expect(view.scrollTop).toBe(originalTop);
+			}));
+
+		test("manual scroll after a toggle replaces the preserved original anchor", () =>
+			withZen(() => {
+				const { doc } = buildDoc();
+				const view = new FakeScrollView(doc, { follow: "end", primary: true });
+				const l0 = layoutScrollView(view, 80, H);
+				view.scrollTo(rowOf(l0, "Beta marker"), { disableFollow: true });
+				layoutScrollView(view, 80, H);
+
+				setLook("zen");
+				const lz = layoutScrollView(view, 80, H);
+				expect(lz[view.scrollTop]).toContain("Beta marker");
+
+				// User scrolls manually to Epsilon while in zen.
+				view.scrollTo(rowOf(lz, "Epsilon marker"), { disableFollow: true });
+				layoutScrollView(view, 80, H);
+
+				setLook("pi");
+				const lb = layoutScrollView(view, 80, H);
+				expect(lb[view.scrollTop]).toContain("Epsilon marker");
+			}));
+
+		test("repeated toggles do not drift", () =>
+			withZen(() => {
+				const { doc } = buildDoc();
+				const view = new FakeScrollView(doc, { follow: "end", primary: true });
+				const l0 = layoutScrollView(view, 80, H);
+				view.scrollTo(rowOf(l0, "Zeta marker") - 1, { disableFollow: true });
+				layoutScrollView(view, 80, H);
+				const originalTop = view.scrollTop;
+				const word = l0[originalTop]!.trim().split(/\s+/)[0]!;
+
+				for (let i = 0; i < 4; i++) {
+					setLook("zen");
+					const lz = layoutScrollView(view, 80, H);
+					expect(lz[view.scrollTop]).toContain(word);
+					setLook("pi");
+					layoutScrollView(view, 80, H);
+					expect(view.scrollTop).toBe(originalTop);
+				}
+			}));
+
+		test("collapsed tool owner falls back to the nearest previous visible owner and restores the original anchor", () =>
+			withZen(() => {
+				const { doc, owners } = buildDoc({ tool: true });
+				const view = new FakeScrollView(doc, { follow: "end", primary: true });
+				const l0 = layoutScrollView(view, 80, H);
+				const toolRow = rowOf(l0, "tool-output-two");
+				view.scrollTo(toolRow, { disableFollow: true });
+				layoutScrollView(view, 80, H);
+				const originalTop = view.scrollTop;
+
+				setLook("zen");
+				const lz = layoutScrollView(view, 80, H);
+				expect(lz.some((l) => l.includes("tool-output"))).toBe(false);
+				// Skip spacers and use the nearest row of the preceding reply.
+				const betaHeight = owners.Beta.mouseLayout.children.reduce(
+					(sum: number, child: { height: number }) => sum + child.height, 0,
+				);
+				expect(view.scrollTop).toBe(rowOf(lz, "Beta marker") + betaHeight - 1);
+				expect(lz[view.scrollTop]).toContain("widths.");
+				expect(view.isFollowingEnd).toBe(false);
+
+				setLook("pi");
+				const lb = layoutScrollView(view, 80, H);
+				expect(view.scrollTop).toBe(originalTop);
+				expect(lb[view.scrollTop]).toContain("tool-output-two");
+			}));
+
+		test("a resize anchor inside the header is recaptured at the chat boundary on a mode switch", () =>
+			withZen(() => {
+				const { doc } = buildDoc();
+				const view = new FakeScrollView(doc, { follow: "end", primary: true });
+				layoutScrollView(view, 40, H);
+				view.scrollTo(1, { disableFollow: true });
+				layoutScrollView(view, 40, H);
+				layoutScrollView(view, 50, H);
+				setLook("zen");
+				const lines = layoutScrollView(view, 50, H);
+				expect(lines[view.scrollTop]).toContain("Alpha marker");
+			}));
+
+		test("a hidden tool anchors to the preceding tool group's header rather than its last row", () =>
+			withZen(() => {
+				const { doc, chat } = buildDoc();
+				const first = {
+					toolName: "read",
+					render: () => ["tools group header", "read result row"],
+				};
+				const second = {
+					toolName: "read",
+					render: () => look() === "zen" ? [] : ["hidden tool target"],
+				};
+				chat.children.splice(2, 0, first, second);
+				const view = new FakeScrollView(doc, { follow: "end", primary: true });
+				const before = layoutScrollView(view, 80, H);
+				const originalTop = rowOf(before, "hidden tool target");
+				view.scrollTo(originalTop, { disableFollow: true });
+				layoutScrollView(view, 80, H);
+				setLook("zen");
+				const after = layoutScrollView(view, 80, H);
+				expect(after[view.scrollTop]).toBe("tools group header");
+				setLook("pi");
+				layoutScrollView(view, 80, H);
+				expect(view.scrollTop).toBe(originalTop);
+			}));
+
+		test("heavy ┃ rails are stripped when normalizing block text", () => {
+			const a = analyzeBlockLines(["┃ rail text that is stable", "┃ second line"]);
+			const b = analyzeBlockLines(["  rail text that is stable", "  second line"]);
+			expect(a.segments.map((s: any) => s.totalChars)).toEqual(b.segments.map((s: any) => s.totalChars));
+		});
+	});
 });

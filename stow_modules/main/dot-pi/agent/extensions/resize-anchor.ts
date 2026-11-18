@@ -1,5 +1,5 @@
 /**
- * resize-anchor.ts -- anchor the chat scroll position to the top visible line on terminal width resize.
+ * resize-anchor.ts -- preserve the top visible chat line on width resize and Zen mode changes.
  *
  * Why this exists
  * ---------------
@@ -27,8 +27,9 @@
  * `ScrollView.prototype.getContentWidth`, and
  * `ScrollView.prototype.updateLayout` for the life of a TUI session:
  *
- * - On normal renders (same width), `Container.prototype.render` only records
- *   the rendered line array reference and width — O(1) with zero parsing.
+ * - On normal renders, `Container.prototype.render` records the rendered line
+ *   array and a layout-block snapshot, without parsing line content. The snapshot
+ *   survives Zen invalidating Markdown caches and rebuilding tool/header children.
  * - When the width changes while a `ScrollView` is scrolled into history
  *   (`!isFollowingEnd`), right before the child re-renders at the new width
  *   (while the old `mouseLayout`, `Markdown.blocks`, and rendered lines are
@@ -50,6 +51,10 @@
  *   a window border or splitting and unsplitting a Herdr pane), the original
  *   anchor is retained so there is zero cumulative rounding drift and
  *   resizing back restores the exact original row.
+ * - A change to Zen's carried look triggers the same capture/resolve path even
+ *   without a width change. Only the primary transcript is affected. Mode
+ *   switches preserve reading position rather than following the bottom, and
+ *   use the first chat row if the old viewport starts in the startup header.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -122,6 +127,8 @@ export interface LayoutBlock {
 	readonly startRow: number;
 	/** Height in rendered rows. */
 	readonly height: number;
+	/** Source text survives Markdown replacement during a mode switch. */
+	readonly componentText?: string;
 }
 
 /** Character range and compact content of a single line inside a `LineSegment`. */
@@ -207,6 +214,9 @@ export interface ScrollAnchor {
 	readonly lineAnchor: BlockLineAnchor;
 	readonly ownerLineAnchor: BlockLineAnchor;
 	readonly documentLineAnchor: BlockLineAnchor;
+	readonly componentText?: string;
+	readonly modeSwitch?: boolean;
+	readonly previousOwners?: readonly object[];
 	/**
 	 * When `scrollTop` sits on a structural/spacer block with 0 content chars,
 	 * records the first content block below `scrollTop` and the row distance to it.
@@ -216,6 +226,7 @@ export interface ScrollAnchor {
 		readonly subIndex: number;
 		readonly owner: object;
 		readonly rowsBefore: number;
+		readonly componentText?: string;
 	};
 }
 
@@ -223,7 +234,7 @@ export interface ScrollAnchor {
 // Line normalization & block segment analysis
 // ---------------------------------------------------------------------------
 
-const STRUCTURAL_BORDER_LINE = /^[╭┌├╰└─═╴╶┬┴┼┐╮┤╯\s]+$/u;
+const STRUCTURAL_BORDER_LINE = /^[╭┌├╰└─═╴╶┬┴┼┐╮┤╯┃\s]+$/u;
 const FRAMED_TOP_BORDER = /^╭─.*╮$/u;
 const FRAMED_BOTTOM_BORDER = /^╰[─═\s]*╯$/u;
 const CODE_FENCE_LINE = /^(?:`{3,}|~{3,})/u;
@@ -292,8 +303,8 @@ export function analyzeBlockLines(lines: readonly string[]): AnalyzedBlockLines 
 			} else {
 				content = inner.trim();
 			}
-		} else if (content.startsWith("│")) {
-			content = content.replace(/^(?:│\s*)+/u, "");
+		} else if (/^[│┃]/u.test(content)) {
+			content = content.replace(/^(?:[│┃]\s*)+/u, "");
 		}
 
 		const compact = content.replace(/\s+/gu, "");
@@ -713,7 +724,10 @@ export function buildLayoutBlocks(root: unknown, totalHeight?: number): LayoutBl
 		);
 	}
 	visit(root as object, 0, Math.max(0, Math.trunc(inferredHeight ?? 0)), undefined, 0);
-	return blocks;
+	return blocks.map((block) => {
+		const text = (block.component as { text?: unknown }).text;
+		return typeof text === "string" && text.trim() !== "" ? { ...block, componentText: text } : block;
+	});
 }
 
 function getBlockLines(block: LayoutBlock, documentLines: readonly string[]): readonly string[] {
@@ -811,6 +825,7 @@ export function captureScrollAnchorFromBlocks(
 					subIndex: candidate.subIndex,
 					owner: candidate.owner,
 					rowsBefore: Math.max(1, candidate.startRow - clampedTop),
+					...(candidate.componentText === undefined ? {} : { componentText: candidate.componentText }),
 				};
 				break;
 			}
@@ -824,6 +839,7 @@ export function captureScrollAnchorFromBlocks(
 		lineAnchor,
 		ownerLineAnchor,
 		documentLineAnchor,
+		...(block.componentText === undefined ? {} : { componentText: block.componentText }),
 		...(nextContentBlock === undefined ? {} : { nextContentBlock }),
 	};
 }
@@ -853,6 +869,16 @@ export function resolveScrollAnchorFromBlocks(
 	const height = Math.max(newDocumentLines.length, Math.max(0, Math.trunc(newTotalHeight)));
 	if (height <= 1) return 0;
 
+	// Mode switches can insert a header before a reused spacer. Prefer its
+	// following content instead of anchoring to the now-unrelated spacer.
+	if (anchor.modeSwitch && anchor.nextContentBlock) {
+		const next = anchor.nextContentBlock;
+		const match = newBlocks.find((b) => b.component === next.component && b.subIndex === next.subIndex) ??
+			(next.componentText === undefined ? undefined : newBlocks.find((b) =>
+				b.owner === next.owner && b.componentText === next.componentText && b.subIndex === next.subIndex));
+		if (match) return Math.max(0, match.startRow - next.rowsBefore);
+	}
+
 	// 1. Exact leaf component + subIndex match.
 	const exactBlock = newBlocks.find(
 		(b) => b.component === anchor.component && b.subIndex === anchor.subIndex && b.height > 0,
@@ -868,9 +894,20 @@ export function resolveScrollAnchorFromBlocks(
 		const nextTarget = anchor.nextContentBlock;
 		const nextMatch =
 			newBlocks.find((b) => b.component === nextTarget.component && b.subIndex === nextTarget.subIndex && b.height > 0) ??
-			newBlocks.find((b) => b.owner === nextTarget.owner && b.height > 0);
+			(anchor.modeSwitch ? undefined : newBlocks.find((b) => b.owner === nextTarget.owner && b.height > 0));
 		if (nextMatch) {
 			return Math.max(0, Math.min(height - 1, nextMatch.startRow - nextTarget.rowsBefore));
+		}
+	}
+
+	// Thinking visibility changes can recreate the reply's Markdown component.
+	if (anchor.componentText !== undefined) {
+		const textMatch = newBlocks.find((b) => b.owner === anchor.owner &&
+			b.componentText === anchor.componentText && b.subIndex === anchor.subIndex);
+		if (textMatch) {
+			return textMatch.startRow + resolveBlockLineAnchor(
+				getBlockLines(textMatch, newDocumentLines), anchor.lineAnchor, textMatch.height,
+			);
 		}
 	}
 
@@ -899,6 +936,20 @@ export function resolveScrollAnchorFromBlocks(
 		return Math.max(0, Math.min(height - 1, ownerBounds.startRow + localRow));
 	}
 
+	// A collapsed Zen tool may have no visible rows. Keep the nearest preceding
+	// visible owner in view; retain the original anchor for switching back.
+	if (anchor.modeSwitch) {
+		for (const owner of anchor.previousOwners ?? []) {
+			const bounds = getOwnerBounds(newBlocks, owner);
+			if (bounds) {
+				// Tool groups expose their header at the start. For other owners,
+				// use the nearest row instead of jumping back through a long reply.
+				const isTool = "toolName" in owner || owner.constructor?.name === "ToolExecutionComponent";
+				return isTool ? bounds.startRow : bounds.startRow + bounds.height - 1;
+			}
+		}
+	}
+
 	// 5. Document-wide fallback.
 	return resolveBlockLineAnchor(newDocumentLines, anchor.documentLineAnchor, height);
 }
@@ -908,6 +959,8 @@ export function resolveScrollAnchorFromBlocks(
 // ---------------------------------------------------------------------------
 
 interface ViewState {
+	lastLook?: string;
+	lastChatStartRow?: number;
 	lastWidth?: number;
 	lastLines?: readonly string[];
 	lastBlocks?: readonly LayoutBlock[];
@@ -1020,6 +1073,33 @@ function isAnchorStillValidAtCurrentScroll(
 	return true;
 }
 
+function zenLook(): string {
+	return (globalThis as { piZenSwitch?: { look?: string } }).piZenSwitch?.look ?? "pi";
+}
+
+/** Detect before rendering, but capture from the last completed, unmutated layout. */
+function onBeforeModeChange(view: ScrollViewLike, state: ViewState, nextWidth: number): boolean {
+	if (!view.primary || state.lastLook === undefined || state.lastLook === zenLook()) return false;
+	if (!state.lastBlocks?.length || !state.lastLines?.length) return false;
+	if (view.scrollTop < (state.lastChatStartRow ?? 0) ||
+		!isAnchorStillValidAtCurrentScroll(view, state, state.lastLines)) {
+		const top = Math.max(view.scrollTop, state.lastChatStartRow ?? 0);
+		const anchor = captureScrollAnchorFromBlocks(state.lastBlocks, state.lastLines,
+			state.lastContentHeight ?? state.lastLines.length, top);
+		if (!anchor) return false;
+		const previousOwners = [...new Set(state.lastBlocks.filter((b) => b.startRow < top &&
+			b.owner !== anchor.owner && !isBlockContentEmpty(b, state.lastLines!)).map((b) => b.owner))].reverse();
+		state.activeAnchor = { ...anchor, modeSwitch: true, previousOwners };
+	} else {
+		state.activeAnchor = { ...state.activeAnchor!, modeSwitch: true };
+	}
+	// A mode toggle is a reading-position change, not a request to jump to latest.
+	view.followingEnd = false;
+	view.followSuppressedAtEnd = true;
+	state.pendingResizeWidth = nextWidth;
+	return true;
+}
+
 function onBeforeChildWidthChange(
 	view: ScrollViewLike,
 	state: ViewState,
@@ -1043,7 +1123,9 @@ function onBeforeChildWidthChange(
 		}
 		const prevLines = state.lastLines ?? [];
 		const prevHeight = prevLines.length > 0 ? prevLines.length : (state.lastContentHeight ?? view.contentHeight ?? 0);
-		state.activeAnchor = captureScrollAnchor(child, prevLines, prevHeight, view.scrollTop);
+		state.activeAnchor = state.lastBlocks
+			? captureScrollAnchorFromBlocks(state.lastBlocks, prevLines, prevHeight, view.scrollTop)
+			: captureScrollAnchor(child, prevLines, prevHeight, view.scrollTop);
 	}
 	state.pendingResizeWidth = state.activeAnchor ? nextWidth : undefined;
 }
@@ -1061,8 +1143,20 @@ function onAfterChildRender(
 			state.lastAnchoredLine = undefined;
 		}
 	}
+	const look = zenLook();
+	// Smooth-scroll returns the same lines and layout for unchanged wheel frames.
+	// Keep that path O(1) rather than walking the entire history on each scroll.
+	if (state.lastLines !== lines || state.lastWidth !== width || state.lastLook !== look) {
+		state.lastBlocks = buildLayoutBlocks(view.child, lines.length);
+		// Pi's document consists of header, loaded resources, then chat. Save the
+		// boundary now, before Zen hides resources or restores the native header.
+		const children = (view.child as ContainerLike | undefined)?.mouseLayout?.children;
+		state.lastChatStartRow = children?.length === 3
+			? children[0]!.height + children[1]!.height : undefined;
+	}
 	state.lastWidth = width;
 	state.lastLines = lines;
+	state.lastLook = look;
 }
 
 function registerScrollViewChild(view: ScrollViewLike, state: ViewState): void {
@@ -1082,7 +1176,7 @@ function registerScrollViewChild(view: ScrollViewLike, state: ViewState): void {
 	renderable.render = function patchedCustomChildRender(this: ContainerLike, width: number): string[] {
 		if (installed) {
 			const previousWidth = state.lastWidth ?? getContainerLayoutWidth(this);
-			if (previousWidth !== undefined && width !== previousWidth) {
+			if (!onBeforeModeChange(view, state, width) && previousWidth !== undefined && width !== previousWidth) {
 				onBeforeChildWidthChange(view, state, this, width);
 			}
 		}
@@ -1105,7 +1199,7 @@ function createPatchedContainerRender(
 		}
 		const state = getViewState(view);
 		const previousWidth = state.lastWidth ?? getContainerLayoutWidth(this);
-		if (previousWidth !== undefined && width !== previousWidth) {
+		if (!onBeforeModeChange(view, state, width) && previousWidth !== undefined && width !== previousWidth) {
 			onBeforeChildWidthChange(view, state, this, width);
 		}
 		const lines = originalContainerRender.call(this, width);
@@ -1316,7 +1410,7 @@ export default function resizeAnchorExtension(pi: ExtensionAPI): void {
 		handler: async (_args, ctx) => {
 			ctx.ui.notify(
 				installed
-					? "resize-anchor: active (chat history stays anchored to the top visible line on width resize)"
+					? "resize-anchor: active (top visible chat line anchored on width resize and /zen toggles)"
 					: "resize-anchor: inactive (patch not installed)",
 				installed ? "info" : "warning",
 			);
