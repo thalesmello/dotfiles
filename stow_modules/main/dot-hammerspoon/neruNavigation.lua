@@ -192,10 +192,6 @@ function M.setup(ctx)
       state.mode = "idle"
       cancelScrollIdle()
       resetDrag()
-      if state.opacityPending then
-        state.opacityPending = false
-        command({"config", "reload"}) -- grid already closed: no rerender
-      end
     end
   end
 
@@ -328,9 +324,9 @@ function M.setup(ctx)
       local finish = body:find("\n[", start + 1, true) or (#body + 1)
       return body:sub(1, start - 1) .. fn(body:sub(start, finish - 1)) .. body:sub(finish)
     end
+    -- Only the fills tune. The separator (line_color) is deliberately untouched.
     local updated = editSection(text, "[recursive_grid.ui]", function(sec)
       return sec:gsub('(highlight_color = "#)%x%x(180C10")', '%1' .. alpha .. '%2')
-        :gsub('(line_color = "#)%x%x(B87671")', '%1' .. alpha .. '%2')
     end)
     if updated then
       updated = editSection(updated, "[grid.ui]", function(sec)
@@ -345,10 +341,14 @@ function M.setup(ctx)
     out:write(updated); out:close()
     if not os.rename(tmp, path) then os.remove(tmp); message("Could not save grid opacity"); return end
     if state.configWatcher then state.configWatcher.markCurrent() end
-    -- Do NOT reload here: a reload exits the open grid and forces a rerender.
-    -- The new level is applied by a reload when the grid closes (mode_exit).
-    state.opacityPending = true
-    message("Grid opacity " .. math.floor(level * 100 + 0.5) .. "% (applies on next open)")
+    local mode = state.mode
+    message("Grid opacity " .. math.floor(level * 100 + 0.5) .. "%")
+    command({"config", "reload"}, function(ok)
+      if not ok then message("Opacity reload failed; previous configuration kept"); return end
+      -- A reload exits the mode; reopen the same grid so the new fill shows.
+      if mode == "recursive_grid" then state.openRecursive()
+      else launch({"grid", "--cursor-selection-mode", "hold", "--toggle"}) end
+    end)
   end
 
   state.moveOnly = function(exitAfter)

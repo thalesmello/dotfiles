@@ -523,12 +523,9 @@ test("scroll inactivity timer does not exit after the mode already left", functi
   local e = fixture("neru"); e:emit(SCROLL); e:emit(EXIT)
   e:tick(); e:noPending(); e:noOpens()
 end)
-test("pending opacity reloads only after the grid closes", function()
-  local e = fixture("neru"); e:emit(NATIVE)
-  e.state.opacityPending = true
-  e:emit(EXIT)
-  e:reply({"neru", "config", "reload"}, true); e:noPending()
-  eq(e.state.opacityPending, false)
+test("mode exit without opacity tuning sends no reload", function()
+  local e = fixture("neru"); e:emit(NATIVE); e:emit(EXIT)
+  e:noPending(); e:noOpens()
 end)
 test("Right Shift exits either grid rather than switching layouts", function()
   for _,mode in ipairs({GRID,NATIVE}) do

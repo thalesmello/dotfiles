@@ -229,7 +229,7 @@ class NeruConfigTest(unittest.TestCase):
             return argb([line.strip().removeprefix("- ") for line in match[1].splitlines()])
         recursive = self.config["recursive_grid"]["ui"]
         self.assertTrue(recursive["highlight_color"].endswith("180C10"))
-        self.assertEqual(recursive["line_color"][:3], recursive["highlight_color"][:3])
+        self.assertTrue(recursive["line_color"].endswith("B87671"))  # separator alpha is fixed, not tuned
         self.assertEqual(recursive["text_color"], color("text_rgba"))
         self.assertEqual(recursive["line_color"], recursive["highlight_color"][:3] + color("highlight_rgba")[3:])
         self.assertEqual(recursive["line_width"], 2)
