@@ -194,14 +194,17 @@ function M.setup(ctx)
     if state.nudgeHoldTimer then state.nudgeHoldTimer:stop(); state.nudgeHoldTimer = nil end
     state.nudgeHeldCode, state.nudgeActive = nil, false
   end
-  local function armNudgeHold(code)
+  local function armNudgeHold(code, tapEligible, consumedDown)
     cancelNudgeHold()
+    state.pendingFineTap = {code = code, at = hs.timer.absoluteTime()/1e9, eligible = tapEligible,
+      consumedDown = consumedDown, token = state.clickToken}
     state.nudgeHeldCode = code
     local epoch = state.modeEpoch
     state.nudgeHoldTimer = hs.timer.doAfter(0.2, function()
       state.nudgeHoldTimer = nil
       if state.closed or state.busy or state.mode ~= "grid" or state.modeEpoch ~= epoch or state.nudgeHeldCode ~= code then return end
       state.nudgeActive = true
+      if state.pendingFineTap then state.pendingFineTap.held = true end
       shell.task({"neru", "nudge-grid", "--direction", "up", "--nudges-per-cell", "16", "--count", "0"})
     end)
   end
@@ -219,6 +222,7 @@ function M.setup(ctx)
   end
 
   local function stopWatch()
+    state.pendingFineTap, state.lastFineTapCode = nil, nil
     cancelHintRefresh()
     cancelNudgeHold()
     cancelOpacityRedraw()
@@ -256,6 +260,7 @@ function M.setup(ctx)
       state.mode = event.mode
       state.clickQueue, state.clickBusy, state.lastGridClick = {}, false, nil
       state.lastGridAimCode, state.latestGridSelection = nil, nil
+      state.pendingFineTap, state.lastFineTapCode = nil, nil
       state.clickToken = (state.clickToken or 0) + 1
       state.aimGeneration = (state.aimGeneration or 0) + 1
       rearmTaps()
@@ -840,7 +845,18 @@ function M.setup(ctx)
   local eventTypes = hs.eventtap.event.types
   state.inputHandler = function(event)
     if event:getType() == eventTypes.keyUp then
-      if event:getKeyCode() == state.nudgeHeldCode then cancelNudgeHold() end
+      local tap = state.pendingFineTap
+      if tap and event:getKeyCode() == tap.code then
+        state.pendingFineTap = nil
+        local short = hs.timer.absoluteTime()/1e9 - tap.at < 0.2 and not tap.held and not tap.nudged
+        local fineKeys = {[32]=true,[34]=true,[31]=true,[38]=true,[40]=true,[37]=true,[46]=true,[43]=true,[47]=true}
+        if short and fineKeys[tap.code] then state.lastFineTapCode = tap.code else state.lastFineTapCode = nil end
+        if tap.eligible and short and state.clickToken == tap.token then
+          state.confirmClick("left", state.mode == "idle", tap.code)
+        end
+        if event:getKeyCode() == state.nudgeHeldCode then cancelNudgeHold() end
+        if tap.consumedDown then return true end
+      elseif event:getKeyCode() == state.nudgeHeldCode then cancelNudgeHold() end
       if state.consumedDropKeys[event:getKeyCode()] then state.consumedDropKeys[event:getKeyCode()] = nil; return true end
       return false
     end
@@ -848,10 +864,24 @@ function M.setup(ctx)
       if state.mode == "scroll" then armScrollIdle() end -- any keystroke is activity
       local code = event:getKeyCode()
       local flags = event.getFlags and event:getFlags() or {}
-      if code == 49 or code == 36 or code == 53 or code == 51 or code == 64 or code == 80 or code == 106 or flags.ctrl or flags.cmd or flags.alt then cancelNudgeHold() end
+      if code == 49 or code == 36 or code == 53 or code == 51 or code == 64 or code == 80 or code == 106 or flags.ctrl or flags.cmd or flags.alt then
+        state.pendingFineTap, state.lastFineTapCode = nil, nil
+        cancelNudgeHold()
+      end
+      local fineKeys = {[32]=true,[34]=true,[31]=true,[38]=true,[40]=true,[37]=true,[46]=true,[43]=true,[47]=true}
+      local recentFine = fineKeys[code] and canRepeat() and state.lastGridClick.repeatKey == code
+      local tapEligible = fineKeys[code] and (recentFine or (state.mode == "grid" and state.lastFineTapCode == code and state.latestGridSelection ~= nil))
+      if recentFine and not flags.ctrl and not flags.cmd and not flags.alt and not flags.shift then
+        local repeating = event.getProperty and event:getProperty(hs.eventtap.event.properties.keyboardEventAutorepeat) == 1
+        if repeating then return true end
+        armNudgeHold(code, true, true)
+        return true
+      end
       if state.mode == "grid" and state.backend == "neru" and not state.busy and not state.dragLatched and not flags.ctrl and not flags.cmd and not flags.alt then
         local directions = {[13]="up",[40]="up",[34]="up",[1]="down",[38]="down",[0]="left",[4]="left",[2]="right",[37]="right"}
         if state.nudgeActive and code ~= state.nudgeHeldCode and directions[code] then
+          if state.pendingFineTap then state.pendingFineTap.nudged = true end
+          state.lastFineTapCode = nil
           state.aimGeneration = state.aimGeneration + 1; state.lastGridClick = nil
           shell.task({"neru", "nudge-grid", "--direction", directions[code], "--nudges-per-cell", "16"})
           return true
@@ -887,7 +917,7 @@ function M.setup(ctx)
       end
       if state.mode == "grid" and not state.busy and not state.dragLatched and not flags.ctrl and not flags.cmd and not flags.alt and not flags.shift then
         local gridKeys = {[0]=true,[1]=true,[2]=true,[3]=true,[4]=true,[5]=true,[6]=true,[7]=true,[8]=true,[9]=true,[11]=true,[12]=true,[13]=true,[14]=true,[15]=true,[16]=true,[17]=true,[31]=true,[32]=true,[34]=true,[35]=true,[37]=true,[38]=true,[40]=true,[45]=true,[46]=true,[43]=true,[47]=true}
-        if gridKeys[code] then armNudgeHold(code) end
+        if gridKeys[code] then armNudgeHold(code, tapEligible, false) end
       end
       return false
     end

@@ -30,8 +30,10 @@ output, raw-modifier detection, or tap timeout. This makes that combination a
 dedicated command; use Left Shift for ordinary Cmd+Shift shortcuts.
 Physical Caps is grabbed by Karabiner before Hammerspoon's F19 remap, so grid
 Caps behavior goes through a Karabiner variable: Hammerspoon sets `neru-grid=1`
-while a grid is open; Karabiner then maps Caps tap to Ctrl+Backspace (reset)
-and Shift+Caps to Escape (quit). The Hammerspoon F19 path remains as fallback.
+while a grid is open; Karabiner maps Caps tap to F17 (`action reset --toggle`)
+and Shift+Caps to Escape (quit). Caps resets partial labels, selected cells,
+and deeper recursive levels; at the untouched base it exits. Ctrl+Backspace
+remains reset-only. The Hammerspoon F19 tap path uses the same toggle action.
 
 ### Click behavior
 
@@ -185,12 +187,14 @@ within 400ms reuse the previous click point until another aiming key is typed;
 Hammerspoon serializes them and ignores key autorepeat. Neru emits bounded
 single/double/triple-click metadata for left, right, and middle buttons.
 
-Fine keys now only aim; Space/Enter are the confirmation keys. Hold any valid
+A fine-key tap aims; repeating a short tap at the same selected position
+confirms a click. Tap-versus-hold is decided using a 200ms threshold: holds
+and their releases never click. Space/Enter also confirm. Hold any valid
 pregrid or fine-grid key for 200ms to arm nudging. Pregrid holds assume the
 center of their matching rectangle; a fine hold starts at its selected point.
 While held, W/K/I nudge up, S/J down, A/H left, and D/L right. Sixteen nudges span
 one active cell width/height, with fractional steps retained to avoid drift.
-Releasing the held key only ends nudging: it never clicks. Another fine key
+Releasing a held key only ends nudging: it never clicks. Another fine key
 then selects that fine-cell center normally. `nudge-grid` updates the virtual
 selection while cursor-hold is enabled; Space commits it to the actual mouse.
 

@@ -712,6 +712,26 @@ test("holding a fine key arms nudge keys; release never clicks", function()
   eq(key(38), false) -- another fine key selects normally after release
   e:noPending()
 end)
+test("two short fine taps confirm, but one tap only aims", function()
+  local e = fixture("neru"); e:emit(NATIVE)
+  local function tap(code, up)
+    return e.state.inputHandler({getType=function() return up and 11 or 10 end, getKeyCode=function() return code end, getFlags=function() return {} end})
+  end
+  tap(34); tap(34,true); e:noPending()
+  e.state.latestGridSelection={x=100,y=200}
+  tap(34); tap(34,true)
+  e:reply({"neru","action","move_mouse","--selection"},true)
+  e:emit(EXIT); e:reply(CLICK_EXIT,true)
+  eq(tap(34),true); eq(tap(34,true),true)
+  e:reply({"neru","action","move_mouse","--x","100","--y","200"},true)
+  e:reply(CLICK_EXIT,true); e:noPending()
+end)
+test("holding an already selected fine key never confirms on release", function()
+  local e=fixture("neru");e:emit(NATIVE)
+  local function event(up) return {getType=function() return up and 11 or 10 end,getKeyCode=function() return 34 end,getFlags=function() return {} end} end
+  e.state.lastFineTapCode=34;e.state.latestGridSelection={x=100,y=200}
+  e.state.inputHandler(event(false));e:tick();e.state.inputHandler(event(true));e:noPending()
+end)
 test("holding a pregrid key initializes the selected rectangle center", function()
   local e = fixture("neru"); e:emit(NATIVE)
   e.state.inputHandler({getType = function() return 10 end, getKeyCode = function() return 2 end, getFlags = function() return {} end})
