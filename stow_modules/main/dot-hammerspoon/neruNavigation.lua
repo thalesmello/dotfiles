@@ -157,6 +157,18 @@ function M.setup(ctx)
   end
   state.cancelScrollIdle = cancelScrollIdle
 
+  -- Karabiner grabs the physical keyboard before Hammerspoon's F19 remap,
+  -- so grid Caps behavior also needs Karabiner's side: Hammerspoon publishes
+  -- whether a grid is open as the `neru-grid` Karabiner variable.
+  local gridOnlyModes = {grid = true, recursive_grid = true}
+  local function syncKarabinerGrid()
+    local value = (state.backend == "neru" and gridOnlyModes[state.mode]) and 1 or 0
+    if state.karabinerGrid == value then return end
+    state.karabinerGrid = value
+    shell.task({"karabiner_cli", "--set-variables", '{"neru-grid":' .. value .. '}'})
+  end
+  state.syncKarabinerGrid = syncKarabinerGrid
+
   local function stopWatch()
     state.watchEpoch = state.watchEpoch + 1
     local watcher = state.watch
@@ -164,6 +176,7 @@ function M.setup(ctx)
     if watcher then watcher:terminate() end
     state.mode = "idle"
     cancelScrollIdle()
+    syncKarabinerGrid()
     resetDrag()
   end
 
@@ -181,16 +194,23 @@ function M.setup(ctx)
       resetDrag()
       state.mode = event.status.enabled and event.status.mode or "idle"
       if state.mode == "scroll" then armScrollIdle() else cancelScrollIdle() end
+      syncKarabinerGrid()
       reconcileDrag()
     elseif event.event == "mode_enter" then
       resetDrag()
       state.mode = event.mode
       rearmTaps()
       if state.mode == "scroll" then armScrollIdle() else cancelScrollIdle() end
+      syncKarabinerGrid()
       reconcileDrag()
     elseif event.event == "mode_exit" then
       state.mode = "idle"
       cancelScrollIdle()
+      syncKarabinerGrid()
+      if state.opacityPending then
+        state.opacityPending = false
+        command({"config", "reload"}) -- deferred opacity: apply after close, no flicker
+      end
       if state.opacityFlashReloading then
         state.opacityFlashReloading = false -- our own flash/restore reload
       elseif state.opacityFlashing then
@@ -364,8 +384,10 @@ function M.setup(ctx)
     return string.format("%02X", math.floor(level * 255 + 0.5))
   end
   local function reopenGrid(mode)
-    if mode == "recursive_grid" then state.openRecursive()
-    else launch({"grid", "--cursor-selection-mode", "hold", "--toggle"}) end
+    -- Never --toggle here: if the reload's mode exit has not landed yet, a
+    -- toggle would close the grid we are trying to bring back.
+    if mode == "recursive_grid" then launch({"recursive_grid", "--cursor-selection-mode", "hold"})
+    else launch({"grid", "--cursor-selection-mode", "hold"}) end
   end
 
   -- After a Space-family click in a grid: cut the fill to 30% of its level
@@ -393,12 +415,17 @@ function M.setup(ctx)
     if not writeFillAlpha(baseAlpha()) then return end
     local mode = state.mode
     command({"config", "reload"}, function(ok)
-      if ok and gridModes[mode] and state.mode == mode then reopenGrid(mode) end
+      -- The reload's own mode_exit lands before this reply, so state.mode is
+      -- already "idle" here; reopen from the mode captured at restore time
+      -- unless the user has meanwhile entered a different mode.
+      if ok and gridModes[mode] and (state.mode == "idle" or state.mode == mode) then
+        reopenGrid(mode)
+      end
     end)
   end
 
-  -- Grid opacity tuning (-/= keys): edit the fill alphas, reload once, and
-  -- reopen the same grid (a config reload always exits the open mode).
+  -- Grid opacity tuning (-/= keys): write the fill alpha now and defer the
+  -- reload to grid close, so tuning causes no flicker.
   state.adjustOpacity = function(delta)
     if state.closed or state.busy or not gridModes[state.mode] then return end
     local level = hs.settings.get("neruNavigation.gridOpacity") or 0.50
@@ -410,14 +437,11 @@ function M.setup(ctx)
       state.opacityFlashing = false
     end
     if not writeFillAlpha(alpha) then message("Grid colors not found in Neru config"); return end
-    local mode = state.mode
-    message("Grid opacity " .. math.floor(level * 100 + 0.5) .. "%")
-    command({"config", "reload"}, function(ok)
-      if not ok then message("Opacity reload failed; previous configuration kept"); return end
-      -- A reload exits the mode; reopen the same grid so the new fill shows.
-      if mode == "recursive_grid" then state.openRecursive()
-      else launch({"grid", "--cursor-selection-mode", "hold", "--toggle"}) end
-    end)
+    -- No reload now (that flickers: it closes and reopens the grid). The new
+    -- level is applied by the mode_exit reload in readWatchLine, so it takes
+    -- effect on the next grid open with zero flicker.
+    state.opacityPending = true
+    message("Grid opacity " .. math.floor(level * 100 + 0.5) .. "% (applies on next open)")
   end
 
   state.moveOnly = function(exitAfter)
@@ -524,6 +548,7 @@ function M.setup(ctx)
     state.dragCleanupBlocked = false
     hs.settings.set(SETTING, backend)
     enableHandles(backend == "neru")
+    syncKarabinerGrid()
     if backend == "neru" then startWatch() end
     message(backend == "neru" and "Neru enabled" or "Mouseless enabled (Right Shift / F16)")
   end
@@ -758,6 +783,8 @@ function M.setup(ctx)
     if state.backend == "neru" then shell.task({"neru", "idle"}) end
     for _, handle in ipairs(state.handles) do handle:delete() end
     stopWatch()
+    state.karabinerGrid = 0
+    shell.task({"karabiner_cli", "--set-variables", '{"neru-grid":0}'})
     if state.unregisterCapsTap then state.unregisterCapsTap() end
     if state.configWatcher then state.configWatcher.stop() end
     if state.probe then state.probe:terminate(); state.probe = nil end
@@ -779,6 +806,12 @@ function M.setup(ctx)
       end)
     end)
   end)
+  -- Recover from a flash whose restore timer died with a previous Lua state
+  -- (reload/crash mid-flash): if the file's fill differs from the tuned
+  -- level, it is a stale flash value; restore it and resync the daemon.
+  if writeFillAlpha(baseAlpha()) and state.backend == "neru" then
+    command({"config", "reload"})
+  end
   if state.backend == "neru" then startWatch(); CapsHyper.rearm() end
   return state
 end
@@ -820,7 +853,7 @@ function M.status()
   if not instance then return nil end
   return {backend = instance.backend, mode = instance.mode, continuous = instance.continuous,
     layout = instance.layout, busy = instance.busy, leftHeld = instance.dragHeld,
-    heldDrag = instance.dragLatched}
+    heldDrag = instance.dragLatched, flashing = instance.opacityFlashing or false}
 end
 
 return M

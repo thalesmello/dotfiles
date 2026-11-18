@@ -274,7 +274,13 @@ test("close deletes handles and releases drag before idle", function()
   local watch = e.state.watch; e.state.close(); eq(#e.mouse, 2)
   for _, h in ipairs(e.state.handles) do assert(h.deleted) end
   eq(e.state.dragTap.active, false); eq(watch:emit(GRID .. "\n"), false)
-  argvEq(e.calls[#e.calls].args, {"neru", "idle"})
+  local hasIdle, hasKarabiner = false, false
+  for _, c in ipairs(e.calls) do
+    if c.args[1] == "neru" and c.args[2] == "idle" then hasIdle = true end
+    if c.args[1] == "karabiner_cli" then hasKarabiner = true end
+  end
+  assert(hasIdle, "close must idle Neru")
+  assert(hasKarabiner, "close must clear the neru-grid Karabiner variable")
 end)
 
 test("restart Neru quits Mouseless and its old instance before opening", function()
@@ -540,6 +546,22 @@ test("Shift+Caps quits any Neru mode, but not idle/Mouseless", function()
   eq(e.capsTapFn(true), true); e:reply({"neru", "idle"}, true)
   local idle = fixture("neru"); eq(idle.capsTapFn(true), false); idle:noPending()
   local fallback = fixture(); eq(fallback.capsTapFn(true), false); fallback:noPending()
+end)
+test("grid modes publish the neru-grid Karabiner variable", function()
+  local e = fixture("neru"); e:emit(NATIVE)
+  local found
+  for _, c in ipairs(e.calls) do if c.args[1] == "karabiner_cli" then found = c.args end end
+  argvEq(found, {"karabiner_cli", "--set-variables", '{"neru-grid":1}'})
+  e:emit(EXIT)
+  for _, c in ipairs(e.calls) do if c.args[1] == "karabiner_cli" then found = c.args end end
+  argvEq(found, {"karabiner_cli", "--set-variables", '{"neru-grid":0}'})
+end)
+test("pending opacity reloads only after the grid closes", function()
+  local e = fixture("neru"); e:emit(NATIVE)
+  e.state.opacityPending = true
+  e:emit(EXIT)
+  e:reply({"neru", "config", "reload"}, true); e:noPending()
+  eq(e.state.opacityPending, false)
 end)
 test("Right Shift exits either grid rather than switching layouts", function()
   for _,mode in ipairs({GRID,NATIVE}) do

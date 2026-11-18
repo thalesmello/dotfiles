@@ -2352,6 +2352,50 @@
           "type" : "basic"
         } ]
       }, {
+        "description" : "Neru Grid Caps: Reset / Quit (variable set by Hammerspoon)",
+        "manipulators" : [ {
+          "from" : {
+            "key_code" : "caps_lock",
+            "modifiers" : {
+              "mandatory" : [ "left_shift" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "escape"
+          } ],
+          "conditions" : [ {
+            "name" : "neru-grid",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        }, {
+          "to_if_alone" : [ {
+            "key_code" : "delete_or_backspace",
+            "modifiers" : [ "left_command" ]
+          } ],
+          "parameters" : {
+            "basic.to_if_alone_timeout_milliseconds" : 150
+          },
+          "from" : {
+            "key_code" : "caps_lock",
+            "modifiers" : {
+              "optional" : [ "any" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "left_option",
+            "modifiers" : [ "left_command", "left_control" ],
+            "lazy" : true
+          } ],
+          "conditions" : [ {
+            "name" : "neru-grid",
+            "value" : 1,
+            "type" : "variable_if"
+          } ],
+          "type" : "basic"
+        } ]
+      }, {
         "description" : "Hyperkey as Leader Key",
         "manipulators" : [ {
           "to_if_alone" : [ {
