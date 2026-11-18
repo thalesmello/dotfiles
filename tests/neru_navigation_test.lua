@@ -130,7 +130,6 @@ local function fixture(backend, store, mouseless)
   function e:profile(id) self.dynamic[id]().fn() end
   function e:reply(args, ok, output)
     local expected = {table.unpack(args)}
-    if expected[2] == "grid" then expected[#expected + 1] = "--confirm-on-repeat" end
     local c = table.remove(self.pending, 1); assert(c, "missing task"); argvEq(c.args, expected); c.done(ok, output or "")
   end
   function e:enabled(value) for _, h in ipairs(self.state.handles) do eq(h.enabled, value) end end
@@ -698,18 +697,27 @@ test("Space exits instead of peeking when continuous is off", function()
   e.state.confirmClick("left", false)
   e:reply({"neru", "action", "move_mouse", "--selection"}, true); e:reply(CLICK_EXIT, true); e:noPending()
 end)
-test("physical fine-key repeats use click confirmation and survive exit", function()
-  local e = fixture("neru"); e:emit(NATIVE); e.state.continuous = false
-  local function fineKey()
-    return e.state.inputHandler({getType = function() return 10 end, getKeyCode = function() return 34 end, getFlags = function() return {} end})
+test("holding a fine key arms nudge keys; release never clicks", function()
+  local e = fixture("neru"); e:emit(NATIVE)
+  local function key(code, up)
+    return e.state.inputHandler({getType = function() return up and 11 or 10 end, getKeyCode = function() return code end, getFlags = function() return {} end})
   end
-  eq(fineKey(), false) -- first i only aims
-  e.state.latestGridSelection = {x=100,y=200} -- native select event
-  eq(fineKey(), true); eq(fineKey(), true) -- ii/iii queue clicks, not text
-  e:reply({"neru", "action", "move_mouse", "--selection"}, true)
-  e:emit(EXIT); e:reply(CLICK_EXIT, true)
-  e:reply({"neru", "action", "move_mouse", "--x", "100", "--y", "200"}, true); e:reply(CLICK_EXIT, true)
-  e:noPending(); e.clock=101; eq(fineKey(), false)
+  eq(key(32), false); eq(e.state.nudgeHoldTimer.delay, 0.2); e:tick()
+  eq(e.state.nudgeActive, true)
+  for code, direction in pairs({[13]="up",[40]="up",[34]="up",[1]="down",[38]="down",[0]="left",[4]="left",[2]="right",[37]="right"}) do
+    eq(key(code), true)
+    argvEq(e.calls[#e.calls].args, {"neru", "nudge-grid", "--direction", direction, "--nudges-per-cell", "4"})
+  end
+  eq(key(32, true), false); eq(e.state.nudgeActive, false)
+  eq(key(38), false) -- another fine key selects normally after release
+  e:noPending()
+end)
+test("holding a pregrid key initializes the selected rectangle center", function()
+  local e = fixture("neru"); e:emit(NATIVE)
+  e.state.inputHandler({getType = function() return 10 end, getKeyCode = function() return 2 end, getFlags = function() return {} end})
+  e:tick()
+  argvEq(e.calls[#e.calls].args, {"neru", "nudge-grid", "--direction", "up", "--nudges-per-cell", "4", "--count", "0"})
+  e:noPending()
 end)
 test("Right Shift exits either grid rather than switching layouts", function()
   for _,mode in ipairs({GRID,NATIVE}) do

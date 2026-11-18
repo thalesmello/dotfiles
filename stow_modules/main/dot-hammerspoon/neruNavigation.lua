@@ -175,6 +175,22 @@ function M.setup(ctx)
     end
   end
 
+  local function cancelNudgeHold()
+    if state.nudgeHoldTimer then state.nudgeHoldTimer:stop(); state.nudgeHoldTimer = nil end
+    state.nudgeHeldCode, state.nudgeActive = nil, false
+  end
+  local function armNudgeHold(code)
+    cancelNudgeHold()
+    state.nudgeHeldCode = code
+    local epoch = state.modeEpoch
+    state.nudgeHoldTimer = hs.timer.doAfter(0.2, function()
+      state.nudgeHoldTimer = nil
+      if state.closed or state.busy or state.mode ~= "grid" or state.modeEpoch ~= epoch or state.nudgeHeldCode ~= code then return end
+      state.nudgeActive = true
+      shell.task({"neru", "nudge-grid", "--direction", "up", "--nudges-per-cell", "4", "--count", "0"})
+    end)
+  end
+
   local function cancelOpacityRedraw()
     state.opacityGeneration = (state.opacityGeneration or 0) + 1
     if state.opacityTimer then state.opacityTimer:stop(); state.opacityTimer = nil end
@@ -188,6 +204,7 @@ function M.setup(ctx)
   end
 
   local function stopWatch()
+    cancelNudgeHold()
     cancelOpacityRedraw()
     state.watchEpoch = state.watchEpoch + 1
     local watcher = state.watch
@@ -217,6 +234,7 @@ function M.setup(ctx)
       syncNativeRepeat()
       reconcileDrag()
     elseif event.event == "mode_enter" then
+      cancelNudgeHold()
       cancelOpacityRedraw() -- a new mode must not be reopened by an old timer/reply
       resetDrag()
       state.mode = event.mode
@@ -236,6 +254,7 @@ function M.setup(ctx)
           time = hs.timer.absoluteTime() / 1e9, aimGeneration = state.aimGeneration, repeatKey = state.lastGridAimCode}
       end
     elseif event.event == "mode_exit" then
+        cancelNudgeHold()
       state.latestGridSelection = nil
       state.mode = "idle"
       cancelScrollIdle()
@@ -293,7 +312,6 @@ function M.setup(ctx)
     if state.busy then message("Navigation profile switch in progress"); return end
     if state.backend ~= "neru" then message("Select 'Navigation: Use Neru' in the palette first"); return end
     local actual = {table.unpack(args)}
-    if args[1] == "grid" then actual[#actual + 1] = "--confirm-on-repeat" end
     if state.continuous and args[1] == "hints" then
       for _, arg in ipairs(args) do
         if arg == "--action" then actual[#actual + 1] = "--repeat"; break end
@@ -800,6 +818,7 @@ function M.setup(ctx)
   local eventTypes = hs.eventtap.event.types
   state.inputHandler = function(event)
     if event:getType() == eventTypes.keyUp then
+      if event:getKeyCode() == state.nudgeHeldCode then cancelNudgeHold() end
       if state.consumedDropKeys[event:getKeyCode()] then state.consumedDropKeys[event:getKeyCode()] = nil; return true end
       return false
     end
@@ -807,18 +826,19 @@ function M.setup(ctx)
       if state.mode == "scroll" then armScrollIdle() end -- any keystroke is activity
       local code = event:getKeyCode()
       local flags = event.getFlags and event:getFlags() or {}
+      if code == 49 or code == 36 or code == 53 or code == 51 or flags.ctrl or flags.cmd or flags.alt then cancelNudgeHold() end
+      if state.mode == "grid" and state.backend == "neru" and not state.busy and not state.dragLatched and not flags.ctrl and not flags.cmd and not flags.alt then
+        local directions = {[13]="up",[40]="up",[34]="up",[1]="down",[38]="down",[0]="left",[4]="left",[2]="right",[37]="right"}
+        if state.nudgeActive and code ~= state.nudgeHeldCode and directions[code] then
+          state.aimGeneration = state.aimGeneration + 1; state.lastGridClick = nil
+          shell.task({"neru", "nudge-grid", "--direction", directions[code], "--nudges-per-cell", "4"})
+          return true
+        end
+      end
       if gridModes[state.mode] or (state.mode == "idle" and canRepeat()) then
         local repeating = event.getProperty and event:getProperty(hs.eventtap.event.properties.keyboardEventAutorepeat) == 1
         if repeating and (code == 49 or code == 36 or (gridModes[state.mode] and (code < 123 or code > 126))) then return true end
         if code ~= 49 and code ~= 36 then
-          local fineKeys = {[32]=true,[34]=true,[31]=true,[38]=true,[40]=true,[37]=true,[46]=true,[43]=true,[47]=true}
-          local sameFineAim = state.mode == "grid" and fineKeys[code] and state.lastGridAimCode == code and state.latestGridSelection ~= nil
-          local recentFineClick = canRepeat() and state.lastGridClick.repeatKey == code
-          if not flags.ctrl and not flags.shift and (sameFineAim or recentFineClick) and not state.dragLatched and not state.dragPreparing then
-            local button = flags.alt and "right" or flags.cmd and "middle" or "left"
-            state.confirmClick(button, state.mode == "idle", code)
-            return true
-          end
           state.lastGridAimCode = code
           state.latestGridSelection = nil
           state.aimGeneration = state.aimGeneration + 1
@@ -842,6 +862,10 @@ function M.setup(ctx)
         end
         if state.holdResetting and gridModes[state.mode] and key ~= 53 and key ~= 51 and key ~= 106 and
           not flags.cmd and not flags.alt then return true end -- wait for the base grid before destination input
+      end
+      if state.mode == "grid" and not state.busy and not state.dragLatched and not flags.ctrl and not flags.cmd and not flags.alt and not flags.shift then
+        local gridKeys = {[0]=true,[1]=true,[2]=true,[3]=true,[4]=true,[5]=true,[6]=true,[7]=true,[8]=true,[9]=true,[11]=true,[12]=true,[13]=true,[14]=true,[15]=true,[16]=true,[17]=true,[31]=true,[32]=true,[34]=true,[35]=true,[37]=true,[38]=true,[40]=true,[45]=true,[46]=true,[43]=true,[47]=true}
+        if gridKeys[code] then armNudgeHold(code) end
       end
       return false
     end
