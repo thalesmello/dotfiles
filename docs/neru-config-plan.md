@@ -28,6 +28,10 @@ Hyper means Ctrl+Option+Command, without Shift.
 Karabiner directly maps Cmd+Right Shift to a clean Cmd+F16 key event: no Shift
 output, raw-modifier detection, or tap timeout. This makes that combination a
 dedicated command; use Left Shift for ordinary Cmd+Shift shortcuts.
+Physical Caps is grabbed by Karabiner before Hammerspoon's F19 remap, so grid
+Caps behavior goes through a Karabiner variable: Hammerspoon sets `neru-grid=1`
+while a grid is open; Karabiner then maps Caps tap to Ctrl+Backspace (reset)
+and Shift+Caps to Escape (quit). The Hammerspoon F19 path remains as fallback.
 
 ### Click behavior
 
