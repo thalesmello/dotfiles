@@ -21,7 +21,7 @@ function toggleSidebarSize() {
   const collapsed = width < 160;
   if (!collapsed) setShared("sidebar.width", width);
   setShared("sidebar.collapsed", !collapsed);
-  run("layout.resize", { id: "sidebar", px: collapsed ? (shared("sidebar.width") ?? 268) : window()?.platform === "macos" ? 76 : 44 });
+  run("layout.resize", { id: "sidebar", px: collapsed ? (shared("sidebar.width") ?? 268) : window()?.platform === "macos" ? 60 : 44 });
   if (sidebar.hidden) run("layout.show", { id: "sidebar" });
 }
 

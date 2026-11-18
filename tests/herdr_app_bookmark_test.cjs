@@ -122,13 +122,36 @@ test('bookmark coexists with every status and snooze, in grouped and rail views'
   assert.ok(nodes(root).some(n => n.childNodes.includes('z')));
 });
 
-test('collapsed agent scrollbar appears only while scrolling; expanded stays visible', () => {
+test('keyboard and sidebar buttons collapse to 60px and restore the resized expanded width', () => {
+  for (const [mod, command] of [['tabs-shortcuts', 'toggleSidebarSize'], ['agent-render', 'toggleSidebar'], ['workspace-chrome-compact', 'toggleSidebar']]) {
+    const text = fs.readFileSync(path.join(__dirname,
+      `../stow_modules/main/dot-config/herdr-app/mods/${mod}/main.js`), 'utf8');
+    const end = text.indexOf('\n}\n', text.indexOf(`function ${command}()`)) + 3;
+    const code = text.slice(text.indexOf('function find('), end);
+    const sidebar = { id: 'sidebar', size: { px: 218 } }, state = {};
+    let platform = 'macos';
+    const context = vm.createContext({
+      layout: () => ({ children: [sidebar] }), window: () => ({ platform }),
+      shared: k => state[k], setShared: (k, v) => { state[k] = v; },
+      run: (cmd, args) => { assert.equal(cmd, 'layout.resize'); sidebar.size.px = args.px; },
+    });
+    vm.runInContext(code, context);
+    const toggle = () => vm.runInContext(`${command}()`, context);
+    toggle(); assert.equal(sidebar.size.px, 60, mod);
+    toggle(); assert.equal(sidebar.size.px, 218, mod);
+    platform = 'linux';
+    toggle(); assert.equal(sidebar.size.px, 44, mod);
+    toggle(); assert.equal(sidebar.size.px, 218, mod);
+  }
+});
+
+test('agent scrollbar appears only while scrolling in expanded and collapsed views', () => {
   const { data, view, cx } = setup();
   data.agents = [agent('t1')];
-  for (const width of [268, 76, 44]) {
+  for (const width of [268, 76, 60, 44]) {
     data.width = width;
     const list = nodes(view.render(cx)).find(n => n.styles.id?.[0] === 'ag-list');
-    assert.equal(list.styles.mode[0], width < 160 ? 'scrolling' : 'always');
+    assert.equal(list.styles.mode[0], 'scrolling');
   }
 });
 
@@ -145,7 +168,7 @@ test('rail number and status columns align across spaces, agents, and bookmarks'
   data.shared['agents.sort'] = 'grouped';
   data.agents = Array.from({ length: 12 }, (_, i) => ({ ...agent(`t${i + 1}`), seq: i + 1, focused: i === 9 }));
   data.terminals = data.agents.map(a => ({ address: a.address, state: 'live', labels: {} }));
-  for (const width of [76, 44]) {
+  for (const width of [76, 60, 44]) {
     data.width = width;
     const space = context.railSpaces.compact({ w: { id: 'sp', name: 'Repo', active: true, status: 'done' }, i: 9 }, theme).childNodes[0];
     for (const marked of [false, true]) {
@@ -154,7 +177,7 @@ test('rail number and status columns align across spaces, agents, and bookmarks'
       assert.ok(row);
       for (const key of ['w', 'px', 'gap', 'h', 'rounded'])
         assert.equal(JSON.stringify(row.styles[key]), JSON.stringify(space.styles[key]), `${key} aligns at ${width}px`);
-      assert.equal(row.styles.w[0], width === 76 ? 60 : 40);
+      assert.equal(row.styles.w[0], width >= 60 ? 60 : 40);
       assert.equal(row.childNodes[1].styles.w[0], 26, 'bookmark does not resize the status column');
       assert.equal(space.childNodes[1].styles.w[0], 26);
       assert.equal(row.childNodes[0].childNodes[0], '10');
