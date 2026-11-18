@@ -484,7 +484,7 @@ function M.setup(ctx)
     local level = math.min(0.95, math.max(0.05, hs.settings.get("neruNavigation.gridOpacity") or 0.50))
     return string.format("%02X", math.floor(level * 255 + 0.5))
   end
-  -- Persist each adjustment, then update native fill alpha after a 150ms
+  -- Persist each adjustment, then update native fill alpha after a 300ms
   -- pause in -/= presses. No mode reset, window recreation or config reload.
   state.adjustOpacity = function(delta)
     if state.closed or state.busy or state.backend ~= "neru" or not gridModes[state.mode] then return end
@@ -499,7 +499,7 @@ function M.setup(ctx)
     state.opacityPending = true
     cancelOpacityRedraw()
     local generation, mode = state.opacityGeneration, state.mode
-    state.opacityTimer = hs.timer.doAfter(0.15, function()
+    state.opacityTimer = hs.timer.doAfter(0.3, function()
       if state.closed or state.busy or state.backend ~= "neru" or
         generation ~= state.opacityGeneration or state.mode ~= mode then return end
       state.opacityTimer = nil

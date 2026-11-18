@@ -170,7 +170,7 @@ Colors are written in Neru's alpha-first `#AARRGGBB` format. Recursive Grid has
 one shared cell fill; native Grid can have distinct base/selected fills.
 
 In either grid, `-` / `=` adjust fill opacity in 5-percentage-point steps,
-clamped to 5–95%. After a 150ms pause in these keypresses, Hammerspoon calls
+clamped to 5–95%. After a 300ms pause in these keypresses, Hammerspoon calls
 `neru set-grid-opacity --value <alpha>` on the local native build. This updates
 only cell fills: no config reload, selection reset, window recreation, or
 separator changes. The TOML fill is also saved for the next daemon start.
