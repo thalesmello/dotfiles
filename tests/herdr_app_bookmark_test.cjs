@@ -122,6 +122,16 @@ test('bookmark coexists with every status and snooze, in grouped and rail views'
   assert.ok(nodes(root).some(n => n.childNodes.includes('z')));
 });
 
+test('collapsed agent scrollbar appears only while scrolling; expanded stays visible', () => {
+  const { data, view, cx } = setup();
+  data.agents = [agent('t1')];
+  for (const width of [268, 76, 44]) {
+    data.width = width;
+    const list = nodes(view.render(cx)).find(n => n.styles.id?.[0] === 'ag-list');
+    assert.equal(list.styles.mode[0], width < 160 ? 'scrolling' : 'always');
+  }
+});
+
 test('rail number and status columns align across spaces, agents, and bookmarks', () => {
   const { data, view, cx, context, theme } = setup();
   const spacesSource = fs.readFileSync(path.join(__dirname,
