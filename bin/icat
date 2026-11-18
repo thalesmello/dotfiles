@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 set -euo pipefail
+
+# iTerm uses its own image protocol rather than Kitty graphics.
+if [[ "${TERM_PROGRAM:-}" == iTerm.app ]]; then
+  exec "$(dirname "${BASH_SOURCE[0]}")/imgcat" "$@"
+fi
+
 # ghostty-imgcat
 # Display images in Ghostty via the Kitty graphics protocol.
 #

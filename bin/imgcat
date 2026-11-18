@@ -2,6 +2,16 @@
 
 set -o pipefail
 
+# Ghostty and Kitty use the Kitty graphics protocol. Keep the iTerm renderer
+# below as the fallback for other terminals.
+# An explicit iTerm identity wins over inherited Kitty environment variables.
+if [[ "${TERM_PROGRAM:-}" != iTerm.app ]] &&
+   [[ "${TERM_PROGRAM:-}" == ghostty || "${TERM_PROGRAM:-}" == kitty ||
+      "${TERM:-}" == xterm-ghostty || "${TERM:-}" == xterm-kitty ||
+      -n "${KITTY_WINDOW_ID:-}" ]]; then
+    exec "$(dirname "${BASH_SOURCE[0]}")/icat" "$@"
+fi
+
 # tmux requires unrecognized OSC sequences to be wrapped with DCS tmux;
 # <sequence> ST, and for all ESCs in <sequence> to be replaced with ESC ESC. It
 # only accepts ESC backslash for ST. We use TERM instead of TMUX because TERM
