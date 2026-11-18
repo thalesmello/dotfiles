@@ -249,7 +249,7 @@
             ; Shift+Caps quits Neru; plain Caps tap resets the grid instead of
             ; sending Escape. Hold still acts as Hyper via the leader rule.
             [:!Scaps_lock :escape]
-            [:##caps_lock {:key :!CTleft_option :lazy true} nil {:alone :!Cdelete_or_backspace :params {:alone 150}}]
+            [:##caps_lock {:key :!CTleft_option :lazy true} nil {:alone :!Tdelete_or_backspace :params {:alone 150}}]
         ]
     }
 

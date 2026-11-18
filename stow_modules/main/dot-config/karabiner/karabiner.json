@@ -2372,7 +2372,7 @@
         }, {
           "to_if_alone" : [ {
             "key_code" : "delete_or_backspace",
-            "modifiers" : [ "left_command" ]
+            "modifiers" : [ "left_control" ]
           } ],
           "parameters" : {
             "basic.to_if_alone_timeout_milliseconds" : 150
