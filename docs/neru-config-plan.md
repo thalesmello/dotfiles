@@ -191,7 +191,9 @@ button. An immediate drop during base reset cancels at the source.
 - W/A/S/E move the pointer in Scroll. Shift triples movement; Option slows it.
 - h/j/k/l scroll; d/u page; g goes top and Shift+G bottom (`gg` disabled).
 - Arrow keys nudge; held-key repeat is enabled.
-- Tab changes monitors in mouse modes. In Hints, Tab/Shift+Tab move the
+- Tab changes monitors in mouse modes. Scroll auto-exits after 10s without a
+  keystroke (Hammerspoon timer; Neru has no native mode timeout), and
+  Cmd+Tab/Cmd+Shift+Tab pass the app-switch chord through and exit Scroll. In Hints, Tab/Shift+Tab move the
   cursor to the next/previous display and exit Hints (hints belong to the
   focused window, so reopen Hints there). During an active hint search, Tab
   still cycles search matches.

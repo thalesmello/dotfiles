@@ -310,6 +310,9 @@ scroll_step_half = 200
 
 [scroll.hotkeys]
 "F16" = "macro open_grid"
+# App-switch chords leave Scroll mode (Hammerspoon also auto-exits after 10s idle).
+"Cmd+Tab" = ["action feed Cmd+Tab", "idle"]
+"Cmd+Shift+Tab" = ["action feed Cmd+Shift+Tab", "idle"]
 "Cmd+F16" = "macro toggle_continuous"
 "Cmd+Ctrl+Alt+d" = "action page_down"
 "Cmd+Ctrl+Alt+u" = "action page_up"

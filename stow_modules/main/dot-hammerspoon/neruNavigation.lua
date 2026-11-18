@@ -139,12 +139,31 @@ function M.setup(ctx)
     syncDrag()
   end
 
+  -- Scroll auto-cancel: 10s without a keystroke exits Scroll mode. Neru has
+  -- no native mode timeout, and its watch stream reports no scroll activity,
+  -- so keystrokes are observed on Hammerspoon's (newer, non-consuming) tap.
+  local function cancelScrollIdle()
+    if state.scrollTimer then state.scrollTimer:stop(); state.scrollTimer = nil end
+  end
+  local function armScrollIdle()
+    cancelScrollIdle()
+    if state.closed or state.mode ~= "scroll" then return end
+    state.scrollTimer = hs.timer.doAfter(10, function()
+      state.scrollTimer = nil
+      if not state.closed and state.mode == "scroll" and state.backend == "neru" then
+        command({"idle"})
+      end
+    end)
+  end
+  state.cancelScrollIdle = cancelScrollIdle
+
   local function stopWatch()
     state.watchEpoch = state.watchEpoch + 1
     local watcher = state.watch
     state.watch = nil
     if watcher then watcher:terminate() end
     state.mode = "idle"
+    cancelScrollIdle()
     resetDrag()
   end
 
@@ -161,14 +180,17 @@ function M.setup(ctx)
     if event.event == "snapshot" and type(event.status) == "table" then
       resetDrag()
       state.mode = event.status.enabled and event.status.mode or "idle"
+      if state.mode == "scroll" then armScrollIdle() else cancelScrollIdle() end
       reconcileDrag()
     elseif event.event == "mode_enter" then
       resetDrag()
       state.mode = event.mode
       rearmTaps()
+      if state.mode == "scroll" then armScrollIdle() else cancelScrollIdle() end
       reconcileDrag()
     elseif event.event == "mode_exit" then
       state.mode = "idle"
+      cancelScrollIdle()
       resetDrag()
     end
   end
@@ -565,6 +587,7 @@ function M.setup(ctx)
       return false
     end
     if event:getType() == eventTypes.keyDown then
+      if state.mode == "scroll" then armScrollIdle() end -- any keystroke is activity
       local code = event:getKeyCode()
       if state.consumedDropKeys[code] then return true end
       if (code == 49 or code == 36) and next(state.consumedDropKeys) then

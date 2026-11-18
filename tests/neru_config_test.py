@@ -173,6 +173,11 @@ class NeruConfigTest(unittest.TestCase):
         self.assertEqual(keys["Tab"], ["action move_monitor --bail-on-error", "vim --capture-scope screen"])
         self.assertEqual(keys["Shift+Tab"], ["action move_monitor --previous --bail-on-error", "vim --capture-scope screen"])
 
+    def test_scroll_app_switch_chords_exit_scroll_mode(self):
+        keys = self.config["scroll"]["hotkeys"]
+        self.assertEqual(keys["Cmd+Tab"], ["action feed Cmd+Tab", "idle"])
+        self.assertEqual(keys["Cmd+Shift+Tab"], ["action feed Cmd+Shift+Tab", "idle"])
+
     def test_scroll_hyper_page_aliases(self):
         keys = self.config["scroll"]["hotkeys"]
         self.assertEqual(keys["Cmd+Ctrl+Alt+d"], "action page_down")
