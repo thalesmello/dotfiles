@@ -211,15 +211,6 @@ function M.setup(ctx)
         state.opacityPending = false
         command({"config", "reload"}) -- deferred opacity: apply after close, no flicker
       end
-      if state.opacityFlashReloading then
-        state.opacityFlashReloading = false -- our own flash/restore reload
-      elseif state.opacityFlashing then
-        -- Left the grid mid-flash: restore the fill for the next open.
-        if state.flashTimer then state.flashTimer:stop() end
-        state.opacityFlashing = false
-        writeFillAlpha(baseAlpha())
-        command({"config", "reload"})
-      end
       resetDrag()
     end
   end
@@ -323,8 +314,7 @@ function M.setup(ctx)
     if how == "exit" then
       command({"idle"})
     elseif how == "stay" then
-      if gridModes[state.mode] and flash then state.flashOpacity()
-      elseif gridModes[state.mode] then command({"run", "action reset"})
+      if gridModes[state.mode] then command({"run", "action reset"})
       elseif state.mode == "hints" then command({"action", "refresh_hints"}) end
     elseif not state.continuous then
       command({"idle"})
@@ -390,40 +380,6 @@ function M.setup(ctx)
     else launch({"grid", "--cursor-selection-mode", "hold"}) end
   end
 
-  -- After a Space-family click in a grid: cut the fill to 30% of its level
-  -- for one second so the result under the grid is visible, then restore.
-  state.flashOpacity = function()
-    if state.opacityFlashing then -- another click extends the window
-      if state.flashTimer then state.flashTimer:stop() end
-      state.flashTimer = hs.timer.doAfter(1, function() state.restoreOpacity() end)
-      return
-    end
-    local level = hs.settings.get("neruNavigation.gridOpacity") or 0.50
-    local flash = string.format("%02X", math.max(13, math.floor(level * 0.3 * 255 + 0.5)))
-    if not writeFillAlpha(flash) then command({"run", "action reset"}); return end
-    state.opacityFlashing, state.opacityFlashReloading = true, true
-    local mode = state.mode
-    command({"config", "reload"}, function(ok)
-      if not ok then state.opacityFlashing = false; writeFillAlpha(baseAlpha()); return end
-      reopenGrid(mode)
-      state.flashTimer = hs.timer.doAfter(1, function() state.restoreOpacity() end)
-    end)
-  end
-  state.restoreOpacity = function()
-    if not state.opacityFlashing then return end
-    state.opacityFlashing, state.flashTimer = false, nil
-    if not writeFillAlpha(baseAlpha()) then return end
-    local mode = state.mode
-    command({"config", "reload"}, function(ok)
-      -- The reload's own mode_exit lands before this reply, so state.mode is
-      -- already "idle" here; reopen from the mode captured at restore time
-      -- unless the user has meanwhile entered a different mode.
-      if ok and gridModes[mode] and (state.mode == "idle" or state.mode == mode) then
-        reopenGrid(mode)
-      end
-    end)
-  end
-
   -- Grid opacity tuning (-/= keys): write the fill alpha now and defer the
   -- reload to grid close, so tuning causes no flicker.
   state.adjustOpacity = function(delta)
@@ -432,10 +388,6 @@ function M.setup(ctx)
     level = math.min(0.95, math.max(0.05, level + delta))
     hs.settings.set("neruNavigation.gridOpacity", level)
     local alpha = string.format("%02X", math.floor(level * 255 + 0.5))
-    if state.opacityFlashing then -- tuning during a flash replaces it
-      if state.flashTimer then state.flashTimer:stop() end
-      state.opacityFlashing = false
-    end
     if not writeFillAlpha(alpha) then message("Grid colors not found in Neru config"); return end
     -- No reload now (that flickers: it closes and reopens the grid). The new
     -- level is applied by the mode_exit reload in readWatchLine, so it takes
@@ -775,11 +727,6 @@ function M.setup(ctx)
     state.closed, state.epoch = true, state.epoch + 1
     -- A reload can interrupt a modifier drag before its key-up. Exit Neru
     -- explicitly so its tracked mouse buttons are released even then.
-    if state.opacityFlashing then
-      if state.flashTimer then state.flashTimer:stop() end
-      state.opacityFlashing = false
-      writeFillAlpha(baseAlpha()) -- file corrected; daemon picks it up next load
-    end
     if state.backend == "neru" then shell.task({"neru", "idle"}) end
     for _, handle in ipairs(state.handles) do handle:delete() end
     stopWatch()
@@ -853,7 +800,7 @@ function M.status()
   if not instance then return nil end
   return {backend = instance.backend, mode = instance.mode, continuous = instance.continuous,
     layout = instance.layout, busy = instance.busy, leftHeld = instance.dragHeld,
-    heldDrag = instance.dragLatched, flashing = instance.opacityFlashing or false}
+    heldDrag = instance.dragLatched}
 end
 
 return M

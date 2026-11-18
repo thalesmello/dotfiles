@@ -98,7 +98,7 @@ class NeruConfigTest(unittest.TestCase):
             self.assertEqual(self.config["macros"]["confirm_" + button],
                              [f"action {button}_click --bail-on-error", "macro after_click_exit"])
             self.assertEqual(self.config["macros"]["confirm_" + button + "_stay"],
-                             [f"action {button}_click --bail-on-error", "macro after_click_flash"])
+                             [f"action {button}_click --bail-on-error", "macro after_click_stay"])
         self.assertIn("neruNavigation", self.config["macros"]["after_click"])
         self.assertNotIn("--action", self.config["macros"]["open_recursive"])
 

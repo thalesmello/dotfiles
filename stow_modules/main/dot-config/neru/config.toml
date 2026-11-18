@@ -31,15 +31,14 @@ text = "#FEFEFE"
 # clicks are off. Keeping this decision there avoids rewriting hotkeys.
 after_click = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').afterClick()\""
 after_click_stay = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').afterClick('stay')\""
-after_click_flash = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').afterClick('stay', true)\""
 after_click_exit = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').afterClick('exit')\""
 # Enter-family clicks exit the mode; Space-family clicks reset and stay.
 confirm_left = ["action left_click --bail-on-error", "macro after_click_exit"]
-confirm_left_stay = ["action left_click --bail-on-error", "macro after_click_flash"]
+confirm_left_stay = ["action left_click --bail-on-error", "macro after_click_stay"]
 confirm_right = ["action right_click --bail-on-error", "macro after_click_exit"]
-confirm_right_stay = ["action right_click --bail-on-error", "macro after_click_flash"]
+confirm_right_stay = ["action right_click --bail-on-error", "macro after_click_stay"]
 confirm_middle = ["action middle_click --bail-on-error", "macro after_click_exit"]
-confirm_middle_stay = ["action middle_click --bail-on-error", "macro after_click_flash"]
+confirm_middle_stay = ["action middle_click --bail-on-error", "macro after_click_stay"]
 confirm_move = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').moveOnly()\""
 confirm_move_exit = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').moveOnly(true)\""
 confirm_move_bare = ["action move_mouse --bare --bail-on-error", "macro after_click_stay"]
