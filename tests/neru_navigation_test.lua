@@ -76,7 +76,7 @@ local function fixture(backend, store, mouseless)
       if path == "/usr/bin/pgrep" then
         eq(stream[1], "-x"); assert(stream[2] == "neru" or stream[2] == "mouseless")
         t.procName = stream[2]; e.probes[#e.probes + 1] = t
-      else argvEq(args, {"watch", "--event", "mode_enter,mode_exit"}); e.watchers[#e.watchers + 1] = t end
+      else argvEq(args, {"watch", "--event", "mode_enter,mode_exit,select"}); e.watchers[#e.watchers + 1] = t end
       return t
     end},
   }
@@ -652,7 +652,7 @@ end)
 local CLICK_STAY = {"neru", "run", "--stop-on-error", "action reset", "action left_click --bare --bail-on-error", "peek-grid --duration 1s"}
 local CLICK_EXIT = {"neru", "run", "--stop-on-error", "action left_click --bare --bail-on-error", "idle"}
 test("rapid grid click keys queue and repeat at the original point after reset", function()
-  local e = fixture("neru"); e:emit(NATIVE)
+  local e = fixture("neru"); e:emit(NATIVE); e.state.continuous = true
   e.state.confirmClick("left", false); e.state.confirmClick("left", false); e.state.confirmClick("left", false)
   e:reply({"neru", "action", "move_mouse", "--selection"}, true)
   e:reply(CLICK_STAY, true)
@@ -672,7 +672,7 @@ test("Enter repeats are captured briefly after exiting to idle", function()
   e.clock = 101; eq(e:bareKey("Enter"), false); e:noPending()
 end)
 test("a new aiming key invalidates the click repeat target", function()
-  local e = fixture("neru"); e:emit(NATIVE); e.state.confirmClick("left", false)
+  local e = fixture("neru"); e:emit(NATIVE); e.state.continuous = true; e.state.confirmClick("left", false)
   e:reply({"neru", "action", "move_mouse", "--selection"}, true); e:reply(CLICK_STAY, true)
   e.state.inputHandler({getType = function() return 10 end, getKeyCode = function() return 34 end, getFlags = function() return {} end})
   e.state.confirmClick("left", false)
@@ -684,6 +684,24 @@ test("autorepeat cannot confirm a held fine-grid key", function()
   eq(e.state.inputHandler({getType = function() return 10 end, getKeyCode = function() return 34 end,
     getProperty = function() return 1 end}), true)
   e:noPending()
+end)
+test("Space exits instead of peeking when continuous is off", function()
+  local e = fixture("neru"); e:emit(NATIVE); e.state.continuous = false
+  e.state.confirmClick("left", false)
+  e:reply({"neru", "action", "move_mouse", "--selection"}, true); e:reply(CLICK_EXIT, true); e:noPending()
+end)
+test("physical fine-key repeats use click confirmation and survive exit", function()
+  local e = fixture("neru"); e:emit(NATIVE); e.state.continuous = false
+  local function fineKey()
+    return e.state.inputHandler({getType = function() return 10 end, getKeyCode = function() return 34 end, getFlags = function() return {} end})
+  end
+  eq(fineKey(), false) -- first i only aims
+  e.state.latestGridSelection = {x=100,y=200} -- native select event
+  eq(fineKey(), true); eq(fineKey(), true) -- ii/iii queue clicks, not text
+  e:reply({"neru", "action", "move_mouse", "--selection"}, true)
+  e:emit(EXIT); e:reply(CLICK_EXIT, true)
+  e:reply({"neru", "action", "move_mouse", "--x", "100", "--y", "200"}, true); e:reply(CLICK_EXIT, true)
+  e:noPending(); e.clock=101; eq(fineKey(), false)
 end)
 test("Right Shift exits either grid rather than switching layouts", function()
   for _,mode in ipairs({GRID,NATIVE}) do

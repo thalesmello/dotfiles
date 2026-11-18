@@ -169,6 +169,12 @@ function M.setup(ctx)
   end
   state.syncKarabinerGrid = syncKarabinerGrid
 
+  local function syncNativeRepeat()
+    if state.backend == "neru" and state.mode == "grid" then
+      shell.task({"neru", "set-grid-repeat", "--state", state.continuous and "on" or "off"})
+    end
+  end
+
   local function cancelOpacityRedraw()
     state.opacityGeneration = (state.opacityGeneration or 0) + 1
     if state.opacityTimer then state.opacityTimer:stop(); state.opacityTimer = nil end
@@ -208,19 +214,29 @@ function M.setup(ctx)
       state.mode = event.status.enabled and event.status.mode or "idle"
       if state.mode == "scroll" then armScrollIdle() else cancelScrollIdle() end
       syncKarabinerGrid()
+      syncNativeRepeat()
       reconcileDrag()
     elseif event.event == "mode_enter" then
       cancelOpacityRedraw() -- a new mode must not be reopened by an old timer/reply
       resetDrag()
       state.mode = event.mode
       state.clickQueue, state.clickBusy, state.lastGridClick = {}, false, nil
+      state.lastGridAimCode, state.latestGridSelection = nil, nil
       state.clickToken = (state.clickToken or 0) + 1
       state.aimGeneration = (state.aimGeneration or 0) + 1
       rearmTaps()
       if state.mode == "scroll" then armScrollIdle() else cancelScrollIdle() end
       syncKarabinerGrid()
+      syncNativeRepeat()
       reconcileDrag()
+    elseif event.event == "select" and event.mode == "grid" and type(event.x) == "number" and type(event.y) == "number" then
+      state.latestGridSelection = {x = event.x, y = event.y}
+      if event.action == "left_click" or event.action == "right_click" or event.action == "middle_click" then
+        state.lastGridClick = {point = state.latestGridSelection, button = event.action:gsub("_click$", ""),
+          time = hs.timer.absoluteTime() / 1e9, aimGeneration = state.aimGeneration, repeatKey = state.lastGridAimCode}
+      end
     elseif event.event == "mode_exit" then
+      state.latestGridSelection = nil
       state.mode = "idle"
       cancelScrollIdle()
       syncKarabinerGrid()
@@ -262,7 +278,7 @@ function M.setup(ctx)
       end
       if #buffer > 65536 then buffer = "" end
       return true
-    end, {"watch", "--event", "mode_enter,mode_exit"})
+    end, {"watch", "--event", "mode_enter,mode_exit,select"})
     watcher:setEnvironment(_TaskEnv)
     state.watch = watcher
     if not watcher:start() then
@@ -373,6 +389,7 @@ function M.setup(ctx)
   nextGridClick = function()
     if state.clickBusy or #state.clickQueue == 0 then return end
     local request = table.remove(state.clickQueue, 1)
+    if request.aimGeneration ~= state.aimGeneration then state.clickQueue = {}; return end
     if state.closed or state.busy or state.backend ~= "neru" or
       (not gridModes[state.mode] and not (state.mode == "idle" and canRepeat(request.button))) then
       state.clickQueue = {}; return
@@ -382,7 +399,7 @@ function M.setup(ctx)
     local action = request.button .. "_click"
     local function clickedAt(point)
       if state.closed or state.busy or state.epoch ~= epoch or state.clickToken ~= token then return end
-      state.lastGridClick = {point = point, button = request.button, time = now(), aimGeneration = request.aimGeneration}
+      state.lastGridClick = {point = point, button = request.button, time = now(), aimGeneration = request.aimGeneration, repeatKey = request.repeatKey}
       local args = {"run", "--stop-on-error"}
       -- Reset BEFORE the slow native click, not after the user has already
       -- started typing the next target. Cursor-hold keeps that aim virtual.
@@ -408,16 +425,16 @@ function M.setup(ctx)
       end)
     end
   end
-  state.confirmGridClick = function(button, exitAfter)
+  state.confirmGridClick = function(button, exitAfter, repeatKey)
     if button ~= "left" and button ~= "right" and button ~= "middle" then return end
-    state.clickQueue[#state.clickQueue + 1] = {button = button, exit = exitAfter, aimGeneration = state.aimGeneration}
+    state.clickQueue[#state.clickQueue + 1] = {button = button, exit = exitAfter or not state.continuous, aimGeneration = state.aimGeneration, repeatKey = repeatKey}
     nextGridClick()
   end
 
-  state.confirmClick = function(button, exitAfter)
+  state.confirmClick = function(button, exitAfter, repeatKey)
     if state.closed or state.busy or state.backend ~= "neru" or state.dragLatched or state.dragPreparing then return end
     if gridModes[state.mode] or (state.mode == "idle" and canRepeat(button)) then
-      state.confirmGridClick(button, exitAfter)
+      state.confirmGridClick(button, exitAfter, repeatKey)
     else
       command({"action", button .. "_click", "--bail-on-error"}, function(ok)
         if ok then state.afterClick(exitAfter and "exit" or "stay") end
@@ -554,6 +571,7 @@ function M.setup(ctx)
     if state.backend ~= "neru" or state.busy then return end
     state.continuous = not state.continuous
     hs.settings.set("neruNavigation.continuous", state.continuous)
+    syncNativeRepeat()
     message("Continuous clicks " .. (state.continuous and "ON" or "OFF"))
     if state.mode == "hints" then
       local hints = "hints --strategy axtree --action left_click" .. (state.continuous and " --repeat" or "")
@@ -790,6 +808,16 @@ function M.setup(ctx)
         local repeating = event.getProperty and event:getProperty(hs.eventtap.event.properties.keyboardEventAutorepeat) == 1
         if repeating and (code == 49 or code == 36 or (gridModes[state.mode] and (code < 123 or code > 126))) then return true end
         if code ~= 49 and code ~= 36 then
+          local fineKeys = {[32]=true,[34]=true,[31]=true,[38]=true,[40]=true,[37]=true,[46]=true,[43]=true,[47]=true}
+          local sameFineAim = state.mode == "grid" and fineKeys[code] and state.lastGridAimCode == code and state.latestGridSelection ~= nil
+          local recentFineClick = canRepeat() and state.lastGridClick.repeatKey == code
+          if not flags.ctrl and not flags.shift and (sameFineAim or recentFineClick) and not state.dragLatched and not state.dragPreparing then
+            local button = flags.alt and "right" or flags.cmd and "middle" or "left"
+            state.confirmClick(button, state.mode == "idle", code)
+            return true
+          end
+          state.lastGridAimCode = code
+          state.latestGridSelection = nil
           state.aimGeneration = state.aimGeneration + 1
           state.lastGridClick = nil
         elseif state.mode == "idle" and not flags.ctrl and not flags.shift then
