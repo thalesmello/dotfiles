@@ -104,6 +104,7 @@ completion token is a whitespace-delimited word that starts with its trigger.
 
 from __future__ import annotations
 
+import base64
 import datetime as _dt
 import json
 import os
@@ -122,6 +123,9 @@ from pathlib import Path
 from typing import Any, Optional, Union
 
 ESC = 27
+# Only bare ESC needs a brief ambiguity window; terminal key sequences normally
+# arrive together. Keep cancellation snappy without breaking legacy Alt/CSI keys.
+ESC_SEQUENCE_TIMEOUT = 0.01
 SHOWBREAK = "↪"
 PASTE_START = "200~"
 PASTE_END = b"\x1b[201~"
@@ -227,6 +231,18 @@ class Terminal:
         attrs[6][termios.VMIN] = 1
         attrs[6][termios.VTIME] = 0
         termios.tcsetattr(self.in_fd, termios.TCSADRAIN, attrs)
+
+    def discard_input(self, wait: float = 0.0) -> None:
+        """Drain in-flight CPR/mouse reports before handing the TTY back."""
+        self.pending.clear()
+        deadline = time.monotonic() + wait
+        while True:
+            ready, _, _ = select.select([self.in_fd], [], [], max(0.0, deadline - time.monotonic()))
+            if not ready or not os.read(self.in_fd, 65536):
+                break
+            if time.monotonic() >= deadline:
+                break
+        termios.tcflush(self.in_fd, termios.TCIFLUSH)
 
     def restore(self) -> None:
         if self.old_attrs is not None:
@@ -480,6 +496,16 @@ class Prompt:
         self.cursor_col = 0
         self.top_line = 0
         self.goal_col: Optional[int] = None
+        self.selection_anchor: Optional[int] = None
+        self.mouse_down = False
+        self.mouse_unit: Optional[tuple[int, int]] = None
+        self.screen_origin: Optional[int] = None  # one-based terminal row of the prompt
+        self.cpr_pending: Optional[tuple[int, int]] = None
+        self.render_version = 0
+        self.input_report = False
+        self.visible_prompt_rows = 0
+        self.render_size: Optional[tuple[int, int]] = None
+        self.last_click: Optional[tuple[float, int, int]] = None
         self.cancelled = False
         self.accepted = False
 
@@ -490,15 +516,37 @@ class Prompt:
         self.history.edit_mode()
         self.goal_col = None
 
+    def selection(self) -> Optional[tuple[int, int]]:
+        if self.selection_anchor is None or self.selection_anchor == self.pos:
+            return None
+        return min(self.selection_anchor, self.pos), max(self.selection_anchor, self.pos)
+
+    def move_to(self, pos: int, extend: bool = False, vertical: bool = False) -> None:
+        if extend:
+            if self.selection_anchor is None:
+                self.selection_anchor = self.pos
+        else:
+            self.selection_anchor = None
+        self.pos = max(0, min(len(self.buf), pos))
+        self.history.edit_mode()
+        if not vertical:
+            self.goal_col = None
+
     def insert(self, text: str) -> None:
         if not text:
             return
         self.edit_mode()
         self.save_undo()
-        self.buf = self.buf[: self.pos] + text + self.buf[self.pos :]
-        self.pos += len(text)
+        start, end = self.selection() or (self.pos, self.pos)
+        self.buf = self.buf[:start] + text + self.buf[end:]
+        self.pos = start + len(text)
+        self.selection_anchor = None
 
     def delete(self, at: int, length: int, ring: bool = False) -> None:
+        selected = self.selection()
+        if selected:
+            at, end = selected
+            length = end - at
         if length <= 0 or at < 0 or at >= len(self.buf):
             return
         length = min(length, len(self.buf) - at)
@@ -507,14 +555,28 @@ class Prompt:
         self.edit_mode()
         self.save_undo()
         self.buf = self.buf[:at] + self.buf[at + length :]
+        self.selection_anchor = None
         if self.pos > at:
             self.pos = at
+
+    def copy_selection(self, cut: bool = False) -> None:
+        selected = self.selection()
+        if not selected:
+            return
+        start, end = selected
+        self.kill = self.buf[start:end]
+        # OSC 52 lets the terminal own the clipboard (also over SSH).
+        encoded = base64.b64encode(self.kill.encode("utf-8")).decode("ascii")
+        self.term.write(f"\x1b]52;c;{encoded}\x07")
+        if cut:
+            self.delete(start, end - start)
 
     def undo_last(self) -> None:
         if not self.undo:
             return
         self.buf, self.pos = self.undo.pop()
-        self.history.edit_mode()
+        self.selection_anchor = None
+        self.edit_mode()
 
     def word_back(self, pos: int) -> int:
         i = pos
@@ -547,38 +609,77 @@ class Prompt:
         return i
 
     def move_line_start(self) -> None:
-        self.edit_mode()
         at = self.line_start_at(self.pos)
-        self.pos = 0 if self.pos == at and self.pos > 0 else at
+        self.move_to(0 if self.pos == at and self.pos > 0 else at)
 
     def move_line_end(self) -> None:
-        self.edit_mode()
         at = self.line_end_at(self.pos)
-        self.pos = len(self.buf) if self.pos == at and self.pos < len(self.buf) else at
+        self.move_to(len(self.buf) if self.pos == at and self.pos < len(self.buf) else at)
 
     def move_char_left(self) -> None:
-        self.edit_mode()
-        if self.pos > 0:
-            self.pos -= 1
+        selected = self.selection()
+        self.move_to(selected[0] if selected else self.pos - 1)
 
     def move_char_right(self) -> None:
-        self.edit_mode()
-        if self.pos < len(self.buf):
-            self.pos += 1
+        selected = self.selection()
+        self.move_to(selected[1] if selected else self.pos + 1)
 
     def move_word_left(self) -> None:
-        self.edit_mode()
-        self.pos = self.word_back(self.pos)
+        self.move_to(self.word_back(self.pos))
 
     def move_word_right(self) -> None:
-        self.edit_mode()
-        self.pos = self.word_fwd(self.pos)
+        self.move_to(self.word_fwd(self.pos))
+
+    def navigate(self, key: str, bits: int = 0) -> None:
+        """Shared Kitty/CSI navigation: Shift selects, Super is macOS Cmd."""
+        extend = bool(bits & 1)
+        command = bool(bits & (8 | 32))  # Super / Meta
+        word = bool(bits & (2 | 4))  # Alt / Ctrl
+        if key in ("up", "down"):
+            direction = -1 if key == "up" else 1
+            if command:
+                self.move_to(0 if direction < 0 else len(self.buf), extend)
+            elif extend:
+                self.move_vertical(direction, extend=True)
+            else:
+                self.selection_anchor = None
+                self.move_history_or_vertical(direction)
+            return
+        if key in ("home", "end"):
+            if bits == 0:
+                self.move_line_start() if key == "home" else self.move_line_end()
+                return
+            if word or command:
+                at = 0 if key == "home" else len(self.buf)
+            else:
+                at = self.line_start_at(self.pos) if key == "home" else self.line_end_at(self.pos)
+        elif command:
+            at = self.line_start_at(self.pos) if key == "left" else self.line_end_at(self.pos)
+        elif word:
+            at = self.word_back(self.pos) if key == "left" else self.word_fwd(self.pos)
+        else:
+            selected = self.selection()
+            if selected and not extend:
+                at = selected[0] if key == "left" else selected[1]
+            else:
+                at = self.pos + (-1 if key == "left" else 1)
+        self.move_to(at, extend)
+
+    def modified_delete(self, forward: bool, bits: int) -> None:
+        if bits & (8 | 32):
+            at = self.line_end_at(self.pos) if forward else self.line_start_at(self.pos)
+        elif bits & (2 | 4):
+            at = self.word_fwd(self.pos) if forward else self.word_back(self.pos)
+        else:
+            self.delete_forward() if forward else self.backspace()
+            return
+        self.delete(self.pos if forward else at, abs(at - self.pos), ring=True)
 
     # --- completion menu -------------------------------------------------
 
     def completion_context(self) -> Optional[tuple[int, str, DirSource, str]]:
         """(token start, trigger, source, query) for the token ending at the cursor."""
-        if not self.completions or self.history.active:
+        if not self.completions or self.history.active or self.selection():
             return None
         start = self.pos
         while start > 0 and not self.buf[start - 1].isspace():
@@ -632,6 +733,7 @@ class Prompt:
         self.save_undo()
         self.buf = self.buf[:value_at] + choice + sep + tail
         self.pos = value_at + len(choice) + len(sep)
+        self.selection_anchor = None
         self.menu_dismissed = start
         return True
 
@@ -663,6 +765,7 @@ class Prompt:
         self.history.save(text)
         self.buf = self.prefill
         self.pos = len(self.prefill)
+        self.selection_anchor = None
         self.undo = []
         self.menu_dismissed = None
         self.menu_query = None
@@ -672,6 +775,9 @@ class Prompt:
 
     def escape(self) -> None:
         """Esc closes an open completion menu; otherwise clear, then cancel."""
+        if self.selection():
+            self.selection_anchor = None
+            return
         m = self.menu()
         if m is not None:
             self.menu_dismissed = m[0][0]
@@ -697,6 +803,7 @@ class Prompt:
             if text is not None:
                 self.buf = text
                 self.pos = len(text)
+                self.selection_anchor = None
                 self.top_line = 0
             return
         self.move_vertical(direction)
@@ -716,27 +823,24 @@ class Prompt:
             best = i + 1
         return best
 
-    def move_vertical(self, direction: int) -> None:
+    def move_vertical(self, direction: int, extend: bool = False) -> None:
+        rows = self.split_visual_lines(max(1, shutil.get_terminal_size((80, 24)).columns))
+        index, col = self.cursor_in_rows(rows)
         if self.goal_col is None:
-            self.goal_col = self.visual_col_in_logical_line(self.pos)
-        start = self.line_start_at(self.pos)
-        end = self.line_end_at(self.pos)
-        if direction < 0:
-            if start == 0:
-                return
-            prev_end = start - 1
-            prev_start = self.line_start_at(prev_end)
-            self.pos = self.pos_for_visual_col(prev_start, prev_end, self.goal_col)
-        else:
-            if end >= len(self.buf):
-                return
-            next_start = end + 1
-            next_end = self.line_end_at(next_start)
-            self.pos = self.pos_for_visual_col(next_start, next_end, self.goal_col)
-        self.history.edit_mode()
+            self.goal_col = col - display_width(rows[index].prefix)
+        target = index + direction
+        if not 0 <= target < len(rows):
+            at = (0 if direction < 0 else len(self.buf)) if extend else self.pos
+            self.move_to(at, extend, vertical=True)
+            return
+        row = rows[target]
+        # A soft-row end belongs to the next row. Keep the caret on the target row.
+        end = row.end if row.final_for_logical else max(row.start, row.end - 1)
+        at = self.pos_for_visual_col(row.start, end, self.goal_col)
+        self.move_to(at, extend, vertical=True)
 
     def backspace(self) -> None:
-        if self.pos <= 0:
+        if self.pos <= 0 and not self.selection():
             return
         self.delete(self.pos - 1, 1)
 
@@ -752,12 +856,14 @@ class Prompt:
         self.save_undo()
         self.buf = ""
         self.pos = 0
+        self.selection_anchor = None
+        self.goal_col = None
 
     def case_word(self, mode: str) -> None:
-        end = self.word_fwd(self.pos)
-        if end <= self.pos:
+        start, end = self.selection() or (self.pos, self.word_fwd(self.pos))
+        if end <= start:
             return
-        old = self.buf[self.pos : end]
+        old = self.buf[start:end]
         if mode == "up":
             new = old.upper()
         elif mode == "down":
@@ -773,8 +879,8 @@ class Prompt:
         if new != old:
             self.edit_mode()
             self.save_undo()
-            self.buf = self.buf[: self.pos] + new + self.buf[end:]
-        self.pos = end
+            self.buf = self.buf[:start] + new + self.buf[end:]
+        self.move_to(start + len(new))
 
     def transpose_chars(self) -> None:
         n = len(self.buf)
@@ -790,7 +896,7 @@ class Prompt:
             self.edit_mode()
             self.save_undo()
         self.buf = self.buf[: at - 1] + b + a + self.buf[at + 1 :]
-        self.pos = at + 1
+        self.move_to(at + 1)
 
     def transpose_words(self) -> None:
         n = len(self.buf)
@@ -823,7 +929,7 @@ class Prompt:
         self.edit_mode()
         self.save_undo()
         self.buf = self.buf[:w1_start] + w2 + mid + w1 + self.buf[w2_end:]
-        self.pos = w2_end
+        self.move_to(w2_end)
 
     def handle_control(self, b: int) -> None:
         if b == 1:
@@ -914,12 +1020,8 @@ class Prompt:
                 else:
                     self.menu_accept()
                 return True
-            if code in (8, 127):
-                if mod_bits & 62:
-                    at = self.word_back(self.pos)
-                    self.delete(at, self.pos - at, ring=True)
-                else:
-                    self.backspace()
+            if code in (8, 127, 57349):
+                self.modified_delete(code == 57349, mod_bits)
                 return True
             if code in (13, 57414):
                 if mod_bits & 4 and self.submit_enabled:
@@ -934,23 +1036,32 @@ class Prompt:
                 elif not self.menu_accept():
                     self.accepted = True
                 return True
-            if code == 57417:
-                self.move_word_left() if (mod_bits & 62) else self.move_char_left()
+            # Functional key numbers from the Kitty keyboard protocol;
+            # terminals normally use CSI arrows, but CSI-u encodings are accepted too.
+            navigation = {
+                57350: "left", 57351: "right", 57352: "up", 57353: "down",
+                57356: "home", 57357: "end",
+                57417: "left", 57418: "right", 57419: "up", 57420: "down",
+                57423: "home", 57424: "end",
+            }
+            if code in navigation:
+                self.navigate(navigation[code], mod_bits)
                 return True
-            if code == 57418:
-                self.move_word_right() if (mod_bits & 62) else self.move_char_right()
-                return True
-            if code == 57419:
-                self.move_history_or_vertical(-1)
-                return True
-            if code == 57420:
-                self.move_history_or_vertical(1)
-                return True
-            if code == 57423:
-                self.move_line_start()
-                return True
-            if code == 57424:
-                self.move_line_end()
+            if mod_bits & (8 | 32):
+                if lower == 97:
+                    self.selection_anchor = 0
+                    self.move_to(len(self.buf), extend=True)
+                    return True
+                if lower == 122:
+                    self.undo_last()
+                    return True
+                if lower in (99, 120):
+                    self.copy_selection(cut=lower == 120)
+                    return True
+                if lower == 118:
+                    self.insert(self.kill)
+                    return True
+                # Never reinterpret Cmd shortcuts as Emacs Alt commands.
                 return True
             if code == 27:
                 self.escape()
@@ -977,9 +1088,9 @@ class Prompt:
                 if lower == 99:
                     self.case_word("cap"); return True
                 if lower == 60:
-                    self.edit_mode(); self.pos = 0; return True
+                    self.move_to(0, extend=bool(mod_bits & 1)); return True
                 if lower == 62:
-                    self.edit_mode(); self.pos = len(self.buf); return True
+                    self.move_to(len(self.buf), extend=bool(mod_bits & 1)); return True
             if mod_bits & 4:
                 self.handle_control({97:1, 98:2, 99:3, 100:4, 101:5, 102:6, 103:7, 104:8, 107:11, 108:12, 110:14, 112:16, 116:20, 117:21, 119:23, 121:25}.get(lower, lower))
                 if lower in (31, 45, 47, 63, 95):
@@ -994,33 +1105,115 @@ class Prompt:
         if tail.endswith("u") or (tail.startswith("27;") and tail.endswith("~")):
             if self.handle_csi_prompt_key(tail):
                 return
-        if re.fullmatch(r"(?:\d+(?:;\d+)?|1;\d+)?[CD]", tail):
-            mod = 1
-            m = re.search(r";(\d+)(?::\d+)?[CD]$", tail)
-            if m:
-                mod = int(m.group(1))
-            if (mod - 1) & 62:
-                self.move_word_right() if tail.endswith("C") else self.move_word_left()
+        mouse = re.fullmatch(r"<(\d+);(\d+);(\d+)([Mm])", tail)
+        if mouse:
+            button, x, y = map(int, mouse.groups()[:3])
+            self.handle_mouse(button, x, y, mouse.group(4) == "m")
+            return
+        report = re.fullmatch(r"(\d+);(\d+)R", tail)
+        if report:
+            self.input_report = True
+            if self.cpr_pending is not None:
+                version, cursor_row = self.cpr_pending
+                self.cpr_pending = None
+                if version == self.render_version:
+                    self.screen_origin = int(report.group(1)) - cursor_row
+                else:
+                    # Input arrived before the reply; query the new frame without
+                    # repainting. CPR responses themselves must never cause a
+                    # redraw/query feedback loop.
+                    self.cpr_pending = (self.render_version, self.cursor_row)
+                    self.term.write("\x1b[6n")
+            return
+        arrow = re.fullmatch(r"(?:\d+)?(?:;(\d+)(?::([123]))?)?([ABCDHF])", tail)
+        if arrow:
+            if arrow.group(2) == "3":
+                return
+            bits = int(arrow.group(1) or "1") - 1
+            self.navigate({"A": "up", "B": "down", "C": "right", "D": "left",
+                           "H": "home", "F": "end"}[arrow.group(3)], bits)
+            return
+        special = re.fullmatch(r"([13478])(?:;(\d+))?~", tail)
+        if special:
+            code, mods = special.groups()
+            bits = int(mods or "1") - 1
+            if code == "3":
+                self.modified_delete(True, bits)
             else:
-                self.move_char_right() if tail.endswith("C") else self.move_char_left()
-        elif tail in ("H", "1~", "1;1H") or re.fullmatch(r"1;\d+H", tail):
-            self.move_line_start()
-        elif tail in ("F", "4~", "1;1F") or re.fullmatch(r"1;\d+F", tail):
-            self.move_line_end()
+                self.navigate("home" if code in ("1", "7") else "end", bits)
         elif tail == "Z":
             self.menu_move(-1)
-        elif tail == "3~":
-            self.delete_forward()
-        elif re.fullmatch(r"3;\d+~", tail):
-            at = self.word_fwd(self.pos)
-            self.delete(self.pos, at - self.pos, ring=True)
-        elif re.fullmatch(r"(?:\d+)?A", tail):
-            self.move_history_or_vertical(-1)
-        elif re.fullmatch(r"(?:\d+)?B", tail):
-            self.move_history_or_vertical(1)
+
+    def handle_mouse(self, button: int, x: int, y: int, released: bool) -> None:
+        """SGR mouse coordinates are screen cells, not buffer offsets."""
+        if button & 64 or (button & 3) != 0:  # wheel / other buttons
+            return
+        if released and not self.mouse_down:
+            return
+        size = shutil.get_terminal_size((80, 24))
+        if self.render_size != (size.columns, size.lines):
+            # Repaint/re-query in the run loop before trusting resized screen cells.
+            self.screen_origin = None
+            self.mouse_down = False
+            return
+        if self.screen_origin is None:
+            return  # wait for CPR; never guess an inline prompt's screen position
+        rows = self.split_visual_lines(max(1, size.columns))
+        relative = y - self.screen_origin
+        dragging = self.mouse_down and bool(button & 32 or released)
+        if not dragging and not 0 <= relative < self.visible_prompt_rows:
+            return  # labels aside, completion/output rows aren't editable text
+        if button & 32 and not self.mouse_down:
+            return
+        if dragging and relative < 0:
+            self.top_line = max(0, self.top_line - 1)
+        elif dragging and relative >= self.visible_prompt_rows:
+            self.top_line = min(len(rows) - 1, self.top_line + 1)
+        index = max(0, min(len(rows) - 1, self.top_line +
+                            max(0, min(relative, self.visible_prompt_rows - 1))))
+        row = rows[index]
+        col = max(0, x - 1 - display_width(row.prefix))
+        end = row.end if row.final_for_logical else max(row.start, row.end - 1)
+        at = self.pos_for_visual_col(row.start, end, col)
+        if not dragging:
+            now = time.monotonic()
+            previous = self.last_click
+            count = previous[2] + 1 if previous and previous[1] == at and now - previous[0] < 0.4 else 1
+            self.last_click = (now, at, count % 3)
+            self.mouse_unit = None
+            self.move_to(at, extend=bool(button & 4))
+            if count == 2 and not button & 4 and at < len(self.buf):
+                start, end = at, at + 1
+                category = lambda ch: 0 if ch.isspace() else (1 if is_word(ch) else 2)
+                kind = category(self.buf[at])
+                while start > 0 and self.buf[start - 1] != "\n" and category(self.buf[start - 1]) == kind:
+                    start -= 1
+                while end < len(self.buf) and self.buf[end] != "\n" and category(self.buf[end]) == kind:
+                    end += 1
+                self.selection_anchor = start
+                self.pos = end
+                self.mouse_unit = (start, end)
+            elif count == 3 and not button & 4:
+                self.selection_anchor = self.line_start_at(at)
+                self.pos = min(len(self.buf), self.line_end_at(at) + 1)
+                self.mouse_unit = (self.selection_anchor, self.pos)
+            if self.selection_anchor is None:
+                self.selection_anchor = at
+            self.mouse_down = True
+        else:
+            if self.mouse_unit:
+                start, end = self.mouse_unit
+                self.selection_anchor = end if at < start else start
+                at = at if at < start or at > end else end
+            self.move_to(at, extend=True)
+        if released:
+            self.mouse_down = False
+            self.mouse_unit = None
+            if self.selection_anchor == self.pos:
+                self.selection_anchor = None
 
     def handle_escape(self) -> None:
-        nxt = self.term.read_byte(timeout=0.2)
+        nxt = self.term.read_byte(timeout=ESC_SEQUENCE_TIMEOUT)
         if nxt is None:
             self.escape()
             return
@@ -1029,25 +1222,26 @@ class Prompt:
         elif nxt == ord("["):
             self.handle_csi(self.term.read_csi_tail())
         elif nxt == ESC:
-            nxt2 = self.term.read_byte(timeout=0.2)
+            nxt2 = self.term.read_byte(timeout=ESC_SEQUENCE_TIMEOUT)
             if nxt2 is None:
                 self.escape()
             elif nxt2 == ord("["):
                 tail = self.term.read_csi_tail()
-                if tail.endswith("C"):
-                    self.move_word_right()
-                elif tail.endswith("D"):
-                    self.move_word_left()
+                arrow = re.fullmatch(r"(?:\d+)?(?:;(\d+))?([ABCDHF])", tail)
+                if arrow:
+                    bits = (int(arrow.group(1) or "1") - 1) | 2
+                    self.navigate({"A": "up", "B": "down", "C": "right", "D": "left",
+                                   "H": "home", "F": "end"}[arrow.group(2)], bits)
             elif nxt2 == ord("O"):
-                self.handle_ss3()
+                self.handle_ss3(bits=2)
         elif nxt == ord("O"):
             self.handle_ss3()
         else:
             lower = nxt + 32 if 65 <= nxt <= 90 else nxt
             if lower == ord("b"):
-                self.move_word_left()
+                self.navigate("left", 3 if nxt == ord("B") else 2)
             elif lower == ord("f"):
-                self.move_word_right()
+                self.navigate("right", 3 if nxt == ord("F") else 2)
             elif lower == ord("n"):
                 self.move_history_or_vertical(1)
             elif lower == ord("p"):
@@ -1065,24 +1259,16 @@ class Prompt:
             elif lower == ord("c"):
                 self.case_word("cap")
             elif nxt == ord("<"):
-                self.edit_mode(); self.pos = 0
+                self.move_to(0)
             elif nxt == ord(">"):
-                self.edit_mode(); self.pos = len(self.buf)
+                self.move_to(len(self.buf))
 
-    def handle_ss3(self) -> None:
+    def handle_ss3(self, bits: int = 0) -> None:
         b = self.term.read_byte(timeout=0.02)
-        if b == ord("A"):
-            self.move_history_or_vertical(-1)
-        elif b == ord("B"):
-            self.move_history_or_vertical(1)
-        elif b == ord("C"):
-            self.move_char_right()
-        elif b == ord("D"):
-            self.move_char_left()
-        elif b == ord("H"):
-            self.move_line_start()
-        elif b == ord("F"):
-            self.move_line_end()
+        keys = {ord("A"): "up", ord("B"): "down", ord("C"): "right",
+                ord("D"): "left", ord("H"): "home", ord("F"): "end"}
+        if b in keys:
+            self.navigate(keys[b], bits)
 
     def split_visual_lines(self, cols: int) -> list[VisualLine]:
         rows: list[VisualLine] = []
@@ -1101,7 +1287,8 @@ class Prompt:
                     prefix = self.label if first_logical else self.label_spaces
                 else:
                     prefix = self.label_spaces + SHOWBREAK
-                avail = max(1, cols - display_width(prefix))
+                # Reserve the last cell for an end-of-line insertion caret.
+                avail = max(1, cols - 1 - display_width(prefix))
                 width = 0
                 end = pos
                 last_break: Optional[int] = None
@@ -1158,17 +1345,26 @@ class Prompt:
                 return "".join(out)
             out.append(ch)
             w += cw
-        current: Optional[str] = None
+        current: Optional[tuple[Optional[str], bool]] = None
+        selected = None if self.final else self.selection()
         for i, ch in enumerate(row.text):
             cw = char_width(ch)
             if w + cw > cols:
                 break
             style = styles[row.start + i] if row.start + i < len(styles) else None
-            if style != current:
-                out.append(SGR_RESET if style is None else STYLE_SGR[style])
-                current = style
+            is_selected = bool(selected and selected[0] <= row.start + i < selected[1])
+            state = (style, is_selected)
+            if state != current:
+                out.append(SGR_RESET)
+                if style is not None:
+                    out.append(STYLE_SGR[style])
+                if is_selected:
+                    out.append("\x1b[7m")
+                current = state
             out.append(ch)
             w += cw
+        if selected and row.final_for_logical and selected[0] <= row.end < selected[1] and w < cols:
+            out.append(SGR_RESET + "\x1b[7m " + SGR_RESET)  # selected newline
         if current is not None:
             out.append(SGR_RESET)
         return "".join(out)
@@ -1216,7 +1412,10 @@ class Prompt:
         cursor_row = max(0, min(cursor_abs - self.top_line, len(visible) - 1))
         cursor_col = min(cursor_col, cols - 1)
 
-        out: list[str] = ["\x1b[?25l"]
+        self.render_version += 1
+        self.render_size = (size.columns, size.lines)
+        self.visible_prompt_rows = len(visible)
+        out: list[str] = ["\x1b[?25l\x1b[6 q"]
         if self.rendered_rows:
             out.append("\r")
             if self.cursor_row:
@@ -1234,6 +1433,8 @@ class Prompt:
                 out.append(lines[i])
             if i < total - 1:
                 out.append("\n")
+        if self.screen_origin is not None:
+            self.screen_origin = max(1, min(self.screen_origin, max_rows - total + 1))
         up = total - 1 - cursor_row
         if up > 0:
             out.append(f"\x1b[{up}A")
@@ -1241,6 +1442,9 @@ class Prompt:
         if cursor_col > 0:
             out.append(f"\x1b[{cursor_col}C")
         out.append("\x1b[?25h")
+        if self.cpr_pending is None and not self.final:
+            self.cpr_pending = (self.render_version, cursor_row)
+            out.append("\x1b[6n")
         self.term.write("".join(out))
         self.rendered_rows = len(lines)
         self.cursor_row = cursor_row
@@ -1271,25 +1475,32 @@ class Prompt:
 
     def run(self) -> int:
         self.term.raw()
-        self.term.write("\x1b[?2004h\x1b[>5u")
         try:
+            self.term.write("\x1b[?2004h\x1b[>5u\x1b[?1002h\x1b[?1006h\x1b[6 q")
             self.render()
             while True:
                 b = self.term.read_byte()
                 if b is None:
                     self.cancelled = True
                     break
+                self.input_report = False
                 if self.handle_byte(b):
                     break
-                self.render()
-            if self.menu_shown:
-                # Clear the menu rows so later popup output starts clean.
+                if not self.input_report:
+                    self.render()
+            if self.menu_shown or self.selection():
+                # Clear menus and selection styling before leaving popup output.
                 self.final = True
                 self.render()
-            self.term.write("\x1b[<u\x1b[?2004l")
         finally:
-            self.term.restore()
-            self.finish_render()
+            try:
+                self.term.write("\x1b[<u\x1b[?2004l\x1b[?1002l\x1b[?1006l\x1b[0 q")
+            finally:
+                try:
+                    self.term.discard_input(0.08 if self.cpr_pending else 0.0)
+                finally:
+                    self.term.restore()
+                    self.finish_render()
         if self.cancelled:
             return 1
         self.history.save(self.buf)
@@ -1309,6 +1520,9 @@ class _DoctestTerminal:
 
     def restore(self) -> None:
         pass
+
+    def discard_input(self, wait: float = 0.0) -> None:
+        self.pending.clear()
 
     def unread(self, data: Union[bytes, bytearray, list[int]]) -> None:
         if isinstance(data, list):

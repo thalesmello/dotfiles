@@ -40,6 +40,17 @@ _prompt_temp_file() {
 #                      Without this option Ctrl+Enter is just Enter.
 # Sets PROMPT_LINE to the edited buffer. Returns 0 when accepted with Enter,
 # 1 when cancelled (Esc, ctrl+g, ctrl+d on an empty line, or ctrl+c on one).
+# Editing: steady insert-bar caret; Up/Down follow soft-wrapped display rows.
+# Shift+arrows/Home/End selects; typing, paste, Backspace or Delete replaces
+# the selection. Alt/Ctrl+Left/Right moves by word; Cmd+Left/Right moves to
+# logical line boundaries, Cmd+Up/Down to buffer boundaries. Add Shift to
+# extend a selection. Alt/Ctrl+Backspace/Delete kills a word; Cmd kills to
+# a line boundary. Cmd+A selects all, Cmd+Z undoes, Cmd+C/X copies/cuts via
+# terminal OSC 52 (clipboard permission may be required). Cmd+V normally
+# arrives as terminal paste; an explicit key event yanks the internal copy.
+# Mouse click places the caret, drag/Shift+click selects, double-click selects
+# a word, triple-click a logical line. Mouse reporting needs an SGR-capable
+# terminal; modifier shortcuts need CSI/Kitty key reporting from the terminal.
 # History is stored under ~/.local/state/prompt-lib/<history-name>/ unless
 # PROMPT_LIB_HISTORY=0 disables it. PROMPT_LIB_HISTORY_NAME overrides the name.
 prompt_line() {
