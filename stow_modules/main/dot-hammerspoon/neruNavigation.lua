@@ -202,7 +202,7 @@ function M.setup(ctx)
       state.nudgeHoldTimer = nil
       if state.closed or state.busy or state.mode ~= "grid" or state.modeEpoch ~= epoch or state.nudgeHeldCode ~= code then return end
       state.nudgeActive = true
-      shell.task({"neru", "nudge-grid", "--direction", "up", "--nudges-per-cell", "4", "--count", "0"})
+      shell.task({"neru", "nudge-grid", "--direction", "up", "--nudges-per-cell", "16", "--count", "0"})
     end)
   end
 
@@ -853,7 +853,7 @@ function M.setup(ctx)
         local directions = {[13]="up",[40]="up",[34]="up",[1]="down",[38]="down",[0]="left",[4]="left",[2]="right",[37]="right"}
         if state.nudgeActive and code ~= state.nudgeHeldCode and directions[code] then
           state.aimGeneration = state.aimGeneration + 1; state.lastGridClick = nil
-          shell.task({"neru", "nudge-grid", "--direction", directions[code], "--nudges-per-cell", "4"})
+          shell.task({"neru", "nudge-grid", "--direction", directions[code], "--nudges-per-cell", "16"})
           return true
         end
       end

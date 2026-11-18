@@ -706,7 +706,7 @@ test("holding a fine key arms nudge keys; release never clicks", function()
   eq(e.state.nudgeActive, true)
   for code, direction in pairs({[13]="up",[40]="up",[34]="up",[1]="down",[38]="down",[0]="left",[4]="left",[2]="right",[37]="right"}) do
     eq(key(code), true)
-    argvEq(e.calls[#e.calls].args, {"neru", "nudge-grid", "--direction", direction, "--nudges-per-cell", "4"})
+    argvEq(e.calls[#e.calls].args, {"neru", "nudge-grid", "--direction", direction, "--nudges-per-cell", "16"})
   end
   eq(key(32, true), false); eq(e.state.nudgeActive, false)
   eq(key(38), false) -- another fine key selects normally after release
@@ -716,7 +716,7 @@ test("holding a pregrid key initializes the selected rectangle center", function
   local e = fixture("neru"); e:emit(NATIVE)
   e.state.inputHandler({getType = function() return 10 end, getKeyCode = function() return 2 end, getFlags = function() return {} end})
   e:tick()
-  argvEq(e.calls[#e.calls].args, {"neru", "nudge-grid", "--direction", "up", "--nudges-per-cell", "4", "--count", "0"})
+  argvEq(e.calls[#e.calls].args, {"neru", "nudge-grid", "--direction", "up", "--nudges-per-cell", "16", "--count", "0"})
   e:noPending()
 end)
 test("continuous Hints refresh after 500ms, not immediately", function()

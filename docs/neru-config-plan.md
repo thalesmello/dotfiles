@@ -188,7 +188,7 @@ single/double/triple-click metadata for left, right, and middle buttons.
 Fine keys now only aim; Space/Enter are the confirmation keys. Hold any valid
 pregrid or fine-grid key for 200ms to arm nudging. Pregrid holds assume the
 center of their matching rectangle; a fine hold starts at its selected point.
-While held, W/K/I nudge up, S/J down, A/H left, and D/L right. Four nudges span
+While held, W/K/I nudge up, S/J down, A/H left, and D/L right. Sixteen nudges span
 one active cell width/height, with fractional steps retained to avoid drift.
 Releasing the held key only ends nudging: it never clicks. Another fine key
 then selects that fine-cell center normally. `nudge-grid` updates the virtual
