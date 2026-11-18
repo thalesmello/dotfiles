@@ -213,6 +213,9 @@ function M.setup(ctx)
       cancelOpacityRedraw() -- a new mode must not be reopened by an old timer/reply
       resetDrag()
       state.mode = event.mode
+      state.clickQueue, state.clickBusy, state.lastGridClick = {}, false, nil
+      state.clickToken = (state.clickToken or 0) + 1
+      state.aimGeneration = (state.aimGeneration or 0) + 1
       rearmTaps()
       if state.mode == "scroll" then armScrollIdle() else cancelScrollIdle() end
       syncKarabinerGrid()
@@ -356,6 +359,70 @@ function M.setup(ctx)
     end
   end
 
+  -- Grid click keys are serialized so rapid repeats survive the base reset
+  -- and Enter's exit. The native bridge supplies the OS click count (1..3).
+  state.clickQueue, state.aimGeneration, state.clickToken = {}, 0, 0
+  local function now() return hs.timer.absoluteTime() / 1e9 end
+  local function canRepeat(button)
+    local last = state.lastGridClick
+    return last and last.aimGeneration == state.aimGeneration and
+      now() - last.time <= 0.4
+  end
+  local nextGridClick
+  nextGridClick = function()
+    if state.clickBusy or #state.clickQueue == 0 then return end
+    local request = table.remove(state.clickQueue, 1)
+    if state.closed or state.busy or state.backend ~= "neru" or
+      (not gridModes[state.mode] and not (state.mode == "idle" and canRepeat(request.button))) then
+      state.clickQueue = {}; return
+    end
+    state.clickBusy = true
+    local epoch, token = state.epoch, state.clickToken
+    local action = request.button .. "_click"
+    local function clickedAt(point)
+      if state.closed or state.busy or state.epoch ~= epoch or state.clickToken ~= token then return end
+      state.lastGridClick = {point = point, button = request.button, time = now(), aimGeneration = request.aimGeneration}
+      local args = {"run", "--stop-on-error"}
+      -- Reset BEFORE the slow native click, not after the user has already
+      -- started typing the next target. Cursor-hold keeps that aim virtual.
+      if gridModes[state.mode] and not request.exit then args[#args + 1] = "action reset" end
+      args[#args + 1] = "action " .. action .. " --bare --bail-on-error"
+      if request.exit then args[#args + 1] = "idle" end
+      command(args, function(ok)
+        if state.clickToken ~= token then return end
+        state.clickBusy = false
+        if not ok then state.lastGridClick = nil; state.clickQueue = {}; message("Grid click failed"); return end
+        nextGridClick()
+      end)
+    end
+    if canRepeat(request.button) then
+      local point = state.lastGridClick.point
+      command({"action", "move_mouse", "--x", tostring(point.x), "--y", tostring(point.y)}, function(ok)
+        if ok then clickedAt(point) else state.clickBusy = false; state.clickQueue = {} end
+      end)
+    else
+      commitCursor(function(ok)
+        if ok then clickedAt(hs.mouse.absolutePosition()) else state.clickBusy = false; state.clickQueue = {}; message("Could not aim grid click") end
+      end)
+    end
+  end
+  state.confirmGridClick = function(button, exitAfter)
+    if button ~= "left" and button ~= "right" and button ~= "middle" then return end
+    state.clickQueue[#state.clickQueue + 1] = {button = button, exit = exitAfter, aimGeneration = state.aimGeneration}
+    nextGridClick()
+  end
+
+  state.confirmClick = function(button, exitAfter)
+    if state.closed or state.busy or state.backend ~= "neru" or state.dragLatched or state.dragPreparing then return end
+    if gridModes[state.mode] or (state.mode == "idle" and canRepeat(button)) then
+      state.confirmGridClick(button, exitAfter)
+    else
+      command({"action", button .. "_click", "--bail-on-error"}, function(ok)
+        if ok then state.afterClick(exitAfter and "exit" or "stay") end
+      end)
+    end
+  end
+
   -- Write a fill alpha into both grid UI sections of the config file.
   local function writeFillAlpha(alpha)
     local path = os.getenv("HOME") .. "/.config/neru/config.toml"
@@ -431,6 +498,7 @@ function M.setup(ctx)
   end
 
   state.startHold = function()
+    if state.clickBusy then message("Wait for the pending click before dragging"); return end
     if state.closed or state.busy or state.backend ~= "neru" or state.dragLatched then return end
     if not gridModes[state.mode] and state.mode ~= "vim" then return end
     if state.dragHeld or state.dragPreparing or state.dragCleanupBlocked then
@@ -715,6 +783,17 @@ function M.setup(ctx)
     if event:getType() == eventTypes.keyDown then
       if state.mode == "scroll" then armScrollIdle() end -- any keystroke is activity
       local code = event:getKeyCode()
+      local flags = event.getFlags and event:getFlags() or {}
+      if gridModes[state.mode] or (state.mode == "idle" and canRepeat()) then
+        local repeating = event.getProperty and event:getProperty(hs.eventtap.event.properties.keyboardEventAutorepeat) == 1
+        if repeating and (code == 49 or code == 36 or (gridModes[state.mode] and (code < 123 or code > 126))) then return true end
+        if code ~= 49 and code ~= 36 then
+          state.aimGeneration = state.aimGeneration + 1
+          state.lastGridClick = nil
+        elseif state.mode == "idle" and not flags.ctrl and not flags.shift then
+          local button = flags.alt and "right" or flags.cmd and "middle" or "left"
+          if canRepeat(button) then state.confirmGridClick(button, code == 36); return true end
+        end
       end
       if state.consumedDropKeys[code] then return true end
       if (code == 49 or code == 36) and next(state.consumedDropKeys) then
@@ -812,6 +891,10 @@ end
 
 function M.adjustOpacity(delta)
   if instance and not instance.closed then instance.adjustOpacity(delta) end
+end
+
+function M.confirmClick(button, exitAfter)
+  if instance and not instance.closed then instance.confirmClick(button, exitAfter) end
 end
 
 function M.startHold()

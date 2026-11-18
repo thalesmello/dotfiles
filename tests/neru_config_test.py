@@ -106,10 +106,8 @@ class NeruConfigTest(unittest.TestCase):
             expected_drag = "macro toggle_drag" if mode in ("recursive_grid", "grid") else "action left_click --toggle"
             self.assertEqual(keys["Ctrl+Alt+Enter"], expected_drag)
         for button in ("left", "right", "middle"):
-            self.assertEqual(self.config["macros"]["confirm_" + button],
-                             [f"action {button}_click --bail-on-error", "macro after_click_exit"])
-            self.assertEqual(self.config["macros"]["confirm_" + button + "_stay"],
-                             [f"action {button}_click --bail-on-error", "macro after_click_stay"])
+            self.assertIn(f"confirmClick('{button}', true)", self.config["macros"]["confirm_" + button])
+            self.assertIn(f"confirmClick('{button}', false)", self.config["macros"]["confirm_" + button + "_stay"])
         self.assertIn("neruNavigation", self.config["macros"]["after_click"])
         self.assertNotIn("--action", self.config["macros"]["open_recursive"])
 
