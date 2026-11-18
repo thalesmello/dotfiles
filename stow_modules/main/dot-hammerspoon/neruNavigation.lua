@@ -175,6 +175,21 @@ function M.setup(ctx)
     end
   end
 
+  local function cancelHintRefresh()
+    state.hintRefreshGeneration = (state.hintRefreshGeneration or 0) + 1
+    if state.hintRefreshTimer then state.hintRefreshTimer:stop(); state.hintRefreshTimer = nil end
+  end
+  local function scheduleHintRefresh()
+    if state.mode ~= "hints" or not state.continuous then return end
+    cancelHintRefresh()
+    local generation = state.hintRefreshGeneration
+    state.hintRefreshTimer = hs.timer.doAfter(0.5, function()
+      state.hintRefreshTimer = nil
+      if state.closed or state.backend ~= "neru" or state.mode ~= "hints" or not state.continuous or state.hintRefreshGeneration ~= generation then return end
+      command({"action", "refresh_hints", "--if-input-empty"})
+    end)
+  end
+
   local function cancelNudgeHold()
     if state.nudgeHoldTimer then state.nudgeHoldTimer:stop(); state.nudgeHoldTimer = nil end
     state.nudgeHeldCode, state.nudgeActive = nil, false
@@ -204,6 +219,7 @@ function M.setup(ctx)
   end
 
   local function stopWatch()
+    cancelHintRefresh()
     cancelNudgeHold()
     cancelOpacityRedraw()
     state.watchEpoch = state.watchEpoch + 1
@@ -253,8 +269,11 @@ function M.setup(ctx)
         state.lastGridClick = {point = state.latestGridSelection, button = event.action:gsub("_click$", ""),
           time = hs.timer.absoluteTime() / 1e9, aimGeneration = state.aimGeneration, repeatKey = state.lastGridAimCode}
       end
+    elseif event.event == "select" and event.mode == "hints" and type(event.action) == "string" and event.action:find("_click", 1, true) then
+      scheduleHintRefresh()
     elseif event.event == "mode_exit" then
-        cancelNudgeHold()
+      cancelHintRefresh()
+      cancelNudgeHold()
       state.latestGridSelection = nil
       state.mode = "idle"
       cancelScrollIdle()
@@ -370,13 +389,15 @@ function M.setup(ctx)
       command({"idle"})
     elseif how == "stay" then
       if gridModes[state.mode] then command({"run", "action reset"})
-      elseif state.mode == "hints" then command({"action", "refresh_hints"}) end
+      elseif state.mode == "hints" then
+        if state.continuous then scheduleHintRefresh() else command({"action", "refresh_hints"}) end
+      end
     elseif not state.continuous then
       command({"idle"})
     elseif gridModes[state.mode] then
       command({"run", "action reset"})
     elseif state.mode == "hints" then
-      command({"action", "refresh_hints"})
+      scheduleHintRefresh()
     end
   end
   local function commitCursor(done)
@@ -591,6 +612,7 @@ function M.setup(ctx)
   local function toggleContinuous()
     if state.backend ~= "neru" or state.busy then return end
     state.continuous = not state.continuous
+    if not state.continuous then cancelHintRefresh() end
     hs.settings.set("neruNavigation.continuous", state.continuous)
     syncNativeRepeat()
     message("Continuous clicks " .. (state.continuous and "ON" or "OFF"))

@@ -185,13 +185,20 @@ within 400ms reuse the previous click point until another aiming key is typed;
 Hammerspoon serializes them and ignores key autorepeat. Neru emits bounded
 single/double/triple-click metadata for left, right, and middle buttons.
 
-Regular Grid opens with `--confirm-on-repeat`: a fine key aiming at a different
-point only selects it; a key aiming at the already-selected point clicks it.
-There is no timeout on aim-versus-confirm. Confirmation exits when continuous
-mode is OFF; when ON, the Hammerspoon click path resets/stays and dims for one
-second. Rapid fine-key repeats reuse the last point for double/triple clicks,
-including briefly after exit. Hammerspoon synchronizes the native Grid repeat
-flag with `set-grid-repeat`, without rebuilding the selection.
+Fine keys now only aim; Space/Enter are the confirmation keys. Hold any valid
+pregrid or fine-grid key for 200ms to arm nudging. Pregrid holds assume the
+center of their matching rectangle; a fine hold starts at its selected point.
+While held, W/K/I nudge up, S/J down, A/H left, and D/L right. Four nudges span
+one active cell width/height, with fractional steps retained to avoid drift.
+Releasing the held key only ends nudging: it never clicks. Another fine key
+then selects that fine-cell center normally. `nudge-grid` updates the virtual
+selection while cursor-hold is enabled; Space commits it to the actual mouse.
+
+In continuous Hints, each click schedules a rescan 500ms later, allowing the UI
+to settle. `refresh_hints --if-input-empty` skips that rescan during token input
+or search. Backspace deletes a typed token character; with empty input it
+asynchronously refreshes the current hint session. Leaving Hints cancels the
+pending background refresh.
 
 ## Held drag workflow
 

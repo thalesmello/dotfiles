@@ -719,6 +719,17 @@ test("holding a pregrid key initializes the selected rectangle center", function
   argvEq(e.calls[#e.calls].args, {"neru", "nudge-grid", "--direction", "up", "--nudges-per-cell", "4", "--count", "0"})
   e:noPending()
 end)
+test("continuous Hints refresh after 500ms, not immediately", function()
+  local e = fixture("neru"); e:emit(HINTS); e.state.continuous = true
+  e.state.afterClick("stay"); e.state.afterClick("stay")
+  eq(e.state.hintRefreshTimer.delay, 0.5); e:noPending()
+  e:tick(); e:noPending(); e:tick()
+  e:reply({"neru", "action", "refresh_hints", "--if-input-empty"}, true); e:noPending()
+end)
+test("leaving Hints cancels the delayed refresh", function()
+  local e = fixture("neru"); e:emit(HINTS); e.state.continuous = true; e.state.afterClick("stay")
+  e:emit(EXIT); e:tick(); e:noPending()
+end)
 test("Right Shift exits either grid rather than switching layouts", function()
   for _,mode in ipairs({GRID,NATIVE}) do
     local e = fixture("neru"); e:emit(mode); e:key("F16")
