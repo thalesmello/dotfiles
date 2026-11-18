@@ -129,7 +129,9 @@ local function fixture(backend, store, mouseless)
   function e:opacity(delta) self:withConfig(function() self.state.adjustOpacity(delta) end) end
   function e:profile(id) self.dynamic[id]().fn() end
   function e:reply(args, ok, output)
-    local c = table.remove(self.pending, 1); assert(c, "missing task"); argvEq(c.args, args); c.done(ok, output or "")
+    local expected = {table.unpack(args)}
+    if expected[2] == "grid" then expected[#expected + 1] = "--confirm-on-repeat" end
+    local c = table.remove(self.pending, 1); assert(c, "missing task"); argvEq(c.args, expected); c.done(ok, output or "")
   end
   function e:enabled(value) for _, h in ipairs(self.state.handles) do eq(h.enabled, value) end end
   function e:key(key, modifier)

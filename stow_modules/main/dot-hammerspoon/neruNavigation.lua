@@ -277,6 +277,7 @@ function M.setup(ctx)
     if state.busy then message("Navigation profile switch in progress"); return end
     if state.backend ~= "neru" then message("Select 'Navigation: Use Neru' in the palette first"); return end
     local actual = {table.unpack(args)}
+    if args[1] == "grid" then actual[#actual + 1] = "--confirm-on-repeat" end
     if state.continuous and args[1] == "hints" then
       for _, arg in ipairs(args) do
         if arg == "--action" then actual[#actual + 1] = "--repeat"; break end

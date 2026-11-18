@@ -170,11 +170,23 @@ Colors are written in Neru's alpha-first `#AARRGGBB` format. Recursive Grid has
 one shared cell fill; native Grid can have distinct base/selected fills.
 
 In either grid, `-` / `=` adjust fill opacity in 5-percentage-point steps,
-clamped to 5–95%. The grid reloads/reopens once after a 400ms pause in these
-keypresses, rather than once per press. This resets the selection to the base;
-separator colors remain unchanged. Closing before the timeout loads the new
-colors without reopening. Space clicks do not run an opacity flash or reload.
-A state-preserving, one-second visual peek is not implemented in stock Neru.
+clamped to 5–95%. After a 400ms pause in these keypresses, Hammerspoon calls
+`neru set-grid-opacity --value <alpha>` on the local native build. This updates
+only cell fills: no config reload, selection reset, window recreation, or
+separator changes. The TOML fill is also saved for the next daemon start.
+
+Space clicks reset the grid before the slow mouse event, then call
+`neru peek-grid --duration 1s`: the native window becomes visually transparent
+while continuing to accept and render selection updates. The same window
+reappears at the deadline. Enter clicks and exits. Rapid Space/Enter repeats
+within 400ms reuse the previous click point until another aiming key is typed;
+Hammerspoon serializes them and ignores key autorepeat. Neru emits bounded
+single/double/triple-click metadata for left, right, and middle buttons.
+
+Regular Grid opens with `--confirm-on-repeat`: a fine key aiming at a different
+point only selects it; a key aiming at the already-selected point clicks it.
+There is no timeout on aim-versus-confirm. Further rapid presses yield double
+or triple clicks without leaving the fine grid.
 
 ## Held drag workflow
 
@@ -228,6 +240,24 @@ the default alternating-hand layout uses only letters and right-hand punctuation
 The original left-Control-only restriction,
 Shift-tap repeat-last-action, opacity/overlay locking and mouse side-button
 back/forward are not exact replicas.
+
+## Local native build
+
+- Fork: `https://github.com/thalesmello/neru`, cloned at `~/src/neru`.
+- Branch: `live-overlay-controls`, based on the installed `v1.63.0` release.
+- Five separate feature commits: live fill opacity, visual peek, flicker-free
+  reset, fine-key confirmation, and bounded repeated-click metadata.
+- Build: `just build-version v1.63.0-local-overlay`, then
+  `just dist bin/neru build/dist 1.63.0 1.63.0 local-overlay`.
+- Active app: `~/src/Applications/Neru.app`; the existing CLI symlink and
+  `com.y3owk1n.neru` login service still point there.
+- Stock app backup:
+  `~/Library/Application Support/Neru/local-build-backups/stock-20261118-123949/Neru.app`.
+- The Neru cask remains in `Brewfile`; no Homebrew app was removed. This machine
+  uses the portable app installation, not a currently registered Neru cask.
+- The fork's feature branch is committed locally but not pushed; Thales will
+  back it up and open the upstream PR. Native appearance commands are macOS-only
+  initially; other backends explicitly report unsupported.
 
 ## Profile/restart safety
 
