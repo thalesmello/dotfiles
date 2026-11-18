@@ -246,10 +246,10 @@
         :des "Neru Grid Caps: Reset / Quit (variable set by Hammerspoon)"
         :rules [
             :neru-grid
-            ; Shift+Caps quits Neru; plain Caps tap resets the grid instead of
-            ; sending Escape. Hold still acts as Hyper via the leader rule.
+            ; Shift+Caps quits; Caps tap sends F17 for native reset-or-exit.
+            ; Ctrl+Backspace remains reset-only. Hold still acts as Hyper.
             [:!Scaps_lock :escape]
-            [:##caps_lock {:key :!CTleft_option :lazy true} nil {:alone :!Tdelete_or_backspace :params {:alone 150}}]
+            [:##caps_lock {:key :!CTleft_option :lazy true} nil {:alone :f17 :params {:alone 150}}]
         ]
     }
 

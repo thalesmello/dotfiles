@@ -371,7 +371,7 @@ function M.setup(ctx)
       if state.mode ~= "idle" then command({"idle"}); return true end
       return false
     end
-    if gridModes[state.mode] then command({"run", "action reset"}); return true end
+    if gridModes[state.mode] then command({"run", "action reset --toggle"}); return true end
     return false
   end
   state.unregisterCapsTap = CapsHyper.onTap(state.capsTap)
@@ -848,7 +848,7 @@ function M.setup(ctx)
       if state.mode == "scroll" then armScrollIdle() end -- any keystroke is activity
       local code = event:getKeyCode()
       local flags = event.getFlags and event:getFlags() or {}
-      if code == 49 or code == 36 or code == 53 or code == 51 or flags.ctrl or flags.cmd or flags.alt then cancelNudgeHold() end
+      if code == 49 or code == 36 or code == 53 or code == 51 or code == 64 or code == 80 or code == 106 or flags.ctrl or flags.cmd or flags.alt then cancelNudgeHold() end
       if state.mode == "grid" and state.backend == "neru" and not state.busy and not state.dragLatched and not flags.ctrl and not flags.cmd and not flags.alt then
         local directions = {[13]="up",[40]="up",[34]="up",[1]="down",[38]="down",[0]="left",[4]="left",[2]="right",[37]="right"}
         if state.nudgeActive and code ~= state.nudgeHeldCode and directions[code] then

@@ -56,16 +56,17 @@ class NeruConfigTest(unittest.TestCase):
                          r"\[:##right_shift\s+:right_shift\s+nil\s+"
                          r"\{:alone\s+:f16\s+:params\s+\{:alone\s+150\}\}\]")
 
-    def test_karabiner_caps_tap_sends_control_backspace_to_reset(self):
-        # Goku C means Command, T means Control. Cmd+Backspace is NOT reset.
+    def test_karabiner_caps_tap_has_a_distinct_reset_or_exit_key(self):
+        # F17 identifies Caps separately from reset-only Ctrl+Backspace.
         text = KARABINER.read_text()
         bridge = text.split(':des "Neru Grid Caps:', 1)[1].split(
             ':des "Hyperkey as Leader Key"', 1)[0]
-        self.assertIn(':alone :!Tdelete_or_backspace', bridge)
-        self.assertNotIn(':alone :!Cdelete_or_backspace', bridge)
+        self.assertIn(':alone :f17', bridge)
+        self.assertNotIn(':alone :!Tdelete_or_backspace', bridge)
         for mode in ("grid", "recursive_grid"):
             self.assertEqual(self.config[mode]["hotkeys"]["Ctrl+Backspace"],
                              "action reset")
+            self.assertEqual(self.config[mode]["hotkeys"]["F17"], "action reset --toggle")
 
     def test_restart_bindings_use_the_reciprocal_controller(self):
         text = Path("stow_modules/main/dot-hammerspoon/keybindings.lua").read_text()
