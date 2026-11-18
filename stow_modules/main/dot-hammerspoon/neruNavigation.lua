@@ -406,7 +406,7 @@ function M.setup(ctx)
       if gridModes[state.mode] and not request.exit then args[#args + 1] = "action reset" end
       args[#args + 1] = "action " .. action .. " --bare --bail-on-error"
       if request.exit then args[#args + 1] = "idle"
-      elseif gridModes[state.mode] then args[#args + 1] = "peek-grid --duration 1s" end
+      elseif gridModes[state.mode] then args[#args + 1] = "peek-grid --duration 1s --opacity 0.25" end
       command(args, function(ok)
         if state.clickToken ~= token then return end
         state.clickBusy = false

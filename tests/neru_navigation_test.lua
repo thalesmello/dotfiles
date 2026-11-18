@@ -649,7 +649,7 @@ test("shutdown cancels a pending opacity redraw", function()
   local e = opacityFixture(); e:opacity(-0.05); e.state.close()
   e:tick(); e:noPending()
 end)
-local CLICK_STAY = {"neru", "run", "--stop-on-error", "action reset", "action left_click --bare --bail-on-error", "peek-grid --duration 1s"}
+local CLICK_STAY = {"neru", "run", "--stop-on-error", "action reset", "action left_click --bare --bail-on-error", "peek-grid --duration 1s --opacity 0.25"}
 local CLICK_EXIT = {"neru", "run", "--stop-on-error", "action left_click --bare --bail-on-error", "idle"}
 test("rapid grid click keys queue and repeat at the original point after reset", function()
   local e = fixture("neru"); e:emit(NATIVE); e.state.continuous = true

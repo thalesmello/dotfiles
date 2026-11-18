@@ -175,18 +175,23 @@ clamped to 5–95%. After a 150ms pause in these keypresses, Hammerspoon calls
 only cell fills: no config reload, selection reset, window recreation, or
 separator changes. The TOML fill is also saved for the next daemon start.
 
-Space clicks reset the grid before the slow mouse event, then call
-`neru peek-grid --duration 1s`: the native window becomes visually transparent
-while continuing to accept and render selection updates. The same window
-reappears at the deadline. Enter clicks and exits. Rapid Space/Enter repeats
+With continuous mode ON, Space clicks reset the grid before the slow mouse
+event, then call `neru peek-grid --duration 1s --opacity 0.25`: the native
+window dims to 25% of normal while accepting and rendering selection updates.
+The original window opacity is restored at the deadline, without a reload.
+With continuous mode OFF, Space clicks and exits with no peek. Enter always
+clicks and exits. Rapid Space/Enter repeats
 within 400ms reuse the previous click point until another aiming key is typed;
 Hammerspoon serializes them and ignores key autorepeat. Neru emits bounded
 single/double/triple-click metadata for left, right, and middle buttons.
 
 Regular Grid opens with `--confirm-on-repeat`: a fine key aiming at a different
 point only selects it; a key aiming at the already-selected point clicks it.
-There is no timeout on aim-versus-confirm. Further rapid presses yield double
-or triple clicks without leaving the fine grid.
+There is no timeout on aim-versus-confirm. Confirmation exits when continuous
+mode is OFF; when ON, the Hammerspoon click path resets/stays and dims for one
+second. Rapid fine-key repeats reuse the last point for double/triple clicks,
+including briefly after exit. Hammerspoon synchronizes the native Grid repeat
+flag with `set-grid-repeat`, without rebuilding the selection.
 
 ## Held drag workflow
 
