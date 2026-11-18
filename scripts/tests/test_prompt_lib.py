@@ -690,6 +690,20 @@ class InputReportTests(PromptCase):
         self.assertEqual(p.screen_origin, 5)
         self.assertEqual(term.output.count("\x1b[6n"), 1)
 
+    def test_typing_after_calibration_does_not_request_more_reports(self):
+        p, term, _, renders = self.run_prompt(b"\x1b[5;4Rhello\r")
+        self.assertEqual((renders, p.screen_origin), (6, 5))
+        self.assertEqual(term.output.count("\x1b[6n"), 1)
+        self.assertIsNone(p.cpr_pending)
+
+    def test_encoded_escape_does_not_use_ambiguity_timeout(self):
+        p = self.make()
+        with patch.object(p.term, "read_byte", wraps=p.term.read_byte) as read:
+            self.feed(p, b"\x1b[27u")
+        self.assertTrue(p.cancelled)
+        self.assertFalse(any(c.kwargs.get("timeout") == lib.ESC_SEQUENCE_TIMEOUT
+                             for c in read.call_args_list[2:]))
+
     def test_normal_key_still_redraws(self):
         _, _, _, renders = self.run_prompt(b"a\r")
         self.assertEqual(renders, 2)
@@ -845,7 +859,7 @@ class CleanupTests(PromptCase):
     ENTER = "\x1b[?1002h\x1b[?1006h"
     LEAVE = "\x1b[?1002l\x1b[?1006l\x1b[0 q"
 
-    def test_exit_drains_inflight_reports_before_restoring(self):
+    def test_exit_discards_queued_reports_without_waiting(self):
         from unittest.mock import Mock
         term = self.Term(b"\r")
         term.discard_input = Mock()
@@ -855,7 +869,7 @@ class CleanupTests(PromptCase):
         calls.attach_mock(term.restore, "restore")
         lib.Prompt(term, "P: ", "", "t").run()
         from unittest.mock import call
-        self.assertEqual(calls.mock_calls, [call.discard(0.08), call.restore()])
+        self.assertEqual(calls.mock_calls, [call.discard(), call.restore()])
 
     def test_success_cleans_up(self):
         term = self.Term(b"a\r")

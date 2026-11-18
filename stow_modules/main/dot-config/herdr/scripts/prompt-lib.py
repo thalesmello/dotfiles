@@ -232,16 +232,9 @@ class Terminal:
         attrs[6][termios.VTIME] = 0
         termios.tcsetattr(self.in_fd, termios.TCSADRAIN, attrs)
 
-    def discard_input(self, wait: float = 0.0) -> None:
-        """Drain in-flight CPR/mouse reports before handing the TTY back."""
+    def discard_input(self) -> None:
+        """Discard queued terminal reports without delaying popup shutdown."""
         self.pending.clear()
-        deadline = time.monotonic() + wait
-        while True:
-            ready, _, _ = select.select([self.in_fd], [], [], max(0.0, deadline - time.monotonic()))
-            if not ready or not os.read(self.in_fd, 65536):
-                break
-            if time.monotonic() >= deadline:
-                break
         termios.tcflush(self.in_fd, termios.TCIFLUSH)
 
     def restore(self) -> None:
@@ -1413,6 +1406,8 @@ class Prompt:
         cursor_col = min(cursor_col, cols - 1)
 
         self.render_version += 1
+        if self.render_size != (size.columns, size.lines):
+            self.screen_origin = None
         self.render_size = (size.columns, size.lines)
         self.visible_prompt_rows = len(visible)
         out: list[str] = ["\x1b[?25l\x1b[6 q"]
@@ -1442,7 +1437,9 @@ class Prompt:
         if cursor_col > 0:
             out.append(f"\x1b[{cursor_col}C")
         out.append("\x1b[?25h")
-        if self.cpr_pending is None and not self.final:
+        # Once calibrated, our relative redraws and scroll accounting keep the
+        # origin valid. Don't leave a new reply in flight after every keystroke.
+        if self.screen_origin is None and self.cpr_pending is None and not self.final:
             self.cpr_pending = (self.render_version, cursor_row)
             out.append("\x1b[6n")
         self.term.write("".join(out))
@@ -1497,7 +1494,7 @@ class Prompt:
                 self.term.write("\x1b[<u\x1b[?2004l\x1b[?1002l\x1b[?1006l\x1b[0 q")
             finally:
                 try:
-                    self.term.discard_input(0.08 if self.cpr_pending else 0.0)
+                    self.term.discard_input()
                 finally:
                     self.term.restore()
                     self.finish_render()
@@ -1521,7 +1518,7 @@ class _DoctestTerminal:
     def restore(self) -> None:
         pass
 
-    def discard_input(self, wait: float = 0.0) -> None:
+    def discard_input(self) -> None:
         self.pending.clear()
 
     def unread(self, data: Union[bytes, bytearray, list[int]]) -> None:
