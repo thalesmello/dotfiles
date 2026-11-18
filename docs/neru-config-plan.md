@@ -75,9 +75,10 @@ Tab behavior; Tab completion on Neru's colon line is replaced by this mapping.
 
 ### Grid modes
 
-**Right Shift: regular Grid (auto-click).** It opens with `--action left_click`,
-so the fine-tune subgrid keypress clicks immediately and exits; in continuous
-mode it reopens at the base layer. Three-character cell labels alternate hands:
+**Right Shift: regular Grid.** The fine-tune subgrid keypress only moves the
+selection; Space/Enter confirms the click (in continuous mode the grid resets
+to the base layer and stays open, so Space twice quickly is a double-click).
+Three-character cell labels alternate hands:
 left-hand region prefix, right-hand column, then left-hand row. Example: `QYQ`.
 Main labels use only letters (right-hand alphabet `yuiophjklnm`), excluding
 hard-to-read punctuation. The final 3×3 fine-adjustment subgrid uses right-hand

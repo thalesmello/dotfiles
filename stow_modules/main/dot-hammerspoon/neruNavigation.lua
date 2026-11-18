@@ -215,7 +215,6 @@ function M.setup(ctx)
     if state.busy then message("Navigation profile switch in progress"); return end
     if state.backend ~= "neru" then message("Select 'Navigation: Use Neru' in the palette first"); return end
     local actual = {table.unpack(args)}
-    if state.continuous and args[1] == "grid" then actual[#actual + 1] = "--repeat" end
     if state.continuous and args[1] == "hints" then
       for _, arg in ipairs(args) do
         if arg == "--action" then actual[#actual + 1] = "--repeat"; break end
@@ -245,7 +244,7 @@ function M.setup(ctx)
     else open() end
   end
   state.openRecursive = function() openLayout("recursive") end
-  state.openGrid = function() launch({"grid", "--cursor-selection-mode", "hold", "--action", "left_click", "--toggle"}) end
+  state.openGrid = function() launch({"grid", "--cursor-selection-mode", "hold", "--toggle"}) end
   state.rightShift = function()
     if gridModes[state.mode] then command({"idle"}) else state.openGrid() end
   end
