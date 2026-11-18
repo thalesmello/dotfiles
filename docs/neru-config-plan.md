@@ -31,7 +31,8 @@ dedicated command; use Left Shift for ordinary Cmd+Shift shortcuts.
 
 ### Click behavior
 
-In mouse modes, **Space or Enter clicks**, then leaves the mode by default.
+In mouse modes, **Space clicks and resets the grid (staying open)**; **Enter
+clicks and exits**. This is independent of the continuous-mode flag.
 Option+Space **or Option+Enter** right-clicks; Cmd+Space **or Cmd+Enter**
 middle-clicks. Ctrl+Space/Ctrl+Enter now start a held left-button drag in
 Grid, Recursive Grid, and Vim. Hints/Scroll/Bisect retain Ctrl-middle-click. Holding Option while completing a hint
