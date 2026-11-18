@@ -286,6 +286,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 				let lastRenderWidth = 80;
 				let visibleRowTargets: (MouseTarget | undefined)[] = [];
 				let pressedTarget: MouseTarget | undefined;
+				let pendingSingleChoice: MouseTarget | undefined;
 				let pressedLayoutTargets: (MouseTarget | undefined)[] | undefined;
 				let lastReleasePoint: { x?: number; y?: number } | undefined;
 				let isSubmitted = false;
@@ -659,6 +660,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 
 				function handleInput(data: string) {
 					if (isSubmitted) return;
+					pendingSingleChoice = undefined;
 					pressedTarget = undefined;
 					pressedLayoutTargets = undefined;
 					lastReleasePoint = undefined;
@@ -836,6 +838,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 				}
 
 				function previewMouseTarget(target: MouseTarget) {
+					if (!sameMouseTarget(pendingSingleChoice, target)) pendingSingleChoice = undefined;
 					clearCancelArmed();
 					if (inputMode) return;
 					if (target.kind === "option") {
@@ -862,6 +865,8 @@ export default function questionnaire(pi: ExtensionAPI) {
 				}
 
 				function activateMouseTarget(target: MouseTarget) {
+					const confirmSingleChoice = sameMouseTarget(pendingSingleChoice, target);
+					pendingSingleChoice = undefined;
 					if (target.kind === "scroll-up") {
 						if (scrollByWheel(-3).render) {
 							tui.requestRender();
@@ -957,9 +962,17 @@ export default function questionnaire(pi: ExtensionAPI) {
 						toggleMultipleOption(question, target.optionIndex);
 						return;
 					}
-					manualScroll = false;
 					saveSingleAnswer(question, opt.value, opt.label, false, target.optionIndex + 1);
-					advanceAfterAnswer();
+					if (confirmSingleChoice) {
+						manualScroll = false;
+						advanceAfterAnswer();
+					} else {
+						// Keep the selected response visible until a second completed
+						// click on the same option confirms it (not press + release).
+						pendingSingleChoice = target;
+						manualScroll = true;
+						refresh();
+					}
 				}
 
 				function handleMouse(event: QuestionnaireMouseEvent) {
@@ -967,6 +980,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 						return { handled: true, render: false };
 					}
 					if (event.type === "wheel") {
+						pendingSingleChoice = undefined;
 						pressedTarget = undefined;
 						pressedLayoutTargets = undefined;
 						lastReleasePoint = undefined;
@@ -985,6 +999,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 						pressedTarget = target;
 						pressedLayoutTargets = target ? [...visibleRowTargets] : undefined;
 						if (!target) {
+							pendingSingleChoice = undefined;
 							return undefined;
 						}
 						previewMouseTarget(target);
@@ -1007,6 +1022,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 							return { handled: true, render: true };
 						}
 						lastReleasePoint = undefined;
+						pendingSingleChoice = undefined;
 						return { handled: true, render: false };
 					}
 					if (event.type === "click") {
@@ -1026,6 +1042,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 						pressedTarget = undefined;
 						pressedLayoutTargets = undefined;
 						if (!target) {
+							pendingSingleChoice = undefined;
 							return undefined;
 						}
 						activateMouseTarget(target);
@@ -1210,6 +1227,8 @@ export default function questionnaire(pi: ExtensionAPI) {
 						addWrappedWithPrefix(" ", theme.fg("dim", "Type inline • Enter/Tab accept text • Esc cancel input"));
 					} else if (cancelArmed) {
 						addWrappedWithPrefix(" ", theme.fg("warning", "Press Esc again to cancel questionnaire"));
+					} else if (pendingSingleChoice) {
+						addWrappedWithPrefix(" ", theme.fg("dim", "Click the same answer again or press Enter to confirm • Esc then Esc cancel"));
 					} else {
 						const activeQuestion = currentQuestion();
 						const help = activeQuestion?.multiple

@@ -646,7 +646,7 @@ describe("questionnaire multiple-choice inline context", () => {
 		expect(result.details.cancelled).toBe(true);
 	});
 
-	test("mouse clicking an option (or its description) selects and submits a single-select question", async () => {
+	test("single-select answers require a second click, including description lines and press/release/click events", async () => {
 		const optionsWithDescriptions = [
 			{ value: "alpha", label: "Alpha", description: "First description" },
 			{ value: "beta", label: "Beta", description: "Second description" },
@@ -677,9 +677,21 @@ describe("questionnaire multiple-choice inline context", () => {
 		const clickResult = harness.mouse({ type: "click", button: "left", x: 6, y: betaDescriptionRow });
 		expect(clickResult).toEqual({
 			handled: true,
-			render: false,
+			render: true,
 		});
 		expect((clickResult as any)?.focus).toBeUndefined();
+		expect(harness.getSubmitted()).toBeUndefined();
+		const selectedLines = harness.render(80).map(stripTestStyleTags);
+		expect(selectedLines.some((line) => line.includes("● 2. Beta"))).toBe(true);
+		expect(selectedLines.some((line) => line.includes("Click the same answer again"))).toBe(true);
+
+		// A second physical click confirms; its trailing synthetic click is ignored.
+		harness.mouse({ type: "press", button: "left", x: 6, y: betaDescriptionRow });
+		const secondRelease = harness.mouse({ type: "release", button: "left", x: 6, y: betaDescriptionRow });
+		expect(secondRelease).toEqual({ handled: true, render: true });
+		expect((secondRelease as any)?.focus).toBeUndefined();
+		expect(harness.mouse({ type: "click", button: "left", x: 6, y: betaDescriptionRow }))
+			.toEqual({ handled: true, render: false });
 
 		const result = await harness.resultPromise;
 		expect(result.details.cancelled).toBe(false);
@@ -759,11 +771,15 @@ describe("questionnaire multiple-choice inline context", () => {
 		const lintRow = lines.findIndex((line) => line.includes("[ ] Lint"));
 		const submitRow = lines.findIndex((line) => line.includes("✓ Submit answers"));
 
-		// Click Global on Q1 -> Q1 answered, advances focus to Q2 without submitting yet.
+		// First click saves Global but keeps focus on Q1 until confirmed.
 		harness.mouse({ type: "click", button: "left", x: 4, y: globalRow });
 		expect(harness.getSubmitted()).toBeUndefined();
 		lines = harness.render(80).map(stripTestStyleTags);
 		expect(lines.some((line) => line.includes("Scope: Which scope? ✓"))).toBe(true);
+		expect(lines.some((line) => line.includes("> ● 2. Global"))).toBe(true);
+		harness.mouse({ type: "click", button: "left", x: 4, y: globalRow });
+		lines = harness.render(80).map(stripTestStyleTags);
+		expect(lines.some((line) => line.includes("> [ ] Unit"))).toBe(true);
 
 		// Click Unit and Lint on Q2.
 		harness.mouse({ type: "click", button: "left", x: 4, y: unitRow });
@@ -793,6 +809,8 @@ describe("questionnaire multiple-choice inline context", () => {
 
 		// Clicking Option A while custom input is still empty cancels input mode and selects Option A.
 		harness.mouse({ type: "click", button: "left", x: 4, y: rowA });
+		expect(harness.getSubmitted()).toBeUndefined();
+		harness.mouse({ type: "click", button: "left", x: 4, y: rowA });
 		const result = await harness.resultPromise;
 		expect(result.details.cancelled).toBe(false);
 		expect(result.details.answers[0].value).toBe("a");
@@ -815,9 +833,56 @@ describe("questionnaire multiple-choice inline context", () => {
 		expect(option8Row).toBeGreaterThan(0);
 
 		harness.mouse({ type: "click", button: "left", x: 4, y: option8Row });
+		expect(harness.getSubmitted()).toBeUndefined();
+		const selectedLines = harness.render(80).map(stripTestStyleTags);
+		expect(selectedLines[option8Row]).toContain("● 8. Option 8");
+		harness.mouse({ type: "click", button: "left", x: 4, y: option8Row });
 		const result = await harness.resultPromise;
 		expect(result.details.cancelled).toBe(false);
 		expect(result.details.answers[0].value).toBe("opt_8");
+	});
+
+	test("clicking a different answer selects it without confirming, even for the default highlighted option", async () => {
+		const harness = createHarness([{ id: "q1", prompt: "Pick", options }]);
+		const lines = harness.render(80).map(stripTestStyleTags);
+		const rowA = lines.findIndex((line) => line.includes("1. A"));
+		const rowB = lines.findIndex((line) => line.includes("2. B"));
+		for (const row of [rowA, rowB, rowA]) {
+			harness.mouse({ type: "click", button: "left", x: 4, y: row });
+			expect(harness.getSubmitted()).toBeUndefined();
+		}
+		harness.mouse({ type: "click", button: "left", x: 4, y: rowA });
+		const result = await harness.resultPromise;
+		expect(result.details.answers[0].value).toBe("a");
+	});
+
+	test("Enter can still confirm after the first mouse click", async () => {
+		const harness = createHarness([{ id: "q1", prompt: "Pick", options }]);
+		const rowB = harness.render(80).map(stripTestStyleTags).findIndex((line) => line.includes("2. B"));
+		harness.mouse({ type: "click", button: "left", x: 4, y: rowB });
+		expect(harness.getSubmitted()).toBeUndefined();
+		harness.input("enter");
+		const result = await harness.resultPromise;
+		expect(result.details.answers[0].value).toBe("b");
+	});
+
+	test("keyboard navigation or scrolling clears mouse confirmation", async () => {
+		for (const interrupt of ["keyboard", "wheel"]) {
+			const harness = createHarness([{ id: "q1", prompt: "Pick", options }]);
+			const rowA = harness.render(80).map(stripTestStyleTags).findIndex((line) => line.includes("1. A"));
+			harness.mouse({ type: "click", button: "left", x: 4, y: rowA });
+			if (interrupt === "keyboard") {
+				harness.input("down");
+				harness.input("up");
+			} else {
+				harness.mouse({ type: "wheel", wheelDelta: 1 });
+			}
+			harness.mouse({ type: "click", button: "left", x: 4, y: rowA });
+			expect(harness.getSubmitted()).toBeUndefined();
+			harness.mouse({ type: "click", button: "left", x: 4, y: rowA });
+			const result = await harness.resultPromise;
+			expect(result.details.answers[0].value).toBe("a");
+		}
 	});
 
 	test("pressing on one option and releasing on a different option cancels the click", async () => {
