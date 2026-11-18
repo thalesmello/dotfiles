@@ -172,7 +172,13 @@ function M.setup(ctx)
   local function cancelOpacityRedraw()
     state.opacityGeneration = (state.opacityGeneration or 0) + 1
     if state.opacityTimer then state.opacityTimer:stop(); state.opacityTimer = nil end
-    state.opacityReloading = nil
+  end
+
+  local function applyLiveOpacity()
+    local level = math.min(0.95, math.max(0.05, hs.settings.get("neruNavigation.gridOpacity") or 0.50))
+    command({"set-grid-opacity", "--value", string.format("%.4f", level)}, function(ok)
+      if not ok then message("Live opacity needs the local Neru build") end
+    end)
   end
 
   local function stopWatch()
@@ -215,14 +221,10 @@ function M.setup(ctx)
       state.mode = "idle"
       cancelScrollIdle()
       syncKarabinerGrid()
-      if state.opacityReloading and not state.opacityReloading.exited then
-        state.opacityReloading.exited = true -- expected exit from our own reload
-      else
-        cancelOpacityRedraw()
-        if state.opacityPending then
-          state.opacityPending = false
-          command({"config", "reload"}) -- user closed before debounce: load without reopening
-        end
+      cancelOpacityRedraw()
+      if state.opacityPending then
+        state.opacityPending = false
+        applyLiveOpacity() -- safe even in idle; no reload or reopen
       end
       resetDrag()
     end
@@ -396,15 +398,8 @@ function M.setup(ctx)
     local level = math.min(0.95, math.max(0.05, hs.settings.get("neruNavigation.gridOpacity") or 0.50))
     return string.format("%02X", math.floor(level * 255 + 0.5))
   end
-  local function reopenGrid(mode)
-    -- Never --toggle here: if the reload's mode exit has not landed yet, a
-    -- toggle would close the grid we are trying to bring back.
-    if mode == "recursive_grid" then launch({"recursive_grid", "--cursor-selection-mode", "hold"})
-    else launch({"grid", "--cursor-selection-mode", "hold"}) end
-  end
-
-  -- Write each adjustment now, but reload/reopen only after a 400ms pause
-  -- in -/= presses. A burst redraws once, never toggles the grid closed.
+  -- Persist each adjustment, then update native fill alpha after a 400ms
+  -- pause in -/= presses. No mode reset, window recreation or config reload.
   state.adjustOpacity = function(delta)
     if state.closed or state.busy or state.backend ~= "neru" or not gridModes[state.mode] then return end
     local level = hs.settings.get("neruNavigation.gridOpacity") or 0.50
@@ -423,18 +418,7 @@ function M.setup(ctx)
         generation ~= state.opacityGeneration or state.mode ~= mode then return end
       state.opacityTimer = nil
       state.opacityPending = false
-      local request = {mode = mode}
-      state.opacityReloading = request
-      command({"config", "reload"}, function(reloaded)
-        if state.opacityReloading ~= request then return end
-        state.opacityReloading = nil
-        if not reloaded then
-          message("Opacity reload failed; previous configuration kept")
-        elseif not request.cancelled and not state.busy and state.backend == "neru" and
-          (state.mode == "idle" or state.mode == mode) then
-          reopenGrid(mode)
-        end
-      end)
+      applyLiveOpacity()
     end)
   end
 
@@ -731,8 +715,6 @@ function M.setup(ctx)
     if event:getType() == eventTypes.keyDown then
       if state.mode == "scroll" then armScrollIdle() end -- any keystroke is activity
       local code = event:getKeyCode()
-      if state.opacityReloading and (code == 53 or code == 106 or code == 36) then
-        state.opacityReloading.cancelled = true -- Escape/F16/Enter must not reopen after reload
       end
       if state.consumedDropKeys[code] then return true end
       if (code == 49 or code == 36) and next(state.consumedDropKeys) then
@@ -802,7 +784,7 @@ function M.setup(ctx)
   -- (reload/crash mid-flash): if the file's fill differs from the tuned
   -- level, it is a stale flash value; restore it and resync the daemon.
   local _, restored = writeFillAlpha(baseAlpha())
-  if restored and state.backend == "neru" then command({"config", "reload"}) end
+  if restored and state.backend == "neru" then applyLiveOpacity() end
   if state.backend == "neru" then startWatch(); CapsHyper.rearm() end
   return state
 end
