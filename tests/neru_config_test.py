@@ -67,6 +67,12 @@ class NeruConfigTest(unittest.TestCase):
         for mode in ("grid", "recursive_grid"):
             self.assertEqual(self.config[mode]["hotkeys"]["F16"], "idle")
 
+    def test_opacity_keys_are_bound_in_both_grids(self):
+        for mode in ("grid", "recursive_grid"):
+            self.assertEqual(self.config[mode]["hotkeys"]["-"], "macro opacity_down")
+            self.assertEqual(self.config[mode]["hotkeys"]["="], "macro opacity_up")
+        self.assertIn("adjustOpacity", self.config["macros"]["opacity_down"])
+
     def test_recursive_escape_backtracks_and_shift_escape_exits(self):
         keys = self.config["recursive_grid"]["hotkeys"]
         self.assertEqual(keys["Escape"], "action reset")
@@ -76,18 +82,22 @@ class NeruConfigTest(unittest.TestCase):
     def test_click_confirmation_and_continuous_decision(self):
         for mode in ("hints", "recursive_grid", "grid", "scroll", "bisect"):
             keys = self.config[mode]["hotkeys"]
-            self.assertEqual(keys["Space"], "macro confirm_left")
+            self.assertEqual(keys["Space"], "macro confirm_left_stay")
             self.assertEqual(keys["Enter"], "macro confirm_left")
+            self.assertEqual(keys["Alt+Space"], "macro confirm_right_stay")
+            self.assertEqual(keys["Alt+Enter"], "macro confirm_right")
+            self.assertEqual(keys["Cmd+Space"], "macro confirm_middle_stay")
+            self.assertEqual(keys["Cmd+Enter"], "macro confirm_middle")
             for suffix in ("Space", "Enter"):
-                self.assertEqual(keys["Alt+" + suffix], "macro confirm_right")
                 ctrl = "macro start_hold" if mode in ("grid", "recursive_grid") else "macro confirm_middle"
                 self.assertEqual(keys["Ctrl+" + suffix], ctrl)
-                self.assertEqual(keys["Cmd+" + suffix], "macro confirm_middle")
             expected_drag = "macro toggle_drag" if mode in ("recursive_grid", "grid") else "action left_click --toggle"
             self.assertEqual(keys["Ctrl+Alt+Enter"], expected_drag)
         for button in ("left", "right", "middle"):
             self.assertEqual(self.config["macros"]["confirm_" + button],
-                             [f"action {button}_click --bail-on-error", "macro after_click"])
+                             [f"action {button}_click --bail-on-error", "macro after_click_exit"])
+            self.assertEqual(self.config["macros"]["confirm_" + button + "_stay"],
+                             [f"action {button}_click --bail-on-error", "macro after_click_stay"])
         self.assertIn("neruNavigation", self.config["macros"]["after_click"])
         self.assertNotIn("--action", self.config["macros"]["open_recursive"])
 
@@ -146,9 +156,9 @@ class NeruConfigTest(unittest.TestCase):
 
     def test_shift_mouse_chords_move_without_clicking(self):
         for mode in ("hints", "recursive_grid", "grid", "scroll", "bisect"):
-            expected = "macro confirm_move_bare" if mode in ("hints", "scroll") else "macro confirm_move"
-            for suffix in ("Space", "Enter"):
-                self.assertEqual(self.config[mode]["hotkeys"]["Shift+" + suffix], expected)
+            base = "confirm_move_bare" if mode in ("hints", "scroll") else "confirm_move"
+            self.assertEqual(self.config[mode]["hotkeys"]["Shift+Space"], "macro " + base)
+            self.assertEqual(self.config[mode]["hotkeys"]["Shift+Enter"], "macro " + base + "_exit")
         self.assertIn("moveOnly", self.config["macros"]["confirm_move"])
         self.assertEqual(self.config["vim"]["hotkeys"]["Shift+Space"], "action feed --mode g h")
         self.assertEqual(self.config["vim"]["hotkeys"]["Shift+Enter"], ["action feed --mode g h", "idle"])
@@ -218,7 +228,8 @@ class NeruConfigTest(unittest.TestCase):
             self.assertIsNotNone(match)
             return argb([line.strip().removeprefix("- ") for line in match[1].splitlines()])
         recursive = self.config["recursive_grid"]["ui"]
-        self.assertEqual(recursive["highlight_color"], "#80180C10")
+        self.assertTrue(recursive["highlight_color"].endswith("180C10"))
+        self.assertEqual(recursive["line_color"][:3], recursive["highlight_color"][:3])
         self.assertEqual(recursive["text_color"], color("text_rgba"))
         self.assertEqual(recursive["line_color"], recursive["highlight_color"][:3] + color("highlight_rgba")[3:])
         self.assertEqual(recursive["line_width"], 2)

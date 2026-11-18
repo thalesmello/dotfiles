@@ -192,6 +192,10 @@ function M.setup(ctx)
       state.mode = "idle"
       cancelScrollIdle()
       resetDrag()
+      if state.opacityPending then
+        state.opacityPending = false
+        command({"config", "reload"}) -- grid already closed: no rerender
+      end
     end
   end
 
@@ -273,9 +277,16 @@ function M.setup(ctx)
 
   -- The actual click runs in Neru first. This callback only decides whether
   -- to leave its overlay up; it never schedules a delayed mouse-down.
-  state.afterClick = function()
+  -- Space-family keys pass "stay"; Enter-family keys pass "exit". With no
+  -- argument (drop cleanup), the continuous-mode preference decides.
+  state.afterClick = function(how)
     if state.closed or state.busy or state.mode == "vim" or state.mode == "monitor_select" then return end
-    if not state.continuous then
+    if how == "exit" then
+      command({"idle"})
+    elseif how == "stay" then
+      if gridModes[state.mode] then command({"run", "action reset"})
+      elseif state.mode == "hints" then command({"action", "refresh_hints"}) end
+    elseif not state.continuous then
       command({"idle"})
     elseif gridModes[state.mode] then
       command({"run", "action reset"})
@@ -298,10 +309,53 @@ function M.setup(ctx)
     end
   end
 
-  state.moveOnly = function()
+  -- Grid opacity tuning (-/= keys): edit the fill alphas, reload once, and
+  -- reopen the same grid (a config reload always exits the open mode).
+  state.adjustOpacity = function(delta)
+    if state.closed or state.busy or not gridModes[state.mode] then return end
+    local level = hs.settings.get("neruNavigation.gridOpacity") or 0.50
+    level = math.min(0.95, math.max(0.05, level + delta))
+    hs.settings.set("neruNavigation.gridOpacity", level)
+    local alpha = string.format("%02X", math.floor(level * 255 + 0.5))
+    local path = os.getenv("HOME") .. "/.config/neru/config.toml"
+    local f = io.open(path, "r")
+    if not f then message("Could not read Neru config for opacity"); return end
+    local text = f:read("*a"); f:close()
+    -- Scope edits to the two grid UI sections: other modes reuse #B87671.
+    local function editSection(body, header, fn)
+      local start = body:find(header, 1, true)
+      if not start then return nil end
+      local finish = body:find("\n[", start + 1, true) or (#body + 1)
+      return body:sub(1, start - 1) .. fn(body:sub(start, finish - 1)) .. body:sub(finish)
+    end
+    local updated = editSection(text, "[recursive_grid.ui]", function(sec)
+      return sec:gsub('(highlight_color = "#)%x%x(180C10")', '%1' .. alpha .. '%2')
+        :gsub('(line_color = "#)%x%x(B87671")', '%1' .. alpha .. '%2')
+    end)
+    if updated then
+      updated = editSection(updated, "[grid.ui]", function(sec)
+        return sec:gsub('(background_color = "#)%x%x(180C10")', '%1' .. alpha .. '%2')
+          :gsub('(matched_background_color = "#)%x%x(180C10")', '%1' .. alpha .. '%2')
+      end)
+    end
+    if updated == text then message("Grid colors not found in Neru config"); return end
+    local tmp = path .. ".opacity.tmp"
+    local out = io.open(tmp, "w")
+    if not out then message("Could not write Neru config for opacity"); return end
+    out:write(updated); out:close()
+    if not os.rename(tmp, path) then os.remove(tmp); message("Could not save grid opacity"); return end
+    if state.configWatcher then state.configWatcher.markCurrent() end
+    -- Do NOT reload here: a reload exits the open grid and forces a rerender.
+    -- The new level is applied by a reload when the grid closes (mode_exit).
+    state.opacityPending = true
+    message("Grid opacity " .. math.floor(level * 100 + 0.5) .. "% (applies on next open)")
+  end
+
+  state.moveOnly = function(exitAfter)
     if state.closed or state.busy then return end
     commitCursor(function(ok)
-      if ok then state.afterClick() else message("Could not move the cursor") end
+      if ok then state.afterClick(exitAfter and "exit" or "stay")
+      else message("Could not move the cursor") end
     end)
   end
 
@@ -655,10 +709,6 @@ function M.setup(ctx)
 end
 
 -- Called by mode-local Neru macros through the existing authenticated hs CLI.
-function M.afterClick()
-  if instance and not instance.closed then instance.afterClick() end
-end
-
 function M.openRecursive()
   if instance and not instance.closed then instance.openRecursive() end
 end
@@ -667,12 +717,20 @@ function M.openGrid()
   if instance and not instance.closed then instance.openGrid() end
 end
 
-function M.moveOnly()
-  if instance and not instance.closed then instance.moveOnly() end
+function M.moveOnly(exitAfter)
+  if instance and not instance.closed then instance.moveOnly(exitAfter) end
+end
+
+function M.afterClick(how)
+  if instance and not instance.closed then instance.afterClick(how) end
 end
 
 function M.toggleContinuous()
   if instance and not instance.closed then instance.toggleContinuous() end
+end
+
+function M.adjustOpacity(delta)
+  if instance and not instance.closed then instance.adjustOpacity(delta) end
 end
 
 function M.startHold()

@@ -30,11 +30,21 @@ text = "#FEFEFE"
 # Neru performs the click. Hammerspoon only closes the mode when continuous
 # clicks are off. Keeping this decision there avoids rewriting hotkeys.
 after_click = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').afterClick()\""
-confirm_left = ["action left_click --bail-on-error", "macro after_click"]
-confirm_right = ["action right_click --bail-on-error", "macro after_click"]
-confirm_middle = ["action middle_click --bail-on-error", "macro after_click"]
+after_click_stay = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').afterClick('stay')\""
+after_click_exit = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').afterClick('exit')\""
+# Enter-family clicks exit the mode; Space-family clicks reset and stay.
+confirm_left = ["action left_click --bail-on-error", "macro after_click_exit"]
+confirm_left_stay = ["action left_click --bail-on-error", "macro after_click_stay"]
+confirm_right = ["action right_click --bail-on-error", "macro after_click_exit"]
+confirm_right_stay = ["action right_click --bail-on-error", "macro after_click_stay"]
+confirm_middle = ["action middle_click --bail-on-error", "macro after_click_exit"]
+confirm_middle_stay = ["action middle_click --bail-on-error", "macro after_click_stay"]
 confirm_move = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').moveOnly()\""
-confirm_move_bare = ["action move_mouse --bare --bail-on-error", "macro after_click"]
+confirm_move_exit = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').moveOnly(true)\""
+confirm_move_bare = ["action move_mouse --bare --bail-on-error", "macro after_click_stay"]
+confirm_move_bare_exit = ["action move_mouse --bare --bail-on-error", "macro after_click_exit"]
+opacity_down = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').adjustOpacity(-0.05)\""
+opacity_up = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').adjustOpacity(0.05)\""
 open_recursive = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').openRecursive()\""
 open_grid = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').openGrid()\""
 # Commit the virtual selection before pressing OR releasing a drag button.
@@ -70,17 +80,17 @@ font_size = 12
 # there and leaves Hints; reopen Hints on that display's focused window.
 "Tab" = ["action move_monitor --bail-on-error", "idle"]
 "Shift+Tab" = ["action move_monitor --previous --bail-on-error", "idle"]
-"Space" = "macro confirm_left"
+"Space" = "macro confirm_left_stay"
 "Enter" = "macro confirm_left"
 "Shift+Space" = "macro confirm_move_bare"
-"Shift+Enter" = "macro confirm_move_bare"
+"Shift+Enter" = "macro confirm_move_bare_exit"
 "Shift+L" = "__disabled__"
 "/" = "action search_hints --confirm-on-label"
-"Alt+Space" = "macro confirm_right"
+"Alt+Space" = "macro confirm_right_stay"
 "Alt+Enter" = "macro confirm_right"
 "Ctrl+Space" = "macro confirm_middle"
 "Ctrl+Enter" = "macro confirm_middle"
-"Cmd+Space" = "macro confirm_middle"
+"Cmd+Space" = "macro confirm_middle_stay"
 "Cmd+Enter" = "macro confirm_middle"
 "Ctrl+Alt+Enter" = "action left_click --toggle"
 
@@ -136,21 +146,23 @@ label_background_border_width = 0
 
 [recursive_grid.hotkeys]
 "F16" = "idle"
+"-" = "macro opacity_down"
+"=" = "macro opacity_up"
 "Cmd+F16" = "macro toggle_continuous"
 "Escape" = "action reset"
 "Shift+Escape" = "idle"
 # Aim with a virtual selection. Dragging temporarily enables real-pointer follow.
 "`" = "__disabled__"
 # Aim without clicking, then confirm. Hyper+Shift+/ toggles continuous clicks.
-"Space" = "macro confirm_left"
+"Space" = "macro confirm_left_stay"
 "Enter" = "macro confirm_left"
 "Shift+Space" = "macro confirm_move"
-"Shift+Enter" = "macro confirm_move"
-"Alt+Space" = "macro confirm_right"
+"Shift+Enter" = "macro confirm_move_exit"
+"Alt+Space" = "macro confirm_right_stay"
 "Alt+Enter" = "macro confirm_right"
 "Ctrl+Space" = "macro start_hold"
 "Ctrl+Enter" = "macro start_hold"
-"Cmd+Space" = "macro confirm_middle"
+"Cmd+Space" = "macro confirm_middle_stay"
 "Cmd+Enter" = "macro confirm_middle"
 "Ctrl+Backspace" = "action reset"
 "Alt+Backspace" = "action backspace"
@@ -237,18 +249,20 @@ max_label_length = 3
 
 [grid.hotkeys]
 "F16" = "idle"
+"-" = "macro opacity_down"
+"=" = "macro opacity_up"
 "Escape" = "action reset"
 "Cmd+F16" = "macro toggle_continuous"
 "`" = "__disabled__"
-"Space" = "macro confirm_left"
+"Space" = "macro confirm_left_stay"
 "Enter" = "macro confirm_left"
 "Shift+Space" = "macro confirm_move"
-"Shift+Enter" = "macro confirm_move"
-"Alt+Space" = "macro confirm_right"
+"Shift+Enter" = "macro confirm_move_exit"
+"Alt+Space" = "macro confirm_right_stay"
 "Alt+Enter" = "macro confirm_right"
 "Ctrl+Space" = "macro start_hold"
 "Ctrl+Enter" = "macro start_hold"
-"Cmd+Space" = "macro confirm_middle"
+"Cmd+Space" = "macro confirm_middle_stay"
 "Cmd+Enter" = "macro confirm_middle"
 "Ctrl+Alt+Enter" = "macro toggle_drag"
 "Ctrl+Backspace" = "action reset"
@@ -316,15 +330,15 @@ scroll_step_half = 200
 "Cmd+F16" = "macro toggle_continuous"
 "Cmd+Ctrl+Alt+d" = "action page_down"
 "Cmd+Ctrl+Alt+u" = "action page_up"
-"Space" = "macro confirm_left"
+"Space" = "macro confirm_left_stay"
 "Enter" = "macro confirm_left"
 "Shift+Space" = "macro confirm_move_bare"
-"Shift+Enter" = "macro confirm_move_bare"
-"Alt+Space" = "macro confirm_right"
+"Shift+Enter" = "macro confirm_move_bare_exit"
+"Alt+Space" = "macro confirm_right_stay"
 "Alt+Enter" = "macro confirm_right"
 "Ctrl+Space" = "macro confirm_middle"
 "Ctrl+Enter" = "macro confirm_middle"
-"Cmd+Space" = "macro confirm_middle"
+"Cmd+Space" = "macro confirm_middle_stay"
 "Cmd+Enter" = "macro confirm_middle"
 "Ctrl+Alt+Enter" = "action left_click --toggle"
 "g" = "action go_top"
@@ -403,15 +417,15 @@ label_background_color = "#D9000000"
 [bisect.hotkeys]
 "F16" = "macro open_grid"
 "Cmd+F16" = "macro toggle_continuous"
-"Space" = "macro confirm_left"
+"Space" = "macro confirm_left_stay"
 "Enter" = "macro confirm_left"
 "Shift+Space" = "macro confirm_move"
-"Shift+Enter" = "macro confirm_move"
-"Alt+Space" = "macro confirm_right"
+"Shift+Enter" = "macro confirm_move_exit"
+"Alt+Space" = "macro confirm_right_stay"
 "Alt+Enter" = "macro confirm_right"
 "Ctrl+Space" = "macro confirm_middle"
 "Ctrl+Enter" = "macro confirm_middle"
-"Cmd+Space" = "macro confirm_middle"
+"Cmd+Space" = "macro confirm_middle_stay"
 "Cmd+Enter" = "macro confirm_middle"
 "Ctrl+Alt+Enter" = "action left_click --toggle"
 
