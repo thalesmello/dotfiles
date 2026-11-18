@@ -73,9 +73,10 @@ class NeruConfigTest(unittest.TestCase):
             self.assertEqual(self.config[mode]["hotkeys"]["="], "macro opacity_up")
         self.assertIn("adjustOpacity", self.config["macros"]["opacity_down"])
 
-    def test_recursive_escape_backtracks_and_shift_escape_exits(self):
+    def test_physical_escape_quits_both_grids(self):
+        for mode in ("recursive_grid", "grid"):
+            self.assertEqual(self.config[mode]["hotkeys"]["Escape"], "idle")
         keys = self.config["recursive_grid"]["hotkeys"]
-        self.assertEqual(keys["Escape"], "action reset")
         self.assertEqual(keys["Shift+Escape"], "idle")
         self.assertEqual(keys["F16"], "idle")
 

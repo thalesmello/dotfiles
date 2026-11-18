@@ -93,7 +93,8 @@ local function fixture(backend, store, mouseless)
     e.configReload = reload
     return {markCurrent = function() e.layoutMarked = true end, stop = function() e.configWatcherStopped = true end}
   end}
-  package.loaded.caps_hyper = {rearm = function() e.rearms = e.rearms + 1 end, isHeld = function() return e.hyperHeld end}
+  package.loaded.caps_hyper = {rearm = function() e.rearms = e.rearms + 1 end, isHeld = function() return e.hyperHeld end,
+    onTap = function(fn) e.capsTapFn = fn; return function() e.capsTapFn = nil end end}
   package.loaded.palette = {
     registerBinding = function(name, fn) e.bindings[name] = fn end,
     registerDynamicBinding = function(id, fn) e.dynamic[id] = fn end,
@@ -526,6 +527,19 @@ end)
 test("mode exit without opacity tuning sends no reload", function()
   local e = fixture("neru"); e:emit(NATIVE); e:emit(EXIT)
   e:noPending(); e:noOpens()
+end)
+test("Caps tap resets an open grid but not other modes", function()
+  local e = fixture("neru"); e:emit(NATIVE)
+  eq(e.capsTapFn(false), true)
+  e:reply({"neru", "run", "action reset"}, true)
+  local hints = fixture("neru"); hints:emit(HINTS)
+  eq(hints.capsTapFn(false), false); hints:noPending()
+end)
+test("Shift+Caps quits any Neru mode, but not idle/Mouseless", function()
+  local e = fixture("neru"); e:emit(HINTS)
+  eq(e.capsTapFn(true), true); e:reply({"neru", "idle"}, true)
+  local idle = fixture("neru"); eq(idle.capsTapFn(true), false); idle:noPending()
+  local fallback = fixture(); eq(fallback.capsTapFn(true), false); fallback:noPending()
 end)
 test("Right Shift exits either grid rather than switching layouts", function()
   for _,mode in ipairs({GRID,NATIVE}) do

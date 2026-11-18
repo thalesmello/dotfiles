@@ -70,6 +70,24 @@ local function fixture(setup)
   return e
 end
 
+test("onTap listener can suppress the synthetic Escape and sees Shift", function()
+  local e = fixture()
+  local seen
+  e.module.onTap(function(shift) seen = shift; return true end)
+  e:down(); e.now = 100.05; e:up()
+  eq(seen, false); eq(#e.strokes, 0, "handled tap sends no Escape")
+  e:send("keyDown", hs.keycodes.map.f19, {shift = true}); e.now = 100.09; e:up()
+  eq(seen, true); eq(#e.strokes, 0)
+end)
+
+test("onTap returning false keeps Escape; unregister restores it", function()
+  local e = fixture()
+  local off = e.module.onTap(function() return false end)
+  e:down(); e.now = 100.05; e:up(); eq(#e.strokes, 1)
+  off(); e.module.onTap(function() return true end)
+  e:down(); e.now = 100.09; e:up(); eq(#e.strokes, 1)
+end)
+
 test("rearm before setup is inert", function()
   local e = fixture(false)
   e.module.rearm()

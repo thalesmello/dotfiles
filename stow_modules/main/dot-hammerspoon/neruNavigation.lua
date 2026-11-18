@@ -276,6 +276,20 @@ function M.setup(ctx)
   end
   state.openRecursive = function() openLayout("recursive") end
   state.openGrid = function() launch({"grid", "--cursor-selection-mode", "hold", "--toggle"}) end
+
+  -- Caps arrives as F19 (see caps_hyper), distinct from physical Escape (53):
+  -- Shift+Caps quits any mode; a plain Caps tap resets an open grid. Returning
+  -- true suppresses caps_hyper's synthetic Escape for these cases.
+  state.capsTap = function(shift)
+    if state.closed or state.busy or state.backend ~= "neru" then return false end
+    if shift then
+      if state.mode ~= "idle" then command({"idle"}); return true end
+      return false
+    end
+    if gridModes[state.mode] then command({"run", "action reset"}); return true end
+    return false
+  end
+  state.unregisterCapsTap = CapsHyper.onTap(state.capsTap)
   state.rightShift = function()
     if gridModes[state.mode] then command({"idle"}) else state.openGrid() end
   end
@@ -744,6 +758,7 @@ function M.setup(ctx)
     if state.backend == "neru" then shell.task({"neru", "idle"}) end
     for _, handle in ipairs(state.handles) do handle:delete() end
     stopWatch()
+    if state.unregisterCapsTap then state.unregisterCapsTap() end
     if state.configWatcher then state.configWatcher.stop() end
     if state.probe then state.probe:terminate(); state.probe = nil end
     if state.exitProbe then state.exitProbe:terminate(); state.exitProbe = nil end

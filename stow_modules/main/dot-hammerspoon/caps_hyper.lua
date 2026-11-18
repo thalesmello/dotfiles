@@ -45,6 +45,7 @@ local F19_HID = 0x70000006E
 
 local held = false
 local releaseListeners = {}
+local tapListeners = {}
 
 -- Keycode of the last key pressed (the hyper key itself excluded). Lets a
 -- hyper-held HUD tell "another step in the same rotation" from "a different
@@ -60,6 +61,26 @@ function M.lastKeyCode() return lastKeyCode end
 function M.onRelease(fn)
   releaseListeners[fn] = true
   return function() releaseListeners[fn] = nil end
+end
+
+-- Run `fn(shiftHeld)` on a standalone Caps tap (quick release, unused as
+-- Hyper). If any listener returns true, the synthetic Escape is suppressed.
+-- Returns a function that unregisters the listener.
+function M.onTap(fn)
+  tapListeners[fn] = true
+  return function() tapListeners[fn] = nil end
+end
+
+local function notifyTap(shiftHeld)
+  local listeners = {}
+  for fn in pairs(tapListeners) do listeners[#listeners + 1] = fn end
+  local handled = false
+  for _, fn in ipairs(listeners) do
+    local ok, result = pcall(fn, shiftHeld)
+    if not ok then util.log("caps_hyper: tap listener failed:", result)
+    elseif result then handled = true end
+  end
+  return handled
 end
 
 -- Snapshot before calling: a listener typically unregisters itself (the HUD
@@ -133,6 +154,7 @@ local function enable(threshold)
   -- `held` is the module-level state above, so onRelease/isHeld observers see it.
   local used = false
   local downAt = 0
+  local downShift = false
 
   local types = hs.eventtap.event.types
   tapHandler = function(event)
@@ -145,13 +167,17 @@ local function enable(threshold)
           held = true
           used = false
           downAt = hs.timer.secondsSinceEpoch()
+          downShift = event:getFlags().shift or false
         end
       else -- keyUp
         held = false
         notifyRelease()
         if not used and (hs.timer.secondsSinceEpoch() - downAt) < threshold then
-          hs.eventtap.keyStroke({}, "escape", 0)
+          if not notifyTap(downShift) then
+            hs.eventtap.keyStroke({}, "escape", 0)
+          end
         end
+        downShift = false
       end
       return true -- F19 itself never reaches apps
     end
