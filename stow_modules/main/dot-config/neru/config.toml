@@ -137,7 +137,7 @@ label_background_border_width = 0
 [recursive_grid.hotkeys]
 "F16" = "idle"
 "Cmd+F16" = "macro toggle_continuous"
-"Escape" = "action backspace"
+"Escape" = "action reset"
 "Shift+Escape" = "idle"
 # Aim with a virtual selection. Dragging temporarily enables real-pointer follow.
 "`" = "__disabled__"
@@ -237,6 +237,7 @@ max_label_length = 3
 
 [grid.hotkeys]
 "F16" = "idle"
+"Escape" = "action reset"
 "Cmd+F16" = "macro toggle_continuous"
 "`" = "__disabled__"
 "Space" = "macro confirm_left"

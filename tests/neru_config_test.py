@@ -69,7 +69,7 @@ class NeruConfigTest(unittest.TestCase):
 
     def test_recursive_escape_backtracks_and_shift_escape_exits(self):
         keys = self.config["recursive_grid"]["hotkeys"]
-        self.assertEqual(keys["Escape"], "action backspace")
+        self.assertEqual(keys["Escape"], "action reset")
         self.assertEqual(keys["Shift+Escape"], "idle")
         self.assertEqual(keys["F16"], "idle")
 

@@ -53,9 +53,9 @@ When on, confirmation clicks/moves reset Grid/Recursive Grid to their base
 layer and keep the overlay open for consecutive targets. Backspace still
 backtracks; Ctrl+Backspace manually resets. Cmd+Right Shift toggles continuous
 mode in every active mode; from idle it opens Recursive Grid.
-In Recursive Grid, Escape also backtracks; at the root it does nothing, just
-like Backspace. Use Shift+Escape or Right Shift again to quit Recursive
-Grid. Right Shift opens regular Grid instead.
+In both grids, Escape resets to the starting layer (Backspace still
+backtracks one level in Recursive Grid). Use Shift+Escape or Right Shift
+again to quit. Right Shift opens regular Grid instead.
 UI Hints uses Neru's native `--repeat` while continuous mode is on, so selecting
 one hint clicks and redraws hints. Toggling inside Hints refreshes that session.
 
@@ -75,7 +75,9 @@ Tab behavior; Tab completion on Neru's colon line is replaced by this mapping.
 
 ### Grid modes
 
-**Right Shift: regular Grid.** Three-character cell labels alternate hands:
+**Right Shift: regular Grid (auto-click).** It opens with `--action left_click`,
+so the fine-tune subgrid keypress clicks immediately and exits; in continuous
+mode it reopens at the base layer. Three-character cell labels alternate hands:
 left-hand region prefix, right-hand column, then left-hand row. Example: `QYQ`.
 Main labels use only letters (right-hand alphabet `yuiophjklnm`), excluding
 hard-to-read punctuation. The final 3×3 fine-adjustment subgrid uses right-hand
