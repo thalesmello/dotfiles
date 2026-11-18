@@ -133,10 +133,15 @@ background_log=${ASK_AGENT_BACKGROUND_LOG:-$HOME/.local/state/ask-agent/backgrou
 
 _watch_background_queue() {
   local _queue=$1 _f _claimed _pending
+  # The popup PTY may hang up after its foreground shell exits. Finish draining
+  # submissions even then; the detached dispatchers already use nohup below.
+  trap '' HUP
   while :; do
     for _f in "$_queue"/*.prompt; do
       [ -e "$_f" ] || continue
-      _claimed=$_f.dispatch
+      # Move claimed files beside the queue. Detached dispatchers may not have
+      # read them yet when the watcher removes the now-empty queue directory.
+      _claimed=$_queue.${_f##*/}.dispatch
       mv "$_f" "$_claimed" 2>/dev/null || continue
       mkdir -p "${background_log%/*}" 2>/dev/null || true
       # HERDR_DIE_HOLD_CHARS huge: a dispatched creation has no terminal of
@@ -154,6 +159,10 @@ _watch_background_queue() {
     fi
     sleep 0.2
   done
+  # The foreground popup never waits for our polling sleep. Own the final
+  # queue cleanup here, after all files submitted before .done are launched.
+  rm -f "$_queue/.done"
+  rmdir "$_queue" 2>/dev/null || true
 }
 
 # Only the foreground (Enter) creation takes focus. A background dispatch
@@ -247,8 +256,9 @@ else
   # the directories under ~/src (plus project:tries/NAME from ~/src/tries).
   background_queue_dir=$(mktemp -d "${TMPDIR:-/tmp}/ask-agent-queue.XXXXXX") \
     || herdr_die 'ask' 'could not create the Ctrl+Enter queue directory'
-  _watch_background_queue "$background_queue_dir" &
-  background_watcher_pid=$!
+  # No popup PTY descriptors: the watcher can outlive the foreground shell
+  # briefly without holding the popup open or stealing interactive input.
+  _watch_background_queue "$background_queue_dir" </dev/null >/dev/null 2>&1 &
   prompt_status=0
   prompt_line \
     --submit-dir "$background_queue_dir" \
@@ -256,13 +266,10 @@ else
     "${project_completion_args[@]}" \
     --complete-values "machine:=$machine_names" \
     'Ask: ' "$prefill" ask || prompt_status=$?
-  # Stop the watcher once the prompt returns: it launches anything queued
-  # just before Enter/Esc and then exits, so no Ctrl+Enter question is lost
-  # with the popup. Already-launched creations are detached and unaffected.
+  # Ask the independent watcher to drain and clean up; do not wait for its
+  # next polling tick before closing the popup. Already-launched creations
+  # are detached and unaffected, and final queued submissions are preserved.
   : >"$background_queue_dir/.done"
-  wait "$background_watcher_pid" 2>/dev/null || true
-  rm -f "$background_queue_dir/.done"
-  rmdir "$background_queue_dir" 2>/dev/null || true
   [ "$prompt_status" -eq 0 ] || exit 0
   question=$PROMPT_LINE
   [ -n "${question// /}" ] || exit 0
