@@ -387,7 +387,8 @@ function M.setup(ctx)
       -- started typing the next target. Cursor-hold keeps that aim virtual.
       if gridModes[state.mode] and not request.exit then args[#args + 1] = "action reset" end
       args[#args + 1] = "action " .. action .. " --bare --bail-on-error"
-      if request.exit then args[#args + 1] = "idle" end
+      if request.exit then args[#args + 1] = "idle"
+      elseif gridModes[state.mode] then args[#args + 1] = "peek-grid --duration 1s" end
       command(args, function(ok)
         if state.clickToken ~= token then return end
         state.clickBusy = false
