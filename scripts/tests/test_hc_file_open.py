@@ -129,7 +129,8 @@ class DirectSplitTests(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which("fish") and shutil.which("jq"), "fish and jq required")
 class FileOpenerTests(unittest.TestCase):
-    def run_opener(self, backend, file="/tmp/a 'quoted'; $(command).lua", reuse=False):
+    def run_opener(self, backend, file="/tmp/a 'quoted'; $(command).lua", reuse=False,
+                   mime="text/plain"):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)
             # Use only fixture executables ahead of the inherited PATH.
@@ -165,6 +166,8 @@ else:
             shim.chmod(0o755)
             for program, body in {
                 "pgrep": "exit 0",
+                "file": 'printf "%s\\n" "$FILE_MIME"',
+                "icat": "exit 0",
                 "lsof": "printf '%s\\n' /tmp/nvim.424242.0",
                 "nvim": 'printf "%s\\n" "$@" > "$NVIM_LOG"',
             }.items():
@@ -173,7 +176,8 @@ else:
                 path.chmod(0o755)
             env = {**os.environ, "HERDR_ACTIVE_PANE_ID": "p1", "HERDR_PANE_ID": "p1",
                    "OPEN_LOG": str(base / "calls"), "CANONICAL_BACKEND": "hc",
-                   "NVIM_LOG": str(base / "nvim-calls"), "REUSE": "1" if reuse else "0"}
+                   "NVIM_LOG": str(base / "nvim-calls"), "REUSE": "1" if reuse else "0",
+                   "FILE_MIME": mime}
             if backend is None:
                 env.pop("HC_PRESET_BACKEND", None)
             else:
@@ -182,7 +186,8 @@ else:
                                     env=env, capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
             calls = [json.loads(line) for line in (base / "calls").read_text().splitlines()]
-            nvim_calls = (base / "nvim-calls").read_text().splitlines() if reuse else []
+            nvim_log = base / "nvim-calls"
+            nvim_calls = nvim_log.read_text().splitlines() if nvim_log.exists() else []
             return calls, nvim_calls
 
     def test_hc_opener_launches_editor_directly_and_preserves_literal_filename(self):
@@ -191,6 +196,32 @@ else:
         split = next(call for call in calls if call[:2] == ["pane", "split"])
         self.assertEqual(json.loads(split[split.index("--argv") + 1]), ["nvim", "--", file])
         self.assertFalse(any(call[:2] == ["pane", "run"] for call in calls))
+
+    def test_images_get_fresh_viewer_even_with_existing_editor(self):
+        file = "/tmp/image 'quoted'; $(command).PNG"
+        calls, nvim_calls = self.run_opener("hc", file, reuse=True, mime="image/png")
+        split = next(call for call in calls if call[:2] == ["pane", "split"])
+        argv = json.loads(split[split.index("--argv") + 1])
+        self.assertEqual(argv[:2], ["bash", "-c"])
+        self.assertIn('read -r -n 1', argv[2])
+        self.assertEqual(argv[3], "icat")
+        self.assertEqual(Path(argv[4]).name, "icat")
+        self.assertEqual(argv[5], file)
+        self.assertEqual(nvim_calls, [])
+        self.assertFalse(any(call[:2] in (["pane", "run"], ["pane", "focus"],
+                                        ["pane", "process-info"]) for call in calls))
+
+    def test_content_detection_beats_suffix_and_supports_extensionless_images(self):
+        for file, mime in (("/tmp/image", "image/png"), ("/tmp/vector.svg", "image/svg+xml"),
+                           ("/tmp/photo.WEBP", "application/octet-stream")):
+            with self.subTest(file=file, mime=mime):
+                calls, _ = self.run_opener("hc", file, mime=mime)
+                split = next(call for call in calls if call[:2] == ["pane", "split"])
+                self.assertEqual(json.loads(split[split.index("--argv") + 1])[3], "icat")
+        calls, _ = self.run_opener("hc", "/tmp/text.png", mime="text/plain")
+        split = next(call for call in calls if call[:2] == ["pane", "split"])
+        self.assertEqual(json.loads(split[split.index("--argv") + 1]),
+                         ["nvim", "--", "/tmp/text.png"])
 
     def test_opener_normalizes_backend_and_discovers_missing_or_invalid_override(self):
         for backend in (None, "HC", " hc ", "invalid"):

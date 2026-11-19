@@ -628,7 +628,8 @@ function herdr-preset
         exec "$paster" $argv
 
     case "open-file-with-fallback"
-        # Open <file> in nvim within the current herdr tab. If an nvim is already
+        # Open images with icat in a new pane; wait there until a keypress.
+        # Open other files in nvim within the current herdr tab. If an nvim is already
         # running in another pane of this tab, drop the file into it over its RPC
         # socket; otherwise make a new vertical split running `exec nvim <file>`.
         #
@@ -683,6 +684,22 @@ function herdr-preset
         end
         set -l panes (printf '%s' "$list_out" | jq -r --arg tab "$tab" --arg self "$self" '.result.panes[] | select(.tab_id == $tab and .pane_id != $self) | .pane_id' 2>/dev/null)
 
+        # Detect content, including extensionless images and misleading names.
+        # Use the suffix only when file(1) cannot identify the file.
+        set -l mime (command file -b --mime-type -- "$file" 2>/dev/null)
+        set -l image 0
+        if string match -q 'image/*' -- "$mime"
+            set image 1
+        else if test -z "$mime"; or test "$mime" = application/octet-stream
+            if string match -rqi '\.(png|jpe?g|gif|webp|bmp|tiff?|ico|avif|heic|heif|svg)$' -- "$file"
+                set image 1
+            end
+        end
+        # Images always get a fresh pane, never an existing editor.
+        if test "$image" = 1
+            set panes
+        end
+
         # Find an nvim already running in one of them AND its live RPC socket.
         # process-info reports the pane's foreground nvim (the TUI parent); the
         # socket is owned by its `nvim --embed` child, so scan the nvim pid plus
@@ -724,10 +741,22 @@ function herdr-preset
             if not contains -- "$backend" hc herdr
                 set backend ($bin backend 2>/dev/null)
             end
+            set -l launch_argv (jq -cn --arg file "$file" '["nvim", "--", $file]')
+            or return 1
+            if test "$image" = 1
+                set -l icat (command -v icat)
+                test -n "$icat"; or begin
+                    echo "$tag: icat not found" >&2
+                    return 1
+                end
+                # Positional arguments keep spaces and shell syntax literal.
+                # icat exits after drawing; wait so the pane retains the image.
+                set -l viewer '"$1" -- "$2"; result=$?; printf "\nPress any key to close.\n"; read -r -n 1; exit "$result"'
+                set launch_argv (jq -cn --arg icat "$icat" --arg file "$file" --arg viewer "$viewer" '["bash", "-c", $viewer, "icat", $icat, $file]')
+                or return 1
+            end
             set -l split_args pane split "$anchor" --direction right --focus
             if test "$backend" = hc
-                set -l launch_argv (jq -cn --arg file "$file" '["nvim", "--", $file]')
-                or return 1
                 set -a split_args --argv "$launch_argv"
             end
             set -l split_out ($bin $split_args 2>&1)
@@ -738,10 +767,14 @@ function herdr-preset
                 return 1
             end
             if test "$backend" != hc
-                # exec so quitting nvim closes the legacy shell pane too.
-                set -l run_out ($bin pane run "$new" "exec nvim $(string escape -- $file)" 2>&1)
+                # exec so closing the editor/viewer closes the legacy pane too.
+                set -l launch_command "nvim $(string escape -- $file)"
+                if test "$image" = 1
+                    set launch_command (printf '%s' "$launch_argv" | jq -r '@sh')
+                end
+                set -l run_out ($bin pane run "$new" "exec $launch_command" 2>&1)
                 or begin
-                    echo "$tag: pane run (exec nvim) failed in pane '$new'" >&2
+                    echo "$tag: pane run failed in pane '$new'" >&2
                     echo "  pane run output: $run_out" >&2
                     return 1
                 end
