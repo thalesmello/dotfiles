@@ -194,17 +194,19 @@ function M.setup(ctx)
     if state.nudgeHoldTimer then state.nudgeHoldTimer:stop(); state.nudgeHoldTimer = nil end
     state.nudgeHeldCode, state.nudgeActive = nil, false
   end
-  local function armNudgeHold(code, tapEligible, consumedDown)
+  local function armNudgeHold(code, tapEligible, consumedDown, flags)
     cancelNudgeHold()
     state.pendingFineTap = {code = code, at = hs.timer.absoluteTime()/1e9, eligible = tapEligible,
-      consumedDown = consumedDown, token = state.clickToken}
+      consumedDown = consumedDown, token = state.clickToken, flags = flags or {}}
     state.nudgeHeldCode = code
     local epoch = state.modeEpoch
     state.nudgeHoldTimer = hs.timer.doAfter(0.2, function()
       state.nudgeHoldTimer = nil
       if state.closed or state.busy or state.mode ~= "grid" or state.modeEpoch ~= epoch or state.nudgeHeldCode ~= code then return end
-      state.nudgeActive = true
       if state.pendingFineTap then state.pendingFineTap.held = true end
+      local modifiers = state.pendingFineTap and state.pendingFineTap.flags or {}
+      if modifiers.ctrl or modifiers.alt or modifiers.cmd or modifiers.shift then return end
+      state.nudgeActive = true
       shell.task({"neru", "nudge-grid", "--direction", "up", "--nudges-per-cell", "16", "--count", "0"})
     end)
   end
@@ -614,6 +616,25 @@ function M.setup(ctx)
     else commitCursor(release) end
   end
 
+  -- Repeat fine taps use exactly the configured Space action semantics.
+  -- A destination confirmation during a latched drag releases, never clicks.
+  state.repeatSpaceAction = function(flags, repeatKey, exitAfter)
+    if state.closed or state.busy or state.backend ~= "neru" then return end
+    flags = flags or {}
+    if state.dragLatched then return end
+    local count = (flags.ctrl and 1 or 0) + (flags.alt and 1 or 0) + (flags.cmd and 1 or 0) + (flags.shift and 1 or 0)
+    if count > 1 then
+      local names = {}
+      for _, pair in ipairs({{"ctrl","Ctrl"},{"alt","Alt"},{"cmd","Cmd"},{"shift","Shift"}}) do
+        if flags[pair[1]] then names[#names + 1] = pair[2] end
+      end
+      names[#names + 1] = exitAfter and "Enter" or "Space"
+      command({"action", "feed", "--mode", table.concat(names, "+")})
+    elseif flags.ctrl then state.startHold()
+    elseif flags.shift then state.moveOnly(exitAfter)
+    else state.confirmClick(flags.alt and "right" or flags.cmd and "middle" or "left", exitAfter, repeatKey) end
+  end
+
   local function toggleContinuous()
     if state.backend ~= "neru" or state.busy then return end
     state.continuous = not state.continuous
@@ -852,7 +873,7 @@ function M.setup(ctx)
         local fineKeys = {[32]=true,[34]=true,[31]=true,[38]=true,[40]=true,[37]=true,[46]=true,[43]=true,[47]=true}
         if short and fineKeys[tap.code] then state.lastFineTapCode = tap.code else state.lastFineTapCode = nil end
         if tap.eligible and short and state.clickToken == tap.token then
-          state.confirmClick("left", state.mode == "idle", tap.code)
+          state.repeatSpaceAction(tap.flags, tap.code, state.mode == "idle")
         end
         if event:getKeyCode() == state.nudgeHeldCode then cancelNudgeHold() end
         if tap.consumedDown then return true end
@@ -864,17 +885,30 @@ function M.setup(ctx)
       if state.mode == "scroll" then armScrollIdle() end -- any keystroke is activity
       local code = event:getKeyCode()
       local flags = event.getFlags and event:getFlags() or {}
-      if code == 49 or code == 36 or code == 53 or code == 51 or code == 64 or code == 80 or code == 106 or flags.ctrl or flags.cmd or flags.alt then
+      if code == 49 or code == 36 or code == 53 or code == 51 or code == 64 or code == 80 or code == 106 then
         state.pendingFineTap, state.lastFineTapCode = nil, nil
+        cancelNudgeHold()
+      elseif flags.ctrl or flags.cmd or flags.alt then
+        state.pendingFineTap = nil
         cancelNudgeHold()
       end
       local fineKeys = {[32]=true,[34]=true,[31]=true,[38]=true,[40]=true,[37]=true,[46]=true,[43]=true,[47]=true}
       local recentFine = fineKeys[code] and canRepeat() and state.lastGridClick.repeatKey == code
       local tapEligible = fineKeys[code] and (recentFine or (state.mode == "grid" and state.lastFineTapCode == code and state.latestGridSelection ~= nil))
-      if recentFine and not flags.ctrl and not flags.cmd and not flags.alt and not flags.shift then
+      if recentFine then
         local repeating = event.getProperty and event:getProperty(hs.eventtap.event.properties.keyboardEventAutorepeat) == 1
         if repeating then return true end
-        armNudgeHold(code, true, true)
+        armNudgeHold(code, true, true, flags)
+        return true
+      end
+      if state.mode == "grid" and fineKeys[code] and (flags.ctrl or flags.cmd or flags.alt or flags.shift) and not state.busy and not state.holdResetting then
+        local repeating = event.getProperty and event:getProperty(hs.eventtap.event.properties.keyboardEventAutorepeat) == 1
+        if repeating then return true end
+        armNudgeHold(code, tapEligible, true, flags)
+        if not tapEligible then
+          local keys = {[32]="u",[34]="i",[31]="o",[38]="j",[40]="k",[37]="l",[46]="m",[43]=",",[47]="."}
+          command({"action", "feed", "--mode", keys[code]})
+        end
         return true
       end
       if state.mode == "grid" and state.backend == "neru" and not state.busy and not state.dragLatched and not flags.ctrl and not flags.cmd and not flags.alt then
@@ -917,7 +951,7 @@ function M.setup(ctx)
       end
       if state.mode == "grid" and not state.busy and not state.dragLatched and not flags.ctrl and not flags.cmd and not flags.alt and not flags.shift then
         local gridKeys = {[0]=true,[1]=true,[2]=true,[3]=true,[4]=true,[5]=true,[6]=true,[7]=true,[8]=true,[9]=true,[11]=true,[12]=true,[13]=true,[14]=true,[15]=true,[16]=true,[17]=true,[31]=true,[32]=true,[34]=true,[35]=true,[37]=true,[38]=true,[40]=true,[45]=true,[46]=true,[43]=true,[47]=true}
-        if gridKeys[code] then armNudgeHold(code, tapEligible, false) end
+        if gridKeys[code] then armNudgeHold(code, tapEligible, false, flags) end
       end
       return false
     end
