@@ -4,23 +4,34 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { registerCodemodeCommand, saveCodemodeDefault, updateCodemodeDefault } from "../extensions/lib/codemode-command.ts";
+import type { CodemodeChoice } from "../extensions/lib/codemode-picker.ts";
 
 function harness(initial = ["read", "bash", "codemode"]) {
 	let active = [...initial];
 	let command: any;
 	let available = true;
-	let selected: string | undefined;
+	let selected: CodemodeChoice | undefined;
+	let setDefault = false;
 	let saveError: Error | undefined;
+	let mode: "on" | "only" = "on";
+	let pendingMode: "on" | "only" = mode;
+	let reloads = 0;
+	const modes: string[] = [];
+	const savedModes: (string | undefined)[] = [];
 	const saved: boolean[] = [];
 	const notices: { text: string; level: string }[] = [];
 	const pi = {
 		registerCommand: (_name: string, definition: unknown) => { command = definition; },
+		getSettings: () => ({ codemode: { mode } }),
 		getActiveTools: () => [...active],
 		getAllTools: () => available ? [{ name: "codemode" }] : [],
 		setActiveTools: (names: string[]) => { active = [...names]; },
 	} as unknown as ExtensionAPI;
 	const ctx = {
 		hasUI: true,
+		mode: "tui",
+		waitForIdle: async () => {},
+		reload: async () => { reloads++; mode = pendingMode; },
 		ui: {
 			select: async () => selected,
 			notify: (text: string, level: string) => { notices.push({ text, level }); },
@@ -28,13 +39,16 @@ function harness(initial = ["read", "bash", "codemode"]) {
 	} as unknown as ExtensionCommandContext;
 	registerCodemodeCommand(pi, {
 		settingsPath: "/settings.json",
-		saveDefault: async (value) => { if (saveError) throw saveError; saved.push(value); },
+		pick: async () => selected ? { choice: selected, setDefault } : undefined,
+		saveDefault: async (value, newMode) => { if (saveError) throw saveError; saved.push(value); savedModes.push(newMode); },
+		saveMode: async (value) => { if (saveError) throw saveError; modes.push(value); pendingMode = value; },
 	});
 	return {
 		run: (args: string) => command.handler(args, ctx),
 		active: () => active,
-		notices, saved, command,
-		select: (value?: string) => { selected = value; },
+		notices, saved, savedModes, modes, command,
+		reloads: () => reloads,
+		select: (value?: CodemodeChoice, save = false) => { selected = value; setDefault = save; },
 		unload: () => { available = false; },
 		failSave: () => { saveError = new Error("read-only settings"); },
 	};
@@ -70,7 +84,7 @@ describe("codemode command", () => {
 		const h = harness();
 		await h.run("status");
 		expect(h.notices[0].text).toContain("on");
-		for (const args of ["default", "default maybe", "default on extra", "on extra", "only", "banana"]) {
+		for (const args of ["default", "default maybe", "default on extra", "on extra", "only extra", "banana"]) {
 			await h.run(args);
 			expect(h.notices.at(-1)?.level).toBe("error");
 		}
@@ -87,9 +101,60 @@ describe("codemode command", () => {
 		expect(h.notices.at(-1)?.text).toContain("read-only settings");
 		expect(h.active()).toEqual(["read"]);
 	});
+	test("only switches presentation mode and reloads, on restores optional mode", async () => {
+		const h = harness(["read", "bash"]);
+		await h.run("only");
+		expect(h.active()).toEqual(["read", "bash", "codemode"]);
+		expect(h.modes).toEqual(["only"]);
+		expect(h.reloads()).toBe(1);
+		await h.run("status");
+		expect(h.notices.at(-1)?.text).toContain("only");
+		await h.run("only");
+		expect(h.reloads()).toBe(1);
+		await h.run("on");
+		expect(h.modes).toEqual(["only", "on"]);
+		expect(h.reloads()).toBe(2);
+		expect(h.saved).toEqual([]);
+	});
+	test("Ctrl+S picker result saves each default without applying or reloading", async () => {
+		for (const choice of ["on", "off", "only"] as const) {
+			const h = harness(["read"]);
+			h.select(choice, true);
+			await h.run("");
+			expect(h.saved).toEqual([choice !== "off"]);
+			expect(h.savedModes).toEqual([choice === "off" ? undefined : choice]);
+			expect(h.active()).toEqual(["read"]);
+			expect(h.reloads()).toBe(0);
+		}
+	});
+	test("picker default-save failures report error and preserve session", async () => {
+		const h = harness();
+		h.select("off", true);
+		h.failSave();
+		await h.run("");
+		expect(h.active()).toContain("codemode");
+		expect(h.notices.at(-1)?.level).toBe("error");
+	});
+	test("default only saves enablement and mode without changing current session", async () => {
+		const h = harness(["read"]);
+		await h.run("default only");
+		expect(h.saved).toEqual([true]);
+		expect(h.savedModes).toEqual(["only"]);
+		expect(h.active()).toEqual(["read"]);
+		expect(h.reloads()).toBe(0);
+	});
+	test("only chooser and save failure preserve unrelated tools", async () => {
+		const h = harness(["read"]);
+		h.select("only");
+		h.failSave();
+		await h.run("");
+		expect(h.active()).toEqual(["read"]);
+		expect(h.reloads()).toBe(0);
+		expect(h.notices.at(-1)?.level).toBe("error");
+	});
 	test("completes default subcommands", () => {
 		const h = harness();
-		expect(h.command.getArgumentCompletions("default ").map((item: any) => item.value)).toEqual(["default on", "default off"]);
+		expect(h.command.getArgumentCompletions("default ").map((item: any) => item.value)).toEqual(["default on", "default off", "default only"]);
 	});
 });
 
@@ -125,6 +190,17 @@ describe("codemode default settings", () => {
 			await writeFile(target, "invalid JSON");
 			await expect(saveCodemodeDefault(link, true)).rejects.toThrow();
 			expect(await readFile(target, "utf8")).toBe("invalid JSON");
+		} finally { await rm(dir, { recursive: true, force: true }); }
+	});
+	test("saving only preserves defaultTools and codemode budgets", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "codemode-test-"));
+		try {
+			const path = join(dir, "settings.json");
+			await writeFile(path, JSON.stringify({ defaultTools: ["-codemode", "+grep"], codemode: { mode: "on", inlineBudget: 100 } }));
+			await saveCodemodeDefault(path, undefined, "only");
+			expect(JSON.parse(await readFile(path, "utf8"))).toEqual({ defaultTools: ["-codemode", "+grep"], codemode: { mode: "only", inlineBudget: 100 } });
+			await saveCodemodeDefault(path, true, "only");
+			expect(JSON.parse(await readFile(path, "utf8")).defaultTools).toEqual(["+grep", "+codemode"]);
 		} finally { await rm(dir, { recursive: true, force: true }); }
 	});
 	test("creates missing settings with additive defaultTools", async () => {
