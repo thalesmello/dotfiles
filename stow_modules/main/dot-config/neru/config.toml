@@ -74,6 +74,7 @@ font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
 font_size = 12
 
 [hints.hotkeys]
+"Shift+F16" = "grid --cursor-selection-mode hold"
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "macro open_grid"
 "Cmd+F16" = "macro toggle_continuous"
@@ -146,6 +147,7 @@ label_background_border_radius = 3
 label_background_border_width = 0
 
 [recursive_grid.hotkeys]
+"Shift+F16" = "grid --cursor-selection-mode hold"
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "idle"
 "-" = "macro opacity_down"
@@ -251,6 +253,7 @@ sublayer_keys = "uiojklm,."
 max_label_length = 3
 
 [grid.hotkeys]
+"Shift+F16" = "grid --cursor-selection-mode hold"
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "idle"
 "-" = "macro opacity_down"
@@ -328,6 +331,7 @@ scroll_step = 60
 scroll_step_half = 200
 
 [scroll.hotkeys]
+"Shift+F16" = "grid --cursor-selection-mode hold"
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "macro open_grid"
 # App-switch chords leave Scroll mode (Hammerspoon also auto-exits after 10s idle).
@@ -383,8 +387,13 @@ status_background_color = "#E67A4949"
 status_text_color = "#FFFEFEFE"
 
 [vim.hotkeys]
+"Shift+F16" = "grid --cursor-selection-mode hold"
+# Cancel pending input, ensure Normal mode, then start a fresh labeled search.
+"Cmd+Ctrl+Alt+;" = ["action feed --mode Escape", "vim", "action feed --mode s"]
+"Cmd+Ctrl+Alt+," = "vim"
+"Cmd+Ctrl+Alt+/" = ["action feed --mode Escape", "vim", "action feed --mode /"]
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
-"F16" = "macro open_grid"
+"F16" = "hints --strategy axtree --action left_click"
 "Cmd+F16" = "macro toggle_continuous"
 "Tab" = ["action move_monitor --bail-on-error", "vim --capture-scope screen"]
 "Shift+Tab" = ["action move_monitor --previous --bail-on-error", "vim --capture-scope screen"]
@@ -422,6 +431,7 @@ label_background = true
 label_background_color = "#D9000000"
 
 [bisect.hotkeys]
+"Shift+F16" = "grid --cursor-selection-mode hold"
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "macro open_grid"
 "Cmd+F16" = "macro toggle_continuous"
@@ -448,6 +458,7 @@ text_color = "#FFFEFEFE"
 border_color = "#C0B87671"
 
 [monitor_select.hotkeys]
+"Shift+F16" = "grid --cursor-selection-mode hold"
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "macro open_grid"
 "Cmd+F16" = "macro toggle_continuous"

@@ -11,10 +11,13 @@ RunAtLoad, starts at login. Manage it with `neru services status|start|stop|rest
 
 | Gesture | Action |
 | --- | --- |
-| Hyper+; | UI hints; select a label to click |
+| Hyper+; | Open Vim with `s` search active; inside Vim, cancel input and restart `s` search |
 | Tap Right Shift / F16 | Cycle **Idle → UI Hints → Regular Grid → Idle** |
-| Option+Left Shift+Right Shift / Alt+Shift+F16 | Open **Regular Grid** directly (does not toggle it closed) |
-| Hyper+, | Vim text mode (press `s` inside it to start a labeled jump) |
+| Left Shift+Right Shift / Shift+F16 (also Option+Left Shift+Right Shift) | Open **Regular Grid** directly (does not toggle it closed) |
+| Right Shift in Vim | Open UI Hints |
+| Hyper+, | Open plain Vim text mode (no automatic search, no toggle-to-exit) |
+| Hyper+/ | Open Vim with `/` search active; inside Vim, cancel input and restart `/` search |
+| Double-tap Left Ctrl → F20 | Toggle Ghostty/iTerm quick terminal (run only one app to avoid hotkey competition) |
 | Hyper+d | Open Scroll; page down while Scroll is active |
 | Hyper+u in Scroll | Page up (plain d/u also remain available) |
 | **Cmd+Right Shift → Cmd+F16** | Recursive Grid from idle; **continuous toggle in every active mode** |
@@ -29,8 +32,8 @@ Hyper means Ctrl+Option+Command, without Shift.
 Karabiner directly maps Cmd+Right Shift to a clean Cmd+F16 key event: no Shift
 output, raw-modifier detection, or tap timeout. This makes that combination a
 dedicated command; use Left Shift for ordinary Cmd+Shift shortcuts.
-Option+Left Shift+Right Shift similarly emits clean Alt+Shift+F16 immediately
-to open regular Grid directly. Plain Right Shift cycles Hints → Grid → Idle.
+Left Shift+Right Shift emits clean Shift+F16 immediately to open regular Grid
+directly; Option+Left Shift+Right Shift remains an Alt+Shift+F16 alias. Plain Right Shift cycles Hints → Grid → Idle.
 Physical Caps is grabbed by Karabiner before Hammerspoon's F19 remap, so grid
 Caps behavior goes through a Karabiner variable: Hammerspoon sets `neru-grid=1`
 while a grid is open; Karabiner maps Caps tap to F17 (`action reset --toggle`)
@@ -357,6 +360,8 @@ Offline checks:
 
 ```sh
 lua tests/neru_navigation_test.lua
+lua tests/neru_binary_resolution_test.lua
+python3 tests/quick_terminal_shortcuts_test.py
 lua tests/caps_hyper_test.lua
 lua tests/neru_layouts_test.lua
 python3 tests/neru_config_test.py

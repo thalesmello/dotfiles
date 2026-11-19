@@ -73,8 +73,8 @@ class NeruConfigTest(unittest.TestCase):
         for key, method in (("n", "restartNeru"), ("m", "restartMouseless")):
             self.assertRegex(text, rf'restart:bindOnce\(hyper, "{key}", "[^"]+", navigation\.{method}\)')
 
-    def test_f16_routes_to_regular_grid_and_toggles_it_closed(self):
-        for mode in ("hints", "scroll", "vim", "bisect", "monitor_select"):
+    def test_f16_routes_to_regular_grid_except_from_vim_and_toggles_it_closed(self):
+        for mode in ("hints", "scroll", "bisect", "monitor_select"):
             self.assertEqual(self.config[mode]["hotkeys"]["F16"], "macro open_grid")
         for mode in ("grid", "recursive_grid"):
             self.assertEqual(self.config[mode]["hotkeys"]["F16"], "idle")
@@ -189,6 +189,14 @@ class NeruConfigTest(unittest.TestCase):
         self.assertNotIn("(Hyper+Shift+/)", source)
         self.assertNotIn("Ctrl+Option+Enter or try again", source)
 
+    def test_vim_hyper_launchers_restart_search_without_toggling(self):
+        keys = self.config["vim"]["hotkeys"]
+        self.assertEqual(keys["Cmd+Ctrl+Alt+;"],
+                         ["action feed --mode Escape", "vim", "action feed --mode s"])
+        self.assertEqual(keys["Cmd+Ctrl+Alt+,"], "vim")
+        self.assertEqual(keys["Cmd+Ctrl+Alt+/"],
+                         ["action feed --mode Escape", "vim", "action feed --mode /"])
+
     def test_vim_tab_switches_displays_and_refreshes_screen_text(self):
         keys = self.config["vim"]["hotkeys"]
         self.assertEqual(keys["Tab"], ["action move_monitor --bail-on-error", "vim --capture-scope screen"])
@@ -212,6 +220,12 @@ class NeruConfigTest(unittest.TestCase):
             self.assertEqual(self.config[mode]["hotkeys"]["Alt+Shift+F16"],
                              "grid --cursor-selection-mode hold")
         self.assertIn("[:!OSright_shift :!OSf16]", KARABINER.read_text())
+        self.assertIn("[:!Sright_shift :!Sf16]", KARABINER.read_text())
+        for mode in ("hints", "recursive_grid", "grid", "scroll", "vim", "bisect", "monitor_select"):
+            self.assertEqual(self.config[mode]["hotkeys"]["Shift+F16"],
+                             "grid --cursor-selection-mode hold")
+        self.assertEqual(self.config["vim"]["hotkeys"]["F16"],
+                         "hints --strategy axtree --action left_click")
 
     def test_cmd_right_shift_sends_clean_cmd_f16(self):
         self.assertIn("[:!Cright_shift :!Cf16]", KARABINER.read_text())

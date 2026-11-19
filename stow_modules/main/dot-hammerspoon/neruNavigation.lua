@@ -380,6 +380,16 @@ function M.setup(ctx)
   end
   state.openRecursive = function() openLayout("recursive") end
   state.openGrid = function() launch({"grid", "--cursor-selection-mode", "hold", "--toggle"}) end
+  state.openVimSearch = function(searchKey)
+    searchKey = searchKey or "s"
+    local steps = {"run", "--stop-on-error"}
+    -- Escape cancels pending input; from Normal it may exit. Reopening Vim
+    -- makes both cases safe before starting search, without posting keys to the app.
+    if state.mode == "vim" then steps[#steps + 1] = "action feed --mode Escape" end
+    steps[#steps + 1] = "vim"
+    steps[#steps + 1] = "action feed --mode " .. searchKey
+    launch(steps)
+  end
 
   -- Caps arrives as F19 (see caps_hyper), distinct from physical Escape (53):
   -- Shift+Caps quits any mode; a plain Caps tap resets an open grid. Returning
@@ -397,7 +407,7 @@ function M.setup(ctx)
   state.rightShift = function()
     if state.closed or state.busy or state.backend ~= "neru" then return end
     if gridModes[state.mode] then command({"idle"})
-    elseif state.mode == "idle" then
+    elseif state.mode == "idle" or state.mode == "vim" then
       launch({"hints", "--strategy", "axtree", "--action", "left_click"})
     else state.openGrid() end
   end
@@ -698,14 +708,19 @@ function M.setup(ctx)
     assert(handle, "Neru launchers require Mode:bindOnce to return a hotkey handle")
     state.handles[#state.handles + 1] = handle
   end
-  bind(ctx.hyper, ";", "Neru: UI Hints", {"hints", "--strategy", "axtree", "--action", "left_click", "--toggle"})
+  state.handles[#state.handles + 1] = ctx.default:bindOnce(ctx.hyper, ";",
+    "Neru: Vim Search", function() state.openVimSearch("s") end)
+  state.handles[#state.handles + 1] = ctx.default:bindOnce(ctx.hyper, "/",
+    "Neru: Vim Slash Search", function() state.openVimSearch("/") end)
   state.handles[#state.handles + 1] = ctx.default:bindOnce({}, "F16",
     "Neru: Hints / Grid / Idle (Right Shift)", state.rightShift)
+  bind({"shift"}, "F16", "Neru: Grid (Left Shift+Right Shift)",
+    {"grid", "--cursor-selection-mode", "hold"})
   bind({"alt", "shift"}, "F16", "Neru: Grid (Option+Left Shift+Right Shift)",
     {"grid", "--cursor-selection-mode", "hold"})
   state.handles[#state.handles + 1] = ctx.default:bindOnce({"cmd"}, "F16",
     "Neru: Recursive / Continuous Grid (Cmd+Right Shift)", commandGrid)
-  bind(ctx.hyper, ",", "Neru: Vim Text Mode", {"vim", "--toggle"})
+  bind(ctx.hyper, ",", "Neru: Vim Text Mode", {"vim"})
   bind(ctx.hyper, "d", "Neru: Scroll", {"scroll", "--toggle"})
   enableHandles(state.backend == "neru")
 

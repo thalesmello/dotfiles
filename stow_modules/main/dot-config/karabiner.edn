@@ -201,6 +201,8 @@
             [:!Cright_shift :!Cf16]
             ; Dedicated direct-Grid chord: Option+Left Shift+Right Shift.
             [:!OSright_shift :!OSf16]
+            ; Left Shift+Right Shift also opens Grid directly.
+            [:!Sright_shift :!Sf16]
             ; Tap alone: F16 cycles Hints / Grid / Idle, or Mouseless in fallback.
             [:##right_shift :right_shift nil {:alone :f16 :params {:alone 150}}]
             ]
