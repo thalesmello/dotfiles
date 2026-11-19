@@ -131,14 +131,16 @@
                       "id": "files",
                       "type": "block",
                       "content": {
-                        "mod": "files"
+                        "mod": "files-on-demand",
+                        "props": { "visibility_node": "files" }
                       }
                     },
                     {
                       "id": "changes",
                       "type": "block",
                       "content": {
-                        "mod": "changes"
+                        "mod": "changes-on-demand",
+                        "props": { "visibility_node": "changes" }
                       }
                     }
                   ],

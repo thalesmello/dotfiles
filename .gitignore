@@ -62,6 +62,10 @@ stow_modules/main/dot-config/herdr-app/mods/*
 !stow_modules/main/dot-config/herdr-app/mods/tabs-shortcuts/**
 !stow_modules/main/dot-config/herdr-app/mods/agent-render/
 !stow_modules/main/dot-config/herdr-app/mods/agent-render/**
+!stow_modules/main/dot-config/herdr-app/mods/files-on-demand/
+!stow_modules/main/dot-config/herdr-app/mods/files-on-demand/**
+!stow_modules/main/dot-config/herdr-app/mods/changes-on-demand/
+!stow_modules/main/dot-config/herdr-app/mods/changes-on-demand/**
 !stow_modules/main/dot-config/herdr-app/mods/workspace-chrome-compact/
 stow_modules/main/dot-config/herdr-app/mods/workspace-chrome-compact/*
 !stow_modules/main/dot-config/herdr-app/mods/workspace-chrome-compact/main.js
