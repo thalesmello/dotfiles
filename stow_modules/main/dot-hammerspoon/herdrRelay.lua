@@ -2,6 +2,7 @@ local util = require("util")
 local Preset = require("preset")
 local GhosttyPreset = require("ghosttyPreset")
 local shell = require("shell")
+local HerdrFocus = require("herdrFocus")
 
 -- Requests relayed from a Herdr pane through the clipboard.
 --
@@ -983,6 +984,19 @@ local function onPasteboardChange(contents)
   if record then
     handlePasteRecord(record)
     GhosttyPreset.purgeAlfredHerdrEntries()
+    return
+  end
+
+  -- A narrowly scoped focus request, not an arbitrary application URL. Like
+  -- herdr-open, consume it and restore the full clipboard before acting.
+  if type(contents) == "string"
+      and contents:sub(1, #HerdrFocus.RELAY_PREFIX) == HerdrFocus.RELAY_PREFIX then
+    local pane = HerdrFocus.decodeRelayRequest(contents)
+    abortTransfer("interrupted by a focus-pane request", false)
+    restoreClipboard()
+    GhosttyPreset.purgeAlfredHerdrEntries()
+    if pane then HerdrFocus.focus(pane)
+    else util.log("herdrRelay: invalid focus-pane request") end
     return
   end
 

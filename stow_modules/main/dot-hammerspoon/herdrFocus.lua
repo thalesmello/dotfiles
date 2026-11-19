@@ -5,6 +5,23 @@ local shell = require("shell")
 local util = require("util")
 local M = {}
 
+-- Dedicated, focus-only OSC 52 relay. Must match Pi extensions/osc8-links.ts.
+M.RELAY_PREFIX = "\30HERDR_FOCUS_PANE_V1:704f9b1e57a240cdae891e4072b64d38:"
+
+local function validPane(pane)
+  return type(pane) == "string" and #pane <= 512
+      and pane:match("^[%w][%w_.:/-]*$") ~= nil
+end
+
+function M.decodeRelayRequest(contents)
+  if type(contents) ~= "string" or contents:sub(1, #M.RELAY_PREFIX) ~= M.RELAY_PREFIX
+      or contents:sub(-1) ~= "\31" then return nil end
+  local encoded = contents:sub(#M.RELAY_PREFIX + 1, -2)
+  if #encoded == 0 or #encoded > 684 or not encoded:match("^[A-Za-z0-9+/]*=?=?$") then return nil end
+  local ok, pane = pcall(hs.base64.decode, encoded)
+  if ok and validPane(pane) then return pane end
+end
+
 function M.handle(_eventName, params, _senderPID, fullURL)
   local pane = params and params.pane
   -- Some URL event deliveries leave query values encoded. Decode only if
@@ -17,8 +34,11 @@ function M.handle(_eventName, params, _senderPID, fullURL)
   end
   -- Never allow an omitted target to focus the current pane. Accept qualified
   -- remote IDs (machine/pane) but reject controls, whitespace and option flags.
-  if type(pane) ~= "string" or #pane > 512
-      or not pane:match("^[%w][%w_.:/-]*$") then
+  M.focus(pane)
+end
+
+function M.focus(pane)
+  if not validPane(pane) then
     util.notify("Herdr focus: missing or invalid pane ID")
     return
   end

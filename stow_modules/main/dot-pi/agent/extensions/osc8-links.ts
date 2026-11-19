@@ -1615,9 +1615,37 @@ function writeHerdrOpenOsc52(screen: AltScreenLike, url: string): void {
 	process.stdout.write(osc52);
 }
 
+/** Parse only the focus URL event; never relay arbitrary application schemes. */
+export function parseHerdrFocusPane(url: string): string | undefined {
+	const match = /^hammerspoon:\/\/herdr-focus\?pane=([^&#]+)$/.exec(url);
+	if (!match) return undefined;
+	try {
+		const pane = decodeURIComponent(match[1]!);
+		return pane.length <= 512 && /^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(pane) ? pane : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function writeHerdrFocusOsc52(screen: AltScreenLike, pane: string): void {
+	// Must match herdrFocus.lua. Payload is a pane ID, never a URL or command.
+	const record = `\x1eHERDR_FOCUS_PANE_V1:704f9b1e57a240cdae891e4072b64d38:${Buffer.from(pane, "utf8").toString("base64")}\x1f`;
+	const osc52 = `\x1b]52;c;${Buffer.from(record, "utf8").toString("base64")}\x07`;
+	screen.terminal!.write!(osc52);
+}
+
 function openLinkUrl(screen: AltScreenLike, url: string): void {
 	if (!url) return;
 	const inHerdrOrHc = isHerdrOrHcSession();
+	if (inHerdrOrHc && typeof screen.terminal?.write === "function") {
+		const pane = parseHerdrFocusPane(url);
+		if (pane) {
+			// Plain clicks run inside Pi, where LaunchServices is sandboxed. The
+			// attached Mac handles this relay, including clicks from remote Pi.
+			writeHerdrFocusOsc52(screen, pane);
+			return;
+		}
+	}
 	if (inHerdrOrHc) {
 		const fileTarget = parseFileHyperlinkUrl(url);
 		if (fileTarget) {
@@ -2406,6 +2434,14 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 					this.selectionAnchor = undefined;
 					this.selectionFocus = undefined;
 					this.pressedUrl = undefined;
+					if (isHerdrOrHcSession() && parseHerdrFocusPane(pending.url) && typeof this.terminal?.write === "function") {
+						// Focus links are local UI actions, not ordinary links to open.
+						// Preserve their single-click relay alongside double-click URL handling.
+						this._osc8LastLinkClick = undefined;
+						try { openLinkUrl(this, pending.url); } catch { /* Ignore relay errors. */ }
+						this.requestRender?.();
+						return;
+					}
 					this._osc8LastLinkClick = {
 						url: pending.url, x: pending.x, y: pending.y,
 						timestamp: Date.now(), count: pending.clickCount,

@@ -10,7 +10,15 @@ Get the **pane** ID from `herdr-app ls`, not `$HC_TERMINAL_ID`. Remote
 panes keep their machine prefix: `devserver/p12` becomes `devserver%2Fp12`.
 The click runs `herdr-app do pane.focus --pane <decoded-id>` on the Mac and
 raises the existing Herdr application after success. It never creates a window
-or runs a command inside the target terminal. Invalid/missing targets and failed
+or runs a command inside the target terminal.
+
+In Pi fullscreen mode, plain clicks are handled by Pi, not by the terminal.
+Pi relays focus requests through OSC 52 to the attached Mac's Hammerspoon
+clipboard watcher, avoiding sandboxed LaunchServices. The dedicated
+`HERDR_FOCUS_PANE_V1` record contains only a validated pane ID; the web URL
+relay remains restricted to HTTP(S). Hammerspoon restores the prior clipboard
+(including rich content) before focusing. Cmd+click still follows Herdr's
+native URL-opening path. Both paths use the same pane-focus operation. Invalid/missing targets and failed
 focus commands report a notification rather than falling back to the current pane.
 
 ## Emit an OSC 8 link
@@ -43,4 +51,5 @@ From the dotfiles repository:
 ```sh
 lua tests/herdr_focus_test.lua
 bun test stow_modules/main/dot-pi/agent/tests/herdr-skill.test.ts
+bun test stow_modules/main/dot-pi/agent/tests/osc8-links.test.ts
 ```

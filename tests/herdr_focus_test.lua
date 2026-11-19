@@ -12,6 +12,13 @@ local function fixture()
     e.notices[#e.notices + 1] = message
   end}
   hs = {
+    base64 = {decode = function(value)
+      local decoded = {cDEy = "p12", ["ZGV2c2VydmVyL3AxMg=="] = "devserver/p12",
+        ["LS1oZWxw"] = "--help", ["cDEyCg=="] = "p12\n",
+        ["aHR0cHM6Ly9leGFtcGxlLmNvbQ=="] = "https://example.com"}
+      if not decoded[value] then error("invalid base64") end
+      return decoded[value]
+    end},
     urlevent = {bind = function(name, handler) e.event = name; e.handler = handler end},
     application = {get = function(name)
       eq(name, "Herdr")
@@ -66,5 +73,58 @@ end)
 test("success does not launch a missing app", function()
   local e = fixture(); e.absent = true; e.handler("herdr-focus", {pane = "p12"})
   e.tasks[1].done(true, "{}"); eq(e.activations, 0)
+end)
+test("relay decoder validates framing, payload and exact pane ID", function()
+  local e = fixture(); local prefix = e.mod.RELAY_PREFIX
+  eq(e.mod.decodeRelayRequest(prefix .. "cDEy\31"), "p12")
+  eq(e.mod.decodeRelayRequest(prefix .. "ZGV2c2VydmVyL3AxMg==\31"), "devserver/p12")
+  for _, record in ipairs({prefix .. "\31", prefix .. "!\31", prefix .. "cDEy",
+      prefix .. "LS1oZWxw\31", prefix .. "cDEyCg==\31", prefix .. string.rep("A", 685) .. "\31",
+      "other:cDEy\31", prefix .. "cDEy\31junk"}) do
+    eq(e.mod.decodeRelayRequest(record), nil)
+  end
+end)
+
+local function relayFixture()
+  local e = fixture()
+  e.text = "original clipboard"; e.changeCount = 1; e.restores = 0
+  package.loaded.herdrFocus = e.mod
+  package.loaded.preset = {}
+  package.loaded.ghosttyPreset = {
+    readClipboardSnapshot = function() return {rich = "original RTF"} end,
+    writeTransientSnapshot = function(snapshot, text)
+      eq(snapshot.rich, "original RTF"); eq(text, "original clipboard")
+      e.text = text; e.changeCount = e.changeCount + 1; e.restores = e.restores + 1
+    end,
+    purgeAlfredHerdrEntries = function() end,
+    isHerdrCommandClipboard = function() return false end,
+  }
+  hs.pasteboard = {readString = function() return e.text end,
+    changeCount = function() return e.changeCount end,
+    watcher = {interval = function() end, new = function(callback)
+      e.changed = callback; return {stop = function() end}
+    end},
+  }
+  dofile(ROOT .. "herdrRelay.lua").setup()
+  function e:deliver(record)
+    self.text = record; self.changeCount = self.changeCount + 1; self.changed(record)
+  end
+  return e
+end
+test("focus relay restores rich clipboard and invokes only pane.focus", function()
+  local e = relayFixture()
+  e:deliver(e.mod.RELAY_PREFIX .. "ZGV2c2VydmVyL3AxMg==\31")
+  eq(e.text, "original clipboard"); eq(e.restores, 1)
+  eq(table.concat(e.tasks[1].args, "|"), "herdr-app|do|pane.focus|--pane|devserver/p12")
+  e.changed(e.text); eq(#e.tasks, 1) -- Ignore the restore's own watcher event.
+end)
+test("invalid focus relay is consumed without acting", function()
+  local e = relayFixture(); e:deliver(e.mod.RELAY_PREFIX .. "LS1oZWxw\31")
+  eq(e.restores, 1); eq(#e.tasks, 0); eq(e.text, "original clipboard")
+end)
+test("web relay does not accept arbitrary application URL schemes", function()
+  local e = relayFixture()
+  e:deliver("\30HERDR_OPEN_URL_V1:8f26c7a14d9346b8a01e57bc649b2e3d:cDEy\31")
+  eq(e.restores, 0); eq(#e.tasks, 0)
 end)
 print(count .. " Herdr focus tests passed")

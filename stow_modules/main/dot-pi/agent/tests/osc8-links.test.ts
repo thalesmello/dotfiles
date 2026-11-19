@@ -135,6 +135,7 @@ const {
 	installOsc8LinkRendering,
 	normalizeMarkdownForOsc8,
 	parseFileHyperlinkUrl,
+	parseHerdrFocusPane,
 	registerKnownFilePath,
 	resolveToolPathHyperlinkUrl,
 	setSessionCwd,
@@ -604,6 +605,52 @@ describe("osc8-links extension", () => {
 		expect(drag.openedUrls).toEqual([]);
 		expect(triple.hints).toEqual([]);
 		expect(drag.hints).toEqual([]);
+	});
+
+	test("focus URLs accept only a percent-decoded pane target", () => {
+		expect(parseHerdrFocusPane("hammerspoon://herdr-focus?pane=p12")).toBe("p12");
+		expect(parseHerdrFocusPane("hammerspoon://herdr-focus?pane=devserver%2Fp12")).toBe("devserver/p12");
+		for (const url of [
+			"hammerspoon://herdr-focus", "hammerspoon://herdr-focus?pane=",
+			"hammerspoon://herdr-focus?pane=--help", "hammerspoon://herdr-focus?pane=p12%0A",
+			"hammerspoon://herdr-focus?pane=p12%00", "hammerspoon://herdr-focus?pane=%ZZ",
+			"hammerspoon://herdr-focus?pane=devserver%252Fp12", "hammerspoon://herdr-focus?pane=p12&pane=p13",
+			"hammerspoon://herdr-focus?pane=p12#fragment", "hammerspoon://other?pane=p12",
+			"hammerspoon://herdr-focus?pane=" + "p".repeat(513),
+		]) expect(parseHerdrFocusPane(url)).toBeUndefined();
+	});
+
+	test("plain focus-link clicks relay to the attached Mac, without invoking openUrl", () => {
+		const previousTerminal = process.env.HC_TERMINAL_ID;
+		try {
+			process.env.HC_TERMINAL_ID = "t-test";
+			for (const pane of ["p12", "devserver/p12"]) {
+				const url = "hammerspoon://herdr-focus?pane=" + encodeURIComponent(pane);
+				const screen = new realTui.TuiAltScreen();
+				const writes: string[] = [];
+				screen.terminal.write = (data: string) => writes.push(data);
+				const rawLink = "\x1b]8;;" + url + "\x1b\\Focus agent\x1b]8;;\x1b\\";
+				screen.previousScreen = new realTui.Markdown(rawLink, 0, 0, markdownTheme).render(80);
+				const col = realTui.stripTerminalSequences(screen.previousScreen[0]!).indexOf("Focus agent");
+				screen.handleMouseEvent({ button: 0, x: col, y: 0, release: false });
+				screen.handleMouseEvent({ button: 32, x: col + 1, y: 0, release: false });
+				screen.handleMouseEvent({ button: 0, x: col + 1, y: 0, release: true });
+				expect(screen.openedUrls).toEqual([]);
+				expect(writes).toHaveLength(1);
+				expect(writes[0]!.startsWith("\x1b]52;c;")).toBe(true);
+				expect(writes[0]!.endsWith("\x07")).toBe(true);
+				const record = Buffer.from(writes[0]!.slice(7, -1), "base64").toString("utf8");
+				expect(record).toBe("\x1eHERDR_FOCUS_PANE_V1:704f9b1e57a240cdae891e4072b64d38:" + Buffer.from(pane).toString("base64") + "\x1f");
+				// A drag must select, not request another focus operation.
+				screen.handleMouseEvent({ button: 0, x: col, y: 0, release: false });
+				screen.handleMouseEvent({ button: 32, x: col + 6, y: 0, release: false });
+				screen.handleMouseEvent({ button: 0, x: col + 6, y: 0, release: true });
+				expect(writes).toHaveLength(1);
+			}
+		} finally {
+			if (previousTerminal === undefined) delete process.env.HC_TERMINAL_ID;
+			else process.env.HC_TERMINAL_ID = previousTerminal;
+		}
 	});
 
 	test("enables prefix+o style OSC 8 links for file:// hyperlinks and filenames when running inside a herdr/hc window", async () => {
