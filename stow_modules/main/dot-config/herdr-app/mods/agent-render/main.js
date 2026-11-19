@@ -646,7 +646,11 @@ export default class Agents extends View {
             cx.notify();
           })).child(pic)))
         .child(div().flex_1().min_w(0).truncate().text_color(idle ? t.muted : t.foreground).child(sessionTitle))
-        .when(Boolean(machine), el => el.child(div().flex_none().text_size(10).text_color(t.dim).child(machine)))
+        .when(Boolean(machine), el => el.child(div().flex_none().text_size(10).text_color(t.dim)
+          .when(machine === "devserver", badge => badge
+            .px(5).py(1).rounded(4).border(1).border_color(t.accent)
+            .bg(t.surface).text_color(t.accent).font_semibold())
+          .child(machine)))
         .when(subs.length > 0, el => el.child(fold(a, subs)))
         .when(this.hovered === a.address, el => el.child(pin))
         .when(this.hovered !== a.address && Boolean(spaceLabel), el => el.child(div().flex_none().max_w(80).truncate().text_size(11).text_color(t.dim).child(spaceLabel)))
