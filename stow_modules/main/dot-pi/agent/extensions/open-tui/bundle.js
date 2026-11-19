@@ -1685,12 +1685,12 @@ function installCopyButtons(options) {
       userCopiedTimers.delete(owner);
       userCopiedUntil.delete(owner);
       if (installed)
-        options.getTui()?.requestRender();
+        options.getTui()?.requestRender(true);
     }, COPIED_FEEDBACK_MS);
     timer.unref?.();
     userCopiedTimers.set(owner, timer);
     liveCopiedTimers.add(timer);
-    options.getTui()?.requestRender();
+    options.getTui()?.requestRender(true);
   };
   const markMarkdownCopied = (owner, region) => {
     const state = markdownRegions.get(owner);
@@ -1708,12 +1708,12 @@ function installCopyButtons(options) {
       state.copiedTimers.delete(target);
       state.copiedUntil.delete(target);
       if (installed)
-        options.getTui()?.requestRender();
+        options.getTui()?.requestRender(true);
     }, COPIED_FEEDBACK_MS);
     timer.unref?.();
     state.copiedTimers.set(target, timer);
     liveCopiedTimers.add(timer);
-    options.getTui()?.requestRender();
+    options.getTui()?.requestRender(true);
   };
   const applyMarkdownCopied = (state, lines) => {
     if (state.copiedUntil.size === 0 || state.regions.length === 0)

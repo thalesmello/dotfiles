@@ -287,7 +287,8 @@ export function installCopyButtons(options: {
 	// "Copied" is exactly as wide as "⧉ Copy", so swapping the label in the
 	// code-block top border or user-message bottom row keeps its column and
 	// width. The timer requests one more render when the window expires so it
-	// reverts promptly.
+	// reverts promptly. Force these state-change renders so transcript-level
+	// caches (e.g. smooth-scroll) cannot retain the old button label.
 	const markUserCopied = (owner: object) => {
 		userCopiedUntil.set(owner, Date.now() + COPIED_FEEDBACK_MS);
 		const previous = userCopiedTimers.get(owner);
@@ -299,12 +300,12 @@ export function installCopyButtons(options: {
 			liveCopiedTimers.delete(timer);
 			userCopiedTimers.delete(owner);
 			userCopiedUntil.delete(owner);
-			if (installed) options.getTui()?.requestRender();
+			if (installed) options.getTui()?.requestRender(true);
 		}, COPIED_FEEDBACK_MS);
 		timer.unref?.();
 		userCopiedTimers.set(owner, timer);
 		liveCopiedTimers.add(timer);
-		options.getTui()?.requestRender();
+		options.getTui()?.requestRender(true);
 	};
 	const markMarkdownCopied = (owner: object, region: CopyRegion) => {
 		const state = markdownRegions.get(owner);
@@ -320,12 +321,12 @@ export function installCopyButtons(options: {
 			liveCopiedTimers.delete(timer);
 			state.copiedTimers.delete(target);
 			state.copiedUntil.delete(target);
-			if (installed) options.getTui()?.requestRender();
+			if (installed) options.getTui()?.requestRender(true);
 		}, COPIED_FEEDBACK_MS);
 		timer.unref?.();
 		state.copiedTimers.set(target, timer);
 		liveCopiedTimers.add(timer);
-		options.getTui()?.requestRender();
+		options.getTui()?.requestRender(true);
 	};
 	const applyMarkdownCopied = (state: MarkdownState, lines: string[]): string[] => {
 		if (state.copiedUntil.size === 0 || state.regions.length === 0) return lines;

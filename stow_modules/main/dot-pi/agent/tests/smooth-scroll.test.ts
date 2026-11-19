@@ -300,9 +300,18 @@ describe("smooth-scroll extension", () => {
 		expect(doc.render(80)).toEqual(["row-1", "row-2"]);
 		expect(doc.renderCalls).toBe(1);
 
+		// Asynchronous button feedback and its expiry use forced renders,
+		// which must refresh even an unchanged transcript.
+		screen.requestRender(true);
+		expect(doc.render(80)).toEqual(["row-1", "row-2"]);
+		expect(doc.renderCalls).toBe(2);
+		screen.requestRender(true);
+		doc.render(80);
+		expect(doc.renderCalls).toBe(3);
+
 		// Mutating or invalidating the container marks the cache dirty:
 		doc.invalidate();
 		expect(doc.render(80)).toEqual(["row-1", "row-2"]);
-		expect(doc.renderCalls).toBe(2);
+		expect(doc.renderCalls).toBe(4);
 	});
 });

@@ -175,10 +175,19 @@ describe("code-block-copy extension", () => {
 		// caches the block's lines (button id included), so the label can
 		// only change via the render wrapper, not by re-rendering.
 		const markdown = new Markdown("```ts\n" + CODE + "\n```", plainTheme);
-		const lines = markdown.render(40);
+		// Model the transcript-level cache: ordinary render requests keep it,
+		// while forced requests invalidate it (as smooth-scroll does).
+		let cachedTranscript: string[] | undefined;
+		const renderTranscript = () => cachedTranscript ??= markdown.render(40);
+		const lines = renderTranscript();
 		expect(strip(lines[4]!)).toContain("⧉ Copy");
 
 		const screen = new FakeAltScreen();
+		const requestRender = screen.requestRender.bind(screen);
+		screen.requestRender = (force?: boolean) => {
+			if (force) cachedTranscript = undefined;
+			requestRender();
+		};
 		screen.setTranscript(lines);
 		const buttonCol = strip(lines[4]!).indexOf("Copy");
 		screen.handleSelectionMouseEvent({ button: 0, x: buttonCol, y: 4 });
@@ -189,7 +198,7 @@ describe("code-block-copy extension", () => {
 		// copied feedback is marked before the next frame is rendered.
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
-		const painted = markdown.render(40);
+		const painted = renderTranscript();
 		// The whole button, icon included, becomes just "Copied" -- which
 		// is exactly as wide as "⧉ Copy", so the chip does not resize.
 		expect(strip(painted[4]!)).toContain("Copied");
@@ -205,7 +214,7 @@ describe("code-block-copy extension", () => {
 		const rendersBeforeExpiry = screen.renderRequests;
 		await new Promise((resolve) => setTimeout(resolve, COPIED_FEEDBACK_MS + 100));
 		expect(screen.renderRequests).toBeGreaterThan(rendersBeforeExpiry);
-		const reverted = markdown.render(40);
+		const reverted = renderTranscript();
 		expect(strip(reverted[4]!)).toContain("⧉ Copy");
 		expect(strip(reverted[4]!)).not.toContain("Copied");
 	});

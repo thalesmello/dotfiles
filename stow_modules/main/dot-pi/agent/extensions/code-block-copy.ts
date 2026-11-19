@@ -370,7 +370,7 @@ interface AltScreenInternals {
 	getSelectionPoint?(event: { x: number; y: number }, scrollView?: { scrollTop: number }): SelectionPointLike;
 	getSelectionSourceLine?(point: SelectionPointLike): string;
 	copyTextToClipboard?(text: string): Promise<boolean> | boolean;
-	requestRender?(): void;
+	requestRender?(force?: boolean): void;
 	stopSelectionAutoScroll?(): void;
 }
 
@@ -930,7 +930,9 @@ function tryHandleCopyButtonRelease(internals: AltScreenInternals, event: RawMou
 					internals.selectionFocus = undefined;
 					internals.pressedUrl = undefined;
 					internals.stopSelectionAutoScroll?.();
-					copyBlockText(internals, code, () => markBlockCopied(state, hit.id, () => internals.requestRender?.()));
+					// Feedback changes outside Markdown's cache; also invalidate any
+					// transcript-level cache (e.g. smooth-scroll) on success and expiry.
+					copyBlockText(internals, code, () => markBlockCopied(state, hit.id, () => internals.requestRender?.(true)));
 					internals.requestRender?.();
 					return true;
 				}
