@@ -47,6 +47,9 @@ opacity_down = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').adjustO
 opacity_up = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').adjustOpacity(0.05)\""
 open_recursive = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').openRecursive()\""
 open_grid = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').openGrid()\""
+open_hints = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').openHints()\""
+right_shift = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').rightShift()\""
+open_recursive_direct = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').openRecursive(true)\""
 # Commit the virtual selection before pressing OR releasing a drag button.
 toggle_drag = ["action move_mouse --selection --bail-on-error", "action left_click --toggle"]
 start_hold = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').startHold()\""
@@ -74,27 +77,36 @@ font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
 font_size = 12
 
 [hints.hotkeys]
+# Space/Enter click the real cursor; Cmd/Ctrl/Option modify the left-click.
 "Shift+F16" = "grid --cursor-selection-mode hold"
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
-"F16" = "macro open_grid"
+"F16" = "macro right_shift"
 "Cmd+F16" = "macro toggle_continuous"
+"Ctrl+F16" = "macro open_recursive_direct"
 # Hints belong to the focused window, so swapping display moves the cursor
 # there and leaves Hints; reopen Hints on that display's focused window.
 "Tab" = ["action move_monitor --bail-on-error", "idle"]
 "Shift+Tab" = ["action move_monitor --previous --bail-on-error", "idle"]
-"Space" = "macro confirm_left_stay"
-"Enter" = "macro confirm_left"
+"Space" = ["action left_click --bare --bail-on-error", "macro after_click_stay"]
+"Enter" = ["action left_click --bare --bail-on-error", "macro after_click_exit"]
 "Shift+Space" = "macro confirm_move_bare"
 "Shift+Enter" = "macro confirm_move_bare_exit"
 "Shift+L" = "__disabled__"
 "/" = "action search_hints --confirm-on-label"
-"Alt+Space" = "macro confirm_right_stay"
-"Alt+Enter" = "macro confirm_right"
-"Ctrl+Space" = "macro confirm_middle"
-"Ctrl+Enter" = "macro confirm_middle"
-"Cmd+Space" = "macro confirm_middle_stay"
-"Cmd+Enter" = "macro confirm_middle"
-"Ctrl+Alt+Enter" = "action left_click --toggle"
+"Alt+Space" = ["action left_click --bare --modifier alt --bail-on-error", "macro after_click_stay"]
+"Alt+Enter" = ["action left_click --bare --modifier alt --bail-on-error", "macro after_click_exit"]
+"Ctrl+Space" = ["action left_click --bare --modifier ctrl --bail-on-error", "macro after_click_stay"]
+"Ctrl+Enter" = ["action left_click --bare --modifier ctrl --bail-on-error", "macro after_click_exit"]
+"Cmd+Space" = ["action left_click --bare --modifier cmd --bail-on-error", "macro after_click_stay"]
+"Cmd+Enter" = ["action left_click --bare --modifier cmd --bail-on-error", "macro after_click_exit"]
+"Cmd+Ctrl+Space" = ["action left_click --bare --modifier cmd,ctrl --bail-on-error", "macro after_click_stay"]
+"Cmd+Ctrl+Enter" = ["action left_click --bare --modifier cmd,ctrl --bail-on-error", "macro after_click_exit"]
+"Cmd+Alt+Space" = ["action left_click --bare --modifier cmd,alt --bail-on-error", "macro after_click_stay"]
+"Cmd+Alt+Enter" = ["action left_click --bare --modifier cmd,alt --bail-on-error", "macro after_click_exit"]
+"Ctrl+Alt+Space" = ["action left_click --bare --modifier ctrl,alt --bail-on-error", "macro after_click_stay"]
+"Ctrl+Alt+Enter" = ["action left_click --bare --modifier ctrl,alt --bail-on-error", "macro after_click_exit"]
+"Cmd+Ctrl+Alt+Space" = ["action left_click --bare --modifier cmd,ctrl,alt --bail-on-error", "macro after_click_stay"]
+"Cmd+Ctrl+Alt+Enter" = ["action left_click --bare --modifier cmd,ctrl,alt --bail-on-error", "macro after_click_exit"]
 
 # Hold the modifier while completing a hint label to choose its mouse button.
 [hints.select_with]
@@ -103,7 +115,7 @@ cmd = "action middle_click"
 ctrl = "action middle_click"
 shift = "action move_mouse"
 
-# Cmd+Right Shift uses a 5x3 grid, alternating left/right QWERTY key sets.
+# Ctrl+Right Shift uses a 5x3 grid, alternating left/right QWERTY key sets.
 # The Grid palette entry swaps only the marked block to Mouseless's layout.
 [recursive_grid]
 capture_scope = "screen"
@@ -149,15 +161,16 @@ label_background_border_width = 0
 [recursive_grid.hotkeys]
 "Shift+F16" = "grid --cursor-selection-mode hold"
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
-"F16" = "idle"
+"F16" = "macro right_shift"
 "-" = "macro opacity_down"
 "=" = "macro opacity_up"
 "Cmd+F16" = "macro toggle_continuous"
+"Ctrl+F16" = "macro open_recursive_direct"
 "Escape" = "idle"
 "Shift+Escape" = "idle"
 # Aim with a virtual selection. Dragging temporarily enables real-pointer follow.
 "`" = "__disabled__"
-# Aim without clicking, then confirm. Hyper+Shift+/ toggles continuous clicks.
+# Aim without clicking, then confirm. The palette toggles continuous clicks.
 "Space" = "macro confirm_left_stay"
 "Enter" = "macro confirm_left"
 "Shift+Space" = "macro confirm_move"
@@ -255,11 +268,12 @@ max_label_length = 3
 [grid.hotkeys]
 "Shift+F16" = "grid --cursor-selection-mode hold"
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
-"F16" = "idle"
+"F16" = "macro right_shift"
 "-" = "macro opacity_down"
 "=" = "macro opacity_up"
 "Escape" = "idle"
 "Cmd+F16" = "macro toggle_continuous"
+"Ctrl+F16" = "macro open_recursive_direct"
 "`" = "__disabled__"
 "Space" = "macro confirm_left_stay"
 "Enter" = "macro confirm_left"
@@ -333,13 +347,16 @@ scroll_step_half = 200
 [scroll.hotkeys]
 "Shift+F16" = "grid --cursor-selection-mode hold"
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
-"F16" = "macro open_grid"
+"F16" = "macro right_shift"
 # App-switch chords leave Scroll mode (Hammerspoon also auto-exits after 10s idle).
 "Cmd+Tab" = ["action feed Cmd+Tab", "idle"]
 "Cmd+Shift+Tab" = ["action feed Cmd+Shift+Tab", "idle"]
 "Cmd+F16" = "macro toggle_continuous"
+"Ctrl+F16" = "macro open_recursive_direct"
 "Cmd+Ctrl+Alt+d" = "action page_down"
 "Cmd+Ctrl+Alt+u" = "action page_up"
+"Ctrl+U" = "action page_up"
+"Ctrl+D" = "action page_down"
 "Space" = "macro confirm_left_stay"
 "Enter" = "macro confirm_left"
 "Shift+Space" = "macro confirm_move_bare"
@@ -359,19 +376,19 @@ scroll_step_half = 200
 "w" = "action move_mouse_relative --dx=0 --dy=-15"
 "a" = "action move_mouse_relative --dx=-15 --dy=0"
 "s" = "action move_mouse_relative --dx=0 --dy=15"
-"e" = "action move_mouse_relative --dx=15 --dy=0"
+"d" = "action move_mouse_relative --dx=15 --dy=0"
 "Shift+W" = "action move_mouse_relative --dx=0 --dy=-45"
 "Shift+A" = "action move_mouse_relative --dx=-45 --dy=0"
 "Shift+S" = "action move_mouse_relative --dx=0 --dy=45"
-"Shift+E" = "action move_mouse_relative --dx=45 --dy=0"
+"Shift+D" = "action move_mouse_relative --dx=45 --dy=0"
 "Alt+W" = "action move_mouse_relative --dx=0 --dy=-5"
 "Alt+A" = "action move_mouse_relative --dx=-5 --dy=0"
 "Alt+S" = "action move_mouse_relative --dx=0 --dy=5"
-"Alt+E" = "action move_mouse_relative --dx=5 --dy=0"
+"Alt+D" = "action move_mouse_relative --dx=5 --dy=0"
 "Ctrl+Shift+W" = "action move_mouse_relative --dx=0 --dy=-15"
 "Ctrl+Shift+A" = "action move_mouse_relative --dx=-15 --dy=0"
 "Ctrl+Shift+S" = "action move_mouse_relative --dx=0 --dy=15"
-"Ctrl+Shift+E" = "action move_mouse_relative --dx=15 --dy=0"
+"Ctrl+Shift+D" = "action move_mouse_relative --dx=15 --dy=0"
 "Ctrl+Shift+Up" = "action move_mouse_relative --dx=0 --dy=-10"
 "Ctrl+Shift+Down" = "action move_mouse_relative --dx=0 --dy=10"
 "Ctrl+Shift+Left" = "action move_mouse_relative --dx=-10 --dy=0"
@@ -393,8 +410,9 @@ status_text_color = "#FFFEFEFE"
 "Cmd+Ctrl+Alt+," = "vim"
 "Cmd+Ctrl+Alt+/" = ["action feed --mode Escape", "vim", "action feed --mode /"]
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
-"F16" = "hints --strategy axtree --action left_click"
+"F16" = "macro right_shift"
 "Cmd+F16" = "macro toggle_continuous"
+"Ctrl+F16" = "macro open_recursive_direct"
 "Tab" = ["action move_monitor --bail-on-error", "vim --capture-scope screen"]
 "Shift+Tab" = ["action move_monitor --previous --bail-on-error", "vim --capture-scope screen"]
 "Shift+Space" = "action feed --mode g h"
@@ -433,8 +451,9 @@ label_background_color = "#D9000000"
 [bisect.hotkeys]
 "Shift+F16" = "grid --cursor-selection-mode hold"
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
-"F16" = "macro open_grid"
+"F16" = "macro right_shift"
 "Cmd+F16" = "macro toggle_continuous"
+"Ctrl+F16" = "macro open_recursive_direct"
 "Space" = "macro confirm_left_stay"
 "Enter" = "macro confirm_left"
 "Shift+Space" = "macro confirm_move"
@@ -460,8 +479,9 @@ border_color = "#C0B87671"
 [monitor_select.hotkeys]
 "Shift+F16" = "grid --cursor-selection-mode hold"
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
-"F16" = "macro open_grid"
+"F16" = "macro right_shift"
 "Cmd+F16" = "macro toggle_continuous"
+"Ctrl+F16" = "macro open_recursive_direct"
 
 [mode_indicator.ui]
 font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"

@@ -112,7 +112,6 @@
             ; f15 is assigned to increase brightness on mac os, so it can't be used
             ; Turn off becuase it's not needed right now
             ; [:!Sright_shift :!Sright_shift nil {:alone :f14}]
-            [:!Tright_shift :!Tright_shift nil {:alone [:hs-cmd "Preset.hideCursor()"]}]
             :mouseless-mode
             [:h {:mkey {:x -1546}}]
             [:j {:mkey {:y 1546}}]
@@ -199,11 +198,13 @@
             ; Dedicated chord: Cmd+Right Shift emits clean Cmd+F16 immediately.
             ; No Shift output and no tap timeout; use Left Shift for Cmd+Shift shortcuts.
             [:!Cright_shift :!Cf16]
+            ; Ctrl+Right Shift emits clean Ctrl+F16 for Recursive Grid.
+            [:!Tright_shift :!Tf16]
             ; Dedicated direct-Grid chord: Option+Left Shift+Right Shift.
             [:!OSright_shift :!OSf16]
             ; Left Shift+Right Shift also opens Grid directly.
             [:!Sright_shift :!Sf16]
-            ; Tap alone: F16 cycles Hints / Grid / Idle, or Mouseless in fallback.
+            ; Tap alone: F16 alternates Hints/Grid or reopens the last one; Mouseless in fallback.
             [:##right_shift :right_shift nil {:alone :f16 :params {:alone 150}}]
             ]
     }

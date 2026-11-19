@@ -12,18 +12,18 @@ RunAtLoad, starts at login. Manage it with `neru services status|start|stop|rest
 | Gesture | Action |
 | --- | --- |
 | Hyper+; | Open Vim with `s` search active; inside Vim, cancel input and restart `s` search |
-| Tap Right Shift / F16 | Cycle **Idle → UI Hints → Regular Grid → Idle** |
+| Tap Right Shift / F16 in Hints or Grid | Alternate **Hints ↔ Regular Grid**, remembering the last-used mode |
+| Right Shift in Idle, Recursive Grid or Vim | Open the last-used **Hints or Regular Grid** |
 | Left Shift+Right Shift / Shift+F16 (also Option+Left Shift+Right Shift) | Open **Regular Grid** directly (does not toggle it closed) |
-| Right Shift in Vim | Open UI Hints |
 | Hyper+, | Open plain Vim text mode (no automatic search, no toggle-to-exit) |
 | Hyper+/ | Open Vim with `/` search active; inside Vim, cancel input and restart `/` search |
 | Double-tap Left Ctrl → F20 | Toggle Ghostty/iTerm quick terminal (run only one app to avoid hotkey competition) |
 | Hyper+d | Open Scroll; page down while Scroll is active |
-| Hyper+u in Scroll | Page up (plain d/u also remain available) |
-| **Cmd+Right Shift → Cmd+F16** | Recursive Grid from idle; **continuous toggle in every active mode** |
-| Escape in Recursive Grid | Backtrack, like Backspace |
-| Shift+Escape | Quit the active grid |
-| Right Shift while either grid is active | Return to Idle |
+| Ctrl+U / Ctrl+D in Scroll | Page up / down (Hyper+U/D remain aliases) |
+| W/A/S/D in Scroll | Move cursor up/left/down/right; Shift fast, Option fine |
+| **Cmd+Right Shift → Cmd+F16** | Open UI Hints from Idle; toggle continuous clicks in every active mode |
+| **Ctrl+Right Shift → Ctrl+F16** | Open alternating-hand Recursive Grid directly |
+| Escape / Shift+Escape | Quit the active mode; Right Shift no longer toggles Grid closed |
 | Hyper+Shift+; | Hammerspoon Command Palette |
 | Hyper+Space → Hyper+r → Hyper+n | Start/restart Neru, quitting Mouseless |
 | Hyper+Space → Hyper+r → Hyper+m | Restart Mouseless, quitting Neru |
@@ -33,7 +33,12 @@ Karabiner directly maps Cmd+Right Shift to a clean Cmd+F16 key event: no Shift
 output, raw-modifier detection, or tap timeout. This makes that combination a
 dedicated command; use Left Shift for ordinary Cmd+Shift shortcuts.
 Left Shift+Right Shift emits clean Shift+F16 immediately to open regular Grid
-directly; Option+Left Shift+Right Shift remains an Alt+Shift+F16 alias. Plain Right Shift cycles Hints → Grid → Idle.
+directly; Option+Left Shift+Right Shift remains an Alt+Shift+F16 alias.
+Ctrl+Right Shift similarly emits clean Ctrl+F16 for Recursive Grid (replacing
+the old Ctrl+Right Shift hide-cursor gesture). Plain Right Shift alternates
+Hints and regular Grid. The last successfully entered one is persisted in
+`neruNavigation.lastPointerMode`; Idle, Recursive Grid and Vim reopen it.
+With no saved preference, Hints is the default.
 Physical Caps is grabbed by Karabiner before Hammerspoon's F19 remap, so grid
 Caps behavior goes through a Karabiner variable: Hammerspoon sets `neru-grid=1`
 while a grid is open; Karabiner maps Caps tap to F17 (`action reset --toggle`)
@@ -47,8 +52,13 @@ In mouse modes, **Space clicks and resets the grid (staying open)**; **Enter
 clicks and exits**. This is independent of the continuous-mode flag.
 Option+Space **or Option+Enter** right-clicks; Cmd+Space **or Cmd+Enter**
 middle-clicks. Ctrl+Space/Ctrl+Enter now start a held left-button drag in
-Grid, Recursive Grid, and Vim. Hints/Scroll/Bisect retain Ctrl-middle-click. Holding Option while completing a hint
-label right-clicks that target; holding Cmd or Ctrl middle-clicks it. Pressing
+Grid, Recursive Grid, and Vim. Scroll/Bisect retain Ctrl-middle-click.
+
+In **Hints**, Space and Enter always left-click at the real cursor position
+(`--bare`), never a hint selection. Cmd, Option and Ctrl are actual click
+modifiers, including combinations. Space refreshes/stays in Hints; Enter exits
+after the click. Shift+Space/Enter remain move-only. Selecting a hint label
+still uses Option for right-click and Cmd/Ctrl for middle-click. Pressing
 Option alone does not click.
 The native Neru click must succeed before the post-click step runs.
 Hammerspoon's `afterClick` callback only controls leaving the mode; it never
@@ -58,17 +68,17 @@ normal/continuous completion policy. Grid/RG/Bisect commit their virtual
 selection; Hints/Scroll use the real pointer. At Grid's empty root, move-only
 falls back to the existing cursor rather than failing for lack of selection.
 
-**Continuous mode** is off by default and toggled with Cmd+F16 in any active
-mode (Cmd+Right Shift physically), or the palette's Continuous Clicks entry.
+**Continuous mode** is off by default and toggled with Cmd+Right Shift in
+any active mode, or the palette's Continuous Clicks entry. From Idle,
+Cmd+Right Shift opens Hints without changing the continuous setting.
 There is no Hyper+Shift+/ binding. The status message names no shortcut.
 It persists across Hammerspoon reloads.
 When on, confirmation clicks/moves reset Grid/Recursive Grid to their base
 layer and keep the overlay open for consecutive targets. Backspace still
-backtracks; Ctrl+Backspace manually resets. Cmd+Right Shift toggles continuous
-mode in every active mode; from idle it opens Recursive Grid.
-In both grids, Escape resets to the starting layer (Backspace still
-backtracks one level in Recursive Grid). Use Shift+Escape or Right Shift
-again to quit. Right Shift opens regular Grid instead.
+backtracks; Ctrl+Backspace manually resets.
+Escape and Shift+Escape quit either grid; Backspace backtracks one level in
+Recursive Grid. Right Shift switches to Hints from regular Grid, or restores
+the last-used Hints/Grid mode from Recursive Grid.
 UI Hints uses Neru's native `--repeat` while continuous mode is on, so selecting
 one hint clicks and redraws hints. Toggling inside Hints refreshes that session.
 
@@ -88,7 +98,7 @@ Tab behavior; Tab completion on Neru's colon line is replaced by this mapping.
 
 ### Grid modes
 
-**Right Shift: regular Grid.** The fine-tune subgrid keypress only moves the
+**Regular Grid (Shift+Right Shift, or Right Shift from Hints).** The fine-tune subgrid keypress only moves the
 selection; Space/Enter confirms the click (in continuous mode the grid resets
 to the base layer and stays open, so Space twice quickly is a double-click).
 Three-character cell labels alternate hands:
@@ -101,7 +111,7 @@ display. `max_label_length = 3` is a maximum, not a force-length flag; the
 planner was verified to produce only three-character labels at both current
 display sizes (1920×1080 and 1280×832).
 
-**Cmd+Right Shift: alternating-hand Recursive Grid.** Each level is 5×3.
+**Ctrl+Right Shift: alternating-hand Recursive Grid.** Each level is 5×3.
 The first level uses left-hand keys, the next right-hand keys, then left again:
 
 ```text
@@ -141,15 +151,15 @@ its display styling. Row/column labels, sublayer keys, fonts, colors, borders,
 label length and matching behavior are configurable. UI Hints also supports
 custom label characters, placement and styling. Consequently the Mouseless-style
 layout uses a **second recursive preset**, not an unsupported native Grid
-option. Regular Grid is now the Right Shift binding.
+option. Regular Grid has the Shift+Right Shift direct binding.
 
 `neruLayouts.lua` switches only the section between the managed-layout markers
 in `config.toml`, preserving all colors and other settings, then reloads Neru.
 It uses an atomic write and refuses ambiguous markers or concurrent edits.
 The chosen layout appears in the tracked config file; selecting the other
-preset can therefore create a small working-tree diff. Cmd+Right Shift selects
-the alternating-hand recursive layout. Right Shift always selects regular
-Grid, switching from other modes or closing it when already open.
+preset can therefore create a small working-tree diff. Ctrl+Right Shift selects
+the alternating-hand recursive layout. Right Shift alternates regular Grid
+and Hints, restoring the last-used one from Idle, Vim or Recursive Grid.
 
 Both grids use **cursor-hold aiming**: grid key selections update the virtual
 selection without moving the real cursor. Clicks commit that position before
@@ -242,8 +252,10 @@ button. An immediate drop during base reset cancels at the source.
 
 ## Other mouse behavior
 
-- W/A/S/E move the pointer in Scroll. Shift triples movement; Option slows it.
-- h/j/k/l scroll; d/u page; g goes top and Shift+G bottom (`gg` disabled).
+- h/j/k/l scroll; Ctrl+U/D page up/down (Hyper+U/D are aliases).
+- W/A/S/D move the cursor up/left/down/right: 15 px, Shift 45 px, Option 5 px.
+  Ctrl+Shift+W/A/S/D also nudge 15 px while dragging.
+- g goes top and Shift+G bottom (`gg` disabled).
 - Arrow keys nudge; held-key repeat is enabled.
 - Tab changes monitors in mouse modes. Scroll auto-exits after 10s without a
   keystroke (Hammerspoon timer; Neru has no native mode timeout), and

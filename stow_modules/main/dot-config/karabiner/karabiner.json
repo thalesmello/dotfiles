@@ -116,21 +116,6 @@
           } ],
           "type" : "basic"
         }, {
-          "to_if_alone" : [ {
-            "shell_command" : "/opt/homebrew/bin/hs -c 'Preset.hideCursor()'"
-          } ],
-          "from" : {
-            "key_code" : "right_shift",
-            "modifiers" : {
-              "mandatory" : [ "left_control" ]
-            }
-          },
-          "to" : [ {
-            "key_code" : "right_shift",
-            "modifiers" : [ "left_control" ]
-          } ],
-          "type" : "basic"
-        }, {
           "from" : {
             "key_code" : "h"
           },
@@ -2060,6 +2045,18 @@
           "to" : [ {
             "key_code" : "f16",
             "modifiers" : [ "left_command" ]
+          } ],
+          "type" : "basic"
+        }, {
+          "from" : {
+            "key_code" : "right_shift",
+            "modifiers" : {
+              "mandatory" : [ "left_control" ]
+            }
+          },
+          "to" : [ {
+            "key_code" : "f16",
+            "modifiers" : [ "left_control" ]
           } ],
           "type" : "basic"
         }, {

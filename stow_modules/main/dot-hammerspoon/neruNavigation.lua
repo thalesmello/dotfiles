@@ -32,6 +32,7 @@ function M.setup(ctx)
     consumedDropKeys = {},
     modeEpoch = 0,
     continuous = hs.settings.get("neruNavigation.continuous") == true,
+    lastPointerMode = hs.settings.get("neruNavigation.lastPointerMode") == "grid" and "grid" or "hints",
     layout = Layouts.current(),
   }
   instance = state
@@ -252,12 +253,20 @@ function M.setup(ctx)
     end)
   end
 
+  local function rememberPointerMode()
+    if state.mode == "grid" or state.mode == "hints" then
+      state.lastPointerMode = state.mode
+      hs.settings.set("neruNavigation.lastPointerMode", state.mode)
+    end
+  end
+
   local function readWatchLine(line)
     local ok, event = pcall(hs.json.decode, line)
     if not ok or type(event) ~= "table" then return end
     if event.event == "snapshot" and type(event.status) == "table" then
       resetDrag()
       state.mode = event.status.enabled and event.status.mode or "idle"
+      rememberPointerMode()
       if state.mode == "scroll" then armScrollIdle() else cancelScrollIdle() end
       syncKarabinerGrid()
       syncNativeRepeat()
@@ -267,6 +276,7 @@ function M.setup(ctx)
       cancelOpacityRedraw() -- a new mode must not be reopened by an old timer/reply
       resetDrag()
       state.mode = event.mode
+      rememberPointerMode()
       state.clickQueue, state.clickBusy, state.lastGridClick = {}, false, nil
       state.lastGridAimCode, state.latestGridSelection = nil, nil
       state.pendingFineTap, state.lastFineTapCode = nil, nil
@@ -360,25 +370,32 @@ function M.setup(ctx)
     end)
   end
 
-  local function openLayout(name)
+  local function openLayout(name, direct)
     if state.busy or state.backend ~= "neru" then
       message("Select the Neru profile before opening a grid"); return
     end
-    if state.mode == "recursive_grid" and state.layout == name then
+    if not direct and state.mode == "recursive_grid" and state.layout == name then
       command({"idle"}); return
     end
     local changed, err = Layouts.select(name)
     if changed == nil then message("Could not select grid layout: " .. tostring(err)); return end
     state.layout = name
     if changed and state.configWatcher then state.configWatcher.markCurrent() end
-    local function open() launch({"run", gridCommand}) end
+    local function open()
+      launch({"run", direct and gridCommand:gsub(" %-%-toggle$", "") or gridCommand})
+    end
     if changed then
       command({"config", "reload"}, function(ok)
         if ok then open() else message("Could not reload the grid layout") end
       end)
     else open() end
   end
-  state.openRecursive = function() openLayout("recursive") end
+  state.openRecursive = function(direct) openLayout("recursive", direct) end
+  state.openHints = function() launch({"hints", "--strategy", "axtree", "--action", "left_click"}) end
+  state.openLastPointer = function()
+    if state.lastPointerMode == "grid" then launch({"grid", "--cursor-selection-mode", "hold"})
+    else state.openHints() end
+  end
   state.openGrid = function() launch({"grid", "--cursor-selection-mode", "hold", "--toggle"}) end
   state.openVimSearch = function(searchKey)
     searchKey = searchKey or "s"
@@ -406,10 +423,9 @@ function M.setup(ctx)
   state.unregisterCapsTap = CapsHyper.onTap(state.capsTap)
   state.rightShift = function()
     if state.closed or state.busy or state.backend ~= "neru" then return end
-    if gridModes[state.mode] then command({"idle"})
-    elseif state.mode == "idle" or state.mode == "vim" then
-      launch({"hints", "--strategy", "axtree", "--action", "left_click"})
-    else state.openGrid() end
+    if state.mode == "hints" then launch({"grid", "--cursor-selection-mode", "hold"})
+    elseif state.mode == "grid" then state.openHints()
+    else state.openLastPointer() end
   end
 
   -- The actual click runs in Neru first. This callback only decides whether
@@ -688,10 +704,8 @@ function M.setup(ctx)
   end
 
   state.toggleContinuous = toggleContinuous
-  local function commandGrid()
-    -- Cmd+F16 is the continuous toggle in every active mode. From idle it is
-    -- still the Recursive Grid launcher.
-    if state.mode ~= "idle" then toggleContinuous() else state.openRecursive() end
+  state.cmdRightShift = function()
+    if state.mode == "idle" then state.openHints() else toggleContinuous() end
   end
 
   -- A persisted Neru setting must not steal Mouseless's keys on reload if
@@ -713,13 +727,15 @@ function M.setup(ctx)
   state.handles[#state.handles + 1] = ctx.default:bindOnce(ctx.hyper, "/",
     "Neru: Vim Slash Search", function() state.openVimSearch("/") end)
   state.handles[#state.handles + 1] = ctx.default:bindOnce({}, "F16",
-    "Neru: Hints / Grid / Idle (Right Shift)", state.rightShift)
+    "Neru: Alternate / Last Hints or Grid (Right Shift)", state.rightShift)
   bind({"shift"}, "F16", "Neru: Grid (Left Shift+Right Shift)",
     {"grid", "--cursor-selection-mode", "hold"})
   bind({"alt", "shift"}, "F16", "Neru: Grid (Option+Left Shift+Right Shift)",
     {"grid", "--cursor-selection-mode", "hold"})
   state.handles[#state.handles + 1] = ctx.default:bindOnce({"cmd"}, "F16",
-    "Neru: Recursive / Continuous Grid (Cmd+Right Shift)", commandGrid)
+    "Neru: Hints / Continuous Clicks (Cmd+Right Shift)", state.cmdRightShift)
+  state.handles[#state.handles + 1] = ctx.default:bindOnce({"ctrl"}, "F16",
+    "Neru: Recursive Grid (Ctrl+Right Shift)", function() state.openRecursive(true) end)
   bind(ctx.hyper, ",", "Neru: Vim Text Mode", {"vim"})
   bind(ctx.hyper, "d", "Neru: Scroll", {"scroll", "--toggle"})
   enableHandles(state.backend == "neru")
@@ -1067,8 +1083,16 @@ function M.setup(ctx)
 end
 
 -- Called by mode-local Neru macros through the existing authenticated hs CLI.
-function M.openRecursive()
-  if instance and not instance.closed then instance.openRecursive() end
+function M.openRecursive(direct)
+  if instance and not instance.closed then instance.openRecursive(direct) end
+end
+
+function M.openHints()
+  if instance and not instance.closed then instance.openHints() end
+end
+
+function M.rightShift()
+  if instance and not instance.closed then instance.rightShift() end
 end
 
 function M.openGrid()
@@ -1106,7 +1130,8 @@ end
 function M.status()
   if not instance then return nil end
   return {backend = instance.backend, mode = instance.mode, continuous = instance.continuous,
-    layout = instance.layout, busy = instance.busy, leftHeld = instance.dragHeld,
+    layout = instance.layout, lastPointerMode = instance.lastPointerMode,
+    busy = instance.busy, leftHeld = instance.dragHeld,
     heldDrag = instance.dragLatched}
 end
 

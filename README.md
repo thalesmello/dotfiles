@@ -46,20 +46,23 @@ ln "$(pwd)/mouseless/config.yaml" "$HOME/Library/Containers/net.sonuscape.mousel
 ### Neru navigation
 
 See [the Neru configuration plan](docs/neru-config-plan.md) for the active
-Right Shift/F16 Hints → Grid → Idle cycle, Left Shift+Right Shift direct Grid,
-Cmd+Right Shift Recursive Grid, Hyper+; Vim `s` search/reset, Hyper+/ Vim `/` search/reset,
+Right Shift/F16 Hints ↔ Grid alternation with last-used recall, Left Shift+Right Shift direct Grid,
+Cmd+Right Shift Hints from Idle / continuous toggle when active, Ctrl+Right Shift Recursive Grid,
+Hyper+; Vim `s` search/reset, Hyper+/ Vim `/` search/reset,
 Hyper+, plain Vim, Hammerspoon profile switch,
 restart bindings, and test commands. Keep Mouseless installed. Its newer live config
 may be under `~/Library/Application Support/Mouseless/configs/config.yaml`;
 add F16 to that file's overlay shortcuts without replacing it with the legacy
 repo config. Use Restart → Hyper+n for Neru and Restart → Hyper+m for
 Mouseless; the commands quit the competing app before starting the chosen one.
-Right Shift cycles Idle → Hints → regular Grid → Idle; in Vim it opens Hints.
+Right Shift alternates Hints ↔ regular Grid; Idle, Vim and Recursive Grid
+restore the last-used Hints/Grid mode, remembered across sessions.
 Left Shift+Right Shift opens regular Grid directly (Option+Shift remains an alias) with three-character left→right→left labels
 and a right-hand fine-adjustment subgrid (`uio / jkl / m,.`). Main labels use
 letters only; static Grid borders are hidden while Recursive Grid lines stay
-visible. Cmd+Right Shift sends clean Cmd+F16 through Karabiner: from idle it
-opens the 5×3 Recursive Grid; in any active mode it toggles continuous clicks
+visible. Cmd+Right Shift opens Hints from Idle and toggles continuous clicks
+in every active mode. Ctrl+Right Shift sends clean Ctrl+F16 through Karabiner
+and opens the 5×3 Recursive Grid. The palette also toggles continuous clicks
 (there is no Hyper+Shift+/ binding). In Hints, Tab swaps displays and exits.
 Double-tap Left Ctrl emits F20 to toggle the Ghostty or iTerm quick terminal;
 Hyper+/ is Neru-only. Run only one quick-terminal app to avoid competing F20 hotkeys.
