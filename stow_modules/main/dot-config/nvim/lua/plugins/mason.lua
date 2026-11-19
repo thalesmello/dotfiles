@@ -59,6 +59,36 @@ return {
          -- }
 
          vim.lsp.config('lua_ls', {
+            on_attach = function(client, bufnr)
+               -- Only Hammerspoon buffers need EmmyLua; never load the Spoon
+               -- during Hammerspoon startup or for unrelated Lua projects.
+               local file = vim.uv.fs_realpath(vim.api.nvim_buf_get_name(bufnr)) or ""
+               local home = vim.env.HOME
+               local function inside(dir)
+                  dir = vim.uv.fs_realpath(dir)
+                  return dir and file:sub(1, #dir + 1) == dir .. "/"
+               end
+               if inside(home .. "/.hammerspoon") or inside(home .. "/.local_dotfiles/hammerspoon") then
+                  if not vim.g.hammerspoon_annotations_requested then
+                     vim.g.hammerspoon_annotations_requested = true
+                     vim.system({vim.v.progpath, "--headless", "-u", "NONE", "-l", home .. "/src/dotfiles/scripts/hammerspoon-lsp-annotations.lua"}, {timeout = 5000}, function(result)
+                        vim.schedule(function()
+                           if result.code ~= 0 then
+                              vim.g.hammerspoon_annotations_requested = nil
+                              vim.notify("Hammerspoon LSP annotations: " .. (result.stderr or "generation failed"), vim.log.levels.WARN)
+                              return
+                           end
+                           -- Also covers the first LSP attach on a clean install,
+                           -- where the annotation directory did not exist yet.
+                           if client:is_stopped() then return end
+                           local settings = client.config.settings
+                           settings.Lua.workspace.library[#settings.Lua.workspace.library + 1] = home .. "/.hammerspoon/Spoons/EmmyLua.spoon/annotations"
+                           client:notify("workspace/didChangeConfiguration", {settings = settings})
+                        end)
+                     end)
+                  end
+               end
+            end,
             settings = {
                Lua = {
                   runtime = {

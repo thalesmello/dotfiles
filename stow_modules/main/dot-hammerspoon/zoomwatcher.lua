@@ -256,6 +256,7 @@ end
 
 function M.setup()
   if _G.ZoomWatcher then
+    if _G.ZoomWatcher.bootstrap then _G.ZoomWatcher.bootstrap:stop() end
     if _G.ZoomWatcher.appWatcher then pcall(function() _G.ZoomWatcher.appWatcher:stop() end) end
     if _G.ZoomWatcher.app then pcall(function() _G.ZoomWatcher.app:stop() end) end
     for _, w in pairs(_G.ZoomWatcher.windows or {}) do pcall(function() w:stop() end) end
@@ -263,6 +264,9 @@ function M.setup()
 
   _G.ZoomWatcher = {}
   windowWatchers = {}
+  zoomWatcher = nil
+  inMeeting = false
+  cancelSettle()
 
   appWatcher = hs.application.watcher.new(function(name, event, app)
     -- On terminated, `name` is nil, so identify Zoom by the app object instead.
@@ -286,8 +290,14 @@ function M.setup()
   appWatcher:start()
   _G.ZoomWatcher.appWatcher = appWatcher
 
-  -- Zoom may already be running when Hammerspoon starts/reloads.
-  attach(zoomApp())
+  -- Keep NSWorkspace listening immediately; defer the initial AX sweep until
+  -- startup has yielded. A launch event can attach sooner, so do not reset it.
+  local generation = _G.ZoomWatcher
+  generation.bootstrap = hs.timer.doAfter(0, function()
+    if _G.ZoomWatcher ~= generation then return end
+    generation.bootstrap = nil
+    if not zoomWatcher then attach(zoomApp()) end
+  end)
 end
 
 -- Exposed so a keybinding/palette entry can quit Zoom on demand.

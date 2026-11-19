@@ -31,10 +31,11 @@ end
 -- Newest finished, visible top-level file in `dir`, by creation time. Skips
 -- hidden files (.DS_Store), partial downloads, and folders. Non-recursive by
 -- design. Returns name, attrs (or nil when the folder has no eligible file).
-local function newestFile(dir)
+local function newestFile(dir, initialNames)
   local newestName, newestAttrs
   for entry in hs.fs.dir(dir) do
-    if entry ~= "." and entry ~= ".." and entry:sub(1, 1) ~= "." then
+    if entry ~= "." and entry ~= ".." and entry:sub(1, 1) ~= "."
+        and (not initialNames or initialNames[entry]) then
       local ext = entry:match("%.([^.]+)$")
       if not (ext and TEMP_EXTENSIONS[ext:lower()]) then
         local attrs = hs.fs.attributes(dir .. "/" .. entry)
@@ -52,11 +53,17 @@ function M.setup()
   local dir = hs.fs.pathToAbsolute(os.getenv("HOME") .. "/Downloads")
   if not dir then return end
 
-  -- Track the newest creation time seen so only files created from now on copy.
-  local _, seed = newestFile(dir)
-  local lastCreation = seed and seed.creation or 0
+  if _G.DownloadWatcher then _G.DownloadWatcher:stop() end
+  if _G.DownloadWatcherBootstrap then _G.DownloadWatcherBootstrap:stop() end
 
-  local watcher = hs.pathwatcher.new(dir, function()
+  -- Snapshot names only (no stat calls) before yielding. The expensive metadata
+  -- baseline is lazy, but must not include downloads arriving during the gap.
+  local initialNames = {}
+  for entry in hs.fs.dir(dir) do initialNames[entry] = true end
+  local initialized, pending = false, false
+  local lastCreation = 0
+  local function onChange()
+    if not initialized then pending = true; return end
     local name, attrs = newestFile(dir)
     -- Nothing new: no eligible file, or the newest one predates the last copy.
     if not attrs or attrs.creation <= lastCreation then return end
@@ -70,11 +77,21 @@ function M.setup()
         util.log("bincopy failed for", path)
       end
     end)
-  end)
+  end
 
+  local watcher = hs.pathwatcher.new(dir, onChange)
   if watcher then
     watcher:start()
     _G.DownloadWatcher = watcher
+    _G.DownloadWatcherBootstrap = hs.timer.doAfter(0, function()
+      if _G.DownloadWatcher ~= watcher then return end
+      _G.DownloadWatcherBootstrap = nil
+      local _, seed = newestFile(dir, initialNames)
+      lastCreation = seed and seed.creation or 0
+      initialNames = nil
+      initialized = true
+      if pending then onChange() end
+    end)
   end
 end
 

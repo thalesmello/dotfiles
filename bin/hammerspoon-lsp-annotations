@@ -1,0 +1,3 @@
+#!/bin/sh
+# Offline EmmyLua generation for editor/LSP use only. Does not launch Hammerspoon.
+exec nvim --headless -u NONE -l "$HOME/src/dotfiles/scripts/hammerspoon-lsp-annotations.lua"

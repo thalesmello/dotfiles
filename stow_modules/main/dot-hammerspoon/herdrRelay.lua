@@ -779,43 +779,46 @@ local function resolveDirectPasteRoute(sock, bin, coreId, app)
 end
 
 local function runDirectPasteTask(route, args, inputText, callback)
-  local execPath
-  local taskArgs
-  if route.kind == "local" then
-    execPath = route.bin
-    taskArgs = args
-  else
-    execPath = route.hc
-    taskArgs = { "exec" }
-    if inputText ~= nil then taskArgs[#taskArgs + 1] = "-i" end
-    taskArgs[#taskArgs + 1] = "--on"
-    taskArgs[#taskArgs + 1] = route.machine
-    taskArgs[#taskArgs + 1] = "--"
-    taskArgs[#taskArgs + 1] = route.bin
-    for _, a in ipairs(args) do
-      taskArgs[#taskArgs + 1] = a
+  shell.whenReady(function(ok)
+    if not ok then if callback then callback(false, "PATH discovery failed") end; return end
+    local execPath
+    local taskArgs
+    if route.kind == "local" then
+      execPath = route.bin
+      taskArgs = args
+    else
+      execPath = route.hc
+      taskArgs = { "exec" }
+      if inputText ~= nil then taskArgs[#taskArgs + 1] = "-i" end
+      taskArgs[#taskArgs + 1] = "--on"
+      taskArgs[#taskArgs + 1] = route.machine
+      taskArgs[#taskArgs + 1] = "--"
+      taskArgs[#taskArgs + 1] = route.bin
+      for _, a in ipairs(args) do
+        taskArgs[#taskArgs + 1] = a
+      end
     end
-  end
 
-  _G._RunningTasks = _G._RunningTasks or {}
-  local t
-  t = hs.task.new(execPath, function(exitCode, _stdOut, stdErr)
-    _G._RunningTasks[t] = nil
-    if callback then
-      callback(exitCode == 0, (stdErr or ""):gsub("%s+$", ""))
+    _G._RunningTasks = _G._RunningTasks or {}
+    local t
+    t = hs.task.new(execPath, function(exitCode, _stdOut, stdErr)
+      _G._RunningTasks[t] = nil
+      if callback then
+        callback(exitCode == 0, (stdErr or ""):gsub("%s+$", ""))
+      end
+    end, taskArgs)
+    if type(_G._TaskEnv) == "table" then
+      t:setEnvironment(_G._TaskEnv)
     end
-  end, taskArgs)
-  if type(_G._TaskEnv) == "table" then
-    t:setEnvironment(_G._TaskEnv)
-  end
-  if inputText ~= nil then
-    t:setInput(inputText)
-  end
-  _G._RunningTasks[t] = true
-  if not t:start() then
-    _G._RunningTasks[t] = nil
-    if callback then callback(false, "could not start direct paste task") end
-  end
+    if inputText ~= nil then
+      t:setInput(inputText)
+    end
+    _G._RunningTasks[t] = true
+    if not t:start() then
+      _G._RunningTasks[t] = nil
+      if callback then callback(false, "could not start direct paste task") end
+    end
+  end)
 end
 
 -- Say no back to the pane instead of just dropping the request. The pane is

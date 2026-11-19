@@ -38,7 +38,8 @@ local function isTotApp(app)
 end
 
 local function totApp()
-  return hs.application.get(BUNDLE) or hs.application.get(APP_NAME)
+  local apps = hs.application.applicationsForBundleID(BUNDLE)
+  return apps and apps[1] or nil
 end
 
 local function isTotWindowFocused()
@@ -222,6 +223,7 @@ end
 
 function M.setup()
   if _G.TotWatcher then
+    if _G.TotWatcher.bootstrap then _G.TotWatcher.bootstrap:stop() end
     if _G.TotWatcher.appWatcher then pcall(function() _G.TotWatcher.appWatcher:stop() end) end
     if _G.TotWatcher.spaceWatcher then pcall(function() _G.TotWatcher.spaceWatcher:stop() end) end
     if _G.TotWatcher.app then pcall(function() _G.TotWatcher.app:stop() end) end
@@ -230,6 +232,10 @@ function M.setup()
 
   _G.TotWatcher = {}
   windowWatchers = {}
+  totWatcher = nil
+  totFocused, pendingDeactivate = false, false
+  cancelSettle()
+  cancelActivateRetry()
 
   appWatcher = hs.application.watcher.new(function(_, event, app)
     if event == hs.application.watcher.terminated then
@@ -278,13 +284,20 @@ function M.setup()
   spaceWatcher:start()
   _G.TotWatcher.spaceWatcher = spaceWatcher
 
-  local app = totApp()
-  if app then
-    attach(app)
-    if not app:isHidden() and not totHasFocus(app) then
-      hideTot("unfocused at setup")
+  -- App/Space listeners are already live. Only the initial AX attachment and
+  -- focus reconciliation wait until the first event-loop turn.
+  local generation = _G.TotWatcher
+  generation.bootstrap = hs.timer.doAfter(0, function()
+    if _G.TotWatcher ~= generation then return end
+    generation.bootstrap = nil
+    local app = totApp()
+    if app then
+      if not totWatcher then attach(app) end
+      if not app:isHidden() and not totHasFocus(app) then
+        hideTot("unfocused at setup")
+      end
     end
-  end
+  end)
 end
 
 return M

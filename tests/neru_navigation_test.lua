@@ -41,7 +41,16 @@ local function fixture(backend, store, mouseless)
       function h:press() if self.enabled then self.fn() end end
       e.handles[#e.handles + 1] = h; return h
     end},
-    application = {get = function(name) return e.apps[name] end},
+    application = {
+      get = function(name)
+        assert(name ~= "Mouseless", "Mouseless lookup must not use global AX fallback")
+        return e.apps[name]
+      end,
+      applicationsForBundleID = function(bundle)
+        eq(bundle, "net.sonuscape.mouseless")
+        return e.apps.Mouseless and {e.apps.Mouseless} or {}
+      end,
+    },
     timer = {absoluteTime = function() return (e.clock or 100) * 1e9 end, doAfter = function(delay, fn)
       local timer = {delay = delay, stopped = false}
       function timer:stop() self.stopped = true end
@@ -81,6 +90,11 @@ local function fixture(backend, store, mouseless)
     end},
   }
   package.loaded.shell = {
+    whenReady = function(fn)
+      if e.store.deferPath then
+        e.pathWaiters = e.pathWaiters or {}; e.pathWaiters[#e.pathWaiters + 1] = fn
+      else fn(true) end
+    end,
     resolvePath = function() return e.executable end,
     task = function(args, done)
       local c = {args = args, done = done}; e.calls[#e.calls + 1] = c
@@ -827,6 +841,20 @@ test("Right Shift exits either grid rather than switching layouts", function()
 end)
 test("config watcher is stopped on shutdown", function()
   local e = fixture("neru"); e.state.close(); eq(e.configWatcherStopped, true)
+end)
+
+test("watch waits for asynchronous PATH readiness", function()
+  local e = fixture("neru", {deferPath = true})
+  eq(#e.watchers, 0); eq(e.state.watch, nil)
+  e.pathWaiters[1](true); eq(#e.watchers, 1); assert(e.state.watch)
+end)
+test("late PATH readiness cannot revive a closed watch", function()
+  local e = fixture("neru", {deferPath = true})
+  e.state.close(); e.pathWaiters[1](true); eq(#e.watchers, 0)
+end)
+test("failed PATH readiness does not start a watch", function()
+  local e = fixture("neru", {deferPath = true})
+  e.pathWaiters[1](false); eq(#e.watchers, 0); eq(e.state.watch, nil)
 end)
 
 local failures = 0

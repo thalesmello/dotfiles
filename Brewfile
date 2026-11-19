@@ -92,6 +92,7 @@ cask "font-atkinson-hyperlegible-mono"
 cask "font-symbols-only-nerd-font"
 cask "ghostty"
 cask "hammerspoon"
+brew "thalesmello/hammerspoon/hammerspoon-hidtap", trusted: true if OS.mac?
 cask "homerow"
 cask "iterm2"
 cask "karabiner-elements"

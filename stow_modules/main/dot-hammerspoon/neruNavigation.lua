@@ -14,6 +14,13 @@ local gridCommand = "recursive_grid --cursor-selection-mode hold --toggle"
 local gridModes = {recursive_grid = true, grid = true}
 local instance
 
+local function mouselessApp()
+  -- Name lookup falls back to a global AX search when the app is absent
+  -- (~1.6s measured). NSRunningApplication bundle lookup never sweeps windows.
+  local apps = hs.application.applicationsForBundleID("net.sonuscape.mouseless")
+  return apps and apps[1] or nil
+end
+
 function M.setup(ctx)
   if instance then instance.close() end
   local configured = hs.settings.get(SETTING)
@@ -297,42 +304,46 @@ function M.setup(ctx)
 
   local function startWatch()
     stopWatch()
-    local executable = shell.resolvePath("neru")
-    if not executable then return end
-    local buffer, epoch, watchEpoch = "", state.epoch, state.watchEpoch
-    local watcher
-    watcher = hs.task.new(executable, function()
-      if state.closed or epoch ~= state.epoch or state.watch ~= watcher then return end
-      state.watchEpoch = state.watchEpoch + 1
-      state.watch = nil
-      state.mode = "idle"
-      cancelOpacityRedraw()
-      syncKarabinerGrid()
-      resetDrag()
-      message("Neru status stream ended; reload Hammerspoon after restarting Neru")
-    end, function(task, stdout)
-      -- hs.task can deliver a final streaming callback with task=nil AFTER
-      -- termination. It must not resurrect an old mode or authorize dragging.
-      if not task or state.closed or epoch ~= state.epoch or
-        watchEpoch ~= state.watchEpoch or state.watch ~= watcher then return false end
-      buffer = buffer .. (stdout or "")
-      while true do
-        local newline = buffer:find("\n", 1, true)
-        if not newline then break end
-        readWatchLine(buffer:sub(1, newline - 1))
-        buffer = buffer:sub(newline + 1)
+    local epoch, watchEpoch = state.epoch, state.watchEpoch
+    shell.whenReady(function(ok)
+      if not ok or state.closed or epoch ~= state.epoch or watchEpoch ~= state.watchEpoch then return end
+      local executable = shell.resolvePath("neru")
+      if not executable then return end
+      local buffer = ""
+      local watcher
+      watcher = hs.task.new(executable, function()
+        if state.closed or epoch ~= state.epoch or state.watch ~= watcher then return end
+        state.watchEpoch = state.watchEpoch + 1
+        state.watch = nil
+        state.mode = "idle"
+        cancelOpacityRedraw()
+        syncKarabinerGrid()
+        resetDrag()
+        message("Neru status stream ended; reload Hammerspoon after restarting Neru")
+      end, function(task, stdout)
+        -- hs.task can deliver a final streaming callback with task=nil AFTER
+        -- termination. It must not resurrect an old mode or authorize dragging.
+        if not task or state.closed or epoch ~= state.epoch or
+          watchEpoch ~= state.watchEpoch or state.watch ~= watcher then return false end
+        buffer = buffer .. (stdout or "")
+        while true do
+          local newline = buffer:find("\n", 1, true)
+          if not newline then break end
+          readWatchLine(buffer:sub(1, newline - 1))
+          buffer = buffer:sub(newline + 1)
+        end
+        if #buffer > 65536 then buffer = "" end
+        return true
+      end, {"watch", "--event", "mode_enter,mode_exit,select"})
+      watcher:setEnvironment(_TaskEnv)
+      state.watch = watcher
+      if not watcher:start() then
+        state.watch = nil
+        state.watchEpoch = state.watchEpoch + 1
+        resetDrag()
+        message("Could not watch Neru; modifier dragging is unavailable")
       end
-      if #buffer > 65536 then buffer = "" end
-      return true
-    end, {"watch", "--event", "mode_enter,mode_exit,select"})
-    watcher:setEnvironment(_TaskEnv)
-    state.watch = watcher
-    if not watcher:start() then
-      state.watch = nil
-      state.watchEpoch = state.watchEpoch + 1
-      resetDrag()
-      message("Could not watch Neru; modifier dragging is unavailable")
-    end
+    end)
   end
 
   local function launch(args)
@@ -671,7 +682,7 @@ function M.setup(ctx)
 
   -- A persisted Neru setting must not steal Mouseless's keys on reload if
   -- its app has been started independently. Require an explicit handoff.
-  if state.backend == "neru" and hs.application.get("Mouseless") then
+  if state.backend == "neru" and mouselessApp() then
     state.backend = "mouseless"
     message("Mouseless is running; use the palette for an explicit Neru handoff")
   end
@@ -728,9 +739,9 @@ function M.setup(ctx)
     if state.busy then return end
     if not shell.resolvePath("neru") then message("Install Neru before enabling it"); return end
     beginSwitch()
-    local mouseless = hs.application.get("Mouseless")
+    local mouseless = mouselessApp()
     if mouseless then mouseless:kill() end
-    waitFor(function() return not hs.application.get("Mouseless") end, function(quit)
+    waitFor(function() return not mouselessApp() end, function(quit)
       if not quit then failSwitch("Mouseless did not quit; Neru was not started"); return end
       shell.task({"open", "-a", "Neru"}, function(opened)
         if state.closed then return end
@@ -802,7 +813,9 @@ function M.setup(ctx)
         if code == 1 then done(true); return end
         if code ~= 0 or attempt >= 40 then done(false); return end
         if attempt == 0 then
-          local app = hs.application.get(appName)
+          local app
+          if appName == "Mouseless" then app = mouselessApp()
+          else app = hs.application.get(appName) end
           if app then app:kill() end
           -- SIGTERM is Neru's supported graceful daemon shutdown. The check
           -- below, not killall's exit status, determines whether it quit.

@@ -22,6 +22,7 @@ function M.setup()
         -- otherwise gets misreported as a syntax error.
         local base = f:match("[^/]+$") or f
         return f:match("%.lua$") and base:sub(1, 1) ~= "."
+          and not f:find("/EmmyLua.spoon/annotations/", 1, true)
       end)
       if not luaFiles or #luaFiles == 0 then return end
 

@@ -294,91 +294,44 @@ local HUD_SHOW_DELAY = 0.2
 -- them and replace a hold with a synthetic 0ms click. Starting our tap at
 -- kCGHIDEventTap with kCGHeadInsertEventTap places it ahead of Mac Mouse Fix so
 -- Mission Control sees the real physical middle-button press and release.
-local HIDTAP_SO = "/tmp/hs_hidtap.so"
-local HIDTAP_C = [[
-#include <ApplicationServices/ApplicationServices.h>
-#include <dlfcn.h>
-#include <lua.h>
-#include <lauxlib.h>
-
-typedef struct {
-    int callbackRef;
-    CGEventMask mask;
-    CFMachPortRef tap;
-    CFRunLoopSourceRef runloopSrc;
-} eventtap_t;
-
-static int start_hid(lua_State *L) {
-    eventtap_t *e = (eventtap_t *)luaL_checkudata(L, 1, "hs.eventtap");
-    if (e->tap && CGEventTapIsEnabled(e->tap)) {
-        lua_settop(L, 1);
-        return 1;
-    }
-    void *h = dlopen("/Applications/Hammerspoon.app/Contents/Frameworks/hs/libeventtap.dylib", RTLD_NOLOAD | RTLD_LAZY);
-    CGEventTapCallBack cb = (CGEventTapCallBack)dlsym(h ? h : RTLD_DEFAULT, "eventtap_callback");
-    if (!cb) return luaL_error(L, "eventtap_callback symbol not found");
-
-    if (e->tap) {
-        CFMachPortInvalidate(e->tap);
-        if (e->runloopSrc) {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), e->runloopSrc, kCFRunLoopCommonModes);
-            CFRelease(e->runloopSrc);
-            e->runloopSrc = NULL;
-        }
-        CFRelease(e->tap);
-        e->tap = NULL;
-    }
-
-    e->tap = CGEventTapCreate(
-        kCGHIDEventTap,
-        kCGHeadInsertEventTap,
-        kCGEventTapOptionDefault,
-        e->mask,
-        cb,
-        e
-    );
-    if (!e->tap) return luaL_error(L, "CGEventTapCreate(kCGHIDEventTap) failed");
-
-    CGEventTapEnable(e->tap, true);
-    e->runloopSrc = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, e->tap, 0);
-    CFRunLoopAddSource(CFRunLoopGetMain(), e->runloopSrc, kCFRunLoopCommonModes);
-    lua_settop(L, 1);
-    return 1;
-}
-
-int luaopen_hs_hidtap(lua_State *L) {
-    lua_pushcfunction(L, start_hid);
-    return 1;
-}
-]]
-
+-- Built by the local thalesmello/hammerspoon tap, never by config startup.
 local startHIDTap = nil
 local function startEventTapAtHID(tap)
+  local prefix = hs.fs.attributes("/opt/homebrew", "mode") and "/opt/homebrew" or "/usr/local"
+  local opt = prefix .. "/opt/hammerspoon-hidtap"
   if not startHIDTap then
-    if not hs.fs.attributes(HIDTAP_SO, "mode") then
-      local cPath = "/tmp/hs_hidtap.c"
-      local f = io.open(cPath, "w")
-      if f then
-        f:write(HIDTAP_C)
-        f:close()
-        os.execute(
-          "/usr/bin/clang -O2 -bundle -undefined dynamic_lookup"
-          .. " -I/Applications/Hammerspoon.app/Contents/Frameworks/LuaSkin.framework/Versions/A/Headers"
-          .. " -framework ApplicationServices -framework CoreFoundation "
-          .. cPath .. " -o " .. HIDTAP_SO
-        )
+    local built = hs.plist.read(opt .. "/share/hammerspoon-hidtap/Hammerspoon-Info.plist")
+    local current = hs.plist.read("/Applications/Hammerspoon.app/Contents/Info.plist")
+    if built and current and built.CFBundleVersion == current.CFBundleVersion
+      and built.CFBundleShortVersionString == current.CFBundleShortVersionString then
+      local loader, err = package.loadlib(opt .. "/lib/hs_hidtap.so", "luaopen_hs_hidtap")
+      if loader then
+        local ok, fn = pcall(loader)
+        if ok and type(fn) == "function" then startHIDTap = fn end
+      else
+        util.log("missioncontrol: could not load HID helper:", err)
       end
     end
-    local loader = package.loadlib(HIDTAP_SO, "luaopen_hs_hidtap")
+  end
+  -- Migration only: keep the already-compiled helper working until brew can
+  -- install the formula. This never invokes clang; reboot clears this fallback.
+  if not startHIDTap and not hs.fs.attributes(opt .. "/lib/hs_hidtap.so", "mode")
+      and hs.fs.attributes("/tmp/hs_hidtap.so", "mode") then
+    local loader = package.loadlib("/tmp/hs_hidtap.so", "luaopen_hs_hidtap")
     if loader then
       local ok, fn = pcall(loader)
       if ok and type(fn) == "function" then startHIDTap = fn end
     end
+    util.log("missioncontrol: using legacy HID cache; install thalesmello/hammerspoon/hammerspoon-hidtap before reboot")
   end
   if startHIDTap then
-    local ok = pcall(startHIDTap, tap)
+    local ok, err = pcall(startHIDTap, tap)
     if ok then return end
+    util.log("missioncontrol: HID tap failed:", err)
   end
+  -- Explicitly report degraded ordering rather than silently recompiling.
+  util.log("missioncontrol: HID helper missing/outdated; brew reinstall thalesmello/hammerspoon/hammerspoon-hidtap")
+  hs.alert.show("Mission Control HID helper needs brew reinstall (see console)")
   tap:start()
 end
 

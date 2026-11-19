@@ -1,3 +1,4 @@
+local startupStarted = hs.timer.absoluteTime()
 local home = os.getenv("HOME")
 local local_dotfiles = home .. "/.local_dotfiles"
 local util = require('util')
@@ -25,7 +26,8 @@ require("missioncontrol").setup()
 require("debuglog").setup()
 require("workflowPreset").setup()
 
-hs.loadSpoon("EmmyLua")
+-- Editor annotations are generated only by the Lua LSP hook (see
+-- bin/hammerspoon-lsp-annotations), never during runtime startup.
 
 hs.loadSpoon("HoldToQuit")
 spoon.HoldToQuit.duration = 1
@@ -35,3 +37,14 @@ spoon.HoldToQuit:start()
 hs.console.darkMode(true)
 
 util.notify("Hammerspoon!")
+
+-- Keep real reload timings available via the console/CLI, including deferred
+-- bootstrap work that runs before the first post-init event-loop marker.
+_G.HammerspoonStartup = {initMs = (hs.timer.absoluteTime() - startupStarted) / 1e6}
+local startup = _G.HammerspoonStartup
+startup.timer = hs.timer.doAfter(0, function()
+  startup.timer = nil
+  startup.firstEventLoopMs = (hs.timer.absoluteTime() - startupStarted) / 1e6
+  print(string.format("Startup: init %.1f ms; first event loop %.1f ms",
+    startup.initMs, startup.firstEventLoopMs))
+end)
