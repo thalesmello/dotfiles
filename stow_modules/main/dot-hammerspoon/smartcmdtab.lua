@@ -75,7 +75,7 @@ function M.setup(hyper)
       elseif kind then
         -- A floating terminal is up: hide it, then record the window focus lands
         -- on (ground truth) so Cmd+Tab from there reopens it. The hide is async
-        -- (term-preset -> ghostty/iterm -> CGEvent/osascript, and Ghostty's F17
+        -- (term-preset -> ghostty/iterm -> CGEvent/osascript, and Ghostty's F20
         -- toggle settles a beat later), so poll for focus to leave the floating
         -- terminal instead of reading it after a fixed sleep or guessing the
         -- z-order beforehand (both of which mismatched the landed window).

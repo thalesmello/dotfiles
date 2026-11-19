@@ -490,14 +490,8 @@ function M.setup()
     return focusedWindowAppName() == "Ghostty" or Preset.isGhosttyQuickTerminalActive()
   end
 
-  -- Floating terminal shortcuts
-  default:bindOnce(hyper, "/", "Toggle Ghostty Quick Terminal", function()
-    hs.eventtap.keyStroke({}, "f17")
-  end)
-
-  service:bindOnce(hyper, "/", "Toggle iTerm Floating Termianl", function()
-    hs.eventtap.keyStroke({}, "f20")
-  end)
+  -- Quick terminals use F20 directly (Karabiner double-tap Left Ctrl).
+  -- Hyper+/ belongs exclusively to Neru Vim search.
   -- cmd+d / cmd+shift+d / cmd+t / cmd+n / cmd+w / cmd+shift+[ / cmd+shift+] /
   -- cmd+shift+enter in Ghostty, plus ctrl+tab / ctrl+shift+tab in herdr,
   -- -> herdr-aware split/tab/close/zoom fallbacks.

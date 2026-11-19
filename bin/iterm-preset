@@ -20,7 +20,7 @@ function iterm-preset
     case "reveal-hotkey-window"
         # A hidden hotkey window is not exposed to AppleScript at all, so it
         # can't be revealed via `reveal hotkey window`. Instead synthesize the
-        # profile's global hotkey (Ctrl+Opt+Cmd+/), which iTerm2 catches
+        # profile's global hotkey (F20), which iTerm2 catches
         # system-wide. Guard on the window already being active so this only
         # ever reveals.
         iterm-preset is-floating-window-active

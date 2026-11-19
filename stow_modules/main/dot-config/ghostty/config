@@ -140,8 +140,8 @@ keybind = super+physical:six=goto_tab:6
 keybind = super+v=paste_from_clipboard
 keybind = cmd+p=text:\x14
 keybind = cmd+z=text:\x1f
-keybind = ctrl+shift+slash=toggle_quick_terminal
-keybind = global:f17=toggle_quick_terminal
+# Karabiner double-tap Left Ctrl emits F20; Hyper+/ is reserved for Neru.
+keybind = global:f20=toggle_quick_terminal
 
 # Strip leaked Herdr / hc environment variables from shells launched by Ghostty
 env = HERDR_ENV=

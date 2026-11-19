@@ -552,18 +552,18 @@ function M.scrollHistoryWithFallback(direction)
   end
 end
 
--- Show the quick terminal if it isn't already focused (F17 toggles it globally).
+-- Show the quick terminal if it isn't already focused (F20 toggles it globally).
 function M.revealFloatingTerminal()
   log("revealFloatingTerminal")
   if not M.isFloatingTerminal() then
-    Preset.sendKeys({"f17"})
+    Preset.sendKeys({"f20"})
   end
 end
 
 -- Hide the quick terminal if it is currently focused.
 function M.hideFloatingTerminal()
   if M.isFloatingTerminal() then
-    Preset.sendKeys({"f17"})
+    Preset.sendKeys({"f20"})
   end
 end
 

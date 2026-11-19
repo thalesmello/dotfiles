@@ -1934,8 +1934,7 @@
           "type" : "basic"
         }, {
           "to_if_alone" : [ {
-            "key_code" : "slash",
-            "modifiers" : [ "left_command", "left_control", "left_option" ]
+            "key_code" : "f20"
           } ],
           "to_if_held_down" : [ {
             "key_code" : "spacebar",
