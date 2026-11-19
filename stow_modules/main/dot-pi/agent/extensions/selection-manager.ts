@@ -971,6 +971,8 @@ interface AltScreenInternals {
 	selectionDragged?: boolean;
 	lastClick?: unknown;
 	pressedUrl?: string;
+	_osc8PressedLink?: { x: number; y: number; clickCount: 1 | 2 };
+	_osc8LastLinkClick?: { count: 1 | 2 };
 	mouseCapture?: unknown;
 	mousePressTarget?: unknown;
 	scrollbarDrag?: unknown;
@@ -2614,7 +2616,7 @@ function patchedHandleMouseEvent(this: AltScreenInternals, event: RawMouseEvent)
 	ensureCapturedTui(this);
 	const isMotion = (event.button & 32) !== 0;
 	const buttonCode = event.button & 3;
-	const isPrimaryPress = !event.release && !isMotion && buttonCode === 0;
+	const isPrimaryPress = !event.release && !isMotion && (event.button & 64) === 0 && buttonCode === 0;
 	const isPrimaryDrag = !event.release && isMotion && buttonCode === 0;
 	const isPrimaryRelease = event.release && (buttonCode === 0 || buttonCode === 3);
 
@@ -2664,6 +2666,8 @@ function patchedHandleMouseEvent(this: AltScreenInternals, event: RawMouseEvent)
 		}
 
 		transcriptSelectionOwnsInput = true;
+		// Link presses stay collapsed until a drag; a third press still selects the line.
+		if (this._osc8PressedLink) return;
 		const hasBuiltInSelectionMouse = typeof this.handleSelectionMouseEvent === "function";
 		const point = resolveSelectionPoint(this, event);
 		if (clickCount === 3) {
@@ -2702,6 +2706,18 @@ function patchedHandleMouseEvent(this: AltScreenInternals, event: RawMouseEvent)
 		if (lastPress && lastPress.tui === this && event.x === lastPress.x && event.y === lastPress.y) {
 			return;
 		}
+		const linkPress = this._osc8PressedLink;
+		if (linkPress) {
+			const withinTolerance = event.y === linkPress.y && Math.abs(event.x - linkPress.x) <= CLICK_COLUMN_TOLERANCE;
+			if (withinTolerance) return;
+			if (linkPress.clickCount === 2) {
+				const point = resolveSelectionPoint(this, linkPress);
+				const word = getWordSelectionAt(this, point);
+				this.selectionGranularity = word ? "word" : "character";
+				this.selectionInitialRange = word;
+				setAnchorAndFocus(this, word?.start ?? point, word?.end ?? point);
+			}
+		}
 		if (
 			lastPress &&
 			lastPress.tui === this &&
@@ -2728,6 +2744,7 @@ function patchedHandleMouseEvent(this: AltScreenInternals, event: RawMouseEvent)
 	}
 
 	if (isPrimaryRelease) {
+		const linkPress = this._osc8PressedLink;
 		const wasPressActive = Boolean(this.selectionPressActive);
 		const savedGranularity = this.selectionGranularity;
 		const savedInitialRange = this.selectionInitialRange;
@@ -2744,6 +2761,11 @@ function patchedHandleMouseEvent(this: AltScreenInternals, event: RawMouseEvent)
 			originals!.handleMouseEvent.call(this, event);
 		} finally {
 			this.copyOnSelect = copyOnSelect;
+		}
+
+		if (linkPress && this._osc8LastLinkClick?.count === linkPress.clickCount && !this.selectionDragged) {
+			if (lastPress?.tui === this) lastPress.timestamp = Date.now();
+			return;
 		}
 
 		if (wasPressActive) {

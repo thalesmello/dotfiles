@@ -104,6 +104,7 @@ return {
   TuiAltScreen,
   Marked: Z,
   visibleWidth,
+  sliceByColumn,
   getOsc8LinkAtColumn,
   stripTerminalSequences,
   wrapTextWithAnsi,
@@ -436,7 +437,7 @@ describe("osc8-links extension", () => {
 		expect(linkedTextForUrl(lines, url2)).toBe(url2);
 	});
 
-	test("left-clicking links in fullscreen TuiAltScreen opens OSC 8 and plain URLs even with motion jitter", () => {
+	test("double-clicking links in fullscreen TuiAltScreen opens OSC 8 and plain URLs even with motion jitter", async () => {
 		const osc8Url = "https://www.internalfb.com/diff/D124714457";
 		const plainUrl = "https://example.com/plain/link";
 		const md = new realTui.Markdown(`Click [D124714457](${osc8Url})`, 0, 0, markdownTheme);
@@ -446,19 +447,28 @@ describe("osc8-links extension", () => {
 			`  Bash(curl ${plainUrl})`,
 		];
 
-		// 1. Left-click on OSC 8 link with sub-cell motion and 1-cell jitter still opens the URL.
+		// 1. A single click with jitter shows a hint; a second click opens the URL.
 		const linkCol = realTui.stripTerminalSequences(screen.previousScreen[0]!).indexOf("D124714457");
 		screen.handleMouseEvent({ button: 0, x: linkCol, y: 0, release: false });
 		screen.handleMouseEvent({ button: 32, x: linkCol, y: 0, release: false });
 		screen.handleMouseEvent({ button: 32, x: linkCol + 1, y: 0, release: false });
 		screen.handleMouseEvent({ button: 0, x: linkCol + 1, y: 0, release: true });
-		expect(screen.openedUrls).toEqual([osc8Url]);
+		expect(screen.openedUrls).toEqual([]);
 		expect(screen.selectionDragged).toBe(false);
+		screen.handleMouseEvent({ button: 0, x: linkCol + 1, y: 0, release: false });
+		screen.handleMouseEvent({ button: 0, x: linkCol + 1, y: 0, release: true });
+		expect(screen.openedUrls).toEqual([]);
+		await new Promise((resolve) => setTimeout(resolve, 260));
+		expect(screen.openedUrls).toEqual([osc8Url]);
 
-		// 2. Left-click on a plain URL without OSC 8 also opens the URL.
+		// 2. Plain URLs also require two clicks.
 		const plainCol = screen.previousScreen[1]!.indexOf("https://");
 		screen.handleMouseEvent({ button: 0, x: plainCol + 3, y: 1, release: false });
 		screen.handleMouseEvent({ button: 0, x: plainCol + 3, y: 1, release: true });
+		expect(screen.openedUrls).toEqual([osc8Url]);
+		screen.handleMouseEvent({ button: 0, x: plainCol + 3, y: 1, release: false });
+		screen.handleMouseEvent({ button: 0, x: plainCol + 3, y: 1, release: true });
+		await new Promise((resolve) => setTimeout(resolve, 260));
 		expect(screen.openedUrls).toEqual([osc8Url, plainUrl]);
 
 		// 3. A real drag (> 2 columns) selects text and does not open the URL.
@@ -468,7 +478,135 @@ describe("osc8-links extension", () => {
 		expect(screen.openedUrls).toEqual([osc8Url, plainUrl]);
 	});
 
-	test("enables prefix+o style OSC 8 links for file:// hyperlinks and filenames when running inside a herdr/hc window", () => {
+	test("single clicks show hints and expired or interrupted clicks do not open links", async () => {
+		const screen = new realTui.TuiAltScreen();
+		const hints: string[] = [];
+		screen.flash = (message: string) => hints.push(message);
+		screen.previousScreen = [
+			"\x1b]8;;file:///tmp/click-test.md\x1b\\file\x1b]8;;\x1b\\",
+			"https://example.com/first",
+			"https://example.com/second",
+			"blank",
+		];
+		const originalNow = Date.now;
+		let now = 1000;
+		Date.now = () => now;
+		const click = (y: number, x = 0) => {
+			screen.handleMouseEvent({ button: 0, x, y, release: false });
+			screen.handleMouseEvent({ button: 0, x, y, release: true });
+		};
+		try {
+			click(0);
+			expect(hints).toEqual([]);
+			await new Promise((resolve) => setTimeout(resolve, 520));
+			expect(hints.at(-1)).toBe("Double click to open file link");
+			click(1);
+			expect(hints).toHaveLength(1);
+			await new Promise((resolve) => setTimeout(resolve, 520));
+			expect(hints.at(-1)).toBe("Double click to open link");
+			expect(screen.openedUrls).toEqual([]);
+			now += 501;
+			click(1);
+			expect(screen.openedUrls).toEqual([]);
+			click(2);
+			expect(screen.openedUrls).toEqual([]);
+			click(3);
+			click(2);
+			expect(screen.openedUrls).toEqual([]);
+			screen.handleMouseEvent({ button: 64, x: 0, y: 2, release: false });
+			click(2);
+			expect(screen.openedUrls).toEqual([]);
+			screen.handleMouseEvent({ button: 0, x: 0, y: 2, release: false });
+			screen.handleMouseEvent({ button: 32, x: 6, y: 2, release: false });
+			screen.handleMouseEvent({ button: 0, x: 6, y: 2, release: true });
+			click(2);
+			expect(screen.openedUrls).toEqual([]);
+			now += 500;
+			click(2);
+			await new Promise((resolve) => setTimeout(resolve, 260));
+			expect(screen.openedUrls).toEqual(["https://example.com/second"]);
+			click(2);
+			expect(screen.openedUrls).toHaveLength(1);
+		} finally {
+			Date.now = originalNow;
+		}
+	});
+
+	test("link clicks compose with word-drag and triple-click line selection", async () => {
+		const selectionSource = fs.readFileSync(new URL("../extensions/selection-manager.ts", import.meta.url), "utf8")
+			.replace(/^import .*;$/gm, "")
+			.replace("export default function", "function");
+		const selectionCode = new Bun.Transpiler({ loader: "ts" }).transformSync(selectionSource);
+		const selectionHandler = new Function(
+			"CustomEditor", "TuiAltScreen", "sliceByColumn", "stripTerminalSequences", "visibleWidth",
+			"installEditorSelection", "parseBoundaryKey", "originalHandler",
+			selectionCode + "\noriginals = { handleMouseEvent: originalHandler }; installed = true; return patchedHandleMouseEvent;",
+		)(class {}, realTui.TuiAltScreen, realTui.sliceByColumn, realTui.stripTerminalSequences,
+			realTui.visibleWidth, () => {}, () => {}, realTui.TuiAltScreen.prototype.handleMouseEvent);
+		class SelectionScreen extends realTui.TuiAltScreen {
+			copyOnSelect = true;
+			copiedTexts: string[] = [];
+			hints: string[] = [];
+			flash(message: string) { this.hints.push(message); }
+			getSelectionPoint(raw: { x: number; y: number }) { return { row: raw.y, col: raw.x }; }
+			getSelectionSourceLine(point: { row: number }) { return this.previousScreen[point.row]; }
+			getSelectionBounds() {
+				const start = this.selectionAnchor;
+				const end = this.selectionFocus;
+				if (!start || !end || (start.row === end.row && start.col === end.col)) return undefined;
+				return { start, end };
+			}
+			getActiveSelectionText() {
+				const bounds = this.getSelectionBounds();
+				return bounds ? realTui.stripTerminalSequences(this.previousScreen[bounds.start.row])
+					.slice(bounds.start.col, bounds.end.col) : undefined;
+			}
+			copySelectionToClipboard() { this.copiedTexts.push(this.getActiveSelectionText()!); return true; }
+			requestRender() {}
+			handleMouseEvent(raw: any) { selectionHandler.call(this, raw); }
+		}
+		const makeScreen = () => {
+			const screen = new SelectionScreen();
+			screen.previousScreen = ["\x1b]8;;https://example.com/gesture\x1b\\alpha beta gamma\x1b]8;;\x1b\\"];
+			return screen;
+		};
+		const press = (screen: SelectionScreen, x = 2) => screen.handleMouseEvent({ button: 0, x, y: 0, release: false });
+		const release = (screen: SelectionScreen, x = 2) => screen.handleMouseEvent({ button: 0, x, y: 0, release: true });
+		const click = (screen: SelectionScreen) => { press(screen); release(screen); };
+		const double = makeScreen();
+		click(double);
+		press(double);
+		expect(double.getSelectionBounds()).toBeUndefined();
+		release(double);
+		expect(double.getSelectionBounds()).toBeUndefined();
+		expect(double.openedUrls).toEqual([]);
+		expect(double.copiedTexts).toEqual([]);
+		expect(double.hints).toEqual([]);
+		await new Promise((resolve) => setTimeout(resolve, 520));
+		expect(double.openedUrls).toEqual(["https://example.com/gesture"]);
+		expect(double.hints).toEqual([]);
+		const drag = makeScreen();
+		click(drag);
+		press(drag);
+		drag.handleMouseEvent({ button: 32, x: 8, y: 0, release: false });
+		release(drag, 8);
+		expect(drag.selectionGranularity).toBe("word");
+		expect(drag.getActiveSelectionText()).toBe("alpha beta");
+		const triple = makeScreen();
+		click(triple);
+		click(triple);
+		click(triple);
+		expect(triple.selectionGranularity).toBe("line");
+		expect(triple.getActiveSelectionText()).toBe("alpha beta gamma");
+		expect(triple.copiedTexts).toEqual(["alpha beta gamma"]);
+		await new Promise((resolve) => setTimeout(resolve, 260));
+		expect(triple.openedUrls).toEqual([]);
+		expect(drag.openedUrls).toEqual([]);
+		expect(triple.hints).toEqual([]);
+		expect(drag.hints).toEqual([]);
+	});
+
+	test("enables prefix+o style OSC 8 links for file:// hyperlinks and filenames when running inside a herdr/hc window", async () => {
 		const origHerdrEnv = process.env.HERDR_ENV;
 		const origPaneId = process.env.HERDR_PANE_ID;
 		const origActivePaneId = process.env.HERDR_ACTIVE_PANE_ID;
@@ -549,7 +687,7 @@ describe("osc8-links extension", () => {
 			expect(basenameLines[0]).not.toContain("\x1b[38;2;100;150;255m");
 			expect(basenameLines[0]).not.toContain("\x1b[4m");
 
-			// 4. Compact tool view line (`Read(osc8-links.ts:1-200)`) and left-click in TuiAltScreen (including on `:1-200`) open the full file.
+			// 4. Compact filenames (including their line range) require a double click.
 			const compactToolText = new realTui.Text("  Read(osc8-links.ts:1-200)", 0, 0);
 			const screen = new realTui.TuiAltScreen();
 			const openedFiles: Array<{ filePath: string; kind: string; url: string }> = [];
@@ -562,6 +700,11 @@ describe("osc8-links extension", () => {
 			screen.handleMouseEvent({ button: 0, x: rangeCol + 1, y: 0, release: false });
 			screen.handleMouseEvent({ button: 0, x: rangeCol + 1, y: 0, release: true });
 
+			expect(openedFiles).toEqual([]);
+			screen.handleMouseEvent({ button: 0, x: rangeCol + 1, y: 0, release: false });
+			screen.handleMouseEvent({ button: 0, x: rangeCol + 1, y: 0, release: true });
+
+			await new Promise((resolve) => setTimeout(resolve, 260));
 			expect(openedFiles).toEqual([
 				{
 					filePath: extFileAbs,

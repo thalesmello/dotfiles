@@ -1469,6 +1469,7 @@ type PatchState = {
 	origAltScreenHandleMouseEvent?: (this: AltScreenLike, event: RawAltMouseEvent) => void;
 	altScreenMouseWrapper?: (this: AltScreenLike, event: RawAltMouseEvent) => void;
 	altScreenMouseImpl?: (this: AltScreenLike, event: RawAltMouseEvent) => void;
+	pendingLinkOpens?: Set<ReturnType<typeof setTimeout>>;
 };
 
 interface RawAltMouseEvent {
@@ -1504,10 +1505,14 @@ interface AltScreenLike {
 	getSelectionPoint?: (event: { x: number; y: number }, scrollView?: unknown) => AltScreenSelectionPoint;
 	getSelectionSourceLine?: (point: AltScreenSelectionPoint) => string;
 	requestRender?: () => void;
-	_osc8PressedLink?: { url: string; x: number; y: number; movedFar: boolean };
+	_osc8PressedLink?: { url: string; x: number; y: number; clickCount: 1 | 2 };
+	_osc8LastLinkClick?: { url: string; x: number; y: number; timestamp: number; count: 1 | 2 };
+	_osc8PendingOpen?: ReturnType<typeof setTimeout>;
 }
 
 const LINK_CLICK_TOLERANCE = 2;
+const LINK_DOUBLE_CLICK_INTERVAL_MS = 500;
+const LINK_TRIPLE_CLICK_INTERVAL_MS = 240;
 
 function resolveHcPresetBinary(env: NodeJS.ProcessEnv = process.env): string {
 	const home = homedir();
@@ -2319,39 +2324,58 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 			state.altScreenMouseInstalled = true;
 		}
 
+		const pendingLinkOpens = state.pendingLinkOpens ??= new Set();
+		const cancelPendingOpen = (screen: AltScreenLike): void => {
+			if (!screen._osc8PendingOpen) return;
+			clearTimeout(screen._osc8PendingOpen);
+			pendingLinkOpens.delete(screen._osc8PendingOpen);
+			screen._osc8PendingOpen = undefined;
+		};
 		let inMouseImpl = false;
 		state.altScreenMouseImpl = function (this: AltScreenLike, raw: RawAltMouseEvent): void {
 			const origHandleMouseEvent = state.origAltScreenHandleMouseEvent!;
-			if (!raw || inMouseImpl) {
-				return origHandleMouseEvent.call(this, raw);
-			}
-			const isMotion = (raw.button & 32) !== 0;
-			const buttonCode = raw.button & 3;
-			const isPrimaryPress = !raw.release && !isMotion && buttonCode === 0;
-			const isPrimaryRelease = raw.release && (buttonCode === 0 || buttonCode === 3);
-
-			if (isPrimaryPress) {
-				const url = resolveAltScreenUrlAt(this, raw.x, raw.y, tui);
-				this._osc8PressedLink = url ? { url, x: raw.x, y: raw.y, movedFar: false } : undefined;
+			const forward = (): void => {
 				inMouseImpl = true;
 				try {
 					origHandleMouseEvent.call(this, raw);
 				} finally {
 					inMouseImpl = false;
 				}
-				if (url) {
+			};
+			if (!raw || inMouseImpl) return origHandleMouseEvent.call(this, raw);
+			const isMotion = (raw.button & 32) !== 0;
+			const buttonCode = raw.button & 3;
+			const isPrimaryPress = !raw.release && !isMotion && (raw.button & 64) === 0 && buttonCode === 0;
+			const isPrimaryRelease = raw.release && (buttonCode === 0 || buttonCode === 3);
+
+			if (isPrimaryPress) {
+				const url = resolveAltScreenUrlAt(this, raw.x, raw.y, tui);
+				const lastClick = this._osc8LastLinkClick;
+				const elapsed = lastClick ? Date.now() - lastClick.timestamp : Infinity;
+				const isContinuation = lastClick && url === lastClick.url &&
+					lastClick.y === raw.y && Math.abs(lastClick.x - raw.x) <= LINK_CLICK_TOLERANCE &&
+					elapsed >= 0 && elapsed <= (lastClick.count === 2
+						? LINK_TRIPLE_CLICK_INTERVAL_MS : LINK_DOUBLE_CLICK_INTERVAL_MS);
+				const clickCount = isContinuation ? lastClick.count + 1 : 1;
+				cancelPendingOpen(this);
+				this._osc8LastLinkClick = undefined;
+				this._osc8PressedLink = url && clickCount !== 3
+					? { url, x: raw.x, y: raw.y, clickCount: clickCount as 1 | 2 } : undefined;
+				forward();
+				if (url && clickCount === 3) {
+					// The selection handler owns triple-click line selection.
+					this.pressedUrl = undefined;
+				} else if (url) {
 					this.pressedUrl = url;
-					// Prevent double/triple clicks on a link from selecting the word instead of opening the link.
-					if (this.selectionGranularity && this.selectionGranularity !== "character") {
-						this.selectionGranularity = "character";
-						this.selectionInitialRange = undefined;
-						if (typeof this.getSelectionPoint === "function") {
-							const pt = this.getSelectionPoint({ x: raw.x, y: raw.y }, this.selectionAnchor?.scrollView);
-							this.selectionAnchor = pt;
-							this.selectionFocus = pt;
-						} else if (this.selectionAnchor) {
-							this.selectionFocus = { ...this.selectionAnchor };
-						}
+					// Keep the word hidden unless the second press turns into a drag.
+					this.selectionGranularity = "character";
+					this.selectionInitialRange = undefined;
+					if (typeof this.getSelectionPoint === "function") {
+						const point = this.getSelectionPoint(raw, this.selectionAnchor?.scrollView);
+						this.selectionAnchor = point;
+						this.selectionFocus = point;
+					} else if (this.selectionAnchor) {
+						this.selectionFocus = { ...this.selectionAnchor };
 					}
 				}
 				return;
@@ -2359,28 +2383,19 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 
 			if (isMotion && this._osc8PressedLink) {
 				const pending = this._osc8PressedLink;
-				if (raw.x === pending.x && raw.y === pending.y) {
-					// Ignore sub-cell motion events on the exact press cell so TuiAltScreen
-					// does not clear pressedUrl or mark the click as a drag selection.
-					return;
-				}
-				const withinTolerance =
-					raw.y === pending.y && Math.abs(raw.x - pending.x) <= LINK_CLICK_TOLERANCE;
-				if (withinTolerance && resolveAltScreenUrlAt(this, raw.x, raw.y, tui) === pending.url) {
-					// Ignore 1-2 cell pointer jitter along the same link during a click.
-					return;
-				}
-				pending.movedFar = true;
+				const withinTolerance = raw.y === pending.y && Math.abs(raw.x - pending.x) <= LINK_CLICK_TOLERANCE;
+				if (withinTolerance && (raw.x === pending.x ||
+					resolveAltScreenUrlAt(this, raw.x, raw.y, tui) === pending.url)) return;
 				this._osc8PressedLink = undefined;
+				this._osc8LastLinkClick = undefined;
+				this.pressedUrl = undefined;
+				cancelPendingOpen(this);
 			}
 
 			if (isPrimaryRelease && this._osc8PressedLink) {
 				const pending = this._osc8PressedLink;
 				this._osc8PressedLink = undefined;
-				const withinTolerance =
-					!pending.movedFar &&
-					raw.y === pending.y &&
-					Math.abs(raw.x - pending.x) <= LINK_CLICK_TOLERANCE;
+				const withinTolerance = raw.y === pending.y && Math.abs(raw.x - pending.x) <= LINK_CLICK_TOLERANCE;
 				const releaseUrl = withinTolerance ? resolveAltScreenUrlAt(this, raw.x, raw.y, tui) : undefined;
 				if (withinTolerance && (raw.x === pending.x || releaseUrl === pending.url)) {
 					this.clearTextSelection?.();
@@ -2391,23 +2406,42 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 					this.selectionAnchor = undefined;
 					this.selectionFocus = undefined;
 					this.pressedUrl = undefined;
-					try {
-						openLinkUrl(this, pending.url);
-						this.flash?.("Opening link…");
-					} catch {
-						// Ignore openUrl errors.
-					}
+					this._osc8LastLinkClick = {
+						url: pending.url, x: pending.x, y: pending.y,
+						timestamp: Date.now(), count: pending.clickCount,
+					};
+					const timer = setTimeout(() => {
+						pendingLinkOpens.delete(timer);
+						if (this._osc8PendingOpen !== timer) return;
+						this._osc8PendingOpen = undefined;
+						this._osc8LastLinkClick = undefined;
+						if (pending.clickCount === 2) {
+							try {
+								openLinkUrl(this, pending.url);
+							} catch {
+								// Ignore openUrl errors.
+							}
+						} else {
+							this.flash?.(isFileHyperlinkUrl(pending.url)
+								? "Double click to open file link" : "Double click to open link");
+						}
+						this.requestRender?.();
+					}, pending.clickCount === 2 ? LINK_TRIPLE_CLICK_INTERVAL_MS : LINK_DOUBLE_CLICK_INTERVAL_MS);
+					this._osc8PendingOpen = timer;
+					pendingLinkOpens.add(timer);
+					timer.unref?.();
 					this.requestRender?.();
 					return;
 				}
+				this._osc8LastLinkClick = undefined;
+				this.pressedUrl = undefined;
 			}
 
-			inMouseImpl = true;
-			try {
-				return origHandleMouseEvent.call(this, raw);
-			} finally {
-				inMouseImpl = false;
+			if ((raw.button & 64) !== 0) {
+				this._osc8LastLinkClick = undefined;
+				cancelPendingOpen(this);
 			}
+			forward();
 		};
 	}
 }
@@ -2476,6 +2510,11 @@ export default function osc8LinksExtension(pi: ExtensionAPI): void {
 		indexSessionFileIfNeeded(process.env.PI_SESSION_FILE);
 	}
 	pi.registerMarkdownTransformer((markdown) => normalizeMarkdownForOsc8(markdown));
+	pi.on("session_shutdown", () => {
+		const state = (globalThis as Record<symbol, PatchState | undefined>)[PATCH_STATE_SYMBOL];
+		for (const timer of state?.pendingLinkOpens ?? []) clearTimeout(timer);
+		state?.pendingLinkOpens?.clear();
+	});
 	pi.on("session_start", (_event, ctx) => {
 		if (ctx?.cwd) setSessionCwd(ctx.cwd);
 		const sm = (ctx as unknown as {
