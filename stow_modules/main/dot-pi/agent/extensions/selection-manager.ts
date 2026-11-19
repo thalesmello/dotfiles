@@ -2335,6 +2335,7 @@ function installReferenceEditor(ctx: ExtensionContext): void {
 			onReplace: () => pruneStaleReferences(base as EditorInternals),
 			isReference: (line) => pendingReferences.has(line),
 			isSubmit: (data) => keybindings.matches(data, "tui.input.submit"),
+			matchesAction: (data, action) => keybindings.matches(data, action),
 		});
 	};
 	factory[REFERENCE_EDITOR_MARKER] = previous ?? null;

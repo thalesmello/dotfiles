@@ -88,6 +88,101 @@ describe("editable prompt selection (native Pi editor)", () => {
 		expect(copied).toEqual([]);
 	});
 
+	test("Ctrl+A/E and Cmd+Left/Right escalate from line to whole-prompt boundaries", () => {
+		for (const [start, end] of [["\x01", "\x05"], ["\x1b[1;9D", "\x1b[1;9C"]]) {
+			const { editor } = makeEditor("alpha\nbeta\ngamma");
+			caret(editor, 1, 2);
+			editor.handleInput(start!);
+			expect(editor.getCursor()).toEqual({ line: 1, col: 0 });
+			editor.handleInput(start!);
+			expect(editor.getCursor()).toEqual({ line: 0, col: 0 });
+			editor.handleInput(start!);
+			expect(editor.getCursor()).toEqual({ line: 0, col: 0 });
+			caret(editor, 1, 2);
+			editor.handleInput(end!);
+			expect(editor.getCursor()).toEqual({ line: 1, col: 4 });
+			editor.handleInput(end!);
+			expect(editor.getCursor()).toEqual({ line: 2, col: 5 });
+			editor.handleInput(end!);
+			expect(editor.getCursor()).toEqual({ line: 2, col: 5 });
+		}
+	});
+
+	test("history arrows remain sticky across multiline entries and restore the draft cursor", () => {
+		const { editor } = makeEditor("draft\nsecond line");
+		const native = editor as any;
+		native.addToHistory("old\nentry");
+		native.addToHistory("new\nentry");
+		caret(editor, 0, 0);
+		editor.handleInput("\x1b[A");
+		expect(editor.getText()).toBe("new\nentry");
+		editor.handleInput("\x1b[A");
+		expect(editor.getText()).toBe("old\nentry");
+		editor.handleInput("\x1b[A"); // Oldest boundary keeps history mode.
+		editor.handleInput("\x1b[B");
+		expect(editor.getText()).toBe("new\nentry");
+		editor.handleInput("\x1b[B"); // Must not move within the multiline entry.
+		expect(editor.getText()).toBe("draft\nsecond line");
+		expect(editor.getCursor()).toEqual({ line: 0, col: 0 });
+		editor.handleInput("\x1b[A"); // Still sticky after draft restoration.
+		expect(editor.getText()).toBe("new\nentry");
+	});
+
+	test("left/right and typing leave history mode until a prompt boundary is reached", () => {
+		for (const interrupt of ["\x1b[C", "\x1b[D", "X", "\x1b[88u"]) {
+			const { editor } = makeEditor("");
+			(editor as any).addToHistory("one\ntwo\nthree");
+			editor.handleInput("\x1b[A");
+			if (interrupt === "\x1b[D") editor.handleInput("\x1b[C");
+			editor.handleInput(interrupt);
+			const recalled = editor.getText();
+			editor.handleInput("\x1b[B");
+			expect(editor.getText()).toBe(recalled);
+			expect(editor.getCursor().line).toBe(1);
+			editor.handleInput("\x1b[A"); // Move back within prompt, not history.
+			expect(editor.getText()).toBe(recalled);
+			expect(editor.getCursor().line).toBe(0);
+			editor.handleInput("\x01");
+			editor.handleInput("\x1b[A"); // Re-enter history at the top.
+			expect(editor.getText()).toBe("one\ntwo\nthree");
+			editor.handleInput("\x1b[B");
+			expect(editor.getText()).toBe(recalled);
+		}
+	});
+
+	test("sticky history handles wrapped prompts and ignores key releases", () => {
+		const { editor } = makeEditor("");
+		const entry = "a long history entry ".repeat(10);
+		(editor as any).addToHistory(entry);
+		editor.handleInput("\x1b[A");
+		expect(editor.buildVisualLineMap(editor.lastWidth).length).toBeGreaterThan(1);
+		editor.handleInput("\x1b[57352;1:3u"); // Kitty Up release.
+		editor.handleInput("\x1b[B");
+		expect(editor.getText()).toBe("");
+		editor.handleInput("\x1b[A");
+		expect(editor.getText()).toBe(entry.trim());
+	});
+
+	test("history mode respects autocomplete ownership and external text replacement", () => {
+		const { editor } = makeEditor("");
+		const native = editor as any;
+		native.addToHistory("one\ntwo");
+		editor.handleInput("\x1b[A");
+		const selections: string[] = [];
+		native.autocompleteState = "manual";
+		native.autocompleteList = { handleInput: (data: string) => selections.push(data) };
+		editor.handleInput("\x1b[B");
+		expect(selections).toEqual(["\x1b[B"]);
+		expect(editor.getText()).toBe("one\ntwo");
+		native.autocompleteState = null;
+		native.autocompleteList = undefined;
+		editor.setText("replacement\nprompt");
+		caret(editor, 0, 0);
+		editor.handleInput("\x1b[B");
+		expect(editor.getText()).toBe("replacement\nprompt");
+		expect(editor.getCursor()).toEqual({ line: 1, col: 0 });
+	});
+
 	test("Shift+Cmd+Arrows extend and shrink prompt selection to boundaries", () => {
 		const { editor, copied } = makeEditor("alpha\nbeta\ngamma");
 		caret(editor, 1, 2);

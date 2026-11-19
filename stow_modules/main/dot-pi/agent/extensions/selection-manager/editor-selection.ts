@@ -26,6 +26,9 @@ interface Editor {
 	pushUndoSnapshot?(): void;
 	cancelAutocomplete?(): void;
 	exitHistoryBrowsing?(): void;
+	navigateHistory?(direction: number): void;
+	historyIndex?: number;
+	autocompleteState?: unknown;
 	normalizeText?(text: string): string;
 	onChange?(text: string): void;
 	lastAction?: unknown;
@@ -40,6 +43,7 @@ interface Options {
 	onReplace(): void;
 	isReference(line: string): boolean;
 	isSubmit(data: string): boolean;
+	matchesAction?(data: string, action: string): boolean;
 }
 const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
@@ -73,6 +77,12 @@ export function installEditorSelection(base: unknown, options: Options): unknown
 	let dragging = false;
 	let suppressClick = false;
 	let paste: string | undefined;
+	let historyMode = false;
+	const navigateHistory = editor.navigateHistory?.bind(editor);
+	if (navigateHistory) editor.navigateHistory = (direction) => {
+		navigateHistory(direction);
+		if ((editor.historyIndex ?? -1) >= 0) historyMode = true;
+	};
 	let bodyInset = 1;
 	let contentStart = 0;
 	let lastPress: { time: number; offset: number; count: number } | undefined;
@@ -168,7 +178,7 @@ export function installEditorSelection(base: unknown, options: Options): unknown
 		options.onReplace();
 	};
 
-	editor.setText = (text) => { clear(); paste = undefined; setText(text); selectedTextVersion = editor.getText(); };
+	editor.setText = (text) => { clear(); paste = undefined; historyMode = false; setText(text); selectedTextVersion = editor.getText(); };
 	editor.handleInput = (data) => {
 		validate();
 		if (paste !== undefined) {
@@ -185,6 +195,11 @@ export function installEditorSelection(base: unknown, options: Options): unknown
 		}
 		if (isKeyRelease(data)) return;
 		options.onFocus();
+		const up = options.matchesAction?.(data, "tui.editor.cursorUp") ?? matchesKey(data, "up");
+		const down = options.matchesAction?.(data, "tui.editor.cursorDown") ?? matchesKey(data, "down");
+		const previous = options.matchesAction?.(data, "tui.editor.historyPrevious") ?? false;
+		const next = options.matchesAction?.(data, "tui.editor.historyNext") ?? false;
+		if (!up && !down && !previous && !next) historyMode = false;
 		const boundary = parseBoundaryKey(data);
 		if (boundary) {
 			editor.cancelAutocomplete?.();
@@ -193,7 +208,11 @@ export function installEditorSelection(base: unknown, options: Options): unknown
 			const offset = boundary.edge === "document-start" ? 0
 				: boundary.edge === "document-end" ? editor.getText().length
 				: lineOffset(editor.state.cursorLine) + (boundary.edge === "line-end" ? editor.state.lines[editor.state.cursorLine]!.length : 0);
-			moveTo(offset);
+			// Unshifted repeats escalate from line to prompt boundaries.
+			// Shifted keys retain their existing line-selection semantics.
+			const repeatedEdge = !boundary.extend && cursor() === offset;
+			moveTo(repeatedEdge && boundary.edge === "line-start" ? 0
+				: repeatedEdge && boundary.edge === "line-end" ? editor.getText().length : offset);
 			if (boundary.extend) focus = cursor();
 			editor.exitHistoryBrowsing?.();
 			selectedTextVersion = editor.getText();
@@ -260,7 +279,16 @@ export function installEditorSelection(base: unknown, options: Options): unknown
 			}
 		}
 		clear();
-		input(data);
+		// Native boundary navigation starts history mode; both directions
+		// then browse entries regardless of their logical/visual line count.
+		// An open autocomplete list keeps ownership of arrow keys.
+		if (historyMode && !editor.autocompleteState && (up || down) && editor.navigateHistory) {
+			editor.navigateHistory(up ? -1 : 1);
+		} else {
+			input(data);
+			// The native navigateHistory hook above detects actual history entry,
+			// not merely a cursor move within a previously recalled prompt.
+		}
 		selectedTextVersion = editor.getText();
 	};
 	editor.handleMouse = (event) => {
@@ -274,6 +302,7 @@ export function installEditorSelection(base: unknown, options: Options): unknown
 		const offset = pointer(event);
 		if (offset === undefined) return mouse?.(event);
 		options.onFocus();
+		historyMode = false;
 		editor.cancelAutocomplete?.();
 		if (event.type === "press") {
 			suppressClick = false;
