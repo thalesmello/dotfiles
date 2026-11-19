@@ -30,6 +30,7 @@ require("totwatcher").setup()
 require("missioncontrol").setup()
 require("debuglog").setup()
 require("workflowPreset").setup()
+require("herdrFocus").setup()
 
 -- Editor annotations are generated only by the Lua LSP hook (see
 -- bin/hammerspoon-lsp-annotations), never during runtime startup.

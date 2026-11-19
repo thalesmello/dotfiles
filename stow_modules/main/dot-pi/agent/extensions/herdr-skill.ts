@@ -70,6 +70,7 @@ export function herdrPointer(env: NodeJS.ProcessEnv): string {
 			"- Run `herdr-app --skill`, read the full output, and follow it when you need to create, split, move, focus, or close a pane, tab, or space in the window, or customize layouts, keys, or mods.",
 			"Do not guess `hc` or `herdr-app` commands, flags, or IDs. Load the skill first, then discover live state with the commands it names.",
 			"Do not load either skill for work that stays in this terminal and needs no other pane or agent.",
+			"Whenever referencing another pane in user-facing text, embed its name/ID in an OSC 8 focus hyperlink: ESC ]8;;hammerspoon://herdr-focus?pane=<percent-encoded-pane-id> ESC \\ label ESC ]8;; ESC \\. Emit actual ESC bytes, not literal escape notation or a code block. Use pane IDs from `herdr-app ls`, not HC_TERMINAL_ID; preserve remote machine prefixes (encode / as %2F). If you only know a terminal ID, discover its pane first. Clicking focuses locally; do not focus it yourself merely to mention it.",
 		].join("\n");
 	}
 

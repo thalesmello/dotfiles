@@ -76,7 +76,14 @@ describe("herdr-skill extension", () => {
 		expect(section).toContain("Run `herdr-app --skill`");
 		expect(section).toContain("HC_TERMINAL_ID=t3");
 		expect(section).toContain("Do not load either skill for work that stays in this terminal");
+		expect(section).toContain("Whenever referencing another pane in user-facing text");
+		expect(section).toContain("OSC 8 focus hyperlink");
+		expect(section).toContain("hammerspoon://herdr-focus?pane=<percent-encoded-pane-id>");
+		expect(section).toContain("Use pane IDs from `herdr-app ls`, not HC_TERMINAL_ID");
+		expect(section).toContain("encode / as %2F");
+		expect(section).toContain("Emit actual ESC bytes");
+		expect(section).toContain("do not focus it yourself merely to mention it");
 		expect(section).not.toContain("Run `herdr --skill`");
-		expect(section.length).toBeLessThan(1500);
+		expect(section.length).toBeLessThan(2200);
 	});
 });
