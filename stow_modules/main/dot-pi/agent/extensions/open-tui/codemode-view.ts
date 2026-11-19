@@ -1,5 +1,6 @@
 /** Display-only normalization of Pi's codemode progress/final details. */
 export interface CodemodeCall {
+	id?: string;
 	name: string;
 	args: Record<string, unknown>;
 	status: "running" | "ok" | "error" | "cancelled";
@@ -23,6 +24,7 @@ export function codemodeCalls(details: unknown): CodemodeCall[] {
 		}
 		const status = call.status === "ok" || call.status === "error" || call.status === "cancelled" ? call.status : "running";
 		return [{
+			...(typeof call.id === "string" ? { id: call.id } : {}),
 			name: call.name,
 			args: record(args),
 			status,

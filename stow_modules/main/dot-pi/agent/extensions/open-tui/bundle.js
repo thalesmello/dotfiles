@@ -4528,7 +4528,7 @@ function formatTurnTelemetry(telemetry, theme, config, iconMode) {
 // stow_modules/main/dot-pi/agent/extensions/open-tui/tool-view.ts
 import { homedir as homedir2 } from "os";
 import { isAbsolute as isAbsolute3, relative as relative2, sep as sep2 } from "path";
-import { Box as Box2, getCapabilities, getImageDimensions, imageFallback, Spacer, Text as Text2, truncateToWidth as truncateToWidth7, visibleWidth as visibleWidth8 } from "@earendil-works/pi-tui";
+import { Box as Box2, Container, getCapabilities, getImageDimensions, imageFallback, Spacer, Text as Text2, truncateToWidth as truncateToWidth8, visibleWidth as visibleWidth9 } from "@earendil-works/pi-tui";
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/tool-preview.ts
 import { getLanguageFromPath, highlightCode } from "@earendil-works/pi-coding-agent";
@@ -5183,6 +5183,7 @@ function codemodeCalls(details) {
     }
     const status = call.status === "ok" || call.status === "error" || call.status === "cancelled" ? call.status : "running";
     return [{
+      ...typeof call.id === "string" ? { id: call.id } : {},
       name: call.name,
       args: record(args),
       status,
@@ -5224,6 +5225,636 @@ function visibleCodemodeCalls(calls, limit = 4) {
     return visible;
   const priority = [...calls.filter((call) => call.status === "error" || call.status === "cancelled"), ...calls.filter((call) => call.status !== "error" && call.status !== "cancelled")];
   return priority.slice(0, limit);
+}
+
+// stow_modules/main/dot-pi/agent/extensions/open-tui/nested-tool-blocks.ts
+import { highlightCode as highlightCode2 } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth as truncateToWidth7, visibleWidth as visibleWidth8 } from "@earendil-works/pi-tui";
+
+// stow_modules/main/dot-pi/agent/extensions/open-tui/script-language.ts
+var extensions = {
+  py: "python",
+  pyw: "python",
+  pyi: "python",
+  rb: "ruby",
+  rake: "ruby",
+  gemspec: "ruby",
+  rs: "rust",
+  c: "c",
+  h: "c",
+  cc: "cpp",
+  cpp: "cpp",
+  cxx: "cpp",
+  hpp: "cpp",
+  hh: "cpp",
+  hxx: "cpp",
+  java: "java",
+  php: "php",
+  phtml: "php",
+  js: "javascript",
+  mjs: "javascript",
+  cjs: "javascript",
+  jsx: "javascript",
+  ts: "typescript",
+  mts: "typescript",
+  cts: "typescript",
+  tsx: "typescript",
+  r: "r",
+  sql: "sql",
+  go: "go",
+  sh: "bash",
+  bash: "bash",
+  zsh: "bash",
+  ksh: "bash",
+  fish: "bash",
+  ps1: "powershell",
+  bat: "dos",
+  cmd: "dos",
+  json: "json",
+  jsonc: "json",
+  yaml: "yaml",
+  yml: "yaml",
+  html: "xml",
+  htm: "xml",
+  xml: "xml",
+  svg: "xml",
+  css: "css",
+  scss: "scss",
+  less: "less",
+  lua: "lua",
+  pl: "perl",
+  pm: "perl",
+  swift: "swift",
+  kt: "kotlin",
+  kts: "kotlin",
+  scala: "scala",
+  sc: "scala",
+  cs: "csharp",
+  csx: "csharp",
+  dart: "dart",
+  toml: "toml",
+  md: "markdown",
+  markdown: "markdown"
+};
+function languageForPath(path) {
+  const name = path.replace(/\\/g, "/").split("/").pop() ?? "";
+  const lower = name.toLowerCase();
+  if (/^\.(?:bashrc|bash_profile|bash_login|profile|zshrc|zprofile)$/.test(lower))
+    return "bash";
+  if (["gemfile", "rakefile"].includes(lower))
+    return "ruby";
+  if (lower === "dockerfile" || lower.startsWith("dockerfile."))
+    return "dockerfile";
+  if (lower === "makefile" || lower === "gnumakefile")
+    return "makefile";
+  const dot = lower.lastIndexOf(".");
+  const extension = lower.slice(dot + 1);
+  return dot >= 0 && Object.prototype.hasOwnProperty.call(extensions, extension) ? extensions[extension] : undefined;
+}
+var separators = new Set([";", "&&", "||", "|", "&"]);
+var redirects = new Set(["<", ">", ">>", ">|", "<>", "<&", ">&", "<<", "<<-", "<<<"]);
+function shellLine(source, start) {
+  const tokens = [];
+  let i = start;
+  while (i < source.length) {
+    if (source.startsWith("\\\n", i)) {
+      i += 2;
+      continue;
+    }
+    if (source[i] === `
+`)
+      return { tokens, end: i + 1 };
+    if (/[ \t\r]/.test(source[i])) {
+      i++;
+      continue;
+    }
+    if (source[i] === "#") {
+      const newline = source.indexOf(`
+`, i);
+      return { tokens, end: newline < 0 ? source.length : newline + 1 };
+    }
+    if (/[()\x60]/.test(source[i]) || source.startsWith("$(", i))
+      return;
+    const operator = /^(?:<<<|<<-|<<|>>|&&|\|\||[<>][&|]?|[;|&])/.exec(source.slice(i));
+    if (operator) {
+      tokens.push({ kind: "op", start: i, end: i + operator[0].length, value: operator[0], quotes: [] });
+      i += operator[0].length;
+      continue;
+    }
+    const wordStart = i;
+    const quotes = [];
+    let value = "", safe = true;
+    while (i < source.length && !/[ \t\r\n;|&<>]/.test(source[i])) {
+      const char = source[i];
+      if (/[()\x60]/.test(char) || source.startsWith("$(", i))
+        return;
+      if (char === "\\") {
+        if (++i === source.length)
+          return;
+        if (source[i] !== `
+`)
+          value += source[i];
+        i++;
+      } else if (char === "'" || char === '"') {
+        const quoteStart = i++;
+        let quoteSafe = true;
+        while (i < source.length && source[i] !== char) {
+          if (char === '"' && (source[i] === "$" || source[i] === "`"))
+            quoteSafe = false;
+          if (char === '"' && source[i] === "\\" && /[\x60$"\\\n]/.test(source[i + 1] ?? "")) {
+            i++;
+            if (source[i] !== `
+`)
+              value += source[i];
+            i++;
+          } else
+            value += source[i++];
+        }
+        if (i === source.length)
+          return;
+        i++;
+        quotes.push({ start: quoteStart, end: i, safe: quoteSafe });
+        safe &&= quoteSafe;
+      } else {
+        if (char === "$" || char === "*" || char === "?" || char === "[" || char === "{" || char === "}")
+          safe = false;
+        value += char;
+        i++;
+      }
+    }
+    tokens.push({ kind: "word", start: wordStart, end: i, value: safe ? value : undefined, quotes });
+  }
+  return { tokens, end: i };
+}
+function executableLanguage(executable) {
+  const name = executable.replace(/\\/g, "/").split("/").pop().replace(/\.exe$/i, "");
+  if (/^python(?:\d+(?:\.\d+)*)?$/.test(name))
+    return "python";
+  if (/^ruby(?:\d+(?:\.\d+)*)?$/.test(name))
+    return "ruby";
+  if (/^perl(?:\d+(?:\.\d+)*)?$/.test(name))
+    return "perl";
+  if (/^lua(?:\d+(?:\.\d+)*)?$/.test(name) || name === "luajit")
+    return "lua";
+  const names = {
+    rustc: "rust",
+    go: "go",
+    gcc: "c",
+    cc: "c",
+    clang: "c",
+    "g++": "cpp",
+    "c++": "cpp",
+    "clang++": "cpp",
+    java: "java",
+    jshell: "java",
+    php: "php",
+    node: "javascript",
+    nodejs: "javascript",
+    deno: "javascript",
+    bun: "javascript",
+    "ts-node": "typescript",
+    tsx: "typescript",
+    R: "r",
+    Rscript: "r",
+    sqlite3: "sql",
+    psql: "sql",
+    mysql: "sql",
+    swift: "swift",
+    kotlin: "kotlin",
+    scala: "scala",
+    dart: "dart",
+    csi: "csharp"
+  };
+  return Object.prototype.hasOwnProperty.call(names, name) ? names[name] : undefined;
+}
+function inlineFlags(language, executable) {
+  if (language === "python")
+    return ["-c"];
+  if (language === "php")
+    return ["-r"];
+  if (language === "sql")
+    return executable === "psql" ? ["-c", "--command"] : executable === "mysql" ? ["-e", "--execute"] : ["-cmd"];
+  if (language === "javascript" || language === "typescript")
+    return ["-e", "--eval", "-p", "--print"];
+  if (language === "perl")
+    return ["-e", "-E"];
+  if (["ruby", "lua", "r", "swift", "kotlin", "scala"].includes(language))
+    return ["-e"];
+  return [];
+}
+function quotedRange(token, prefix, language) {
+  const quote = token.quotes[0];
+  if (token.quotes.length !== 1 || !quote?.safe || quote.start !== token.start + prefix.length || quote.end !== token.end)
+    return;
+  return { start: quote.start + 1, end: quote.end - 1, language };
+}
+var optionValues = new Set(["-W", "-X", "-I", "-r", "--require", "--import", "--loader", "-U", "-d", "-h", "-p", "--host", "--port", "--dbname", "--user", "-x", "-o", "--edition", "-cp", "--class-path"]);
+function commandInfo(words, source, ranges) {
+  let i = 0;
+  const assignment = (token) => token && /^[A-Za-z_]\w*=/.test(source.slice(token.start, token.end));
+  while (assignment(words[i]))
+    i++;
+  if (words[i]?.value === "env") {
+    i++;
+    if (words[i]?.value === "--")
+      i++;
+    while (assignment(words[i]))
+      i++;
+  }
+  if (words[i]?.value === "command" || words[i]?.value === "exec")
+    i++;
+  const executable = words[i++]?.value;
+  if (!executable)
+    return { stdin: false };
+  const name = executable.split("/").pop();
+  const language = executableLanguage(executable);
+  if (!language)
+    return { stdin: false };
+  const flags = inlineFlags(language, name);
+  let stdin = true;
+  for (;i < words.length; i++) {
+    const token = words[i];
+    const raw = source.slice(token.start, token.end);
+    const flag = flags.find((flag) => token.value === flag || raw.startsWith(flag.startsWith("--") ? flag + "=" : flag));
+    if (flag) {
+      stdin = false;
+      if (token.value === flag) {
+        const argument = words[++i];
+        if (!argument)
+          break;
+        const range = quotedRange(argument, "", language);
+        if (range)
+          ranges.push(range);
+      } else {
+        const prefix = flag + (flag.startsWith("--") ? "=" : "");
+        const range = quotedRange(token, prefix, language);
+        if (range)
+          ranges.push(range);
+      }
+      if (!["ruby", "perl", "r"].includes(language))
+        break;
+      continue;
+    }
+    if (name === "deno" && token.value === "eval") {
+      const argument = words[++i];
+      const range = argument && quotedRange(argument, "", language);
+      if (range)
+        ranges.push(range);
+      stdin = false;
+      break;
+    }
+    if (token.value === "-m" || token.value === "--") {
+      stdin = false;
+      break;
+    }
+    if (token.value && optionValues.has(token.value)) {
+      i++;
+      continue;
+    }
+    if (token.value === "-" || token.value === "/dev/stdin" || token.value === "/proc/self/fd/0")
+      continue;
+    if ((name === "go" || name === "deno" || name === "bun") && token.value === "run")
+      continue;
+    if (token.value?.startsWith("-"))
+      continue;
+    if (language !== "sql") {
+      stdin = false;
+      break;
+    }
+  }
+  return { language, stdin };
+}
+function analyzeHeader(tokens, source, ranges) {
+  const pending = [];
+  let start = 0;
+  for (let end = 0;end <= tokens.length; end++) {
+    if (end < tokens.length && !(tokens[end].kind === "op" && separators.has(tokens[end].value)))
+      continue;
+    const words = [];
+    const documents = [];
+    const paths = [];
+    for (let i = start;i < end; i++) {
+      const token = tokens[i];
+      if (token.kind === "op") {
+        if (!redirects.has(token.value))
+          return;
+        const operand = tokens[++i];
+        if (!operand || i >= end || operand.kind !== "word")
+          return;
+        if (token.value === "<<" || token.value === "<<-") {
+          if (!operand.value || !/^[\w-]+$/.test(operand.value))
+            return;
+          documents.push({ delimiter: operand.value, tabs: token.value === "<<-" });
+        } else if ([">", ">>", ">|"].includes(token.value) && operand.value) {
+          const language = languageForPath(operand.value);
+          if (language)
+            paths.push(language);
+        }
+      } else if (!(token.value && /^\d+$/.test(token.value) && tokens[i + 1]?.kind === "op" && token.end === tokens[i + 1].start && redirects.has(tokens[i + 1].value))) {
+        words.push(token);
+      }
+    }
+    const info = commandInfo(words, source, ranges);
+    if (documents.length === 1) {
+      documents[0].language = info.language ? info.stdin ? info.language : undefined : paths.length === 1 ? paths[0] : undefined;
+    }
+    pending.push(...documents);
+    start = end + 1;
+  }
+  return pending;
+}
+function scriptSegments(command) {
+  const fallback = () => [{ source: command, language: "bash" }];
+  const ranges = [];
+  let offset = 0;
+  while (offset < command.length) {
+    const header = shellLine(command, offset);
+    if (!header)
+      return fallback();
+    const documents = analyzeHeader(header.tokens, command, ranges);
+    if (!documents)
+      return fallback();
+    offset = header.end;
+    for (const document of documents) {
+      const bodyStart = offset;
+      let found = false;
+      while (offset < command.length) {
+        const newline = command.indexOf(`
+`, offset);
+        const end = newline < 0 ? command.length : newline + 1;
+        let line = command.slice(offset, newline < 0 ? end : newline);
+        if (newline >= 0 && line.endsWith("\r"))
+          line = line.slice(0, -1);
+        if (document.tabs)
+          line = line.replace(/^\t+/, "");
+        if (line === document.delimiter) {
+          if (document.language && offset > bodyStart)
+            ranges.push({ start: bodyStart, end: offset, language: document.language });
+          offset = end;
+          found = true;
+          break;
+        }
+        offset = end;
+      }
+      if (!found)
+        return fallback();
+    }
+  }
+  ranges.sort((a, b) => a.start - b.start);
+  const segments = [];
+  const append = (source, language) => {
+    if (!source)
+      return;
+    const previous = segments[segments.length - 1];
+    if (previous?.language === language)
+      previous.source += source;
+    else
+      segments.push({ source, language });
+  };
+  offset = 0;
+  for (const range of ranges) {
+    if (range.start < offset)
+      return fallback();
+    append(command.slice(offset, range.start), "bash");
+    append(command.slice(range.start, range.end), range.language);
+    offset = range.end;
+  }
+  append(command.slice(offset), "bash");
+  return segments.length ? segments : fallback();
+}
+
+// stow_modules/main/dot-pi/agent/extensions/open-tui/nested-tool-blocks.ts
+var MAX_SOURCE_CHARS = 16384;
+var MAX_SOURCE_LINES = 80;
+function boundedArguments(args) {
+  const entries = Object.entries(args).slice(0, 12).map(([key, value]) => [key, typeof value === "string" ? value.slice(0, 512) : value && typeof value === "object" ? `[${Array.isArray(value) ? "array" : "object"}]` : value]);
+  return JSON.stringify(Object.fromEntries(entries), null, 2);
+}
+function nestedSources(call) {
+  const args = call.args;
+  const path = String(args.file_path ?? args.path ?? args.filename ?? "");
+  const explicit = typeof args.language === "string" ? args.language : typeof args.lang === "string" ? args.lang : undefined;
+  const language = explicit ?? languageForPath(path);
+  if ((call.name === "bash" || call.name === "powershell") && typeof args.command === "string") {
+    return [{ label: "Command", source: args.command, shell: call.name === "bash", language: call.name === "powershell" ? "powershell" : "bash" }];
+  }
+  const sections = [];
+  for (const key of ["content", "code", "script", "source", "sql", "newText", "oldText"]) {
+    if (typeof args[key] === "string")
+      sections.push({ label: key, source: args[key], language: key === "sql" ? "sql" : language ?? (call.name === "codemode" ? "javascript" : undefined) });
+  }
+  if (Array.isArray(args.edits))
+    args.edits.slice(0, 8).forEach((edit, index) => {
+      if (typeof edit !== "object" || !edit)
+        return;
+      for (const key of ["oldText", "newText"]) {
+        const source = edit[key];
+        if (typeof source === "string")
+          sections.push({ label: `Edit ${index + 1} \xB7 ${key}`, source, language });
+      }
+    });
+  if (!sections.length)
+    sections.push({ label: "Arguments", source: boundedArguments(args), language: "json" });
+  return sections.slice(0, 16);
+}
+function highlightedSource(section, theme, budget = { chars: MAX_SOURCE_CHARS, lines: MAX_SOURCE_LINES }) {
+  const raw = section.source.slice(0, Math.max(0, budget.chars));
+  const clean = codeLines(raw).join(`
+`).slice(0, Math.max(0, budget.chars));
+  const source = clean.split(`
+`).slice(0, Math.max(0, budget.lines)).join(`
+`);
+  const segments = section.shell ? scriptSegments(clean) : [{ source: clean, language: section.language ?? "plaintext" }];
+  let offset = 0;
+  const colored = segments.map((segment) => {
+    const shown = segment.source.slice(0, Math.max(0, source.length - offset));
+    offset += segment.source.length;
+    if (!shown)
+      return "";
+    try {
+      return highlightCode2(shown, segment.language).join(`
+`);
+    } catch {
+      return theme.fg("toolOutput", shown);
+    }
+  }).join("").split(`
+`);
+  budget.chars = Math.max(0, budget.chars - source.length);
+  budget.lines = Math.max(0, budget.lines - colored.length);
+  if (raw.length < section.source.length || source.length < clean.length)
+    colored.push(theme.fg("dim", "\u2026 source preview truncated"));
+  return colored;
+}
+function nestedToolBlocks(options) {
+  let cached;
+  let regions = [];
+  const sources = new Map;
+  const outputById = new Map(options.outputs.map((output) => [output.id, output]));
+  const expanded = (id) => options.overrides.get(id) ?? options.expanded;
+  const color = (call) => call.status === "error" ? "error" : call.status === "cancelled" ? "warning" : call.status === "running" ? "accent" : "dim";
+  const status = (call) => call.status === "ok" ? "Done" : call.status === "error" ? "Failed" : call.status === "cancelled" ? "Cancelled" : "Running\u2026";
+  const component = {
+    render(width) {
+      if (cached?.width === width)
+        return cached.lines;
+      regions = [];
+      const rows = [];
+      const room = Math.max(0, width - 4);
+      for (const [index, call] of options.calls.entries()) {
+        const id = call.id ?? `call-${index}`;
+        const open = expanded(id);
+        const from = rows.length;
+        const border = (text) => options.theme.fg("border", text);
+        const title = truncateToWidth7(`${open ? "\u25BC" : "\u25B6"} ${options.heading(call)}`, Math.max(0, width - 5), "\u2026");
+        rows.push(border("\u256D\u2500 ") + title + border("\u2500".repeat(Math.max(0, width - 4 - visibleWidth8(title))) + "\u256E"));
+        const body = [options.theme.fg(color(call), status(call) + (call.durationMs === undefined ? "" : ` \xB7 ${Math.round(call.durationMs)}ms`) + (call.error ? ` \xB7 ${codeLines(call.error)[0] ?? ""}` : ""))];
+        if (open) {
+          let prepared = sources.get(id);
+          if (!prepared) {
+            prepared = [];
+            const budget = { chars: MAX_SOURCE_CHARS, lines: MAX_SOURCE_LINES };
+            for (const section of nestedSources(call)) {
+              if (!budget.chars || !budget.lines) {
+                prepared.push(options.theme.fg("dim", "\u2026 source sections truncated"));
+                break;
+              }
+              prepared.push(options.theme.fg("dim", `${section.label}${section.language ? ` \xB7 ${section.language}` : ""}`), ...highlightedSource(section, options.theme, budget));
+            }
+            const output = outputById.get(id);
+            if (output) {
+              const path = String(call.args.file_path ?? call.args.path ?? "");
+              const language = call.name === "read" && !output.isError ? languageForPath(path) : undefined;
+              prepared.push(options.theme.fg("dim", "Output"), ...highlightedSource({ label: "Output", source: output.text || "(no output)", language }, options.theme));
+              if (output.images)
+                prepared.push(options.theme.fg("dim", `${output.images} image(s); see parent output for emitted images`));
+              if (output.truncated)
+                prepared.push(options.theme.fg("warning", "\u2026 nested output snapshot truncated"));
+            } else
+              prepared.push(options.theme.fg("dim", "Nested output not recorded; script output is shown below."));
+            sources.set(id, prepared);
+          }
+          body.push(...prepared);
+          if (call.error)
+            body.push(options.theme.fg("error", codeLines(call.error).join(" ")));
+        }
+        for (const line of body) {
+          const clipped = truncateToWidth7(line, room, "\u2026");
+          rows.push(border("\u2502 ") + clipped + " ".repeat(Math.max(0, room - visibleWidth8(clipped))) + border(" \u2502"));
+        }
+        rows.push(border(`\u2570${"\u2500".repeat(Math.max(0, width - 2))}\u256F`));
+        regions.push({ id, from, to: rows.length });
+      }
+      cached = { width, lines: rows.map((line) => truncateToWidth7(line, Math.max(0, width), "\u2026")) };
+      return cached.lines;
+    },
+    handleMouse(event) {
+      if (event.type !== "click" || event.button !== "left" || event.shift || event.alt || event.ctrl || event.x < 0 || event.x >= event.width)
+        return;
+      const region = regions.find((region) => event.y >= region.from && event.y < region.to);
+      if (!region)
+        return;
+      options.overrides.set(region.id, !expanded(region.id));
+      cached = undefined;
+      options.invalidate();
+      return { handled: true, render: true };
+    },
+    invalidate() {
+      cached = undefined;
+      sources.clear();
+    }
+  };
+  return component;
+}
+
+// stow_modules/main/dot-pi/agent/extensions/open-tui/nested-output.ts
+import { Buffer as Buffer2 } from "buffer";
+var MAX_CALLS = 64;
+var MAX_CALL_BYTES = 8192;
+var MAX_SCRIPT_BYTES = 65536;
+var MAX_ID_CHARS = 512;
+function record2(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function clipUtf8(text, bytes) {
+  let low = 0, high = Math.min(text.length, Math.max(0, bytes));
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (Buffer2.byteLength(text.slice(0, mid), "utf8") <= bytes)
+      low = mid;
+    else
+      high = mid - 1;
+  }
+  let shown = text.slice(0, low);
+  if (/[\uD800-\uDBFF]$/.test(shown))
+    shown = shown.slice(0, -1);
+  return shown;
+}
+function nestedOutputs(details) {
+  const values = record2(details).openTuiNestedOutputs;
+  if (!Array.isArray(values))
+    return [];
+  let budget = MAX_SCRIPT_BYTES;
+  return values.slice(0, MAX_CALLS).flatMap((value) => {
+    const output = record2(value);
+    if (typeof output.id !== "string" || output.id.length > MAX_ID_CHARS || typeof output.text !== "string")
+      return [];
+    const text = clipUtf8(output.text, Math.min(MAX_CALL_BYTES, budget));
+    budget -= Buffer2.byteLength(text, "utf8");
+    return [{ id: output.id, text, images: typeof output.images === "number" && Number.isSafeInteger(output.images) && output.images >= 0 ? output.images : 0, truncated: output.truncated === true || text.length < output.text.length, isError: output.isError === true }];
+  });
+}
+
+class NestedOutputCapture {
+  roots = new Map;
+  outputs = new Map;
+  start(event, enabled = true) {
+    if (enabled && event.toolName === "codemode" && !event.parentToolCallId) {
+      this.roots.set(event.toolCallId, event.toolCallId);
+      this.outputs.set(event.toolCallId, []);
+    } else if (event.parentToolCallId) {
+      const root = this.roots.get(event.parentToolCallId);
+      if (root)
+        this.roots.set(event.toolCallId, root);
+    }
+  }
+  end(event) {
+    const root = this.roots.get(event.toolCallId);
+    this.roots.delete(event.toolCallId);
+    if (!root)
+      return;
+    if (root === event.toolCallId) {
+      this.outputs.delete(root);
+      return;
+    }
+    const list = this.outputs.get(root);
+    if (!list || list.length >= MAX_CALLS || event.toolCallId.length > MAX_ID_CHARS)
+      return;
+    const result = record2(event.result);
+    const content = Array.isArray(result.content) ? result.content.map(record2) : [];
+    let budget = Math.max(0, Math.min(MAX_CALL_BYTES, MAX_SCRIPT_BYTES - list.reduce((total, output) => total + Buffer2.byteLength(output.text, "utf8"), 0)));
+    let text = "", truncated = false;
+    for (const block of content) {
+      if (block.type !== "text" || typeof block.text !== "string")
+        continue;
+      if (text && budget) {
+        text += `
+`;
+        budget--;
+      }
+      const shown = clipUtf8(block.text, budget);
+      text += shown;
+      budget -= Buffer2.byteLength(shown, "utf8");
+      truncated ||= shown.length < block.text.length;
+    }
+    list.push({ id: event.toolCallId, text, images: content.filter((block) => block.type === "image").length, truncated, isError: event.isError });
+  }
+  get(id) {
+    return this.outputs.get(id)?.slice() ?? [];
+  }
+  clear() {
+    this.roots.clear();
+    this.outputs.clear();
+  }
 }
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/tool-view.ts
@@ -5561,7 +6192,7 @@ function lines(build, theme, glyphs, cacheable = true) {
       const colors = theme.colors;
       if (cacheable && cache && cache.width === width && cache.colors === colors && cache.toolCall === icons.toolCall && cache.toolResult === icons.toolResult)
         return cache.lines;
-      const rendered = build(width, icons).map((line) => truncateToWidth7(linkifyAnsiLineUrls(line), Math.max(0, width), "\u2026"));
+      const rendered = build(width, icons).map((line) => truncateToWidth8(linkifyAnsiLineUrls(line), Math.max(0, width), "\u2026"));
       if (cacheable)
         cache = { width, colors, toolCall: icons.toolCall, toolResult: icons.toolResult, lines: rendered };
       return rendered;
@@ -5612,7 +6243,7 @@ function isZenActive() {
   const sw = globalThis.piZenSwitch;
   return sw !== undefined && sw.look !== undefined && sw.look !== "pi";
 }
-function createCompactRenderers(toolName, native, glyphs, running, generic = false, summarizeExtension = summarizeGeneric) {
+function createCompactRenderers(toolName, native, glyphs, running, generic = false, summarizeExtension = summarizeGeneric, getNestedOutputs) {
   const label = Object.hasOwn(TOOL_LABELS, toolName) ? TOOL_LABELS[toolName] : sanitizeStatus(toolName);
   const isShell = !generic && (toolName === "bash" || toolName === "powershell");
   const isCodemode = !generic && toolName === "codemode";
@@ -5628,7 +6259,7 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
         return renderNativeCall ? renderNativeCall(args, theme, context) : new Box2(0, 0);
       }
       const row = rowState(context);
-      if (context.expanded || (generic || isCodemode ? feedCollapsedNative(row, context.isPartial, context.isError) : toolName !== "write")) {
+      if (!isCodemode && (context.expanded || (generic ? feedCollapsedNative(row, context.isPartial, context.isError) : toolName !== "write"))) {
         row.nativeCall = renderNativeCall?.(args, theme, nativeContext(context, row, row.nativeCall));
       }
       if (context.executionStarted)
@@ -5647,7 +6278,7 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
       } else {
         stopPulse(row);
       }
-      if (showNative(context) && row.nativeCall) {
+      if (!isCodemode && showNative(context) && row.nativeCall) {
         if (nativeShell === "self")
           return row.nativeCall;
         row.callCard ??= new Box2(context.outputPad, 0);
@@ -5666,6 +6297,12 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
       const rawDetail = sanitizeStatus(generic ? genericDetail(callArgs, context.cwd) : callDetail(toolName, callArgs, context.cwd));
       const detail = linkToolDetail(toolName, rawDetail, callArgs, context.cwd, generic);
       const pad = " ".repeat(context.outputPad);
+      if (isCodemode && context.expanded) {
+        const source = str(callArgs.code);
+        if (!row.codemodeSource || row.codemodeSource.source !== source || row.codemodeSource.colors !== theme.colors) {
+          row.codemodeSource = { source, colors: theme.colors, lines: highlightedSource({ label: "JavaScript", source, language: "javascript" }, theme) };
+        }
+      }
       return lines((_width, icons) => {
         const call = pad + theme.fg(color, icons.toolCall) + " " + theme.fg(titleColor, titleColor === "dim" ? label : theme.bold(label)) + (detail ? theme.fg(context.isPartial || context.isError ? "muted" : "dim", `(${detail})`) : "");
         if ((generic || isCodemode) && live && !row.hasResult) {
@@ -5673,7 +6310,7 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
           const gutter = `${pad}  ${theme.fg("dim", icons.toolResult)}  `;
           return [call, gutter + theme.fg("warning", `Running\u2026${elapsed}`)];
         }
-        return [call];
+        return context.expanded && isCodemode ? [call, ...(row.codemodeSource?.lines ?? []).map((line) => `${pad}  ${line}`)] : [call];
       }, theme, glyphs, !context.isPartial);
     },
     renderResult(result, options, theme, context) {
@@ -5685,10 +6322,10 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
       const partial = options.isPartial && !context.isError;
       if (!options.isPartial || context.isError)
         stopPulse(row);
-      if (!generic && !isCodemode || context.expanded || feedCollapsedNative(row, options.isPartial, context.isError)) {
+      if (!isCodemode && (!generic || context.expanded || feedCollapsedNative(row, options.isPartial, context.isError))) {
         row.nativeResult = renderNativeResult?.(result, options, theme, nativeContext(context, row, row.nativeResult));
       }
-      if (showNative(context) && row.nativeResult) {
+      if (!isCodemode && showNative(context) && row.nativeResult) {
         if (nativeShell === "self")
           return row.nativeResult;
         if (row.callCard && row.callCardBottom)
@@ -5713,36 +6350,46 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
       const timed = isShell || generic || isCodemode;
       const duration = timed && context.durationMs !== undefined ? ` \xB7 ${formatElapsed(context.durationMs)}` : "";
       if (isCodemode) {
-        const calls = codemodeCalls(result.details);
+        const calls = codemodeCalls(result.details).map((call, index) => ({ ...call, id: call.id ?? `${context.toolCallId}/${index}` }));
         const output = codemodeOutput(textOutput(result));
         const images = result.content.filter((block) => block.type === "image").length;
         const summary = codemodeSummary(calls, output, images, partial, context.isError) + duration;
-        const shown = visibleCodemodeCalls(calls);
+        const shown = context.expanded ? calls : visibleCodemodeCalls(calls);
         const outputLines = output.split(`
 `).filter((line) => line.trim());
         const fullOutputPath = str(details(result).fullOutputPath);
-        return lines((_width, { toolResult }) => {
-          const gutter = `${pad}  ${theme.fg("dim", toolResult)}  `;
-          const indent = `${pad}  ${" ".repeat(visibleWidth8(toolResult))}  `;
+        const stack = new Container;
+        stack.addChild(lines((_width, { toolResult }) => {
           const color = context.isError ? "error" : partial || calls.some((call) => call.status === "error" || call.status === "cancelled") ? "warning" : "dim";
-          const rows = [gutter + theme.fg(color, summary)];
-          for (const call of shown) {
+          return [`${pad}  ${theme.fg("dim", toolResult)}  ` + theme.fg(color, summary)];
+        }, theme, glyphs, !partial));
+        const box = new Box2(context.outputPad + 2, 0);
+        const savedOutputs = nestedOutputs(result.details);
+        box.addChild(nestedToolBlocks({
+          calls: shown,
+          outputs: savedOutputs.length ? savedOutputs : getNestedOutputs?.(context.toolCallId) ?? [],
+          expanded: context.expanded,
+          overrides: row.nestedExpanded ??= new Map,
+          theme,
+          invalidate: () => context.invalidate(),
+          heading: (call) => {
             const known = Object.hasOwn(TOOL_LABELS, call.name);
             const label = known ? TOOL_LABELS[call.name] : sanitizeStatus(call.name);
             const detail = sanitizeStatus(known ? callDetail(call.name, call.args, context.cwd) : genericDetail(call.args, context.cwd));
             const linked = linkToolDetail(call.name, detail, call.args, context.cwd, !known);
-            const status = call.status === "ok" ? "\u2713" : call.status === "error" ? "\u2717" : call.status === "cancelled" ? "\u2212" : "\u2026";
-            const statusColor = call.status === "error" ? "error" : call.status === "cancelled" ? "warning" : call.status === "running" ? "accent" : "dim";
-            const elapsed = call.durationMs === undefined ? "" : ` \xB7 ${formatElapsed(call.durationMs)}`;
-            const error = call.error ? ` \xB7 ${sanitizeStatus(firstLine(call.error))}` : call.status === "cancelled" ? " \xB7 cancelled" : "";
-            rows.push(indent + theme.fg(statusColor, status) + " " + theme.fg("dim", label + (linked ? `(${linked})` : "") + elapsed + error));
+            return theme.fg("toolTitle", label + (linked ? `(${linked})` : ""));
           }
+        }));
+        stack.addChild(box);
+        stack.addChild(lines((_width, { toolResult }) => {
+          const indent = `${pad}  ${" ".repeat(visibleWidth9(toolResult))}  `;
+          const rows = [];
           if (calls.length > shown.length)
             rows.push(indent + theme.fg("dim", `\u2026 +${calls.length - shown.length} calls (ctrl+o to expand)`));
           if (context.isError)
             rows.push(indent + theme.fg("error", sanitizeStatus(codemodeFailure(output))));
           else {
-            const preview = partial ? outputLines.slice(-LIVE_TAIL_LINES) : outputLines.slice(0, LIVE_TAIL_LINES);
+            const preview = context.expanded ? outputLines : partial ? outputLines.slice(-LIVE_TAIL_LINES) : outputLines.slice(0, LIVE_TAIL_LINES);
             rows.push(...preview.map((line) => indent + theme.fg("toolOutput", line)));
             if (outputLines.length > preview.length)
               rows.push(indent + theme.fg("dim", `\u2026 +${outputLines.length - preview.length} output lines (ctrl+o to expand)`));
@@ -5754,13 +6401,14 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
             rows.push(indent + theme.fg("dim", "Full output: " + (url ? formatOsc8(path, url) : path)));
           }
           return rows;
-        }, theme, glyphs, !partial);
+        }, theme, glyphs, !partial));
+        return stack;
       }
       const summary = partial ? "" : context.isError ? summarizeError(generic ? "" : toolName, result, duration) : generic ? summarizeExtension(result, duration) : summarizeResult(toolName, result, args) + duration;
       const tail = partial && isShell ? tailLines(textOutput(result), LIVE_TAIL_LINES) : [];
       return lines((width, { toolResult }) => {
         const gutter = `${pad}  ${theme.fg("dim", toolResult)}  `;
-        const indent = `${pad}  ${" ".repeat(visibleWidth8(toolResult))}  `;
+        const indent = `${pad}  ${" ".repeat(visibleWidth9(toolResult))}  `;
         if (partial) {
           if (!timed)
             return [gutter + theme.fg("warning", "Running\u2026")];
@@ -5777,20 +6425,33 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
 var OWNED_TOOLS = new Set(Object.keys(TOOL_LABELS));
 function registerToolView(pi, getView, glyphs) {
   const running = new Map;
+  const nested = new NestedOutputCapture;
   pi.on("tool_execution_start", (event) => {
     running.set(event.toolCallId, undefined);
+    nested.start(event, getView().mode === "compact");
+  });
+  pi.on("tool_result", (event) => {
+    if (event.toolName !== "codemode" || event.parentToolCallId)
+      return;
+    const outputs = nested.get(event.toolCallId);
+    if (!outputs.length)
+      return;
+    const original = event.details && typeof event.details === "object" ? event.details : {};
+    return { details: { ...original, openTuiNestedOutputs: outputs } };
   });
   pi.on("tool_execution_end", (event) => {
     const row = running.get(event.toolCallId);
     if (row)
       stopPulse(row);
     running.delete(event.toolCallId);
+    nested.end(event);
   });
   pi.on("session_shutdown", () => {
     for (const row of running.values())
       if (row)
         stopPulse(row);
     running.clear();
+    nested.clear();
   });
   pi.registerToolRenderer((toolName, next) => {
     const native = next();
@@ -5800,7 +6461,7 @@ function registerToolView(pi, getView, glyphs) {
     const sourceInfo = OWNED_TOOLS.has(toolName) || view.extensionTools && FFF_TOOLS.has(toolName) ? pi.getAllTools().find((tool) => tool.name === toolName)?.sourceInfo : undefined;
     const builtin = OWNED_TOOLS.has(toolName) && sourceInfo?.source === "builtin";
     if (builtin)
-      return native || toolName === "codemode" ? createCompactRenderers(toolName, native, glyphs, running) : native;
+      return native || toolName === "codemode" ? createCompactRenderers(toolName, native, glyphs, running, false, summarizeGeneric, (id) => nested.get(id)) : native;
     if (!view.extensionTools)
       return native;
     const fff = fffKind(toolName, sourceInfo);
@@ -5809,7 +6470,7 @@ function registerToolView(pi, getView, glyphs) {
 }
 
 // stow_modules/main/dot-pi/agent/extensions/rounded-tools.ts
-import { visibleWidth as visibleWidth9 } from "@earendil-works/pi-tui";
+import { visibleWidth as visibleWidth10 } from "@earendil-works/pi-tui";
 
 class RoundedFrame {
   inner;
@@ -5838,6 +6499,18 @@ class RoundedFrame {
   addChild(child) {
     this.inner.addChild?.(child);
   }
+  handleMouse(event) {
+    if (!this.inner.handleMouse)
+      return;
+    if (event.width < 4)
+      return this.inner.handleMouse(event);
+    const top = this.mode === "open-top" ? 0 : 1;
+    const innerWidth = Math.max(1, event.width - 4);
+    const innerHeight = this.inner.render(innerWidth).length;
+    if (event.x < 2 || event.x >= event.width - 2 || event.y < top || event.y >= top + innerHeight)
+      return;
+    return this.inner.handleMouse({ ...event, x: event.x - 2, y: event.y - top, width: innerWidth, height: innerHeight });
+  }
   render(width) {
     if (width < 4) {
       return this.inner.render(width);
@@ -5855,7 +6528,7 @@ class RoundedFrame {
     }
     if (innerLines.length > 0) {
       for (const line of innerLines) {
-        const vis = visibleWidth9(line);
+        const vis = visibleWidth10(line);
         const pad = " ".repeat(Math.max(0, innerWidth - vis));
         out.push(side + " " + line + pad + " " + side);
       }
@@ -5917,7 +6590,7 @@ function registerRoundedTools(pi) {
 }
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/peek.ts
-import { truncateToWidth as truncateToWidth8, visibleWidth as visibleWidth10, wrapTextWithAnsi as wrapTextWithAnsi3 } from "@earendil-works/pi-tui";
+import { truncateToWidth as truncateToWidth9, visibleWidth as visibleWidth11, wrapTextWithAnsi as wrapTextWithAnsi3 } from "@earendil-works/pi-tui";
 var SPINNER_FRAMES = ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"];
 var MAX_PEEK_LINES = 2;
 var graphemeSegmenter2 = new Intl.Segmenter(undefined, { granularity: "grapheme" });
@@ -5981,7 +6654,7 @@ function clipTail(text, budget) {
   const segments = graphemeSegmenter2.segment(text);
   while (end > 0) {
     const part = segments.containing(end - 1);
-    w += visibleWidth10(part.segment);
+    w += visibleWidth11(part.segment);
     if (w > budget)
       return "\u2026" + text.slice(clippedStart);
     end = part.index;
@@ -5994,12 +6667,12 @@ function buildPeekLabel(state, frame, glyphs, width, lineCount = 1) {
   const w = Math.max(1, Math.floor(width));
   const prefix = `${glyphs.thinking} think`;
   const count = normalizePeekLineCount(lineCount);
-  const fit = (line) => truncateToWidth8(line, w, "\u2026");
+  const fit = (line) => truncateToWidth9(line, w, "\u2026");
   switch (state.phase) {
     case "thinking": {
       const spin = SPINNER_FRAMES[frame % SPINNER_FRAMES.length] ?? "";
       const marker = `${prefix} ${spin}`;
-      const markerWidth = visibleWidth10(`${marker} `);
+      const markerWidth = visibleWidth11(`${marker} `);
       const contentWidth = Math.max(0, w - markerWidth);
       const thoughtIndent = " ".repeat(markerWidth);
       const safeLines = state.tail.split(`

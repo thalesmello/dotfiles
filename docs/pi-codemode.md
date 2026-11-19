@@ -38,18 +38,34 @@ JavaScript heading, parent completion/progress summary, nested tool names and
 statuses, and a short preview of the script output. Settled calls use the same
 rounded block as Bash, enclosing the heading, nested calls, and output together. Caught nested errors remain
 visible even when the script succeeds. Large groups show an expansion hint;
-Ctrl+O reveals the native full script, nested-call details, images, and output.
+Click a nested block to expand or collapse only that call. Ctrl+O expands the
+parent script and all nested calls; individual clicks can override those states.
+Source and command previews are syntax-highlighted, including embedded inline
+scripts and heredoc bodies.
 
 This works without enabling generic extension-tool rendering. Native tool-view
 mode, explicit tool exclusions, custom codemode overrides, and Zen rendering
-retain their existing behavior. This is display-only: execution, permission
-hooks, and model-visible tool results are unchanged.
+retain their existing behavior. Execution, permission hooks, and model-visible
+tool content are unchanged. Bounded child-output snapshots are saved as UI-only
+parent result metadata: up to 64 child calls, 8KiB UTF-8 text per child, and 64KiB
+text per script (plus metadata overhead). Image bytes are not duplicated. Older
+sessions without snapshots show the arguments and explain that nested output
+was not recorded; the parent script output remains available.
+
+Supported source languages include Python, Ruby, Rust, C/C++, Java, PHP,
+JavaScript/TypeScript, R, SQL, Go, Lua, Perl, Swift, Kotlin, Scala, C#, Dart,
+PowerShell/shell, JSON, YAML, TOML, HTML/XML and CSS. Filename extensions and
+known interpreters determine the language; uncertain shell constructs stay
+shell-highlighted rather than guessing. Source preview preparation is bounded
+across sections to avoid freezing the UI on large scripts or edit batches.
 
 Tests:
 
 ```sh
 bun test stow_modules/main/dot-pi/agent/tests/codemode*.test.ts
-bun test stow_modules/main/dot-pi/agent/tests/open-tui-codemode.test.ts
+bun test stow_modules/main/dot-pi/agent/tests/open-tui-codemode.test.ts \
+  stow_modules/main/dot-pi/agent/tests/script-language.test.ts \
+  stow_modules/main/dot-pi/agent/tests/nested-output.test.ts
 ```
 
 Rebuild the loaded Open-TUI bundle after source changes:

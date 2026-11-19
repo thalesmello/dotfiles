@@ -29,7 +29,7 @@ import {
 	createReadToolDefinition,
 	createWriteToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import type { Component } from "@earendil-works/pi-tui";
+import type { Component, TuiMouseEvent, TuiMouseEventResult } from "@earendil-works/pi-tui";
 import { visibleWidth } from "@earendil-works/pi-tui";
 
 // ─── Rounded-corner frame ────────────────────────────────────────────────
@@ -95,6 +95,16 @@ class RoundedFrame implements Component {
 
 	addChild(child: any): void {
 		(this.inner as any).addChild?.(child);
+	}
+
+	handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+		if (!this.inner.handleMouse) return;
+		if (event.width < 4) return this.inner.handleMouse(event);
+		const top = this.mode === "open-top" ? 0 : 1;
+		const innerWidth = Math.max(1, event.width - 4);
+		const innerHeight = this.inner.render(innerWidth).length;
+		if (event.x < 2 || event.x >= event.width - 2 || event.y < top || event.y >= top + innerHeight) return;
+		return this.inner.handleMouse({ ...event, x: event.x - 2, y: event.y - top, width: innerWidth, height: innerHeight });
 	}
 
 	render(width: number): string[] {

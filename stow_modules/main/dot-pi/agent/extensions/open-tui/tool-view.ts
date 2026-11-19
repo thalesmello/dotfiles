@@ -1,11 +1,13 @@
 import { homedir } from "node:os";
 import { isAbsolute, relative, sep } from "node:path";
 import type { ExtensionAPI, SourceInfo, Theme, ThemeColor, ToolRenderers } from "@earendil-works/pi-coding-agent";
-import { Box, type Component, getCapabilities, getImageDimensions, imageFallback, Spacer, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { Box, Container, type Component, getCapabilities, getImageDimensions, imageFallback, Spacer, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { ToolViewConfig } from "./config.ts";
 import type { IconGlyphs } from "./icons.ts";
 import { codeLines, prepareToolPreview } from "./tool-preview.ts";
 import { codemodeCalls, codemodeFailure, codemodeOutput, codemodeSummary, visibleCodemodeCalls } from "./codemode-view.ts";
+import { highlightedSource, nestedToolBlocks, type NestedOutput } from "./nested-tool-blocks.ts";
+import { NestedOutputCapture, nestedOutputs } from "./nested-output.ts";
 import { sanitizeStatus, stripAnsi } from "./utils.ts";
 import { formatOsc8, linkifyAnsiLineUrls, registerKnownFilePath, resolveToolPathHyperlinkUrl } from "../osc8-links.ts";
 
@@ -46,6 +48,8 @@ interface RowState {
 	callCardBottom?: Spacer;
 	resultCard?: Box;
 	hasResult?: boolean;
+	nestedExpanded?: Map<string, boolean>;
+	codemodeSource?: { source: string; colors: Theme["colors"]; lines: string[] };
 	startedAt?: number;
 	pulse?: ReturnType<typeof setInterval>;
 	pulseBright?: boolean;
@@ -477,6 +481,7 @@ export function createCompactRenderers(
 	running?: Map<string, RowState | undefined>,
 	generic = false,
 	summarizeExtension = summarizeGeneric,
+	getNestedOutputs?: (toolCallId: string) => NestedOutput[],
 ): ToolRenderers {
 	const label = Object.hasOwn(TOOL_LABELS, toolName) ? TOOL_LABELS[toolName]! : sanitizeStatus(toolName);
 	const isShell = !generic && (toolName === "bash" || toolName === "powershell");
@@ -500,7 +505,7 @@ export function createCompactRenderers(
 			}
 			const row = rowState(context);
 			// Keep native timers/edit state current; write rebuilds its full highlight cache only on expansion.
-			if (context.expanded || (generic || isCodemode ? feedCollapsedNative(row, context.isPartial, context.isError) : toolName !== "write")) {
+			if (!isCodemode && (context.expanded || (generic ? feedCollapsedNative(row, context.isPartial, context.isError) : toolName !== "write"))) {
 				row.nativeCall = renderNativeCall?.(args, theme, nativeContext(context, row, row.nativeCall));
 			}
 			if (context.executionStarted) row.startedAt ??= Date.now();
@@ -519,7 +524,7 @@ export function createCompactRenderers(
 			} else {
 				stopPulse(row);
 			}
-			if (showNative(context) && row.nativeCall) {
+			if (!isCodemode && showNative(context) && row.nativeCall) {
 				if (nativeShell === "self") return row.nativeCall;
 				// Recreate Pi's default card: top padding, call, then result (or bottom padding while pending).
 				row.callCard ??= new Box(context.outputPad, 0);
@@ -540,6 +545,12 @@ export function createCompactRenderers(
 			const rawDetail = sanitizeStatus(generic ? genericDetail(callArgs, context.cwd) : callDetail(toolName, callArgs, context.cwd));
 			const detail = linkToolDetail(toolName, rawDetail, callArgs, context.cwd, generic);
 			const pad = " ".repeat(context.outputPad);
+			if (isCodemode && context.expanded) {
+				const source = str(callArgs.code);
+				if (!row.codemodeSource || row.codemodeSource.source !== source || row.codemodeSource.colors !== theme.colors) {
+					row.codemodeSource = { source, colors: theme.colors, lines: highlightedSource({ label: "JavaScript", source, language: "javascript" }, theme) };
+				}
+			}
 			return lines((_width, icons) => {
 				const call = pad + theme.fg(color, icons.toolCall) + " " + theme.fg(titleColor, titleColor === "dim" ? label : theme.bold(label))
 					+ (detail ? theme.fg(context.isPartial || context.isError ? "muted" : "dim", `(${detail})`) : "");
@@ -550,7 +561,7 @@ export function createCompactRenderers(
 					const gutter = `${pad}  ${theme.fg("dim", icons.toolResult)}  `;
 					return [call, gutter + theme.fg("warning", `Running…${elapsed}`)];
 				}
-				return [call];
+				return context.expanded && isCodemode ? [call, ...(row.codemodeSource?.lines ?? []).map((line) => `${pad}  ${line}`)] : [call];
 			}, theme, glyphs, !context.isPartial);
 		},
 
@@ -562,10 +573,10 @@ export function createCompactRenderers(
 			row.hasResult = true;
 			const partial = options.isPartial && !context.isError;
 			if (!options.isPartial || context.isError) stopPulse(row);
-			if ((!generic && !isCodemode) || context.expanded || feedCollapsedNative(row, options.isPartial, context.isError)) {
+			if (!isCodemode && (!generic || context.expanded || feedCollapsedNative(row, options.isPartial, context.isError))) {
 				row.nativeResult = renderNativeResult?.(result, options, theme, nativeContext(context, row, row.nativeResult));
 			}
-			if (showNative(context) && row.nativeResult) {
+			if (!isCodemode && showNative(context) && row.nativeResult) {
 				if (nativeShell === "self") return row.nativeResult;
 				// The result now closes the card, so the call card drops its pending bottom padding.
 				if (row.callCard && row.callCardBottom) row.callCard.removeChild(row.callCardBottom);
@@ -589,33 +600,43 @@ export function createCompactRenderers(
 			const timed = isShell || generic || isCodemode;
 			const duration = timed && context.durationMs !== undefined ? ` · ${formatElapsed(context.durationMs)}` : "";
 			if (isCodemode) {
-				const calls = codemodeCalls(result.details);
+				const calls = codemodeCalls(result.details).map((call, index) => ({ ...call, id: call.id ?? `${context.toolCallId}/${index}` }));
 				const output = codemodeOutput(textOutput(result));
 				const images = result.content.filter((block) => block.type === "image").length;
 				const summary = codemodeSummary(calls, output, images, partial, context.isError) + duration;
-				const shown = visibleCodemodeCalls(calls);
+				const shown = context.expanded ? calls : visibleCodemodeCalls(calls);
 				const outputLines = output.split("\n").filter((line) => line.trim());
 				const fullOutputPath = str(details(result).fullOutputPath);
-				return lines((_width, { toolResult }) => {
-					const gutter = `${pad}  ${theme.fg("dim", toolResult)}  `;
-					const indent = `${pad}  ${" ".repeat(visibleWidth(toolResult))}  `;
+				const stack = new Container();
+				stack.addChild(lines((_width, { toolResult }) => {
 					const color: ThemeColor = context.isError ? "error" : partial || calls.some((call) => call.status === "error" || call.status === "cancelled") ? "warning" : "dim";
-					const rows = [gutter + theme.fg(color, summary)];
-					for (const call of shown) {
+					return [`${pad}  ${theme.fg("dim", toolResult)}  ` + theme.fg(color, summary)];
+				}, theme, glyphs, !partial));
+				const box = new Box(context.outputPad + 2, 0);
+				const savedOutputs = nestedOutputs(result.details);
+				box.addChild(nestedToolBlocks({
+					calls: shown,
+					outputs: savedOutputs.length ? savedOutputs : getNestedOutputs?.(context.toolCallId) ?? [],
+					expanded: context.expanded,
+					overrides: row.nestedExpanded ??= new Map(),
+					theme,
+					invalidate: () => context.invalidate(),
+					heading: (call) => {
 						const known = Object.hasOwn(TOOL_LABELS, call.name);
 						const label = known ? TOOL_LABELS[call.name]! : sanitizeStatus(call.name);
 						const detail = sanitizeStatus(known ? callDetail(call.name, call.args, context.cwd) : genericDetail(call.args, context.cwd));
 						const linked = linkToolDetail(call.name, detail, call.args, context.cwd, !known);
-						const status = call.status === "ok" ? "✓" : call.status === "error" ? "✗" : call.status === "cancelled" ? "−" : "…";
-						const statusColor: ThemeColor = call.status === "error" ? "error" : call.status === "cancelled" ? "warning" : call.status === "running" ? "accent" : "dim";
-						const elapsed = call.durationMs === undefined ? "" : ` · ${formatElapsed(call.durationMs)}`;
-						const error = call.error ? ` · ${sanitizeStatus(firstLine(call.error))}` : call.status === "cancelled" ? " · cancelled" : "";
-						rows.push(indent + theme.fg(statusColor, status) + " " + theme.fg("dim", label + (linked ? `(${linked})` : "") + elapsed + error));
-					}
+						return theme.fg("toolTitle", label + (linked ? `(${linked})` : ""));
+					},
+				}));
+				stack.addChild(box);
+				stack.addChild(lines((_width, { toolResult }) => {
+					const indent = `${pad}  ${" ".repeat(visibleWidth(toolResult))}  `;
+					const rows: string[] = [];
 					if (calls.length > shown.length) rows.push(indent + theme.fg("dim", `… +${calls.length - shown.length} calls (ctrl+o to expand)`));
 					if (context.isError) rows.push(indent + theme.fg("error", sanitizeStatus(codemodeFailure(output))));
 					else {
-						const preview = partial ? outputLines.slice(-LIVE_TAIL_LINES) : outputLines.slice(0, LIVE_TAIL_LINES);
+						const preview = context.expanded ? outputLines : partial ? outputLines.slice(-LIVE_TAIL_LINES) : outputLines.slice(0, LIVE_TAIL_LINES);
 						rows.push(...preview.map((line) => indent + theme.fg("toolOutput", line)));
 						if (outputLines.length > preview.length) rows.push(indent + theme.fg("dim", `… +${outputLines.length - preview.length} output lines (ctrl+o to expand)`));
 					}
@@ -626,7 +647,8 @@ export function createCompactRenderers(
 						rows.push(indent + theme.fg("dim", "Full output: " + (url ? formatOsc8(path, url) : path)));
 					}
 					return rows;
-				}, theme, glyphs, !partial);
+				}, theme, glyphs, !partial));
+				return stack;
 			}
 			const summary = partial ? "" : context.isError
 				? summarizeError(generic ? "" : toolName, result, duration)
@@ -656,15 +678,28 @@ const OWNED_TOOLS = new Set(Object.keys(TOOL_LABELS));
  */
 export function registerToolView(pi: ExtensionAPI, getView: () => ToolViewConfig, glyphs: () => IconGlyphs): void {
 	const running = new Map<string, RowState | undefined>();
-	pi.on("tool_execution_start", (event) => { running.set(event.toolCallId, undefined); });
+	const nested = new NestedOutputCapture();
+	pi.on("tool_execution_start", (event) => {
+		running.set(event.toolCallId, undefined);
+		nested.start(event, getView().mode === "compact");
+	});
+	pi.on("tool_result", (event) => {
+		if (event.toolName !== "codemode" || event.parentToolCallId) return;
+		const outputs = nested.get(event.toolCallId);
+		if (!outputs.length) return;
+		const original = event.details && typeof event.details === "object" ? event.details as Record<string, unknown> : {};
+		return { details: { ...original, openTuiNestedOutputs: outputs } };
+	});
 	pi.on("tool_execution_end", (event) => {
 		const row = running.get(event.toolCallId);
 		if (row) stopPulse(row);
 		running.delete(event.toolCallId);
+		nested.end(event);
 	});
 	pi.on("session_shutdown", () => {
 		for (const row of running.values()) if (row) stopPulse(row);
 		running.clear();
+		nested.clear();
 	});
 	pi.registerToolRenderer((toolName, next) => {
 		const native = next();
@@ -673,7 +708,7 @@ export function registerToolView(pi: ExtensionAPI, getView: () => ToolViewConfig
 		const sourceInfo = OWNED_TOOLS.has(toolName) || view.extensionTools && FFF_TOOLS.has(toolName)
 			? pi.getAllTools().find((tool) => tool.name === toolName)?.sourceInfo : undefined;
 		const builtin = OWNED_TOOLS.has(toolName) && sourceInfo?.source === "builtin";
-		if (builtin) return native || toolName === "codemode" ? createCompactRenderers(toolName, native, glyphs, running) : native;
+		if (builtin) return native || toolName === "codemode" ? createCompactRenderers(toolName, native, glyphs, running, false, summarizeGeneric, (id) => nested.get(id)) : native;
 		if (!view.extensionTools) return native;
 		const fff = fffKind(toolName, sourceInfo);
 		return createCompactRenderers(toolName, native, glyphs, running, true,
