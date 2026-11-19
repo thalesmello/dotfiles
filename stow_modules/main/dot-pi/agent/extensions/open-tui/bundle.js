@@ -5161,6 +5161,71 @@ function prepareToolPreview(kind, source, path, theme) {
   };
 }
 
+// stow_modules/main/dot-pi/agent/extensions/open-tui/codemode-view.ts
+function record(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function codemodeCalls(details) {
+  const calls = record(details).calls;
+  if (!Array.isArray(calls))
+    return [];
+  return calls.flatMap((value) => {
+    const call = record(value);
+    if (typeof call.name !== "string" || !call.name.trim())
+      return [];
+    let args = call.args;
+    if (typeof args === "string") {
+      try {
+        args = JSON.parse(args);
+      } catch {
+        args = {};
+      }
+    }
+    const status = call.status === "ok" || call.status === "error" || call.status === "cancelled" ? call.status : "running";
+    return [{
+      name: call.name,
+      args: record(args),
+      status,
+      ...typeof call.durationMs === "number" && Number.isFinite(call.durationMs) && call.durationMs >= 0 ? { durationMs: call.durationMs } : {},
+      ...typeof call.error === "string" ? { error: call.error } : {}
+    }];
+  });
+}
+function codemodeOutput(text) {
+  return text.replace(/^Script (?:completed|failed)\nWall time \d+(?:\.\d+)? seconds\nOutput:\n/, "").replace(/^\n/, "").replace(/\n+$/, "");
+}
+function codemodeFailure(output) {
+  const marker = /(?:^|\n)Script error:\s*\n/.exec(output);
+  const error = marker ? output.slice(marker.index + marker[0].length) : output;
+  return error.split(`
+`).find((line) => line.trim())?.trim().replace(/^Error:\s*/, "") || "Script failed";
+}
+var countItems = (count, label) => `${count} ${label}${count === 1 ? "" : "s"}`;
+function codemodeSummary(calls, output, images, partial, failed) {
+  const errors = calls.filter((call) => call.status === "error").length;
+  const cancelled = calls.filter((call) => call.status === "cancelled").length;
+  const running = calls.filter((call) => call.status === "running").length;
+  const body = output.split(`
+`).filter((line) => line.trim());
+  return [
+    partial ? "Running\u2026" : failed ? "Failed" : "Done",
+    ...calls.length ? [countItems(calls.length, "call")] : [],
+    ...partial && running ? [`${running} running`] : [],
+    ...errors ? [`${errors} failed`] : [],
+    ...cancelled ? [`${cancelled} cancelled`] : [],
+    ...!partial ? [body.length ? countItems(body.length, "line") : "no output"] : [],
+    ...images ? [countItems(images, "image")] : []
+  ].join(" \xB7 ");
+}
+function visibleCodemodeCalls(calls, limit = 4) {
+  const visible = calls.slice(0, limit);
+  const hiddenErrors = calls.slice(limit).filter((call) => call.status === "error" || call.status === "cancelled");
+  if (!hiddenErrors.length)
+    return visible;
+  const priority = [...calls.filter((call) => call.status === "error" || call.status === "cancelled"), ...calls.filter((call) => call.status !== "error" && call.status !== "cancelled")];
+  return priority.slice(0, limit);
+}
+
 // stow_modules/main/dot-pi/agent/extensions/open-tui/tool-view.ts
 var TOOL_LABELS = {
   read: "Read",
@@ -5170,7 +5235,8 @@ var TOOL_LABELS = {
   write: "Write",
   grep: "Grep",
   find: "Find",
-  ls: "LS"
+  ls: "LS",
+  codemode: "Codemode"
 };
 var LIVE_TAIL_LINES = 3;
 var GENERIC_DETAIL_KEYS = ["command", "query", "sql", "pattern", "prompt", "task", "url", "path", "file_path"];
@@ -5290,6 +5356,11 @@ function callDetail(toolName, args, cwd) {
     }
     case "ls":
       return path || ".";
+    case "codemode": {
+      const source = str(args.code);
+      const count = codeLines(source).length;
+      return count ? `JavaScript \xB7 ${plural(count, "line")}` : "JavaScript";
+    }
     default:
       return "";
   }
@@ -5544,9 +5615,10 @@ function isZenActive() {
 function createCompactRenderers(toolName, native, glyphs, running, generic = false, summarizeExtension = summarizeGeneric) {
   const label = Object.hasOwn(TOOL_LABELS, toolName) ? TOOL_LABELS[toolName] : sanitizeStatus(toolName);
   const isShell = !generic && (toolName === "bash" || toolName === "powershell");
+  const isCodemode = !generic && toolName === "codemode";
   const nativeShell = native?.renderShell;
-  const renderNativeCall = native?.renderCall ?? (generic ? (args, theme) => genericCall(toolName, args, theme) : undefined);
-  const renderNativeResult = native?.renderResult ?? (generic ? (result, _options, theme, context) => genericResult(result, theme, context) : undefined);
+  const renderNativeCall = native?.renderCall ?? (generic || isCodemode ? (args, theme) => genericCall(toolName, args, theme) : undefined);
+  const renderNativeResult = native?.renderResult ?? (generic || isCodemode ? (result, _options, theme, context) => genericResult(result, theme, context) : undefined);
   const showNative = (context) => context.expanded;
   const feedCollapsedNative = (row, isPartial, isError) => row.nativeCall !== undefined && (!isPartial || isError);
   return {
@@ -5556,7 +5628,7 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
         return renderNativeCall ? renderNativeCall(args, theme, context) : new Box2(0, 0);
       }
       const row = rowState(context);
-      if (context.expanded || (generic ? feedCollapsedNative(row, context.isPartial, context.isError) : toolName !== "write")) {
+      if (context.expanded || (generic || isCodemode ? feedCollapsedNative(row, context.isPartial, context.isError) : toolName !== "write")) {
         row.nativeCall = renderNativeCall?.(args, theme, nativeContext(context, row, row.nativeCall));
       }
       if (context.executionStarted)
@@ -5596,7 +5668,7 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
       const pad = " ".repeat(context.outputPad);
       return lines((_width, icons) => {
         const call = pad + theme.fg(color, icons.toolCall) + " " + theme.fg(titleColor, titleColor === "dim" ? label : theme.bold(label)) + (detail ? theme.fg(context.isPartial || context.isError ? "muted" : "dim", `(${detail})`) : "");
-        if (generic && live && !row.hasResult) {
+        if ((generic || isCodemode) && live && !row.hasResult) {
           const elapsed = row.startedAt === undefined ? "" : ` ${formatElapsed(Date.now() - row.startedAt)}`;
           const gutter = `${pad}  ${theme.fg("dim", icons.toolResult)}  `;
           return [call, gutter + theme.fg("warning", `Running\u2026${elapsed}`)];
@@ -5613,7 +5685,7 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
       const partial = options.isPartial && !context.isError;
       if (!options.isPartial || context.isError)
         stopPulse(row);
-      if (!generic || context.expanded || feedCollapsedNative(row, options.isPartial, context.isError)) {
+      if (!generic && !isCodemode || context.expanded || feedCollapsedNative(row, options.isPartial, context.isError)) {
         row.nativeResult = renderNativeResult?.(result, options, theme, nativeContext(context, row, row.nativeResult));
       }
       if (showNative(context) && row.nativeResult) {
@@ -5638,8 +5710,52 @@ function createCompactRenderers(toolName, native, glyphs, running, generic = fal
           row.preview = { source, path, colors: theme.colors, render: prepareToolPreview(toolName, source, path, theme) };
         }
       }
-      const timed = isShell || generic;
+      const timed = isShell || generic || isCodemode;
       const duration = timed && context.durationMs !== undefined ? ` \xB7 ${formatElapsed(context.durationMs)}` : "";
+      if (isCodemode) {
+        const calls = codemodeCalls(result.details);
+        const output = codemodeOutput(textOutput(result));
+        const images = result.content.filter((block) => block.type === "image").length;
+        const summary = codemodeSummary(calls, output, images, partial, context.isError) + duration;
+        const shown = visibleCodemodeCalls(calls);
+        const outputLines = output.split(`
+`).filter((line) => line.trim());
+        const fullOutputPath = str(details(result).fullOutputPath);
+        return lines((_width, { toolResult }) => {
+          const gutter = `${pad}  ${theme.fg("dim", toolResult)}  `;
+          const indent = `${pad}  ${" ".repeat(visibleWidth8(toolResult))}  `;
+          const color = context.isError ? "error" : partial || calls.some((call) => call.status === "error" || call.status === "cancelled") ? "warning" : "dim";
+          const rows = [gutter + theme.fg(color, summary)];
+          for (const call of shown) {
+            const known = Object.hasOwn(TOOL_LABELS, call.name);
+            const label = known ? TOOL_LABELS[call.name] : sanitizeStatus(call.name);
+            const detail = sanitizeStatus(known ? callDetail(call.name, call.args, context.cwd) : genericDetail(call.args, context.cwd));
+            const linked = linkToolDetail(call.name, detail, call.args, context.cwd, !known);
+            const status = call.status === "ok" ? "\u2713" : call.status === "error" ? "\u2717" : call.status === "cancelled" ? "\u2212" : "\u2026";
+            const statusColor = call.status === "error" ? "error" : call.status === "cancelled" ? "warning" : call.status === "running" ? "accent" : "dim";
+            const elapsed = call.durationMs === undefined ? "" : ` \xB7 ${formatElapsed(call.durationMs)}`;
+            const error = call.error ? ` \xB7 ${sanitizeStatus(firstLine(call.error))}` : call.status === "cancelled" ? " \xB7 cancelled" : "";
+            rows.push(indent + theme.fg(statusColor, status) + " " + theme.fg("dim", label + (linked ? `(${linked})` : "") + elapsed + error));
+          }
+          if (calls.length > shown.length)
+            rows.push(indent + theme.fg("dim", `\u2026 +${calls.length - shown.length} calls (ctrl+o to expand)`));
+          if (context.isError)
+            rows.push(indent + theme.fg("error", sanitizeStatus(codemodeFailure(output))));
+          else {
+            const preview = partial ? outputLines.slice(-LIVE_TAIL_LINES) : outputLines.slice(0, LIVE_TAIL_LINES);
+            rows.push(...preview.map((line) => indent + theme.fg("toolOutput", line)));
+            if (outputLines.length > preview.length)
+              rows.push(indent + theme.fg("dim", `\u2026 +${outputLines.length - preview.length} output lines (ctrl+o to expand)`));
+          }
+          if (fullOutputPath) {
+            registerKnownFilePath(fullOutputPath, context.cwd);
+            const url = resolveToolPathHyperlinkUrl(fullOutputPath, context.cwd);
+            const path = sanitizeStatus(displayPath(fullOutputPath, context.cwd));
+            rows.push(indent + theme.fg("dim", "Full output: " + (url ? formatOsc8(path, url) : path)));
+          }
+          return rows;
+        }, theme, glyphs, !partial);
+      }
       const summary = partial ? "" : context.isError ? summarizeError(generic ? "" : toolName, result, duration) : generic ? summarizeExtension(result, duration) : summarizeResult(toolName, result, args) + duration;
       const tail = partial && isShell ? tailLines(textOutput(result), LIVE_TAIL_LINES) : [];
       return lines((width, { toolResult }) => {
@@ -5684,7 +5800,7 @@ function registerToolView(pi, getView, glyphs) {
     const sourceInfo = OWNED_TOOLS.has(toolName) || view.extensionTools && FFF_TOOLS.has(toolName) ? pi.getAllTools().find((tool) => tool.name === toolName)?.sourceInfo : undefined;
     const builtin = OWNED_TOOLS.has(toolName) && sourceInfo?.source === "builtin";
     if (builtin)
-      return native && createCompactRenderers(toolName, native, glyphs, running);
+      return native || toolName === "codemode" ? createCompactRenderers(toolName, native, glyphs, running) : native;
     if (!view.extensionTools)
       return native;
     const fff = fffKind(toolName, sourceInfo);
@@ -5785,7 +5901,7 @@ function wrapBuiltin(def) {
     }
   };
 }
-var BUILTIN_TOOLS = new Set(["read", "write", "edit", "bash", "grep", "find", "ls"]);
+var BUILTIN_TOOLS = new Set(["read", "write", "edit", "bash", "grep", "find", "ls", "codemode"]);
 var REGISTERED_SYMBOL = Symbol.for("pi.roundedTools.registered");
 function registerRoundedTools(pi) {
   const holder = pi;

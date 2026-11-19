@@ -1,8 +1,8 @@
 /**
  * Pi Rounded Tools — rounded frames for tool calls and results.
  *
- * Re-registers the built-in tools (read, write, edit, bash, grep, find, ls)
- * with `renderShell: "self"` and wraps each tool call / result in a frame
+ * Wraps built-in tools (read, write, edit, bash, grep, find, ls, codemode)
+ * with `renderShell: "self"` and places each tool call / result in a frame
  * drawn with Unicode rounded-corner characters (╭ ╮ ╰ ╯ ─ │).
  *
  * No left color bar, no theme matching — just the corners.
@@ -241,7 +241,7 @@ function wrapBuiltin(def: ToolDef) {
 	};
 }
 
-const BUILTIN_TOOLS = new Set(["read", "write", "edit", "bash", "grep", "find", "ls"]);
+const BUILTIN_TOOLS = new Set(["read", "write", "edit", "bash", "grep", "find", "ls", "codemode"]);
 const REGISTERED_SYMBOL = Symbol.for("pi.roundedTools.registered");
 
 // ─── Tool renderer registration (preserves built-in execution & sourceInfo) ─

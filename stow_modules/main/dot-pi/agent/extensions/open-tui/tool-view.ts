@@ -5,6 +5,7 @@ import { Box, type Component, getCapabilities, getImageDimensions, imageFallback
 import type { ToolViewConfig } from "./config.ts";
 import type { IconGlyphs } from "./icons.ts";
 import { codeLines, prepareToolPreview } from "./tool-preview.ts";
+import { codemodeCalls, codemodeFailure, codemodeOutput, codemodeSummary, visibleCodemodeCalls } from "./codemode-view.ts";
 import { sanitizeStatus, stripAnsi } from "./utils.ts";
 import { formatOsc8, linkifyAnsiLineUrls, registerKnownFilePath, resolveToolPathHyperlinkUrl } from "../osc8-links.ts";
 
@@ -23,6 +24,7 @@ const TOOL_LABELS: Record<string, string> = {
 	grep: "Grep",
 	find: "Find",
 	ls: "LS",
+	codemode: "Codemode",
 };
 const LIVE_TAIL_LINES = 3;
 /** Arguments that best identify a call to a tool this view knows nothing else about. */
@@ -173,6 +175,11 @@ export function callDetail(toolName: string, args: Args, cwd: string): string {
 		}
 		case "ls":
 			return path || ".";
+		case "codemode": {
+			const source = str(args.code);
+			const count = codeLines(source).length;
+			return count ? `JavaScript · ${plural(count, "line")}` : "JavaScript";
+		}
 		default:
 			return "";
 	}
@@ -473,11 +480,12 @@ export function createCompactRenderers(
 ): ToolRenderers {
 	const label = Object.hasOwn(TOOL_LABELS, toolName) ? TOOL_LABELS[toolName]! : sanitizeStatus(toolName);
 	const isShell = !generic && (toolName === "bash" || toolName === "powershell");
+	const isCodemode = !generic && toolName === "codemode";
 	const nativeShell = native?.renderShell;
 	const renderNativeCall: RenderCall | undefined = native?.renderCall
-		?? (generic ? (args, theme) => genericCall(toolName, args, theme) : undefined);
+		?? (generic || isCodemode ? (args, theme) => genericCall(toolName, args, theme) : undefined);
 	const renderNativeResult: RenderResult | undefined = native?.renderResult
-		?? (generic ? (result, _options, theme, context) => genericResult(result, theme, context) : undefined);
+		?? (generic || isCodemode ? (result, _options, theme, context) => genericResult(result, theme, context) : undefined);
 	// Expanded rows hand off to Pi's own card so nothing is hidden.
 	const showNative = (context: RenderContext) => context.expanded;
 	// A generic row that was expanded skips hidden progress but still sees the call finish, for a renderer's own timers.
@@ -492,7 +500,7 @@ export function createCompactRenderers(
 			}
 			const row = rowState(context);
 			// Keep native timers/edit state current; write rebuilds its full highlight cache only on expansion.
-			if (context.expanded || (generic ? feedCollapsedNative(row, context.isPartial, context.isError) : toolName !== "write")) {
+			if (context.expanded || (generic || isCodemode ? feedCollapsedNative(row, context.isPartial, context.isError) : toolName !== "write")) {
 				row.nativeCall = renderNativeCall?.(args, theme, nativeContext(context, row, row.nativeCall));
 			}
 			if (context.executionStarted) row.startedAt ??= Date.now();
@@ -537,7 +545,7 @@ export function createCompactRenderers(
 					+ (detail ? theme.fg(context.isPartial || context.isError ? "muted" : "dim", `(${detail})`) : "");
 				// Pi does not call renderResult until the tool provides its first result.
 				// Read the shared flag during rendering, after both slots have been prepared.
-				if (generic && live && !row.hasResult) {
+				if ((generic || isCodemode) && live && !row.hasResult) {
 					const elapsed = row.startedAt === undefined ? "" : ` ${formatElapsed(Date.now() - row.startedAt)}`;
 					const gutter = `${pad}  ${theme.fg("dim", icons.toolResult)}  `;
 					return [call, gutter + theme.fg("warning", `Running…${elapsed}`)];
@@ -554,7 +562,7 @@ export function createCompactRenderers(
 			row.hasResult = true;
 			const partial = options.isPartial && !context.isError;
 			if (!options.isPartial || context.isError) stopPulse(row);
-			if (!generic || context.expanded || feedCollapsedNative(row, options.isPartial, context.isError)) {
+			if ((!generic && !isCodemode) || context.expanded || feedCollapsedNative(row, options.isPartial, context.isError)) {
 				row.nativeResult = renderNativeResult?.(result, options, theme, nativeContext(context, row, row.nativeResult));
 			}
 			if (showNative(context) && row.nativeResult) {
@@ -578,8 +586,48 @@ export function createCompactRenderers(
 					row.preview = { source, path, colors: theme.colors, render: prepareToolPreview(toolName, source, path, theme) };
 				}
 			}
-			const timed = isShell || generic;
+			const timed = isShell || generic || isCodemode;
 			const duration = timed && context.durationMs !== undefined ? ` · ${formatElapsed(context.durationMs)}` : "";
+			if (isCodemode) {
+				const calls = codemodeCalls(result.details);
+				const output = codemodeOutput(textOutput(result));
+				const images = result.content.filter((block) => block.type === "image").length;
+				const summary = codemodeSummary(calls, output, images, partial, context.isError) + duration;
+				const shown = visibleCodemodeCalls(calls);
+				const outputLines = output.split("\n").filter((line) => line.trim());
+				const fullOutputPath = str(details(result).fullOutputPath);
+				return lines((_width, { toolResult }) => {
+					const gutter = `${pad}  ${theme.fg("dim", toolResult)}  `;
+					const indent = `${pad}  ${" ".repeat(visibleWidth(toolResult))}  `;
+					const color: ThemeColor = context.isError ? "error" : partial || calls.some((call) => call.status === "error" || call.status === "cancelled") ? "warning" : "dim";
+					const rows = [gutter + theme.fg(color, summary)];
+					for (const call of shown) {
+						const known = Object.hasOwn(TOOL_LABELS, call.name);
+						const label = known ? TOOL_LABELS[call.name]! : sanitizeStatus(call.name);
+						const detail = sanitizeStatus(known ? callDetail(call.name, call.args, context.cwd) : genericDetail(call.args, context.cwd));
+						const linked = linkToolDetail(call.name, detail, call.args, context.cwd, !known);
+						const status = call.status === "ok" ? "✓" : call.status === "error" ? "✗" : call.status === "cancelled" ? "−" : "…";
+						const statusColor: ThemeColor = call.status === "error" ? "error" : call.status === "cancelled" ? "warning" : call.status === "running" ? "accent" : "dim";
+						const elapsed = call.durationMs === undefined ? "" : ` · ${formatElapsed(call.durationMs)}`;
+						const error = call.error ? ` · ${sanitizeStatus(firstLine(call.error))}` : call.status === "cancelled" ? " · cancelled" : "";
+						rows.push(indent + theme.fg(statusColor, status) + " " + theme.fg("dim", label + (linked ? `(${linked})` : "") + elapsed + error));
+					}
+					if (calls.length > shown.length) rows.push(indent + theme.fg("dim", `… +${calls.length - shown.length} calls (ctrl+o to expand)`));
+					if (context.isError) rows.push(indent + theme.fg("error", sanitizeStatus(codemodeFailure(output))));
+					else {
+						const preview = partial ? outputLines.slice(-LIVE_TAIL_LINES) : outputLines.slice(0, LIVE_TAIL_LINES);
+						rows.push(...preview.map((line) => indent + theme.fg("toolOutput", line)));
+						if (outputLines.length > preview.length) rows.push(indent + theme.fg("dim", `… +${outputLines.length - preview.length} output lines (ctrl+o to expand)`));
+					}
+					if (fullOutputPath) {
+						registerKnownFilePath(fullOutputPath, context.cwd);
+						const url = resolveToolPathHyperlinkUrl(fullOutputPath, context.cwd);
+						const path = sanitizeStatus(displayPath(fullOutputPath, context.cwd));
+						rows.push(indent + theme.fg("dim", "Full output: " + (url ? formatOsc8(path, url) : path)));
+					}
+					return rows;
+				}, theme, glyphs, !partial);
+			}
 			const summary = partial ? "" : context.isError
 				? summarizeError(generic ? "" : toolName, result, duration)
 				: generic ? summarizeExtension(result, duration) : summarizeResult(toolName, result, args) + duration;
@@ -625,7 +673,7 @@ export function registerToolView(pi: ExtensionAPI, getView: () => ToolViewConfig
 		const sourceInfo = OWNED_TOOLS.has(toolName) || view.extensionTools && FFF_TOOLS.has(toolName)
 			? pi.getAllTools().find((tool) => tool.name === toolName)?.sourceInfo : undefined;
 		const builtin = OWNED_TOOLS.has(toolName) && sourceInfo?.source === "builtin";
-		if (builtin) return native && createCompactRenderers(toolName, native, glyphs, running);
+		if (builtin) return native || toolName === "codemode" ? createCompactRenderers(toolName, native, glyphs, running) : native;
 		if (!view.extensionTools) return native;
 		const fff = fffKind(toolName, sourceInfo);
 		return createCompactRenderers(toolName, native, glyphs, running, true,
