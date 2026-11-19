@@ -204,6 +204,15 @@ class NeruConfigTest(unittest.TestCase):
         self.assertEqual(keys["Cmd+Ctrl+Alt+d"], "action page_down")
         self.assertEqual(keys["Cmd+Ctrl+Alt+u"], "action page_up")
 
+    def test_right_shift_cycle_and_direct_grid_chord(self):
+        self.assertEqual(self.config["hints"]["hotkeys"]["F16"], "macro open_grid")
+        for mode in ("grid", "recursive_grid"):
+            self.assertEqual(self.config[mode]["hotkeys"]["F16"], "idle")
+        for mode in ("hints", "recursive_grid", "grid", "scroll", "vim", "bisect", "monitor_select"):
+            self.assertEqual(self.config[mode]["hotkeys"]["Alt+Shift+F16"],
+                             "grid --cursor-selection-mode hold")
+        self.assertIn("[:!OSright_shift :!OSf16]", KARABINER.read_text())
+
     def test_cmd_right_shift_sends_clean_cmd_f16(self):
         self.assertIn("[:!Cright_shift :!Cf16]", KARABINER.read_text())
         source = Path("stow_modules/main/dot-hammerspoon/neruNavigation.lua").read_text()

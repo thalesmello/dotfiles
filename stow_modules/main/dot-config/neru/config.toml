@@ -74,6 +74,7 @@ font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
 font_size = 12
 
 [hints.hotkeys]
+"Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "macro open_grid"
 "Cmd+F16" = "macro toggle_continuous"
 # Hints belong to the focused window, so swapping display moves the cursor
@@ -145,6 +146,7 @@ label_background_border_radius = 3
 label_background_border_width = 0
 
 [recursive_grid.hotkeys]
+"Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "idle"
 "-" = "macro opacity_down"
 "=" = "macro opacity_up"
@@ -249,6 +251,7 @@ sublayer_keys = "uiojklm,."
 max_label_length = 3
 
 [grid.hotkeys]
+"Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "idle"
 "-" = "macro opacity_down"
 "=" = "macro opacity_up"
@@ -325,6 +328,7 @@ scroll_step = 60
 scroll_step_half = 200
 
 [scroll.hotkeys]
+"Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "macro open_grid"
 # App-switch chords leave Scroll mode (Hammerspoon also auto-exits after 10s idle).
 "Cmd+Tab" = ["action feed Cmd+Tab", "idle"]
@@ -379,6 +383,7 @@ status_background_color = "#E67A4949"
 status_text_color = "#FFFEFEFE"
 
 [vim.hotkeys]
+"Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "macro open_grid"
 "Cmd+F16" = "macro toggle_continuous"
 "Tab" = ["action move_monitor --bail-on-error", "vim --capture-scope screen"]
@@ -417,6 +422,7 @@ label_background = true
 label_background_color = "#D9000000"
 
 [bisect.hotkeys]
+"Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "macro open_grid"
 "Cmd+F16" = "macro toggle_continuous"
 "Space" = "macro confirm_left_stay"
@@ -442,6 +448,7 @@ text_color = "#FFFEFEFE"
 border_color = "#C0B87671"
 
 [monitor_select.hotkeys]
+"Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "macro open_grid"
 "Cmd+F16" = "macro toggle_continuous"
 

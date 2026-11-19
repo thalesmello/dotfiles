@@ -395,7 +395,11 @@ function M.setup(ctx)
   end
   state.unregisterCapsTap = CapsHyper.onTap(state.capsTap)
   state.rightShift = function()
-    if gridModes[state.mode] then command({"idle"}) else state.openGrid() end
+    if state.closed or state.busy or state.backend ~= "neru" then return end
+    if gridModes[state.mode] then command({"idle"})
+    elseif state.mode == "idle" then
+      launch({"hints", "--strategy", "axtree", "--action", "left_click"})
+    else state.openGrid() end
   end
 
   -- The actual click runs in Neru first. This callback only decides whether
@@ -696,7 +700,9 @@ function M.setup(ctx)
   end
   bind(ctx.hyper, ";", "Neru: UI Hints", {"hints", "--strategy", "axtree", "--action", "left_click", "--toggle"})
   state.handles[#state.handles + 1] = ctx.default:bindOnce({}, "F16",
-    "Neru: Grid / Idle (Right Shift)", state.rightShift)
+    "Neru: Hints / Grid / Idle (Right Shift)", state.rightShift)
+  bind({"alt", "shift"}, "F16", "Neru: Grid (Option+Left Shift+Right Shift)",
+    {"grid", "--cursor-selection-mode", "hold"})
   state.handles[#state.handles + 1] = ctx.default:bindOnce({"cmd"}, "F16",
     "Neru: Recursive / Continuous Grid (Cmd+Right Shift)", commandGrid)
   bind(ctx.hyper, ",", "Neru: Vim Text Mode", {"vim", "--toggle"})

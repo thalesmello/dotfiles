@@ -198,7 +198,9 @@
             ; Dedicated chord: Cmd+Right Shift emits clean Cmd+F16 immediately.
             ; No Shift output and no tap timeout; use Left Shift for Cmd+Shift shortcuts.
             [:!Cright_shift :!Cf16]
-            ; Tap alone: F16 opens/closes regular Grid, or Mouseless in fallback.
+            ; Dedicated direct-Grid chord: Option+Left Shift+Right Shift.
+            [:!OSright_shift :!OSf16]
+            ; Tap alone: F16 cycles Hints / Grid / Idle, or Mouseless in fallback.
             [:##right_shift :right_shift nil {:alone :f16 :params {:alone 150}}]
             ]
     }

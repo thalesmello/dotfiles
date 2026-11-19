@@ -76,6 +76,15 @@ function M.resolvePath(binaryName)
     _resolvedPaths[binaryName] = binaryName
     return binaryName
   end
+  -- Neru.app and its login service use the local build. Homebrew can install
+  -- a different version earlier on PATH; its CLI then refuses the daemon.
+  if binaryName == "neru" then
+    local localNeru = os.getenv("HOME") .. "/.local/bin/neru"
+    if hs.fs.attributes(localNeru, "mode") == "file" then
+      _resolvedPaths[binaryName] = localNeru
+      return localNeru
+    end
+  end
   for _, dir in ipairs(_PathDirs) do
     local fullPath = dir .. "/" .. binaryName
     if hs.fs.attributes(fullPath, "mode") then

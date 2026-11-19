@@ -46,13 +46,15 @@ ln "$(pwd)/mouseless/config.yaml" "$HOME/Library/Containers/net.sonuscape.mousel
 ### Neru navigation
 
 See [the Neru configuration plan](docs/neru-config-plan.md) for the active
-Right Shift/F16 regular Grid, Cmd+Right Shift Recursive Grid, Hyper+; UI hints, Hammerspoon profile switch,
+Right Shift/F16 Hints → Grid → Idle cycle, Option+Left Shift+Right Shift direct Grid,
+Cmd+Right Shift Recursive Grid, Hyper+; UI hints, Hammerspoon profile switch,
 restart bindings, and test commands. Keep Mouseless installed. Its newer live config
 may be under `~/Library/Application Support/Mouseless/configs/config.yaml`;
 add F16 to that file's overlay shortcuts without replacing it with the legacy
 repo config. Use Restart → Hyper+n for Neru and Restart → Hyper+m for
 Mouseless; the commands quit the competing app before starting the chosen one.
-Right Shift opens regular Grid with three-character left→right→left labels
+Right Shift cycles Idle → Hints → regular Grid → Idle. Option+Left Shift+Right Shift
+opens regular Grid directly with three-character left→right→left labels
 and a right-hand fine-adjustment subgrid (`uio / jkl / m,.`). Main labels use
 letters only; static Grid borders are hidden while Recursive Grid lines stay
 visible. Cmd+Right Shift sends clean Cmd+F16 through Karabiner: from idle it

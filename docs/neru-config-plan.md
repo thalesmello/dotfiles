@@ -12,14 +12,15 @@ RunAtLoad, starts at login. Manage it with `neru services status|start|stop|rest
 | Gesture | Action |
 | --- | --- |
 | Hyper+; | UI hints; select a label to click |
-| Tap Right Shift / F16 | **Regular Grid**, with alternating-hand labels |
+| Tap Right Shift / F16 | Cycle **Idle → UI Hints → Regular Grid → Idle** |
+| Option+Left Shift+Right Shift / Alt+Shift+F16 | Open **Regular Grid** directly (does not toggle it closed) |
 | Hyper+, | Vim text mode (press `s` inside it to start a labeled jump) |
 | Hyper+d | Open Scroll; page down while Scroll is active |
 | Hyper+u in Scroll | Page up (plain d/u also remain available) |
 | **Cmd+Right Shift → Cmd+F16** | Recursive Grid from idle; **continuous toggle in every active mode** |
 | Escape in Recursive Grid | Backtrack, like Backspace |
 | Shift+Escape | Quit the active grid |
-| Right Shift again / Cmd+Right Shift again | Toggle regular / recursive Grid closed |
+| Right Shift while either grid is active | Return to Idle |
 | Hyper+Shift+; | Hammerspoon Command Palette |
 | Hyper+Space → Hyper+r → Hyper+n | Start/restart Neru, quitting Mouseless |
 | Hyper+Space → Hyper+r → Hyper+m | Restart Mouseless, quitting Neru |
@@ -28,6 +29,8 @@ Hyper means Ctrl+Option+Command, without Shift.
 Karabiner directly maps Cmd+Right Shift to a clean Cmd+F16 key event: no Shift
 output, raw-modifier detection, or tap timeout. This makes that combination a
 dedicated command; use Left Shift for ordinary Cmd+Shift shortcuts.
+Option+Left Shift+Right Shift similarly emits clean Alt+Shift+F16 immediately
+to open regular Grid directly. Plain Right Shift cycles Hints → Grid → Idle.
 Physical Caps is grabbed by Karabiner before Hammerspoon's F19 remap, so grid
 Caps behavior goes through a Karabiner variable: Hammerspoon sets `neru-grid=1`
 while a grid is open; Karabiner maps Caps tap to F17 (`action reset --toggle`)
