@@ -189,7 +189,12 @@ single/double/triple-click metadata for left, right, and middle buttons.
 
 A fine-key tap aims; repeating a short tap at the same selected position
 confirms a click. Tap-versus-hold is decided using a 200ms threshold: holds
-and their releases never click. Space/Enter also confirm. Hold any valid
+and their releases never click. Space/Enter also confirm. Repeat taps honor the modifiers captured on press:
+Option right-clicks, Cmd middle-clicks, Ctrl starts a left-button hold, and
+Shift moves without clicking, matching the respective Space bindings. Other
+modifier combinations defer to the configured modified Space chord. During
+an active Ctrl+Space drag, repeating the destination fine key commits that
+point and releases the held button without an extra click. Hold any valid
 pregrid or fine-grid key for 200ms to arm nudging. Pregrid holds assume the
 center of their matching rectangle; a fine hold starts at its selected point.
 While held, W/K/I nudge up, S/J down, A/H left, and D/L right. Sixteen nudges span

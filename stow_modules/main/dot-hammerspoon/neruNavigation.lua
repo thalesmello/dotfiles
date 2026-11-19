@@ -621,7 +621,7 @@ function M.setup(ctx)
   state.repeatSpaceAction = function(flags, repeatKey, exitAfter)
     if state.closed or state.busy or state.backend ~= "neru" then return end
     flags = flags or {}
-    if state.dragLatched then return end
+    if state.dragLatched then state.dropHold(exitAfter); return end
     local count = (flags.ctrl and 1 or 0) + (flags.alt and 1 or 0) + (flags.cmd and 1 or 0) + (flags.shift and 1 or 0)
     if count > 1 then
       local names = {}
@@ -949,7 +949,7 @@ function M.setup(ctx)
         if state.holdResetting and gridModes[state.mode] and key ~= 53 and key ~= 51 and key ~= 106 and
           not flags.cmd and not flags.alt then return true end -- wait for the base grid before destination input
       end
-      if state.mode == "grid" and not state.busy and not state.dragLatched and not flags.ctrl and not flags.cmd and not flags.alt and not flags.shift then
+      if state.mode == "grid" and not state.busy and not state.holdResetting and not flags.ctrl and not flags.cmd and not flags.alt and not flags.shift then
         local gridKeys = {[0]=true,[1]=true,[2]=true,[3]=true,[4]=true,[5]=true,[6]=true,[7]=true,[8]=true,[9]=true,[11]=true,[12]=true,[13]=true,[14]=true,[15]=true,[16]=true,[17]=true,[31]=true,[32]=true,[34]=true,[35]=true,[37]=true,[38]=true,[40]=true,[45]=true,[46]=true,[43]=true,[47]=true}
         if gridKeys[code] then armNudgeHold(code, tapEligible, false, flags) end
       end

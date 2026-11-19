@@ -770,6 +770,15 @@ test("combined repeat modifiers defer to the configured Space chord", function()
   e.state.inputHandler({getType=function()return 11 end,getKeyCode=function()return 34 end})
   e:reply({"neru","action","feed","--mode","Ctrl+Alt+Space"},true);e:noPending()
 end)
+test("repeating a destination fine key drops a Ctrl+Space drag without an extra click", function()
+  local e=fixture("neru");e:emit(NATIVE);e.module.startHold()
+  e:reply({"neru","action","move_mouse","--selection"},true);e:reply({"neru","run","action reset"},true)
+  local function key(up) return e.state.inputHandler({getType=function()return up and 11 or 10 end,getKeyCode=function()return 34 end,getFlags=function()return {} end}) end
+  key(false);key(true);e.state.latestGridSelection={x=900,y=700}
+  key(false);key(true)
+  e:reply({"neru","action","move_mouse","--selection"},true);e:reply({"neru","idle"},true)
+  eq(e.state.dragLatched,false);eq(#e.mouse,2);eq(e.mouse[1].kind,1);eq(e.mouse[2].kind,2);e:noPending()
+end)
 test("holding an already selected fine key never confirms on release", function()
   local e=fixture("neru");e:emit(NATIVE)
   local function event(up) return {getType=function() return up and 11 or 10 end,getKeyCode=function() return 34 end,getFlags=function() return {} end} end
