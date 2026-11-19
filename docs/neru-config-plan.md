@@ -269,19 +269,25 @@ back/forward are not exact replicas.
 
 - Fork: `https://github.com/thalesmello/neru`, cloned at `~/src/neru`.
 - Branch: `live-overlay-controls`, based on the installed `v1.63.0` release.
-- Five separate feature commits: live fill opacity, visual peek, flicker-free
-  reset, fine-key confirmation, and bounded repeated-click metadata.
+- One commit per feature: live fill opacity, visual peek, flicker-free reset,
+  fine-key confirmation, repeated-click metadata, nudging, hint refresh, and
+  Caps reset-or-exit, among others. Pushed to the fork; no pull request.
 - Build: `just build-version v1.63.0-local-overlay`, then
   `just dist bin/neru build/dist 1.63.0 1.63.0 local-overlay`.
 - Active app: `~/src/Applications/Neru.app`; the existing CLI symlink and
   `com.y3owk1n.neru` login service still point there.
 - Stock app backup:
   `~/Library/Application Support/Neru/local-build-backups/stock-20261118-123949/Neru.app`.
-- The Neru cask remains in `Brewfile`; no Homebrew app was removed. This machine
-  uses the portable app installation, not a currently registered Neru cask.
-- The fork's feature branch is committed locally but not pushed; Thales will
-  back it up and open the upstream PR. Native appearance commands are macOS-only
-  initially; other backends explicitly report unsupported.
+- `Brewfile` installs the fork instead of the upstream cask:
+  `brew "thalesmello/neru/neru", args: ["HEAD"]`. The formula lives in the local
+  tap `homebrew/casks/thalesmello/homebrew-neru` (stowed into Homebrew's Taps
+  via `cd homebrew && stow casks`) and compiles the `live-overlay-controls`
+  branch from source, producing `bin/neru`, man pages, and an ad-hoc signed
+  `$(brew --prefix)/opt/neru/Neru.app`. Its caveats show how to copy that app to
+  `~/src/Applications` (then re-grant Accessibility). Revert to
+  `cask "y3owk1n/tap/neru"` once the changes are upstream.
+- Native appearance commands are macOS-only initially; other backends
+  explicitly report unsupported.
 
 ## Profile/restart safety
 

@@ -100,7 +100,9 @@ cask "kitty"
 cask "linearmouse"
 cask "mac-mouse-fix"
 cask "mouseless"
-cask "y3owk1n/tap/neru"
+# Fork with live overlay controls (local tap, HEAD build); revert to
+# cask "y3owk1n/tap/neru" once the changes are upstream.
+brew "thalesmello/neru/neru", args: ["HEAD"], trusted: true if OS.mac?
 cask "notunes"
 cask "obsidian"
 cask "raycast"
