@@ -279,6 +279,7 @@ function M.setup(ctx)
     elseif event.event == "select" and event.mode == "hints" and type(event.action) == "string" and event.action:find("_click", 1, true) then
       scheduleHintRefresh()
     elseif event.event == "mode_exit" then
+      state.gridPeekPending = false
       cancelHintRefresh()
       cancelNudgeHold()
       state.latestGridSelection = nil
@@ -424,7 +425,14 @@ function M.setup(ctx)
 
   -- Grid click keys are serialized so rapid repeats survive the base reset
   -- and Enter's exit. The native bridge supplies the OS click count (1..3).
-  state.clickQueue, state.aimGeneration, state.clickToken = {}, 0, 0
+  state.clickQueue, state.aimGeneration, state.clickToken, state.letterGeneration = {}, 0, 0, 0
+  local function recoverGridPeek(force)
+    if not force and not state.gridPeekPending then return end
+    state.gridPeekPending = false
+    -- Supersede the native timeout with full opacity. No config reload,
+    -- pointer commit, mode reset or window replacement is involved.
+    shell.task({"neru", "peek-grid", "--duration", "1ms", "--opacity", "1"})
+  end
   local function now() return hs.timer.absoluteTime() / 1e9 end
   local function canRepeat(button)
     local last = state.lastGridClick
@@ -452,11 +460,17 @@ function M.setup(ctx)
       if gridModes[state.mode] and not request.exit then args[#args + 1] = "action reset" end
       args[#args + 1] = "action " .. action .. " --bare --bail-on-error"
       if request.exit then args[#args + 1] = "idle"
-      elseif gridModes[state.mode] then args[#args + 1] = "peek-grid --duration 1s --opacity 0.25" end
+      elseif gridModes[state.mode] then
+        state.gridPeekPending = true
+        args[#args + 1] = "peek-grid --duration 5s --opacity 0.25"
+      end
       command(args, function(ok)
         if state.clickToken ~= token then return end
         state.clickBusy = false
         if not ok then state.lastGridClick = nil; state.clickQueue = {}; message("Grid click failed"); return end
+        if not request.exit and gridModes[state.mode] and request.letterGeneration ~= state.letterGeneration then
+          recoverGridPeek(true) -- typing may have arrived before the peek step ran
+        end
         nextGridClick()
       end)
     end
@@ -476,7 +490,7 @@ function M.setup(ctx)
   end
   state.confirmGridClick = function(button, exitAfter, repeatKey)
     if button ~= "left" and button ~= "right" and button ~= "middle" then return end
-    state.clickQueue[#state.clickQueue + 1] = {button = button, exit = exitAfter or not state.continuous, aimGeneration = state.aimGeneration, repeatKey = repeatKey}
+    state.clickQueue[#state.clickQueue + 1] = {button = button, exit = exitAfter or not state.continuous, aimGeneration = state.aimGeneration, repeatKey = repeatKey, letterGeneration = state.letterGeneration}
     nextGridClick()
   end
 
@@ -885,6 +899,13 @@ function M.setup(ctx)
       if state.mode == "scroll" then armScrollIdle() end -- any keystroke is activity
       local code = event:getKeyCode()
       local flags = event.getFlags and event:getFlags() or {}
+      if gridModes[state.mode] then
+        local letters = {[0]=true,[1]=true,[2]=true,[3]=true,[4]=true,[5]=true,[6]=true,[7]=true,[8]=true,[9]=true,[11]=true,[12]=true,[13]=true,[14]=true,[15]=true,[16]=true,[17]=true,[31]=true,[32]=true,[34]=true,[35]=true,[37]=true,[38]=true,[40]=true,[45]=true,[46]=true}
+        if letters[code] then
+          state.letterGeneration = (state.letterGeneration or 0) + 1
+          recoverGridPeek()
+        end
+      end
       if code == 49 or code == 36 or code == 53 or code == 51 or code == 64 or code == 80 or code == 106 then
         state.pendingFineTap, state.lastFineTapCode = nil, nil
         cancelNudgeHold()

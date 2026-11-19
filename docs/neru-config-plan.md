@@ -178,9 +178,12 @@ only cell fills: no config reload, selection reset, window recreation, or
 separator changes. The TOML fill is also saved for the next daemon start.
 
 With continuous mode ON, Space clicks reset the grid before the slow mouse
-event, then call `neru peek-grid --duration 1s --opacity 0.25`: the native
+event, then call `neru peek-grid --duration 5s --opacity 0.25`: the native
 window dims to 25% of normal while accepting and rendering selection updates.
-The original window opacity is restored at the deadline, without a reload.
+The original window opacity is restored after five seconds, or immediately
+when any letter is typed (including nudge keys), without reloading or resetting
+the grid. A letter typed while the click is finishing also cancels the later
+peek, so delayed command completion cannot dim the grid again.
 With continuous mode OFF, Space clicks and exits with no peek. Enter always
 clicks and exits. Rapid Space/Enter repeats
 within 400ms reuse the previous click point until another aiming key is typed;

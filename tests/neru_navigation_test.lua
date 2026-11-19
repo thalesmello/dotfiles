@@ -648,7 +648,7 @@ test("shutdown cancels a pending opacity redraw", function()
   local e = opacityFixture(); e:opacity(-0.05); e.state.close()
   e:tick(); e:noPending()
 end)
-local CLICK_STAY = {"neru", "run", "--stop-on-error", "action reset", "action left_click --bare --bail-on-error", "peek-grid --duration 1s --opacity 0.25"}
+local CLICK_STAY = {"neru", "run", "--stop-on-error", "action reset", "action left_click --bare --bail-on-error", "peek-grid --duration 5s --opacity 0.25"}
 local CLICK_EXIT = {"neru", "run", "--stop-on-error", "action left_click --bare --bail-on-error", "idle"}
 test("rapid grid click keys queue and repeat at the original point after reset", function()
   local e = fixture("neru"); e:emit(NATIVE); e.state.continuous = true
@@ -668,6 +668,22 @@ test("repeat click coordinates serialize real NSPoint floats as integers", funct
   e.state.confirmClick("left", false)
   e:reply({"neru", "action", "move_mouse", "--x", "1210", "--y", "780"}, true)
   e:reply(CLICK_EXIT, true); e:noPending()
+end)
+test("typing a letter recovers a five-second peek immediately", function()
+  local e=fixture("neru");e:emit(NATIVE);e.state.continuous=true
+  e.state.confirmClick("left",false)
+  e:reply({"neru","action","move_mouse","--selection"},true);e:reply(CLICK_STAY,true)
+  e.state.inputHandler({getType=function()return 10 end,getKeyCode=function()return 13 end,getFlags=function()return {} end})
+  argvEq(e.calls[#e.calls].args,{"neru","peek-grid","--duration","1ms","--opacity","1"})
+  eq(e.state.gridPeekPending,false);e:noPending()
+end)
+test("typing before the peek step runs cannot leave a late dimmed grid", function()
+  local e=fixture("neru");e:emit(NATIVE);e.state.continuous=true
+  e.state.confirmClick("left",false);e:reply({"neru","action","move_mouse","--selection"},true)
+  e.state.inputHandler({getType=function()return 10 end,getKeyCode=function()return 34 end,getFlags=function()return {} end})
+  e:reply(CLICK_STAY,true)
+  argvEq(e.calls[#e.calls].args,{"neru","peek-grid","--duration","1ms","--opacity","1"})
+  eq(e.state.gridPeekPending,false);e:noPending()
 end)
 test("Enter repeats are captured briefly after exiting to idle", function()
   local e = fixture("neru"); e:emit(NATIVE); e.state.confirmClick("left", true)
