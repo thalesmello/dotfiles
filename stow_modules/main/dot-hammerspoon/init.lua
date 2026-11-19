@@ -1,7 +1,11 @@
 local startupStarted = hs.timer.absoluteTime()
+local startupTiming = require("startupTiming")
+local startup = startupTiming.begin(startupStarted)
+-- Routine hotkey enable/override messages produce >100 console lines per reload.
+-- Keep warnings/errors; opt into verbose diagnostics through this setting.
+hs.hotkey.setLogLevel(hs.settings.get("hammerspoon.hotkeyLogLevel") or "warning")
 local home = os.getenv("HOME")
 local local_dotfiles = home .. "/.local_dotfiles"
-local util = require('util')
 
 package.path = local_dotfiles .. "/hammerspoon/?.lua;"
     .. local_dotfiles .. "/hammerspoon/?/init.lua;"
@@ -36,15 +40,10 @@ spoon.HoldToQuit:start()
 
 hs.console.darkMode(true)
 
-util.notify("Hammerspoon!")
+-- This is a ready acknowledgement, not a loading animation. Leave other
+-- alerts unchanged and make only this notification instant and brief.
+hs.alert.show("Hammerspoon!", {fadeInDuration = 0, fadeOutDuration = 0.05}, 0.5)
 
--- Keep real reload timings available via the console/CLI, including deferred
--- bootstrap work that runs before the first post-init event-loop marker.
-_G.HammerspoonStartup = {initMs = (hs.timer.absoluteTime() - startupStarted) / 1e6}
-local startup = _G.HammerspoonStartup
-startup.timer = hs.timer.doAfter(0, function()
-  startup.timer = nil
-  startup.firstEventLoopMs = (hs.timer.absoluteTime() - startupStarted) / 1e6
-  print(string.format("Startup: init %.1f ms; first event loop %.1f ms",
-    startup.initMs, startup.firstEventLoopMs))
-end)
+-- Includes deferred bootstrap work and, for tracked reloads, the engine
+-- teardown/reinitialization time before init.lua began.
+startupTiming.finish(startup, startupStarted)

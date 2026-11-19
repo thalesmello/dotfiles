@@ -42,7 +42,33 @@ Config evaluation before that fix measured 1,641 ms. Subsequent reloads measured
 work, measured 305 ms. These are live Lua reload measurements, not app launch
 benchmarks. Timing varies with desktop/app state.
 
-`HammerspoonStartup` retains `initMs` and `firstEventLoopMs` for inspection:
+A follow-up profile of a full `hs.reload()` found no further multi-second stall:
+
+| Stage | Measured |
+| --- | --- |
+| Teardown + Lua reinitialization before init.lua | 133 ms |
+| init.lua evaluation | 63 ms |
+| First event loop, including deferred bootstrap | 74 ms |
+| **Total reload** | **207 ms** |
+
+Largest remaining config cost: keybinding/hotkey registration (~38 ms main,
+~18 ms local overrides), anti-distraction setup (~14 ms), and Chrome bridge
+server startup (~5 ms). These are registrations required for functionality.
+
+Two perceived-latency fixes:
+
+- Routine hotkey enable/override logging (>100 console lines per reload) is set
+  to `warning`. Opt back in with
+  `hs -c 'hs.settings.set("hammerspoon.hotkeyLogLevel", "info")'` and reload.
+- The "Hammerspoon!" ready alert now appears instantly (no 150 ms fade-in) and
+  stays 0.5 s instead of 2 s. Other alerts keep the default style.
+
+`startupTiming.lua` wraps `hs.reload` to record the request time, so
+`totalReloadMs` includes teardown. Plain app launches report only init and
+first-event-loop times.
+
+`HammerspoonStartup` retains `beforeInitMs`, `initMs`, `firstEventLoopMs`, and
+`totalReloadMs` (tracked reloads only) for inspection:
 
 ```sh
 hs -q -c 'return hs.inspect(HammerspoonStartup)'
@@ -55,6 +81,7 @@ event tap was verified enabled after reload.
 
 ```sh
 lua tests/hammerspoon_startup_test.lua
+lua tests/hammerspoon_startup_timing_test.lua
 lua tests/neru_navigation_test.lua
 python3 tests/hammerspoon_build_test.py
 ```
