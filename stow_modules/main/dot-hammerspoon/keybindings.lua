@@ -701,28 +701,28 @@ function M.setup()
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "left"}) end},
     {cond = isGhostty, function() GhosttyPreset.focusPaneWithFallback("left") end},
     {cond = isHerdrApp, function() GhosttyPreset.focusPaneWithFallback("left") end},
-    {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "tab") end},
+    {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "1") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "left") end},
   })
   default:conditionalBind({"ctrl", "cmd"}, "j", {
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "down"}) end},
     {cond = isGhostty, function() GhosttyPreset.focusPaneWithFallback("down") end},
     {cond = isHerdrApp, function() GhosttyPreset.focusPaneWithFallback("down") end},
-    {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "9") end},
+    {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl"}, "tab") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "down") end},
   })
   default:conditionalBind({"ctrl", "cmd"}, "k", {
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "up"}) end},
     {cond = isGhostty, function() GhosttyPreset.focusPaneWithFallback("up") end},
     {cond = isHerdrApp, function() GhosttyPreset.focusPaneWithFallback("up") end},
-    {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "1") end},
+    {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "tab") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "up") end},
   })
   default:conditionalBind({"ctrl", "cmd"}, "l", {
     {cond = isiTerm, function() task({"iterm-preset", "focus-pane-with-fallback", "right"}) end},
     {cond = isGhostty, function() GhosttyPreset.focusPaneWithFallback("right") end},
     {cond = isHerdrApp, function() GhosttyPreset.focusPaneWithFallback("right") end},
-    {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl"}, "tab") end},
+    {app = "Google Chrome", function() hs.eventtap.keyStroke({"cmd"}, "9") end},
     {function() hs.eventtap.keyStroke({"alt", "cmd"}, "right") end},
   })
 
@@ -736,28 +736,28 @@ function M.setup()
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "left") end},
     {cond = isGhostty, function() GhosttyPreset.resizePaneWithFallback("left") end},
     {cond = isHerdrApp, function() GhosttyPreset.resizePaneWithFallback("left") end},
-    {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "pageup") end},
+    {app = "Google Chrome", function() task({"osascript-preset", "send-keys", "ctrl", "shift", "k"}) end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "left") end},
   })
   default:conditionalBind({"shift", "ctrl", "cmd"}, "j", {
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "down") end},
     {cond = isGhostty, function() GhosttyPreset.resizePaneWithFallback("down") end},
     {cond = isHerdrApp, function() GhosttyPreset.resizePaneWithFallback("down") end},
-    {app = "Google Chrome", function() task({"osascript-preset", "send-keys", "ctrl", "shift", "j"}) end},
+    {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "pagedown") end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "down") end},
   })
   default:conditionalBind({"shift", "ctrl", "cmd"}, "k", {
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "up") end},
     {cond = isGhostty, function() GhosttyPreset.resizePaneWithFallback("up") end},
     {cond = isHerdrApp, function() GhosttyPreset.resizePaneWithFallback("up") end},
-    {app = "Google Chrome", function() task({"osascript-preset", "send-keys", "ctrl", "shift", "k"}) end},
+    {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "pageup") end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "up") end},
   })
   default:conditionalBind({"shift", "ctrl", "cmd"}, "l", {
     {cond = isiTerm, function() hs.eventtap.keyStroke({"ctrl", "cmd"}, "right") end},
     {cond = isGhostty, function() GhosttyPreset.resizePaneWithFallback("right") end},
     {cond = isHerdrApp, function() GhosttyPreset.resizePaneWithFallback("right") end},
-    {app = "Google Chrome", function() hs.eventtap.keyStroke({"ctrl", "shift"}, "pagedown") end},
+    {app = "Google Chrome", function() task({"osascript-preset", "send-keys", "ctrl", "shift", "j"}) end},
     {function() hs.eventtap.keyStroke({"shift", "alt", "cmd"}, "right") end},
   })
 
