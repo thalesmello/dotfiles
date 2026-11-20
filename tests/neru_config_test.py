@@ -76,13 +76,13 @@ class NeruConfigTest(unittest.TestCase):
     def test_f16_uses_the_shared_last_pointer_mode_router_in_every_mode(self):
         for mode in ("hints", "grid", "recursive_grid", "scroll", "vim", "bisect", "monitor_select"):
             self.assertEqual(self.config[mode]["hotkeys"]["F16"], "macro right_shift")
-        self.assertIn("rightShift()", self.config["macros"]["right_shift"])
+        self.assertIn("dispatch('right_shift')", self.config["macros"]["right_shift"])
 
     def test_opacity_keys_are_bound_in_both_grids(self):
         for mode in ("grid", "recursive_grid"):
             self.assertEqual(self.config[mode]["hotkeys"]["-"], "macro opacity_down")
             self.assertEqual(self.config[mode]["hotkeys"]["="], "macro opacity_up")
-        self.assertIn("adjustOpacity", self.config["macros"]["opacity_down"])
+        self.assertIn("dispatch('opacity_down')", self.config["macros"]["opacity_down"])
 
     def test_physical_escape_quits_both_grids(self):
         for mode in ("recursive_grid", "grid"):
@@ -106,10 +106,23 @@ class NeruConfigTest(unittest.TestCase):
             expected_drag = "macro toggle_drag" if mode in ("recursive_grid", "grid") else "action left_click --toggle"
             self.assertEqual(keys["Ctrl+Alt+Enter"], expected_drag)
         for button in ("left", "right", "middle"):
-            self.assertIn(f"confirmClick('{button}', true)", self.config["macros"]["confirm_" + button])
-            self.assertIn(f"confirmClick('{button}', false)", self.config["macros"]["confirm_" + button + "_stay"])
+            self.assertIn(f"dispatch('confirm_{button}')", self.config["macros"]["confirm_" + button])
+            self.assertIn(f"dispatch('confirm_{button}_stay')", self.config["macros"]["confirm_" + button + "_stay"])
         self.assertIn("neruNavigation", self.config["macros"]["after_click"])
         self.assertNotIn("--action", self.config["macros"]["open_recursive"])
+
+    def test_hammerspoon_macros_are_quiet_and_use_allowlisted_deferred_dispatch(self):
+        source = Path("stow_modules/main/dot-hammerspoon/neruNavigation.lua").read_text()
+        count = 0
+        for name, value in self.config["macros"].items():
+            if isinstance(value, str) and "/opt/homebrew/bin/hs" in value:
+                self.assertIn("hs -q -c", value)
+                self.assertIn(f"dispatch('{name}')", value)
+                self.assertIn(name + " = function(s)", source)
+                self.assertNotIn("-C", value)
+                self.assertNotIn("-P", value)
+                count += 1
+        self.assertEqual(count, 20)
 
     def test_hints_space_and_enter_click_real_cursor_with_modifiers(self):
         keys = self.config["hints"]["hotkeys"]
@@ -176,7 +189,7 @@ class NeruConfigTest(unittest.TestCase):
         for mode in ("grid", "recursive_grid", "vim"):
             for suffix in ("Space", "Enter"):
                 self.assertEqual(self.config[mode]["hotkeys"]["Ctrl+" + suffix], "macro start_hold")
-        self.assertIn("startHold", self.config["macros"]["start_hold"])
+        self.assertIn("dispatch('start_hold')", self.config["macros"]["start_hold"])
         source = Path("stow_modules/main/dot-hammerspoon/neruNavigation.lua").read_text()
         self.assertIn("state.dropHold(key == 36)", source)
         self.assertIn('command({"run", "action reset"}', source)
@@ -186,7 +199,7 @@ class NeruConfigTest(unittest.TestCase):
             base = "confirm_move_bare" if mode in ("hints", "scroll") else "confirm_move"
             self.assertEqual(self.config[mode]["hotkeys"]["Shift+Space"], "macro " + base)
             self.assertEqual(self.config[mode]["hotkeys"]["Shift+Enter"], "macro " + base + "_exit")
-        self.assertIn("moveOnly", self.config["macros"]["confirm_move"])
+        self.assertIn("dispatch('confirm_move')", self.config["macros"]["confirm_move"])
         self.assertEqual(self.config["vim"]["hotkeys"]["Shift+Space"], "action feed --mode g h")
         self.assertEqual(self.config["vim"]["hotkeys"]["Shift+Enter"], ["action feed --mode g h", "idle"])
         self.assertEqual(self.config["vim"]["keymaps"]["visual"]["gh"], "<Plug>(move-mouse)")
@@ -201,9 +214,9 @@ class NeruConfigTest(unittest.TestCase):
             self.assertEqual(self.config[mode]["hotkeys"]["Cmd+F16"], "macro open_hints")
             self.assertEqual(self.config[mode]["hotkeys"]["Cmd+Shift+F16"], "macro toggle_continuous")
             self.assertEqual(self.config[mode]["hotkeys"]["Ctrl+F16"], "macro open_recursive_direct")
-        self.assertIn("openHints()", self.config["macros"]["open_hints"])
-        self.assertIn("openRecursive(true)", self.config["macros"]["open_recursive_direct"])
-        self.assertIn("toggleContinuous", self.config["macros"]["toggle_continuous"])
+        self.assertIn("dispatch('open_hints')", self.config["macros"]["open_hints"])
+        self.assertIn("dispatch('open_recursive_direct')", self.config["macros"]["open_recursive_direct"])
+        self.assertIn("dispatch('toggle_continuous')", self.config["macros"]["toggle_continuous"])
         source = Path("stow_modules/main/dot-hammerspoon/neruNavigation.lua").read_text()
         self.assertNotIn('bindOnce(continuousMods, "/"', source)
         self.assertNotIn("(Hyper+Shift+/)", source)

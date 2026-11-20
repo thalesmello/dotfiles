@@ -67,6 +67,17 @@ modifiers, including combinations. Space refreshes/stays in Hints; Enter exits
 after the click. Shift+Space/Enter remain move-only. Selecting a hint label
 still uses Option for right-click and Cmd/Ctrl for middle-click. Pressing
 Option alone does not click.
+Neru → Hammerspoon macros use `hs -q -c` and the allowlisted
+`neruNavigation.dispatch` entry point. It enqueues a zero-delay timer, returning
+from the IPC command before tap rearming or another Neru request. Quiet mode
+disables console forwarding, whose nested-print guard caused the misleading
+“already recursing” warnings during rapid double-clicks. Deferred callbacks
+are discarded after a mode/profile change or shutdown, except for Grid
+clicks in the existing short repeat window after the first click exits. Grid
+clicks keep their serial queue and repeat target. This adds no deliberate click delay.
+
+Hammerspoon sends sequence-only flags such as `--bail-on-error` inside a
+`neru run` step, not as flags of a standalone `neru action left_click` command.
 The native Neru click must succeed before the post-click step runs.
 Hammerspoon's `afterClick` callback only controls leaving the mode; it never
 schedules a delayed mouse-down.

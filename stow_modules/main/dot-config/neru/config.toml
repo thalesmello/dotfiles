@@ -29,31 +29,31 @@ text = "#FEFEFE"
 [macros]
 # Neru performs the click. Hammerspoon only closes the mode when continuous
 # clicks are off. Keeping this decision there avoids rewriting hotkeys.
-after_click = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').afterClick()\""
-after_click_stay = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').afterClick('stay')\""
-after_click_exit = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').afterClick('exit')\""
+after_click = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('after_click')\""
+after_click_stay = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('after_click_stay')\""
+after_click_exit = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('after_click_exit')\""
 # Enter-family clicks exit the mode; Space-family clicks reset and stay.
-confirm_left = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').confirmClick('left', true)\""
-confirm_left_stay = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').confirmClick('left', false)\""
-confirm_right = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').confirmClick('right', true)\""
-confirm_right_stay = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').confirmClick('right', false)\""
-confirm_middle = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').confirmClick('middle', true)\""
-confirm_middle_stay = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').confirmClick('middle', false)\""
-confirm_move = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').moveOnly()\""
-confirm_move_exit = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').moveOnly(true)\""
+confirm_left = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('confirm_left')\""
+confirm_left_stay = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('confirm_left_stay')\""
+confirm_right = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('confirm_right')\""
+confirm_right_stay = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('confirm_right_stay')\""
+confirm_middle = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('confirm_middle')\""
+confirm_middle_stay = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('confirm_middle_stay')\""
+confirm_move = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('confirm_move')\""
+confirm_move_exit = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('confirm_move_exit')\""
 confirm_move_bare = ["action move_mouse --bare --bail-on-error", "macro after_click_stay"]
 confirm_move_bare_exit = ["action move_mouse --bare --bail-on-error", "macro after_click_exit"]
-opacity_down = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').adjustOpacity(-0.05)\""
-opacity_up = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').adjustOpacity(0.05)\""
-open_recursive = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').openRecursive()\""
-open_grid = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').openGrid()\""
-open_hints = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').openHints()\""
-right_shift = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').rightShift()\""
-open_recursive_direct = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').openRecursive(true)\""
+opacity_down = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('opacity_down')\""
+opacity_up = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('opacity_up')\""
+open_recursive = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('open_recursive')\""
+open_grid = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('open_grid')\""
+open_hints = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('open_hints')\""
+right_shift = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('right_shift')\""
+open_recursive_direct = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('open_recursive_direct')\""
 # Commit the virtual selection before pressing OR releasing a drag button.
 toggle_drag = ["action move_mouse --selection --bail-on-error", "action left_click --toggle"]
-start_hold = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').startHold()\""
-toggle_continuous = "exec /opt/homebrew/bin/hs -c \"require('neruNavigation').toggleContinuous()\""
+start_hold = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('start_hold')\""
+toggle_continuous = "exec /opt/homebrew/bin/hs -q -c \"require('neruNavigation').dispatch('toggle_continuous')\""
 
 [hints]
 strategy = "axtree"

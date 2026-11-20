@@ -101,6 +101,11 @@ local function fixture(backend, store, mouseless)
     end,
     resolvePath = function() return e.executable end,
     task = function(args, done)
+      if args[1] == "neru" and args[2] ~= "run" then
+        for _, arg in ipairs(args) do
+          assert(arg ~= "--bail-on-error", "sequence-only flags must not be passed to standalone Neru CLI commands")
+        end
+      end
       local c = {args = args, done = done}; e.calls[#e.calls + 1] = c
       local drag = args[2] == "toggle-cursor-follow-selection" or args[4] == "action move_mouse --selection"
       if done and drag and not e.asyncDrag then done(true, "")
@@ -733,6 +738,61 @@ test("shutdown cancels a pending opacity redraw", function()
 end)
 local CLICK_STAY = {"neru", "run", "--stop-on-error", "action reset", "action left_click --bare --bail-on-error", "peek-grid --duration 5s --opacity 0.25"}
 local CLICK_EXIT = {"neru", "run", "--stop-on-error", "action left_click --bare --bail-on-error", "idle"}
+test("macro IPC dispatch returns before rearming taps or issuing Neru requests", function()
+  local e = fixture("neru"); e:emit(NATIVE); e.state.continuous = true
+  local calls, rearms = #e.calls, e.rearms
+  e.module.dispatch("confirm_left_stay")
+  eq(#e.calls, calls); eq(e.rearms, rearms); e:noPending()
+  e:tick(); e:reply({"neru", "action", "move_mouse", "--selection"}, true)
+  e:reply(CLICK_STAY, true); eq(next(e.state.macroTimers), nil); e:noPending()
+end)
+test("two rapid macro IPC requests become two serial clicks at the same target", function()
+  local e = fixture("neru"); e:emit(NATIVE); e.state.continuous = true
+  e.module.dispatch("confirm_left_stay"); e.module.dispatch("confirm_left_stay")
+  e:noPending(); e:tick(); e:tick(); eq(#e.pending, 1)
+  e:reply({"neru", "action", "move_mouse", "--selection"}, true)
+  e:reply(CLICK_STAY, true)
+  e:reply({"neru", "action", "move_mouse", "--x", "100", "--y", "200"}, true)
+  e:reply(CLICK_STAY, true); e:noPending(); eq(e.state.clickBusy, false)
+  eq(#e.state.clickQueue, 0); eq(next(e.state.macroTimers), nil)
+end)
+test("a rapid second deferred click survives the first click exiting Grid", function()
+  local e = fixture("neru"); e:emit(NATIVE)
+  e.module.dispatch("confirm_left"); e.module.dispatch("confirm_left")
+  e:tick(); e:reply({"neru", "action", "move_mouse", "--selection"}, true)
+  e:emit(EXIT); e:tick(); eq(#e.pending, 1)
+  e:reply(CLICK_EXIT, true)
+  e:reply({"neru", "action", "move_mouse", "--x", "100", "--y", "200"}, true)
+  e:reply(CLICK_EXIT, true); e:noPending()
+end)
+test("deferred non-grid click commands use sequence grammar not unsupported CLI flags", function()
+  for _, button in ipairs({"left", "right", "middle"}) do
+    local e = fixture("neru"); e:emit("bisect"); e.module.dispatch("confirm_" .. button)
+    e:noPending(); e:tick()
+    e:reply({"neru", "run", "--stop-on-error", "action " .. button .. "_click"}, true)
+    e:reply({"neru", "idle"}, true); e:noPending()
+  end
+end)
+test("a rejected click sequence does not execute post-click cleanup", function()
+  local e = fixture("neru"); e:emit("bisect"); e.module.dispatch("confirm_left"); e:tick()
+  e:reply({"neru", "run", "--stop-on-error", "action left_click"}, false); e:noPending()
+end)
+test("deferred macro work is discarded after a mode transition", function()
+  local e = fixture("neru"); e:emit(NATIVE); e.module.dispatch("confirm_left")
+  e:emit(VIM); e:tick(); e:noPending(); eq(next(e.state.macroTimers), nil)
+end)
+test("shutdown cancels pending macro IPC timers", function()
+  local e = fixture("neru"); e:emit(NATIVE); e.module.dispatch("confirm_left")
+  e.state.close(); local calls = #e.calls; e:tick(); eq(#e.calls, calls)
+  eq(next(e.state.macroTimers), nil); e:noPending()
+end)
+test("unknown macro names and inactive profiles cannot enqueue arbitrary work", function()
+  local e = fixture("neru"); e.module.dispatch("not_a_macro")
+  eq(next(e.state.macroTimers), nil); eq(#e.timers, 0); e:noPending()
+  e.state.busy = true; e.module.dispatch("confirm_left"); eq(#e.timers, 0)
+  local fallback = fixture(); fallback.module.dispatch("confirm_left")
+  eq(#fallback.timers, 0); fallback:noPending()
+end)
 test("rapid grid click keys queue and repeat at the original point after reset", function()
   local e = fixture("neru"); e:emit(NATIVE); e.state.continuous = true
   e.state.confirmClick("left", false); e.state.confirmClick("left", false); e.state.confirmClick("left", false)

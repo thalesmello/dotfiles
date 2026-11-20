@@ -29,7 +29,7 @@ function M.setup(ctx)
     mode = "idle", busy = false, epoch = 0, watchEpoch = 0, handles = {}, closed = false,
     dragHeld = false, dragDesired = false, dragPreparing = false, dragFollowing = false,
     dragCleanupBlocked = false, dragLatched = false, holdToken = 0, holdResetting = false,
-    consumedDropKeys = {},
+    consumedDropKeys = {}, macroTimers = {},
     modeEpoch = 0,
     continuous = hs.settings.get("neruNavigation.continuous") == true,
     lastPointerMode = hs.settings.get("neruNavigation.lastPointerMode") == "hints" and "hints" or "grid",
@@ -550,7 +550,8 @@ function M.setup(ctx)
     if gridModes[state.mode] or (state.mode == "idle" and canRepeat(button)) then
       state.confirmGridClick(button, exitAfter, repeatKey)
     else
-      command({"action", button .. "_click", "--bail-on-error"}, function(ok)
+      -- --bail-on-error belongs to Neru sequence steps, not standalone CLI flags.
+      command({"run", "--stop-on-error", "action " .. button .. "_click"}, function(ok)
         if ok then state.afterClick(exitAfter and "exit" or "stay") end
       end)
     end
@@ -1056,6 +1057,8 @@ function M.setup(ctx)
   state.close = function()
     if state.closed then return end
     state.closed, state.epoch = true, state.epoch + 1
+    for timer in pairs(state.macroTimers) do timer:stop() end
+    state.macroTimers = {}
     -- A reload can interrupt a modifier drag before its key-up. Exit Neru
     -- explicitly so its tracked mouse buttons are released even then.
     if state.backend == "neru" then shell.task({"neru", "idle"}) end
@@ -1093,7 +1096,58 @@ function M.setup(ctx)
   return state
 end
 
--- Called by mode-local Neru macros through the existing authenticated hs CLI.
+-- Neru macros only enqueue here. hs -q prevents console forwarding (whose
+-- print handler can re-enter itself), and a next-turn timer keeps tap rearming
+-- and Neru requests outside the hs.ipc command handler. No new click delay.
+local macroActions = {
+  after_click = function(s) s.afterClick() end,
+  after_click_stay = function(s) s.afterClick("stay") end,
+  after_click_exit = function(s) s.afterClick("exit") end,
+  confirm_left = function(s) s.confirmClick("left", true) end,
+  confirm_left_stay = function(s) s.confirmClick("left", false) end,
+  confirm_right = function(s) s.confirmClick("right", true) end,
+  confirm_right_stay = function(s) s.confirmClick("right", false) end,
+  confirm_middle = function(s) s.confirmClick("middle", true) end,
+  confirm_middle_stay = function(s) s.confirmClick("middle", false) end,
+  confirm_move = function(s) s.moveOnly() end,
+  confirm_move_exit = function(s) s.moveOnly(true) end,
+  opacity_down = function(s) s.adjustOpacity(-0.05) end,
+  opacity_up = function(s) s.adjustOpacity(0.05) end,
+  open_recursive = function(s) s.openRecursive() end,
+  open_recursive_direct = function(s) s.openRecursive(true) end,
+  open_grid = function(s) s.openGrid() end,
+  open_hints = function(s) s.openHints() end,
+  right_shift = function(s) s.rightShift() end,
+  start_hold = function(s) s.startHold() end,
+  toggle_continuous = function(s) s.toggleContinuous() end,
+}
+
+function M.dispatch(name)
+  local state, action = instance, macroActions[name]
+  if not state or state.closed or state.busy or state.backend ~= "neru" or not action then return end
+  local epoch, modeEpoch, mode = state.epoch, state.modeEpoch, state.mode
+  local timer
+  timer = hs.timer.doAfter(0, function()
+    state.macroTimers[timer] = nil
+    if instance ~= state or state.closed or state.busy or state.backend ~= "neru" or
+      state.epoch ~= epoch then return end
+    if state.modeEpoch ~= modeEpoch then
+      -- A rapid second click may arrive just after the first exits Grid.
+      -- Permit only the existing short repeat window at the same aim target.
+      local button = name:match("^confirm_(%a+)")
+      local last = state.lastGridClick
+      local repeatClick = (button == "left" or button == "right" or button == "middle") and
+        gridModes[mode] and state.mode == "idle" and last and
+        last.aimGeneration == state.aimGeneration and
+        hs.timer.absoluteTime() / 1e9 - last.time <= 0.4
+      if not repeatClick then return end
+    end
+    action(state)
+  end)
+  state.macroTimers[timer] = true
+end
+
+-- Direct helpers retained for the palette, diagnostics and existing callers.
 function M.openRecursive(direct)
   if instance and not instance.closed then instance.openRecursive(direct) end
 end
