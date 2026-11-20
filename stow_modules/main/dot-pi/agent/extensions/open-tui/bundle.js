@@ -1981,6 +1981,36 @@ function installCopyButtons(options) {
 }
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/editor.ts
+var WRAPPED = Symbol.for("pi.prompt.showbreak");
+function installPromptWrap(base) {
+  const editor = base;
+  if (Reflect.get(editor, WRAPPED) || !editor.layoutText || !editor.buildVisualLineMap)
+    return;
+  Reflect.set(editor, WRAPPED, true);
+  const layout = editor.layoutText.bind(editor);
+  const visual = editor.buildVisualLineMap.bind(editor);
+  const mouse = editor.handleMouse?.bind(editor);
+  const inset = (width) => width > 2 ? 2 : 0;
+  editor.buildVisualLineMap = (width) => visual(Math.max(1, width - inset(width)));
+  editor.layoutText = (width) => {
+    const prefixWidth = inset(width);
+    editor.wrapPrefixWidth = prefixWidth;
+    const room = Math.max(1, width - prefixWidth);
+    const rows = layout(room);
+    const map = visual(room);
+    return rows.map((row, index) => {
+      if (!prefixWidth || !map[index] || map[index].startCol === 0)
+        return row;
+      return { ...row, text: "\u21AA " + row.text, cursorPos: row.cursorPos === undefined ? undefined : row.cursorPos + prefixWidth };
+    });
+  };
+  if (mouse)
+    editor.handleMouse = (event) => {
+      const map = editor.buildVisualLineMap(editor.lastWidth ?? 80);
+      const row = map[(editor.scrollOffset ?? 0) + event.y - 1];
+      return mouse(row && row.startCol > 0 ? { ...event, x: event.x - (editor.wrapPrefixWidth ?? 0) } : event);
+    };
+}
 import {
   CustomEditor
 } from "@earendil-works/pi-coding-agent";
@@ -2192,6 +2222,7 @@ function decorateOpenTuiEditor(editor, tui, options = {}) {
   const existing = DECORATIONS.get(editor);
   if (existing)
     return editor;
+  installPromptWrap(editor);
   const decorated = editor;
   const restore = [];
   const baseHandleMouse = editor.handleMouse.bind(editor);

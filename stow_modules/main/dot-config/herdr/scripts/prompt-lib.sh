@@ -45,7 +45,8 @@ _prompt_temp_file() {
 # the selection. Alt/Ctrl+Left/Right moves by word; Cmd+Left/Right moves to
 # logical line boundaries, Cmd+Up/Down to buffer boundaries. Add Shift to
 # extend a selection. Alt/Ctrl+Backspace/Delete kills a word; Cmd kills to
-# a line boundary. Cmd+A selects all, Cmd+Z undoes, Cmd+C/X copies/cuts via
+# a line boundary. Cmd+A selects all, Cmd+Z undoes, Cmd+Shift+Z (Ctrl+?)
+# redoes. Cmd+C/X copies/cuts via
 # terminal OSC 52 (clipboard permission may be required). Cmd+V normally
 # arrives as terminal paste; an explicit key event yanks the internal copy.
 # Mouse click places the caret, drag/Shift+click selects, double-click selects

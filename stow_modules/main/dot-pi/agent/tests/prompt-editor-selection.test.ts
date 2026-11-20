@@ -9,9 +9,49 @@ import { realUtils } from "./selection-manager-host.ts";
 const helper = join(import.meta.dir, "../extensions/selection-manager/editor-selection.ts");
 const hostUrl = pathToFileURL(join(import.meta.dir, "selection-manager-host.ts")).href;
 const redirected = join(tmpdir(), `prompt-editor-selection-${process.pid}.ts`);
-fs.writeFileSync(redirected, fs.readFileSync(helper, "utf8").replace('from "@earendil-works/pi-tui"', `from ${JSON.stringify(hostUrl)}`));
+fs.writeFileSync(redirected, fs.readFileSync(helper, "utf8")
+	.replace('from "@earendil-works/pi-tui"', `from ${JSON.stringify(hostUrl)}`)
+	.replace('from "../prompt-wrap.ts"', `from ${JSON.stringify(pathToFileURL(join(import.meta.dir, "../extensions/prompt-wrap.ts")).href)}`));
 afterAll(() => fs.rmSync(redirected, { force: true }));
 const { installEditorSelection } = await import(pathToFileURL(redirected).href);
+const railSource = join(import.meta.dir, "../extensions/zen/src/editor-rail.ts");
+const redirectedRail = join(tmpdir(), `prompt-editor-rail-${process.pid}.ts`);
+fs.writeFileSync(redirectedRail, fs.readFileSync(railSource, "utf8").replace('from "@earendil-works/pi-tui"', `from ${JSON.stringify(hostUrl)}`));
+afterAll(() => fs.rmSync(redirectedRail, { force: true }));
+const { applyRail } = await import(pathToFileURL(redirectedRail).href);
+const frameHost = join(tmpdir(), `prompt-editor-frame-host-${process.pid}.ts`);
+fs.writeFileSync(frameHost, [
+	`export { NativePromptEditor as CustomEditor, CURSOR_MARKER } from ${JSON.stringify(pathToFileURL(join(import.meta.dir, "prompt-editor-host.ts")).href)};`,
+	`export { truncateToWidth } from ${JSON.stringify(pathToFileURL(join(import.meta.dir, "zen-host.ts")).href)};`,
+	`export { visibleWidth, stripTerminalSequences } from ${JSON.stringify(hostUrl)};`,
+].join("\n"));
+const frameBuild = await Bun.build({
+	entrypoints: [join(import.meta.dir, "../extensions/open-tui/editor.ts")],
+	target: "bun", format: "esm",
+	external: ["@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"],
+});
+if (!frameBuild.success) throw new Error(frameBuild.logs.join("\n"));
+const frameModule = join(tmpdir(), `prompt-editor-frame-${process.pid}.mjs`);
+fs.writeFileSync(frameModule, (await frameBuild.outputs[0].text())
+	.replaceAll('from "@earendil-works/pi-tui"', `from ${JSON.stringify(pathToFileURL(frameHost).href)}`)
+	.replaceAll('from "@earendil-works/pi-coding-agent"', `from ${JSON.stringify(pathToFileURL(frameHost).href)}`));
+afterAll(() => { fs.rmSync(frameHost, { force: true }); fs.rmSync(frameModule, { force: true }); });
+const { decorateOpenTuiEditor } = await import(pathToFileURL(frameModule).href);
+// Exercise the shipped bundle as well, not just a fresh build of editor.ts.
+const shippedBundle = fs.readFileSync(join(import.meta.dir, "../extensions/open-tui/bundle.js"), "utf8");
+const bundleSection = (file: string) => {
+	const marker = `// stow_modules/main/dot-pi/agent/extensions/open-tui/${file}`;
+	const start = shippedBundle.indexOf(marker);
+	const end = shippedBundle.indexOf("\n// stow_modules/", start + marker.length);
+	if (start < 0 || end < 0) throw new Error(`Missing shipped bundle section: ${file}`);
+	return shippedBundle.slice(start, end);
+};
+const shippedFrameModule = join(tmpdir(), `prompt-editor-shipped-frame-${process.pid}.mjs`);
+fs.writeFileSync(shippedFrameModule, (bundleSection("utils.ts") + "\n" + bundleSection("editor.ts") + "\nexport { decorateOpenTuiEditor };\n")
+	.replaceAll('from "@earendil-works/pi-tui"', `from ${JSON.stringify(pathToFileURL(frameHost).href)}`)
+	.replaceAll('from "@earendil-works/pi-coding-agent"', `from ${JSON.stringify(pathToFileURL(frameHost).href)}`));
+afterAll(() => fs.rmSync(shippedFrameModule, { force: true }));
+const { decorateOpenTuiEditor: decorateShippedEditor } = await import(pathToFileURL(shippedFrameModule).href);
 
 function makeEditor(text: string, base?: NativePromptEditor) {
 	const editor = base ?? new NativePromptEditor();
@@ -43,7 +83,197 @@ function highlight(line: string) {
 	return start < 0 ? "" : realUtils.stripTerminalSequences(line.slice(start, end));
 }
 
+describe("in-text soft-wrap prefix (native Pi editor)", () => {
+	const plain = (rows: string[]) => rows.map(realUtils.stripTerminalSequences);
+	test("marks only virtual continuations, never explicit newlines or prompt text", () => {
+		const text = "alpha beta gamma delta\nshort\nepsilon zeta eta theta";
+		const { editor, copied } = makeEditor(text);
+		const rows = plain(editor.render(14));
+		const visual = editor.buildVisualLineMap(editor.lastWidth);
+		for (let i = 0; i < visual.length; i++) {
+			expect(rows[i + 1]!.startsWith("↪ ")).toBe(visual[i]!.startCol > 0);
+		}
+		expect(editor.getText()).toBe(text);
+		editor.handleInput("\x1b[97;9u");
+		editor.handleInput("\x1b[99;9u");
+		expect(copied).toEqual([text]);
+		for (const width of [1, 2]) {
+			expect(plain(editor.render(width)).some((row) => row.includes("↪"))).toBe(false);
+		}
+		for (const width of [3, 8, 14, 80]) {
+			const rows = plain(editor.render(width));
+			expect(rows.slice(1, 1 + editor.renderedVisibleLineCount).every((row) => realUtils.visibleWidth(row) <= width), `width ${width}: ${JSON.stringify(rows)}`).toBe(true);
+		}
+	});
+	test("continuation gutter clicks preserve caret and selection coordinates", () => {
+		const { editor } = makeEditor("alpha beta gamma delta epsilon");
+		editor.render(14);
+		const visual = editor.buildVisualLineMap(editor.lastWidth);
+		const start = visual[1]!.startCol;
+		editor.handleMouse({ type: "click", button: "left", x: 0, y: 2, width: 14 });
+		expect(editor.getCursor()).toEqual({ line: 0, col: start });
+		editor.handleMouse({ type: "press", button: "left", x: 2, y: 2, width: 14 });
+		editor.handleMouse({ type: "drag", button: "left", x: 5, y: 2, width: 14 });
+		editor.handleMouse({ type: "release", button: "left", x: 5, y: 2, width: 14 });
+		const rows = editor.render(14);
+		expect(plain(rows)[2]!.startsWith("↪ ")).toBe(true);
+		expect(highlight(rows[2]!)).toBe(editor.getText().slice(start, start + 3));
+	});
+	test("scrolled continuations retain the marker and resizing removes obsolete wraps", () => {
+		const { editor } = makeEditor("long word ".repeat(60));
+		const rows = plain(editor.render(14));
+		expect(editor.scrollOffset).toBeGreaterThan(0);
+		expect(rows[1]!.startsWith("↪ ")).toBe(true);
+		expect(plain(editor.render(1000)).some((row) => row.includes("↪"))).toBe(false);
+	});
+	for (const [name, decorate] of [["source", decorateOpenTuiEditor], ["shipped bundle", decorateShippedEditor]] as const) test(`Open TUI ${name} draws wrap markers without the selection wrapper or padding`, () => {
+		const editor = new NativePromptEditor();
+		editor.setText("alpha beta gamma delta epsilon\nshort");
+		decorate(editor, editor.tui);
+		expect(editor.getPaddingX()).toBe(0);
+		const rows = plain(editor.render(18));
+		const visual = editor.buildVisualLineMap(editor.lastWidth);
+		for (let i = 0; i < visual.length; i++) {
+			expect(rows[i + 1]!.startsWith("│ ↪ ")).toBe(visual[i]!.startCol > 0);
+		}
+		expect(editor.getText()).toBe("alpha beta gamma delta epsilon\nshort");
+	});
+
+	test("the real Open TUI frame aligns the prefix with text and keeps mouse coordinates", () => {
+		const { editor, copied } = makeEditor("alpha beta gamma delta epsilon");
+		decorateOpenTuiEditor(editor, editor.tui);
+		expect(editor.getPaddingX()).toBe(0);
+		const rows = plain(editor.render(18));
+		expect(rows[0]!.startsWith("╭")).toBe(true);
+		expect(rows[2]!.startsWith("│ ↪ ")).toBe(true);
+		const visual = editor.buildVisualLineMap(editor.lastWidth);
+		editor.handleMouse({ type: "click", button: "left", x: 2, y: 2, width: 18 });
+		expect(editor.getCursor()).toEqual({ line: 0, col: visual[1]!.startCol });
+		editor.handleInput("\x1b[97;9u");
+		editor.handleInput("\x1b[99;9u");
+		expect(copied).toEqual(["alpha beta gamma delta epsilon"]);
+		(editor as any).setPaddingX(3);
+		expect(editor.getPaddingX()).toBe(0);
+		expect(plain(editor.render(18))[2]!.startsWith("│ ↪ ")).toBe(true);
+	});
+
+	test("Zen retains both its rail and wrap marker in either decorator order", () => {
+		for (const zenOutside of [false, true]) {
+			const base = new NativePromptEditor();
+			(base as any).setPaddingX(2);
+			const decorate = () => {
+				const render = base.render.bind(base);
+				base.render = (width) => applyRail(render(width), base.getPaddingX(), (glyph: string) => `\x1b[36m${glyph}\x1b[39m`);
+			};
+			if (!zenOutside) decorate();
+			const { editor } = makeEditor("alpha beta gamma delta", base);
+			if (zenOutside) decorate();
+			const rows = plain(editor.render(14));
+			expect(rows[0]!.startsWith("┃ ")).toBe(true);
+			expect(rows.slice(1).every((row) => row.startsWith("┃ ↪ "))).toBe(true);
+		}
+	});
+});
+
+describe("prompt redo (native Pi editor)", () => {
+	const redo = "\x1b[47;6u"; // Cmd+Shift+Z in Ghostty and Herdr.
+	test("redo restores native edit grouping and is undoable", () => {
+		for (const data of [redo, "\x1b[63;5u", "\x1b[122;10u"]) {
+			const { editor } = makeEditor("abc");
+			editor.handleInput("X");
+			editor.handleInput("Y");
+			editor.handleInput("\x1f");
+			expect(editor.getText()).toBe("abc");
+			editor.handleInput(data);
+			expect(editor.getText()).toBe("abcXY");
+			expect(editor.getCursor()).toEqual({ line: 0, col: 5 });
+			editor.handleInput("\x1f");
+			expect(editor.getText()).toBe("abc");
+		}
+	});
+	test("multiple redo steps and new edits invalidate the future", () => {
+		const { editor } = makeEditor("abc");
+		editor.handleInput("X");
+		editor.handleInput("\x7f");
+		editor.handleInput("\x1f");
+		editor.handleInput("\x1f");
+		editor.handleInput(redo);
+		expect(editor.getText()).toBe("abcX");
+		editor.handleInput(redo);
+		expect(editor.getText()).toBe("abc");
+		editor.handleInput("\x1f");
+		editor.handleInput("Y");
+		editor.handleInput(redo);
+		expect(editor.getText()).toBe("abcXY");
+	});
+	test("selection replacement redos as one edit and emits onChange", () => {
+		const { editor } = makeEditor("alpha beta");
+		for (let i = 0; i < 4; i++) editor.handleInput(key.left);
+		editor.handleInput("X");
+		editor.handleInput("\x1f");
+		const changes: string[] = [];
+		editor.onChange = (text) => changes.push(text);
+		editor.handleInput(redo);
+		expect(editor.getText()).toBe("alpha X");
+		expect(changes).toEqual(["alpha X"]);
+		expect(highlight(editor.render(40)[1]!)).toBe("");
+	});
+	test("redo preserves collapsed paste metadata and cursor", () => {
+		const { editor } = makeEditor("");
+		editor.handleInput("\x1b[200~" + "long pasted text\n".repeat(30) + "\x1b[201~");
+		const text = editor.getText();
+		const pastes = new Map(editor.pastes);
+		const cursor = editor.getCursor();
+		expect(pastes.size).toBeGreaterThan(0);
+		editor.handleInput("\x1f");
+		editor.handleInput(redo);
+		expect(editor.getText()).toBe(text);
+		expect(editor.pastes).toEqual(pastes);
+		expect(editor.getCursor()).toEqual(cursor);
+	});
+	test("submit clears redo and releases never replay", () => {
+		const { editor } = makeEditor("abc");
+		editor.handleInput(redo); // empty redo stack
+		expect(editor.getText()).toBe("abc");
+		editor.handleInput("X");
+		editor.handleInput("\x1f");
+		editor.handleInput("\x1b[47;6:3u");
+		expect(editor.getText()).toBe("abc");
+		editor.handleInput("\r");
+		editor.handleInput(redo);
+		expect(editor.getText()).toBe("");
+	});
+});
+
 describe("editable prompt selection (native Pi editor)", () => {
+	test("Cmd+A selects the entire multiline prompt for copy and replacement", () => {
+		const { editor, copied } = makeEditor("alpha\nbeta\ngamma");
+		caret(editor, 1, 2);
+		editor.handleInput("\x1b[97;9u");
+		expect(editor.getCursor()).toEqual({ line: 2, col: 5 });
+		editor.handleInput("\x1b[99;9u");
+		expect(copied).toEqual(["alpha\nbeta\ngamma"]);
+		editor.handleInput("X");
+		expect(editor.getText()).toBe("X");
+		editor.handleInput("\x1f");
+		expect(editor.getText()).toBe("alpha\nbeta\ngamma");
+	});
+	test("Cmd+A works on empty prompts and replaces an existing selection", () => {
+		const { editor } = makeEditor("");
+		editor.handleInput("\x1b[97;9u");
+		editor.handleInput("abc");
+		expect(editor.getText()).toBe("abc");
+		editor.handleInput(key.left);
+		editor.handleInput("\x1b[97;9u");
+		editor.handleInput("\x7f");
+		expect(editor.getText()).toBe("");
+	});
+	test("Cmd+A releases do not select the prompt", () => {
+		const { editor } = makeEditor("abc");
+		editor.handleInput("\x1b[97;9:3u");
+		editor.handleInput("X");
+		expect(editor.getText()).toBe("abcX");
+	});
 	test("Shift+Left selects text visibly, typing replaces it in one undo step", () => {
 		const { editor, copied } = makeEditor("alpha beta");
 		let changes = 0;
@@ -281,9 +511,10 @@ describe("editable prompt selection (native Pi editor)", () => {
 		};
 		base.handleMouse = (event) => originalMouse({ ...event, x: event.x - 2, width: event.width - 4 });
 		const { editor } = makeEditor("alpha beta gamma", base);
-		mouse(editor, "press", 8, 1);
-		mouse(editor, "drag", 12, 1);
-		mouse(editor, "release", 12, 1);
+		const padding = editor.getPaddingX();
+		mouse(editor, "press", padding + 8, 1);
+		mouse(editor, "drag", padding + 12, 1);
+		mouse(editor, "release", padding + 12, 1);
 		const painted = editor.render(40);
 		expect(painted[0]!.startsWith("╭")).toBe(true);
 		expect(highlight(painted[1]!)).toBe("beta");

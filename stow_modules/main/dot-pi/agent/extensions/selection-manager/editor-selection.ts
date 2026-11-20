@@ -1,5 +1,7 @@
 import { decodeKittyPrintable, isKeyRelease, matchesKey, sliceByColumn, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 
+import { installPromptWrap } from "../prompt-wrap.ts";
+
 interface VisualLine { logicalLine: number; startCol: number; length: number }
 interface MouseEvent {
 	type: string;
@@ -10,7 +12,16 @@ interface MouseEvent {
 	shift?: boolean;
 	clickCount?: number;
 }
+interface EditorSnapshot {
+	state: { lines: string[]; cursorLine: number; cursorCol: number };
+	pastes: Map<number, string>;
+	pasteCounter: number;
+}
 interface Editor {
+	undoStack?: { push(snapshot: EditorSnapshot): void; pop(): EditorSnapshot | undefined; clear(): void };
+	undo?(): void;
+	pastes?: Map<number, string>;
+	pasteCounter?: number;
 	state: { lines: string[]; cursorLine: number; cursorCol: number };
 	getText(): string;
 	handleInput(data: string): void;
@@ -36,6 +47,9 @@ interface Editor {
 	scrollOffset?: number;
 	renderedVisibleLineCount?: number;
 	getPaddingX?(): number;
+	setPaddingX?(padding: number): void;
+	borderColor?(text: string): string;
+	wrapPrefixWidth?: number;
 }
 interface Options {
 	onFocus(): void;
@@ -64,9 +78,43 @@ export function parseBoundaryKey(data: string): { edge: SelectionBoundary; exten
 	return undefined;
 }
 
+/** Extend the native undo stack without losing paste markers or native edit grouping. */
+function installEditorRedo(editor: Editor): () => void {
+	const stack = editor.undoStack;
+	if (!stack || !editor.undo) return () => {};
+	const push = stack.push.bind(stack);
+	const pop = stack.pop.bind(stack);
+	const clear = stack.clear.bind(stack);
+	const redo: EditorSnapshot[] = [];
+	let replaying = false;
+	const snapshot = (): EditorSnapshot => structuredClone({
+		state: editor.state, pastes: editor.pastes ?? new Map(), pasteCounter: editor.pasteCounter ?? 0,
+	});
+	stack.push = (value) => { redo.length = 0; push(value); };
+	stack.clear = () => { redo.length = 0; clear(); };
+	stack.pop = () => {
+		const value = pop();
+		if (value && !replaying) redo.push(snapshot());
+		return value;
+	};
+	return () => {
+		const value = redo.pop();
+		if (!value) return;
+		editor.cancelAutocomplete?.();
+		// Reuse native restoration (cursor, paste metadata, history, onChange).
+		// Leave the current state on the undo stack so redo is itself undoable.
+		push(snapshot());
+		push(value);
+		replaying = true;
+		try { editor.undo!(); } finally { replaying = false; }
+	};
+}
+
 /** Editable selection on one existing editor instance; compose with its actual methods. */
 export function installEditorSelection(base: unknown, options: Options): unknown {
 	const editor = base as Editor;
+	installPromptWrap(editor);
+	const redo = installEditorRedo(editor);
 	const input = editor.handleInput.bind(editor);
 	const mouse = editor.handleMouse?.bind(editor);
 	const render = editor.render.bind(editor);
@@ -136,7 +184,7 @@ export function installEditorSelection(base: unknown, options: Options): unknown
 		const visual = lines[index];
 		if (!visual) return undefined;
 		const chunk = editor.state.lines[visual.logicalLine]!.slice(visual.startCol, visual.startCol + visual.length);
-		const target = Math.max(0, event.x - contentStart);
+		const target = Math.max(0, event.x - contentStart - (visual.startCol > 0 ? editor.wrapPrefixWidth ?? 0 : 0));
 		let column = 0;
 		let char = chunk.length;
 		for (const segment of segments(chunk)) {
@@ -195,6 +243,24 @@ export function installEditorSelection(base: unknown, options: Options): unknown
 		}
 		if (isKeyRelease(data)) return;
 		options.onFocus();
+		if (matchesKey(data, "super+a")) {
+			editor.cancelAutocomplete?.();
+			editor.exitHistoryBrowsing?.();
+			historyMode = false;
+			clear();
+			anchor = 0;
+			moveTo(editor.getText().length);
+			focus = cursor();
+			selectedTextVersion = editor.getText();
+			return;
+		}
+		if (matchesKey(data, "ctrl+shift+/") || matchesKey(data, "ctrl+?") || matchesKey(data, "super+shift+z")) {
+			clear();
+			historyMode = false;
+			redo();
+			selectedTextVersion = editor.getText();
+			return;
+		}
 		const up = options.matchesAction?.(data, "tui.editor.cursorUp") ?? matchesKey(data, "up");
 		const down = options.matchesAction?.(data, "tui.editor.cursorDown") ?? matchesKey(data, "down");
 		const previous = options.matchesAction?.(data, "tui.editor.historyPrevious") ?? false;
@@ -326,7 +392,7 @@ export function installEditorSelection(base: unknown, options: Options): unknown
 			// Preserve click-only callers too; only a synthesized click after
 			// our captured release is suppressed above.
 			clear();
-			if (mouse) return mouse(event);
+			if (mouse) return mouse(editor.buildVisualLineMap && bodyInset === 0 ? { ...event, y: event.y + 1 } : event);
 			moveTo(offset);
 			return { handled: true, focus: true, render: true };
 		} else return mouse?.(event);
@@ -340,13 +406,15 @@ export function installEditorSelection(base: unknown, options: Options): unknown
 		const lines = render(width);
 		const visual = map();
 		const count = editor.renderedVisibleLineCount ?? visual.length;
-		bodyInset = editor.buildVisualLineMap ? 1 : 0;
+		// Zen removes plain borders, but may retain a top scroll hint.
+		bodyInset = editor.buildVisualLineMap && !/^┃/.test(stripTerminalSequences(lines[0] ?? "")) ? 1 : 0;
 		const first = stripTerminalSequences(lines[bodyInset] ?? "");
 		const framed = /^│ /.test(first) && /^[╭┌]/.test(stripTerminalSequences(lines[0] ?? ""));
 		contentStart = (framed ? 2 : 0) + Math.min(editor.getPaddingX?.() ?? 0, Math.max(0, Math.floor((width - 1) / 2)));
 		const range = bounds();
-		if (!range) return lines;
 		const result = [...lines];
+
+		if (!range) return result;
 		for (let row = 0; row < count; row++) {
 			const v = visual[(editor.scrollOffset ?? 0) + row];
 			if (!v) continue;
@@ -357,7 +425,7 @@ export function installEditorSelection(base: unknown, options: Options): unknown
 			const newlineSelected = lastChunk && v.logicalLine < editor.state.lines.length - 1 && range[0] <= start + v.length && range[1] > start + v.length;
 			if (to <= from && !newlineSelected) continue;
 			const logical = editor.state.lines[v.logicalLine]!;
-			const col = contentStart + visibleWidth(logical.slice(v.startCol, v.startCol + from - start));
+			const col = contentStart + (v.startCol > 0 ? editor.wrapPrefixWidth ?? 0 : 0) + visibleWidth(logical.slice(v.startCol, v.startCol + from - start));
 			const size = visibleWidth(logical.slice(v.startCol + from - start, v.startCol + to - start)) + (newlineSelected ? 1 : 0);
 			const index = row + bodyInset;
 			const line = result[index] ?? "";

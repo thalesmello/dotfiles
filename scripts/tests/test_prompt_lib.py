@@ -56,6 +56,48 @@ class PromptCase(unittest.TestCase):
         p.handle_mouse(button, x, y, released)
 
 
+class RedoTests(PromptCase):
+    def test_redo_key_encodings_and_undo_after_redo(self):
+        for data in (csi(47, CTRL | SHIFT), csi(63, CTRL),
+                     csi(122, SUPER | SHIFT), csi(122, META | SHIFT)):
+            with self.subTest(data=data):
+                p = self.feed(self.make("abc"), b"X\x1f")
+                self.assertEqual((p.buf, p.pos), ("abc", 3))
+                self.feed(p, data)
+                self.assertEqual((p.buf, p.pos), ("abcX", 4))
+                self.feed(p, b"\x1f")
+                self.assertEqual((p.buf, p.pos), ("abc", 3))
+
+    def test_multiple_redos_and_new_edit_invalidates_redo(self):
+        p = self.feed(self.make(), b"ab\x1f\x1f")
+        self.feed(p, csi(47, CTRL | SHIFT) * 2)
+        self.assertEqual(p.buf, "ab")
+        self.feed(p, b"\x1fX" + csi(47, CTRL | SHIFT))
+        self.assertEqual((p.buf, p.redo), ("aX", []))
+
+    def test_redo_restores_selection_replacement(self):
+        p = self.select(self.make("one\ntwo"), 0, 3)
+        self.feed(p, b"X\x1f" + csi(47, CTRL | SHIFT))
+        self.assertEqual((p.buf, p.pos, p.selection()), ("X\ntwo", 1, None))
+
+    def test_submit_continue_clears_redo(self):
+        p = self.make(submit_enabled=True)
+        self.feed(p, b"ab\x1f\x1b[13;5u" + csi(47, CTRL | SHIFT))
+        self.assertEqual((p.buf, p.undo, p.redo, p.submitted), ("", [], [], ["a"]))
+
+    def test_redo_empty_stack_and_key_release_are_noops(self):
+        p = self.feed(self.make("abc"), csi(47, CTRL | SHIFT))
+        self.assertEqual((p.buf, p.undo), ("abc", []))
+        self.feed(p, b"X\x1f\x1b[47;6:3u")
+        self.assertEqual(p.buf, "abc")
+        self.feed(p, csi(47, CTRL | SHIFT))
+        self.assertEqual(p.buf, "abcX")
+
+    def test_unshifted_ctrl_slash_still_undoes(self):
+        p = self.feed(self.make("abc"), b"X" + csi(47, CTRL))
+        self.assertEqual(p.buf, "abc")
+
+
 class KeyTests(PromptCase):
     def test_csi_shift_arrows_select(self):
         p = self.feed(self.make("hello", 2), arrow("D", SHIFT) + arrow("D", SHIFT))
@@ -128,6 +170,37 @@ class KeyTests(PromptCase):
         p = self.make("foo bar")
         p.modified_delete(False, ALT)
         self.assertEqual(p.kill, "bar")
+
+    def test_cmd_backspace_only_kills_to_current_line_start(self):
+        # Herdr's Cmd+Backspace binding sends raw Ctrl+U; also cover CSI keys.
+        for data in (b"\x15", csi(117, CTRL), csi(127, SUPER), csi(127, META)):
+            for pos, expected, kill in [
+                (12, "first\n\nlast", "second"),
+                (9, "first\nond\nlast", "sec"),
+            ]:
+                with self.subTest(data=data, pos=pos):
+                    p = self.feed(self.make("first\nsecond\nlast", pos), data)
+                    self.assertEqual((p.buf, p.pos, p.kill), (expected, 6, kill))
+                    if kill:
+                        self.feed(p, b"\x1f")
+                        self.assertEqual((p.buf, p.pos), ("first\nsecond\nlast", pos))
+
+    def test_cmd_backspace_at_line_start_erases_previous_line(self):
+        for data in (b"\x15", csi(117, CTRL), csi(127, SUPER), csi(127, META)):
+            for text, pos, expected, new_pos, kill in [
+                ("first\nsecond\nlast", 6, "second\nlast", 0, "first\n"),
+                ("first\nsecond\nlast", 13, "first\nlast", 6, "second\n"),
+                ("first\n\nlast", 7, "first\nlast", 6, "\n"),
+                ("first\n", 6, "", 0, "first\n"),
+                ("first\nsecond", 0, "first\nsecond", 0, ""),
+                ("", 0, "", 0, ""),
+            ]:
+                with self.subTest(data=data, text=text, pos=pos):
+                    p = self.feed(self.make(text, pos), data)
+                    self.assertEqual((p.buf, p.pos, p.kill), (expected, new_pos, kill))
+                    if kill:
+                        self.feed(p, b"\x1f")
+                        self.assertEqual((p.buf, p.pos), (text, pos))
 
     def test_replace_selection_by_typing_including_pos_zero(self):
         p = self.feed(self.select(self.make("hello world"), 0, 5), b"X")
@@ -247,13 +320,13 @@ class KeyTests(PromptCase):
 
 
 class VerticalTests(PromptCase):
-    cols = 10  # label 3 -> 6 cells on first row, 5 on wrapped rows
+    cols = 10  # label 3 -> 6 cells on first row, 4 after "↪ "
 
     def test_split_reserves_last_column(self):
         p = self.make("abcdefghijklmnop")
         rows = p.split_visual_lines(10)
-        self.assertEqual([r.text for r in rows], ["abcdef", "ghijk", "lmnop"])
-        self.assertEqual([r.final_for_logical for r in rows], [False, False, True])
+        self.assertEqual([r.text for r in rows], ["abcdef", "ghij", "klmn", "op"])
+        self.assertEqual([r.final_for_logical for r in rows], [False, False, False, True])
         self.assertTrue(all(lib.display_width(r.prefix + r.text) <= 9 for r in rows))
         self.assertEqual([r.text for r in self.make("abcdefgh").split_visual_lines(9)], ["abcde", "fgh"])
 
@@ -262,9 +335,13 @@ class VerticalTests(PromptCase):
         p.move_vertical(1)
         self.assertEqual(p.pos, 8)
         p.move_vertical(1)
-        self.assertEqual(p.pos, 13)
+        self.assertEqual(p.pos, 12)
+        p.move_vertical(1)
+        self.assertEqual(p.pos, 16)
         p.move_vertical(1)  # last row stays put
-        self.assertEqual(p.pos, 13)
+        self.assertEqual(p.pos, 16)
+        p.move_vertical(-1)
+        self.assertEqual(p.pos, 12)
         p.move_vertical(-1)
         self.assertEqual(p.pos, 8)
         p.move_vertical(-1)
@@ -282,7 +359,7 @@ class VerticalTests(PromptCase):
     def test_down_never_lands_on_soft_row_end(self):
         p = self.make("abcdefghijklmnop", 5)  # col 5 on first row
         p.move_vertical(1)
-        self.assertEqual(p.pos, 10)  # last char slot of row 1, not 11 (row 2)
+        self.assertEqual(p.pos, 9)  # last char slot of row 1, not 10 (row 2)
         self.assertEqual(p.cursor_in_rows(p.split_visual_lines(10))[0], 1)
 
     def test_sticky_column_across_short_lines(self):
@@ -411,16 +488,17 @@ class MouseTests(PromptCase):
     def test_wrapped_rows_and_continuation_prefix(self):
         self.cols = 10
         p = self.prompt("abcdefghijklmnop")
-        self.assertEqual(p.visible_prompt_rows, 3)
-        self.click(p, 7, 2)  # continuation prefix is 4 wide -> col 2
+        self.assertEqual(p.visible_prompt_rows, 4)
+        self.assertEqual(p.split_visual_lines(10)[1].prefix, "   ↪ ")
+        self.click(p, 8, 2)  # continuation prefix is 5 wide -> col 2
         self.assertEqual(p.pos, 8)
         self.click(p, 1, 2)
         self.assertEqual(p.pos, 6)
         self.click(p, 10, 1)  # soft row cannot take the next row's first slot
         self.assertEqual(p.pos, 5)
-        self.click(p, 10, 3)
+        self.click(p, 10, 4)
         self.assertEqual(p.pos, 16)
-        self.click(p, 5, 3)
+        self.click(p, 7, 3)
         self.assertEqual(p.pos, 11)
 
     def test_wide_glyph_hit_testing(self):

@@ -297,6 +297,11 @@ end
 vim.keymap.set("n", "<leader>gt", function () merge_tab("next") end)
 vim.keymap.set("n", "<leader>gT", function () merge_tab("prev") end)
 
+-- Cmd+Shift+Z sends Ctrl+Shift+/ (Emacs Ctrl+?) using CSI-u.
+-- Keep the shifted key distinct: <C-?> alone aliases ordinary Backspace/DEL.
+vim.keymap.set({ "n", "x" }, "<C-S-/>", "<esc><cmd>redo<cr>", { remap = false, desc = "Redo" })
+vim.keymap.set("i", "<C-S-/>", "<cmd>redo<cr>", { remap = false, desc = "Redo" })
+
 -- Undo with ctrl+_ (ctrl+/ in terminals that distinguish it) in normal, visual and insert mode
 for _, key in ipairs({ "<C-_>", "<C-/>" }) do
   vim.keymap.set({ "n", "x" }, key, "<esc><cmd>undo<cr>", { remap = false, desc = "Undo" })

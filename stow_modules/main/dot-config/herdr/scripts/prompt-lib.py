@@ -126,7 +126,7 @@ ESC = 27
 # Only bare ESC needs a brief ambiguity window; terminal key sequences normally
 # arrive together. Keep cancellation snappy without breaking legacy Alt/CSI keys.
 ESC_SEQUENCE_TIMEOUT = 0.01
-SHOWBREAK = "↪"
+SHOWBREAK = "↪ "
 PASTE_START = "200~"
 PASTE_END = b"\x1b[201~"
 MENU_MAX_ROWS = 8
@@ -483,6 +483,7 @@ class Prompt:
         self.pos = len(prefill)
         self.kill = ""
         self.undo: list[tuple[str, int]] = []
+        self.redo: list[tuple[str, int]] = []
         self.history = History(history_name)
         self.rendered_rows = 0
         self.cursor_row = 0
@@ -503,6 +504,7 @@ class Prompt:
         self.accepted = False
 
     def save_undo(self) -> None:
+        self.redo.clear()
         self.undo.append((self.buf, self.pos))
 
     def edit_mode(self) -> None:
@@ -567,7 +569,16 @@ class Prompt:
     def undo_last(self) -> None:
         if not self.undo:
             return
+        self.redo.append((self.buf, self.pos))
         self.buf, self.pos = self.undo.pop()
+        self.selection_anchor = None
+        self.edit_mode()
+
+    def redo_last(self) -> None:
+        if not self.redo:
+            return
+        self.undo.append((self.buf, self.pos))
+        self.buf, self.pos = self.redo.pop()
         self.selection_anchor = None
         self.edit_mode()
 
@@ -661,6 +672,9 @@ class Prompt:
     def modified_delete(self, forward: bool, bits: int) -> None:
         if bits & (8 | 32):
             at = self.line_end_at(self.pos) if forward else self.line_start_at(self.pos)
+            if not forward and at == self.pos and self.pos > 0:
+                # At line start, kill the preceding line and its newline.
+                at = self.line_start_at(self.pos - 1)
         elif bits & (2 | 4):
             at = self.word_fwd(self.pos) if forward else self.word_back(self.pos)
         else:
@@ -760,6 +774,7 @@ class Prompt:
         self.pos = len(self.prefill)
         self.selection_anchor = None
         self.undo = []
+        self.redo = []
         self.menu_dismissed = None
         self.menu_query = None
         self.top_line = 0
@@ -944,7 +959,8 @@ class Prompt:
             at = self.word_back(self.pos)
             self.delete(at, self.pos - at, ring=True)
         elif b == 21:
-            self.delete(0, self.pos, ring=True)
+            # Herdr maps Cmd+Backspace to Ctrl+U: share its line-kill behavior.
+            self.modified_delete(False, 8)
         elif b == 11:
             self.delete(self.pos, len(self.buf) - self.pos, ring=True)
         elif b == 25:
@@ -1046,7 +1062,7 @@ class Prompt:
                     self.move_to(len(self.buf), extend=True)
                     return True
                 if lower == 122:
-                    self.undo_last()
+                    self.redo_last() if mod_bits & 1 else self.undo_last()
                     return True
                 if lower in (99, 120):
                     self.copy_selection(cut=lower == 120)
@@ -1085,6 +1101,10 @@ class Prompt:
                 if lower == 62:
                     self.move_to(len(self.buf), extend=bool(mod_bits & 1)); return True
             if mod_bits & 4:
+                # Emacs Ctrl+?; terminals send shifted slash to avoid raw DEL.
+                if lower == 63 or (lower == 47 and mod_bits & 1):
+                    self.redo_last()
+                    return True
                 self.handle_control({97:1, 98:2, 99:3, 100:4, 101:5, 102:6, 103:7, 104:8, 107:11, 108:12, 110:14, 112:16, 116:20, 117:21, 119:23, 121:25}.get(lower, lower))
                 if lower in (31, 45, 47, 63, 95):
                     self.undo_last()

@@ -3,6 +3,7 @@ import {
 	type ExtensionAPI,
 	type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { installPromptWrap } from "../prompt-wrap.ts";
 import type { Component, Container, EditorComponent, TUI } from "@earendil-works/pi-tui";
 import { CURSOR_MARKER, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { CursorStyle } from "./config.ts";
@@ -335,6 +336,7 @@ export function decorateOpenTuiEditor<T extends FrameableEditor>(
 	const existing = DECORATIONS.get(editor);
 	if (existing) return editor as T & OpenTuiEditorDecoration;
 
+	installPromptWrap(editor);
 	const decorated = editor as FrameableEditor & OpenTuiEditorDecoration;
 	const restore: (() => void)[] = [];
 	const baseHandleMouse = editor.handleMouse.bind(editor);

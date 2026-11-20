@@ -106,7 +106,8 @@ keybind = super+shift+comma=reload_config
 keybind = super+minus=decrease_font_size:1
 keybind = performable:shift+page_down=adjust_selection:page_down
 keybind = ctrl+tab=next_tab
-keybind = super+a=select_all
+# Let applications select their own text (Pi/prompt-lib: the entire prompt).
+keybind = super+a=text:\x1b[97;9u
 keybind = alt+right=esc:f
 keybind = super+shift+enter=toggle_split_zoom
 keybind = super+alt+down=goto_split:down
@@ -140,6 +141,8 @@ keybind = super+physical:six=goto_tab:6
 keybind = super+v=paste_from_clipboard
 keybind = cmd+p=text:\x14
 keybind = cmd+z=text:\x1f
+# Emacs redo (Ctrl+?): preserve Shift+/ in CSI-u to distinguish it from Backspace.
+keybind = cmd+shift+z=text:\x1b[47;6u
 # Karabiner double-tap Left Ctrl emits F20; Hyper+/ is reserved for Neru.
 keybind = global:f20=toggle_quick_terminal
 

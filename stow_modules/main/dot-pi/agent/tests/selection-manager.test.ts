@@ -22,7 +22,8 @@ if (!extensionSource.includes('from "@earendil-works/pi-tui"')) {
 const editorSelectionPath = join(import.meta.dir, "../extensions/selection-manager/editor-selection.ts");
 const redirectedEditorPath = join(tmpdir(), `selection-manager-editor-${process.pid}.ts`);
 fs.writeFileSync(redirectedEditorPath, fs.readFileSync(editorSelectionPath, "utf8")
-	.replace('from "@earendil-works/pi-tui"', `from ${JSON.stringify(pathToFileURL(hostPath).href)}`));
+	.replace('from "@earendil-works/pi-tui"', `from ${JSON.stringify(pathToFileURL(hostPath).href)}`)
+	.replace('from "../prompt-wrap.ts"', `from ${JSON.stringify(pathToFileURL(join(import.meta.dir, "../extensions/prompt-wrap.ts")).href)}`));
 afterAll(() => fs.rmSync(redirectedEditorPath, { force: true }));
 const redirectedSource = extensionSource
 	.replace('from "@earendil-works/pi-tui"', `from ${JSON.stringify(pathToFileURL(hostPath).href)}`)
@@ -702,7 +703,7 @@ test("prompt selection owns Shift+Arrow and copy keys after clicking the prompt"
 		expect(screen.emitInput("\x1b[1;2D")).toEqual({ consume: true });
 		expect(screen.getActiveSelectionText()).toBe("bet");
 		for (const [type, x] of [["press", 6], ["drag", 10], ["release", 10]] as const) {
-			editor.handleMouse({ type, button: "left", x, y: 1, width: 40, height: 3 });
+			editor.handleMouse({ type, button: "left", x: x + editor.getPaddingX(), y: 1, width: 40, height: 3 });
 		}
 		expect(screen.getSelectionBounds()).toBeUndefined();
 		expect(screen.emitInput("\x1b[1;2D")).toBeUndefined();
