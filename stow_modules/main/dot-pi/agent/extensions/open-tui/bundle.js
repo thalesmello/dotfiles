@@ -3255,7 +3255,7 @@ function installFooter(ctx, getState, getConfig, getModelMeta, hooks) {
       let statusesKey = "";
       if (getConfig().footerSegments.extensionStatuses) {
         for (const [k, v] of footerData.getExtensionStatuses()) {
-          statusesKey += `${k}=${v}\0`;
+          statusesKey += `${k}=${v}\x00`;
         }
       }
       const canCache = state.workingSince === undefined && (hooks.getExtensionSegments?.().length ?? 0) === 0;
