@@ -56,6 +56,17 @@ class TuiAltScreen {
   selectionDragged = false;
   pressedUrl = undefined;
   openedUrls = [];
+  inputListeners = new Set();
+  addInputListener(listener) {
+    this.inputListeners.add(listener);
+    return () => this.inputListeners.delete(listener);
+  }
+  emitInput(data) {
+    for (const listener of this.inputListeners) {
+      const result = listener(data);
+      if (result?.consume) return result;
+    }
+  }
   openUrl = (url) => { this.openedUrls.push(url); };
   clearTextSelection() {
     this.selectionPressActive = false;
@@ -98,6 +109,7 @@ return {
   Editor: class {},
   Key: {},
   matchesKey: (data, key) => data === key,
+  isKeyRelease: (data) => data === "enter-release",
   Markdown,
   Text,
   TruncatedText,
@@ -500,11 +512,11 @@ describe("osc8-links extension", () => {
 			click(0);
 			expect(hints).toEqual([]);
 			await new Promise((resolve) => setTimeout(resolve, 520));
-			expect(hints.at(-1)).toBe("Double click to open file link");
+			expect(hints.at(-1)).toBe("Double click or press enter to open the link");
 			click(1);
 			expect(hints).toHaveLength(1);
 			await new Promise((resolve) => setTimeout(resolve, 520));
-			expect(hints.at(-1)).toBe("Double click to open link");
+			expect(hints.at(-1)).toBe("Double click or press enter to open the link");
 			expect(screen.openedUrls).toEqual([]);
 			now += 501;
 			click(1);
@@ -531,6 +543,72 @@ describe("osc8-links extension", () => {
 		} finally {
 			Date.now = originalNow;
 		}
+	});
+
+	test("Enter opens the hinted link only while its message is visible", async () => {
+		const screen = new realTui.TuiAltScreen();
+		const hints: Array<{ message: string; duration: number }> = [];
+		screen.flash = (message: string, duration: number) => hints.push({ message, duration });
+		screen.previousScreen = ["https://example.com/enter", "plain text"];
+		const click = (y = 0) => {
+			screen.handleMouseEvent({ button: 0, x: 0, y, release: false });
+			screen.handleMouseEvent({ button: 0, x: 0, y, release: true });
+		};
+		click();
+		expect(screen.emitInput("enter")).toBeUndefined();
+		expect(screen.openedUrls).toEqual([]);
+		await new Promise((resolve) => setTimeout(resolve, 520));
+		expect(hints).toEqual([{ message: "Double click or press enter to open the link", duration: 3000 }]);
+		expect(screen.emitInput("enter-release")).toBeUndefined();
+		screen.hasOverlay = () => true;
+		expect(screen.emitInput("enter")).toBeUndefined();
+		expect(screen.openedUrls).toEqual([]);
+		screen.hasOverlay = () => false;
+		expect(screen.emitInput("enter")).toEqual({ consume: true });
+		expect(screen.openedUrls).toEqual(["https://example.com/enter"]);
+		expect(screen.emitInput("enter")).toBeUndefined();
+		expect(screen.inputListeners.size).toBe(0);
+
+		click();
+		await new Promise((resolve) => setTimeout(resolve, 520));
+		expect(screen.inputListeners.size).toBe(1);
+		click(1);
+		expect(screen.emitInput("enter")).toBeUndefined();
+		expect(screen.inputListeners.size).toBe(0);
+
+		click();
+		await new Promise((resolve) => setTimeout(resolve, 3520));
+		expect(screen.inputListeners.size).toBe(0);
+		expect(screen.emitInput("enter")).toBeUndefined();
+		expect(screen.openedUrls).toEqual(["https://example.com/enter"]);
+	});
+
+	test("Escape dismisses only the link hint immediately and is consumed", async () => {
+		const screen = new realTui.TuiAltScreen();
+		const unrelated = { message: "Other status", timer: setTimeout(() => {}, 10_000) };
+		unrelated.timer.unref?.();
+		screen.flashes = { entries: [unrelated] };
+		screen.flash = (message: string, duration: number) => {
+			const entry = { message, timer: setTimeout(() => {}, duration) };
+			entry.timer.unref?.();
+			screen.flashes.entries.push(entry);
+		};
+		screen.previousScreen = ["https://example.com/escape"];
+		screen.handleMouseEvent({ button: 0, x: 0, y: 0, release: false });
+		screen.handleMouseEvent({ button: 0, x: 0, y: 0, release: true });
+		await new Promise((resolve) => setTimeout(resolve, 520));
+		expect(screen.flashes.entries).toHaveLength(2);
+		const response = screen.emitInput("escape");
+		let interrupts = 0;
+		if (!response?.consume) interrupts++;
+		expect(response).toEqual({ consume: true });
+		expect(interrupts).toBe(0);
+		expect(screen.flashes.entries).toEqual([unrelated]);
+		expect(screen.inputListeners.size).toBe(0);
+		expect(screen.emitInput("enter")).toBeUndefined();
+		expect(screen.emitInput("escape")).toBeUndefined();
+		expect(screen.openedUrls).toEqual([]);
+		clearTimeout(unrelated.timer);
 	});
 
 	test("link clicks compose with word-drag and triple-click line selection", async () => {

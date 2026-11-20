@@ -1470,6 +1470,7 @@ type PatchState = {
 	altScreenMouseWrapper?: (this: AltScreenLike, event: RawAltMouseEvent) => void;
 	altScreenMouseImpl?: (this: AltScreenLike, event: RawAltMouseEvent) => void;
 	pendingLinkOpens?: Set<ReturnType<typeof setTimeout>>;
+	linkHints?: Map<AltScreenLike, LinkHint>;
 };
 
 interface RawAltMouseEvent {
@@ -1502,6 +1503,9 @@ interface AltScreenLike {
 	resetTextSelection?: () => void;
 	clearComponentMouseGesture?: () => void;
 	flash?: (message: string, durationMs?: number) => void;
+	flashes?: { entries: Array<{ message: string; timer: ReturnType<typeof setTimeout> }> };
+	addInputListener?: (listener: (data: string) => { consume: boolean } | undefined) => () => void;
+	hasOverlay?: () => boolean;
 	getSelectionPoint?: (event: { x: number; y: number }, scrollView?: unknown) => AltScreenSelectionPoint;
 	getSelectionSourceLine?: (point: AltScreenSelectionPoint) => string;
 	requestRender?: () => void;
@@ -1513,6 +1517,59 @@ interface AltScreenLike {
 const LINK_CLICK_TOLERANCE = 2;
 const LINK_DOUBLE_CLICK_INTERVAL_MS = 500;
 const LINK_TRIPLE_CLICK_INTERVAL_MS = 240;
+const LINK_HINT_DURATION_MS = 3000;
+
+type LinkHint = {
+	expiresAt: number;
+	timer: ReturnType<typeof setTimeout>;
+	unsubscribe?: () => void;
+	flashEntry?: { message: string; timer: ReturnType<typeof setTimeout> };
+};
+
+function clearLinkHint(state: PatchState, screen: AltScreenLike): void {
+	const hint = state.linkHints?.get(screen);
+	if (!hint) return;
+	clearTimeout(hint.timer);
+	hint.unsubscribe?.();
+	if (hint.flashEntry) {
+		clearTimeout(hint.flashEntry.timer);
+		const index = screen.flashes?.entries.indexOf(hint.flashEntry) ?? -1;
+		if (index >= 0) screen.flashes!.entries.splice(index, 1);
+		screen.requestRender?.();
+	}
+	state.linkHints!.delete(screen);
+}
+
+function showLinkHint(state: PatchState, screen: AltScreenLike, url: string, tui: typeof piTui): void {
+	if (!screen.flash) return;
+	clearLinkHint(state, screen);
+	const hints = state.linkHints ??= new Map();
+	const hint: LinkHint = {
+		expiresAt: Date.now() + LINK_HINT_DURATION_MS,
+		timer: setTimeout(() => clearLinkHint(state, screen), LINK_HINT_DURATION_MS),
+	};
+	hints.set(screen, hint);
+	hint.timer.unref?.();
+	const previousFlash = screen.flashes?.entries.at(-1);
+	screen.flash("Double click or press enter to open the link", LINK_HINT_DURATION_MS);
+	const flashEntry = screen.flashes?.entries.at(-1);
+	if (flashEntry !== previousFlash) hint.flashEntry = flashEntry;
+	hint.unsubscribe = screen.addInputListener?.((data) => {
+		if (tui.isKeyRelease(data)) return;
+		const enter = tui.matchesKey(data, "enter");
+		if (!enter && !tui.matchesKey(data, "escape")) return;
+		if (Date.now() >= hint.expiresAt) {
+			clearLinkHint(state, screen);
+			return;
+		}
+		if (enter && screen.hasOverlay?.()) return;
+		clearLinkHint(state, screen);
+		if (enter) {
+			try { openLinkUrl(screen, url); } catch { /* Ignore openUrl errors. */ }
+		}
+		return { consume: true };
+	});
+}
 
 function resolveHcPresetBinary(env: NodeJS.ProcessEnv = process.env): string {
 	const home = homedir();
@@ -2377,6 +2434,7 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 			const isPrimaryRelease = raw.release && (buttonCode === 0 || buttonCode === 3);
 
 			if (isPrimaryPress) {
+				clearLinkHint(state, this);
 				const url = resolveAltScreenUrlAt(this, raw.x, raw.y, tui);
 				const lastClick = this._osc8LastLinkClick;
 				const elapsed = lastClick ? Date.now() - lastClick.timestamp : Infinity;
@@ -2458,8 +2516,7 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 								// Ignore openUrl errors.
 							}
 						} else {
-							this.flash?.(isFileHyperlinkUrl(pending.url)
-								? "Double click to open file link" : "Double click to open link");
+							showLinkHint(state, this, pending.url, tui);
 						}
 						this.requestRender?.();
 					}, pending.clickCount === 2 ? LINK_TRIPLE_CLICK_INTERVAL_MS : LINK_DOUBLE_CLICK_INTERVAL_MS);
@@ -2474,6 +2531,7 @@ export function installOsc8LinkRendering(tui: typeof piTui = piTui): void {
 			}
 
 			if ((raw.button & 64) !== 0) {
+				clearLinkHint(state, this);
 				this._osc8LastLinkClick = undefined;
 				cancelPendingOpen(this);
 			}
@@ -2550,6 +2608,7 @@ export default function osc8LinksExtension(pi: ExtensionAPI): void {
 		const state = (globalThis as Record<symbol, PatchState | undefined>)[PATCH_STATE_SYMBOL];
 		for (const timer of state?.pendingLinkOpens ?? []) clearTimeout(timer);
 		state?.pendingLinkOpens?.clear();
+		if (state) for (const screen of state.linkHints?.keys() ?? []) clearLinkHint(state, screen);
 	});
 	pi.on("session_start", (_event, ctx) => {
 		if (ctx?.cwd) setSessionCwd(ctx.cwd);
