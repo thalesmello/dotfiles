@@ -23,6 +23,16 @@ for (const [letter, direction] of [['h','left'], ['j','down'], ['k','up'], ['l',
   }
 }
 assert.equal(keys.global['cmd-w'], 'tabs-shortcuts.smart_close');
+assert.equal(keys.global['cmd-['], 'tabs-shortcuts.focus_back');
+assert.equal(keys.global['cmd-]'], 'tabs-shortcuts.focus_forward');
+assert.equal(keys.global['ctrl-tab'], 'agent.next');
+assert.equal(keys.global['ctrl-shift-tab'], 'agent.prev');
+assert.equal(keys['layout:transition']['ctrl-tab'], 'agent-render.next');
+assert.equal(keys['layout:transition']['ctrl-shift-tab'], 'agent-render.prev');
+for (const section of ['terminal', 'layout:transition']) {
+  assert.equal(keys[section]['cmd-['], undefined, 'history shortcut is not overridden');
+  assert.equal(keys[section]['cmd-]'], undefined, 'history shortcut is not overridden');
+}
 assert.ok(!prefix.includes('run("spaces-reconnect.'));
 assert.ok(!sidebar.includes('await nextCommand()'), 'sidebar no longer dispatches keyboard commands');
 assert.ok(!sidebar.includes('this.syncFocusHistory(now, sp, ps, focused())'), 'only one history recorder');
@@ -63,7 +73,7 @@ const historySource = fs.readFileSync(new URL('mods/tabs-shortcuts/focus-history
   .replace(/^import[^\n]+\n/gm, '').replace('export class FocusHistoryController', 'class FocusHistoryController');
 const historyState = { focusHistory: { journal: ['p1', 'p2'], seq: 2, walk: [], walkState: null } };
 let focus = { pane: 'p2', terminal: 't2', tab: 'tb1' }, tick;
-const historyCalls = [], writes = [];
+const historyCalls = [], writes = [], notifications = [];
 const historyContext = vm.createContext({
   console, checking: () => false,
   spaces: () => [{ id: 'sp1', active: true, tabs: [{ id: 'tb1', active: true }] }],
@@ -73,7 +83,8 @@ const historyContext = vm.createContext({
   localStorage: { getItem: () => null, setItem: (key, value) => writes.push([key, value]) },
   run: (cmd, args) => { historyCalls.push([cmd, args]);
     if (cmd === 'pane.focus') focus = { pane: args.pane, terminal: args.pane.replace('p', 't'), tab: 'tb1' }; },
-  exec: () => Promise.resolve({ code: 0 }), home: () => '/tmp', notify() {},
+  exec: () => Promise.resolve({ code: 0 }), home: () => '/tmp',
+  notify: notification => notifications.push(notification),
 });
 vm.runInContext(historySource + '\nthis.Controller = FocusHistoryController;', historyContext);
 const history = new historyContext.Controller();
@@ -81,8 +92,15 @@ history.init({ timer: { every: (interval, callback) => { assert.equal(interval, 
 assert.equal(history.focusHistory.journal.join(','), 'p1,p2', 'history migrated from shared sidebar state');
 assert.equal(history.handle('focus_back'), true);
 assert.equal(historyCalls.at(-1)[1].pane, 'p1');
+assert.equal(notifications.length, 0, 'successful backward navigation is silent');
+assert.equal(history.handle('focus_back'), true);
+assert.equal(notifications.at(-1).title, 'Start of focus history');
+notifications.length = 0;
 assert.equal(history.handle('focus_forward'), true);
 assert.equal(historyCalls.at(-1)[1].pane, 'p2');
+assert.equal(notifications.length, 0, 'successful forward navigation is silent');
+assert.equal(history.handle('focus_forward'), true);
+assert.equal(notifications.at(-1).title, 'End of focus history');
 tick(); // Acknowledge the asynchronous forward focus before another change.
 focus = { pane: 'p1', terminal: 't1', tab: 'tb1' }; tick();
 assert.equal(history.focusHistory.journal.at(-1), 'p1');

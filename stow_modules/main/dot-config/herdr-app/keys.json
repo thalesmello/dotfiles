@@ -12,8 +12,8 @@
     "cmd-ctrl-w": "tabs-shortcuts.smart_close",
     "cmd-shift-w": "tab.close",
     "cmd-alt-w": "tab.close",
-    "ctrl-tab": "tabs-shortcuts.tab_next",
-    "ctrl-shift-tab": "tabs-shortcuts.tab_prev",
+    "ctrl-tab": "agent.next",
+    "ctrl-shift-tab": "agent.prev",
     "cmd-shift-]": "tabs-shortcuts.tab_next",
     "cmd-shift-[": "tabs-shortcuts.tab_prev",
     "ctrl-alt-shift-]": "tabs-shortcuts.tab_next",
@@ -22,8 +22,8 @@
     "cmd-down": "tabs-shortcuts.scroll_bottom",
     "cmd-alt-]": "space.next",
     "cmd-alt-[": "space.prev",
-    "cmd-]": "agent.next",
-    "cmd-[": "agent.prev",
+    "cmd-]": "tabs-shortcuts.focus_forward",
+    "cmd-[": "tabs-shortcuts.focus_back",
     "cmd-shift-l": "layout.switch",
     "cmd-n": "space.new",
     "ctrl-alt-n": "space.new",
@@ -107,8 +107,8 @@
     "cmd-ctrl-9": "space.select:9"
   },
   "layout:transition": {
-    "cmd-]": "agent-render.next",
-    "cmd-[": "agent-render.prev"
+    "ctrl-tab": "agent-render.next",
+    "ctrl-shift-tab": "agent-render.prev"
   },
   "terminal": {
     "cmd-f": "terminal.search",

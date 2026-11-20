@@ -382,14 +382,6 @@ export class FocusHistoryController {
     fh.walkState = { index: targetIndex, expectedPane: target, seq: fh.seq };
     this.saveFocusHistory();
 
-    const steps = targetIndex;
-    if (direction === "back") {
-      this.notifyToast(`← ${target}`, `${steps} back`);
-    } else if (steps === 0) {
-      this.notifyToast(`→ ${target}`);
-    } else {
-      this.notifyToast(`→ ${target}`, `${steps} back`);
-    }
     return true;
   }
 
