@@ -230,10 +230,11 @@ if [ "${1:-}" = --dispatch ] || [ "${1:-}" = --dispatch-foreground ]; then
   rm -f "$dispatch_file"
   [ -n "${question// /}" ] || exit 0
 else
-  prefill=''
+  # Make the inherited target visible and editable on both ask shortcuts.
+  prefill="machine:${ASK_AGENT_MACHINE:-local} "
   if [ "${ASK_AGENT_CONTEXT:-0}" = 1 ]; then
-    prefill=$(context_prefill_for_cwd "${ASK_AGENT_CWD:-$(active_pane_cwd)}")
-    [ -n "$prefill" ] && prefill="${prefill% } "
+    context_prefill=$(context_prefill_for_cwd "${ASK_AGENT_CWD:-$(active_pane_cwd)}")
+    [ -z "$context_prefill" ] || prefill+="${context_prefill% } "
   fi
   if [ -n "${ASK_AGENT_COMPLETION_WARNING:-}" ]; then
     printf '%s\n' "$ASK_AGENT_COMPLETION_WARNING"

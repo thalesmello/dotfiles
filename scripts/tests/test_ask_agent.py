@@ -62,7 +62,8 @@ else:
 
 class AskWorkspaceTests(unittest.TestCase):
     def run_ask(self, workspaces, question="qq tell me a joke about mac vs linux", backend="hc",
-                machines=None, focus=False, default_machine="", expected_rc=0, interactive=False, queued=None):
+                machines=None, focus=False, default_machine="", expected_rc=0, interactive=False, queued=None,
+                context=False, cwd="", expected_count=None):
         with tempfile.TemporaryDirectory() as temp:
             home = Path(temp)
             bin_dir = home / ".local/bin"
@@ -136,7 +137,9 @@ raise SystemExit(rc)
                    "ASK_TEST_REMOTE_HOME": str(remote),
                    "ASK_TEST_MACHINES": json.dumps({"machines": machines or []}),
                    "ASK_AGENT_MACHINE": default_machine,
-                   "ASK_AGENT_CONTEXT": "0",
+                   "ASK_AGENT_CONTEXT": "1" if context else "0",
+                   "ASK_AGENT_CWD": str(home / "src" / cwd),
+                   "ASK_AGENT_SRC": str(home / "src"),
                    "ASK_TEST_QUESTION": question,
                    "ASK_TEST_QUEUED": json.dumps(queued or []),
                    "ASK_TEST_QUEUE_READ_FD": str(queue_fds[0]) if queued else "",
@@ -162,12 +165,41 @@ raise SystemExit(rc)
             self.last_remote_home = str(remote)
             self.last_prompt_files = {str(p): p.read_text() for p in (remote / "tmp").glob("ask-agent-*.md")}
             self.last_creates = creates
-            self.assertEqual(len(creates), (len(queued or []) + bool(question)) if expected_rc == 0 else 0)
-            if expected_rc == 0:
+            count = (len(queued or []) + bool(question)) if expected_rc == 0 else 0
+            self.assertEqual(len(creates), count if expected_count is None else expected_count)
+            if expected_rc == 0 and creates:
                 self.assertIn(["pane", "run", "p-test"], [c[:3] for c in calls])
                 if question:
                     self.assertIn("asked mac-linux-joke", result.stdout)
             return creates[0] if creates else None, temp
+
+    def prompt_prefill(self):
+        call = next(c for c in self.last_calls if c[0] == "prompt")
+        return call[call.index("Ask: ") + 1]
+
+    def test_plain_ask_prefills_local_machine(self):
+        self.run_ask([], interactive=True)
+        self.assertEqual(self.prompt_prefill(), "machine:local ")
+
+    def test_plain_ask_prefills_source_remote_machine(self):
+        self.run_ask([], interactive=True, default_machine="devserver",
+                     machines=[{"name": "devserver", "state": "connected"}])
+        self.assertEqual(self.prompt_prefill(), "machine:devserver ")
+
+    def test_context_ask_keeps_machine_and_directory_prefix(self):
+        for machine in ("local", "devserver"):
+            for cwd, prefix in (("", "config"), ("qq", "qq"), ("repo/subdir", "project:repo"),
+                                ("tries/demo/subdir", "project:tries/demo")):
+                with self.subTest(machine=machine, cwd=cwd):
+                    self.run_ask([], interactive=True, context=True, cwd=cwd, default_machine=machine,
+                                 machines=[{"name": "devserver", "state": "connected"}])
+                    self.assertEqual(self.prompt_prefill(), f"machine:{machine} {prefix} ")
+
+    def test_submitting_only_prefill_creates_nothing(self):
+        for question, context in (("machine:local ", False), ("machine:local config ", True)):
+            with self.subTest(context=context):
+                self.run_ask([], question=question, interactive=True, context=context, expected_count=0)
+                self.assertFalse(any(c[:2] == ["hc", "exec"] for c in self.last_calls))
 
     def test_remote_only_qq_creates_local_workspace(self):
         create, home = self.run_ask([
@@ -244,11 +276,11 @@ raise SystemExit(rc)
                                    machines=[{"name": "devserver", "state": "connected"}])
         self.assertEqual(create[create.index("--cwd") + 1], f"{home}/remote/src/qq")
 
-    def test_remote_default_is_implicit_not_inserted_into_prompt(self):
+    def test_remote_prefill_preserves_completion_and_default_routing(self):
         create, home = self.run_ask([], default_machine="devserver", interactive=True,
                                    machines=[{"name": "devserver", "state": "connected"}])
         prompt_call = next(c for c in self.last_calls if c[0] == "prompt")
-        self.assertEqual(prompt_call[-2], "")
+        self.assertEqual(prompt_call[-2], "machine:devserver ")
         self.assertIn('machine:=["local", "devserver"]', prompt_call)
         self.assertEqual(create[create.index("--cwd") + 1], f"{home}/remote/src/qq")
 

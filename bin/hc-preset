@@ -2898,7 +2898,7 @@ def handle_popup_open(
     if not hc:
         return 1
     # The editor runs here; its implicit target is the selected pane's machine.
-    # Keep that target out of the prompt so machine: remains an optional override.
+    # The editor prefills machine: with this target so it is visible and editable.
     if is_ask:
         env["ASK_AGENT_MACHINE"] = (active_p.get("machine") if active_p else None) or "local"
         for key in ("ASK_AGENT_SRC", "ASK_AGENT_PROJECT_CHOICES", "ASK_AGENT_TRY_CHOICES",
