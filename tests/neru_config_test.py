@@ -196,9 +196,10 @@ class NeruConfigTest(unittest.TestCase):
         self.assertEqual(keys["Tab"], ["action move_monitor --bail-on-error", "idle"])
         self.assertEqual(keys["Shift+Tab"], ["action move_monitor --previous --bail-on-error", "idle"])
 
-    def test_cmd_f16_toggles_continuous_and_ctrl_f16_opens_recursive_grid(self):
+    def test_cmd_shift_f16_toggles_continuous_and_direct_launchers_are_preserved(self):
         for mode in ("hints", "recursive_grid", "grid", "scroll", "vim", "bisect", "monitor_select"):
-            self.assertEqual(self.config[mode]["hotkeys"]["Cmd+F16"], "macro toggle_continuous")
+            self.assertEqual(self.config[mode]["hotkeys"]["Cmd+F16"], "macro open_hints")
+            self.assertEqual(self.config[mode]["hotkeys"]["Cmd+Shift+F16"], "macro toggle_continuous")
             self.assertEqual(self.config[mode]["hotkeys"]["Ctrl+F16"], "macro open_recursive_direct")
         self.assertIn("openHints()", self.config["macros"]["open_hints"])
         self.assertIn("openRecursive(true)", self.config["macros"]["open_recursive_direct"])
@@ -212,7 +213,7 @@ class NeruConfigTest(unittest.TestCase):
         keys = self.config["vim"]["hotkeys"]
         self.assertEqual(keys["Cmd+Ctrl+Alt+;"],
                          ["action feed --mode Escape", "vim", "action feed --mode s"])
-        self.assertEqual(keys["Cmd+Ctrl+Alt+,"], "vim")
+        self.assertEqual(keys["Cmd+Ctrl+Alt+,"], ["action feed --mode Escape", "vim"])
         self.assertEqual(keys["Cmd+Ctrl+Alt+/"],
                          ["action feed --mode Escape", "vim", "action feed --mode /"])
 
@@ -259,10 +260,12 @@ class NeruConfigTest(unittest.TestCase):
         bridge = KARABINER.read_text()
         self.assertIn("[:!Cright_shift :!Cf16]", bridge)
         self.assertIn("[:!Tright_shift :!Tf16]", bridge)
+        self.assertIn("[:!CSright_shift :!CSf16]", bridge)
         self.assertNotIn("[:!Tright_shift :!Tright_shift", bridge)
         source = Path("stow_modules/main/dot-hammerspoon/neruNavigation.lua").read_text()
         self.assertIn('bindOnce({"cmd"}, "F16"', source)
         self.assertIn('bindOnce({"ctrl"}, "F16"', source)
+        self.assertIn('bindOnce({"cmd", "shift"}, "F16"', source)
         self.assertNotIn("recursiveChordDown", source)
 
     def test_atkinson_font_is_installed_via_brewfile_and_used_for_labels(self):

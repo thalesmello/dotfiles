@@ -12,18 +12,20 @@ RunAtLoad, starts at login. Manage it with `neru services status|start|stop|rest
 | Gesture | Action |
 | --- | --- |
 | Hyper+; | Open Vim with `s` search active; inside Vim, cancel input and restart `s` search |
-| Tap Right Shift / F16 in Hints or Grid | Alternate **Hints ↔ Regular Grid**, remembering the last-used mode |
-| Right Shift in Idle, Recursive Grid or Vim | Open the last-used **Hints or Regular Grid** |
+| Right Shift / F16 in Idle | Open the last-used **Hints or Regular Grid** (Grid if none is saved) |
+| Right Shift / F16 in Grid | Return to Idle |
+| Right Shift / F16 in any other active mode | Open **Regular Grid** |
 | Left Shift+Right Shift / Shift+F16 (also Option+Left Shift+Right Shift) | Open **Regular Grid** directly (does not toggle it closed) |
-| Hyper+, | Open plain Vim text mode (no automatic search, no toggle-to-exit) |
+| Hyper+, | Open Vim Normal mode anywhere; cancel pending Vim input when already active |
 | Hyper+/ | Open Vim with `/` search active; inside Vim, cancel input and restart `/` search |
 | Double-tap Left Ctrl → F20 | Toggle Ghostty/iTerm quick terminal (run only one app to avoid hotkey competition) |
 | Hyper+d | Open Scroll; page down while Scroll is active |
 | Ctrl+U / Ctrl+D in Scroll | Page up / down (Hyper+U/D remain aliases) |
 | W/A/S/D in Scroll | Move cursor up/left/down/right; Shift fast, Option fine |
-| **Cmd+Right Shift → Cmd+F16** | Open UI Hints from Idle; toggle continuous clicks in every active mode |
+| **Cmd+Right Shift → Cmd+F16** | Open UI Hints directly anywhere |
+| **Cmd+Left Shift+Right Shift → Cmd+Shift+F16** | Toggle continuous clicks anywhere |
 | **Ctrl+Right Shift → Ctrl+F16** | Open alternating-hand Recursive Grid directly |
-| Escape / Shift+Escape | Quit the active mode; Right Shift no longer toggles Grid closed |
+| Escape / Shift+Escape | Quit the active mode |
 | Hyper+Shift+; | Hammerspoon Command Palette |
 | Hyper+Space → Hyper+r → Hyper+n | Start/restart Neru, quitting Mouseless |
 | Hyper+Space → Hyper+r → Hyper+m | Restart Mouseless, quitting Neru |
@@ -35,10 +37,15 @@ dedicated command; use Left Shift for ordinary Cmd+Shift shortcuts.
 Left Shift+Right Shift emits clean Shift+F16 immediately to open regular Grid
 directly; Option+Left Shift+Right Shift remains an Alt+Shift+F16 alias.
 Ctrl+Right Shift similarly emits clean Ctrl+F16 for Recursive Grid (replacing
-the old Ctrl+Right Shift hide-cursor gesture). Plain Right Shift alternates
-Hints and regular Grid. The last successfully entered one is persisted in
-`neruNavigation.lastPointerMode`; Idle, Recursive Grid and Vim reopen it.
-With no saved preference, Hints is the default.
+the old Ctrl+Right Shift hide-cursor gesture). Cmd+Left Shift+Right Shift
+emits Cmd+Shift+F16 for continuous clicks. The last successfully entered
+Hints/Grid mode is persisted in `neruNavigation.lastPointerMode` and recalled
+only from Idle. In Grid, plain Right Shift exits; in every other active mode,
+it opens Grid. With no saved preference, Grid is the default.
+
+Example: Cmd+Right Shift opens Hints. Quit Hints, then Right Shift recalls
+Hints; pressing Right Shift again opens Grid, then again exits to Idle. The
+next Right Shift recalls Grid, so repeated use returns to the Grid default.
 Physical Caps is grabbed by Karabiner before Hammerspoon's F19 remap, so grid
 Caps behavior goes through a Karabiner variable: Hammerspoon sets `neru-grid=1`
 while a grid is open; Karabiner maps Caps tap to F17 (`action reset --toggle`)
@@ -68,17 +75,18 @@ normal/continuous completion policy. Grid/RG/Bisect commit their virtual
 selection; Hints/Scroll use the real pointer. At Grid's empty root, move-only
 falls back to the existing cursor rather than failing for lack of selection.
 
-**Continuous mode** is off by default and toggled with Cmd+Right Shift in
-any active mode, or the palette's Continuous Clicks entry. From Idle,
-Cmd+Right Shift opens Hints without changing the continuous setting.
+**Continuous mode** is off by default and toggled with Cmd+Shift+F16
+(Cmd+Left Shift+Right Shift physically) anywhere, including Idle, or with the
+palette's Continuous Clicks entry. Cmd+Right Shift always opens Hints without
+changing the continuous setting.
 There is no Hyper+Shift+/ binding. The status message names no shortcut.
 It persists across Hammerspoon reloads.
 When on, confirmation clicks/moves reset Grid/Recursive Grid to their base
 layer and keep the overlay open for consecutive targets. Backspace still
 backtracks; Ctrl+Backspace manually resets.
 Escape and Shift+Escape quit either grid; Backspace backtracks one level in
-Recursive Grid. Right Shift switches to Hints from regular Grid, or restores
-the last-used Hints/Grid mode from Recursive Grid.
+Recursive Grid. Right Shift exits regular Grid and opens regular Grid from
+Recursive Grid or any other active mode.
 UI Hints uses Neru's native `--repeat` while continuous mode is on, so selecting
 one hint clicks and redraws hints. Toggling inside Hints refreshes that session.
 
@@ -158,8 +166,8 @@ in `config.toml`, preserving all colors and other settings, then reloads Neru.
 It uses an atomic write and refuses ambiguous markers or concurrent edits.
 The chosen layout appears in the tracked config file; selecting the other
 preset can therefore create a small working-tree diff. Ctrl+Right Shift selects
-the alternating-hand recursive layout. Right Shift alternates regular Grid
-and Hints, restoring the last-used one from Idle, Vim or Recursive Grid.
+the alternating-hand recursive layout. Right Shift recalls Hints/Grid only
+from Idle, exits regular Grid, and opens regular Grid from other active modes.
 
 Both grids use **cursor-hold aiming**: grid key selections update the virtual
 selection without moving the real cursor. Clicks commit that position before

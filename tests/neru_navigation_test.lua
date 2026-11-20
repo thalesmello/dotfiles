@@ -211,14 +211,14 @@ end)
 test("distinct Vim search, hints, grid, text and scroll launchers", function()
   local e = fixture("neru")
   e:key(";"); e:reply({"neru", "run", "--stop-on-error", "vim", "action feed --mode s"}, true)
-  e:key("F16"); e:reply({"neru", "hints", "--strategy", "axtree", "--action", "left_click"}, true)
+  e:key("F16"); e:reply({"neru", "grid", "--cursor-selection-mode", "hold"}, true)
   e:key("F16", {"alt", "shift"}); e:reply({"neru", "grid", "--cursor-selection-mode", "hold"}, true)
   e:key(","); e:reply({"neru", "vim"}, true)
-  e:key("d"); e:reply({"neru", "scroll", "--toggle"}, true); e:noOpens(); e:noPending()
+  e:key("d"); e:reply({"neru", "scroll"}, true); e:noOpens(); e:noPending()
 end)
 test("failed launch never silently opens Mouseless", function()
   local e = fixture("neru"); e:key("F16")
-  e:reply({"neru", "hints", "--strategy", "axtree", "--action", "left_click"}, false); e:noOpens()
+  e:reply({"neru", "grid", "--cursor-selection-mode", "hold"}, false); e:noOpens()
 end)
 test("missing CLI preflight keeps Mouseless running", function()
   local e = fixture(); e.executable = nil; e:mouseless(true); e:profile("neru.use")
@@ -394,7 +394,7 @@ test("continuous clicks toggle persistently and reset to the base layer", functi
   e.module.afterClick(); e:reply({"neru", "idle"}, true)
 end)
 test("continuous hints add native repeat", function()
-  local e = fixture("neru"); e.module.toggleContinuous(); e:key("F16")
+  local e = fixture("neru"); e.module.toggleContinuous(); e:key("F16", "cmd")
   e:reply({"neru", "hints", "--strategy", "axtree", "--action", "left_click", "--repeat"}, true)
 end)
 test("Hyper semicolon cancels Vim input and restarts s search without toggling closed", function()
@@ -414,9 +414,25 @@ test("Hyper slash cancels Vim input and restarts slash search", function()
   e:reply({"neru", "run", "--stop-on-error", "action feed --mode Escape", "vim", "action feed --mode /"}, true)
   e:noPending(); e:noOpens()
 end)
-test("Hyper comma opens plain Vim even when Vim is already active", function()
+test("Hyper comma cancels pending Vim input and opens Normal mode", function()
   local e = fixture("neru"); e:emit(VIM); e:key(",")
-  e:reply({"neru", "vim"}, true); e:noPending()
+  e:reply({"neru", "run", "--stop-on-error", "action feed --mode Escape", "vim"}, true)
+  e:noPending()
+end)
+test("Hyper comma opens Normal Vim from every other mode", function()
+  for _, mode in ipairs({EXIT, HINTS, GRID, NATIVE, SCROLL, "bisect", "monitor"}) do
+    local e = fixture("neru"); e:emit(mode); e:key(",")
+    e:reply({"neru", "vim"}, true); e:noPending()
+  end
+end)
+test("Hyper d enters Scroll from other modes and pages down inside Scroll", function()
+  for _, mode in ipairs({EXIT, HINTS, GRID, NATIVE, VIM, "bisect", "monitor"}) do
+    local e = fixture("neru"); e:emit(mode); e:key("d")
+    e:reply({"neru", "scroll"}, true); e:emit(SCROLL); e:key("d")
+    e:reply({"neru", "action", "page_down"}, true); e:key("d")
+    e:reply({"neru", "action", "page_down"}, true); e:noPending()
+  end
+  local fallback = fixture(); fallback:key("d"); fallback:noPending()
 end)
 test("Vim search launcher is disabled in fallback and disarmed profiles", function()
   for _, backend in ipairs({"mouseless", "disarmed"}) do
@@ -466,24 +482,26 @@ test("late mouse click cleanup never closes Vim", function()
   local e = fixture("neru"); e.state.mode = "vim"; e.module.afterClick(); e:noPending()
 end)
 
-test("Cmd+F16 opens Hints from idle regardless of remembered mode or continuous setting", function()
+test("Cmd+F16 always opens Hints without changing continuous clicks", function()
   for _, continuous in ipairs({false, true}) do
-    local e = fixture("neru", {["neruNavigation.lastPointerMode"] = "grid",
-      ["neruNavigation.continuous"] = continuous})
-    e:key("F16", "cmd")
-    local args = {"neru", "hints", "--strategy", "axtree", "--action", "left_click"}
-    if continuous then args[#args + 1] = "--repeat" end
-    e:reply(args, true); eq(e.state.continuous, continuous); e:noPending()
+    for _, mode in ipairs({EXIT, HINTS, GRID, NATIVE, SCROLL, VIM, "bisect", "monitor"}) do
+      local e = fixture("neru", {["neruNavigation.lastPointerMode"] = "grid",
+        ["neruNavigation.continuous"] = continuous})
+      e:emit(mode); e:key("F16", "cmd")
+      local args = {"neru", "hints", "--strategy", "axtree", "--action", "left_click"}
+      if continuous then args[#args + 1] = "--repeat" end
+      e:reply(args, true); eq(e.state.continuous, continuous); e:noPending()
+    end
   end
 end)
-test("Cmd+F16 toggles continuous clicks in every active mode", function()
-  for _, mode in ipairs({HINTS, GRID, NATIVE, SCROLL, VIM, "bisect", "monitor"}) do
-    local e = fixture("neru"); e:emit(mode); e:key("F16", "cmd")
+test("Cmd+Shift+F16 toggles continuous clicks in every mode including Idle", function()
+  for _, mode in ipairs({EXIT, HINTS, GRID, NATIVE, SCROLL, VIM, "bisect", "monitor"}) do
+    local e = fixture("neru"); e:emit(mode); e:key("F16", {"cmd", "shift"})
     eq(e.state.continuous, true); eq(e.store["neruNavigation.continuous"], true)
     if mode == HINTS then
       e:reply({"neru", "run", "idle", "hints --strategy axtree --action left_click --repeat"}, true)
     end
-    e:key("F16", "cmd"); eq(e.state.continuous, false)
+    e:key("F16", {"cmd", "shift"}); eq(e.state.continuous, false)
     if mode == HINTS then
       e:reply({"neru", "run", "idle", "hints --strategy axtree --action left_click"}, true)
     end
@@ -884,15 +902,16 @@ test("leaving Hints cancels the delayed refresh", function()
   local e = fixture("neru"); e:emit(HINTS); e.state.continuous = true; e.state.afterClick("stay")
   e:emit(EXIT); e:tick(); e:noPending()
 end)
-test("Right Shift alternates Hints and Grid and remembers successful transitions", function()
-  local e = fixture("neru")
-  e:key("F16")
+test("Hints exit is recalled once and repeated Right Shift regresses to Grid then Idle", function()
+  local e = fixture("neru"); e:key("F16", "cmd")
+  e:reply({"neru", "hints", "--strategy", "axtree", "--action", "left_click"}, true)
+  e:emit(HINTS); e:emit(EXIT); e:key("F16")
   e:reply({"neru", "hints", "--strategy", "axtree", "--action", "left_click"}, true)
   e:emit(HINTS); e:key("F16")
   e:reply({"neru", "grid", "--cursor-selection-mode", "hold"}, true)
   e:emit(NATIVE); eq(e.store["neruNavigation.lastPointerMode"], "grid"); e:key("F16")
-  e:reply({"neru", "hints", "--strategy", "axtree", "--action", "left_click"}, true)
-  e:emit(HINTS); eq(e.store["neruNavigation.lastPointerMode"], "hints"); e:noPending()
+  e:reply({"neru", "idle"}, true); e:emit(EXIT); e:key("F16")
+  e:reply({"neru", "grid", "--cursor-selection-mode", "hold"}, true); e:noPending()
 end)
 test("Option+Shift+F16 opens Grid directly from every mode without toggling idle", function()
   for _, mode in ipairs({EXIT, HINTS, GRID, NATIVE, SCROLL, VIM}) do
@@ -901,10 +920,9 @@ test("Option+Shift+F16 opens Grid directly from every mode without toggling idle
   end
   local e = fixture(); e:key("F16", {"alt", "shift"}); e:noPending()
 end)
-test("Right Shift defaults to Hints from Vim with no saved preference", function()
+test("Right Shift from Vim goes to Grid rather than restoring Hints", function()
   local e = fixture("neru"); e:emit(VIM); e:key("F16")
-  e:reply({"neru", "hints", "--strategy", "axtree", "--action", "left_click"}, true)
-  e:noPending()
+  e:reply({"neru", "grid", "--cursor-selection-mode", "hold"}, true); e:noPending()
 end)
 test("Left Shift plus Right Shift opens Grid directly from every mode", function()
   for _, mode in ipairs({EXIT, HINTS, GRID, NATIVE, SCROLL, VIM}) do
@@ -913,14 +931,15 @@ test("Left Shift plus Right Shift opens Grid directly from every mode", function
   end
   local e = fixture(); e:key("F16", "shift"); e:noPending()
 end)
-test("Right Shift restores the remembered pointer mode from Idle, Recursive Grid and Vim", function()
+test("Right Shift restores the remembered pointer mode only from Idle", function()
   for _, last in ipairs({"grid", "hints"}) do
-    for _, mode in ipairs({EXIT, GRID, VIM}) do
+    for _, mode in ipairs({EXIT, HINTS, GRID, VIM, SCROLL, "bisect", "monitor"}) do
       local e = fixture("neru", {["neruNavigation.lastPointerMode"] = last})
       e:emit(mode); e:key("F16")
-      if last == "grid" then e:reply({"neru", "grid", "--cursor-selection-mode", "hold"}, true)
-      else e:reply({"neru", "hints", "--strategy", "axtree", "--action", "left_click"}, true) end
-      eq(e.state.lastPointerMode, last); e:noPending()
+      if mode == EXIT and last == "hints" then
+        e:reply({"neru", "hints", "--strategy", "axtree", "--action", "left_click"}, true)
+      else e:reply({"neru", "grid", "--cursor-selection-mode", "hold"}, true) end
+      e:noPending()
     end
   end
 end)
@@ -941,9 +960,9 @@ test("failed switch does not remember a mode that never opened", function()
   e:reply({"neru", "grid", "--cursor-selection-mode", "hold"}, false)
   eq(e.state.lastPointerMode, "hints"); eq(e.store["neruNavigation.lastPointerMode"], "hints")
 end)
-test("invalid saved pointer mode defaults to Hints and inactive profiles stay disarmed", function()
+test("invalid saved pointer mode defaults to Grid and inactive profiles stay disarmed", function()
   local e = fixture("neru", {["neruNavigation.lastPointerMode"] = "vim"})
-  eq(e.state.lastPointerMode, "hints")
+  eq(e.state.lastPointerMode, "grid")
   local fallback = fixture(); fallback.module.rightShift(); fallback:noPending()
 end)
 test("config watcher is stopped on shutdown", function()

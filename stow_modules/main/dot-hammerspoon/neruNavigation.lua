@@ -32,7 +32,7 @@ function M.setup(ctx)
     consumedDropKeys = {},
     modeEpoch = 0,
     continuous = hs.settings.get("neruNavigation.continuous") == true,
-    lastPointerMode = hs.settings.get("neruNavigation.lastPointerMode") == "grid" and "grid" or "hints",
+    lastPointerMode = hs.settings.get("neruNavigation.lastPointerMode") == "hints" and "hints" or "grid",
     layout = Layouts.current(),
   }
   instance = state
@@ -397,6 +397,16 @@ function M.setup(ctx)
     else state.openHints() end
   end
   state.openGrid = function() launch({"grid", "--cursor-selection-mode", "hold", "--toggle"}) end
+  state.openVimNormal = function()
+    if state.mode == "vim" then
+      launch({"run", "--stop-on-error", "action feed --mode Escape", "vim"})
+    else launch({"vim"}) end
+  end
+  state.scrollShortcut = function()
+    if state.closed or state.busy or state.backend ~= "neru" then return end
+    if state.mode == "scroll" then command({"action", "page_down"})
+    else launch({"scroll"}) end
+  end
   state.openVimSearch = function(searchKey)
     searchKey = searchKey or "s"
     local steps = {"run", "--stop-on-error"}
@@ -423,9 +433,9 @@ function M.setup(ctx)
   state.unregisterCapsTap = CapsHyper.onTap(state.capsTap)
   state.rightShift = function()
     if state.closed or state.busy or state.backend ~= "neru" then return end
-    if state.mode == "hints" then launch({"grid", "--cursor-selection-mode", "hold"})
-    elseif state.mode == "grid" then state.openHints()
-    else state.openLastPointer() end
+    if state.mode == "idle" then state.openLastPointer()
+    elseif state.mode == "grid" then command({"idle"})
+    else launch({"grid", "--cursor-selection-mode", "hold"}) end
   end
 
   -- The actual click runs in Neru first. This callback only decides whether
@@ -704,9 +714,6 @@ function M.setup(ctx)
   end
 
   state.toggleContinuous = toggleContinuous
-  state.cmdRightShift = function()
-    if state.mode == "idle" then state.openHints() else toggleContinuous() end
-  end
 
   -- A persisted Neru setting must not steal Mouseless's keys on reload if
   -- its app has been started independently. Require an explicit handoff.
@@ -727,17 +734,21 @@ function M.setup(ctx)
   state.handles[#state.handles + 1] = ctx.default:bindOnce(ctx.hyper, "/",
     "Neru: Vim Slash Search", function() state.openVimSearch("/") end)
   state.handles[#state.handles + 1] = ctx.default:bindOnce({}, "F16",
-    "Neru: Alternate / Last Hints or Grid (Right Shift)", state.rightShift)
+    "Neru: Last Mode / Grid / Idle (Right Shift)", state.rightShift)
   bind({"shift"}, "F16", "Neru: Grid (Left Shift+Right Shift)",
     {"grid", "--cursor-selection-mode", "hold"})
   bind({"alt", "shift"}, "F16", "Neru: Grid (Option+Left Shift+Right Shift)",
     {"grid", "--cursor-selection-mode", "hold"})
   state.handles[#state.handles + 1] = ctx.default:bindOnce({"cmd"}, "F16",
-    "Neru: Hints / Continuous Clicks (Cmd+Right Shift)", state.cmdRightShift)
+    "Neru: Hints (Cmd+Right Shift)", state.openHints)
+  state.handles[#state.handles + 1] = ctx.default:bindOnce({"cmd", "shift"}, "F16",
+    "Neru: Continuous Clicks (Cmd+Shift+Right Shift)", toggleContinuous)
   state.handles[#state.handles + 1] = ctx.default:bindOnce({"ctrl"}, "F16",
     "Neru: Recursive Grid (Ctrl+Right Shift)", function() state.openRecursive(true) end)
-  bind(ctx.hyper, ",", "Neru: Vim Text Mode", {"vim"})
-  bind(ctx.hyper, "d", "Neru: Scroll", {"scroll", "--toggle"})
+  state.handles[#state.handles + 1] = ctx.default:bindOnce(ctx.hyper, ",",
+    "Neru: Vim Normal Mode", state.openVimNormal)
+  state.handles[#state.handles + 1] = ctx.default:bindOnce(ctx.hyper, "d",
+    "Neru: Scroll / Page Down", state.scrollShortcut)
   enableHandles(state.backend == "neru")
 
   local function finishSwitch(backend)

@@ -81,7 +81,8 @@ font_size = 12
 "Shift+F16" = "grid --cursor-selection-mode hold"
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "macro right_shift"
-"Cmd+F16" = "macro toggle_continuous"
+"Cmd+F16" = "macro open_hints"
+"Cmd+Shift+F16" = "macro toggle_continuous"
 "Ctrl+F16" = "macro open_recursive_direct"
 # Hints belong to the focused window, so swapping display moves the cursor
 # there and leaves Hints; reopen Hints on that display's focused window.
@@ -164,7 +165,8 @@ label_background_border_width = 0
 "F16" = "macro right_shift"
 "-" = "macro opacity_down"
 "=" = "macro opacity_up"
-"Cmd+F16" = "macro toggle_continuous"
+"Cmd+F16" = "macro open_hints"
+"Cmd+Shift+F16" = "macro toggle_continuous"
 "Ctrl+F16" = "macro open_recursive_direct"
 "Escape" = "idle"
 "Shift+Escape" = "idle"
@@ -272,7 +274,8 @@ max_label_length = 3
 "-" = "macro opacity_down"
 "=" = "macro opacity_up"
 "Escape" = "idle"
-"Cmd+F16" = "macro toggle_continuous"
+"Cmd+F16" = "macro open_hints"
+"Cmd+Shift+F16" = "macro toggle_continuous"
 "Ctrl+F16" = "macro open_recursive_direct"
 "`" = "__disabled__"
 "Space" = "macro confirm_left_stay"
@@ -351,7 +354,8 @@ scroll_step_half = 200
 # App-switch chords leave Scroll mode (Hammerspoon also auto-exits after 10s idle).
 "Cmd+Tab" = ["action feed Cmd+Tab", "idle"]
 "Cmd+Shift+Tab" = ["action feed Cmd+Shift+Tab", "idle"]
-"Cmd+F16" = "macro toggle_continuous"
+"Cmd+F16" = "macro open_hints"
+"Cmd+Shift+F16" = "macro toggle_continuous"
 "Ctrl+F16" = "macro open_recursive_direct"
 "Cmd+Ctrl+Alt+d" = "action page_down"
 "Cmd+Ctrl+Alt+u" = "action page_up"
@@ -407,11 +411,12 @@ status_text_color = "#FFFEFEFE"
 "Shift+F16" = "grid --cursor-selection-mode hold"
 # Cancel pending input, ensure Normal mode, then start a fresh labeled search.
 "Cmd+Ctrl+Alt+;" = ["action feed --mode Escape", "vim", "action feed --mode s"]
-"Cmd+Ctrl+Alt+," = "vim"
+"Cmd+Ctrl+Alt+," = ["action feed --mode Escape", "vim"]
 "Cmd+Ctrl+Alt+/" = ["action feed --mode Escape", "vim", "action feed --mode /"]
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "macro right_shift"
-"Cmd+F16" = "macro toggle_continuous"
+"Cmd+F16" = "macro open_hints"
+"Cmd+Shift+F16" = "macro toggle_continuous"
 "Ctrl+F16" = "macro open_recursive_direct"
 "Tab" = ["action move_monitor --bail-on-error", "vim --capture-scope screen"]
 "Shift+Tab" = ["action move_monitor --previous --bail-on-error", "vim --capture-scope screen"]
@@ -452,7 +457,8 @@ label_background_color = "#D9000000"
 "Shift+F16" = "grid --cursor-selection-mode hold"
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "macro right_shift"
-"Cmd+F16" = "macro toggle_continuous"
+"Cmd+F16" = "macro open_hints"
+"Cmd+Shift+F16" = "macro toggle_continuous"
 "Ctrl+F16" = "macro open_recursive_direct"
 "Space" = "macro confirm_left_stay"
 "Enter" = "macro confirm_left"
@@ -480,7 +486,8 @@ border_color = "#C0B87671"
 "Shift+F16" = "grid --cursor-selection-mode hold"
 "Alt+Shift+F16" = "grid --cursor-selection-mode hold"
 "F16" = "macro right_shift"
-"Cmd+F16" = "macro toggle_continuous"
+"Cmd+F16" = "macro open_hints"
+"Cmd+Shift+F16" = "macro toggle_continuous"
 "Ctrl+F16" = "macro open_recursive_direct"
 
 [mode_indicator.ui]
