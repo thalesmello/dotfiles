@@ -12,6 +12,37 @@ describe("nested tool output snapshots", () => {
 		capture.end({ toolCallId: "parent", result: {}, isError: false });
 		expect(capture.get("parent")).toEqual([]);
 	});
+	test("preserves native edit diffs for rendering and resumed sessions", () => {
+		const capture = new NestedOutputCapture();
+		capture.start({ toolName: "codemode", toolCallId: "p" });
+		capture.start({ toolName: "edit", toolCallId: "p/1", parentToolCallId: "p" });
+		const diff = "-4 const answer = 1;\n+4 const answer = 42;";
+		capture.end({ toolCallId: "p/1", isError: false, result: { content: [{ type: "text", text: "Edited" }], details: { diff } } });
+		const saved = capture.get("p");
+		expect(saved[0].diff).toBe(diff);
+		expect(nestedOutputs({ openTuiNestedOutputs: saved })[0].diff).toBe(diff);
+	});
+	test("byte clipping drops incomplete trailing diff rows without losing valid changes", () => {
+		const capture = new NestedOutputCapture();
+		capture.start({ toolName: "codemode", toolCallId: "p" });
+		capture.start({ toolName: "edit", toolCallId: "p/1", parentToolCallId: "p" });
+		capture.end({ toolCallId: "p/1", isError: false, result: { content: [{ type: "text", text: "Edited" }], details: { diff: "-4 old\n+4 new\n+" + "1".repeat(9000) + " source" } } });
+		const output = capture.get("p")[0];
+		expect(output.diff).toBe("-4 old\n+4 new");
+		expect(output.diffTruncated).toBe(true);
+	});
+	test("diffs share the UTF-8 snapshot budget with ordinary output", () => {
+		const capture = new NestedOutputCapture();
+		capture.start({ toolName: "codemode", toolCallId: "p" });
+		for (let i = 0; i < 10; i++) {
+			capture.start({ toolName: "edit", toolCallId: `p/${i}`, parentToolCallId: "p" });
+			capture.end({ toolCallId: `p/${i}`, isError: false, result: { content: [{ type: "text", text: "x".repeat(9000) }], details: { diff: "+1 " + "😀".repeat(9000) } } });
+		}
+		const saved = nestedOutputs({ openTuiNestedOutputs: capture.get("p") });
+		expect(saved[0].diffTruncated).toBe(true);
+		expect(saved.every((output) => Buffer.byteLength(output.text) + Buffer.byteLength(output.diff ?? "") <= 8192)).toBe(true);
+		expect(saved.reduce((total, output) => total + Buffer.byteLength(output.text) + Buffer.byteLength(output.diff ?? ""), 0)).toBeLessThanOrEqual(65536);
+	});
 	test("caps child output and total script metadata; handles deeper nesting", () => {
 		const capture = new NestedOutputCapture();
 		capture.start({ toolName: "codemode", toolCallId: "parent" });

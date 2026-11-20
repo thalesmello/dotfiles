@@ -5158,7 +5158,7 @@ function withBands(code, spans, base, word) {
   append(code.slice(from));
   return output;
 }
-function prepareToolPreview(kind, source, path, theme) {
+function prepareToolPreview(kind, source, path, theme, options = {}) {
   const rows = kind === "edit" ? parseDiff(source) : codeLines(source).map((text, index) => ({ kind: " ", number: String(index + 1), text }));
   const shown = Math.min(rows.length, MAX_PREVIEW_LINES);
   if (kind === "edit")
@@ -5169,7 +5169,7 @@ function prepareToolPreview(kind, source, path, theme) {
   const palette = theme.appearance === "light" ? { "+": [[229, 245, 232], [174, 226, 185]], "-": [[255, 230, 230], [255, 188, 188]] } : { "+": [[26, 55, 40], [32, 96, 59]], "-": [[70, 30, 32], [124, 42, 48]] };
   const prepared = preview.map((line) => {
     const marker = kind === "edit" ? line.kind === "gap" ? " " : line.kind : "";
-    const prefix = `${marker}${line.number.padStart(digits)} `;
+    const prefix = options.showLineNumbers === false ? `${marker} ` : `${marker}${line.number.padStart(digits)} `;
     const code = theme.fg("dim", prefix) + (line.highlighted ?? theme.fg("dim", line.text));
     if (line.kind !== "+" && line.kind !== "-")
       return { code };
@@ -5187,7 +5187,7 @@ function prepareToolPreview(kind, source, path, theme) {
       return pad + (band && columns > 0 ? clipped + band + " ".repeat(Math.max(0, columns - visibleWidth7(clipped))) + "\x1B[49m" : clipped);
     });
     if (hidden > 0)
-      result.push(pad + theme.fg("dim", truncateToWidth6(`\u2026 +${hidden} lines (ctrl+o to expand)`, available, "\u2026")));
+      result.push(pad + theme.fg("dim", truncateToWidth6(`\u2026 +${hidden} lines${options.expandHint === false ? "" : " (ctrl+o to expand)"}`, available, "\u2026")));
     return result;
   };
 }
@@ -5655,6 +5655,7 @@ function scriptSegments(command) {
 }
 
 // stow_modules/main/dot-pi/agent/extensions/open-tui/nested-tool-blocks.ts
+var NESTED_FRAME_MARKER = "\x1B_open-tui:nested-frame\x07";
 var MAX_SOURCE_CHARS = 16384;
 var MAX_SOURCE_LINES = 80;
 function boundedArguments(args) {
@@ -5688,6 +5689,31 @@ function nestedSources(call) {
     sections.push({ label: "Arguments", source: boundedArguments(args), language: "json" });
   return sections.slice(0, 16);
 }
+function requestedEditDiff(call) {
+  const edits = Array.isArray(call.args.edits) ? call.args.edits.slice(0, 8) : [call.args];
+  const rows = [];
+  let truncated = Array.isArray(call.args.edits) && call.args.edits.length > edits.length;
+  let budget = 8192;
+  for (const edit of edits) {
+    if (!edit || typeof edit !== "object")
+      continue;
+    const values = edit;
+    if (typeof values.oldText !== "string" || typeof values.newText !== "string" || values.oldText === values.newText)
+      continue;
+    const eachSide = Math.floor(budget / 2);
+    for (const [marker, text] of [["-", values.oldText], ["+", values.newText]]) {
+      const bounded = text.slice(0, eachSide);
+      budget -= bounded.length;
+      const lines = codeLines(bounded);
+      truncated ||= bounded.length < text.length || lines.length > 16;
+      rows.push(...lines.slice(0, 16).map((line, index) => `${marker}${index + 1} ${line}`));
+    }
+    if (!budget)
+      break;
+  }
+  return rows.length ? { source: rows.join(`
+`), truncated } : undefined;
+}
 function highlightedSource(section, theme, budget = { chars: MAX_SOURCE_CHARS, lines: MAX_SOURCE_LINES }) {
   const raw = section.source.slice(0, Math.max(0, budget.chars));
   const clean = codeLines(raw).join(`
@@ -5720,6 +5746,7 @@ function nestedToolBlocks(options) {
   let cached;
   let regions = [];
   const sources = new Map;
+  const previews = new Map;
   const outputById = new Map(options.outputs.map((output) => [output.id, output]));
   const expanded = (id) => options.overrides.get(id) ?? options.expanded;
   const color = (call) => call.status === "error" ? "error" : call.status === "cancelled" ? "warning" : call.status === "running" ? "accent" : "dim";
@@ -5737,8 +5764,25 @@ function nestedToolBlocks(options) {
         const from = rows.length;
         const border = (text) => options.theme.fg("border", text);
         const title = truncateToWidth7(`${open ? "\u25BC" : "\u25B6"} ${options.heading(call)}`, Math.max(0, width - 5), "\u2026");
-        rows.push(border("\u256D\u2500 ") + title + border("\u2500".repeat(Math.max(0, width - 4 - visibleWidth8(title))) + "\u256E"));
+        rows.push(NESTED_FRAME_MARKER + border("\u256D\u2500 ") + title + border("\u2500".repeat(Math.max(0, width - 4 - visibleWidth8(title))) + "\u256E"));
         const body = [options.theme.fg(color(call), status(call) + (call.durationMs === undefined ? "" : ` \xB7 ${Math.round(call.durationMs)}ms`) + (call.error ? ` \xB7 ${codeLines(call.error)[0] ?? ""}` : ""))];
+        const output = outputById.get(id);
+        if (call.name === "edit" && call.status === "ok" && !output?.isError) {
+          if (!previews.has(id)) {
+            const actual = output?.diff;
+            const requested = actual ? undefined : requestedEditDiff(call);
+            const diff = actual || requested?.source;
+            const path = String(call.args.file_path ?? call.args.path ?? "");
+            const notice = output?.diffTruncated ? "\u2026 diff snapshot truncated" : requested?.truncated ? "\u2026 requested diff preview truncated" : undefined;
+            previews.set(id, diff ? { label: actual ? "Changes" : "Requested changes", render: prepareToolPreview("edit", diff, path, options.theme, { showLineNumbers: Boolean(actual), expandHint: false }), notice } : undefined);
+          }
+          const preview = previews.get(id);
+          if (preview) {
+            body.push(options.theme.fg("dim", preview.label), ...preview.render(room, ""));
+            if (preview.notice)
+              body.push(options.theme.fg("warning", preview.notice));
+          }
+        }
         if (open) {
           let prepared = sources.get(id);
           if (!prepared) {
@@ -5751,7 +5795,6 @@ function nestedToolBlocks(options) {
               }
               prepared.push(options.theme.fg("dim", `${section.label}${section.language ? ` \xB7 ${section.language}` : ""}`), ...highlightedSource(section, options.theme, budget));
             }
-            const output = outputById.get(id);
             if (output) {
               const path = String(call.args.file_path ?? call.args.path ?? "");
               const language = call.name === "read" && !output.isError ? languageForPath(path) : undefined;
@@ -5772,7 +5815,7 @@ function nestedToolBlocks(options) {
           const clipped = truncateToWidth7(line, room, "\u2026");
           rows.push(border("\u2502 ") + clipped + " ".repeat(Math.max(0, room - visibleWidth8(clipped))) + border(" \u2502"));
         }
-        rows.push(border(`\u2570${"\u2500".repeat(Math.max(0, width - 2))}\u256F`));
+        rows.push(NESTED_FRAME_MARKER + border(`\u2570${"\u2500".repeat(Math.max(0, width - 2))}\u256F`));
         regions.push({ id, from, to: rows.length });
       }
       cached = { width, lines: rows.map((line) => truncateToWidth7(line, Math.max(0, width), "\u2026")) };
@@ -5792,6 +5835,7 @@ function nestedToolBlocks(options) {
     invalidate() {
       cached = undefined;
       sources.clear();
+      previews.clear();
     }
   };
   return component;
@@ -5820,6 +5864,22 @@ function clipUtf8(text, bytes) {
     shown = shown.slice(0, -1);
   return shown;
 }
+function clipDiffUtf8(diff, bytes, alreadyTruncated = false) {
+  let shown = clipUtf8(diff, bytes);
+  if (shown.length < diff.length && !shown.endsWith(`
+`) && diff[shown.length] !== `
+`) {
+    shown = shown.slice(0, Math.max(0, shown.lastIndexOf(`
+`)));
+  } else if (alreadyTruncated) {
+    const last = shown.slice(shown.lastIndexOf(`
+`) + 1);
+    if (last && !/^[ +\-] *\d+ /.test(last) && !/^ +\.\.\.$/.test(last))
+      shown = shown.slice(0, Math.max(0, shown.lastIndexOf(`
+`)));
+  }
+  return shown;
+}
 function nestedOutputs(details) {
   const values = record2(details).openTuiNestedOutputs;
   if (!Array.isArray(values))
@@ -5829,9 +5889,20 @@ function nestedOutputs(details) {
     const output = record2(value);
     if (typeof output.id !== "string" || output.id.length > MAX_ID_CHARS || typeof output.text !== "string")
       return [];
-    const text = clipUtf8(output.text, Math.min(MAX_CALL_BYTES, budget));
-    budget -= Buffer2.byteLength(text, "utf8");
-    return [{ id: output.id, text, images: typeof output.images === "number" && Number.isSafeInteger(output.images) && output.images >= 0 ? output.images : 0, truncated: output.truncated === true || text.length < output.text.length, isError: output.isError === true }];
+    let callBudget = Math.min(MAX_CALL_BYTES, budget);
+    const diff = typeof output.diff === "string" ? clipDiffUtf8(output.diff, callBudget, output.diffTruncated === true) : undefined;
+    callBudget -= Buffer2.byteLength(diff ?? "", "utf8");
+    const text = clipUtf8(output.text, callBudget);
+    budget -= Buffer2.byteLength(text, "utf8") + Buffer2.byteLength(diff ?? "", "utf8");
+    return [{
+      id: output.id,
+      text,
+      images: typeof output.images === "number" && Number.isSafeInteger(output.images) && output.images >= 0 ? output.images : 0,
+      truncated: output.truncated === true || text.length < output.text.length,
+      isError: output.isError === true,
+      ...diff === undefined ? {} : { diff },
+      ...output.diffTruncated === true || typeof output.diff === "string" && diff.length < output.diff.length ? { diffTruncated: true } : {}
+    }];
   });
 }
 
@@ -5862,7 +5933,10 @@ class NestedOutputCapture {
       return;
     const result = record2(event.result);
     const content = Array.isArray(result.content) ? result.content.map(record2) : [];
-    let budget = Math.max(0, Math.min(MAX_CALL_BYTES, MAX_SCRIPT_BYTES - list.reduce((total, output) => total + Buffer2.byteLength(output.text, "utf8"), 0)));
+    let budget = Math.max(0, Math.min(MAX_CALL_BYTES, MAX_SCRIPT_BYTES - list.reduce((total, output) => total + Buffer2.byteLength(output.text, "utf8") + Buffer2.byteLength(output.diff ?? "", "utf8"), 0)));
+    const rawDiff = record2(result.details).diff;
+    const diff = typeof rawDiff === "string" ? clipDiffUtf8(rawDiff, budget) : undefined;
+    budget -= Buffer2.byteLength(diff ?? "", "utf8");
     let text = "", truncated = false;
     for (const block of content) {
       if (block.type !== "text" || typeof block.text !== "string")
@@ -5877,7 +5951,15 @@ class NestedOutputCapture {
       budget -= Buffer2.byteLength(shown, "utf8");
       truncated ||= shown.length < block.text.length;
     }
-    list.push({ id: event.toolCallId, text, images: content.filter((block) => block.type === "image").length, truncated, isError: event.isError });
+    list.push({
+      id: event.toolCallId,
+      text,
+      images: content.filter((block) => block.type === "image").length,
+      truncated,
+      isError: event.isError,
+      ...diff === undefined ? {} : { diff },
+      ...typeof rawDiff === "string" && diff.length < rawDiff.length ? { diffTruncated: true } : {}
+    });
   }
   get(id) {
     return this.outputs.get(id)?.slice() ?? [];

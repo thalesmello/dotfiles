@@ -734,130 +734,96 @@ interface CodeFrameBlock {
 	endRow: number;
 	bodyStartRow: number;
 	bodyEndRow: number;
+	left: number;
+	right: number;
+}
+
+function codeFrameBorder(line: string, top: boolean): { left: number; right: number } | undefined {
+	const plain = stripTerminalSequences(line);
+	const start = plain.indexOf(top ? "╭─" : "╰");
+	const end = plain.lastIndexOf(top ? "╮" : "╯");
+	if (start < 0 || end <= start || !/^[\s│]*$/.test(plain.slice(0, start)) || !/^[\s│]*$/.test(plain.slice(end + 1))) return undefined;
+	// Real inset UI frames carry zero-width metadata. Unmarked box-drawing
+	// characters inside code are source text, not another selection scope.
+	if (plain.slice(0, start).includes("│") && !line.includes("\x1b_open-tui:nested-frame\x07")) return undefined;
+	if (!top && !/^─*$/.test(plain.slice(start + 1, end))) return undefined;
+	return { left: visibleWidth(plain.slice(0, start)), right: visibleWidth(plain.slice(0, end)) };
 }
 
 function isCodeFrameTopBorder(line: string): boolean {
-	const trimmed = stripTerminalSequences(line).trim();
-	return trimmed.startsWith("╭─") && trimmed.endsWith("╮");
+	return codeFrameBorder(line, true) !== undefined;
 }
 
 function isCodeFrameBottomBorder(line: string): boolean {
-	const trimmed = stripTerminalSequences(line).trim();
-	return trimmed.length >= 2 && trimmed.startsWith("╰") && trimmed.endsWith("╯") && [...trimmed.slice(1, -1)].every((c) => c === "─");
+	return codeFrameBorder(line, false) !== undefined;
 }
 
-function getCodeFrameRowBounds(line: string): CodeFrameRowBounds | undefined {
+function getCodeFrameRowBounds(line: string, frame: Pick<CodeFrameBlock, "left" | "right">): CodeFrameRowBounds | undefined {
 	const plain = stripTerminalSequences(line);
-	const trimmed = plain.trim();
-	if (!trimmed.startsWith("│") || !trimmed.endsWith("│")) return undefined;
-	let firstBorder = -1;
-	let lastBorder = -1;
-	let column = 0;
-	for (const character of plain) {
-		if (character === "│") {
-			if (firstBorder < 0) firstBorder = column;
-			lastBorder = column;
-		}
-		column += visibleWidth(character);
-	}
-	if (firstBorder < 0 || lastBorder <= firstBorder) return undefined;
-	let contentStart = firstBorder + 1;
-	let contentEnd = lastBorder;
+	if (sliceByColumn(plain, frame.left, 1, true) !== "│" || sliceByColumn(plain, frame.right, 1, true) !== "│") return undefined;
+	let contentStart = frame.left + 1;
+	let contentEnd = frame.right;
 	if (sliceByColumn(plain, contentStart, 1, true) === " ") contentStart += 1;
 	if (contentEnd > contentStart && sliceByColumn(plain, contentEnd - 1, 1, true) === " ") contentEnd -= 1;
 	let trimmedEnd = contentEnd;
-	while (trimmedEnd > contentStart && sliceByColumn(plain, trimmedEnd - 1, 1, true) === " ") {
-		trimmedEnd -= 1;
-	}
+	while (trimmedEnd > contentStart && sliceByColumn(plain, trimmedEnd - 1, 1, true) === " ") trimmedEnd--;
 	return { contentStart, contentEnd, trimmedEnd };
 }
 
-function parseCodeFrameBlocks(plainLines: readonly string[]): CodeFrameBlock[] {
+export function parseCodeFrameBlocks(plainLines: readonly string[]): CodeFrameBlock[] {
 	const blocks: CodeFrameBlock[] = [];
-	let startRow: number | undefined;
-	let bodyStartRow: number | undefined;
-	let bodyEndRow: number | undefined;
-
-	for (let row = 0; row < plainLines.length; row += 1) {
+	const stack: Array<Omit<CodeFrameBlock, "endRow" | "bodyStartRow" | "bodyEndRow"> & { bodyStartRow?: number; bodyEndRow?: number }> = [];
+	const finish = (endRow: number) => {
+		const frame = stack.pop();
+		if (frame && frame.bodyStartRow !== undefined && frame.bodyEndRow !== undefined) blocks.push({ ...frame, bodyStartRow: frame.bodyStartRow, bodyEndRow: frame.bodyEndRow, endRow });
+	};
+	for (let row = 0; row < plainLines.length; row++) {
 		const line = plainLines[row] ?? "";
-		if (isCodeFrameTopBorder(line)) {
-			if (startRow !== undefined && bodyStartRow !== undefined && bodyEndRow !== undefined) {
-				blocks.push({ startRow, endRow: bodyEndRow, bodyStartRow, bodyEndRow });
-			}
-			startRow = row;
-			bodyStartRow = undefined;
-			bodyEndRow = undefined;
+		// Outer frames continue across nested headers/borders, but every child
+		// retains its own columns rather than using the outermost │ characters.
+		for (const frame of stack) if (getCodeFrameRowBounds(line, frame)) {
+			frame.bodyStartRow ??= row;
+			frame.bodyEndRow = row;
+		}
+		const top = codeFrameBorder(line, true);
+		if (top) {
+			while (stack.length && !(top.left > stack[stack.length - 1]!.left && top.right < stack[stack.length - 1]!.right)) finish(row - 1);
+			stack.push({ ...top, startRow: row });
 			continue;
 		}
-		if (startRow !== undefined && isCodeFrameBottomBorder(line)) {
-			if (bodyStartRow !== undefined && bodyEndRow !== undefined) {
-				blocks.push({ startRow, endRow: row, bodyStartRow, bodyEndRow });
-			}
-			startRow = undefined;
-			bodyStartRow = undefined;
-			bodyEndRow = undefined;
+		const bottom = codeFrameBorder(line, false);
+		if (bottom) {
+			const index = stack.findLastIndex((frame) => frame.left === bottom.left && frame.right === bottom.right);
+			if (index >= 0) while (stack.length > index) finish(row);
 			continue;
 		}
-		if (startRow !== undefined && getCodeFrameRowBounds(line)) {
-			bodyStartRow ??= row;
-			bodyEndRow = row;
-			continue;
-		}
-		if (startRow !== undefined) {
-			if (bodyStartRow !== undefined && bodyEndRow !== undefined) {
-				blocks.push({ startRow, endRow: bodyEndRow, bodyStartRow, bodyEndRow });
-			}
-			startRow = undefined;
-			bodyStartRow = undefined;
-			bodyEndRow = undefined;
-		}
+		while (stack.length && !getCodeFrameRowBounds(line, stack[stack.length - 1]!)) finish(stack[stack.length - 1]!.bodyEndRow ?? row - 1);
 	}
-	if (startRow !== undefined && bodyStartRow !== undefined && bodyEndRow !== undefined) {
-		blocks.push({ startRow, endRow: bodyEndRow, bodyStartRow, bodyEndRow });
-	}
+	while (stack.length) finish(stack[stack.length - 1]!.bodyEndRow ?? plainLines.length - 1);
 	return blocks;
 }
 
-function getCodeFrameSelectionText(
+function codeFrameAtPoint(frames: CodeFrameBlock[], point: { row: number; col: number }): CodeFrameBlock | undefined {
+	return frames.filter((frame) => point.row >= frame.startRow && point.row <= frame.endRow && point.col >= frame.left && point.col <= frame.right)
+		.sort((a, b) => (a.right - a.left) - (b.right - b.left))[0];
+}
+
+export function getCodeFrameSelectionText(
 	internals: AltScreenInternals,
 	selection: SelectionLike,
 	sourceLines: readonly string[],
 ): string | undefined {
-	const startRaw = sourceLines[selection.start.row] ?? "";
-	const endRaw = sourceLines[selection.end.row] ?? "";
-	if (
-		(!isCodeFrameTopBorder(startRaw) && !getCodeFrameRowBounds(startRaw)) ||
-		(!isCodeFrameBottomBorder(endRaw) && !getCodeFrameRowBounds(endRaw))
-	) {
-		return undefined;
-	}
-	let topRow = selection.start.row;
-	while (topRow > 0 && !isCodeFrameTopBorder(sourceLines[topRow] ?? "") && getCodeFrameRowBounds(sourceLines[topRow] ?? "")) {
-		topRow--;
-	}
-	if (!isCodeFrameTopBorder(sourceLines[topRow] ?? "")) return undefined;
-	let bodyEndRow = topRow;
-	let bottomRow = topRow;
-	for (let r = topRow + 1; r < sourceLines.length; r++) {
-		const line = sourceLines[r] ?? "";
-		if (getCodeFrameRowBounds(line)) {
-			bodyEndRow = r;
-			bottomRow = r;
-			continue;
-		}
-		if (isCodeFrameBottomBorder(line)) {
-			bottomRow = r;
-		}
-		break;
-	}
-	if (bodyEndRow <= topRow || selection.end.row > bottomRow) return undefined;
-	const firstRow = Math.max(selection.start.row, topRow + 1);
-	const lastRow = Math.min(selection.end.row, bodyEndRow);
-	if (lastRow < firstRow) return undefined;
+	const anchor = getAnchor(internals);
+	const point = anchor && anchor.scrollView === selection.start.scrollView ? anchor : selection.start;
+	const frame = codeFrameAtPoint(parseCodeFrameBlocks(sourceLines), point);
+	if (!frame) return undefined;
+	const firstRow = Math.max(selection.start.row, frame.bodyStartRow);
+	const lastRow = Math.min(selection.end.row, frame.bodyEndRow);
+	if (lastRow < firstRow) return "";
 	const out: string[] = [];
 	for (let row = firstRow; row <= lastRow; row += 1) {
 		const rawLine = sourceLines[row] ?? "";
-		const bounds = getCodeFrameRowBounds(rawLine);
+		const bounds = getCodeFrameRowBounds(rawLine, frame);
 		if (!bounds) continue;
 		const plain = stripTerminalSequences(rawLine);
 		const columns = internals.getSelectionColumns(rawLine, row, selection);
@@ -866,28 +832,27 @@ function getCodeFrameSelectionText(
 		out.push(end > start ? sliceByColumn(plain, start, end - start, true) : "");
 	}
 	const joined = out.join("\n");
-	return joined.trim().length > 0 ? joined : undefined;
+	return joined;
 }
 
-function getCodeFrameHighlightSegments(
+export function getCodeFrameHighlightSegments(
 	internals: AltScreenInternals,
 	screen: string[],
 	selection: SelectionLike,
 	minColumn: number,
 	maxColumn: number,
+	frameHint?: CodeFrameBlock,
+	anchor: { row: number; col: number } = selection.start,
 ): { segments: Map<number, Array<{ start: number; end: number }>>; lastBodyRow: number; highlightEnd: number } | undefined {
 	const plainLines = screen.map((line) => stripTerminalSequences(line));
-	const frame = parseCodeFrameBlocks(plainLines).find(
-		(candidate) => selection.start.row >= candidate.startRow && selection.end.row <= candidate.endRow,
-	);
+	const frame = frameHint ?? codeFrameAtPoint(parseCodeFrameBlocks(screen), anchor);
 	if (!frame) return undefined;
 	const firstRow = Math.max(selection.start.row, frame.bodyStartRow);
 	const lastRow = Math.min(selection.end.row, frame.bodyEndRow);
-	if (lastRow < firstRow) return undefined;
 	const segments = new Map<number, Array<{ start: number; end: number }>>();
 	let highlightEnd = selection.end.col + (selection.end.boundary ? 0 : 1);
 	for (let row = firstRow; row <= lastRow; row += 1) {
-		const bounds = getCodeFrameRowBounds(plainLines[row] ?? "");
+		const bounds = getCodeFrameRowBounds(plainLines[row] ?? "", frame);
 		if (!bounds) continue;
 		const columns = internals.getSelectionColumns(screen[row] ?? "", row, selection, minColumn, maxColumn);
 		const start = Math.max(columns.start, bounds.contentStart);
@@ -895,7 +860,7 @@ function getCodeFrameHighlightSegments(
 		segments.set(row, end > start ? [{ start, end }] : []);
 		if (row === lastRow && end > start) highlightEnd = end;
 	}
-	return { segments, lastBodyRow: lastRow, highlightEnd };
+	return { segments, lastBodyRow: Math.max(firstRow, lastRow), highlightEnd };
 }
 
 // ---------------------------------------------------------------------------
@@ -1142,19 +1107,18 @@ function getSourceLineAt(internals: AltScreenInternals, point: SelectionPointLik
 	return lines[point.row] ?? "";
 }
 
+export function getCodeFrameForPoint(internals: AltScreenInternals, point: SelectionPointLike): CodeFrameBlock | undefined {
+	const lines = point.scrollView ? getSourceLinesForPoint(internals, point) : internals.previousScreen;
+	return codeFrameAtPoint(parseCodeFrameBlocks(lines), point);
+}
+
 function getCodeFrameBodyBoundsAtRow(
 	internals: AltScreenInternals,
 	point: SelectionPointLike,
 ): CodeFrameRowBounds | undefined {
-	const lines = getSourceLinesForPoint(internals, point);
-	const rowBounds = getCodeFrameRowBounds(lines[point.row] ?? "");
-	if (!rowBounds) return undefined;
-	for (let r = point.row - 1; r >= 0; r--) {
-		const line = lines[r] ?? "";
-		if (isCodeFrameTopBorder(line)) return rowBounds;
-		if (!getCodeFrameRowBounds(line)) return undefined;
-	}
-	return undefined;
+	const lines = point.scrollView ? getSourceLinesForPoint(internals, point) : internals.previousScreen;
+	const frame = getCodeFrameForPoint(internals, point);
+	return frame ? getCodeFrameRowBounds(lines[point.row] ?? "", frame) : undefined;
 }
 
 function getLineContentBounds(
@@ -2819,6 +2783,9 @@ function patchedApplySelection(this: AltScreenInternals, screen: string[], layou
 	let maxRow = screen.length - 1;
 	let minColumn = 0;
 	let maxColumn = internals.terminal.columns;
+	const rawAnchor = getAnchor(internals);
+	const sourceAnchor = rawAnchor && rawAnchor.scrollView === selection.start.scrollView ? rawAnchor : selection.start;
+	let frameHint = getCodeFrameForPoint(internals, sourceAnchor);
 	if (selection.start.scrollView) {
 		const frame = layout ?? internals.currentLayout;
 		const box = frame ? findScrollViewBox(frame.root, selection.start.scrollView) : undefined;
@@ -2827,6 +2794,12 @@ function patchedApplySelection(this: AltScreenInternals, screen: string[], layou
 		maxRow = Math.min(screen.length - 1, box.rect.y + box.rect.height - 1, box.clip.y + box.clip.height - 1);
 		minColumn = Math.max(0, box.rect.x, box.clip.x);
 		maxColumn = Math.min(internals.terminal.columns, box.rect.x + box.rect.width, box.clip.x + box.clip.width);
+		if (frameHint) {
+			const y = box.rect.y - selection.start.scrollView.scrollTop;
+			frameHint = { ...frameHint, startRow: frameHint.startRow + y, endRow: frameHint.endRow + y,
+				bodyStartRow: frameHint.bodyStartRow + y, bodyEndRow: frameHint.bodyEndRow + y,
+				left: frameHint.left + box.rect.x, right: frameHint.right + box.rect.x };
+		}
 		screenSelection = {
 			start: {
 				...selection.start,
@@ -2843,7 +2816,7 @@ function patchedApplySelection(this: AltScreenInternals, screen: string[], layou
 
 	// Framed code blocks (`╭─ lang ─── [Copy] ╮` ... `╰───╯`) highlight only
 	// the inner code lines and never their borders or padding.
-	const codeFrameHighlight = getCodeFrameHighlightSegments(internals, screen, screenSelection, minColumn, maxColumn);
+	const codeFrameHighlight = getCodeFrameHighlightSegments(internals, screen, screenSelection, minColumn, maxColumn, frameHint);
 	const tableSegments = codeFrameHighlight ? undefined : getTableHighlightSegments(screen, screenSelection);
 	let singleCellIndex: number | undefined;
 	const startCells = codeFrameHighlight ? undefined : getTableRowCells(screen[screenSelection.start.row] ?? "");

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { codemodeCalls, codemodeOutput, visibleCodemodeCalls } from "../extensions/open-tui/codemode-view.ts";
+import { nestedOutputs } from "../extensions/open-tui/nested-output.ts";
 import { visibleWidth, highlightRequests } from "./open-tui-tool-host.ts";
 
 const temp = mkdtempSync(join(tmpdir(), "open-tui-codemode-test-"));
@@ -31,7 +32,7 @@ const source = (await build.outputs[0].text())
 const modulePath = join(temp, "tool-view.mjs");
 writeFileSync(modulePath, source);
 const { createCompactRenderers, registerToolView, registerRoundedTools, nestedToolBlocks, highlightedSource, nestedSources } = await import(pathToFileURL(modulePath).href);
-const theme = { colors: {}, fg: (_color: string, text: string) => text, bg: (_color: string, text: string) => text, bold: (text: string) => text };
+const theme = { colors: {}, appearance: "dark", getColorMode: () => "truecolor", fg: (_color: string, text: string) => text, bg: (_color: string, text: string) => text, bold: (text: string) => text };
 const icons = () => ({ toolCall: "●", toolResult: "└" });
 const args = { code: 'const r = await tools.read({path: "src/a.ts"});\nreturn r;' };
 const context = (extra = {}) => ({ state: {}, toolCallId: "parent", cwd: "/project", outputPad: 2, args, expanded: false, executionStarted: false, isPartial: false, isError: false, invalidate() {}, ...extra });
@@ -92,6 +93,45 @@ describe("open-tui codemode groups", () => {
 		const refreshed = r.renderResult(value, { isPartial: false }, theme, ctx).render(100).join("\n");
 		expect(refreshed).toContain("▼ Read");
 		expect(highlightRequests.some((request) => request.language === "typescript")).toBe(true);
+	});
+	test("collapsed nested Edit blocks display the native numbered diff preview", () => {
+		const call = { id: "edit-1", name: "edit", args: { path: "src/a.ts", edits: [{ oldText: "const answer = 1;", newText: "const answer = 42;" }] }, status: "ok" };
+		const blocks = nestedToolBlocks({ calls: [call], outputs: [{ id: "edit-1", text: "Edited", diff: "-4 const answer = 1;\n+4 const answer = 42;", images: 0, truncated: false, isError: false }], expanded: false, overrides: new Map(), theme, heading: () => "Edit(src/a.ts)", invalidate() {} });
+		const lines = blocks.render(100).join("\n");
+		expect(lines).toContain("▶ Edit");
+		expect(lines).toContain("Changes");
+		expect(lines).toContain("-4 const answer = 1;");
+		expect(lines).toContain("+4 const answer = 42;");
+	});
+	test("historical Edit calls without diff snapshots show requested changes without fake file line numbers", () => {
+		const call = { id: "edit-old", name: "edit", args: { path: "script.py", edits: [{ oldText: "print(1)", newText: "print(42)" }] }, status: "ok" };
+		const blocks = nestedToolBlocks({ calls: [call], outputs: [], expanded: false, overrides: new Map(), theme, heading: () => "Edit", invalidate() {} });
+		const lines = blocks.render(80).join("\n");
+		expect(lines).toContain("Requested changes");
+		expect(lines).toContain("- print(1)");
+		expect(lines).toContain("+ print(42)");
+		expect(lines).not.toContain("-1 print");
+	});
+	test("truncated native diffs keep complete preview rows", () => {
+		const call = { id: "edit-cut", name: "edit", args: { path: "a.ts" }, status: "ok" };
+		const outputs = nestedOutputs({ openTuiNestedOutputs: [{ id: "edit-cut", text: "Edited", diff: "-4 const a = 1;\n+4 const a = 42;\n+123", diffTruncated: true }] });
+		const blocks = nestedToolBlocks({ calls: [call], outputs, expanded: false, overrides: new Map(), theme, heading: () => "Edit", invalidate() {} });
+		const lines = blocks.render(80).join("\n");
+		expect(lines).toContain("-4 const a = 1;");
+		expect(lines).toContain("+4 const a = 42;");
+		expect(lines).toContain("diff snapshot truncated");
+	});
+	test("requested previews clearly mark omitted lines and characters", () => {
+		for (const oldText of ["old", "x".repeat(20_000)]) {
+			const call = { name: "edit", args: { oldText, newText: "new\n".repeat(100) }, status: "ok" };
+			const blocks = nestedToolBlocks({ calls: [call], outputs: [], expanded: false, overrides: new Map(), theme, heading: () => "Edit", invalidate() {} });
+			expect(blocks.render(80).join("\n")).toContain("requested diff preview truncated");
+		}
+	});
+	test("failed Edit calls do not claim an applied diff preview", () => {
+		const call = { id: "edit-failed", name: "edit", args: { oldText: "old", newText: "new" }, status: "error" };
+		const blocks = nestedToolBlocks({ calls: [call], outputs: [], expanded: false, overrides: new Map(), theme, heading: () => "Edit", invalidate() {} });
+		expect(blocks.render(80).join("\n")).not.toContain("Requested changes");
 	});
 	test("UI snapshots are attached to parent details without altering model output", () => {
 		const handlers = new Map<string, Function[]>();

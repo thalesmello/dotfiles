@@ -41,14 +41,22 @@ visible even when the script succeeds. Large groups show an expansion hint;
 Click a nested block to expand or collapse only that call. Ctrl+O expands the
 parent script and all nested calls; individual clicks can override those states.
 Source and command previews are syntax-highlighted, including embedded inline
-scripts and heredoc bodies.
+scripts and heredoc bodies. In fullscreen mode, selecting text inside a nested
+card is confined to that card's body and omits both its own borders and the
+outer codemode frame—even when the pointer is dragged beyond the card.
+
+Successful nested Edit calls show a colored diff preview inside the card while
+collapsed, matching the normal Edit renderer. Native diffs retain actual file
+line numbers. Older calls without a saved diff show the requested old/new
+changes without inventing file line numbers; failed edits do not claim applied
+changes.
 
 This works without enabling generic extension-tool rendering. Native tool-view
 mode, explicit tool exclusions, custom codemode overrides, and Zen rendering
 retain their existing behavior. Execution, permission hooks, and model-visible
 tool content are unchanged. Bounded child-output snapshots are saved as UI-only
-parent result metadata: up to 64 child calls, 8KiB UTF-8 text per child, and 64KiB
-text per script (plus metadata overhead). Image bytes are not duplicated. Older
+parent result metadata: up to 64 child calls, 8KiB UTF-8 text plus edit diffs per
+child, and 64KiB content per script (plus metadata overhead). Image bytes are not duplicated. Older
 sessions without snapshots show the arguments and explain that nested output
 was not recorded; the parent script output remains available.
 
@@ -65,7 +73,8 @@ Tests:
 bun test stow_modules/main/dot-pi/agent/tests/codemode*.test.ts
 bun test stow_modules/main/dot-pi/agent/tests/open-tui-codemode.test.ts \
   stow_modules/main/dot-pi/agent/tests/script-language.test.ts \
-  stow_modules/main/dot-pi/agent/tests/nested-output.test.ts
+  stow_modules/main/dot-pi/agent/tests/nested-output.test.ts \
+  stow_modules/main/dot-pi/agent/tests/nested-block-selection.test.ts
 ```
 
 Rebuild the loaded Open-TUI bundle after source changes:

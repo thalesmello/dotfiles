@@ -136,7 +136,7 @@ function withBands(code: string, spans: Span[], base: string, word: string): str
 	return output;
 }
 
-export function prepareToolPreview(kind: "edit" | "write", source: string, path: string, theme: Theme): (width: number, indent: string) => string[] {
+export function prepareToolPreview(kind: "edit" | "write", source: string, path: string, theme: Theme, options: { showLineNumbers?: boolean; expandHint?: boolean } = {}): (width: number, indent: string) => string[] {
 	const rows: PreviewLine[] = kind === "edit" ? parseDiff(source) : codeLines(source)
 		.map((text, index) => ({ kind: " ", number: String(index + 1), text }));
 	const shown = Math.min(rows.length, MAX_PREVIEW_LINES);
@@ -149,7 +149,7 @@ export function prepareToolPreview(kind: "edit" | "write", source: string, path:
 		: { "+": [[26, 55, 40], [32, 96, 59]], "-": [[70, 30, 32], [124, 42, 48]] };
 	const prepared = preview.map((line) => {
 		const marker = kind === "edit" ? (line.kind === "gap" ? " " : line.kind) : "";
-		const prefix = `${marker}${line.number.padStart(digits)} `;
+		const prefix = options.showLineNumbers === false ? `${marker} ` : `${marker}${line.number.padStart(digits)} `;
 		const code = theme.fg("dim", prefix) + (line.highlighted ?? theme.fg("dim", line.text));
 		if (line.kind !== "+" && line.kind !== "-") return { code };
 		const [normal, strong] = palette[line.kind].map(([r, g, b]) => backgroundAnsi(rgbColor(r!, g!, b!), theme.getColorMode()));
@@ -167,7 +167,7 @@ export function prepareToolPreview(kind: "edit" | "write", source: string, path:
 				? clipped + band + " ".repeat(Math.max(0, columns - visibleWidth(clipped))) + "\x1b[49m"
 				: clipped);
 		});
-		if (hidden > 0) result.push(pad + theme.fg("dim", truncateToWidth(`… +${hidden} lines (ctrl+o to expand)`, available, "…")));
+		if (hidden > 0) result.push(pad + theme.fg("dim", truncateToWidth(`… +${hidden} lines${options.expandHint === false ? "" : " (ctrl+o to expand)"}`, available, "…")));
 		return result;
 	};
 }
