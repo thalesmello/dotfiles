@@ -1,6 +1,7 @@
 {
   "tui.editor.undo": ["ctrl+_", "ctrl+shift+-"],
   "tui.input.newLine": ["shift+enter", "alt+enter"],
+  "tui.input.submit": ["enter", "ctrl+shift+enter"],
   "app.message.followUp": ["ctrl+alt+enter"],
   "app.model.select": ["alt+p", "ctrl+l"],
   "app.model.cycleForward": [],

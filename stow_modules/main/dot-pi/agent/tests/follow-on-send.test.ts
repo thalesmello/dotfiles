@@ -59,6 +59,7 @@ followOnSend(fakePi);
 
 const tuiCtx: any = {
 	mode: "tui",
+	isIdle: () => false,
 	ui: {
 		notify(message: string, type?: string) {
 			notifications.push({ message, type });
@@ -245,6 +246,131 @@ describe("findLastMessageStartRow", () => {
 			},
 		};
 		expect(findLastMessageStartRow(documentContainer)).toBe(43);
+	});
+});
+
+describe("idle Enter behavior", () => {
+	const idleCtx = { ...tuiCtx, isIdle: () => true };
+
+	test("pages repeatedly without clearing the draft, then submits on the next Enter at the bottom", async () => {
+		await emit("session_start", {}, idleCtx);
+		const view = startTranscript(100, 20);
+		view.scrollTo(40);
+		const editor = new FakeEditor();
+		editor.setText("unfinished prompt");
+		for (const expectedTop of [56, 72, 80]) {
+			editor.handleInput("\r");
+			expect(view.scrollTop).toBe(expectedTop);
+			expect(editor.getText()).toBe("unfinished prompt");
+		}
+		editor.handleInput("\r");
+		expect(editor.getText()).toBe("");
+		await emit("session_shutdown");
+	});
+
+	test("even one hidden line requires a separate Enter to submit", async () => {
+		await emit("session_start", {}, idleCtx);
+		const view = startTranscript(100, 20);
+		view.scrollBy(-1);
+		const editor = new FakeEditor();
+		editor.setText("draft");
+		editor.handleInput("\r");
+		expect(editor.getText()).toBe("draft");
+		expect(view.scrollTop).toBe(80);
+		editor.handleInput("\r");
+		expect(editor.getText()).toBe("");
+		await emit("session_shutdown");
+	});
+
+	test("protocol Enter presses page, but releases and newline bindings do not", async () => {
+		await emit("session_start", {}, idleCtx);
+		for (const key of ["\r", "\x1bOM", "\x1b[13~", "\x1b[13u", "\x1b[13;1u", "\x1b[13;1:1u", "\x1b[27;1;13~"]) {
+			const view = startTranscript(100, 20);
+			view.scrollTo(0);
+			const editor = new FakeEditor();
+			editor.setText("draft");
+			editor.handleInput(key);
+			expect(view.scrollTop).toBe(16);
+			expect(editor.getText()).toBe("draft");
+		}
+		for (const key of ["\n", "\x1b[13;1:3u", "\x1b[13;2u", "\x1b[13;3u"]) {
+			const view = startTranscript(100, 20);
+			view.scrollTo(0);
+			new FakeEditor().handleInput(key);
+			expect(view.scrollTop).toBe(0);
+		}
+		await emit("session_shutdown");
+	});
+
+	test("empty draft still pages and requests a render", async () => {
+		await emit("session_start", {}, idleCtx);
+		let renders = 0;
+		const view = startTranscript(100, 20);
+		view.scrollTo(0);
+		const editor = new FakeEditor({ requestRender: () => { renders++; } });
+		editor.handleInput("\r");
+		expect(view.scrollTop).toBe(16);
+		expect(editor.getText()).toBe("");
+		expect(renders).toBe(1);
+		await emit("session_shutdown");
+	});
+
+	test("Ctrl+Shift+Enter submits directly from anywhere in both supported encodings", async () => {
+		await emit("session_start", {}, idleCtx);
+		for (const key of ["\x1b[13;6u", "\x1b[27;6;13~"]) {
+			const view = startTranscript(100, 20);
+			view.scrollTo(0);
+			const editor = new FakeEditor();
+			editor.setText("send now");
+			editor.handleInput(key);
+			expect(editor.getText()).toBe("");
+			expect(view.scrollTop).toBe(0);
+		}
+		const bindings = JSON.parse(fs.readFileSync(join(import.meta.dir, "../keybindings.json"), "utf8"));
+		expect(bindings["tui.input.submit"]).toEqual(["enter", "ctrl+shift+enter"]);
+		await emit("session_shutdown");
+	});
+
+	test("reads live idle state so working Enter is immediately sent, not paged", async () => {
+		let idle = true;
+		await emit("session_start", {}, { ...idleCtx, isIdle: () => idle });
+		const view = startTranscript(100, 20);
+		view.scrollTo(0);
+		const editor = new FakeEditor();
+		editor.setText("steer");
+		idle = false;
+		editor.handleInput("\r");
+		expect(editor.getText()).toBe("");
+		expect(view.scrollTop).toBe(0);
+		idle = true;
+		editor.setText("next draft");
+		editor.handleInput("\r");
+		expect(editor.getText()).toBe("next draft");
+		expect(view.scrollTop).toBe(16);
+		await emit("session_shutdown");
+	});
+
+	test("overlays and autocomplete retain Enter; no transcript or a fitting transcript submits normally", async () => {
+		await emit("session_start", {}, idleCtx);
+		const noTranscript = new FakeEditor();
+		noTranscript.setText("draft");
+		noTranscript.handleInput("\r");
+		expect(noTranscript.getText()).toBe("");
+		const view = startTranscript(100, 20);
+		view.scrollTo(0);
+		for (const editor of [new FakeEditor({ hasOverlay: () => true }), new FakeEditor()]) {
+			if (!editor.tui) (editor as any).autocompleteState = { active: true };
+			editor.setText("draft");
+			editor.handleInput("\r");
+			expect(editor.getText()).toBe(""); // delegated to the host's base editor
+			expect(view.scrollTop).toBe(0);
+		}
+		startTranscript(10, 20);
+		const fitting = new FakeEditor();
+		fitting.setText("draft");
+		fitting.handleInput("\r");
+		expect(fitting.getText()).toBe("");
+		await emit("session_shutdown");
 	});
 });
 

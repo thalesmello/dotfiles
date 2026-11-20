@@ -9,6 +9,14 @@
  * This file is not a test and pi never loads it; the test redirects the
  * extension's "@earendil-works/pi-tui" import here.
  */
+// Minimal key matcher for the protocol sequences exercised by this host.
+export function matchesKey(data: string, key: string): boolean {
+	return key === "enter" && (
+		data === "\r" || data === "\x1bOM" || data === "\x1b[13~" ||
+		/^\x1b\[13(?:;1(?::[12])?)?u$/.test(data) || data === "\x1b[27;1;13~"
+	);
+}
+
 export class FakeScrollView {
 	readonly child: unknown;
 	readonly followEnd: boolean;
@@ -201,7 +209,7 @@ export class FakeEditor {
 	}
 
 	handleInput(data: string): void {
-		if (data === "\r" || data === "\n") {
+		if (data === "\r" || data === "\n" || data === "\x1b[13;6u" || data === "\x1b[27;6;13~") {
 			this.setText("");
 			return;
 		}

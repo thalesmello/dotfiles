@@ -15,10 +15,12 @@
  *   records the primary follow-end view (the transcript) and its last content
  *   and viewport heights, then calls the original method. It never moves the
  *   view, so manual scrolling and typing keep the current scroll position.
- * - `Editor.prototype.handleInput` runs when typing or submitting in the
- *   prompt editor. Only when hitting submit (Enter) clears a non-empty prompt
- *   (and no overlay is open) does it snap the transcript back to the end if
- *   the scroll view is close enough to the tail of the conversation.
+ * - `Editor.prototype.handleInput` pages down instead of submitting on plain
+ *   Enter while idle and scrolled above the transcript end, preserving the
+ *   draft. At the bottom, while working, or with Ctrl+Shift+Enter (bound to
+ *   submit in keybindings.json), submission goes through the normal editor
+ *   path. Overlays and autocomplete retain their own Enter behavior.
+ *   Successful submissions snap to the end when near the tail.
  *
  * On prompt submit (`Editor.handleInput` on Enter, `input` event, and
  * `user_bash` `!` command), the extension checks the recorded view: when the
@@ -33,7 +35,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Editor, ScrollView } from "@earendil-works/pi-tui";
+import { Editor, ScrollView, matchesKey } from "@earendil-works/pi-tui";
 
 /** Minimum lines hidden below the viewport that still count as near the end. */
 export const NEAR_END_LINES = 10;
@@ -408,6 +410,7 @@ let installed = false;
 let restorePatches: Array<() => void> = [];
 let transcriptView: WeakRef<TranscriptViewLike> | undefined;
 let transcriptMetrics: TranscriptMetrics | undefined;
+let isSessionIdle: (() => boolean) | undefined;
 let collapseLinesAtLastLayout = 0;
 const activeEditorRenders = new WeakSet<object>();
 
@@ -846,6 +849,22 @@ function createPatchedHandleInput(originalHandleInput: HandleInputFn, isActive: 
 			originalHandleInput.call(this, data);
 			return;
 		}
+		// Intercept before the editor clears text, resolves pasted blocks, or
+		// submits attachments. Only plain Enter is guarded; newline and force-
+		// submit bindings still use the normal editor path. Fail open if the
+		// transcript or session state is unavailable.
+		if (
+			matchesKey(data, "enter") && isSessionIdle?.() &&
+			!this.tui?.hasOverlay?.() && !this.autocompleteState
+		) {
+			const view = transcriptView?.deref() ?? this.tui?.getPrimaryScrollView?.();
+			if (view?.primary && view.followEnd && view.scrollBy && getHiddenLinesBelow(view) > 0) {
+				const height = view.viewportHeight ?? transcriptMetrics?.viewportHeight ?? 1;
+				view.scrollBy(Math.max(1, height - 4));
+				this.tui?.requestRender?.();
+				return;
+			}
+		}
 		const editorState = getEditorScrollState(this);
 		editorState.manualScrollOffset = undefined;
 		const beforeText = typeof this.getText === "function" ? this.getText() : undefined;
@@ -938,6 +957,7 @@ function uninstallFollowOnSend(): void {
 	}
 	transcriptView = undefined;
 	transcriptMetrics = undefined;
+	isSessionIdle = undefined;
 	collapseLinesAtLastLayout = 0;
 	const store = getScrollCollapseStore();
 	store.collapseLines = 0;
@@ -950,6 +970,7 @@ export default function followOnSendExtension(pi: ExtensionAPI): void {
 		if (!installFollowOnSend()) {
 			ctx.ui.notify("follow-on-send: transcript scroll internals not found; extension inactive", "warning");
 		}
+		isSessionIdle = () => ctx.isIdle();
 	});
 
 	// A new user message: follow the output it is about to produce when the
@@ -980,7 +1001,7 @@ export default function followOnSendExtension(pi: ExtensionAPI): void {
 		handler: async (_args, ctx) => {
 			ctx.ui.notify(
 				installed
-					? `follow-on-send: active (submitting snaps to the end when near the tail of the conversation)`
+					? `follow-on-send: active (idle Enter pages down until the bottom; Ctrl+Shift+Enter or working Enter submits directly)`
 					: "follow-on-send: inactive (patch not installed)",
 				installed ? "info" : "warning",
 			);
