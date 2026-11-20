@@ -481,14 +481,13 @@ description = "close: forward to nvim or close tab"
 # in, so repeated presses cycle through the queue. A fish port of the
 # herdr-attention plugin (github.com/milkyskies/herdr-attention), kept as a
 # script so it needs no plugin install and no node.
-# When nothing needs attention it falls through to the forward half of the focus
-# jumplist below -- prefix+tab IS ctrl+i, so back/forward land on the same pair
-# of keys vim uses.
+# When no other agent needs attention, focus the first idle conversation in
+# smart-priority order. With no idle conversations, use forward focus history.
 [[keys.command]]
 key = "prefix+tab"
 type = "shell"
 command = "~/.config/herdr/scripts/attention-jump.fish"
-description = "next agent needing attention (else forward in focus history)"
+description = "next agent needing attention (else first idle conversation, then forward history)"
 
 # prefix+shift+tab / prefix+ctrl+o: go back to the terminal focused before this
 # one; repeat to keep walking back. herdr has no last-pane API, so the trail is

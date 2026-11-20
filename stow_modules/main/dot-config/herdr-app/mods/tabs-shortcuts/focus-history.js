@@ -440,7 +440,7 @@ export class FocusHistoryController {
       const pKey = targetObj.key;
       if (isSnoozed(a, pKey)) continue;
       const status = a.status === "error" ? "blocked" : a.status;
-      if (status !== "blocked" && status !== "done") continue;
+      if (status !== "blocked" && status !== "done" && status !== "idle") continue;
       const since = changed[a.address]?.at ?? 0;
       const seq = a.seq ?? 0;
       candidates.push({
@@ -458,16 +458,24 @@ export class FocusHistoryController {
 
     candidates.sort((x, y) => {
       if (x.pinned !== y.pinned) return x.pinned ? -1 : 1;
-      if (x.status !== y.status) return x.status === "blocked" ? -1 : 1;
+      if (x.status !== y.status) return ({ blocked: 0, done: 1, idle: 2 }[x.status] - { blocked: 0, done: 1, idle: 2 }[y.status]);
       if (y.since !== x.since) return y.since - x.since;
       if (y.seq !== x.seq) return y.seq - x.seq;
       return x.index - y.index;
     });
 
-    const focIdx = candidates.findIndex((c) => c.focused);
+    const attention = candidates.filter((c) => c.status !== "idle");
+    const focIdx = attention.findIndex((c) => c.focused);
     const rotated =
-      focIdx >= 0 ? [...candidates.slice(focIdx + 1), ...candidates.slice(0, focIdx)] : candidates;
-    const picked = rotated.filter((c) => !c.focused);
+      focIdx >= 0 ? [...attention.slice(focIdx + 1), ...attention.slice(0, focIdx)] : attention;
+    let picked = rotated.filter((c) => !c.focused);
+    // With no other attention target, land on the first idle conversation in
+    // priority order. Do not rotate idle chats or bounce away if already there.
+    if (picked.length === 0) {
+      const idle = candidates.find((c) => c.status === "idle");
+      if (idle?.focused) return true;
+      if (idle) picked = [idle];
+    }
 
     if (picked.length === 0) {
       return this.focusJumplist("forward", now, allSpaces, allPanes, foc, currentPane);

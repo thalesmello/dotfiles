@@ -1,10 +1,10 @@
 #!/usr/bin/env fish
 # prefix+tab: focus the next agent that needs attention -- and when nothing
-# needs attention, step forward through the focus history instead (the other
-# half of prefix+shift+tab / prefix+ctrl+o; see focus-jumplist.fish).
+# needs attention, focus the first idle conversation. Only with no idle chats
+# does it step forward through focus history (see focus-jumplist.fish).
 #
 # A fish port of the herdr-attention plugin (https://github.com/milkyskies/
-# herdr-attention, MIT), plus that forward-history fallback.
+# herdr-attention, MIT), plus idle-conversation and forward-history fallbacks.
 #
 # Priority matches the Agents panel's "smart priority" order (see VIEW_SORT in
 # agent-handler.py): snoozed agents (`herdr_snooze`) are skipped, pinned chats
@@ -41,30 +41,33 @@ end
 # pinned (`um_pin`), status (`blocked` before `done`), `state_change_seq`
 # descending, then `agent list` order (workspace / tab / pane). When the
 # focused agent is in the queue, rotate past it so repeated presses step
-# through every blocked/done agent in sidebar order.
+# through every blocked/done agent in sidebar order. Otherwise pick only the
+# first idle chat in that same order (even if already focused).
 set -l picked (printf '%s\n' $agents | jq -r '
   [ (.result // .).agents
     | to_entries[]
     | select(.value.pane_id != null)
     | select((.value.tokens.herdr_snooze // "") == "")
-    | select(.value.agent_status == "blocked" or .value.agent_status == "done") ]
+    | select(.value.agent_status == "blocked" or .value.agent_status == "done" or .value.agent_status == "idle") ]
   | sort_by(
       (if (.value.tokens.um_pin // "") != "" then 0 else 1 end),
-      (if .value.agent_status == "blocked" then 0 else 1 end),
+      (if .value.agent_status == "blocked" then 0 elif .value.agent_status == "done" then 1 else 2 end),
       -(.value.state_change_seq // 0),
       .key
     )
   | map(.value)
+  | . as $all
+  | map(select(.agent_status != "idle"))
   | (map(.focused == true) | index(true)) as $idx
   | if $idx != null then .[($idx + 1):] + .[:$idx] else . end
   | map(select(.focused != true))
+  | if length > 0 then . else ($all | map(select(.agent_status == "idle")) | .[:1]) end
   | select(length > 0)
   | "\(length)\n\(.[0].pane_id)\n\(.[0].agent // "agent") \(.[0].agent_status)"
 ')
 
 if test (count $picked) -lt 3
-    # Nothing is waiting on you, so the key means "forward" instead. With no
-    # walk in progress that just reports there is nowhere forward to go.
+    # No other attention target and no idle conversation: use forward history.
     set -l jumplist (status dirname)/focus-jumplist.fish
     exec $jumplist forward
 end
