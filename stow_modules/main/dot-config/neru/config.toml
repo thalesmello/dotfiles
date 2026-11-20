@@ -144,7 +144,7 @@ font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
 font_size = 12
 # Mouseless palette, in Neru's alpha-first #AARRGGBB format.
 # Recursive Grid uses one shared cell fill; this is a darker red variant.
-highlight_color = "#99180C10"      # near-black burgundy, 50% opacity
+highlight_color = "#7F180C10"      # near-black burgundy, 50% opacity
 text_color = "#FFFEFEFE"           # nearly-white labels
 # Current level only; next-level previews are disabled.
 sub_key_preview = false
@@ -335,8 +335,8 @@ max_label_length = 3
 font_family = "AtkinsonHyperlegibleMono-ExtraLight_Bold"
 font_size = 12
 # Standard Grid supports separate base and selected-cell fills.
-background_color = "#99180C10"
-matched_background_color = "#99180C10" # same fill as Recursive Grid
+background_color = "#7F180C10"
+matched_background_color = "#7F180C10" # same fill as Recursive Grid
 text_color = "#FFFEFEFE"
 matched_text_color = "#FFFEFEFE"
 border_color = "#00B87671"
