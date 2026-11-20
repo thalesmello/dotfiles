@@ -1,4 +1,8 @@
 /** Display-only showbreak, shared by the native selection editor and Open TUI. */
+// Pi auto-discovers top-level helpers as extensions. The editors install the
+// wrapper themselves; standalone loading only needs a valid no-op factory.
+export default function promptWrapExtension(): void {}
+
 const WRAPPED = Symbol.for("pi.prompt.showbreak");
 interface VisualLine { startCol: number }
 interface WrapEditor {
