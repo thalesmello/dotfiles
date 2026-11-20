@@ -348,7 +348,7 @@ class CoreTest(unittest.TestCase):
         self.assertEqual(sum(m == "terminal.run" for m, _ in self.core.calls), 1)
         self.assertEqual(sum(m == "doc.set" for m, _ in self.core.calls), 1)
 
-    def test_watcher_keeps_pending_resume_during_failed_adoption_and_retry(self):
+    def test_watcher_removes_active_pending_resume_and_retry_does_not_duplicate(self):
         self.resumable()
         self.core.failure = "doc.set"
         original = self.core.hc_rpc
@@ -360,18 +360,35 @@ class CoreTest(unittest.TestCase):
                 self.core.terms.append(launched)
                 hc.remember(launched, DOC)
                 hc.tick()
-                self.assertIn("/sessions/a.jsonl", hc.read_registry()["settled"])
+                self.assertNotIn("/sessions/a.jsonl", hc.read_registry()["settled"])
+                self.assertIn("entry", hc.read_registry()["pending"]["/sessions/a.jsonl"])
             return response
         with mock.patch.object(self.core, "hc_rpc", side_effect=run_with_events):
             with self.assertRaisesRegex(hc.CoreError, "adoption failed"):
                 hc.reopen("/sessions/a.jsonl", legacy.resume_command)
             hc.tick()
-            self.assertIn("/sessions/a.jsonl", hc.read_registry()["settled"])
+            self.assertNotIn("/sessions/a.jsonl", hc.read_registry()["settled"])
             self.core.failure = None
             self.assertEqual(hc.reopen("/sessions/a.jsonl", legacy.resume_command), "reopened in t2")
         self.assertEqual(sum(m == "terminal.run" for m, _ in self.core.calls), 1)
         self.assertEqual(hc.read_registry()["settled"], {})
         self.assertEqual(hc.read_registry()["pending"], {})
+
+    def test_restored_session_stays_out_while_active_and_settles_again_on_close(self):
+        self.resumable()
+        original_stamp = hc.read_registry()["settled"]["/sessions/a.jsonl"]["settled_at"]
+        hc.reopen("/sessions/a.jsonl", legacy.resume_command)
+        for status in ("working", "done", "blocked"):
+            self.core.terms[-1]["status"] = {"state": status}
+            hc.tick()
+            self.assertEqual(hc.read_registry()["settled"], {})
+        self.core.terms[-1]["state"] = "finished"
+        hc.tick()
+        entry = hc.read_registry()["settled"]["/sessions/a.jsonl"]
+        self.assertEqual(entry["terminal_id"], "t2")
+        self.assertGreater(entry["settled_at"], original_stamp)
+        hc.tick()
+        self.assertEqual(hc.read_registry()["settled"]["/sessions/a.jsonl"], entry)
 
     def test_pi_id_and_path_merge_and_resume_stays_out_of_archive(self):
         session_id = "6ce0a76d-34ac-4287-91b2-1e871f94ac8a"

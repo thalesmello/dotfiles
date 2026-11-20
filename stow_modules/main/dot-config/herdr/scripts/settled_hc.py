@@ -484,8 +484,12 @@ def capture(state, terminals, doc, now=None, reconcile=True):
             if terminal.get("state") == "live":
                 live.add(conv)
     for conv in live:
-        if conv not in state["pending"]:
-            state["settled"].pop(conv, None)
+        # Pending layout/focus work is not a settled conversation. Keep retry
+        # metadata separately so an active agent never remains in the archive.
+        pending = state["pending"].get(conv)
+        if pending is not None and conv in state["settled"]:
+            pending.setdefault("entry", copy.deepcopy(state["settled"][conv]))
+        state["settled"].pop(conv, None)
         state["forgotten"].pop(conv, None)  # a genuine live reopen starts a new lifecycle
     if reconcile:
         for conv, item in state["seen"].items():
@@ -608,8 +612,8 @@ def reopen(key, resume_command):
     with registry_lock():
         state = read_registry()
         key = resolve_key(state, key)
-        entry = copy.deepcopy(state["settled"].get(key))
         pending = copy.deepcopy(state["pending"].get(key))
+        entry = copy.deepcopy(state["settled"].get(key) or (pending or {}).get("entry"))
     if entry is None:
         return "not settled anymore"
     existing = None
@@ -639,7 +643,7 @@ def reopen(key, resume_command):
         space = next((s for s in doc.get("spaces", []) if s.get("id") == entry.get("workspace_id")), None)
         if space is None and entry.get("workspace_label"):
             space = next((s for s in doc.get("spaces", []) if s.get("name") == entry["workspace_label"]), None)
-        pending = {"token": uuid.uuid4().hex, "started": time.time(),
+        pending = {"token": uuid.uuid4().hex, "started": time.time(), "entry": entry,
                    "space_id": space["id"] if space else "sp" + uuid.uuid4().hex,
                    "tab_id": "tb" + uuid.uuid4().hex}
         with registry_lock():
@@ -648,7 +652,7 @@ def reopen(key, resume_command):
             if active and time.time() - active.get("started", 0) < 30:
                 raise CoreError("Another resume is pending; archive retained")
             state["pending"][key] = pending
-            write_registry(state)  # watcher must not remove this row before adoption commits
+            write_registry(state)  # retain retry metadata even when watcher removes the live row
         try:
             # Direct argv, never a shell wrapper/template/first prompt.
             run = existing if existing else rpc("terminal.run", {"argv": shlex.split(command), "cwd": cwd, "keep": True,
