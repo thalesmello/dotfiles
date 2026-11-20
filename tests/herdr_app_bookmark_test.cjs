@@ -209,6 +209,63 @@ test('common renderer works without a snooze mod or host data', () => {
   assert.equal(renderAgentIndicators(theme, a, { bookmarked: true, indicator: alternative }).childNodes[1], alternative);
 });
 
+test('left mouse-down activates local and remote agent rows in expanded and rail views', () => {
+  for (const width of [268, 60, 44]) {
+    const { data, view, cx, context } = setup();
+    data.width = width;
+    data.agents = [agent('t1'), agent('devserver/t1')];
+    const root = view.render(cx);
+    const calls = [];
+    context.run = (command, args) => calls.push([command, args.pane]);
+    for (const a of data.agents) {
+      const row = nodes(root).find(n => n.styles.id?.[0] === 'ag-' + a.address);
+      assert.equal(row.styles.on_mouse_down[0], 'left');
+      let stopped = false;
+      row.styles.on_mouse_down[1]({}, { stop_propagation() { stopped = true; } });
+      assert.equal(stopped, true);
+      assert.equal(row.styles.on_click, undefined, 'release must not activate twice');
+    }
+    assert.deepEqual(calls, [['pane.focus', 'p-t1'], ['pane.focus', 'p-devserver/t1']]);
+  }
+});
+
+test('pin and fold presses do not activate the parent; controls still act on click', () => {
+  const { data, view, cx, context } = setup();
+  data.agents = [{ ...agent('t1'), program: { icon: 'pi.svg', tint: true } }];
+  data.terminals = [{ address: 't2', parent: 't1', state: 'live', status: 'idle' }];
+  view.hovered = 't1';
+  const root = view.render(cx);
+  const calls = [];
+  context.run = (command, args) => calls.push([command, args]);
+  for (const id of ['pin-t1', 'fold-t1', 'agent-fold-t1']) {
+    const control = nodes(root).find(n => n.styles.id?.[0] === id);
+    let stopped = false;
+    assert.equal(control.styles.on_mouse_down[0], 'left');
+    const before = calls.length;
+    control.styles.on_mouse_down[1]({}, { stop_propagation() { stopped = true; } });
+    assert.equal(stopped, true, id);
+    assert.equal(calls.length, before, 'control press must not focus the agent');
+    control.styles.on_click[0]({}, { ...cx, stop_propagation() {} });
+  }
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], 'terminal.pin');
+});
+
+test('sub-agent left mouse-down focuses kept agents and peeks workers', () => {
+  for (const kept of [false, true]) {
+    const { data, view, cx, context } = setup();
+    data.agents = [agent('t1'), ...(kept ? [agent('devserver/t2')] : [])];
+    data.terminals = [{ address: 'devserver/t2', parent: 't1', state: 'live', status: 'idle' }];
+    const row = nodes(view.render(cx)).find(n => n.styles.id?.[0] === 'sub-devserver/t2');
+    const calls = [];
+    context.run = (command, args) => calls.push([command, args.terminal]);
+    assert.equal(row.styles.on_mouse_down[0], 'left');
+    row.styles.on_mouse_down[1]({}, { stop_propagation() {} });
+    assert.deepEqual(calls, [[kept ? 'pane.focus' : 'terminal.peek', 'devserver/t2']]);
+    assert.equal(row.styles.on_click, undefined);
+  }
+});
+
 test('mod rename migrates durations, frozen order, and pending pins', async () => {
   const { data, view, cx, storage } = setup();
   view.changed = { t1: { s: 'idle', at: 1000 }, t2: { s: 'working', at: 2000 } };

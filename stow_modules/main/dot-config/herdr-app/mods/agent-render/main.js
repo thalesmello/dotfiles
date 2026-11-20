@@ -440,7 +440,10 @@ export default class Agents extends View {
       .text_size(12.5)
       .when(on, (el) => el.bg(t.raised))
       .hover((s) => s.bg(t.hover))
-      .on_click(() => (this.listed.has(k.address) ? run("pane.focus", { terminal: k.address }) : this.peek(k.address)))
+      .on_mouse_down("left", (_event, cx) => {
+        cx.stop_propagation();
+        this.listed.has(k.address) ? run("pane.focus", { terminal: k.address }) : this.peek(k.address);
+      })
       .children(s.lines.map(l => div().self_start().mt(-4).w(9).h(17).mr(4).flex_none()
         .when(Boolean(l), el => el.border_l(1.5).border_color(t.input))
         .when(l === "└" || l === "├", el => el.border_b(1.5).rounded_bl(6))))
@@ -544,6 +547,7 @@ export default class Agents extends View {
         .text_color(open ? t.dim : (t[top] ?? t.dim))
         .cursor_pointer()
         .hover((s) => s.bg(t.hover).text_color(t.foreground))
+        .on_mouse_down("left", (_event, cx) => cx.stop_propagation())
         .on_click((_e, cx) => {
           cx.stop_propagation();
           open ? this.folded.add(a.address) : this.folded.delete(a.address);
@@ -592,7 +596,10 @@ export default class Agents extends View {
           .cursor_pointer()
           .tooltip(`${i + 1} · ${label(a) || a.space_name || a.address}`)
           .hover((s) => s.bg(t.hover))
-          .on_click(() => run("pane.focus", { pane: a.pane }))
+          .on_mouse_down("left", (_event, cx) => {
+            cx.stop_propagation();
+            run("pane.focus", { pane: a.pane });
+          })
           .child(div().flex_1().min_w(0).whitespace_nowrap().text_size(roomy ? 13 : 11).text_right().text_color(a.focused ? t.foreground : t.muted).child(String(i + 1)))
           // Keep the status at the same edge even when a bookmark is added.
           .child(h_flex().w(26).flex_none().items_center().justify_end().child(this.status(t, a, true))));
@@ -609,6 +616,7 @@ export default class Agents extends View {
         .cursor_pointer()
         .hover((s) => s.bg(t.hover).text_color(t.foreground))
         .tooltip(isPinned ? "Unpin" : "Pin to the top")
+        .on_mouse_down("left", (_event, cx) => cx.stop_propagation())
         .on_click((_e, cx) => {
           cx.stop_propagation();
           run("terminal.pin", { terminal: a.address, pinned: !isPinned });
@@ -638,13 +646,18 @@ export default class Agents extends View {
           else if (this.hovered === a.address) this.hovered = null;
           cx.notify();
         })
-        .on_click(() => run("pane.focus", { pane: a.pane }))
+        .on_mouse_down("left", (_event, cx) => {
+          cx.stop_propagation();
+          run("pane.focus", { pane: a.pane });
+        })
         .when(Boolean(pic), el => el.child(div().id(`agent-fold-${a.address}`)
-          .when(subs.length > 0, el => el.on_click((_e, cx) => {
-            cx.stop_propagation();
-            this.folded.has(a.address) ? this.folded.delete(a.address) : this.folded.add(a.address);
-            cx.notify();
-          })).child(pic)))
+          .when(subs.length > 0, el => el
+            .on_mouse_down("left", (_event, cx) => cx.stop_propagation())
+            .on_click((_e, cx) => {
+              cx.stop_propagation();
+              this.folded.has(a.address) ? this.folded.delete(a.address) : this.folded.add(a.address);
+              cx.notify();
+            })).child(pic)))
         .child(div().flex_1().min_w(0).truncate().text_color(idle ? t.muted : t.foreground).child(sessionTitle))
         .when(Boolean(machine), el => el.child(div().flex_none().text_size(10).text_color(t.dim)
           .when(machine === "devserver", badge => badge
