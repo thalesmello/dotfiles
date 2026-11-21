@@ -2028,15 +2028,21 @@ function drawReferencePopup(
 	screenSelection: SelectionLike,
 	terminalWidth: number,
 	highlightEnd: number,
+	minRow = 0,
+	maxRow = screen.length - 1,
+	minColumn = 0,
+	maxColumn = terminalWidth,
 ): string[] {
 	popupRect = undefined;
-	if (!armedSnapshot) return screen;
-	const preferredRow = screenSelection.end.row + 1;
-	const row = preferredRow < screen.length ? preferredRow : screenSelection.end.row;
+	if (!armedSnapshot || maxRow < minRow || screenSelection.end.row < minRow || screenSelection.start.row > maxRow) return screen;
+	// Long selections can end outside the viewport. Keep the control beside
+	// the visible selection, never on the prompt editor below the transcript.
+	const endRow = Math.max(minRow, Math.min(screenSelection.end.row, maxRow));
+	const row = endRow < maxRow ? endRow + 1 : endRow;
 	if (row < 0 || row >= screen.length || isImageLine(screen[row] ?? "")) return screen;
 	const labelWidth = visibleWidth(REFERENCE_POPUP_LABEL);
-	const start = Math.max(0, Math.min(highlightEnd, terminalWidth - labelWidth));
-	if (terminalWidth < labelWidth) return screen;
+	if (maxColumn - minColumn < labelWidth) return screen;
+	const start = Math.max(minColumn, Math.min(highlightEnd, maxColumn - labelWidth));
 	popupRect = { row, start, end: start + labelWidth };
 	const line = screen[row] ?? "";
 	const lineWidth = visibleWidth(line);
@@ -2514,26 +2520,48 @@ interface AltScreenPrototype {
 }
 
 let installed = false;
-let originals:
-	| {
-			getActiveSelectionText: GetSelectionTextFn;
-			applySelection: ApplySelectionFn;
-			handleMouseEvent: HandleMouseEventFn;
-			handleViewportInput?: HandleViewportInputFn;
-			setSelection?: SetSelectionFn;
-	  }
-	| undefined;
+let patches: AltScreenPrototype | undefined;
 
-function patchedHandleViewportInput(this: AltScreenInternals, data: string): { consume: boolean } | undefined {
+interface SelectionPatch<Fn> {
+	__inactive?: boolean;
+	__prev?: Fn;
+}
+
+function unwrapInactiveSelectionPatch<Fn>(fn: Fn): Fn {
+	let current = fn as Fn & SelectionPatch<Fn>;
+	const seen = new Set<Fn>();
+	while (current.__inactive && current.__prev && !seen.has(current)) {
+		seen.add(current);
+		current = current.__prev as Fn & SelectionPatch<Fn>;
+	}
+	return current;
+}
+
+// A later extension may retain our wrapper across /reload. Each incarnation
+// needs an immutable delegate and must become inert even when buried.
+function createSelectionPatch<Args extends unknown[], Result>(
+	original: (this: AltScreenInternals, ...args: Args) => Result,
+	handler: (this: AltScreenInternals, delegate: typeof original, ...args: Args) => Result,
+): typeof original & SelectionPatch<typeof original> {
+	const delegate = unwrapInactiveSelectionPatch(original);
+	const patch = function (this: AltScreenInternals, ...args: Args): Result {
+		if (patch.__inactive) return delegate.apply(this, args);
+		return handler.call(this, delegate, ...args);
+	} as typeof original & SelectionPatch<typeof original>;
+	patch.__prev = delegate;
+	return patch;
+}
+
+function patchedHandleViewportInput(this: AltScreenInternals, delegate: HandleViewportInputFn, data: string): { consume: boolean } | undefined {
 	ensureCapturedTui(this);
 	if (transcriptSelectionOwnsInput && hasEditableSelection(this) && parseBoundaryKey(data)) {
 		const referenceResult = handleReferenceInput(data);
 		if (referenceResult) return referenceResult;
 	}
-	return originals?.handleViewportInput?.call(this, data);
+	return delegate.call(this, data);
 }
 
-function patchedGetActiveSelectionText(this: AltScreenInternals): string | undefined {
+function patchedGetActiveSelectionText(this: AltScreenInternals, delegate: GetSelectionTextFn): string | undefined {
 	ensureCapturedTui(this);
 	const selection = this.getSelectionBounds();
 	if (!selection) return undefined;
@@ -2546,7 +2574,7 @@ function patchedGetActiveSelectionText(this: AltScreenInternals): string | undef
 			getSourceMarkdownSelectionText(this, selection, sourceLines) ??
 			getPlainSelectionText(this, selection, sourceLines);
 	}
-	result ??= originals!.getActiveSelectionText.call(this);
+	result ??= delegate.call(this);
 	// A completed selection arms the reference popup until it is used or a
 	// new mouse press replaces the selection.
 	if (result) armedSnapshot = { text: result };
@@ -2555,6 +2583,7 @@ function patchedGetActiveSelectionText(this: AltScreenInternals): string | undef
 
 function patchedSetSelection(
 	this: AltScreenInternals,
+	delegate: SetSelectionFn,
 	anchor: { row: number; col: number; boundary?: boolean },
 	focus: { row: number; col: number; boundary?: boolean },
 ): void {
@@ -2564,7 +2593,7 @@ function patchedSetSelection(
 	selectionCopyArmed = true;
 	transcriptSelectionOwnsInput = true;
 	preferredFocusCol = undefined;
-	originals?.setSelection?.call(this, anchor, focus);
+	delegate.call(this, anchor, focus);
 }
 
 interface RawMouseEvent {
@@ -2576,7 +2605,7 @@ interface RawMouseEvent {
 
 type HandleMouseEventFn = (this: AltScreenInternals, event: RawMouseEvent) => void;
 
-function patchedHandleMouseEvent(this: AltScreenInternals, event: RawMouseEvent): void {
+function patchedHandleMouseEvent(this: AltScreenInternals, delegate: HandleMouseEventFn, event: RawMouseEvent): void {
 	ensureCapturedTui(this);
 	const isMotion = (event.button & 32) !== 0;
 	const buttonCode = event.button & 3;
@@ -2621,7 +2650,7 @@ function patchedHandleMouseEvent(this: AltScreenInternals, event: RawMouseEvent)
 		// third-click window expires, prevent it from selecting/copying a
 		// line after the word was already copied.
 		if (!isContinuationClick) this.lastClick = undefined;
-		originals!.handleMouseEvent.call(this, event);
+		delegate.call(this, event);
 
 		// If an overlay, scrollbar, or layout component captured the press, do not start a text selection.
 		if (this.mouseCapture || this.mousePressTarget || this.scrollbarDrag) {
@@ -2689,7 +2718,7 @@ function patchedHandleMouseEvent(this: AltScreenInternals, event: RawMouseEvent)
 		) {
 			lastPress = undefined;
 		}
-		originals!.handleMouseEvent.call(this, event);
+		delegate.call(this, event);
 		if (!this.selectionPressActive || !getAnchor(this)) return;
 		this.selectionDragged = true;
 		const point = resolveSelectionPoint(this, event, getAnchor(this)?.scrollView);
@@ -2722,7 +2751,7 @@ function patchedHandleMouseEvent(this: AltScreenInternals, event: RawMouseEvent)
 		const copyOnSelect = this.copyOnSelect;
 		this.copyOnSelect = false;
 		try {
-			originals!.handleMouseEvent.call(this, event);
+			delegate.call(this, event);
 		} finally {
 			this.copyOnSelect = copyOnSelect;
 		}
@@ -2767,16 +2796,17 @@ function patchedHandleMouseEvent(this: AltScreenInternals, event: RawMouseEvent)
 		return;
 	}
 
-	originals!.handleMouseEvent.call(this, event);
+	delegate.call(this, event);
 }
 
-function patchedApplySelection(this: AltScreenInternals, screen: string[], layout?: LayoutFrameLike): string[] {
+function patchedApplySelection(this: AltScreenInternals, delegate: ApplySelectionFn, screen: string[], layout?: LayoutFrameLike): string[] {
 	const internals = this;
+	popupRect = undefined;
 	// Capture the live renderer once so Tab and Shift+Arrow presses can reach
 	// the selection/reference logic.
 	ensureCapturedTui(internals);
 	const selection = internals.getSelectionBounds();
-	if (!selection) return originals!.applySelection.call(internals, screen, layout);
+	if (!selection) return delegate.call(internals, screen, layout);
 
 	let screenSelection = selection;
 	let minRow = 0;
@@ -2850,8 +2880,8 @@ function patchedApplySelection(this: AltScreenInternals, screen: string[], layou
 	const activeSegments = codeFrameHighlight?.segments ?? tableSegments;
 	let painted: string[];
 	if (!activeSegments && singleCellIndex === undefined) {
-		painted = originals!.applySelection.call(internals, screen, layout);
-		return drawReferencePopup(painted, popupSelection, internals.terminal.columns, highlightEnd);
+		painted = delegate.call(internals, screen, layout);
+		return drawReferencePopup(painted, popupSelection, internals.terminal.columns, highlightEnd, minRow, maxRow, minColumn, maxColumn);
 	}
 
 	painted = screen.map((line, row) => {
@@ -2891,7 +2921,7 @@ function patchedApplySelection(this: AltScreenInternals, screen: string[], layou
 		const after = sliceByColumn(line, columns.end, Math.max(0, lineWidth - columns.end), true);
 		return `${before}${applySelectionHighlight(selected)}${after}`;
 	});
-	return drawReferencePopup(painted, popupSelection, internals.terminal.columns, highlightEnd);
+	return drawReferencePopup(painted, popupSelection, internals.terminal.columns, highlightEnd, minRow, maxRow, minColumn, maxColumn);
 }
 
 function installTableSelection(): boolean {
@@ -2904,42 +2934,36 @@ function installTableSelection(): boolean {
 	) {
 		return false;
 	}
-	originals = {
-		getActiveSelectionText: prototype.getActiveSelectionText,
-		applySelection: prototype.applySelection,
-		handleMouseEvent: prototype.handleMouseEvent,
-		...(typeof prototype.handleViewportInput === "function" ? { handleViewportInput: prototype.handleViewportInput } : {}),
-		...(typeof prototype.setSelection === "function" ? { setSelection: prototype.setSelection } : {}),
+	patches = {
+		getActiveSelectionText: createSelectionPatch(prototype.getActiveSelectionText, patchedGetActiveSelectionText),
+		applySelection: createSelectionPatch(prototype.applySelection, patchedApplySelection),
+		handleMouseEvent: createSelectionPatch(prototype.handleMouseEvent, patchedHandleMouseEvent),
+		...(typeof prototype.handleViewportInput === "function"
+			? { handleViewportInput: createSelectionPatch(prototype.handleViewportInput, patchedHandleViewportInput) } : {}),
+		...(typeof prototype.setSelection === "function"
+			? { setSelection: createSelectionPatch(prototype.setSelection, patchedSetSelection) } : {}),
 	};
-	prototype.getActiveSelectionText = patchedGetActiveSelectionText;
-	prototype.applySelection = patchedApplySelection;
-	prototype.handleMouseEvent = patchedHandleMouseEvent;
-	if (typeof prototype.handleViewportInput === "function") {
-		prototype.handleViewportInput = patchedHandleViewportInput;
-	}
-	if (typeof prototype.setSelection === "function") {
-		prototype.setSelection = patchedSetSelection;
-	}
+	Object.assign(prototype, patches);
 	installed = true;
 	return true;
 }
 
 function uninstallTableSelection(): void {
 	cancelPendingMouseCopy();
-	if (!installed || !originals) return;
-	const prototype = TuiAltScreen.prototype as unknown as AltScreenPrototype;
-	prototype.getActiveSelectionText = originals.getActiveSelectionText;
-	prototype.applySelection = originals.applySelection;
-	prototype.handleMouseEvent = originals.handleMouseEvent;
-	if (originals.handleViewportInput) {
-		prototype.handleViewportInput = originals.handleViewportInput;
-	}
-	if (originals.setSelection) {
-		prototype.setSelection = originals.setSelection;
+	if (!installed || !patches) return;
+	const prototype = TuiAltScreen.prototype as unknown as Record<string, unknown>;
+	for (const [key, patch] of Object.entries(patches)) {
+		const chained = patch as SelectionPatch<unknown>;
+		chained.__inactive = true;
+		// Do not erase another extension's outer wrapper. It will safely
+		// delegate through this inactive patch, even after our state is gone.
+		if (prototype[key] === patch && chained.__prev) {
+			prototype[key] = unwrapInactiveSelectionPatch(chained.__prev);
+		}
 	}
 	removeCapturedInputListener?.();
 	removeCapturedInputListener = undefined;
-	originals = undefined;
+	patches = undefined;
 	installed = false;
 	armedSnapshot = undefined;
 	popupRect = undefined;

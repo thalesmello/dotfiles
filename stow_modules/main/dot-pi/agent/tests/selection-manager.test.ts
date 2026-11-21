@@ -332,6 +332,96 @@ describe("selection-manager extension", () => {
 		expect(result.text).toContain("\"\"\"\n\nWhich rows are these?");
 	});
 
+	test("keeps the popup visible for a long selection whose end is below the viewport", () => {
+		editorText = "";
+		const lines = Array.from({ length: 1000 }, (_, row) => "line " + row);
+		const screen = startScreen(lines);
+		screen.scrollView.scrollTop = 950;
+		screen.setSelection({ row: 960, col: 0 }, { row: 970, col: 5 });
+		const fullText = screen.getActiveSelectionText();
+		const visible = lines.slice(950, 966);
+		const painted = screen.applySelection(visible);
+		expect(painted[15]).toContain("⇥ reference");
+		expect(screen.emitInput("\t")).toEqual({ consume: true });
+		expect(editorText).toContain("> line 960 ...");
+		expect(fullText).toContain("line 969");
+		expect(visible[15]).not.toContain("⇥ reference");
+	});
+
+	test("keeps the popup inside the transcript clip instead of overwriting the prompt", () => {
+		editorText = "";
+		const screen = startScreen(["alpha", "beta", "gamma", "draft prompt", "footer"]);
+		screen.currentLayout!.root.rect.height = 3;
+		screen.currentLayout!.root.clip.height = 3;
+		screen.setSelection({ row: 1, col: 0 }, { row: 2, col: 4 });
+		screen.getActiveSelectionText();
+		const painted = screen.applySelection([...screen.previousScreen]);
+		expect(painted[2]).toContain("⇥ reference");
+		expect(painted[3]).toBe("draft prompt");
+		expect(painted[4]).toBe("footer");
+		screen.handleMouseEvent({ button: 0, x: 6, y: 2, release: false });
+		expect(editorText).toContain("> beta ...");
+	});
+
+	test("does not leave an invisible popup hit target when the selection scrolls away", () => {
+		editorText = "";
+		const screen = startScreen(Array.from({ length: 40 }, () => "alpha"));
+		screen.setSelection({ row: 0, col: 0 }, { row: 0, col: 3 });
+		screen.getActiveSelectionText();
+		expect(screen.applySelection(screen.previousScreen.slice(0, 16))[1]).toContain("⇥ reference");
+		screen.scrollView.scrollTop = 20;
+		expect(screen.applySelection(screen.previousScreen.slice(20, 36)).some((line) => line.includes("⇥ reference"))).toBe(false);
+		screen.handleMouseEvent({ button: 0, x: 5, y: 1, release: false });
+		expect(editorText).toBe("");
+		expect(screen.mouseEvents).toHaveLength(1);
+	});
+
+	test("preserves outer wrappers and Tab references across five fresh-module reloads", async () => {
+		await emit("session_shutdown");
+		const prototype: any = FakeAltScreen.prototype;
+		const keys = ["getActiveSelectionText", "applySelection", "handleMouseEvent", "handleViewportInput", "setSelection"];
+		const native = Object.fromEntries(keys.map((key) => [key, prototype[key]]));
+		let shutdown: Handler | undefined;
+		try {
+			for (let cycle = 0; cycle < 5; cycle++) {
+				const freshHandlers = new Map<string, Handler>();
+				const fresh = (await import(pathToFileURL(redirectedPath).href + "?reload=" + cycle)).default;
+				fresh({ on: (event: string, handler: Handler) => freshHandlers.set(event, handler), registerCommand() {} });
+				editorFactory = undefined;
+				editorText = "";
+				await freshHandlers.get("session_start")!({}, tuiCtx);
+				shutdown = freshHandlers.get("session_shutdown");
+				const outer = Object.fromEntries(keys.map((key) => {
+					const inner = prototype[key];
+					return [key, function (this: any, ...args: any[]) { return inner.apply(this, args); }];
+				}));
+				Object.assign(prototype, outer);
+				const screen = startScreen(["alpha", "beta", "gamma"]);
+				screen.handleMouseEvent({ button: 0, x: 0, y: 0, release: false });
+				screen.handleMouseEvent({ button: 32, x: 3, y: 0, release: false });
+				screen.handleMouseEvent({ button: 0, x: 3, y: 0, release: true });
+				expect(screen.getActiveSelectionText()).toBe("alph");
+				expect(screen.applySelection([...screen.previousScreen])[1]).toContain("⇥ reference");
+				expect(screen.emitInput("\t")).toEqual({ consume: true });
+				expect(editorText).toBe("> alph\n");
+				screen.setSelection({ row: 1, col: 0 }, { row: 1, col: 2 });
+				expect(screen.getActiveSelectionText()).toBe("bet");
+				await shutdown!({}, tuiCtx);
+				shutdown = undefined;
+				for (const key of keys) expect(prototype[key]).toBe(outer[key]);
+				// Buried old wrappers must still delegate safely after their state is cleared.
+				expect(screen.getActiveSelectionText()).toBe("bet");
+				expect(screen.applySelection([...screen.previousScreen])[2]).not.toContain("⇥ reference");
+				expect(screen.emitInput("\t")).toBeUndefined();
+			}
+		} finally {
+			await shutdown?.({}, tuiCtx);
+			Object.assign(prototype, native);
+			editorFactory = undefined;
+			await emit("session_start");
+		}
+	});
+
 	test("renders references as highlighted blocks that cannot be edited, only removed", async () => {
 		const keybindings = {
 			matches: (data: string, action: string) => action === "tui.input.submit" && data === "\r",
