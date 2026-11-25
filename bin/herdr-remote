@@ -1,0 +1,344 @@
+#!/usr/bin/env python3
+
+"""Request remote Herdr actions on the attached Mac via OSC 52.
+
+    herdr-remote attach [terminal] [--tab | --split [right|down]]
+                        [--pane <id>] [--space <name>] [--name <title>]
+                        [--machine <name>] [--no-focus] [--dry-run]
+
+    herdr-remote run [--tab | --split [right|down]] [--pane <id>]
+                     [--space <name>] [--name <title>] [--folder <dir>]
+                     [--no-focus] [--dry-run] -- <cmd> [args...]
+
+Herdr forwards OSC 52 clipboard writes from a pane it renders to the attached
+Mac's clipboard, where Hammerspoon (herdrRelay.lua + herdrAction.lua) consumes
+the framed record, restores the clipboard, and drives herdr-app:
+
+  - attach:    zero confirmation; opens a new tab, split, or workspace attached
+               to an existing remote hc terminal.
+  - run:       mandatory confirmation dialog on the Mac showing the exact
+               command and target before running any local command.
+"""
+
+import argparse
+import base64
+import json
+import os
+import re
+import subprocess
+import sys
+
+# Must match stow_modules/main/dot-hammerspoon/herdrAction.lua.
+VERSION = "HERDR_ACTION_V1"
+NAMESPACE = "4d8e9a1c6f3b4e2da91f7c508b2e641a"
+RS = "\x1e"
+US = "\x1f"
+OSC52 = "\033]52;c;%s\007"
+
+# OSC 52 wire budget (16384 bytes total; 8 bytes wrapper -> 12282 raw bytes).
+MAX_RECORD_BYTES = 12282
+MAX_ENCODED_LEN = 16384
+MAX_ARGV_LEN = 64
+MAX_ARG_BYTES = 2048
+
+TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+PANE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,511}$")
+CORE_ID_RE = re.compile(r"^[0-9a-fA-F]{1,64}$")
+CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def die(message, code=2):
+    sys.stderr.write("herdr-remote: %s\n" % message)
+    sys.exit(code)
+
+
+def valid_label(value):
+    return isinstance(value, str) and 1 <= len(value) <= 128 and not CONTROL_RE.search(value)
+
+
+def valid_folder(value):
+    if not isinstance(value, str) or not (1 <= len(value) <= 512):
+        return False
+    if CONTROL_RE.search(value) or ".." in value:
+        return False
+    return value == "~" or value.startswith("/") or value.startswith("~/")
+
+
+def hc_core_id():
+    """Hex id of the herdr-core instance hosting this terminal, if any."""
+    if not (
+        os.environ.get("HC_TERMINAL_ID")
+        or os.environ.get("HC_TERMINAL_SOCKET")
+        or os.environ.get("HC_SOCKET")
+    ):
+        return None
+    session = os.environ.get("HC_SESSION") or "default"
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", session):
+        return None
+    state_home = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+    core_json = os.path.join(state_home, "herdr-core", session, "core.json")
+    try:
+        with open(core_json, "r", encoding="utf-8") as fh:
+            m = re.search(r'"id"\s*:\s*"([0-9a-fA-F]+)"', fh.read())
+            if m and CORE_ID_RE.fullmatch(m.group(1)):
+                return m.group(1).lower()
+    except OSError:
+        pass
+    return None
+
+
+def resolve_tty():
+    """Find a writable controlling terminal for OSC 52 output."""
+    try:
+        os.close(os.open("/dev/tty", os.O_WRONLY))
+        return "/dev/tty"
+    except OSError:
+        pass
+
+    pid = os.getpid()
+    for _ in range(8):
+        try:
+            out = subprocess.run(
+                ["ps", "-o", "ppid=,tty=", "-p", str(pid)],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            ).stdout.split()
+        except (OSError, subprocess.SubprocessError):
+            break
+        if len(out) < 1 or not out[0].isdigit() or int(out[0]) <= 1:
+            break
+        pid = int(out[0])
+        name = out[1] if len(out) > 1 else ""
+        if name in ("", "?", "??", "-"):
+            continue
+        path = name if name.startswith("/dev/") else "/dev/" + name
+        if os.access(path, os.W_OK):
+            return path
+
+    hc_term = os.environ.get("HC_TERMINAL_ID")
+    if hc_term:
+        try:
+            hc_out = subprocess.run(
+                ["hc", "get", hc_term, "--json"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            ).stdout
+            m = re.search(r'"pid"\s*:\s*(\d+)', hc_out)
+            if m:
+                tty_name = subprocess.run(
+                    ["ps", "-o", "tty=", "-p", m.group(1)],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                ).stdout.strip()
+                if tty_name not in ("", "?", "??", "-"):
+                    path = tty_name if tty_name.startswith("/dev/") else "/dev/" + tty_name
+                    if os.access(path, os.W_OK):
+                        return path
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+    user = os.environ.get("USER")
+    if user:
+        try:
+            ps_out = subprocess.run(
+                ["ps", "-u", user, "-o", "tty=,comm="],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            ).stdout
+            for line in ps_out.splitlines():
+                parts = line.split()
+                if len(parts) >= 2 and parts[1] == "herdr" and parts[0] not in ("?", "??", "-"):
+                    path = parts[0] if parts[0].startswith("/dev/") else "/dev/" + parts[0]
+                    if os.access(path, os.W_OK):
+                        return path
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+    return None
+
+
+def encode_record(payload):
+    raw_json = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    encoded = base64.b64encode(raw_json).decode("ascii")
+    if len(encoded) > MAX_ENCODED_LEN:
+        die("encoded payload exceeds %d bytes" % MAX_ENCODED_LEN)
+    record = "%s%s:%s:%s%s" % (RS, VERSION, NAMESPACE, encoded, US)
+    if len(record.encode("utf-8")) > MAX_RECORD_BYTES:
+        die("framed record exceeds %d-byte OSC 52 limit" % MAX_RECORD_BYTES)
+    return record
+
+
+def emit_osc52(record, tty_path=None):
+    where = tty_path or resolve_tty()
+    if where is None:
+        die("no terminal to write the OSC 52 action escape to", code=1)
+    wire = base64.b64encode(record.encode("utf-8")).decode("ascii")
+    try:
+        with open(where, "w", encoding="utf-8") as fh:
+            fh.write(OSC52 % wire)
+            fh.flush()
+    except OSError as exc:
+        die("cannot write to %s (%s)" % (where, exc), code=1)
+
+
+def add_layout_args(parser):
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--tab", action="store_true", help="open in a new tab (default)")
+    mode.add_argument(
+        "--split",
+        nargs="?",
+        const="right",
+        choices=("right", "down"),
+        metavar="DIR",
+        help="split a pane (right or down; default: right)",
+    )
+    parser.add_argument("--pane", help="anchor pane ID for --split")
+    parser.add_argument("--space", help="target workspace name or ID (reuse first match or create)")
+    parser.add_argument("--name", help="tab title")
+    parser.add_argument("--no-focus", action="store_true", help="do not focus the new space/tab")
+    parser.add_argument("--dry-run", action="store_true", help="print JSON payload instead of emitting OSC 52")
+
+
+def apply_layout_payload(args, payload):
+    if args.split is not None:
+        payload["mode"] = "split"
+        payload["direction"] = args.split
+    else:
+        payload["mode"] = "tab"
+
+    if args.pane is not None:
+        if not PANE_RE.fullmatch(args.pane):
+            die("invalid pane ID: %r" % args.pane)
+        payload["pane"] = args.pane
+
+    if args.space is not None:
+        if not valid_label(args.space):
+            die("invalid workspace name/ID: %r" % args.space)
+        payload["space"] = args.space
+
+    if args.name is not None:
+        if not valid_label(args.name):
+            die("invalid tab name: %r" % args.name)
+        payload["name"] = args.name
+
+    if args.no_focus:
+        payload["focus"] = False
+
+
+def build_attach_payload(args):
+    raw_target = args.terminal or os.environ.get("HC_TERMINAL_ID")
+    if not raw_target:
+        die("missing terminal ID (pass <terminal> or set $HC_TERMINAL_ID)")
+
+    machine = args.machine
+    terminal = raw_target
+    if "/" in raw_target:
+        parts = raw_target.split("/", 1)
+        if machine and machine != parts[0]:
+            die("conflicting --machine %r and target %r" % (machine, raw_target))
+        machine, terminal = parts[0], parts[1]
+
+    if not TOKEN_RE.fullmatch(terminal):
+        die("invalid terminal ID: %r" % terminal)
+
+    payload = {
+        "action": "attach",
+        "terminal": terminal,
+    }
+
+    if machine is not None:
+        if not TOKEN_RE.fullmatch(machine):
+            die("invalid machine name: %r" % machine)
+        payload["machine"] = machine
+    else:
+        core_id = hc_core_id()
+        if not core_id:
+            die("cannot determine remote machine (pass --machine <name> or run inside hc)")
+        payload["core_id"] = core_id
+
+    apply_layout_payload(args, payload)
+    return payload
+
+
+def build_run_payload(args):
+    argv = list(args.cmd or [])
+    if argv and argv[0] == "--":
+        argv = argv[1:]
+    if not argv:
+        die("missing command (use: herdr-remote run [options] -- <cmd> [args...])")
+    if len(argv) > MAX_ARGV_LEN:
+        die("too many arguments (max %d)" % MAX_ARGV_LEN)
+    for item in argv:
+        if len(item.encode("utf-8")) > MAX_ARG_BYTES or "\x00" in item:
+            die("invalid command argument")
+
+    payload = {
+        "action": "local.run",
+        "argv": argv,
+    }
+
+    if args.folder is not None:
+        if not valid_folder(args.folder):
+            die("invalid folder path: %r" % args.folder)
+        payload["folder"] = args.folder
+
+    apply_layout_payload(args, payload)
+    return payload
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        prog="herdr-remote",
+        description="Trigger remote Herdr actions on the attached Mac via OSC 52.",
+    )
+    sub = parser.add_subparsers(dest="subcommand", required=True)
+
+    p_attach = sub.add_parser(
+        "attach",
+        help="attach a new tab/split/workspace on the Mac to an existing remote hc terminal (no confirmation)",
+    )
+    p_attach.add_argument(
+        "terminal",
+        nargs="?",
+        help="terminal ID (e.g. t5j or devserver/t5j; defaults to $HC_TERMINAL_ID)",
+    )
+    p_attach.add_argument("--machine", help="remote machine alias on the Mac (auto-detected from hc core_id if omitted)")
+    add_layout_args(p_attach)
+
+    p_run = sub.add_parser(
+        "run",
+        help="run a local command on the Mac in Herdr (always prompts for confirmation)",
+    )
+    p_run.add_argument("--folder", help="local working directory on the Mac")
+    add_layout_args(p_run)
+    p_run.add_argument("cmd", nargs=argparse.REMAINDER, help="command and arguments (prefix with --)")
+
+    return parser
+
+
+def main(argv=None):
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if args.subcommand == "attach":
+        payload = build_attach_payload(args)
+    elif args.subcommand == "run":
+        payload = build_run_payload(args)
+    else:
+        die("unknown subcommand: %s" % args.subcommand)
+
+    record = encode_record(payload)
+    if args.dry_run:
+        sys.stdout.write(json.dumps(payload, separators=(",", ":")) + "\n")
+        return 0
+
+    emit_osc52(record)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

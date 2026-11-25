@@ -89,6 +89,7 @@ local function relayFixture()
   local e = fixture()
   e.text = "original clipboard"; e.changeCount = 1; e.restores = 0
   package.loaded.herdrFocus = e.mod
+  package.loaded.herdrAction = dofile(ROOT .. "herdrAction.lua")
   package.loaded.preset = {}
   package.loaded.ghosttyPreset = {
     readClipboardSnapshot = function() return {rich = "original RTF"} end,

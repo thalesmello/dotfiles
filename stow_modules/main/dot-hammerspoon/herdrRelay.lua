@@ -3,6 +3,7 @@ local Preset = require("preset")
 local GhosttyPreset = require("ghosttyPreset")
 local shell = require("shell")
 local HerdrFocus = require("herdrFocus")
+local HerdrAction = require("herdrAction")
 
 -- Requests relayed from a Herdr pane through the clipboard.
 --
@@ -997,6 +998,20 @@ local function onPasteboardChange(contents)
     GhosttyPreset.purgeAlfredHerdrEntries()
     if pane then HerdrFocus.focus(pane)
     else util.log("herdrRelay: invalid focus-pane request") end
+    return
+  end
+
+  -- Structured remote action request (HERDR_ACTION_V1): attach to a remote hc
+  -- terminal without confirmation, or run a local command after mandatory
+  -- user confirmation. Consume and restore the clipboard before acting.
+  if type(contents) == "string"
+      and contents:sub(1, #HerdrAction.RELAY_PREFIX) == HerdrAction.RELAY_PREFIX then
+    local actionReq = HerdrAction.decodeRelayRequest(contents)
+    abortTransfer("interrupted by an action request", false)
+    restoreClipboard()
+    GhosttyPreset.purgeAlfredHerdrEntries()
+    if actionReq then HerdrAction.handle(actionReq)
+    else util.log("herdrRelay: invalid action request") end
     return
   end
 
