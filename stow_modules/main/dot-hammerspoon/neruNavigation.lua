@@ -490,6 +490,22 @@ function M.setup(ctx)
     return last and last.aimGeneration == state.aimGeneration and
       now() - last.time <= 0.4
   end
+  -- Explicit-coordinate Neru moves acknowledge before smooth motion ends.
+  -- Observe the real pointer, not that acknowledgement, before a repeat click.
+  local function waitForCursor(point, valid, done)
+    local deadline = now() + 1
+    local function check()
+      state.cursorWaitTimer = nil
+      if not valid() then done(false, true); return end
+      local position = hs.mouse.absolutePosition()
+      if position.x == point.x and position.y == point.y then
+        done(true); return
+      end
+      if now() >= deadline then done(false); return end
+      state.cursorWaitTimer = hs.timer.doAfter(0.01, check)
+    end
+    check()
+  end
   local nextGridClick
   nextGridClick = function()
     if state.clickBusy or #state.clickQueue == 0 then return end
@@ -529,9 +545,30 @@ function M.setup(ctx)
       local point = state.lastGridClick.point
       -- hs.mouse returns NSPoint doubles (e.g. 1210.0), but Neru's CLI
       -- coordinate flags accept integers only. tostring would reject repeats.
-      command({"action", "move_mouse", "--x", string.format("%.0f", point.x), "--y", string.format("%.0f", point.y)}, function(ok)
-        if ok then clickedAt(point)
-        else state.clickBusy = false; state.clickQueue = {}; message("Could not repeat click: target move failed") end
+      local x, y = string.format("%.0f", point.x), string.format("%.0f", point.y)
+      local target = {x = tonumber(x), y = tonumber(y)}
+      local modeEpoch, aimGeneration = state.modeEpoch, state.aimGeneration
+      local function valid()
+        return not state.closed and not state.busy and state.backend == "neru" and
+          state.epoch == epoch and state.clickToken == token and
+          state.modeEpoch == modeEpoch and state.aimGeneration == aimGeneration
+      end
+      command({"action", "move_mouse", "--x", x, "--y", y}, function(ok)
+        if not valid() then
+          if not state.closed and state.clickToken == token then state.clickBusy = false; state.clickQueue = {} end
+          return
+        end
+        if not ok then
+          state.clickBusy = false; state.clickQueue = {}
+          message("Could not repeat click: target move failed"); return
+        end
+        waitForCursor(target, valid, function(reached, cancelled)
+          if reached then clickedAt(target)
+          elseif not state.closed and state.clickToken == token then
+            state.clickBusy = false; state.clickQueue = {}
+            if not cancelled then message("Could not repeat click: cursor did not reach target") end
+          end
+        end)
       end)
     else
       commitCursor(function(ok)
@@ -1057,6 +1094,7 @@ function M.setup(ctx)
   state.close = function()
     if state.closed then return end
     state.closed, state.epoch = true, state.epoch + 1
+    if state.cursorWaitTimer then state.cursorWaitTimer:stop(); state.cursorWaitTimer = nil end
     for timer in pairs(state.macroTimers) do timer:stop() end
     state.macroTimers = {}
     -- A reload can interrupt a modifier drag before its key-up. Exit Neru
@@ -1197,7 +1235,7 @@ function M.status()
   return {backend = instance.backend, mode = instance.mode, continuous = instance.continuous,
     layout = instance.layout, lastPointerMode = instance.lastPointerMode,
     busy = instance.busy, leftHeld = instance.dragHeld,
-    heldDrag = instance.dragLatched}
+    heldDrag = instance.dragLatched, waitingForCursor = instance.cursorWaitTimer ~= nil}
 end
 
 return M

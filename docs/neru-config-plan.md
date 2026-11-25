@@ -180,6 +180,14 @@ preset can therefore create a small working-tree diff. Ctrl+Right Shift selects
 the alternating-hand recursive layout. Right Shift recalls Hints/Grid only
 from Idle, exits regular Grid, and opens regular Grid from other active modes.
 
+Repeated Grid clicks wait for the actual cursor to reach the rounded
+destination before clicking. Explicit-coordinate Neru moves can acknowledge
+before smooth movement finishes, so Hammerspoon checks the real pointer every
+10 ms only while it is moving, with a one-second timeout. A mode/aim change or
+shutdown cancels the pending click; there is no fixed pre-click delay and no
+Neru application rebuild is required. Normal selection moves already wait
+for cursor-idle before their first click.
+
 Both grids use **cursor-hold aiming**: grid key selections update the virtual
 selection without moving the real cursor. Clicks commit that position before
 performing the mouse action. Explicit pointer-movement commands still move it.
