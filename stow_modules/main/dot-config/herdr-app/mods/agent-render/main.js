@@ -2,7 +2,7 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { hasBookmark, renderAgentStatus, renderAgentIndicators } from "./agent-render.js";
+import { hasBookmark, renderAgentStatus, renderAgentIndicators, parseTerminalBadges, renderAgentBadges } from "./agent-render.js";
 import { agents, terminals, panes, focused, spaces, machines, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, window, layout, checking, appHome, home, readTextFile, watchFolder, exec, nextCommand } from "herdr";
 
 function find(node, id) {
@@ -166,8 +166,11 @@ export default class Agents extends View {
     this.folded = new Set();
     this.snooze = {};
     this.snoozeRaw = null;
+    this.badgeCache = {};
+    this.badgeRaw = null;
     if (!checking()) {
       cx.spawn(async (cx) => this.refreshSnooze(cx));
+      cx.spawn(async (cx) => this.refreshBadges(cx));
       cx.spawn(async (cx) => {
         for (;;) {
           const command = await nextCommand();
@@ -188,8 +191,18 @@ export default class Agents extends View {
           await this.refreshSnooze(cx);
         }
       });
+      cx.spawn(async (cx) => {
+        await exec("mkdir", ["-p", `${appHome()}/data/agent-badges`]);
+        for (;;) {
+          await watchFolder(`${appHome()}/data/agent-badges`);
+          await this.refreshBadges(cx);
+        }
+      });
       cx.timer.every(5000, (cx) => {
         if (this.hasSnoozes()) this.tickSnooze(cx);
+      });
+      cx.timer.every(60000, (cx) => {
+        if (this.badgeSignature && this.badgeSignature !== "[]") this.tickBadges(cx);
       });
     }
     // Each agent's last state and when it changed (ms), kept across restarts.
@@ -249,6 +262,38 @@ export default class Agents extends View {
       if (order === "spaces" || order === "priority") setShared("agents.sort", order === "spaces" ? "grouped" : "priority");
       cx.notify();
     } catch (error) { console.log(`snooze state: ${error}`); }
+  }
+
+  async refreshBadges(cx) {
+    try {
+      const raw = await readTextFile(`${appHome()}/data/agent-badges/state.json`) ?? "";
+      if (raw === this.badgeRaw) return;
+      const parsed = raw ? JSON.parse(raw) : {};
+      this.badgeRaw = raw;
+      this.badgeCache = parsed?.badges && typeof parsed.badges === "object" ? parsed.badges : {};
+      cx.notify();
+    } catch (error) { console.log(`badge state: ${error}`); }
+  }
+
+  tickBadges(cx) {
+    if (this.badgeTick) return;
+    this.badgeTick = true;
+    cx.spawn(async (cx) => {
+      try {
+        const hook = `${home()}/.local_dotfiles/bin/herdr-badge-sync`;
+        const command = `export HERDR_APP_HOME=${JSON.stringify(appHome())}; [ -x ${JSON.stringify(hook)} ] && exec ${JSON.stringify(hook)} || exit 0`;
+        const reply = await exec("sh", ["-c", command]);
+        if (reply.code) console.log(`badge sync: ${reply.stderr}`);
+        await this.refreshBadges(cx);
+      } catch (error) { console.log(`badge sync: ${error}`); }
+      finally { this.badgeTick = false; }
+    });
+  }
+
+  openBadgeUrl(url) {
+    if (!url || checking()) return;
+    const cmd = typeof window === "function" && window()?.platform === "macos" ? "open" : "xdg-open";
+    exec(cmd, [url]).catch((error) => console.log(`open badge url: ${error}`));
   }
 
   tickSnooze(cx) {
@@ -487,6 +532,12 @@ export default class Agents extends View {
     this.listed = new Map(list.map((a) => [a.address, a.status]));
     const all = terminals();
     this.bookmarked = new Set(all.filter(k => hasBookmark(k.labels)).map(k => k.address));
+    this.terminalBadges = new Map(all.map(k => [k.address, parseTerminalBadges(k.labels, this.badgeCache)]));
+    const badgeSig = JSON.stringify([...this.terminalBadges.values()].flatMap(bs => bs.map(b => b.text)).sort());
+    if (badgeSig !== this.badgeSignature) {
+      this.badgeSignature = badgeSig;
+      if (badgeSig !== "[]" && !checking()) this.tickBadges(cx);
+    }
     this.migratePins(all);
     // A kept sub-agent (one with a pane) is in agents() too: where a tree shows
     // it, it gets no row of its own, unless it's pinned.
@@ -579,10 +630,12 @@ export default class Agents extends View {
     const row = (a, i, subs = []) => {
       const pic = icon(a.program, 16, t.foreground);
       const more = detail.get(a.address);
+      const rowBadges = this.terminalBadges?.get(a.address) ?? [];
       // An agent on another machine (`vps/t7`) says which.
       const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
       if (collapsed) {
         const roomy = (find(layout(), "sidebar")?.size?.px ?? 76) >= 60;
+        const badgeHint = rowBadges.length ? ` · ${rowBadges.map((b) => b.text).join(" ")}` : "";
         return h_flex().flex_none().justify_center().child(h_flex()
           .id(`ag-${a.address}`)
           .w(roomy ? 60 : 40)
@@ -594,7 +647,7 @@ export default class Agents extends View {
           .gap(roomy ? 2 : 0)
           .when(a.focused, (el) => el.bg(t.selected))
           .cursor_pointer()
-          .tooltip(`${i + 1} · ${label(a) || a.space_name || a.address}`)
+          .tooltip(`${i + 1} · ${label(a) || a.space_name || a.address}${badgeHint}`)
           .hover((s) => s.bg(t.hover))
           .on_mouse_down("left", (_event, cx) => {
             cx.stop_propagation();
@@ -629,7 +682,8 @@ export default class Agents extends View {
       // workspace name in dim subtext immediately to the left of the active duration.
       const full = byPriority || isPinned;
       const sessionTitle = more ?? (/^\d+$/.test(label(a)) ? a.program?.name || label(a) : label(a)) ?? a.space_name;
-      const spaceLabel = full && a.space_name && a.space_name !== sessionTitle ? a.space_name : null;
+      const sidebarWidth = find(layout(), "sidebar")?.size?.px ?? Infinity;
+      const spaceLabel = full && a.space_name && a.space_name !== sessionTitle && !(rowBadges.length && sidebarWidth < 240) ? a.space_name : null;
       return h_flex()
         .id(`ag-${a.address}`)
         .px(8)
@@ -659,6 +713,7 @@ export default class Agents extends View {
               cx.notify();
             })).child(pic)))
         .child(div().flex_1().min_w(0).truncate().text_color(idle ? t.muted : t.foreground).child(sessionTitle))
+        .when(rowBadges.length > 0, el => el.child(renderAgentBadges(t, a.address, rowBadges, { onOpen: (url) => this.openBadgeUrl(url) })))
         .when(Boolean(machine), el => el.child(div().flex_none().text_size(10).text_color(t.dim)
           .when(machine === "devserver", badge => badge
             .px(5).py(1).rounded(4).border(1).border_color(t.accent)

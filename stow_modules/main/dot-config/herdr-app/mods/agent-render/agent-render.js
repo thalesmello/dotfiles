@@ -29,3 +29,63 @@ export function renderAgentIndicators(t, a, { compact = false, bookmarked = fals
       .child(svg("mods/agent-render/bookmark.svg").size(compact ? 10 : 13).text_color(t.accent)))
     .child(indicator);
 }
+
+// Parse generic `badge.*` terminal labels (`text|tone|url|tooltip`) and overlay
+// any cached status metadata from `data/agent-badges/state.json`.
+export function parseTerminalBadges(labels, badgeCache = {}) {
+  if (!labels || typeof labels !== "object") return [];
+  const keys = Object.keys(labels)
+    .filter((k) => k.startsWith("badge.") && typeof labels[k] === "string" && labels[k].trim())
+    .sort();
+  const out = [];
+  for (const key of keys) {
+    const [rawText, rawTone, rawUrl, ...restTooltip] = labels[key].split("|");
+    const text = (rawText ?? "").trim();
+    if (!text) continue;
+    const cached = badgeCache?.[text];
+    const labelTooltip = restTooltip.join("|").trim();
+    const extraMatch = labelTooltip.match(/(Also:.*)$/);
+    const baseTooltip = cached?.tooltip || labelTooltip || text;
+    const tooltip = extraMatch && !baseTooltip.includes(extraMatch[1])
+      ? `${baseTooltip}\n${extraMatch[1]}`
+      : baseTooltip;
+    out.push({
+      key,
+      text,
+      tone: cached?.tone || rawTone?.trim() || "accent",
+      url: cached?.url || rawUrl?.trim() || "",
+      tooltip,
+    });
+  }
+  return out;
+}
+
+export function renderAgentBadges(t, address, badges, { onOpen } = {}) {
+  if (!badges?.length) return null;
+  return h_flex().flex_none().items_center().gap(4).children(
+    badges.map((b) => {
+      const color = t[b.tone] ?? t.accent ?? t.muted;
+      return div()
+        .id(`badge-${address}-${b.key}`)
+        .flex_none()
+        .px(5)
+        .py(1)
+        .rounded(4)
+        .border(1)
+        .border_color(color)
+        .bg(t.surface ?? t.raised ?? t.chrome)
+        .text_size(10)
+        .text_color(color)
+        .font_semibold()
+        .tooltip(b.tooltip)
+        .when(Boolean(b.url && onOpen), (el) => el
+          .cursor_pointer()
+          .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+          .on_click((_e, cx) => {
+            cx.stop_propagation();
+            onOpen(b.url);
+          }))
+        .child(b.text);
+    }),
+  );
+}
