@@ -1,6 +1,6 @@
 local util = require("util")
 
--- Offers to quit Zoom when a call ends.
+-- Closes Zoom after a cancellable countdown when a call ends.
 --
 -- Zoom keeps (and tends to raise) its main window after a call ends, which is
 -- exactly the window that gets in the way. There's no "meeting ended"
@@ -43,6 +43,7 @@ local BUNDLE = "us.zoom.xos"
 -- windows mid-call (reconnects, screen-share handoff, view switches), so give it
 -- a moment and re-check before concluding the call really ended.
 local SETTLE = 2
+local COUNTDOWN = 5
 local KILL_TIMEOUT = 5 -- seconds to wait for a graceful quit before force killing
 
 -- Live watcher state. Kept in module-locals (and mirrored to _G) so the
@@ -52,7 +53,7 @@ local zoomWatcher     -- hs.uielement.watcher on the Zoom application
 local windowWatchers  -- [window id] = hs.uielement.watcher
 local settleTimer     -- pending one-shot hs.timer.doAfter
 local inMeeting = false
-local prompting = false
+local prompt -- non-blocking countdown UI and timer
 
 local function zoomApp()
   local apps = hs.application.applicationsForBundleID(BUNDLE)
@@ -66,8 +67,8 @@ local function isMeetingTitle(title)
   return title:match("^Zoom Meeting") ~= nil or title:match("^Zoom Webinar") ~= nil
 end
 
--- Does a meeting window exist right now? Only ever called from an event
--- callback, never on a schedule.
+-- Does a meeting window exist right now? Checked on events and while a
+-- pending close countdown needs to guard against a new meeting.
 local function meetingWindowOpen(app)
   app = app or zoomApp()
   if not app then return false end
@@ -104,23 +105,108 @@ local function quitZoom()
   app:kill()
   hs.timer.doAfter(KILL_TIMEOUT, function()
     local still = zoomApp()
-    if still then
+    if still and still:pid() == app:pid()
+      and not meetingWindowOpen(still) and not meetingMenuPresent(still) then
       util.log("zoomwatcher: Zoom ignored the quit, force killing")
       still:kill9()
     end
   end)
 end
 
--- blockAlert blocks the Lua state, so guard against a second prompt stacking up
--- behind the first, and hs.focus() so the dialog lands in front of whatever Zoom
--- just raised.
+-- Match HoldToQuit's progress-ring HUD without stealing application focus.
+local function cancelPrompt()
+  local old = prompt
+  prompt = nil
+  if not old then return end
+  _G.ZoomWatcher.quitPending = nil
+  for _, timer in ipairs(old.timers) do timer:stop() end
+  for _, hotkey in ipairs(old.hotkeys) do hotkey:delete() end
+  if old.hud then old.hud:delete() end
+end
+
 local function promptQuit()
-  if prompting then return end
-  prompting = true
-  hs.focus()
-  local button = hs.dialog.blockAlert("Zoom call ended", "Quit Zoom?", "Quit", "Keep Open")
-  prompting = false
-  if button == "Quit" then quitZoom() end
+  if prompt then return end
+  local app = zoomApp()
+  if not app then return end
+  local state = {pid = app:pid(), timers = {}, hotkeys = {}}
+  prompt = state
+  _G.ZoomWatcher.cancelPrompt = cancelPrompt
+
+  local function finish(confirmed)
+    if prompt ~= state then return end
+    cancelPrompt()
+    local current = zoomApp()
+    -- Never close a replacement process or a newly started meeting.
+    if confirmed and current and current:pid() == state.pid
+      and not meetingWindowOpen(current) and not meetingMenuPresent(current) then
+      quitZoom()
+    end
+  end
+
+  -- HoldToQuit dispatches here before starting its usual one-second hold.
+  -- It still owns the physical key press, preventing repeats from quitting
+  -- whichever application is frontmost after Zoom disappears.
+  _G.ZoomWatcher.quitPending = function()
+    if prompt ~= state then return false end
+    finish(true)
+    return true
+  end
+  for _, key in ipairs({"return", "padenter", "escape"}) do
+    state.hotkeys[#state.hotkeys + 1] = hs.hotkey.bind({}, key, function() finish(false) end)
+  end
+
+  -- Reuse the exact HUD drawing/style, but keep a separate canvas and timers
+  -- so the countdown doesn't alter HoldToQuit's own hold state.
+  state.hud = spoon.HoldToQuit:_newHUD(app)
+  state.hud:elementAttribute(6, "text", "Zoom call ended")
+  state.hud:elementAttribute(5, "text", "5")
+  state.hud:elementAttribute(7, "text", "Closing in 5.0s · ⌘Q to quit now")
+  state.hud:appendElements({
+    type = "rectangle", action = "fill", id = "cancel",
+    frame = {x = 100, y = 204, w = 160, h = 32},
+    roundedRectRadii = {xRadius = 8, yRadius = 8},
+    fillColor = {red = 0.25, green = 0.62, blue = 1, alpha = 0.96},
+    trackMouseUp = true,
+  }, {
+    type = "text", action = "fill", id = "cancelLabel",
+    frame = {x = 100, y = 208, w = 160, h = 24},
+    text = "Cancel (↩)", textSize = 14, textAlignment = "center",
+    textColor = {white = 1}, trackMouseUp = true,
+  })
+  local frame = state.hud:frame()
+  frame.y = frame.y - 16
+  frame.h = 252
+  state.hud:frame(frame)
+  state.hud:elementAttribute(1, "frame", {x = 0, y = 0, w = 360, h = 252})
+  state.hud:mouseCallback(function(_, event, id)
+    if event == "mouseUp" and (id == "cancel" or id == "cancelLabel") then finish(false) end
+  end)
+
+  local startedAt = hs.timer.absoluteTime()
+  local lastSecond = -1
+  local function tick()
+    if prompt ~= state then return end
+    local elapsed = (hs.timer.absoluteTime() - startedAt) / 1e9
+    -- AX checks only once a second; redraw the ring smoothly at 30 Hz.
+    local second = math.floor(elapsed)
+    if second ~= lastSecond then
+      lastSecond = second
+      local current = zoomApp()
+      if not current or current:pid() ~= state.pid
+        or meetingWindowOpen(current) or meetingMenuPresent(current) then
+        finish(false)
+        return
+      end
+    end
+    local remaining = math.max(0, COUNTDOWN - elapsed)
+    local progress = math.min(1, elapsed / COUNTDOWN)
+    state.hud:elementAttribute(3, "endAngle", -90 + math.min(359.9, progress * 360))
+    state.hud:elementAttribute(5, "text", tostring(math.ceil(remaining)))
+    state.hud:elementAttribute(7, "text", string.format("Closing in %.1fs · ⌘Q to quit now", remaining))
+  end
+  state.timers[1] = hs.timer.doAfter(COUNTDOWN, function() finish(true) end)
+  state.timers[2] = hs.timer.doEvery(1 / 30, tick)
+  tick()
 end
 
 local function cancelSettle()
@@ -139,12 +225,14 @@ local function refresh()
 
   if meetingWindowOpen(app) then
     cancelSettle()
+    cancelPrompt()
     inMeeting = true
     return
   end
 
   if not inMeeting then
     if meetingMenuPresent(app) then
+      cancelPrompt()
       inMeeting = true
     end
     return
@@ -206,6 +294,7 @@ end
 
 local function detach()
   cancelSettle()
+  cancelPrompt()
   if zoomWatcher then
     pcall(function() zoomWatcher:stop() end)
     zoomWatcher = nil
@@ -256,6 +345,7 @@ end
 
 function M.setup()
   if _G.ZoomWatcher then
+    if _G.ZoomWatcher.cancelPrompt then _G.ZoomWatcher.cancelPrompt() end
     if _G.ZoomWatcher.bootstrap then _G.ZoomWatcher.bootstrap:stop() end
     if _G.ZoomWatcher.appWatcher then pcall(function() _G.ZoomWatcher.appWatcher:stop() end) end
     if _G.ZoomWatcher.app then pcall(function() _G.ZoomWatcher.app:stop() end) end
