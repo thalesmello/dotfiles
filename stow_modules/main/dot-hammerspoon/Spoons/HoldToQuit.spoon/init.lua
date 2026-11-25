@@ -284,6 +284,11 @@ function obj:onKeyDown()
     if self._keyDown then return end
 
     self._keyDown = true
+    -- A pending Zoom close countdown turns this press into an immediate quit.
+    -- Keep _keyDown set until release so key repeat cannot quit another app.
+    local zoom = _G.ZoomWatcher
+    if zoom and zoom.quitPending and zoom.quitPending() then return end
+
     self._holding = true
     self._targetApp = hs.application.frontmostApplication()
     self._startedAt = hs.timer.secondsSinceEpoch()
