@@ -163,6 +163,8 @@ local function fixture(opts)
           done(true, e.lsOutput)
         elseif args[1] == "herdr-app" and args[2] == "do" then
           done(e.doOk, "{}")
+        elseif args[1] == "hc" then
+          done(opts.coreOutput ~= nil, opts.coreOutput or "{}")
         end
       end
     end,
@@ -213,7 +215,7 @@ test("decode accepts valid attach and local.run payloads", function()
   eq(req.space, "work"); eq(req.name, "logs"); eq(req.focus, false)
 
   local localReq = e.mod.decodeRelayRequest(frame(e.mod, {
-    action = "local.run", argv = {"python3", "-c", "print(1)"}, mode = "tab", folder = "~/src",
+    action = "local.run", argv = {"python3", "-c", "print(1)"}, mode = "tab", folder = "~/src", space = "tools",
   }))
   eq(localReq.action, "local.run"); eq(#localReq.argv, 3); eq(localReq.folder, "~/src")
 end)
@@ -316,7 +318,8 @@ test("local.run cancels without executing when user clicks Cancel", function()
   eq(#e.dialogs, 1)
   assert(e.dialogs[1].body:find("python3 script.py", 1, true) ~= nil)
   assert(e.dialogs[1].body:find("Workspace: tools", 1, true) ~= nil)
-  eq(#e.tasks, 0)
+  eq(#e.tasks, 1) -- Inspection only, no launch.
+  eq(e.tasks[1].args[2], "ls")
   eq(e.prevAppActivations, 1)
 end)
 
@@ -337,18 +340,46 @@ test("local.run executes only after confirmation and creates local space with ma
   eq(e.activations, 1)
 end)
 
-test("local.run split with folder uses terminal.open instead of pane.split", function()
-  local e = fixture({dialogChoice = "Run", lsOutput = '{"spaces":[]}'})
-  local req = e.mod.decodeRelayRequest(frame(e.mod, {
-    action = "local.run", argv = {"ls", "-la"}, mode = "split", direction = "down", folder = "~/src",
-  }))
-  e.mod.handle(req)
-  eq(#e.dialogs, 1)
-  eq(e.tasks[2].args[3], "terminal.open")
-  local doArgs = jsonDecode(e.tasks[2].args[4])
-  eq(doArgs.folder, "~/src")
-  eq(doArgs.place, "down")
-  eq(table.concat(doArgs.argv, "|"), "ls|-la")
+test("local.run rejects missing workspace and unsupported split options", function()
+  local e = fixture()
+  for _, raw in ipairs({
+    {action = "local.run", argv = {"echo", "hi"}},
+    {action = "local.run", argv = {"echo"}, space = "tools", mode = "split", folder = "/tmp"},
+    {action = "local.run", argv = {"echo"}, space = "tools", mode = "split", focus = false},
+  }) do
+    eq(e.mod.decodeRelayRequest(frame(e.mod, raw)), nil)
+  end
+end)
+
+test("remote local.run target fails before confirmation or launch", function()
+  local e = fixture({lsOutput = '{"spaces":[{"id":"devserver/sp1","name":"tools","machine":"devserver"}]}'})
+  e.mod.handle(e.mod.decodeRelayRequest(frame(e.mod, {
+    action = "local.run", argv = {"echo"}, space = "tools",
+  })))
+  eq(#e.tasks, 1); eq(#e.dialogs, 0); eq(#e.notices, 1)
+end)
+
+test("failed inspection cannot create a workspace", function()
+  local e = fixture({lsOutput = "not json"})
+  e.mod.handle(e.mod.decodeRelayRequest(frame(e.mod, {
+    action = "attach", machine = "devserver", terminal = "t7", space = "tools",
+  })))
+  eq(#e.tasks, 1); eq(#e.notices, 1)
+end)
+
+test("navigation validates live IDs and sends only allowlisted commands", function()
+  local layout = '{"spaces":[{"id":"sp1","tabs":[{"id":"tb1","terminals":[{"pane":"p1","terminal":"t1"}]}]}]}'
+  for _, pair in ipairs({{"focus", "t1", "agent.focus"}, {"space.select", "sp1", "space.select"},
+      {"tab.select", "tb1", "tab.select"}, {"pane.zoom", "p1", "pane.zoom"}}) do
+    local e = fixture({lsOutput = layout})
+    e.mod.handle(e.mod.decodeRelayRequest(frame(e.mod, {action = pair[1], target = pair[2]})))
+    eq(#e.dialogs, 0)
+    eq(e.tasks[#e.tasks].args[3], pair[3])
+    if pair[1] == "tab.select" then eq(e.tasks[2].args[3], "space.select") end
+    local missing = fixture({lsOutput = layout})
+    missing.mod.handle(missing.mod.decodeRelayRequest(frame(missing.mod, {action = pair[1], target = "missing"})))
+    eq(#missing.tasks, pair[1] == "focus" and 2 or 1); eq(#missing.notices, 1)
+  end
 end)
 
 test("herdrRelay restores rich clipboard before dispatching HERDR_ACTION_V1", function()
@@ -379,6 +410,59 @@ test("herdrRelay restores rich clipboard before dispatching HERDR_ACTION_V1", fu
   e.text = rec; e.changeCount = e.changeCount + 1; e.changed(rec)
   eq(e.text, "original clipboard"); eq(e.restores, 1)
   eq(#e.tasks, 2); eq(e.tasks[2].args[3], "tab.new")
+end)
+
+test("listing validates reply routes and uses fixed hc exec argv", function()
+  local e = fixture({lsOutput = '{"spaces":[{"id":"sp1","name":"tools","tabs":[]}]}'})
+  local reply = {core_id = "deadbeef", nonce = string.rep("a", 32),
+    socket = "/tmp/herdr-remote-abc/reply.sock", bin = "/home/me/bin/herdr-remote"}
+  local req = e.mod.decodeRelayRequest(frame(e.mod, {action = "list", kind = "workspaces", reply = reply}))
+  assert(req)
+  e.mod.resolveMachineName = function(id) eq(id, "deadbeef"); return "devserver" end
+  package.loaded.shell.whenReady = function(done) done(true) end
+  package.loaded.shell.resolvePath = function(name) eq(name, "hc"); return "/usr/bin/hc" end
+  hs.task = {new = function(path, done, args)
+    eq(path, "/usr/bin/hc")
+    eq(table.concat(args, "|"), "exec|-i|--on|devserver|--|/home/me/bin/herdr-remote|--deliver-reply|/tmp/herdr-remote-abc/reply.sock|" .. reply.nonce)
+    return {setInput = function(_, input) e.result = jsonDecode(input) end,
+      setEnvironment = function() end, start = function() return true end}
+  end}
+  e.mod.handle(req)
+  eq(#e.dialogs, 0); eq(e.result.workspaces[1].id, "sp1")
+  for _, badPath in ipairs({"/tmp/../reply.sock", "/tmp/other.sock", "/tmp/herdr-remote-a/reply.sock;id"}) do
+    reply.socket = badPath
+    eq(e.mod.decodeRelayRequest(frame(e.mod, {action = "list", kind = "tabs", reply = reply})), nil)
+  end
+end)
+
+test("hidden focus validates exact live core address", function()
+  local e = fixture({coreOutput = '{"address":"devserver/t9","state":"live"}'})
+  e.mod.handle(e.mod.decodeRelayRequest(frame(e.mod, {action = "focus", target = "devserver/t9"})))
+  eq(e.tasks[2].args[2], "get"); eq(e.tasks[3].args[3], "agent.focus")
+  local wrong = fixture({coreOutput = '{"address":"devserver/t8","state":"live"}'})
+  wrong.mod.handle(wrong.mod.decodeRelayRequest(frame(wrong.mod, {action = "focus", target = "devserver/t9"})))
+  eq(#wrong.tasks, 2); eq(#wrong.notices, 1)
+end)
+
+test("pane move confirms exact local helper before execution", function()
+  local layout = '{"spaces":[{"id":"sp1","tabs":[{"id":"tb1","terminals":[{"pane":"p1","terminal":"t1"}]}]},{"id":"sp2","tabs":[{"id":"tb2","terminals":[]}]}]}'
+  for _, choice in ipairs({"Cancel", "Move"}) do
+    local e = fixture({lsOutput = layout, dialogChoice = choice})
+    package.loaded.shell.resolvePath = function(name) eq(name, "herdr-remote"); return "/bin/herdr-remote" end
+    e.mod.handle(e.mod.decodeRelayRequest(frame(e.mod, {
+      action = "pane.move", pane = "p1", space = "sp2", tab = "tb2", name = "moved",
+    })))
+    eq(#e.dialogs, 1)
+    assert(e.dialogs[1].body:find("/bin/herdr-remote --move-on-mac p1 sp2 tb2 moved t1", 1, true))
+    eq(#e.tasks, choice == "Move" and 2 or 1)
+    if choice == "Move" then eq(e.tasks[2].args[2], "--move-on-mac") end
+  end
+end)
+
+test("cross-machine move fails without a confirmation or helper", function()
+  local e = fixture({lsOutput = '{"spaces":[{"id":"sp1","tabs":[{"terminals":[{"pane":"p1","terminal":"t1"}]}]},{"id":"devserver/sp2","machine":"devserver","tabs":[]}]}'})
+  e.mod.handle(e.mod.decodeRelayRequest(frame(e.mod, {action = "pane.move", pane = "p1", space = "devserver/sp2"})))
+  eq(#e.dialogs, 0); eq(#e.tasks, 1); eq(#e.notices, 1)
 end)
 
 print(count .. " Herdr action tests passed")

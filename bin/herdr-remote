@@ -27,6 +27,14 @@ import os
 import re
 import subprocess
 import sys
+import socket
+import tempfile
+import copy
+import uuid
+import time
+import importlib.machinery
+import importlib.util
+from pathlib import Path
 
 # Must match stow_modules/main/dot-hammerspoon/herdrAction.lua.
 VERSION = "HERDR_ACTION_V1"
@@ -265,6 +273,10 @@ def build_attach_payload(args):
 
 
 def build_run_payload(args):
+    if not args.space:
+        die("local run requires --space <workspace>")
+    if args.split is not None and (args.folder is not None or args.no_focus):
+        die("--split does not support --folder or --no-focus")
     argv = list(args.cmd or [])
     if argv and argv[0] == "--":
         argv = argv[1:]
@@ -288,6 +300,185 @@ def build_run_payload(args):
 
     apply_layout_payload(args, payload)
     return payload
+
+
+MAX_REPLY_BYTES = 1048576
+
+
+def deliver_reply(path, nonce):
+    """Internal receiver: stdin is JSON, never shell input or terminal keys."""
+    data = sys.stdin.buffer.read(MAX_REPLY_BYTES + 1)
+    if len(data) > MAX_REPLY_BYTES:
+        die("reply exceeds byte limit", code=1)
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.settimeout(5)
+        client.connect(path)
+        client.sendall(nonce.encode("ascii") + b"\n" + data)
+    return 0
+
+
+def request_listing(args):
+    core = hc_core_id()
+    if not core:
+        die("listing requires an hc terminal with a core ID")
+    with tempfile.TemporaryDirectory(prefix="herdr-remote-") as directory:
+        path = os.path.join(directory, "reply.sock")
+        nonce = os.urandom(16).hex()
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
+            server.bind(path)
+            server.listen(1)
+            server.settimeout(20)
+            deadline = time.monotonic() + 20
+            payload = {"action": "list", "kind": args.kind,
+                       "reply": {"core_id": core, "socket": path, "nonce": nonce,
+                                 "bin": os.path.realpath(__file__)}}
+            emit_osc52(encode_record(payload))
+            try:
+                connection, _ = server.accept()
+                with connection:
+                    connection.settimeout(5)
+                    chunks, size = [], 0
+                    while True:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            die("listing reply deadline exceeded", code=1)
+                        connection.settimeout(min(5, remaining))
+                        chunk = connection.recv(65536)
+                        if not chunk:
+                            break
+                        size += len(chunk)
+                        if size > MAX_REPLY_BYTES + 33:
+                            die("reply exceeds byte limit", code=1)
+                        chunks.append(chunk)
+                header, _, body = b"".join(chunks).partition(b"\n")
+                if header.decode("ascii") != nonce:
+                    die("reply nonce mismatch", code=1)
+                result = json.loads(body)
+                sys.stdout.write(json.dumps(result, ensure_ascii=True) + "\n")
+                return 1 if isinstance(result, dict) and "error" in result else 0
+            except (OSError, ValueError) as exc:
+                die("listing reply failed: %s" % exc, code=1)
+
+
+def move_document(document, pane, terminal, space, tab=None, name=None):
+    """Pure layout update: preserve terminal/pane identity and unrelated nodes."""
+    doc = copy.deepcopy(document)
+    spaces = doc.get("spaces", [])
+    destinations = [sp for sp in spaces if sp.get("id") == space]
+    if len(destinations) != 1:
+        raise ValueError("destination workspace missing or ambiguous")
+    destination = destinations[0]
+    matches = []
+
+    def scan(node, sp, tb):
+        if not isinstance(node, dict):
+            return
+        if node.get("id") == pane and node.get("type") == "block":
+            matches.append((sp, tb, node))
+        for child in node.get("children", []):
+            scan(child, sp, tb)
+
+    for sp in spaces:
+        for tb in sp.get("tabs", []):
+            scan(tb.get("root"), sp, tb)
+    if len(matches) != 1 or (matches[0][2].get("content") or {}).get("terminal") != terminal:
+        raise ValueError("source pane missing, ambiguous, or terminal changed")
+    source_space, source_tab, moved = matches[0]
+    if tab is not None:
+        targets = [tb for tb in destination.get("tabs", []) if tb.get("id") == tab]
+        if len(targets) != 1:
+            raise ValueError("destination tab missing or ambiguous")
+        target = targets[0]
+        if target is source_tab:
+            raise ValueError("pane is already in destination tab")
+        if not isinstance(target.get("root"), dict):
+            raise ValueError("destination tab has no layout root")
+    else:
+        target = {"id": "tb" + uuid.uuid4().hex, "name": name or "moved pane"}
+
+    def detach(node):
+        if node is moved:
+            return None
+        if "children" in node:
+            node["children"] = [kept for child in node["children"] if (kept := detach(child)) is not None]
+            if not node["children"]:
+                return None
+        return node
+
+    remaining = detach(source_tab["root"])
+    if remaining is None:
+        source_space["tabs"].remove(source_tab)
+    else:
+        source_tab["root"] = remaining
+    moved.pop("size", None)
+    if tab is None:
+        target["root"] = {"id": "r" + uuid.uuid4().hex, "type": "row", "children": [moved]}
+        destination.setdefault("tabs", []).append(target)
+    else:
+        target["root"] = {"id": "r" + uuid.uuid4().hex, "type": "row",
+                          "children": [target["root"], moved]}
+    if source_space is not destination and not source_space["tabs"]:
+        spaces.remove(source_space)
+    return doc, target["id"]
+
+
+def load_core_adapter():
+    # Reuse the existing, tested hc socket transport, not a shell invocation.
+    loader = importlib.machinery.SourceFileLoader(
+        "herdr_remote_core", str(Path(__file__).resolve().with_name("hc-preset")))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    adapter = importlib.util.module_from_spec(spec)
+    loader.exec_module(adapter)
+    return adapter
+
+
+def move_on_mac(pane, space, tab, name, expected_terminal):
+    adapter = load_core_adapter()
+    layout = adapter.require_reply(adapter.herdr_app_rpc({"ls": True}), "pane move inspect")
+    sources = [(sp, tb, term) for sp in layout.get("spaces", [])
+               for tb in sp.get("tabs", []) for term in tb.get("terminals", [])
+               if term.get("pane") == pane]
+    destinations = [sp for sp in layout.get("spaces", []) if sp.get("id") == space]
+    if len(sources) != 1 or len(destinations) != 1:
+        raise ValueError("source or destination missing or ambiguous")
+    source, _, term = sources[0]
+    destination = destinations[0]
+    if term.get("terminal") != expected_terminal:
+        raise ValueError("source terminal changed after confirmation")
+    machine = source.get("machine") or ""
+    if (destination.get("machine") or "") != machine:
+        raise ValueError("cross-machine pane moves are unsupported")
+    prefix = machine + "/" if machine else ""
+
+    def bare(value):
+        if prefix:
+            if not value.startswith(prefix):
+                raise ValueError("ID does not belong to source machine")
+            return value[len(prefix):]
+        if "/" in value:
+            raise ValueError("unexpected remote ID in local workspace")
+        return value
+
+    params = {"name": "herdr-app"}
+    if machine:
+        params["on"] = machine
+    result = adapter.require_reply(adapter.hc_rpc("doc.get", params), "pane move doc.get").get("result", {})
+    if not isinstance(result.get("value"), dict) or result.get("version") is None:
+        raise ValueError("missing versioned layout document")
+    changed, destination_tab = move_document(result["value"], bare(pane), bare(expected_terminal),
+                                            bare(space), bare(tab) if tab else None, name)
+    adapter.require_reply(adapter.hc_rpc("doc.set", {**params, "version": result["version"],
+                                                    "value": changed}), "pane move doc.set")
+    try:
+        adapter.require_reply(adapter.hc_rpc("terminal.label", {
+            "terminal": expected_terminal,
+            "labels": {"herdr.space": bare(space), "herdr.tab": destination_tab},
+        }), "pane move terminal.label")
+    except Exception as exc:
+        raise ValueError("layout moved but label update failed; inspect before retrying: %s" % exc) from exc
+    sys.stdout.write(json.dumps({"pane": pane, "terminal": expected_terminal,
+                                 "space": space, "tab": prefix + destination_tab}) + "\n")
+    return 0
 
 
 def build_parser():
@@ -317,19 +508,71 @@ def build_parser():
     add_layout_args(p_run)
     p_run.add_argument("cmd", nargs=argparse.REMAINDER, help="command and arguments (prefix with --)")
 
+    for name in ("focus", "select-space", "select-tab", "zoom"):
+        p = sub.add_parser(name, help="change an existing Herdr target")
+        p.add_argument("target", help="exact machine-qualified terminal, workspace, tab, or pane ID")
+        p.add_argument("--dry-run", action="store_true")
+
+    p_move = sub.add_parser("move", help="move an existing pane; confirms the local helper on the Mac")
+    p_move.add_argument("pane")
+    p_move.add_argument("--space", required=True, help="exact destination workspace ID, on the same machine")
+    p_move.add_argument("--tab", help="exact existing destination tab ID; omitted creates a tab")
+    p_move.add_argument("--name", help="new tab name")
+    p_move.add_argument("--dry-run", action="store_true")
+
+    p_list = sub.add_parser("list", help="print bounded JSON from the Mac")
+    p_list.add_argument("kind", choices=("agents", "workspaces", "tabs"))
+
     return parser
 
 
 def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "--deliver-reply":
+        if len(argv) != 3 or not re.fullmatch(r"[0-9a-f]{32}", argv[2]):
+            die("invalid reply delivery")
+        try:
+            return deliver_reply(argv[1], argv[2])
+        except OSError as exc:
+            die("reply delivery failed: %s" % exc, code=1)
+    if argv and argv[0] == "--move-on-mac":
+        if len(argv) != 6 or any(not PANE_RE.fullmatch(v) for v in (argv[1], argv[2], argv[5])):
+            die("invalid internal move request")
+        if argv[3] != "-" and not PANE_RE.fullmatch(argv[3]):
+            die("invalid destination tab")
+        if not valid_label(argv[4]):
+            die("invalid tab name")
+        try:
+            return move_on_mac(argv[1], argv[2], None if argv[3] == "-" else argv[3], argv[4], argv[5])
+        except Exception as exc:
+            die("pane move failed: %s" % exc, code=1)
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.subcommand == "attach":
+    if args.subcommand == "list":
+        return request_listing(args)
+    if args.subcommand == "move":
+        if any(not PANE_RE.fullmatch(v) for v in (args.pane, args.space)):
+            die("invalid pane or workspace ID")
+        if args.tab is not None and not PANE_RE.fullmatch(args.tab):
+            die("invalid tab ID")
+        if args.name is not None and not valid_label(args.name):
+            die("invalid tab name")
+        payload = {"action": "pane.move", "pane": args.pane, "space": args.space}
+        if args.tab is not None:
+            payload["tab"] = args.tab
+        if args.name is not None:
+            payload["name"] = args.name
+    elif args.subcommand == "attach":
         payload = build_attach_payload(args)
     elif args.subcommand == "run":
         payload = build_run_payload(args)
     else:
-        die("unknown subcommand: %s" % args.subcommand)
+        if not PANE_RE.fullmatch(args.target):
+            die("invalid target ID")
+        actions = {"focus": "focus", "select-space": "space.select",
+                   "select-tab": "tab.select", "zoom": "pane.zoom"}
+        payload = {"action": actions[args.subcommand], "target": args.target}
 
     record = encode_record(payload)
     if args.dry_run:

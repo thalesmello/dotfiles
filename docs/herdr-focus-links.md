@@ -44,12 +44,51 @@ remains owned by Herdr and is not edited.
 to load the handler, and use `/reload` in existing Pi sessions to refresh the
 prompt extension.
 
+## Structured remote actions
+
+The devserver's `herdr-remote` helper sends `HERDR_ACTION_V1` through the same
+clipboard watcher. It restores the full clipboard before acting. Only the
+enumerated actions are accepted, not arbitrary Herdr commands.
+
+| CLI | Behavior |
+|---|---|
+| `attach [terminal] --space NAME --tab` | Attach a remote hc terminal; reuse the first matching workspace or create one |
+| `attach [terminal] --space NAME --split right --pane ID` | Attach beside a validated pane in that workspace |
+| `run --space NAME --tab -- command args...` | Confirm a local Mac command; workspace is mandatory and must be local |
+| `focus TERMINAL` | Focus an existing terminal, including hidden coding sessions |
+| `select-space SPACE` / `select-tab TAB` | Select exact IDs; tab selection first selects its workspace |
+| `zoom PANE` | Toggle pane zoom on/off |
+| `list agents` / `list workspaces` / `list tabs` | Return JSON to the calling devserver process |
+| `move PANE --space SPACE [--tab TAB] [--name NAME]` | Move the same pane/terminal to an existing same-machine workspace; omitted tab creates a tab |
+
+Prefix each CLI with `herdr-remote`. Use discovered IDs, preserving machine
+prefixes. Names are accepted only for attach/run workspace lookup. Attach
+currently creates an hc-attach wrapper terminal rather than adopting the
+source terminal directly. Attach and UI navigation have no confirmation.
+Local commands always require confirmation; move also confirms because it
+runs a local Python helper. No close, terminal-input, or generic actions exist.
+
+Listings require an hc core ID matching a configured machine on the Mac.
+Replies travel over fixed `hc exec` argv to a receiver in the helper, with
+stdin and a nonce-checked Unix socket in a private temporary directory.
+Replies are capped at 1 MiB, with a 20-second deadline; no terminal paste or
+clipboard read is needed. The directory/socket are removed on success or failure.
+
+Move reuses the sibling `hc-preset` socket transport. It rereads the live
+source, checks the confirmed terminal ID, writes the layout with its expected
+version, then updates placement labels. It never launches or kills a terminal,
+retries an uncertain write, or moves between machines. On partial label-update
+failure, inspect the layout before retrying. Local splits reject `--folder`
+and `--no-focus` rather than silently ignoring them.
+
 ## Offline tests
 
 From the dotfiles repository:
 
 ```sh
 lua tests/herdr_focus_test.lua
+lua tests/herdr_action_test.lua
+python3 -m unittest tests/herdr_remote_test.py
 bun test stow_modules/main/dot-pi/agent/tests/herdr-skill.test.ts
 bun test stow_modules/main/dot-pi/agent/tests/osc8-links.test.ts
 ```

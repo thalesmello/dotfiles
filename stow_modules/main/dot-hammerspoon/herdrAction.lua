@@ -140,7 +140,31 @@ function M.decodeRelayRequest(contents)
       core_id = raw.core_id and raw.core_id:lower() or nil,
     }
     return validateCommonLayout(raw, req)
+  elseif action == "pane.move" then
+    if not validPane(raw.pane) or not validPane(raw.space) then return nil end
+    if raw.tab ~= nil and not validPane(raw.tab) then return nil end
+    if raw.name ~= nil and not validLabel(raw.name, 128) then return nil end
+    return {action = action, pane = raw.pane, space = raw.space, tab = raw.tab, name = raw.name}
+  elseif action == "list" then
+    if raw.kind ~= "agents" and raw.kind ~= "workspaces" and raw.kind ~= "tabs" then return nil end
+    local reply = raw.reply
+    if type(reply) ~= "table" or not validCoreId(reply.core_id)
+        or type(reply.nonce) ~= "string" or #reply.nonce ~= 32
+        or not reply.nonce:match("^[0-9a-f]+$") then return nil end
+    for _, path in ipairs({reply.socket or false, reply.bin or false}) do
+      if type(path) ~= "string" or #path > 512
+          or not path:match("^/[A-Za-z0-9._/-]+$") or path:find("%.%.") then return nil end
+    end
+    if not reply.socket:match("/herdr%-remote%-[A-Za-z0-9_-]+/reply%.sock$")
+        or not reply.bin:match("/herdr%-remote$") then return nil end
+    return {action = action, kind = raw.kind, reply = reply}
+  elseif action == "focus" or action == "space.select"
+      or action == "tab.select" or action == "pane.zoom" then
+    if not validPane(raw.target) then return nil end
+    return {action = action, target = raw.target}
   elseif action == "local.run" then
+    if not validLabel(raw.space, 128) then return nil end
+    if raw.mode == "split" and (raw.folder ~= nil or raw.focus == false) then return nil end
     if not validArgv(raw.argv) then return nil end
     if raw.folder ~= nil and not validFolder(raw.folder) then return nil end
 
@@ -182,13 +206,6 @@ function M.resolveMachineName(coreId, machinesPath)
           and validToken(entry.name, 128) then
         return entry.name
       end
-    end
-  end
-
-  if #machines == 1 then
-    local only = machines[1]
-    if type(only) == "table" and validToken(only.name, 128) then
-      return only.name
     end
   end
 
@@ -283,7 +300,7 @@ local function formatLocalTarget(req)
   return table.concat(lines, "\n")
 end
 
-local function runHerdrAppDo(command, doArgs, shouldFocus, errorPrefix)
+local function runHerdrAppDo(command, doArgs, shouldFocus, errorPrefix, done)
   local encodedArgs = hs.json.encode(doArgs)
   shell.task({"herdr-app", "do", command, encodedArgs}, function(ok, out)
     if not ok then
@@ -295,6 +312,7 @@ local function runHerdrAppDo(command, doArgs, shouldFocus, errorPrefix)
       local app = hs.application.get("Herdr")
       if app then app:activate(true) end
     end
+    if done then done(out) end
   end)
 end
 
@@ -332,11 +350,17 @@ local function executeAttach(req)
   local errPrefix = "Herdr attach (" .. machine .. "/" .. req.terminal .. ")"
 
   querySpaces(function(spaces)
+    if not spaces then
+      util.notify("Herdr attach: could not inspect workspaces")
+      return
+    end
     if req.space then
       local matched = findSpace(spaces, req.space, false)
       if not matched then
+        if req.pane then util.notify("Herdr attach: anchor workspace not found"); return end
         local doArgs = {
           name = req.space,
+          tab = req.name or (machine .. "/" .. req.terminal),
           machine = machine,
           argv = {"hc", "attach", req.terminal},
         }
@@ -345,6 +369,15 @@ local function executeAttach(req)
         return
       end
 
+      if req.pane then
+        local found = false
+        for _, tab in ipairs(matched.tabs or {}) do
+          for _, term in ipairs(tab.terminals or {}) do
+            if term.pane == req.pane then found = true end
+          end
+        end
+        if not found then util.notify("Herdr attach: anchor is outside requested workspace"); return end
+      end
       local attachArgv = buildAttachArgv(machine, req.terminal, matched)
       if req.mode == "split" then
         local anchor = req.pane or firstPaneInSpace(matched)
@@ -390,97 +423,242 @@ local function executeAttach(req)
 end
 
 local function executeLocalRun(req)
-  local previousApp = hs.application.frontmostApplication()
-
-  -- Mandatory confirmation before running any local command on this Mac.
-  hs.focus()
-  local button = hs.dialog.blockAlert(
-    "Run local command in Herdr?",
-    formatLocalTarget(req),
-    "Run",
-    "Cancel",
-    "warning"
-  )
-  if button ~= "Run" then
-    if previousApp then previousApp:activate(true) end
-    return
-  end
-
-  local shouldFocus = req.focus ~= false
-  local errPrefix = "Herdr local run"
-
+  -- Resolve the actual machine and anchor before asking permission.
   querySpaces(function(spaces)
-    if req.space then
-      local matched = findSpace(spaces, req.space, true)
-      if not matched then
-        local doArgs = {
-          name = req.space,
-          machine = "",
-          argv = req.argv,
-        }
-        if req.folder then doArgs.folder = req.folder end
-        if not shouldFocus then doArgs.focus = false end
-        runHerdrAppDo("space.new", doArgs, shouldFocus, errPrefix)
-        return
-      end
-
-      if req.mode == "split" then
-        local anchor = req.pane or firstPaneInSpace(matched)
-        if anchor then
-          runHerdrAppDo("pane.split", {
-            direction = req.direction,
-            pane = anchor,
-            argv = req.argv,
-          }, shouldFocus, errPrefix)
-          return
+    if not spaces then
+      util.notify("Herdr local run: could not inspect workspaces")
+      return
+    end
+    local matched = findSpace(spaces, req.space, false)
+    if matched and not isLocalSpace(matched) then
+      util.notify("Herdr local run: requested workspace is remote")
+      return
+    end
+    local anchor = matched and firstPaneInSpace(matched)
+    if req.pane then
+      local found = false
+      for _, tab in ipairs(matched and matched.tabs or {}) do
+        for _, term in ipairs(tab.terminals or {}) do
+          if term.pane == req.pane then found = true end
         end
       end
-
-      local doArgs = {
-        space = matched.id,
-        argv = req.argv,
-      }
-      if req.name then doArgs.name = req.name end
-      if req.folder then doArgs.folder = req.folder end
-      if not shouldFocus then doArgs.focus = false end
-      runHerdrAppDo("tab.new", doArgs, shouldFocus, errPrefix)
-      return
-    end
-
-    if req.mode == "split" then
-      if req.folder and not req.pane then
-        runHerdrAppDo("terminal.open", {
-          folder = req.folder,
-          place = req.direction,
-          argv = req.argv,
-        }, shouldFocus, errPrefix)
+      if not found then
+        util.notify("Herdr local run: anchor is outside the requested workspace")
         return
       end
-      local doArgs = {
-        direction = req.direction,
-        argv = req.argv,
-      }
-      if req.pane then doArgs.pane = req.pane end
-      runHerdrAppDo("pane.split", doArgs, shouldFocus, errPrefix)
+      anchor = req.pane
+    end
+    local previousApp = hs.application.frontmostApplication()
+    hs.focus()
+    local button = hs.dialog.blockAlert(
+      "Run local command in Herdr?",
+      "Machine: this Mac\n" .. formatLocalTarget(req)
+        .. (matched and ("\nWorkspace ID: " .. matched.id) or "\nCreate local workspace"),
+      "Run", "Cancel", "warning"
+    )
+    if previousApp then previousApp:activate(true) end
+    if button ~= "Run" then return end
+
+    local args = {argv = req.argv, name = req.name or req.argv[1]}
+    local command = "tab.new"
+    if not matched then
+      command = "space.new"
+      args.name = req.space
+      args.tab = req.name or req.argv[1]
+      args.machine = ""
+    elseif req.mode == "split" and anchor then
+      command = "pane.split"
+      args.name = nil
+      args.pane = anchor
+      args.direction = req.direction
+    else
+      args.space = matched.id
+    end
+    if req.folder then args.folder = req.folder end
+    if req.focus == false then args.focus = false end
+    runHerdrAppDo(command, args, req.focus ~= false, "Herdr local run")
+  end)
+end
+
+local function executeNavigation(req)
+  querySpaces(function(spaces)
+    if not spaces then
+      util.notify("Herdr action: could not inspect workspaces")
       return
     end
+    local command, args, targetSpace
+    for _, sp in ipairs(spaces) do
+      if req.action == "space.select" and sp.id == req.target then
+        command, args = "space.select", {id = sp.id}
+      end
+      for _, tab in ipairs(sp.tabs or {}) do
+        if req.action == "tab.select" and tab.id == req.target then
+          command, args, targetSpace = "tab.select", {id = tab.id}, sp.id
+        end
+        for _, term in ipairs(tab.terminals or {}) do
+          if req.action == "focus" and term.terminal == req.target then
+            command, args = "agent.focus", {terminal = term.terminal}
+          elseif req.action == "pane.zoom" and term.pane == req.target then
+            command, args = "pane.zoom", {pane = term.pane}
+          end
+        end
+      end
+    end
+    if not command and req.action == "focus" then
+      -- Hidden terminals have no entry in app ls. Validate against the core.
+      shell.task({"hc", "get", req.target, "--json", print_stdout = false}, function(ok, out)
+        local parsedOk, term = pcall(hs.json.decode, out or "")
+        if not ok or not parsedOk or type(term) ~= "table"
+            or term.address ~= req.target or term.state ~= "live" then
+          util.notify("Herdr focus: terminal not found: " .. req.target)
+          return
+        end
+        runHerdrAppDo("agent.focus", {terminal = req.target}, true, "Herdr focus")
+      end)
+      return
+    end
+    if not command then
+      util.notify("Herdr action: target not found: " .. req.target)
+      return
+    end
+    if targetSpace then
+      runHerdrAppDo("space.select", {id = targetSpace}, false, "Herdr action", function()
+        runHerdrAppDo(command, args, true, "Herdr action")
+      end)
+    else
+      runHerdrAppDo(command, args, true, "Herdr action")
+    end
+  end)
+end
 
-    local doArgs = {
-      argv = req.argv,
-    }
-    if req.name then doArgs.name = req.name end
-    if req.folder then doArgs.folder = req.folder end
-    if not shouldFocus then doArgs.focus = false end
-    runHerdrAppDo("tab.new", doArgs, shouldFocus, errPrefix)
+local function executeMove(req)
+  querySpaces(function(spaces)
+    if not spaces then util.notify("Herdr move: could not inspect workspaces"); return end
+    local source, destination, terminal
+    for _, sp in ipairs(spaces) do
+      if sp.id == req.space then destination = sp end
+      for _, tab in ipairs(sp.tabs or {}) do
+        for _, term in ipairs(tab.terminals or {}) do
+          if term.pane == req.pane then source, terminal = sp, term.terminal end
+        end
+      end
+    end
+    if not source or not destination or not validPane(terminal) then
+      util.notify("Herdr move: source or destination not found"); return
+    end
+    if (source.machine or "") ~= (destination.machine or "") then
+      util.notify("Herdr move: cross-machine moves are unsupported"); return
+    end
+    if req.tab then
+      local found = false
+      for _, tab in ipairs(destination.tabs or {}) do
+        if tab.id == req.tab then found = true end
+      end
+      if not found then util.notify("Herdr move: destination tab not found"); return end
+    end
+    local helper = shell.resolvePath("herdr-remote")
+    if not helper then util.notify("Herdr move: local helper not installed"); return end
+    local argv = {helper, "--move-on-mac", req.pane, req.space, req.tab or "-",
+      req.name or "moved pane", terminal}
+    local previousApp = hs.application.frontmostApplication()
+    hs.focus()
+    local button = hs.dialog.blockAlert("Move Herdr pane?",
+      "Run local helper on this Mac\nSource: " .. req.pane .. " (" .. terminal .. ")"
+        .. "\nDestination workspace: " .. req.space .. "\nDestination tab: " .. (req.tab or "new tab")
+        .. "\n\nCommand:\n" .. formatArgv(argv), "Move", "Cancel", "warning")
+    if previousApp then previousApp:activate(true) end
+    if button ~= "Move" then return end
+    shell.task(argv, function(ok, out)
+      if not ok then
+        util.log("Herdr move failed:", out)
+        util.notify("Herdr move failed; inspect layout before retrying")
+      end
+    end)
+  end)
+end
+
+local function deliverListing(reply, result)
+  local machine = M.resolveMachineName(reply.core_id)
+  if not machine then
+    util.notify("Herdr list: requester machine not found")
+    return
+  end
+  local encoded = hs.json.encode(result)
+  if #encoded > 1048576 then encoded = hs.json.encode({error = "listing exceeds byte limit"}) end
+  -- Infrastructure-only route: fixed hc exec argv, data on stdin, no local shell.
+  shell.whenReady(function(ok)
+    if not ok then util.notify("Herdr list: PATH discovery failed"); return end
+    local hc = shell.resolvePath("hc")
+    if not hc then util.notify("Herdr list: hc not found"); return end
+    _G._RunningTasks = _G._RunningTasks or {}
+    local task
+    task = hs.task.new(hc, function(code, _, err)
+      _G._RunningTasks[task] = nil
+      if code ~= 0 then util.log("Herdr list delivery failed:", err); util.notify("Herdr list delivery failed") end
+    end, {"exec", "-i", "--on", machine, "--", reply.bin,
+      "--deliver-reply", reply.socket, reply.nonce})
+    if not task then util.notify("Herdr list: could not create task"); return end
+    if _G._TaskEnv then task:setEnvironment(_G._TaskEnv) end
+    task:setInput(encoded)
+    _G._RunningTasks[task] = true
+    if not task:start() then
+      _G._RunningTasks[task] = nil
+      util.notify("Herdr list: could not start delivery")
+    end
+  end)
+end
+
+local function executeListing(req)
+  if req.kind == "agents" then
+    shell.task({"hc", "ls", "--json", print_stdout = false}, function(ok, out)
+      local parsedOk, parsed = pcall(hs.json.decode, out or "")
+      if not ok or not parsedOk or type(parsed) ~= "table" or type(parsed.terminals) ~= "table" then
+        deliverListing(req.reply, {error = "could not inspect coding sessions"})
+        return
+      end
+      local entries = {}
+      for _, term in ipairs(parsed.terminals) do
+        if term.agent and term.agent ~= "fish" and term.agent ~= "sh"
+            and term.agent ~= "bash" and term.agent ~= "zsh" then
+          entries[#entries + 1] = {terminal = term.address, name = term.name,
+            app = term.agent, status = term.status, state = term.state, cwd = term.cwd}
+        end
+      end
+      deliverListing(req.reply, {agents = entries})
+    end)
+    return
+  end
+  querySpaces(function(spaces)
+    if not spaces then deliverListing(req.reply, {error = "could not inspect workspaces"}); return end
+    local entries = {}
+    for _, sp in ipairs(spaces) do
+      if req.kind == "workspaces" then
+        entries[#entries + 1] = {id = sp.id, name = sp.name, machine = sp.machine,
+          folder = sp.folder, active = sp.active}
+      else
+        for _, tab in ipairs(sp.tabs or {}) do
+          entries[#entries + 1] = {id = tab.id, name = tab.name, space = sp.id,
+            machine = sp.machine, active = tab.active, terminals = tab.terminals}
+        end
+      end
+    end
+    deliverListing(req.reply, {[req.kind] = entries})
   end)
 end
 
 function M.handle(req)
   if type(req) ~= "table" then return end
-  if req.action == "attach" then
+  if req.action == "pane.move" then
+    executeMove(req)
+  elseif req.action == "list" then
+    executeListing(req)
+  elseif req.action == "attach" then
     executeAttach(req)
   elseif req.action == "local.run" then
     executeLocalRun(req)
+  elseif req.action == "focus" or req.action == "space.select"
+      or req.action == "tab.select" or req.action == "pane.zoom" then
+    executeNavigation(req)
   else
     util.log("herdrAction: ignoring unknown action", tostring(req.action))
   end

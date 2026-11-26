@@ -13,7 +13,9 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, Mock, MagicMock
+from types import SimpleNamespace
+import copy
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "bin/herdr-remote"
@@ -84,7 +86,7 @@ class HerdrRemoteTests(unittest.TestCase):
         with patch("sys.stdout", out):
             rc = mod.main([
                 "run",
-                "--split", "right",
+                "--tab",
                 "--space", "mac-tools",
                 "--folder", "~/src",
                 "--dry-run",
@@ -97,8 +99,7 @@ class HerdrRemoteTests(unittest.TestCase):
             "action": "local.run",
             "argv": ["python3", "-c", "print('hi')"],
             "folder": "~/src",
-            "mode": "split",
-            "direction": "right",
+            "mode": "tab",
             "space": "mac-tools",
         })
 
@@ -125,6 +126,166 @@ class HerdrRemoteTests(unittest.TestCase):
             "mode": "tab",
             "space": "eng",
         })
+
+    def test_navigation_payloads(self):
+        actions = {"focus": "focus", "select-space": "space.select",
+                   "select-tab": "tab.select", "zoom": "pane.zoom"}
+        for command, action in actions.items():
+            out = io.StringIO()
+            with patch("sys.stdout", out):
+                mod.main([command, "devserver/p1", "--dry-run"])
+            self.assertEqual(json.loads(out.getvalue()),
+                             {"action": action, "target": "devserver/p1"})
+
+    def test_local_run_requires_workspace(self):
+        with patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit):
+            mod.main(["run", "--dry-run", "--", "echo", "hello"])
+
+    def test_listing_socket_roundtrip_and_cleanup(self):
+        paths = []
+
+        def reply(record):
+            body = record.split(":", 2)[2][:-1]
+            request = json.loads(base64.b64decode(body))
+            route = request["reply"]
+            paths.append(route["socket"])
+            self.assertEqual(request["kind"], "workspaces")
+            self.assertEqual(os.stat(os.path.dirname(route["socket"])).st_mode & 0o777, 0o700)
+            with mod.socket.socket(mod.socket.AF_UNIX, mod.socket.SOCK_STREAM) as client:
+                client.connect(route["socket"])
+                client.sendall(route["nonce"].encode() + b'\n{"workspaces":[]}')
+
+        out = io.StringIO()
+        with patch.object(mod, "hc_core_id", return_value="deadbeef"), \
+                patch.object(mod, "emit_osc52", side_effect=reply), patch("sys.stdout", out):
+            self.assertEqual(mod.main(["list", "workspaces"]), 0)
+        self.assertEqual(json.loads(out.getvalue()), {"workspaces": []})
+        self.assertFalse(os.path.exists(paths[0]))
+
+    def test_listing_rejects_wrong_nonce(self):
+        def reply(record):
+            request = json.loads(base64.b64decode(record.split(":", 2)[2][:-1]))
+            with mod.socket.socket(mod.socket.AF_UNIX, mod.socket.SOCK_STREAM) as client:
+                client.connect(request["reply"]["socket"])
+                client.sendall(b'wrong\n{}')
+        with patch.object(mod, "hc_core_id", return_value="deadbeef"), \
+                patch.object(mod, "emit_osc52", side_effect=reply), \
+                patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit):
+            mod.main(["list", "tabs"])
+
+    def move_fixture(self):
+        return {"spaces": [
+            {"id": "sp1", "tabs": [{"id": "tb1", "root": {"type": "row", "children": [
+                {"id": "p1", "type": "block", "size": {"weight": 2}, "content": {"terminal": "t1"}},
+                {"id": "p2", "type": "block", "content": {"terminal": "t2"}},
+            ]}}]},
+            {"id": "sp2", "tabs": [{"id": "tb2", "root": {
+                "id": "p3", "type": "block", "content": {"terminal": "t3"}}}]},
+        ]}
+
+    def test_move_preserves_identity_and_input_document(self):
+        doc = self.move_fixture()
+        original = copy.deepcopy(doc)
+        changed, tab = mod.move_document(doc, "p1", "t1", "sp2", "tb2")
+        self.assertEqual(doc, original)
+        self.assertEqual(tab, "tb2")
+        self.assertEqual(changed["spaces"][0]["tabs"][0]["root"]["children"][0]["id"], "p2")
+        moved = changed["spaces"][1]["tabs"][0]["root"]["children"][1]
+        self.assertEqual(moved["id"], "p1")
+        self.assertEqual(moved["content"]["terminal"], "t1")
+        self.assertNotIn("size", moved)
+
+    def test_move_new_tab_and_last_pane_removal(self):
+        doc = self.move_fixture()
+        changed, tab = mod.move_document(doc, "p3", "t3", "sp1", name="moved")
+        self.assertEqual(len(changed["spaces"]), 1)
+        new_tab = changed["spaces"][0]["tabs"][-1]
+        self.assertEqual(new_tab["id"], tab)
+        self.assertEqual(new_tab["name"], "moved")
+        self.assertEqual(new_tab["root"]["children"][0]["id"], "p3")
+
+    def test_move_rejects_stale_or_ambiguous_targets(self):
+        for pane, terminal, space, tab in [
+            ("gone", "t1", "sp2", None), ("p1", "wrong", "sp2", None),
+            ("p1", "t1", "missing", None), ("p1", "t1", "sp1", "tb1"),
+            ("p1", "t1", "sp2", "missing"),
+        ]:
+            with self.subTest(pane=pane, space=space), self.assertRaises(ValueError):
+                mod.move_document(self.move_fixture(), pane, terminal, space, tab)
+
+    def test_move_uses_versioned_write_and_does_not_retry_conflict(self):
+        layout = {"spaces": [
+            {"id": "sp1", "tabs": [{"terminals": [{"pane": "p1", "terminal": "t1"}]}]},
+            {"id": "sp2", "tabs": []},
+        ]}
+        def checked(reply, _):
+            return reply
+        def rpc(method, params):
+            if method == "doc.get":
+                return {"result": {"value": self.move_fixture(), "version": 7}}
+            if method == "doc.set":
+                self.assertEqual(params["version"], 7)
+                raise RuntimeError("version conflict")
+            self.fail("unexpected mutation: " + method)
+        adapter = SimpleNamespace(herdr_app_rpc=Mock(return_value=layout),
+                                  hc_rpc=Mock(side_effect=rpc), require_reply=checked)
+        with patch.object(mod, "load_core_adapter", return_value=adapter), self.assertRaises(RuntimeError):
+            mod.move_on_mac("p1", "sp2", None, "moved", "t1")
+        self.assertEqual([c.args[0] for c in adapter.hc_rpc.call_args_list], ["doc.get", "doc.set"])
+
+    def test_move_rejects_cross_machine_before_mutation(self):
+        layout = {"spaces": [
+            {"id": "sp1", "tabs": [{"terminals": [{"pane": "p1", "terminal": "t1"}]}]},
+            {"id": "devserver/sp2", "machine": "devserver", "tabs": []},
+        ]}
+        adapter = SimpleNamespace(herdr_app_rpc=Mock(return_value=layout), hc_rpc=Mock(),
+                                  require_reply=lambda reply, _: reply)
+        with patch.object(mod, "load_core_adapter", return_value=adapter), self.assertRaises(ValueError):
+            mod.move_on_mac("p1", "devserver/sp2", None, "moved", "t1")
+        adapter.hc_rpc.assert_not_called()
+
+    def test_remote_move_routes_document_and_labels_to_same_machine(self):
+        layout = {"spaces": [
+            {"id": "dev/sp1", "machine": "dev", "tabs": [{"terminals": [{"pane": "dev/p1", "terminal": "dev/t1"}]}]},
+            {"id": "dev/sp2", "machine": "dev", "tabs": []},
+        ]}
+        def rpc(method, params):
+            if method == "doc.get":
+                self.assertEqual(params, {"name": "herdr-app", "on": "dev"})
+                return {"result": {"value": self.move_fixture(), "version": 7}}
+            if method == "doc.set":
+                self.assertEqual(params["on"], "dev")
+                self.assertEqual(params["version"], 7)
+            if method == "terminal.label":
+                self.assertEqual(params["terminal"], "dev/t1")
+                self.assertEqual(params["labels"]["herdr.space"], "sp2")
+            return {"result": {}}
+        adapter = SimpleNamespace(herdr_app_rpc=Mock(return_value=layout), hc_rpc=Mock(side_effect=rpc),
+                                  require_reply=lambda reply, _: reply)
+        out = io.StringIO()
+        with patch.object(mod, "load_core_adapter", return_value=adapter), patch("sys.stdout", out):
+            self.assertEqual(mod.move_on_mac("dev/p1", "dev/sp2", None, "moved", "dev/t1"), 0)
+        result = json.loads(out.getvalue())
+        self.assertEqual(result["terminal"], "dev/t1")
+        self.assertTrue(result["tab"].startswith("dev/tb"))
+
+    def test_listing_timeout_is_bounded_and_reported(self):
+        server = MagicMock()
+        server.__enter__.return_value = server
+        server.accept.side_effect = mod.socket.timeout("timed out")
+        err = io.StringIO()
+        with patch.object(mod.socket, "socket", return_value=server), \
+                patch.object(mod, "hc_core_id", return_value="deadbeef"), \
+                patch.object(mod, "emit_osc52"), patch("sys.stderr", err), self.assertRaises(SystemExit):
+            mod.main(["list", "tabs"])
+        server.settimeout.assert_called_with(20)
+        self.assertIn("timed out", err.getvalue())
+
+    def test_reply_delivery_failure_has_no_traceback(self):
+        err = io.StringIO()
+        with patch("sys.stderr", err), self.assertRaises(SystemExit):
+            mod.main(["--deliver-reply", "/nonexistent/reply.sock", "a" * 32])
+        self.assertIn("reply delivery failed", err.getvalue())
 
     def test_rejects_invalid_inputs(self):
         bad_invocations = [
