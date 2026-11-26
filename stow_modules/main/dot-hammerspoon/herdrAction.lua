@@ -618,8 +618,9 @@ local function executeListing(req)
       end
       local entries = {}
       for _, term in ipairs(parsed.terminals) do
-        if term.agent and term.agent ~= "fish" and term.agent ~= "sh"
-            and term.agent ~= "bash" and term.agent ~= "zsh" then
+        -- Plain programs may have an agent/program name too; only reported
+        -- coding-session statuses distinguish them from background workers.
+        if term.agent and type(term.status) == "string" then
           entries[#entries + 1] = {terminal = term.address, name = term.name,
             app = term.agent, status = term.status, state = term.state, cwd = term.cwd}
         end

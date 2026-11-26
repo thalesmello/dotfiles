@@ -429,6 +429,12 @@ test("listing validates reply routes and uses fixed hc exec argv", function()
   end}
   e.mod.handle(req)
   eq(#e.dialogs, 0); eq(e.result.workspaces[1].id, "sp1")
+  package.loaded.shell.task = function(args, done)
+    eq(args[1], "hc"); eq(args[2], "ls")
+    done(true, '{"terminals":[{"address":"t1","agent":"pi","status":"idle"},{"address":"t2","agent":"python3","name":"watcher"}]}')
+  end
+  e.mod.handle(e.mod.decodeRelayRequest(frame(e.mod, {action = "list", kind = "agents", reply = reply})))
+  eq(#e.result.agents, 1); eq(e.result.agents[1].terminal, "t1")
   for _, badPath in ipairs({"/tmp/../reply.sock", "/tmp/other.sock", "/tmp/herdr-remote-a/reply.sock;id"}) do
     reply.socket = badPath
     eq(e.mod.decodeRelayRequest(frame(e.mod, {action = "list", kind = "tabs", reply = reply})), nil)
